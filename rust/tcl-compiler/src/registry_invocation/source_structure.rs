@@ -185,6 +185,21 @@ impl OriginalSourceRegistryContext {
         }
     }
 
+    /// Capture the fixed package-index survey's source context. Its realm
+    /// alone carries the survey-scoped conditional source control.
+    pub(crate) fn capture_package_index_survey(
+        source: &str,
+        input: crate::analyser::ResolvedAnalysisInput,
+    ) -> Self {
+        let (realm, input) =
+            crate::analyser::Analyser::readonly_package_index_survey_realm(source, input);
+        Self {
+            image: tcl_lexer::SourceImage::document(source),
+            input,
+            realm,
+        }
+    }
+
     pub(crate) fn retained_source_realm(&self) -> &crate::realm::CommandBindingRealm {
         &self.realm
     }

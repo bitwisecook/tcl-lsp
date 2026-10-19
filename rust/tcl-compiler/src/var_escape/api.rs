@@ -96,7 +96,7 @@ pub fn analyse_var_escape(
         BodyFrameId::Top(module.procedure_ids.module_id()),
         analyse_script(&module.top_level, std::iter::empty::<String>()),
     );
-    for (id, proc) in module.procedures.iter().chain(module.body_units.iter()) {
+    for (id, proc) in module.procedures.iter().chain(module.body_lowerings()) {
         result.insert(
             BodyFrameId::Body(*id),
             analyse_script(&proc.body, proc.params.iter().cloned()),
@@ -129,7 +129,7 @@ pub fn analyse_var_escape_with_registry(
         BodyFrameId::Top(module.procedure_ids.module_id()),
         analyse_script_with_registry(&module.top_level, std::iter::empty::<String>(), registry),
     );
-    for (id, proc) in module.procedures.iter().chain(module.body_units.iter()) {
+    for (id, proc) in module.procedures.iter().chain(module.body_lowerings()) {
         result.insert(
             BodyFrameId::Body(*id),
             analyse_script_with_registry(&proc.body, proc.params.iter().cloned(), registry),
@@ -176,7 +176,7 @@ pub fn analyse_var_escape_cu(
         .procedures
         .iter()
         .chain(cu.methods.iter())
-        .chain(cu.body_units.iter())
+        .chain(cu.body_lowering_functions())
     {
         result.insert(
             BodyFrameId::Body(*id),
@@ -186,7 +186,7 @@ pub fn analyse_var_escape_cu(
                 cu.ir_module
                     .procedures
                     .get(id)
-                    .or_else(|| cu.ir_module.body_units.get(id))
+                    .or_else(|| cu.ir_module.body_lowering(id))
                     .map(|body| body.params.clone())
                     .or_else(|| cu.ir_module.methods.get(id).map(|body| body.params.clone()))
                     .unwrap_or_default(),
@@ -226,13 +226,13 @@ pub fn analyse_var_escape_cu_with_registry(
         .procedures
         .iter()
         .chain(cu.methods.iter())
-        .chain(cu.body_units.iter())
+        .chain(cu.body_lowering_functions())
     {
         let params = cu
             .ir_module
             .procedures
             .get(qname)
-            .or_else(|| cu.ir_module.body_units.get(qname))
+            .or_else(|| cu.ir_module.body_lowering(qname))
             .map(|p| p.params.clone())
             .or_else(|| {
                 cu.ir_module

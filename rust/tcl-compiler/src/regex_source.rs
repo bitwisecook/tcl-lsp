@@ -103,7 +103,7 @@ pub fn regex_source_literal_spans(
     // are lowered to their own fresh-frame `FunctionUnit`s (§ Scope). Walking
     // them lets a `set re "…"; regexp $re` *inside* a lambda or namespace-eval
     // body track its def-site literal the same way a proc body does.
-    units.extend(cu.body_units.values());
+    units.extend(cu.body_lowering_functions().map(|(_, function)| function));
     for fu in units {
         collect_in_function(fu, module, registry, &mut spans);
     }

@@ -976,7 +976,7 @@ pub fn diagram_data_for_analysis(
         || module
             .procedures
             .keys()
-            .chain(module.body_units.keys())
+            .chain(module.body_lowerings().map(|(id, _)| id))
             .chain(module.methods.keys())
             .any(|id| !module.procedure_ids.owns(*id))
         || module

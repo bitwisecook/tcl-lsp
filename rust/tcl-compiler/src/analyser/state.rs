@@ -2054,12 +2054,60 @@ impl Analyser {
         crate::realm::CommandBindingRealm,
         super::input::ResolvedAnalysisInput,
     ) {
+        Self::readonly_realm(input, |analyser| analyser.document_command_realm(source))
+    }
+
+    /// The fixed package-index survey's readonly realm, with its scoped
+    /// conditional source control. Any input the survey realm declines keeps
+    /// the ordinary readonly source realm.
+    pub(crate) fn readonly_package_index_survey_realm(
+        source: &str,
+        input: super::input::ResolvedAnalysisInput,
+    ) -> (
+        crate::realm::CommandBindingRealm,
+        super::input::ResolvedAnalysisInput,
+    ) {
+        Self::readonly_realm(input, |analyser| {
+            analyser
+                .package_index_survey_realm(source)
+                .unwrap_or_else(|| analyser.document_command_realm(source))
+        })
+    }
+
+    fn readonly_realm(
+        input: super::input::ResolvedAnalysisInput,
+        realm: impl FnOnce(&Self) -> crate::realm::CommandBindingRealm,
+    ) -> (
+        crate::realm::CommandBindingRealm,
+        super::input::ResolvedAnalysisInput,
+    ) {
         let profile = input.analyser_profile();
         let mut analyser = Self::new().with_resolved_input(input);
         analyser.resolve_walk_environment(profile.name);
         analyser.registry = Some(analyser.profile_registry());
-        let realm = analyser.document_command_realm(source);
+        let realm = realm(&analyser);
         (realm, analyser.resolved_analysis_input())
+    }
+
+    fn package_index_survey_realm(
+        &self,
+        source: &str,
+    ) -> Option<crate::realm::CommandBindingRealm> {
+        if self.source_analysis_entry.is_some() {
+            return None;
+        }
+        let input = self.resolved_analysis_input();
+        let declarations = crate::command_binding::SourceDeclaredCommandContracts::for_document(
+            source,
+            self.file_path.as_deref(),
+            &input,
+            None,
+        );
+        crate::realm::document_package_index_survey_realm_with_resolved_input(
+            source,
+            &input,
+            &declarations,
+        )
     }
 
     pub(super) fn document_command_realm(&self, source: &str) -> crate::realm::CommandBindingRealm {

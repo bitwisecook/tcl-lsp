@@ -156,7 +156,9 @@ impl OriginalPackageIndexSourceSurvey {
         );
         let input = crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
         Self {
-            source: std::sync::Arc::new(OriginalSourceRegistryContext::capture(source, input)),
+            source: std::sync::Arc::new(
+                OriginalSourceRegistryContext::capture_package_index_survey(source, input),
+            ),
             ancestors: Vec::new(),
         }
     }
@@ -335,32 +337,55 @@ impl OriginalPackageIndexSourceSurvey {
         if script.text.bytes() != value.as_slice() {
             return None;
         }
+        let source = self.retained_body_source(&script)?;
+        let mut ancestors = self.ancestors.clone();
+        ancestors.push((std::sync::Arc::clone(&self.source), parent.clone()));
+        Some(OriginalPackageIndexRetainedBody {
+            survey: Self { source, ancestors },
+            script,
+            _parent_words: words,
+        })
+    }
+
+    /// The source context an entered body's survey borrows. A body of this
+    /// interpretation's own root origin selects these very bindings
+    /// (`selected_source` returns them unchanged), so it shares this context,
+    /// its realm and its prepared source advice instead of rebuilding them
+    /// once per nesting level. A derived origin selects its own bindings.
+    fn retained_body_source(
+        &self,
+        script: &crate::command_binding::ExecutedScriptSource,
+    ) -> Option<std::sync::Arc<OriginalSourceRegistryContext>> {
+        let image = script.origin.source_image();
+        let config = self.source.input.lexer_config();
+        if self.source.realm.source_bindings_ref().source_origin() == Some(&script.origin) {
+            return (self.source.image == *image
+                && self
+                    .source
+                    .realm
+                    .matches_original_source_image(image, config)
+                && self
+                    .source
+                    .realm
+                    .matches_resolved_analysis_input(&self.source.input))
+            .then(|| std::sync::Arc::clone(&self.source));
+        }
         let bindings = self
             .source
             .realm
             .source_bindings_ref()
-            .selected_source(&script)?;
+            .selected_source(script)?;
         let realm = crate::realm::original_logical_realm_from_source_bindings(&bindings)?;
-        let image = script.origin.source_image().clone();
-        if !realm.matches_original_source_image(&image, self.source.input.lexer_config())
+        if !realm.matches_original_source_image(image, config)
             || !realm.matches_resolved_analysis_input(&self.source.input)
         {
             return None;
         }
-        let mut ancestors = self.ancestors.clone();
-        ancestors.push((std::sync::Arc::clone(&self.source), parent.clone()));
-        Some(OriginalPackageIndexRetainedBody {
-            survey: Self {
-                source: std::sync::Arc::new(OriginalSourceRegistryContext {
-                    image,
-                    input: self.source.input.clone(),
-                    realm,
-                }),
-                ancestors,
-            },
-            script,
-            _parent_words: words,
-        })
+        Some(std::sync::Arc::new(OriginalSourceRegistryContext {
+            image: image.clone(),
+            input: self.source.input.clone(),
+            realm,
+        }))
     }
 
     /// Whole original braced Expr operand -> actual retained query descriptors,
@@ -687,6 +712,88 @@ mod retained_body_tests {
             assert_eq!(body.script(), expected);
         }
     }
+    /// The survey's conditional source control enters the selected body; the
+    /// general Logical context over the very same input does not. Both share
+    /// one generation, so they would share an authored-interpretation memo
+    /// key; each capture order is exercised.
+    #[test]
+    fn conditional_source_control_stays_inside_the_survey() {
+        let source = "if 1 {return}";
+        let registry = CommandRegistry::build_default();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        for survey_first in [true, false] {
+            let input = crate::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                std::sync::Arc::new(
+                    crate::environment_ingress::context_for_profile(profile)
+                        .with_command_store(registry.snapshot().shared_registry()),
+                ),
+                config,
+            );
+            let (survey, general) = if survey_first {
+                let survey = OriginalSourceRegistryContext::capture_package_index_survey(
+                    source,
+                    input.clone(),
+                );
+                (
+                    survey,
+                    OriginalSourceRegistryContext::capture(source, input),
+                )
+            } else {
+                let general = OriginalSourceRegistryContext::capture(source, input.clone());
+                (
+                    OriginalSourceRegistryContext::capture_package_index_survey(source, input),
+                    general,
+                )
+            };
+            let plan = tcl_lexer::native_script_words_in(
+                survey.image.clone(),
+                tcl_lexer::Span::new(0, source.len() as u32),
+                config,
+            )
+            .unwrap();
+            let survey = OriginalPackageIndexSourceSurvey {
+                source: std::sync::Arc::new(survey),
+                ancestors: Vec::new(),
+            };
+            let span = survey.command_words(&plan.commands[0]).unwrap().operands()[1]
+                .as_ref()
+                .unwrap()
+                .span();
+            assert!(
+                survey.source.realm.executed_script_for_word(span).is_some(),
+                "survey first: {survey_first}"
+            );
+            assert!(
+                general.realm.executed_script_for_word(span).is_none(),
+                "survey first: {survey_first}"
+            );
+        }
+    }
+
+    /// tclsh 8.4.20 to 9.1.0: `if 1 {set ::ran 1} else`, `… elseif` and
+    /// `… elseif 0` raise `wrong # args` before any clause runs, so `::ran`
+    /// stays unset; `… else {}` runs the first body. A malformed chain
+    /// therefore enters no body, while the complete chain does.
+    #[test]
+    fn malformed_first_match_chains_enter_no_body() {
+        for (source, entered) in [
+            ("if 1 {return} else", false),
+            ("if 1 {return} elseif", false),
+            ("if 1 {return} elseif 0", false),
+            ("if 1 {return} else {}", true),
+        ] {
+            let (survey, command) = capture(source);
+            assert_eq!(
+                survey.retained_body(&command, 1).is_some(),
+                entered,
+                "{source}"
+            );
+        }
+    }
+
     #[test]
     fn retained_body_refuses_inert_dynamic_and_foreign_vectors() {
         for source in ["set x {return}", "if 1 $body"] {

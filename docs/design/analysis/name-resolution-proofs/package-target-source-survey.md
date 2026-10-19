@@ -57,15 +57,60 @@ Every modelled source phase contributes to sticky coverage independently of cont
 
 Actually entered and decoded bodies borrow the source interpreter's genuine retained carrier and inherited source points. A missing carrier does not imply no source advertisement: unchanged original Body/Lambda geometry may be visited through the existing original source-body catalogue, which retains its parent graph and uncertainty debt. That syntax-only traversal disables control and target-model issuance and remains coverage-incomplete. It can preserve an Unavailable advertisement under a known-false parent without inventing an entered body.
 
-Captured-prefix origins and alias completeness remain unsupported. Non-braced unentered decoded source and unsupported source body geometry abstain. Legacy lexical helper code remains for compatibility controls and is not the live standalone authority. This candidate has not run old fixtures, controls, package integration tests or the 2000-wrapper timeout control. No timeout diagnosis or performance efficacy is claimed.
+Captured-prefix origins and alias completeness remain unsupported. Non-braced unentered decoded source and unsupported source body geometry abstain. No lexical helper code remains; the original-source Walker is the only standalone authority. This candidate has not run old fixtures, controls, package integration tests or the 2000-wrapper timeout control. No timeout diagnosis or performance efficacy is claimed.
 
 Source-mode branch geometry comes from the same selected descriptor's accepted complete ClausePlan and explicit FirstMatch selection. All-selection loops are never inferred to be if-chains from nearby Expr/Body roles. Role coverage also retains the selected shared resolver's completeness answer. Missing control premises retain their continuation uncertainty independently of census coverage; an impossible parent branch cannot donate that uncertainty to an outside reachable path. Original registration projection preserves the existing NUL-value refusal.
 
 Definite stop cardinality is separate from uncertain continuation conditions. Only a branch returning no continuation contributes to an all-branches-stop join. A branch that continues with new unknown debt leaves a possible outside path and cannot erase following source advertisements. The fixed source control for an unknown if/else with two opaque branches preserves a following Conditional advertisement; it has not been executed.
 
 
-The standalone consumer now exclusively uses the existing original-source Walker. Its superseded local ScriptWalker, nominal control/body heuristics and unused child reconstruction have been removed. Existing lexical parser probes for script/requirement geometry remain test-only, without production reachability authority. The production constant-guard acceptor still delegates to shared release-unanimous Boolean semantics; genuine target predicates remain issued by the retained source-model owner. Original assertions, external fixtures, limits and budgets are unchanged.
+The standalone consumer now exclusively uses the existing original-source Walker. Its superseded local ScriptWalker, nominal control/body heuristics and unused child reconstruction have been removed. No lexical parser probe for script or requirement geometry remains, in production or tests. The production constant-guard acceptor still delegates to shared release-unanimous Boolean semantics; genuine target predicates remain issued by the retained source-model owner. Original assertions, external fixtures, limits and budgets are unchanged.
 
+
+## Survey-scoped conditional source control
+
+The general Logical source model never enters script bodies: a command that
+no Logical owner closes takes the ordinary path and makes the model opaque.
+The fixed survey amends that contract for its own interpretation only.
+
+- **Who sets it.** `OriginalPackageIndexSourceSurvey::capture` builds its realm
+  through `OriginalSourceRegistryContext::capture_package_index_survey`, which
+  calls `SourceCommandBindings::analyse_package_index_survey`. That is the only
+  writer of the interpretation's conditional-source-control flag, and it
+  declines unless the options carry a positively retained Logical input (no
+  Native entry, naming recipe, hosted context or vendor input).
+- **Why it cannot leak.** The survey interpretation neither reads nor writes
+  the authored-interpretation memo, so a general Logical request over the same
+  source and input never receives it, and the survey never receives a general
+  one. The realm stays owned by the survey; retained bodies are selections of
+  that same realm. Bindings equality includes the flag.
+- **What it admits.** Only for an original Document invocation without a
+  compile error or unknown compiler, whose static head selects a single stock
+  builtin with no captured prefix:
+  - a descriptor whose Registry body flow is `Conditional` (first-match
+    clauses) and whose selected clause grammar yields a complete plan walks
+    its conditions in order and enters a body only when its condition is not
+    known false, as C Tcl does (`TclCompileIfCmd` / `Tcl_IfObjCmd`). C checks
+    the whole chain before running any clause, so `if 1 {…} else` and
+    `if 1 {…} elseif` enter nothing. Bodies are one level deeper under the
+    shared source nesting cap, as in the Native selected-body walk, and record
+    their genuine script carriers and dispatch points;
+  - a descriptor that is closed and quiet continues with its own Registry
+    completion route and an unchanged model. Closed and quiet means declared
+    empty state transitions, no callback, re-entry, frame effect or body
+    execution, no variable or script operand, and only current-interpreter
+    reads besides the invocation's own result and completion state.
+  Everything else, including decoded or derived bodies (non-Document origins),
+  keeps the ordinary path and its opacity. No Native handler, argv success,
+  physical provision or completion certificate follows.
+
+The one-argument `package provide` query and `package vsatisfies` are closed
+by Registry data, not by name: `PKG_PROVIDE` with one operand is a package
+table lookup and `PKG_VSATISFIES` only compares (`generic/tclPkg.c`, 8.4.20
+to 9.1.0). The provide query form replaces the registration descriptors with
+a package-state read, an explicit empty transition list and a read-only
+interpreter hint; the vsatisfies forms replace the inherited package-database
+hint with an empty one and the subcommand declares an empty transition list.
 
 ## Current index binding
 

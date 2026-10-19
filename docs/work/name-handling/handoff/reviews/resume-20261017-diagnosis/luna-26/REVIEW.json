@@ -1,0 +1,55 @@
+{
+  "reviewer": "Luna-26",
+  "reviewed": "scratchpad/agents/sol-21/{server102-103-snapshot.patch,server108-cache.patch,NOTES.md}",
+  "repo_head_at_review": "d6c3d5680 (was 19b8d7cc7 at start; `git diff 19b8d7cc7 HEAD -- rust/` is empty)",
+  "method": "static only; no cargo; repo untouched; git apply --cached --check under a temporary GIT_INDEX_FILE",
+  "apply_check": {"p1_on_head": "ok", "p2_on_head_plus_p1": "ok"},
+  "host_nproc": 4,
+  "patches": [
+    {
+      "patch": "server102-103-snapshot.patch",
+      "targets": ["Server102", "Server103"],
+      "verdict": "ADMIT-WITH-CONDITIONS",
+      "matches_user_decision": true,
+      "findings": [
+        "Snapshot shape is sound: open sources and the index view are captured atomically in open_but_unindexed_symbols (lib.rs:28489-28536); closed sources are revalidated against index revisions there. Rows are built only from captured data; finish only checks and filters. No live data reaches the response.",
+        "For an advanced document (live version > captured, revision not lower), only uri_generation, the live-buffer equality, the index-revision check and global DB revision are skipped. Still checked: epoch, factory generation, configuration values, Salsa handle, published receipt, path, analysis input (Arc::ptr_eq context), analysis self-consistency, provider receipts (with_current), deleted or closed.",
+        "Configuration is captured under the same db lock as input (patch hunk at capture_readonly_source_document).",
+        "Removing database_revision is covered by value checks. The fresh driver reads only config fields, which are all in DiagnosticConfigurationSnapshot (tcl-lsp-db lib.rs:748-777, server lib.rs:13695-13730, 10430). It also reads published class factories, guarded by class_factory_generation (lib.rs:6577-6595). document_analysis_input reads factories and subclass methods from the file, guarded by Arc::ptr_eq. Folder-config and pack changes bump diag_inputs_epoch (lib.rs:25248, 27324). An evaluator-epoch move is explicitly 'no verdict on answers already published' (lib.rs:5804-5811).",
+        "Invalidation cases: a configuration change is refused by value and by epoch. A URI-generation bump on a non-advanced document is refused. Close or rename (old URI removed) is refused. A deleted backing file is refused. A dialect re-resolution with no version advance bumps revision, so it is refused by strict equality. A dialect change on an advanced Database document is refused by input ptr_eq.",
+        "Gap 1 (minor, document it): with '>=' on revision, a close then reopen to a higher client version is accepted as advanced when the captured revision was 0. The 102/103 fixtures model the advance exactly this way: they insert with_version(...,2), which keeps revision 0, while a production did_change bumps revision. The captured answer is still self-consistent and receipt-checked, so this is not an invalid-snapshot answer. It does contradict NOTES' 'dropped only if deleted/closed'.",
+        "Gap 2 (policy, report to user): closed documents (version None) whose disk bytes or index revision change are still dropped. They have no version order, so this is treated as in-place replacement. It is defensible, but it is stricter than a literal reading of 'drop only if invalidated'.",
+        "Sibling tests read: 98-107 (lib.rs 61268-61900, 64964-65060), 128-133 (readonly_reference_reports.rs 3282-3600) and orphan 60168. All are predicted unchanged. 129, 130 and 131 still refuse via configuration value, configuration plus input ptr_eq, and index revision, epoch or raw equality. matches_current_state (code actions 140-143, coarse 157-161) is a behaviour-identical refactor. Reference, lens and hierarchy paths (69-72, 92-93, 96-97, 115-123) only gain a field that they do not read."
+      ],
+      "conditions": [
+        "Execute the targeted tests and their siblings: Server102, 103, 98-107, 128-133, 140-143, 157-161, 69-72, 92-97, 115-123. Then run make rust-check (clippy pedantic, owner-resolution). No result has been executed yet.",
+        "In the same change, update the contract prose. docs/design/contracts/name-handling.md section 'Workspace-symbol request input currency' (lines ~2060-2090) still says 'actual global DB revision' and 'validates each captured actual document revision'. docs/design/contracts/shared-utility-contracts-rust.md:637 says 'exact configuration/DB revision'. Both must describe the advanced-version rule and the value checks.",
+        "State the reopen-at-revision-0 acceptance in the open_document_advanced doc comment, or tighten it. Tightening would break the 102/103 fixtures as written, so documenting it is the right option. Surface Gap 2 to the user as a deliberate choice."
+      ]
+    },
+    {
+      "patch": "server108-cache.patch",
+      "targets": ["Server108"],
+      "verdict": "HOLD",
+      "matches_user_decision": false,
+      "findings": [
+        "Not the decided mechanism for the measured target. The Server108 fixture inserts version-less, Indexed open documents with no SourceFile (lib.rs:65033-65075). The memo path is never reached, and all 25 unchanged documents are still re-analysed. The flip comes only from buffered(min(nproc,16)) parallelism, which the user did not choose. The user's decision says to re-analyse only changed documents.",
+        "Hardware-dependent: it fails on 1 core. On this host nproc is 4, so about 7 rounds of ~6.5 s (debug, per sol-nextto-db/runs/t108.txt) plus the fixture. Under CI nextest parallelism the blocking threads compete with other tests. No run has been made.",
+        "NOTES is wrong that 'edits cancel them at item boundaries'. Live publication waits for an empty snapshot census before entering any Salsa setter, so no cancellation is triggered (lib.rs:1345-1355, 11434-11441, 11515-11526). Each memo read on a cold, closed hit file therefore delays every live edit publication until the analysis finishes. Base workspace/symbol held no Salsa snapshot.",
+        "file_analysis_incremental is lru=64 (tcl-lsp-db lib.rs:4206). A broad query that hits more than 64 closed files evicts the memos of open documents, which hover, semantic tokens and diagnostics rely on. Across keystrokes it thrashes with no reuse. This contradicts the warm contract that deep state is an open-document cost (lib.rs:29298-29315).",
+        "No global bound. buffered(k) bounds one request only. A cancelled or superseded request (Ctrl+T sends one per keystroke) leaves up to k detached spawn_blocking analyses; base left 1. The warm keeps its bound global through warm_task abort, and the scan uses run_bounded under a single owner.",
+        "Ordering, determinism and errors: buffered preserves hit order, and the first Err in hit order is returned. This matches the serial base, except that all captures now run before the error is reported. Lock order matches the serial path, and I found no new cycle.",
+        "The memo producer differs from the fresh driver: it sees external_call_sites and the per-file factories and subclass methods. The latter two are guarded by input ptr_eq and the factory generation. External call sites are not re-checked once DB revision equality is removed, and nothing argues that they cannot change symbol rows.",
+        "Sol-21's proposed fixture correction (db_set_source plus analysis_for) moves about 25 cold analyses into the fixture, under the same 180 s per-test budget. It is not shown to fit."
+      ],
+      "conditions_to_reconsider": [
+        "Take back to the user. The decided mechanism cannot flip Server108 as written, because the fixture documents hold no reusable cached analysis. The options are: (a) a fixture correction signed off by the user, with measured timing; (b) a cache owned by the index or the scan, which needs a contract decision because Sol-21 rejected it as weakening the source-owner contract; or (c) explicit approval of parallel capture as a separate mechanism, with a global semaphore.",
+        "If the memo reuse is kept, limit it to open (warm-covered) documents, or avoid holding census snapshots on cold closed files. Add a backend-wide bound on in-flight capture analyses. Update the shared-utility contract row, which currently says 'source-only analysis reuse makes no measured performance claim'."
+      ]
+    }
+  ],
+  "q3_fixture_reachability": {
+    "open_version_less_indexed_no_handle": "Statically unreachable for live open documents. Open documents are inserted only by did_open (with_version, Pending, path admission; lib.rs:30282-30290), and they reach Indexed only after Salsa publication. An open Indexed document with no input is a retired orphan, and orphans are skipped from symbols (lib.rs:28552-28560).",
+    "but": "The contracts (name-handling.md ~2072; shared-utility-contracts-rust.md:637; readonly_reference_reports.rs:39, 476) call 'no-handle' sources genuine. Sibling fixtures 103, 107 and 128-131 use the same no-handle Indexed shape as legitimate input. Declaring the 108 shape unreachable is therefore a contract-level call that applies to those siblings too. It needs user sign-off and cannot rest on lib.rs:955 alone."
+  }
+}

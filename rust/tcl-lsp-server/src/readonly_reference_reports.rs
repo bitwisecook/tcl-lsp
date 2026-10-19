@@ -18,6 +18,7 @@ struct OriginalReadonlyReferenceDocument {
     analysis: Arc<AnalysisResult>,
     file: tcl_lsp_db::SourceFile,
     config: tcl_lsp_db::AnalyserConfig,
+    configuration: tcl_lsp_db::DiagnosticConfigurationSnapshot,
     input: Arc<ResolvedAnalysisInput>,
     admission: Arc<DocumentPathAdmission>,
     publication: LibraryPublicationSource,
@@ -29,6 +30,8 @@ struct ReadonlySourceDocument {
     source: Arc<str>,
     file: tcl_lsp_db::SourceFile,
     config: tcl_lsp_db::AnalyserConfig,
+    /// Configuration values read under the same database lock as `input`.
+    configuration: tcl_lsp_db::DiagnosticConfigurationSnapshot,
     input: Arc<ResolvedAnalysisInput>,
     admission: Arc<DocumentPathAdmission>,
     publication: LibraryPublicationSource,
@@ -376,7 +379,7 @@ impl Backend {
         let Some(publication) = self.library_publication_source(&uri, document).await else {
             return Ok(None);
         };
-        let (file, input, admission, database_revision) = {
+        let (file, configuration, input, admission, database_revision) = {
             let db = self.db.lock().await;
             let files = self.db_files.lock().await;
             let Some(&file) = files.get(&uri) else {
@@ -408,6 +411,7 @@ impl Backend {
             };
             (
                 file,
+                config.diagnostic_report_configuration(&*db),
                 input,
                 retained.admission.clone(),
                 tcl_lsp_db::database_revision(&db),
@@ -418,6 +422,7 @@ impl Backend {
             source,
             file,
             config,
+            configuration,
             input,
             admission,
             publication,
@@ -438,6 +443,7 @@ impl Backend {
             source,
             file,
             config,
+            configuration,
             input,
             admission,
             publication,
@@ -463,6 +469,7 @@ impl Backend {
             analysis: seed.analysis,
             file,
             config,
+            configuration,
             input,
             admission,
             publication,
@@ -730,9 +737,14 @@ impl Backend {
         .await
     }
 
-    /// Project once while the actual full input/configuration, source/provider,
-    /// publication and per-document index revision remain held together. This
-    /// retains possible symbol advice, not a complete workspace absence census.
+    /// Project once while the request's captured snapshot remains valid: the
+    /// analyser-input epoch, factory generation, configuration and provider
+    /// receipts it was analysed under, and each document revision it captured.
+    /// A document whose client version advanced after capture keeps its
+    /// captured answer (#1854); one whose captured revision was replaced in
+    /// place, closed or deleted is withdrawn, and so is a closed document
+    /// whose disk read or index revision changed. This retains possible
+    /// symbol advice, not a complete workspace absence census.
     pub(super) async fn finish_workspace_symbol_response(
         &self,
         analyses: &std::collections::HashMap<String, Option<WorkspaceSymbolSourceAnalysis>>,
@@ -795,7 +807,7 @@ impl Backend {
                                 .get(*uri)
                                 .and_then(Option::as_ref)
                                 .is_some_and(|analysis| {
-                                    WorkspaceSymbolSourceAnalysis::matches_current_state(
+                                    WorkspaceSymbolSourceAnalysis::matches_request_snapshot(
                                         analysis,
                                         state,
                                         inputs_epoch,
@@ -823,25 +835,35 @@ impl Backend {
                     {
                         continue;
                     }
-                    if let Some(live) = state.open.get(uri) {
-                        if live.backing_file_deleted
-                            || live.revision != snapshot.revision
-                            || live.version != snapshot.version
-                            || live.raw() != snapshot.raw()
-                            || live.dialect != snapshot.dialect
-                            || live.path_admission != snapshot.path_admission
-                        {
-                            continue;
+                    let advanced = match state.open.get(uri) {
+                        Some(live) if live.backing_file_deleted => continue,
+                        // The buffer moved on after capture; its index entry
+                        // may follow it. The captured revision still answers.
+                        Some(live) if open_document_advanced(snapshot, live) => true,
+                        Some(live) => {
+                            if live.revision != snapshot.revision
+                                || live.version != snapshot.version
+                                || live.raw() != snapshot.raw()
+                                || live.dialect != snapshot.dialect
+                                || live.path_admission != snapshot.path_admission
+                            {
+                                continue;
+                            }
+                            false
                         }
-                    } else if snapshot.version.is_some() {
-                        continue;
-                    }
-                    match indexed_revision {
-                        Some(revision)
-                            if index.document_revision(uri.as_str()) == Some(*revision) => {}
-                        Some(_) => continue,
-                        None if index.contains_document(uri.as_str()) => continue,
-                        None => {}
+                        None if snapshot.version.is_some() => continue,
+                        None => false,
+                    };
+                    // An unchanged or closed document revision must still be
+                    // the one its captured index view describes.
+                    if !advanced {
+                        match indexed_revision {
+                            Some(revision)
+                                if index.document_revision(uri.as_str()) == Some(*revision) => {}
+                            Some(_) => continue,
+                            None if index.contains_document(uri.as_str()) => continue,
+                            None => {}
+                        }
                     }
                     current.push(symbol.clone());
                 }
@@ -1863,6 +1885,7 @@ impl OriginalReadonlyReferenceDocument {
             source: self.source.clone(),
             file: self.file,
             config: self.config,
+            configuration: self.configuration.clone(),
             input: self.input.clone(),
             admission: self.admission.clone(),
             publication: LibraryPublicationSource {
@@ -1878,6 +1901,59 @@ impl OriginalReadonlyReferenceDocument {
     fn matches_original_input(&self) -> bool {
         original_readonly_analysis_matches_input(&self.source, &self.analysis, &self.input)
     }
+
+    /// Workspace-symbol snapshot validity (#1854). The Salsa handle, provider
+    /// receipt, path, configuration values and analysis input must be the
+    /// captured ones; the database revision need not, so an unrelated write
+    /// or a later edit of this buffer keeps the captured answer. An unchanged
+    /// buffer, or a closed file, must still be the exact captured publication.
+    fn matches_request_snapshot(&self, state: &ReadonlySourceState<'_>) -> bool {
+        let current = state.open.get(&self.uri);
+        let advanced = self.publication.open_revision.is_some()
+            && current
+                .is_some_and(|current| open_document_advanced(&self.publication.document, current));
+        let publication_matches = if advanced {
+            current.is_some_and(|current| !current.backing_file_deleted)
+        } else {
+            self.publication.matches_open_documents(state.open)
+                && state
+                    .uri_generations
+                    .get(&self.uri)
+                    .copied()
+                    .unwrap_or_default()
+                    == self.publication.uri_generation
+                && self.file.text(state.db).as_str() == self.source.as_ref()
+                && self.file.dialect(state.db) == &self.publication.document.dialect
+        };
+        publication_matches
+            && self.matches_original_input()
+            && state.files.get(&self.uri) == Some(&self.file)
+            && state.published.get(&self.uri).is_some_and(|retained| {
+                retained.file == self.file && retained.admission.as_ref() == self.admission.as_ref()
+            })
+            && self.file.path(state.db).as_deref() == self.admission.analyser_path()
+            && self.config.diagnostic_report_configuration(state.db) == self.configuration
+            && with_pack_hooks(|| {
+                tcl_lsp_db::document_analysis_input(state.db, self.file, self.config)
+            })
+            .is_ok_and(|input| input.as_ref() == self.input.as_ref())
+    }
+}
+
+/// Whether `live` is a later client version of the open buffer `captured`
+/// named, without its local revision going backwards. Such a request answers
+/// from its captured revision (#1854); equal or regressed versions must still
+/// be that exact revision. A close and reopen at a higher version is accepted
+/// when the captured revision was 0, since reopening restarts at revision 0:
+/// the captured text and its own analysis still answer together, and the
+/// provider receipt is checked independently. A closed capture has no client
+/// version, so it never advances: a changed disk read or index revision for
+/// it withdraws the row deliberately.
+fn open_document_advanced(captured: &super::DocumentState, live: &super::DocumentState) -> bool {
+    matches!(
+        (captured.version, live.version),
+        (Some(captured_version), Some(live_version)) if live_version > captured_version
+    ) && live.revision >= captured.revision
 }
 
 fn code_action_document_matches(
@@ -1960,49 +2036,99 @@ impl WorkspaceSymbolSourceAnalysis {
             ),
             WorkspaceSymbolAnalysisKind::Fresh(document) => {
                 let open_matches = match state.open.get(&document.uri) {
-                    Some(current) if document.was_open => {
-                        (match document.purpose {
-                            FreshSourceAnalysisPurpose::ReadonlyComplete => {
-                                !current.backing_file_deleted
-                            }
-                            FreshSourceAnalysisPurpose::SemanticStructure => {
-                                current.backing_file_deleted
-                                    == document.snapshot.backing_file_deleted
-                            }
-                        }) && current.revision == document.snapshot.revision
-                            && current.version == document.snapshot.version
-                            && current.raw() == document.snapshot.raw()
-                            && current.dialect == document.snapshot.dialect
-                            && current.publication == document.snapshot.publication
-                            && current.path_admission == document.snapshot.path_admission
-                            && current.dialect_resolution_generation
-                                == document.snapshot.dialect_resolution_generation
-                            && current.resolved_dialect_generation
-                                == document.snapshot.resolved_dialect_generation
-                    }
+                    Some(current) if document.was_open => document.open_snapshot_matches(current),
                     None => !document.was_open,
                     Some(_) => false,
                 };
                 open_matches
-                    && document.seed.analyser_inputs_epoch == inputs_epoch
-                    && document.seed.class_factory_generation == factory_generation
-                    && document.uri_generation
-                        == state
-                            .uri_generations
-                            .get(&document.uri)
-                            .copied()
-                            .unwrap_or_default()
+                    && document.uri_generation_matches(state)
                     && tcl_lsp_db::database_revision(state.db) == document.database_revision
-                    && document.config.diagnostic_report_configuration(state.db)
-                        == document.configuration
-                    && document.seed.path_admission.uri() == &document.uri
-                    && original_readonly_analysis_matches_input(
-                        &document.snapshot.text,
-                        &document.seed.analysis,
-                        &document.input,
-                    )
+                    && document.matches_input_state(state, inputs_epoch, factory_generation)
             }
         }
+    }
+
+    /// Validity of this request's captured snapshot (#1854). Unlike
+    /// [`Self::matches_current_state`], a buffer whose client version advanced
+    /// after capture keeps its captured analysis, and unrelated database writes
+    /// do not withdraw it. A replaced, closed or deleted captured revision, and
+    /// any configuration, factory, epoch, provider or input change, still do.
+    fn matches_request_snapshot(
+        &self,
+        state: &ReadonlySourceState<'_>,
+        inputs_epoch: u64,
+        factory_generation: u64,
+    ) -> bool {
+        match &self.kind {
+            WorkspaceSymbolAnalysisKind::Database(document) => {
+                document.matches_request_snapshot(state)
+            }
+            WorkspaceSymbolAnalysisKind::Fresh(document) => {
+                let current = state.open.get(&document.uri);
+                let advanced = document.was_open
+                    && matches!(
+                        document.purpose,
+                        FreshSourceAnalysisPurpose::ReadonlyComplete
+                    )
+                    && current
+                        .is_some_and(|current| open_document_advanced(&document.snapshot, current));
+                let open_matches = match current {
+                    Some(current) if advanced => !current.backing_file_deleted,
+                    Some(current) if document.was_open => document.open_snapshot_matches(current),
+                    None => !document.was_open,
+                    Some(_) => false,
+                };
+                open_matches
+                    && (advanced || document.uri_generation_matches(state))
+                    && document.matches_input_state(state, inputs_epoch, factory_generation)
+            }
+        }
+    }
+}
+
+impl WorkspaceSymbolFreshInput {
+    fn open_snapshot_matches(&self, current: &super::DocumentState) -> bool {
+        (match self.purpose {
+            FreshSourceAnalysisPurpose::ReadonlyComplete => !current.backing_file_deleted,
+            FreshSourceAnalysisPurpose::SemanticStructure => {
+                current.backing_file_deleted == self.snapshot.backing_file_deleted
+            }
+        }) && current.revision == self.snapshot.revision
+            && current.version == self.snapshot.version
+            && current.raw() == self.snapshot.raw()
+            && current.dialect == self.snapshot.dialect
+            && current.publication == self.snapshot.publication
+            && current.path_admission == self.snapshot.path_admission
+            && current.dialect_resolution_generation == self.snapshot.dialect_resolution_generation
+            && current.resolved_dialect_generation == self.snapshot.resolved_dialect_generation
+    }
+
+    fn uri_generation_matches(&self, state: &ReadonlySourceState<'_>) -> bool {
+        self.uri_generation
+            == state
+                .uri_generations
+                .get(&self.uri)
+                .copied()
+                .unwrap_or_default()
+    }
+
+    /// The analysis still describes its own captured source under the
+    /// request's analyser inputs, configuration and provider receipt.
+    fn matches_input_state(
+        &self,
+        state: &ReadonlySourceState<'_>,
+        inputs_epoch: u64,
+        factory_generation: u64,
+    ) -> bool {
+        self.seed.analyser_inputs_epoch == inputs_epoch
+            && self.seed.class_factory_generation == factory_generation
+            && self.config.diagnostic_report_configuration(state.db) == self.configuration
+            && self.seed.path_admission.uri() == &self.uri
+            && original_readonly_analysis_matches_input(
+                &self.snapshot.text,
+                &self.seed.analysis,
+                &self.input,
+            )
     }
 }
 

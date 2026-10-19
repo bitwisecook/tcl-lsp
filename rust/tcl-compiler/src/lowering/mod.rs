@@ -7511,7 +7511,7 @@ fn populate_trace_facts(module: &mut Module, registry: &CommandRegistry, standal
         .procedures
         .values()
         .map(|p| p.body.clone())
-        .chain(module.body_units.values().map(|p| p.body.clone()))
+        .chain(module.body_lowerings().map(|(_, p)| p.body.clone()))
         .chain(module.methods.values().map(|m| m.body.clone()))
         .collect();
     for body in &bodies {

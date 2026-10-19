@@ -183,8 +183,7 @@ impl RetainedSourceModuleBindings {
                 .filter(|id| module.procedure_ids.owns(**id))
                 .filter_map(|id| {
                     module
-                        .body_units
-                        .get(id)
+                        .body_lowering(id)
                         .map(|procedure| (*id, OriginalProcedureSource::retain(procedure)))
                 })
                 .collect(),

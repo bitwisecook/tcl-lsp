@@ -60,9 +60,8 @@ impl EagerInvocations {
     pub(crate) fn of(ir_module: &Module, registry: &CommandRegistry) -> Self {
         let known: HashSet<ProcedureId> = ir_module.procedures.keys().copied().collect();
         let units: Vec<Span> = ir_module
-            .body_units
-            .values()
-            .map(|unit| unit.span)
+            .body_lowerings()
+            .map(|(_, unit)| unit.span)
             .collect();
         let walk = Walk {
             registry,
@@ -97,7 +96,7 @@ impl EagerInvocations {
             load.note(stmt.span().start(), reach);
         };
         crate::ir::for_each_statement(&ir_module.top_level, &mut |stmt| at(stmt));
-        for unit in ir_module.body_units.values() {
+        for (_, unit) in ir_module.body_lowerings() {
             if owner(unit.span).is_empty() {
                 crate::ir::for_each_statement(&unit.body, &mut |stmt| at(stmt));
             }
@@ -115,7 +114,7 @@ impl EagerInvocations {
                 walk.statement(stmt, reach);
             });
         }
-        for unit in ir_module.body_units.values() {
+        for (_, unit) in ir_module.body_lowerings() {
             for owner in owner(unit.span) {
                 let reach = bodies.entry(owner).or_default();
                 crate::ir::for_each_statement(&unit.body, &mut |stmt| {
@@ -255,8 +254,7 @@ pub(crate) fn definition_points(ir_module: &Module) -> HashMap<ProcedureId, u32>
         // The body a `namespace eval` runs is the widest unit the statement
         // holds; an `apply` lambda's is no `namespace eval` of the top level.
         let body = ir_module
-            .body_units
-            .iter()
+            .body_lowerings()
             .filter(|(_, unit)| encloses(span, unit.span))
             .max_by_key(|(_, unit)| unit.span.end() - unit.span.start());
         if let Some((qname, unit)) = body

@@ -1,0 +1,50 @@
+diff --git a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+index 4452e7203..08f9868fc 100644
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -65034,10 +65034,11 @@ proc p {} {
+         let backend = test_backend();
+         let over_the_cap = core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS + 25;
+         // The cap is a workspace-wide response contract, not a large-file
+-        // analyser test. Reuse one small, real analysis across enough indexed
+-        // documents to exceed the cap; a single 1,025-proc fixture made this
+-        // otherwise constant-time assertion pay the analyser's large-document
+-        // scaling cost on every CI run.
++        // analyser test. Enough small documents exceed the cap; a single
++        // 1,025-proc fixture made this otherwise constant-time assertion pay
++        // the analyser's large-document scaling cost on every CI run. Each
++        // document is published through Salsa as an open, indexed document,
++        // so the request reaches the production cache path.
+         let symbols_per_document = 41;
+         let document_count = over_the_cap.div_ceil(symbols_per_document);
+         let src = (0..symbols_per_document).fold(String::new(), |mut src, n| {
+@@ -65045,27 +65046,11 @@ proc p {} {
+             let _ = writeln!(src, "proc capped_{n} {{}} {{}}");
+             src
+         });
+-        let analysis = {
+-            let mut analyser = Analyser::new();
+-            analyser.analyse(&src, "tcl8.6").clone()
+-        };
+         let uris: Vec<Uri> = (0..document_count)
+             .map(|n| Uri::from_str(&format!("file:///w/many-{n}.tcl")).unwrap())
+             .collect();
+-        {
+-            let mut documents = backend.documents.lock("test").await;
+-            for uri in &uris {
+-                documents.insert(
+-                    uri.clone(),
+-                    DocumentState::new(src.clone(), "tcl8.6".to_owned()),
+-                );
+-            }
+-        }
+-        {
+-            let mut index = backend.workspace_index.write().await;
+-            for uri in &uris {
+-                index.add_document(uri.as_str(), &analysis);
+-            }
++        for uri in &uris {
++            register(&backend, uri, &src).await;
+         }
+ 
+         let found = backend

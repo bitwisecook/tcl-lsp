@@ -256,6 +256,7 @@ flowchart LR
         PD["procedures: ProcedureInventory"]
         ME["methods: MethodInventory"]
         BU["body_units: ProcedureInventory"]
+        CIL["carried_installed_lowerings: CarriedInstalledLowerings"]
     end
 
     MOD --- ir::Module
@@ -268,8 +269,14 @@ and `ProcedureBodyKind` retain body purpose independently of presentation.
 
 CFGs, compilation units, summaries and bytecode join those IDs while retaining
 their original source and lookup owners. `lambda_body_units` records exact body
-IDs for the supported lambda subset. Analysis inventories supply no callable
-installation, entered activation or Native compiler admission. See
+IDs for the supported lambda subset. C Tcl creates one command per evaluated
+`proc`, so when a readonly authored declaration body uniquely covers the
+Installed body of the same allocation, the authored body unit carries that
+Installed lowering in `carried_installed_lowerings`: one analysis unit, two
+lowerings, each under its own `ProcedureId` and Source SSA summary.
+`body_units` counts the units; `body_lowerings()` reaches every lowering.
+Analysis inventories supply no callable installation, entered activation or
+Native compiler admission. See
 [shared body ownership](name-resolution-implementer-guide.md#retain-body-identity-through-consumers).
 
 #### IR node hierarchy
@@ -680,6 +687,7 @@ flowchart TD
         PR["procedures: Map&lt;ProcedureId, FunctionUnit&gt;"]
         ME["methods: Map&lt;ProcedureId, FunctionUnit&gt;"]
         BU["body_units: Map&lt;ProcedureId, FunctionUnit&gt;"]
+        CIL["carried_installed_lowerings: Map&lt;ProcedureId, FunctionUnit&gt;"]
         CFGS["prepared source-body CFGs: Map&lt;ProcedureId, CfgFunction&gt;"]
         IP["interproc: Option&lt;InterproceduralAnalysis&gt;"]
         CO["connection_scope: Option&lt;ConnectionScope&gt;"]

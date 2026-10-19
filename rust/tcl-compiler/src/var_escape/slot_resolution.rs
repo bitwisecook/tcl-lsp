@@ -459,7 +459,7 @@ where
             && let Some(proc) = module
                 .procedures
                 .get(id)
-                .or_else(|| module.body_units.get(id))
+                .or_else(|| module.body_lowering(id))
         {
             let slots = assign_local_slots(&proc.body, summary, &proc.params);
             if slots.is_empty() {

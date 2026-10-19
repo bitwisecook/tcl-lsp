@@ -72,7 +72,7 @@ impl Analyser {
         let markers: Vec<tcl_lexer::Span> = std::iter::once(&cu.top_level)
             .chain(cu.procedures.values())
             .chain(cu.methods.values())
-            .chain(cu.body_units.values())
+            .chain(cu.body_lowering_functions().map(|(_, function)| function))
             .flat_map(|unit| unit.cfg.blocks.values())
             .flat_map(|block| &block.statements)
             .filter(|statement| crate::ssa::is_unseen_call_marker(statement))

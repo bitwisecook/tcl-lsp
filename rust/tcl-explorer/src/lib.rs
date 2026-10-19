@@ -176,8 +176,7 @@ impl ExplorerResult {
             })
             .chain(
                 self.unit
-                    .body_units
-                    .iter()
+                    .body_lowering_functions()
                     .map(|(_, unit)| FunctionSnapshot {
                         name: &unit.name,
                         kind: FunctionSnapshotKind::BodyUnit,

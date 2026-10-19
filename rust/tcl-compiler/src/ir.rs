@@ -45,7 +45,8 @@ mod source_bpf_command;
 pub use source_bpf_command::{SourceBpfCommand, SourceBpfModuleContext};
 mod procedure_identity;
 pub use procedure_identity::{
-    ProcedureBodyKind, ProcedureId, ProcedureIdIssuer, ProcedureInventory,
+    CarriedInstalledLowerings, ProcedureBodyKind, ProcedureId, ProcedureIdIssuer,
+    ProcedureInventory,
 };
 
 // Command tokens
@@ -2832,6 +2833,11 @@ pub struct Module {
     /// the tag nor the body unit installs a callable or licenses compilation.
     pub installed_procedure_body_units:
         std::collections::BTreeMap<ProcedureId, crate::command_binding::CommandAllocation>,
+    /// Installed lowerings carried by readonly authored units of
+    /// [`Self::body_units`], each still tagged in
+    /// [`Self::installed_procedure_body_units`] under its own body ID.
+    /// [`Self::body_lowerings`] reaches them; they are not analysis units.
+    pub carried_installed_lowerings: CarriedInstalledLowerings,
     /// Analysis-only units for original procedure declarations, independent
     /// of current installation or actual entry. Allocation, original source
     /// and namespace context retain their identity independently of the ID.
@@ -3265,6 +3271,35 @@ impl Module {
         let id = self.procedure_ids.allocate();
         self.body_units.insert(id, procedure);
         id
+    }
+
+    /// One body lowering: a body unit, or an Installed lowering a unit carries.
+    #[must_use]
+    pub fn body_lowering(&self, id: &ProcedureId) -> Option<&Procedure> {
+        self.body_units
+            .get(id)
+            .or_else(|| self.carried_installed_lowerings.get(id))
+    }
+
+    /// Every body lowering in issuance order: each body unit and each
+    /// Installed lowering a unit carries. [`Self::body_units`] alone holds
+    /// the analysis units.
+    pub fn body_lowerings(&self) -> impl Iterator<Item = (&ProcedureId, &Procedure)> {
+        // Both stores are ordered by ID; merge them without collecting.
+        let mut units = self.body_units.iter().peekable();
+        let mut carried = self.carried_installed_lowerings.lowerings().peekable();
+        std::iter::from_fn(move || {
+            let carried_first = match (units.peek(), carried.peek()) {
+                (Some((unit, _)), Some((lowering, _))) => lowering < unit,
+                (None, Some(_)) => true,
+                _ => false,
+            };
+            if carried_first {
+                carried.next()
+            } else {
+                units.next()
+            }
+        })
     }
 
     /// Checked analytical namespace key. Native component boundaries must

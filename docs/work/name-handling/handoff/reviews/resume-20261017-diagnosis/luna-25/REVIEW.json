@@ -1,0 +1,28 @@
+{
+  "reviewer": "Luna-25",
+  "subject": "sol-22/db921-merged-v1.patch",
+  "head": "0c3d7732e",
+  "apply_check_cached_temp_index": "OK",
+  "p_a_matches_head": true,
+  "cargo_run": false,
+  "verdict": "ADMIT-TO-BUILD",
+  "summary": "Merge sourced only from ReadonlyAuthoredCoverage (covers_installed_analysis_source: site, First incarnation, namespace, formals, origin, contiguous executed text); carried Installed lowering keeps ProcedureId, allocation tag, source_body_cfgs CFG, retained installed summary, FunctionUnit, executed_source. Independent rescan (124 non-test sites; extra one is build-time compilation_unit.rs:3992) found no consumer silently losing the Installed lowering and no newly admitting count gate; the four kept refusals verified. Equality strengthened; durable inventory and Explorer row added. Test corrections are the narrowest consistent with the decision. No likely compile errors spotted.",
+  "defects": [
+    {"id": "D1", "severity": "must-fix-before-land", "area": "soundness/fail-closed", "where": "readonly_authored_coverage.rs relate() Pairs mode", "issue": "shared detection counts only admitted Installed lowerings; a refused Installed lowering that also covers the same authored source does not block carrying the other one", "fix": "carry A<-I only if I is the sole installed_procedure_body_units entry with allocation.site == card.site(), or evaluate unique_authored_source for every Installed-tagged lowering regardless of admission and mark shared"},
+    {"id": "D2", "severity": "must-measure; fix-before-land", "area": "performance", "where": "classify_lowering -> CompilationUnit::original_procedure_cfg_for_body -> original_source_procedure_bodies().any()", "issue": "Theta(n^2) matches_procedure re-derivations (header re-derive + whole Script compare) on every standalone build with authored+installed maps; contradicts DESIGN section 3", "fix": "precompute original-body id set once per relate(); pub(crate) cfg accessor gated on it"},
+    {"id": "D3", "severity": "minor-perf", "where": "ir.rs Module::body_lowerings", "issue": "allocates+sorts per call; called per declaration (procedure_body_for_declaration) and per body (report_comparison)", "fix": "non-allocating merge of the two ID-sorted BTreeMaps"},
+    {"id": "D4", "severity": "docs-before-merge", "where": "name-resolution-implementer-guide.md:3896-3901; tracking docs; architecture.md long line", "issue": "doc still says Installed bodies live in Module::body_units; 4->2 test correction must be recorded"},
+    {"id": "D5", "severity": "measurement", "issue": "run coverage(4 tests), interprocedural, object_types, source_graph, ssa, tcl-lsp-db lib.rs:12034, explorer coverage, tcl-diagram, tcl-lsp-core graphs, spec-studio infer, xtask owner-resolution, make rust-check"}
+  ],
+  "pre_existing_notes": [
+    "tcl-explorer ARTIFACT_COVERAGE at HEAD lacks FunctionUnit::body_id, FunctionUnit::original_hosted_procedure_body, CompilationUnit::source_class_facts, CompilationUnit::source_body_cfgs; every_durable_field_is_reviewed_in_the_coverage_table should already be red - do not attribute to DB921"
+  ],
+  "optional": [
+    "Explorer: distinct snapshot kind or carrier annotation for carried lowerings",
+    "test 1: also assert unit.body_lowering_functions().count() == 4",
+    "spec-studio infer.rs:1095-1103 rename loop: include carried_installed_lowerings so it cannot go vacuous"
+  ],
+  "test_corrections_narrowest": true,
+  "gates_kept_refusing_verified": ["body_analysis_capsule source_body_inventory (both branches)", "object_types/report_comparison.rs:261", "optimiser/original_report.rs:182", "tcl-lsp-db lib.rs:3800 every_proc_keyed"],
+  "new_admitting_gates_found": []
+}

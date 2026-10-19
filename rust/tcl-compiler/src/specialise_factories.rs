@@ -52,6 +52,7 @@ pub fn specialise_factories_with_cap(module: &mut Module, _registry: &CommandReg
     for label in removed {
         module.installed_procedure_body_units.remove(&label);
         module.body_units.remove(&label);
+        module.carried_installed_lowerings.remove(&label);
         module.lambda_body_units.remove(&label);
     }
     let removed: Vec<_> = module

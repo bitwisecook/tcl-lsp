@@ -3672,6 +3672,14 @@ impl OriginalSourceAnalysisOwner {
     }
 }
 
+/// Segmentation purpose and the survey-only conditional source control of
+/// one whole-source interpretation.
+#[derive(Clone, Copy)]
+struct SourceInterpretationEntry {
+    purpose: tcl_lexer::SourceSegmentationPurpose,
+    logical_conditional_source_control: bool,
+}
+
 /// Retained source-point command and substitution proofs for one analysed script.
 #[derive(Debug, Clone, Default)]
 pub struct SourceCommandBindings {
@@ -3683,6 +3691,10 @@ pub struct SourceCommandBindings {
     original_source_operand_layouts:
         Arc<declaration_preview::OriginalDeclarationSourceOperandCache>,
     declaration_preview_depth: usize,
+    /// Survey-scoped Logical conditional source control. Only
+    /// `analyse_package_index_survey` sets it; see
+    /// `package_target_survey` for its exact admission.
+    logical_conditional_source_control: bool,
     compilation_scope: tcl_runtime_api::SourceCompilationScope,
     lexer_config: Option<tcl_lexer::LexerConfig>,
     declaration_layouts: SharedSourceInventory<declaration_layout::DeclarationLayouts>,
@@ -3768,6 +3780,7 @@ pub struct SourceCommandBindings {
 impl PartialEq for SourceCommandBindings {
     fn eq(&self, other: &Self) -> bool {
         self.declaration_preview_depth == other.declaration_preview_depth
+            && self.logical_conditional_source_control == other.logical_conditional_source_control
             && self.lexer_config == other.lexer_config
             && self.declaration_layouts == other.declaration_layouts
             && self.pre_handler_failures == other.pre_handler_failures
@@ -6970,7 +6983,41 @@ impl SourceCommandBindings {
     ) -> Option<Self> {
         let source = image.try_text().ok()?;
         Some(Self::analyse_source_in_frame_with_options(
-            source, image, frame, config, registry, options, purpose,
+            source,
+            image,
+            frame,
+            config,
+            registry,
+            options,
+            SourceInterpretationEntry {
+                purpose,
+                logical_conditional_source_control: false,
+            },
+        ))
+    }
+
+    /// Interpret the fixed package-index source survey's whole document under
+    /// its positively retained Logical input, entering first-match conditional
+    /// bodies as C Tcl selects them. This interpretation is never memoised, so
+    /// no general Logical consumer can receive it; other inputs decline.
+    pub(crate) fn analyse_package_index_survey(
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+        options: SourceAnalysisOptions<'_>,
+    ) -> Option<Self> {
+        options.retained_logical_source_input(registry, Some(config))?;
+        Some(Self::analyse_source_in_frame_with_options(
+            source,
+            &tcl_lexer::SourceImage::document(source),
+            &crate::var_resolve::VariableExecutionFrame::Global,
+            config,
+            registry,
+            options,
+            SourceInterpretationEntry {
+                purpose: tcl_lexer::SourceSegmentationPurpose::WholeInput,
+                logical_conditional_source_control: true,
+            },
         ))
     }
 
@@ -6981,8 +7028,12 @@ impl SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
         options: SourceAnalysisOptions<'_>,
-        purpose: tcl_lexer::SourceSegmentationPurpose,
+        entry: SourceInterpretationEntry,
     ) -> Self {
+        let SourceInterpretationEntry {
+            purpose,
+            logical_conditional_source_control,
+        } = entry;
         #[cfg(any(test, debug_assertions))]
         let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
             .is_some()
@@ -6993,9 +7044,14 @@ impl SourceCommandBindings {
         let query_start =
             phase_start.map(|_| original_command_table::original_source_query_totals());
         let config = options.native_lexer_config(config);
-        let memo_key = source_analysis_cache::SourceAnalysisCacheKey::at_entry(
-            image, frame, config, registry, options, purpose,
-        );
+        // The survey-scoped interpretation is never shared through the memo.
+        let memo_key = if logical_conditional_source_control {
+            None
+        } else {
+            source_analysis_cache::SourceAnalysisCacheKey::at_entry(
+                image, frame, config, registry, options, purpose,
+            )
+        };
         if let Some(mut bindings) = memo_key.as_ref().and_then(source_analysis_cache::lookup) {
             // Reused source facts retain a distinct attachment to this analysis call.
             bindings.original_analysis_owner = bindings
@@ -7009,6 +7065,7 @@ impl SourceCommandBindings {
         }
         let namespace = source_frame_namespace(frame);
         let mut bindings = Self {
+            logical_conditional_source_control,
             compilation_scope: options.compilation_scope,
             lexer_config: Some(config),
             ..Self::default()
@@ -9071,6 +9128,13 @@ impl SourceCommandBindings {
         } = input;
         if let Some(outcomes) =
             self.prepare_selected_source_command(input, state, compiled, context)
+        {
+            return *outcomes;
+        }
+        // Called here rather than from the preparation above, so that frame
+        // is gone before the survey's conditional descent recurses.
+        if let Some(outcomes) =
+            self.walk_logical_survey_command(segment, words, effective, compiled, state, context)
         {
             return *outcomes;
         }
@@ -17080,7 +17144,7 @@ impl RetainedBindingRoots {
         // text lowered under different command states cannot collide. The
         // binding walk selects one only from inside the invocation currently
         // being replayed.
-        let mut body_units: Vec<_> = module.body_units.iter().collect();
+        let mut body_units: Vec<_> = module.body_lowerings().collect();
         body_units.sort_by(|a, b| {
             a.1.span
                 .start()

@@ -142,7 +142,7 @@ pub fn procedure_body_for_declaration<'a>(
     let mut bodies = module
         .procedures
         .iter()
-        .chain(module.body_units.iter())
+        .chain(module.body_lowerings())
         .filter_map(|(id, procedure)| {
             (procedure.declaration_site.as_ref() == Some(declaration.declaration_site()))
                 .then_some(())?;

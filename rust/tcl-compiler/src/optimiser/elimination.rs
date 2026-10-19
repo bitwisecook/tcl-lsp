@@ -304,7 +304,7 @@ impl<'a> Defined<'a> {
         }
         if let Some(module) = ctx.ir_module
             && let Some(id) = fu.body_id
-            && let Some(unit) = module.body_units.get(&id)
+            && let Some(unit) = module.body_lowering(&id)
         {
             let run_by_a_procedure = module.procedures.values().any(|procedure| {
                 procedure.span.start() <= unit.span.start()

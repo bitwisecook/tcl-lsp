@@ -14,6 +14,21 @@ use tcl_registry::CommandRegistry;
 
 mod readonly_authored_coverage;
 
+/// Carry each Installed lowering that readonly authored coverage pairs with
+/// a readonly authored body unit in that unit. C Tcl creates one command per
+/// evaluated `proc`, so the pair is one analysis unit; the Installed lowering
+/// keeps its own body ID, function, prepared CFG and Source SSA summary.
+pub(crate) fn carry_readonly_authored_lowerings(
+    unit: &mut CompilationUnit,
+    registry: &CommandRegistry,
+) {
+    if let Some(coverage) =
+        readonly_authored_coverage::ReadonlyAuthoredCoverage::pairs(unit, registry)
+    {
+        coverage.carry(unit);
+    }
+}
+
 /// One actual body and its complete immutable compilation inputs.
 #[derive(Debug, Clone)]
 pub struct BodyAnalysisCapsule {
@@ -453,7 +468,7 @@ fn analytical_closed_projection(
         if authored_card.is_some() {
             readonly_authored_coverage::ReadonlyAuthoredCoverage::capture(unit, registry)
                 .is_some_and(|coverage| {
-                    unit.body_units.keys().all(|id| {
+                    unit.body_lowering_functions().all(|(id, _)| {
                         module
                             .original_authored_declaration_body_units
                             .contains_key(id)
@@ -461,7 +476,7 @@ fn analytical_closed_projection(
                     })
                 })
         } else {
-            unit.body_units.keys().all(|id| {
+            unit.body_lowering_functions().all(|(id, _)| {
                 module
                     .original_native_declaration_body_units
                     .contains_key(id)

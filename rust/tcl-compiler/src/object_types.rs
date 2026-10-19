@@ -992,12 +992,12 @@ fn procedure_implementation_units(
             .iter()
             .map(|parameter| parameter.name.as_str())
             .collect::<Vec<_>>();
-        for (name, unit) in cu.procedures.iter().chain(&cu.body_units) {
+        for (name, unit) in cu.procedures.iter().chain(cu.body_lowering_functions()) {
             let procedure = cu
                 .ir_module
                 .procedures
                 .get(name)
-                .or_else(|| cu.ir_module.body_units.get(name));
+                .or_else(|| cu.ir_module.body_lowering(name));
             let Some(procedure) = procedure else {
                 continue;
             };

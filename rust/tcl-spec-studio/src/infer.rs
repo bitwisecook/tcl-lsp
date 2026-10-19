@@ -274,7 +274,7 @@ fn facts_in(
     let Some(function) = unit
         .procedures
         .get(&id)
-        .or_else(|| unit.body_units.get(&id))
+        .or_else(|| unit.body_lowering_function(id))
     else {
         return InferredFacts::default();
     };

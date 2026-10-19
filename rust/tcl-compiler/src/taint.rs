@@ -4841,7 +4841,7 @@ pub fn shadowed_builtin_names_for_module_function(
         if let Some(procedure) = module
             .procedures
             .get(&id)
-            .or_else(|| module.body_units.get(&id))
+            .or_else(|| module.body_lowering(&id))
         {
             path(procedure.body.namespace_context.as_deref()?)?
         } else if let Some(method) = module.methods.get(&id) {

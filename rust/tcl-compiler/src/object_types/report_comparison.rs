@@ -258,7 +258,11 @@ impl ObjectHandleFacts {
                 let count = module
                     .procedures
                     .at_declaration(site)
-                    .chain(module.body_units.at_declaration(site))
+                    .chain(
+                        module
+                            .body_lowerings()
+                            .filter(|(_, body)| body.declaration_site.as_ref() == Some(site)),
+                    )
                     .count();
                 if count != 1 {
                     return;

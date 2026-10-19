@@ -78,6 +78,11 @@ pub const ARTIFACT_COVERAGE: &[ArtifactCoverage] = &[
         exclusion: None,
     },
     ArtifactCoverage {
+        artifact: "CompilationUnit::carried_installed_lowerings",
+        view: Some("semantic"),
+        exclusion: None,
+    },
+    ArtifactCoverage {
         artifact: "CompilationUnit::interproc",
         view: Some("interproc"),
         exclusion: None,

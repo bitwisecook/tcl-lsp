@@ -3797,10 +3797,14 @@ fn solve_optimisations<'db>(
         })
         .collect();
     let every_proc_keyed = source_bodies.iter().all(|id| lattice_keys.contains_key(id))
-        && cu.procedures.keys().chain(cu.body_units.keys()).all(|id| {
-            cu.original_procedure_for_body(*id).is_some()
-                && cu.function_for_body(Some(*id)).is_some()
-        });
+        && cu
+            .procedures
+            .keys()
+            .chain(cu.body_lowering_functions().map(|(id, _)| id))
+            .all(|id| {
+                cu.original_procedure_for_body(*id).is_some()
+                    && cu.function_for_body(Some(*id)).is_some()
+            });
     let is_irules = dialect.is_some_and(tcl_dialect::DialectProfile::is_irules);
     let dialect_opt = dialect;
     // The **argument-sensitive** O103 fold re-runs a *pure* callee's body with the

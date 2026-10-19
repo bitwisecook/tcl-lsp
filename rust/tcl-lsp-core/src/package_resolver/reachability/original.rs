@@ -620,8 +620,6 @@ impl Walker<'_, '_> {
             guard @ Guard::Constant(_) => guard,
             // Selected package-query syntax alone cannot establish that the
             // current Tcl package provision still equals the running release.
-            #[cfg(test)]
-            Guard::TclSatisfies { .. } => Guard::Unknown,
             Guard::SourceTarget(_) | Guard::Unknown => Guard::Unknown,
         }
     }

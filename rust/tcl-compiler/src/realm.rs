@@ -874,19 +874,7 @@ pub(crate) fn document_lexical_realm_with_resolved_input(
     // naming.minifier.logical-source-header
     // docs/design/analysis/name-resolution-proofs/minifier-logical-source-header.md
     let context = input.context_registry();
-    let mut dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
-    dialect.lexer_grammar = input.lexer_config().grammar_over(dialect.lexer_grammar);
-    dialect.word_values =
-        tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
-    let options = crate::command_binding::SourceAnalysisOptions {
-        metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
-            Some(input),
-        ),
-        invocation_dialect: Some(dialect),
-        logical_source_input: Some(input),
-        native_compilation: crate::environment_ingress::authoring_native_compilation(),
-        ..crate::command_binding::SourceAnalysisOptions::default()
-    };
+    let options = logical_source_options(input);
     let bindings = SourceCommandBindings::analyse_with_options(
         source,
         input.lexer_config(),
@@ -895,6 +883,49 @@ pub(crate) fn document_lexical_realm_with_resolved_input(
     );
     realm_from_source_bindings(bindings, context.commands())
         .with_resolved_analysis_input(input.clone())
+}
+
+/// The fixed package-index source survey's own realm: the same Logical
+/// source options as `document_lexical_realm_with_resolved_input`, with the
+/// survey-scoped conditional source control. Only the survey constructs it;
+/// a non-Logical or hosted input declines.
+pub(crate) fn document_package_index_survey_realm_with_resolved_input(
+    source: &str,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    declared: &crate::command_binding::SourceDeclaredCommandContracts,
+) -> Option<CommandBindingRealm> {
+    if input.has_hosted_source_name_context() || !input.has_logical_source_name_context() {
+        return None;
+    }
+    let context = input.context_registry();
+    let bindings = SourceCommandBindings::analyse_package_index_survey(
+        source,
+        input.lexer_config(),
+        context.commands(),
+        declared.with_options(logical_source_options(input)),
+    )?;
+    Some(
+        realm_from_source_bindings(bindings, context.commands())
+            .with_resolved_analysis_input(input.clone()),
+    )
+}
+
+fn logical_source_options(
+    input: &crate::analyser::ResolvedAnalysisInput,
+) -> crate::command_binding::SourceAnalysisOptions<'_> {
+    let mut dialect = tcl_registry::InvocationDialect::of_profile(input.unit_profile());
+    dialect.lexer_grammar = input.lexer_config().grammar_over(dialect.lexer_grammar);
+    dialect.word_values =
+        tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
+    crate::command_binding::SourceAnalysisOptions {
+        metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
+            Some(input),
+        ),
+        invocation_dialect: Some(dialect),
+        logical_source_input: Some(input),
+        native_compilation: crate::environment_ingress::authoring_native_compilation(),
+        ..crate::command_binding::SourceAnalysisOptions::default()
+    }
 }
 
 /// Retain the exact hosted editing input without borrowing the command

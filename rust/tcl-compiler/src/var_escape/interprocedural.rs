@@ -81,8 +81,7 @@ impl EscapeCallGraph {
         )
         .chain(
             module
-                .body_units
-                .iter()
+                .body_lowerings()
                 .map(|(id, body)| (BodyFrameId::Body(*id), &body.body)),
         )
         .chain(

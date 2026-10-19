@@ -215,7 +215,7 @@ impl CallSiteEvidence {
         let procedure = module
             .procedures
             .get(&id)
-            .or_else(|| module.body_units.get(&id))?;
+            .or_else(|| module.body_lowering(&id))?;
         let mut result = self.by_body.get(&id).cloned();
         if procedure
             .declaration_site
@@ -354,7 +354,7 @@ impl CallSiteEvidence {
     #[must_use]
     pub fn slice_for_module(&self, module: &IrModule) -> Self {
         let mut out = Self::default();
-        for (id, procedure) in module.procedures.iter().chain(module.body_units.iter()) {
+        for (id, procedure) in module.procedures.iter().chain(module.body_lowerings()) {
             if let Some(evidence) = self.by_body.get(id) {
                 out.by_body.insert(*id, evidence.clone());
                 out.body_labels
@@ -1788,7 +1788,7 @@ fn upframe_scan_bodies(ir_module: &IrModule) -> Vec<UpFrameCaller<'_>> {
     for procedure in ir_module
         .procedures
         .values()
-        .chain(ir_module.body_units.values())
+        .chain(ir_module.body_lowerings().map(|(_, procedure)| procedure))
     {
         collect_upframes(
             &procedure.body,
@@ -1953,7 +1953,7 @@ pub(crate) fn build_extra_call_site_scan_contexts(
                 requires_runtime_command_namespace,
             }
         })
-        .chain(ir_module.body_units.iter().map(|(id, unit)| {
+        .chain(ir_module.body_lowerings().map(|(id, unit)| {
             let execution_namespace = unit
                 .body
                 .execution_namespace(crate::ir::ExecutionNamespace::RuntimeSelected);
@@ -3080,7 +3080,7 @@ fn walk_module_scripts<'a>(
     for method in ir_module.methods.values() {
         walk_script(&method.body, visit);
     }
-    for unit in ir_module.body_units.values() {
+    for (_, unit) in ir_module.body_lowerings() {
         walk_script(&unit.body, visit);
     }
 }

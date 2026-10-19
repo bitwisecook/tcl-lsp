@@ -179,7 +179,7 @@ impl OriginalOptimiserAssembly {
             && cu
                 .procedures
                 .keys()
-                .chain(cu.body_units.keys())
+                .chain(cu.body_lowering_functions().map(|(id, _)| id))
                 .all(|id| required.contains(id));
         Self {
             unit: cu.clone(),
@@ -205,6 +205,7 @@ impl OriginalOptimiserAssembly {
         unit.procedures.clear();
         unit.methods.clear();
         unit.body_units.clear();
+        unit.carried_installed_lowerings.clear();
         unit.cfg_module.procedures.clear();
         unit
     }

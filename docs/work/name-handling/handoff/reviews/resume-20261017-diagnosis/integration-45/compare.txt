@@ -1,0 +1,31 @@
+core 102 {'PASS': 78, 'FAIL': 9, 'FAIL->PASS': 15} unrun: 0
+   FAIL->PASS package_resolver::reachability::source_survey_owner_tests::fixed_source_guard_retains_real_query_and_advertisement_dependencies lsp-46/additive21-tcl_lsp_core 0.46684073799951875 -> 0.496 rc 0
+   FAIL->PASS package_resolver::reachability::tests::a_constant_true_early_return_gates_the_declaration_1017 targeted-45a 0.52 -> 0.629 rc 0
+   FAIL->PASS package_resolver::reachability::tests::a_multi_requirement_vsatisfies_raises_on_tcl_8_4 targeted-45a 0.47 -> 2.029 rc 0
+   FAIL->PASS package_resolver::reachability::tests::a_non_terminating_guard_body_does_not_gate_what_follows targeted-45a 0.57 -> 0.761 rc 0
+   FAIL->PASS package_resolver::reachability::tests::a_patch_level_requirement_the_line_disagrees_about_stays_conditional targeted-45a 0.77 -> 1.782 rc 0
+   FAIL->PASS package_resolver::reachability::tests::a_satisfied_two_component_requirement_still_decides_beside_a_patch_level_one targeted-45a 0.57 -> 0.943 rc 0
+   FAIL->PASS package_resolver::reachability::tests::a_vsatisfies_early_return_gates_the_declaration_1017 targeted-45a 0.47 -> 0.841 rc 0
+   FAIL->PASS package_resolver::reachability::tests::an_elseif_chain_selects_one_arm_per_release targeted-45a 0.52 -> 0.67 rc 0
+   FAIL->PASS package_resolver::reachability::tests::any_registry_terminator_ends_the_index targeted-45a 0.47 -> 1.455 rc 0
+   FAIL->PASS package_resolver::reachability::tests::both_arms_of_a_tea_version_branch_declare_the_package_923_idx42 targeted-45a 0.57 -> 0.63 rc 0
+   FAIL->PASS package_resolver::reachability::tests::the_body_descent_leaves_top_level_declarations_alone lsp-46/original-tcl_lsp_core 0.7680441150005208 -> 0.911 rc 0
+   FAIL->PASS package_resolver::reachability::tests::the_tcllib_head_guard_admits_both_supported_releases targeted-45a 0.47 -> 0.897 rc 0
+   FAIL->PASS package_resolver::reachability::tests::the_then_noise_word_and_a_braceless_return_are_understood targeted-45a 0.52 -> 0.978 rc 0
+   FAIL->PASS package_resolver::reachability::tests::the_two_component_requirement_matrix_is_unchanged targeted-45a 0.57 -> 2.258 rc 0
+   FAIL->PASS package_resolver::reachability::tests::written_head_tests::authored_index_written_heads_keep_version_and_termination_conditions targeted-45a 0.62 -> 2.032 rc 0
+compiler 791 {'FAIL': 313, 'PASS': 472, 'NEW-PASS': 3, 'NEW-FAIL': 1, 'FAIL->PASS': 2} unrun: 0
+   NEW-PASS body_analysis_capsule::readonly_authored_coverage::tests::carried_lowerings_are_exactly_the_readonly_authored_pairs absent-at-HEAD None -> 0.667 rc 0
+   NEW-FAIL depth_guard::tests::package_survey_conditional_bodies_fit_the_shared_stack_budget absent-at-HEAD None -> 6.477 rc 101
+   NEW-PASS registry_invocation::source_structure::package_target_survey::retained_body_tests::conditional_source_control_stays_inside_the_survey absent-at-HEAD None -> 0.485 rc 0
+   NEW-PASS registry_invocation::source_structure::package_target_survey::retained_body_tests::malformed_first_match_chains_enter_no_body absent-at-HEAD None -> 0.749 rc 0
+   FAIL->PASS registry_invocation::source_structure::package_target_survey::retained_body_tests::retained_body_preserves_actual_script_mapping_and_input targeted-45a 0.42 -> 0.428 rc 0
+   FAIL->PASS registry_invocation::source_structure::package_target_survey::tests::logical_target_guard_uses_actual_queries_without_native_string_protocol targeted-45a 0.47 -> 0.532 rc 0
+registry 49 {'PASS': 45, 'NEW-PASS': 1, 'FAIL': 3} unrun: 0
+   NEW-PASS commands::tcl::package_::tests::provide_query_and_vsatisfies_are_closed_read_only_selections absent-at-HEAD None -> 0.028 rc 0
+db 200 {'PASS': 127, 'FAIL->PASS': 1, 'FAIL': 72} unrun: 0
+   FAIL->PASS original_optimiser_memo_transport_tests::a_legacy_lattice_key_cannot_replace_a_later_original_worker_request lsp-46/original-tcl_lsp_db 0.566989561999435 -> 0.431 rc 0
+explorer 140 {'FAIL': 73, 'PASS': 67} unrun: 0
+server 835 {'PASS': 664, 'FAIL': 169, 'FAIL->PASS': 2} unrun: 0
+   FAIL->PASS tests::workspace_symbols_do_not_mix_fallback_and_later_index_hits_1854 lsp-46/original-tcl_lsp_server 1.3205525850007689 -> 1.057 rc 0
+   FAIL->PASS tests::workspace_symbols_map_indexed_hits_through_captured_sources_1854 lsp-46/original-tcl_lsp_server 2.3249071760001243 -> 1.781 rc 0

@@ -765,8 +765,7 @@ impl Analyser {
                         .map(|(id, function)| (BodyFrameId::Body(*id), function)),
                 )
                 .chain(
-                    cu.body_units
-                        .iter()
+                    cu.body_lowering_functions()
                         .map(|(id, function)| (BodyFrameId::Body(*id), function)),
                 )
                 .collect();
@@ -824,7 +823,7 @@ impl Analyser {
                         .get(&id)
                         .map(|body| body.span)
                         .or_else(|| cu.ir_module.methods.get(&id).and_then(|body| body.span))
-                        .or_else(|| cu.ir_module.body_units.get(&id).map(|body| body.span));
+                        .or_else(|| cu.ir_module.body_lowering(&id).map(|body| body.span));
                     if let Some(span) = span {
                         ranges.push((owner, span.start(), span.end(), names));
                     }
@@ -952,7 +951,7 @@ impl Analyser {
             .ir_module
             .procedures
             .iter()
-            .chain(cu.ir_module.body_units.iter())
+            .chain(cu.ir_module.body_lowerings())
             .map(|(id, body)| {
                 (
                     body.span.start(),
@@ -2645,7 +2644,7 @@ fn build_tainted_by_scope(
         .procedures
         .iter()
         .chain(&cu.methods)
-        .chain(&cu.body_units)
+        .chain(cu.body_lowering_functions())
     {
         let names = tainted_names_of(fu);
         if !names.is_empty() {

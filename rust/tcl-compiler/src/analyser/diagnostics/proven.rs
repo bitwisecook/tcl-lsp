@@ -167,7 +167,7 @@ impl<'u> WordIndex<'u> {
         let units = std::iter::once(&cu.top_level)
             .chain(cu.procedures.values())
             .chain(cu.methods.values())
-            .chain(cu.body_units.values());
+            .chain(cu.body_lowering_functions().map(|(_, function)| function));
         let registry = surface.commands();
         if !cu
             .ir_module

@@ -435,7 +435,7 @@ pub fn scan_module_global_names(
     for method in ir_module.methods.values() {
         visit(&method.body);
     }
-    for body in ir_module.body_units.values() {
+    for (_, body) in ir_module.body_lowerings() {
         visit(&body.body);
     }
     names

@@ -105,7 +105,7 @@ pub(crate) fn scan_module(module: &Module, registry: &CommandRegistry) -> Deferr
     };
     let procedures = module.procedures.values().map(|proc| &proc.body);
     let methods = module.methods.values().map(|method| &method.body);
-    let units = module.body_units.values().map(|unit| &unit.body);
+    let units = module.body_lowerings().map(|(_, unit)| &unit.body);
     for script in std::iter::once(&module.top_level)
         .chain(procedures)
         .chain(methods)
@@ -134,7 +134,7 @@ fn include_original_callback_procedure_writes(
     let mut pending = vec![&module.top_level];
     pending.extend(module.procedures.values().map(|procedure| &procedure.body));
     pending.extend(module.methods.values().map(|method| &method.body));
-    pending.extend(module.body_units.values().map(|body| &body.body));
+    pending.extend(module.body_lowerings().map(|(_, body)| &body.body));
     while let Some(script) = pending.pop() {
         for statement in &script.statements {
             pending.extend(statement.child_scripts());

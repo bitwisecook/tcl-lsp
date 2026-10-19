@@ -529,36 +529,6 @@ mod written_head_tests;
 
 #[test]
 fn original_requirement_words_preserve_literal_wrappers_and_configured_values() {
-    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let config = tcl_lexer::LexerConfig::for_dialect(dialect);
-        for requirement in ["8.6", "{8.6}", r#""8.6""#, r"8\u002e6"] {
-            let script = format!("package vsatisfies [package provide Tcl] {requirement}");
-            let guard = super::parse_vsatisfies(&script, config);
-            assert!(
-                matches!(guard, super::Guard::TclSatisfies { requirements, negated: false }
-                    if requirements == ["8.6"]),
-                "{dialect}: {script}"
-            );
-        }
-        for requirement in [
-            "{{8.6}}",
-            r#"{"8.6"}"#,
-            r#"\"8.6\""#,
-            "$requirement",
-            "[list 8.6]",
-            "{*}{8.6}",
-            r#""8.${minor}""#,
-        ] {
-            let script = format!("package vsatisfies [package provide Tcl] {requirement}");
-            assert!(
-                matches!(
-                    super::parse_vsatisfies(&script, config),
-                    super::Guard::Unknown
-                ),
-                "{dialect}: {script}"
-            );
-        }
-    }
     for requirement in ["{{8.6}}", r#"{"8.6"}"#, r#"\"8.6\""#] {
         let source = format!(
             "if {{[package vsatisfies [package provide Tcl] {requirement}]}} {{return}}\npackage ifneeded retained 1.0 {{source retained.tcl}}"
@@ -604,27 +574,5 @@ fn configured_body_values_and_command_children_keep_distinct_original_grammar() 
             });
             assert_eq!(found, [Availability::Conditional], "{dialect}");
         }
-
-        let source = r#"if 1 "set kept \{literal\}""#;
-        let words = super::walk_command_words_with_config(source, config);
-        assert_eq!(
-            super::script_of(source, &words[0][2], config).as_deref(),
-            Some("set kept {literal}")
-        );
-        let source = r#"if 1 {set kept {{literal}}}"#;
-        let words = super::walk_command_words_with_config(source, config);
-        assert_eq!(
-            super::script_of(source, &words[0][2], config).as_deref(),
-            Some("set kept {{literal}}")
-        );
-        let source = r#"[format "%s" "]"]"#;
-        assert_eq!(
-            super::bracketed_body(source, config).as_deref(),
-            Some(r#"format "%s" "]""#)
-        );
-        assert!(super::bracketed_body("[a] + [b]", config).is_none());
-        assert!(super::bracketed_body("[a]tail", config).is_none());
-        assert!(super::bracketed_body("{[a]}", config).is_none());
-        assert!(super::script_of(source, &words[0][2], config).is_none());
     }
 }

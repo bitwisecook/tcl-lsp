@@ -1,0 +1,25 @@
+8.4.20 fixture: code 0 added ::sample
+  info procs sample=sample args=value body={puts $value}
+  two sites, same body text: code 0 added {::a ::b}
+  one site, two executed bodies: code 0 added ::p final body={puts 2}
+  same text, other namespace: code 0 added {::n::sample ::sample}
+8.5.19 fixture: code 0 added ::sample
+  info procs sample=sample args=value body={puts $value}
+  two sites, same body text: code 0 added {::a ::b}
+  one site, two executed bodies: code 0 added ::p final body={puts 2}
+  same text, other namespace: code 0 added {::n::sample ::sample}
+8.6.18 fixture: code 0 added ::sample
+  info procs sample=sample args=value body={puts $value}
+  two sites, same body text: code 0 added {::a ::b}
+  one site, two executed bodies: code 0 added ::p final body={puts 2}
+  same text, other namespace: code 0 added {::n::sample ::sample}
+9.0.4 fixture: code 0 added ::sample
+  info procs sample=sample args=value body={puts $value}
+  two sites, same body text: code 0 added {::a ::b}
+  one site, two executed bodies: code 0 added ::p final body={puts 2}
+  same text, other namespace: code 0 added {::n::sample ::sample}
+9.1.0 fixture: code 0 added ::sample
+  info procs sample=sample args=value body={puts $value}
+  two sites, same body text: code 0 added {::a ::b}
+  one site, two executed bodies: code 0 added ::p final body={puts 2}
+  same text, other namespace: code 0 added {::n::sample ::sample}

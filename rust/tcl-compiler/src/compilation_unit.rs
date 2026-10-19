@@ -691,6 +691,7 @@ pub(crate) mod durable_field_inventory {
         procedures,
         methods,
         body_units,
+        carried_installed_lowerings,
         source_body_cfgs,
         interproc,
         connection_scope,
@@ -2497,6 +2498,10 @@ pub struct CompilationUnit {
     /// Anonymous and selected-namespace body analyses keyed by retained body ID.
     /// [`Self::body_function_units`] exposes them with their actual source owners.
     pub body_units: HashMap<crate::ir::ProcedureId, FunctionUnit>,
+    /// Analyses of the Installed lowerings that readonly authored body units
+    /// carry, keyed by each lowering's own body ID. [`Self::body_units`]
+    /// holds the analysis units; [`Self::body_lowering_functions`] reaches both.
+    pub carried_installed_lowerings: HashMap<crate::ir::ProcedureId, FunctionUnit>,
     /// Genuine prepared child CFGs, retained before any function analysis.
     source_body_cfgs: HashMap<crate::ir::ProcedureId, CfgFunction>,
     /// Interprocedural summary (optional — populated when the
@@ -2535,6 +2540,7 @@ impl PartialEq for CompilationUnit {
             && self.procedures == other.procedures
             && self.methods == other.methods
             && self.body_units == other.body_units
+            && self.carried_installed_lowerings == other.carried_installed_lowerings
             && self.source_body_cfgs == other.source_body_cfgs
             && self.interproc == other.interproc
             && self.connection_scope == other.connection_scope
@@ -3333,6 +3339,7 @@ impl CompilationUnit {
             .chain(self.procedures.values())
             .chain(self.methods.values())
             .chain(self.body_units.values())
+            .chain(self.carried_installed_lowerings.values())
             .all(|function| function.original_lattice_callback_admission != Some(false))
     }
 
@@ -3372,6 +3379,7 @@ impl CompilationUnit {
                 source_entry: crate::command_binding::SourceAnalysisEntry::default(),
                 future_call_sites: Vec::new(),
                 installed_procedure_body_units: std::collections::BTreeMap::default(),
+                carried_installed_lowerings: crate::ir::CarriedInstalledLowerings::default(),
                 original_declaration_body_units: std::collections::BTreeMap::default(),
                 original_native_declaration_body_units: std::collections::BTreeMap::default(),
                 original_logical_declaration_body_units: std::collections::BTreeMap::default(),
@@ -3421,6 +3429,7 @@ impl CompilationUnit {
             procedures: HashMap::new(),
             methods: HashMap::new(),
             body_units: HashMap::new(),
+            carried_installed_lowerings: HashMap::new(),
             source_body_cfgs: HashMap::new(),
             interproc: None,
             connection_scope: None,
@@ -4023,6 +4032,7 @@ impl CompilationUnit {
             procedures,
             methods,
             body_units,
+            carried_installed_lowerings: HashMap::new(),
             source_body_cfgs,
             interproc: None,
             connection_scope,
@@ -4036,6 +4046,7 @@ impl CompilationUnit {
             declared_commands: options.declared_commands.cloned().unwrap_or_default(),
             transfers,
         };
+        crate::body_analysis_capsule::carry_readonly_authored_lowerings(&mut unit, registry);
         if lowering_integrity.get() && unit.original_lattice_callbacks_are_current() {
             unit.retain_original_optimiser_source_origin(
                 options,
@@ -4785,11 +4796,15 @@ impl CompilationUnit {
                 RetainedSemanticDepth::Full,
             );
         }
-        for (name, unit) in &mut self.body_units {
+        for (name, unit) in self
+            .body_units
+            .iter_mut()
+            .chain(&mut self.carried_installed_lowerings)
+        {
             unit.semantic_facts = FunctionUnit::semantic_facts_with_metadata(
                 registry,
                 unit.invocation_metadata_context_for_module(registry, &self.ir_module),
-                self.ir_module.body_units.get(name).map(|body| &body.body),
+                self.ir_module.body_lowering(name).map(|body| &body.body),
                 DispatchEntryAssumption::UnknownWorld,
                 RetainedSemanticDepth::Full,
             );
@@ -4847,8 +4862,12 @@ impl CompilationUnit {
                 DispatchEntryAssumption::UnknownWorld,
             );
         }
-        for (name, unit) in &mut self.body_units {
-            let Some(body) = self.ir_module.body_units.get(name) else {
+        for (name, unit) in self
+            .body_units
+            .iter_mut()
+            .chain(&mut self.carried_installed_lowerings)
+        {
+            let Some(body) = self.ir_module.body_lowering(name) else {
                 unit.semantic_facts = SemanticAnalysisBundle::unavailable(context);
                 continue;
             };
@@ -4877,6 +4896,7 @@ impl CompilationUnit {
             self.ir_module.procedures.contains_key(&id),
             self.ir_module.methods.contains_key(&id),
             self.ir_module.body_units.contains_key(&id),
+            self.ir_module.carried_installed_lowerings.contains_key(&id),
         ];
         if owners.into_iter().filter(|owns| *owns).count() != 1 {
             return None;
@@ -4890,6 +4910,10 @@ impl CompilationUnit {
             (
                 &self.body_units,
                 self.ir_module.body_units.contains_key(&id),
+            ),
+            (
+                &self.carried_installed_lowerings,
+                self.ir_module.carried_installed_lowerings.contains_key(&id),
             ),
         ];
         let mut functions = stores
@@ -4913,6 +4937,21 @@ impl CompilationUnit {
             .original_source_procedure_bodies()
             .any(|(body, _)| *body == id)
             .then_some(())?;
+        self.prepared_original_cfg(id)
+    }
+
+    /// [`Self::original_procedure_cfg_for_body`] against an original-body set
+    /// the caller computed once from `original_source_procedure_bodies`.
+    pub(crate) fn original_procedure_cfg_in(
+        &self,
+        id: crate::ir::ProcedureId,
+        original: &std::collections::BTreeSet<crate::ir::ProcedureId>,
+    ) -> Option<&CfgFunction> {
+        original.contains(&id).then_some(())?;
+        self.prepared_original_cfg(id)
+    }
+
+    fn prepared_original_cfg(&self, id: crate::ir::ProcedureId) -> Option<&CfgFunction> {
         if self.ir_module.procedures.contains_key(&id) {
             self.cfg_module.procedures.get(&id)
         } else {
@@ -4930,11 +4969,34 @@ impl CompilationUnit {
                 .ir_module
                 .installed_procedure_body_units
                 .contains_key(&id)
-            && self.ir_module.body_units.get(&id)?.body_kind
+            && self.ir_module.body_lowering(&id)?.body_kind
                 == crate::ir::ProcedureBodyKind::Installed
-            && self.body_units.get(&id)?.body_id == Some(id))
+            && self.body_lowering_function(id)?.body_id == Some(id))
         .then_some(())?;
         self.source_body_cfgs.get(&id)
+    }
+
+    /// The function of one body lowering, from the store its Module lowering
+    /// occupies: a body unit's, or a carried Installed lowering's.
+    #[must_use]
+    pub fn body_lowering_function(&self, id: crate::ir::ProcedureId) -> Option<&FunctionUnit> {
+        if self.ir_module.body_units.contains_key(&id) {
+            self.body_units.get(&id)
+        } else if self.ir_module.carried_installed_lowerings.contains_key(&id) {
+            self.carried_installed_lowerings.get(&id)
+        } else {
+            None
+        }
+    }
+
+    /// Every body lowering's function: each body unit, then each Installed
+    /// lowering a unit carries. [`Self::body_units`] alone counts the units.
+    pub fn body_lowering_functions(
+        &self,
+    ) -> impl Iterator<Item = (&crate::ir::ProcedureId, &FunctionUnit)> {
+        self.body_units
+            .iter()
+            .chain(&self.carried_installed_lowerings)
     }
 
     /// Actual original declaration, independently of whether it entered the runtime.
@@ -5022,9 +5084,8 @@ impl CompilationUnit {
             .iter()
             .filter_map(|(qname, fu)| Some((self.ir_module.methods.get(qname)?.span?, fu)));
         let bodies = self
-            .body_units
-            .iter()
-            .filter_map(|(qname, fu)| Some((self.ir_module.body_units.get(qname)?.span, fu)));
+            .body_lowering_functions()
+            .filter_map(|(qname, fu)| Some((self.ir_module.body_lowering(qname)?.span, fu)));
         let mut best: Option<(u32, &FunctionUnit)> = None;
         for (range, fu) in procs.chain(methods).chain(bodies) {
             if !(range.start() <= offset && offset <= range.end()) {
@@ -5225,7 +5286,7 @@ impl CompilationUnit {
         let mut extra: Vec<&FunctionUnit> = self
             .methods
             .values()
-            .chain(self.body_units.values())
+            .chain(self.body_lowering_functions().map(|(_, function)| function))
             .collect();
         extra.sort_by(|a, b| a.name.cmp(&b.name));
         self.functions().chain(extra)
@@ -5237,9 +5298,12 @@ impl CompilationUnit {
             .filter(|fu| !fu.complexity_guarded)
     }
 
-    /// Additional retained body units, ordered by reporting name.
+    /// Additional retained body lowerings, ordered by reporting name.
     pub fn body_function_units(&self) -> impl Iterator<Item = &FunctionUnit> {
-        let mut v: Vec<&FunctionUnit> = self.body_units.values().collect();
+        let mut v: Vec<&FunctionUnit> = self
+            .body_lowering_functions()
+            .map(|(_, function)| function)
+            .collect();
         v.sort_by(|a, b| a.name.cmp(&b.name));
         v.into_iter()
     }
@@ -5250,7 +5314,7 @@ impl CompilationUnit {
         let mut v: Vec<&FunctionUnit> = self
             .methods
             .values()
-            .chain(self.body_units.values())
+            .chain(self.body_lowering_functions().map(|(_, function)| function))
             .filter(|fu| !fu.complexity_guarded)
             .collect();
         v.sort_by(|a, b| a.name.cmp(&b.name));

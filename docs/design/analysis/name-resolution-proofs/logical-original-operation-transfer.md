@@ -16,6 +16,12 @@ transfer requires a positive actual retained Logical input, genuine whole Author
 
 ## Scope
 
+The general Logical model never enters script bodies. The single exception is
+the fixed package-index source survey's own interpretation, whose
+survey-scoped conditional source control is specified in
+[package-target-source-survey](package-target-source-survey.md); no other
+consumer can obtain that interpretation.
+
 Fixed source/API controls test static selected move/delete/scalar-head outcomes, captured alias composition and quiet scalar transfer with observer/foreign/missing-owner refusal. All seven providers are not tested. No C/Jim/BIG-IP interpreter stores or commands are executed by this proof; genuine full-source Logical W123 diagnostics are separate from Native head admission. Conditional original Unicode source heads and qualified definer aliases share the selected symbolic move/delete continuation. Native abrupt-edge classification and current runtime publication remain independent. Two additional software definitions retain conditional source-model continuation only. Native, worker, unknown or same-display foreign namespace, stale generations, changed configuration and missing full input refuse. No actual cell/store, physical frame, native naming/compiled recipe, Handler or Normal receipt follows. Three current query controls grant no Native execution target, handler envelope, compiler admission, evaluated argv, physical frame, cell contents or Normal completion. They are current source/API definitions without attached assertion results or original-provider observations.
 
 ## Provider answers

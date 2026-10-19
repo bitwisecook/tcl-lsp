@@ -170,6 +170,7 @@ impl OriginalOptimiserPreparedUnit {
         selected.procedures.clear();
         selected.methods.clear();
         selected.body_units.clear();
+        selected.carried_installed_lowerings.clear();
         selected.cfg_module.procedures.clear();
         selected.optimiser_source_owner = Some(Self::snapshot(
             &selected,

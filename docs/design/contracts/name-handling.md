@@ -2068,11 +2068,12 @@ and recreated per symbol. The query/cap remain presentation limits.
 
 Indexed published database documents borrow the existing
 OriginalReadonlyReferenceDocument owner: actual SourceFile, source/input/config,
-path/provider admission, DB revision and library publication. Genuine Pending,
+the diagnostic configuration values read under the same database lock as that
+input, path/provider admission and library publication. Genuine Pending,
 Salsa or no-handle source paths instead retain their actual FreshAnalysisSeed,
 full current ResolvedAnalysisInput/Realm, complete selected diagnostic config,
-actual global DB revision, input/factory epochs, URI publication generation,
-source snapshot and independently captured path admission. A missing SourceFile
+input/factory epochs, URI publication generation, source snapshot and
+independently captured path admission. A missing SourceFile
 is never manufactured and does not turn genuine pending, pathless, in-memory
 or Native source into absence. The pre-existing published orphan exclusion
 remains independent. Geometry-only closed reads resolve their genuine current
@@ -2086,9 +2087,31 @@ full-input checks through the selected SourceStore path/provider lease and the
 final synchronous response projection. DB input and full Fresh configuration
 checks happen once per selected URI before entering the provider callback,
 without releasing those guards. The symbol continuation takes a nonblocking
-index read under the established documents-to-index order and validates each
-captured actual document revision. Missing/busy/stale ownership is unavailable,
-not an empty workspace or declaration-absence certificate. The existing SourceStore path/provider
+index read under the established documents-to-index order. Missing/busy/stale
+ownership is unavailable, not an empty workspace or declaration-absence
+certificate.
+
+One request answers from one captured snapshot (#1854): the documents/index
+view and source snapshots `open_but_unindexed_symbols` takes atomically, and
+the analysis each URI captured from them. The final transaction refuses that
+snapshot only when it is itself invalid: a changed analyser-input epoch or
+factory generation, changed diagnostic configuration values, a changed
+document analysis input, Salsa handle, published path receipt or path, a
+withdrawn provider receipt, or an analysis that no longer matches its own
+captured source and input. The global database revision is not compared, so
+an unrelated write does not withdraw a row. An open buffer whose client
+version rose after capture, without its local revision going backwards, keeps
+its captured answer even though its live text, URI publication generation and
+index entry have moved on; only deleting or closing it withdraws the row.
+Because a reopen restarts at revision 0, a close and reopen at a higher version
+of a capture taken at revision 0 is accepted the same way. Every other row must
+still be the exact captured revision: live equality, URI publication
+generation, and the captured index revision (or continued absence from the
+index for a fallback row) are required. That includes closed files, which have
+no client version to order by; a closed file whose disk bytes or index
+revision changed during the request is withdrawn deliberately rather than
+answered from its older read. Code actions, coarse semantic tokens and readonly
+reference reports keep their strict live currency. The existing SourceStore path/provider
 contract does not invent a physical Native file-content lock. No runtime table,
 lookup, body/frame entry, Native, Normal or edit permission follows.
 
@@ -2547,7 +2570,7 @@ Existing source-action eligibility and evaluation guards remain independent.
 
 ### Package standalone source-survey consumer
 
-`naming.package.standalone-original-source-survey` transports genuine original Logical control/query/registration owners through the existing package reachability Walker. The declared standalone survey's target is hypothetical; selected source advertisements, guard relation, argv completion, actual Native provision and complete census stay independent. Entered body provenance and syntax-only catalogue lineage are distinct. Unknown source phases retain incomplete coverage; callback coordinate correspondence never donates source identity. See [package-target-source-survey](../analysis/name-resolution-proofs/package-target-source-survey.md). Runtime compatibility and full purpose admission require separate actual checks; this source candidate supplies no completion/count claim.
+`naming.package.standalone-original-source-survey` transports genuine original Logical control/query/registration owners through the existing package reachability Walker. The declared standalone survey's target is hypothetical; selected source advertisements, guard relation, argv completion, actual Native provision and complete census stay independent. Entered body provenance and syntax-only catalogue lineage are distinct. Unknown source phases retain incomplete coverage; callback coordinate correspondence never donates source identity. Only the survey's own interpretation enters first-match conditional bodies and continues closed, quiet Registry operations; general Logical consumers never do. See [package-target-source-survey](../analysis/name-resolution-proofs/package-target-source-survey.md). Runtime compatibility and full purpose admission require separate actual checks; this source candidate supplies no completion/count claim.
 
 ### Static TextMate variable display
 

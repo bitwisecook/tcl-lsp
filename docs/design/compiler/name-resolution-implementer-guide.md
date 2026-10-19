@@ -3901,6 +3901,18 @@ allocation. These tags are excluded from `executable_script_roots` and never
 enter `Module::procedures`. Missing child entry or compilation evidence stays
 unknown through the normal selected-source lowering path.
 
+C Tcl creates one command per evaluated `proc`. After the compilation unit is
+built, an Installed body that a readonly authored declaration body uniquely
+covers (`ReadonlyAuthoredCoverage`, through
+`OriginalAuthoredProcedureBody::covers_installed_analysis_source`) moves out of
+`body_units` into `Module::carried_installed_lowerings` and
+`CompilationUnit::carried_installed_lowerings`, carried by that authored unit.
+This happens only when it is the sole Installed body at that declaration site.
+It keeps its own `ProcedureId`, allocation tag, prepared CFG and Source SSA
+summary. `body_units` then counts analysis units once. `Module::body_lowerings`,
+`CompilationUnit::body_lowering_functions` and `function_for_body` reach both
+lowerings.
+
 `specialise_factories_with_cap` limits this metadata per actual allocation site.
 It preserves the original factory call, whose argument substitutions, declaration
 timing, callbacks, errors and result remain native. In particular, C Tcl's

@@ -327,12 +327,17 @@ const PREFER_VALUES: &[ArgValue] = &[
 /// subcommand arity at the legacy exact shape: the generic resolver falls
 /// back to it when no dialect-specific form accepts the call, while Tcl
 /// 8.5+ selects the variadic form for a longer requirement list.
+///
+/// `PKG_VSATISFIES` in `generic/tclPkg.c` (8.4.20 to 9.1.0) only parses and
+/// compares its operands, so each form replaces the command-level package
+/// database hint with an explicitly empty one.
 const VSATISFIES_FORMS: &[SubCommandForm] = &[
     SubCommandForm {
         name: "tcl8.4",
         source_package_query: Some(crate::source_navigation::SourcePackageQuery::VersionSatisfies),
         arity: Arity::exact(2),
         surface: Some(SpecSurface::TCL84),
+        side_effects: Some(&[]),
         ..SubCommandForm::DEFAULT
     },
     SubCommandForm {
@@ -340,9 +345,47 @@ const VSATISFIES_FORMS: &[SubCommandForm] = &[
         source_package_query: Some(crate::source_navigation::SourcePackageQuery::VersionSatisfies),
         arity: Arity::at_least(2),
         surface: Some(SpecSurface::TCL85_PLUS),
+        side_effects: Some(&[]),
         ..SubCommandForm::DEFAULT
     },
 ];
+
+/// `PKG_PROVIDE` in `generic/tclPkg.c` (8.4.20 to 9.1.0): with one package
+/// operand (`objc == 3`) the command only looks the name up in the package
+/// table and returns its provided version, or nothing. It never fails, runs
+/// no script and changes no state, so this form replaces the parent's
+/// registration descriptors with a closed read-only query.
+const PROVIDE_FORMS: &[SubCommandForm] = &[SubCommandForm {
+    name: "query",
+    source_package_query: Some(crate::source_navigation::SourcePackageQuery::ProvidedVersion),
+    arity: Arity::exact(1),
+    arg_roles: &[(0, ArgRole::Name)],
+    side_effects: Some(&[SideEffect {
+        target: SideEffectTarget::InterpState,
+        reads: true,
+        ..SideEffect::DEFAULT
+    }]),
+    world_effects: Some(WorldEffectDescriptor {
+        composition: crate::world_effect::WorldEffectComposition::Replace,
+        static_footprint: StaticEffectFootprint {
+            accesses: &[StaticEffectAccess::new(
+                WorldStateDomain::PackageState,
+                EffectAccessMode::Read,
+                StaticInterpreterScope::Current,
+                StaticNamespaceScope::Any,
+                StaticSubjectScope::Wildcard,
+            )],
+            callback: CallbackEffect::NONE,
+        },
+        ..WorldEffectDescriptor::EMPTY
+    }),
+    // Replace, so a dynamic package operand adds no package-state widening.
+    state_transitions: Some(StateTransitionDescriptor {
+        composition: StateTransitionComposition::Replace,
+        ..StateTransitionDescriptor::EMPTY
+    }),
+    ..SubCommandForm::DEFAULT
+}];
 
 static SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
@@ -478,6 +521,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // Reads, and in the setter form writes, only the package database;
         // `Tcl_PkgProvideEx` runs no script or handler.
         world_effects: Some(PACKAGE_REGISTRATION_EFFECTS),
+        subcommand_forms: PROVIDE_FORMS,
         arity: Arity::new(1, 2),
         detail: "Declares that version of package is now present in the interpreter; errors if a different version was already provided. With version omitted, returns the currently provided version, or an empty string if package has not been provided.",
         synopsis: "package provide package ?version?",
@@ -589,6 +633,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         pure: true,
         // Compares its operands only; no interpreter state or callback.
         world_effects: Some(WorldEffectDescriptor::EMPTY),
+        state_transitions: Some(StateTransitionDescriptor::EMPTY),
         return_type: Some(TclType::Boolean),
         subcommand_forms: VSATISFIES_FORMS,
         semantics: SemanticsDeclaration::Declared(
@@ -943,6 +988,103 @@ mod tests {
                 .arity
                 .accepts(2)
         );
+    }
+
+    /// `generic/tclPkg.c` 8.4.20 to 9.1.0: `package provide NAME` is a hash
+    /// lookup that returns the provided version or nothing, and
+    /// `package vsatisfies` only compares; `package provide NAME VERSION`
+    /// stays a registration.
+    #[test]
+    fn provide_query_and_vsatisfies_are_closed_read_only_selections() {
+        use crate::source_navigation::SourcePackageQuery;
+        use crate::world_effect::EffectAccessMode;
+        use crate::{
+            CallbackKinds, InvocationDialect, InvocationWord, InvocationWords, WorldStateDomain,
+        };
+        let registry = CommandRegistry::build_default();
+        for release in tcl_dialect::TclVersion::ALL {
+            let dialect = InvocationDialect::for_version(release);
+            let select = |words: InvocationWords<'_>| {
+                registry
+                    .resolve_structured_invocation(
+                        words.with_dialect(dialect),
+                        dialect.authoring_query(),
+                    )
+                    .resolved()
+                    .expect("selected package operation")
+                    .facts()
+            };
+            let mut closed_reads = vec![
+                select(InvocationWords::literals("package", &["provide", "Tcl"])),
+                select(InvocationWords::structured(
+                    InvocationWord::Literal("package"),
+                    &[InvocationWord::Literal("provide"), InvocationWord::Dynamic],
+                )),
+                select(InvocationWords::literals(
+                    "package",
+                    &["vsatisfies", "8.6", "8.5"],
+                )),
+            ];
+            if release != tcl_dialect::TclVersion::V8_4 {
+                closed_reads.push(select(InvocationWords::literals(
+                    "package",
+                    &["vsatisfies", "8.6", "8.5", "9"],
+                )));
+            }
+            for facts in closed_reads {
+                assert!(
+                    facts
+                        .state_transitions
+                        .declared()
+                        .expect("closed transitions")
+                        .facts()
+                        .is_empty(),
+                    "{release:?}"
+                );
+                assert_eq!(facts.effects.callback().kinds, CallbackKinds::NONE);
+                assert!(
+                    facts
+                        .effects
+                        .accesses()
+                        .iter()
+                        .all(|access| access.mode == EffectAccessMode::Read),
+                    "{release:?}"
+                );
+            }
+            let query = registry
+                .resolve_structured_invocation(
+                    InvocationWords::literals("package", &["provide", "Tcl"]).with_dialect(dialect),
+                    dialect.authoring_query(),
+                )
+                .resolved()
+                .expect("selected provide query");
+            assert_eq!(
+                query
+                    .authored_source_package_query()
+                    .map(|selected| selected.query),
+                Some(SourcePackageQuery::ProvidedVersion)
+            );
+            let setter = select(InvocationWords::literals(
+                "package",
+                &["provide", "p", "1.0"],
+            ));
+            assert!(
+                setter
+                    .effects
+                    .accesses()
+                    .iter()
+                    .any(|access| access.domain == WorldStateDomain::PackageState
+                        && access.mode == EffectAccessMode::ReadWrite)
+            );
+            assert!(
+                !setter
+                    .state_transitions
+                    .declared()
+                    .expect("declared package transitions")
+                    .facts()
+                    .is_empty()
+            );
+        }
     }
 
     #[test]

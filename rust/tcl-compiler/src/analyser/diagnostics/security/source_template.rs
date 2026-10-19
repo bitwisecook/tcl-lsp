@@ -93,7 +93,7 @@ impl Analyser {
         for unit in std::iter::once(&cu.top_level)
             .chain(cu.procedures.values())
             .chain(cu.methods.values())
-            .chain(cu.body_units.values())
+            .chain(cu.body_lowering_functions().map(|(_, function)| function))
         {
             let Some(metadata) = unit.invocation_metadata_context_for_module(registry, module)
             else {

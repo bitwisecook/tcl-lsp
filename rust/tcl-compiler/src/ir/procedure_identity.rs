@@ -153,6 +153,72 @@ impl<'a> IntoIterator for &'a mut ProcedureInventory {
     }
 }
 
+/// Installed lowerings carried by the readonly authored body unit of the same
+/// evaluated `proc`. C Tcl creates one command per evaluated `proc`, so the
+/// carrying unit is that command's one analysis unit; each carried lowering
+/// keeps its own Module-issued ID, which remains its Source SSA identity.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct CarriedInstalledLowerings(std::collections::BTreeMap<ProcedureId, CarriedLowering>);
+
+#[derive(Debug, Clone, PartialEq)]
+struct CarriedLowering {
+    unit: ProcedureId,
+    procedure: Procedure,
+}
+
+impl CarriedInstalledLowerings {
+    pub(crate) fn insert(&mut self, id: ProcedureId, unit: ProcedureId, procedure: Procedure) {
+        self.0.insert(id, CarriedLowering { unit, procedure });
+    }
+    /// Read one carried lowering under its own issued ID.
+    #[must_use]
+    pub fn get(&self, id: &ProcedureId) -> Option<&Procedure> {
+        self.0.get(id).map(|carried| &carried.procedure)
+    }
+    /// Mutate one carried lowering without changing its identity or unit.
+    pub fn get_mut(&mut self, id: &ProcedureId) -> Option<&mut Procedure> {
+        self.0.get_mut(id).map(|carried| &mut carried.procedure)
+    }
+    /// The body unit that carries this lowering.
+    #[must_use]
+    pub fn unit_of(&self, id: &ProcedureId) -> Option<ProcedureId> {
+        self.0.get(id).map(|carried| carried.unit)
+    }
+    /// Test exact lowering membership.
+    #[must_use]
+    pub fn contains_key(&self, id: &ProcedureId) -> bool {
+        self.0.contains_key(id)
+    }
+    /// Count carried lowerings; they are not analysis units.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+    /// Whether no unit carries an Installed lowering.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+    /// Remove every carried lowering.
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+    /// Remove one carried lowering, returning its carrying unit and body.
+    pub fn remove(&mut self, id: &ProcedureId) -> Option<(ProcedureId, Procedure)> {
+        self.0
+            .remove(id)
+            .map(|carried| (carried.unit, carried.procedure))
+    }
+    /// Traverse carried lowerings with their own issued IDs.
+    pub fn lowerings(&self) -> impl Iterator<Item = (&ProcedureId, &Procedure)> {
+        self.0.iter().map(|(id, carried)| (id, &carried.procedure))
+    }
+    /// Traverse carried lowering IDs in issuance order.
+    pub fn keys(&self) -> impl Iterator<Item = &ProcedureId> {
+        self.0.keys()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -201,6 +201,82 @@ mod tests {
         );
     }
 
+    fn nested_constant_if(levels: usize) -> String {
+        (0..levels)
+            .map(|_| "if {1} {\n")
+            .chain(std::iter::once("return\n"))
+            .chain((0..levels).map(|_| "}\n"))
+            .collect()
+    }
+
+    /// Body levels the package-index source survey enters, counted through
+    /// its retained-body lineage, on a thread of the shared walk budget.
+    fn package_survey_entered_levels(levels: usize) -> usize {
+        use crate::registry_invocation::source_structure::{
+            OriginalPackageIndexRetainedBody, OriginalPackageIndexSourceSurvey,
+        };
+        let source = nested_constant_if(levels);
+        std::thread::Builder::new()
+            .stack_size(
+                usize::try_from(MIN_SOURCE_WALK_STACK - SOURCE_WALK_STACK_RESERVE)
+                    .expect("stack budget fits usize"),
+            )
+            .spawn(move || {
+                let registry = tcl_registry::CommandRegistry::build_default();
+                let config = tcl_lexer::LexerConfig::for_profile(Some(
+                    tcl_dialect::DialectProfile::plain_tcl(),
+                ));
+                let root = OriginalPackageIndexSourceSurvey::capture(&source, &registry, config);
+                let whole =
+                    tcl_lexer::Span::new(0, u32::try_from(source.len()).expect("source fits u32"));
+                let mut body: Option<OriginalPackageIndexRetainedBody> = None;
+                let mut entered = 0;
+                loop {
+                    let next = {
+                        let (survey, span) = body.as_ref().map_or((&root, whole), |body| {
+                            let start = body.script().base();
+                            let length =
+                                u32::try_from(body.script().text.len()).expect("body fits u32");
+                            (body.survey(), tcl_lexer::Span::new(start, start + length))
+                        });
+                        let Ok(plan) = tcl_lexer::native_script_words_in(
+                            survey.source_image().clone(),
+                            span,
+                            config,
+                        ) else {
+                            break;
+                        };
+                        let Some(command) = plan.commands.first() else {
+                            break;
+                        };
+                        survey.retained_body(command, 1)
+                    };
+                    let Some(next) = next else {
+                        break;
+                    };
+                    body = Some(next);
+                    entered += 1;
+                }
+                entered
+            })
+            .expect("spawn budget-sized thread")
+            .join()
+            .expect("the survey's conditional descent must return rather than overflow")
+    }
+
+    /// The package-index survey's conditional source control adds its own
+    /// recursive chain (selected command, survey dispatch, conditional, body).
+    /// Below the cap it enters every proved body on the shared budget; far
+    /// past it the walk stops at the cap instead of overflowing. The body one
+    /// level past the cap is retained, but its contents are refused.
+    #[test]
+    fn package_survey_conditional_bodies_fit_the_shared_stack_budget() {
+        let cap = MAX_SOURCE_NEST_DEPTH.0 as usize;
+        assert_eq!(package_survey_entered_levels(cap - 2), cap - 2);
+        let over = package_survey_entered_levels(cap * 4);
+        assert!(over <= cap + 1, "entered {over} levels past the shared cap");
+    }
+
     /// Whether analysing `levels`-deep nesting reports having stopped.
     fn reports_over_depth(levels: usize) -> bool {
         crate::analyser::Analyser::new()

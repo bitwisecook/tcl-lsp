@@ -113,12 +113,8 @@
 //! and the caller decides what to do with `Conditional`.
 
 use tcl_dialect::{TclVersion, Ternary};
-#[cfg(test)]
-use tcl_lexer::TokenType;
 use tcl_lexer::{LexerConfig, NativeWord, SourceImage, Span, Token};
 use tcl_registry::CommandRegistry;
-#[cfg(test)]
-use tcl_syntax::naming::{canonical_written_command, unroot_rooted_key};
 
 use super::walk_command_words_with_config;
 #[cfg(test)]
@@ -475,61 +471,6 @@ impl OriginalScript {
     }
 }
 
-/// Authenticate a lexical word against the complete configured source plan.
-#[cfg(test)]
-fn original_data_word(text: &str, word: &[Token], config: LexerConfig) -> Option<NativeWord> {
-    let length = u32::try_from(text.len()).ok()?;
-    let plan = tcl_lexer::native_script_words_in_with_purpose(
-        SourceImage::document(text),
-        Span::new(0, length),
-        config,
-        tcl_lexer::SourceSegmentationPurpose::NestedScript,
-    )
-    .ok()?;
-    if plan.fatal_tail.is_some() {
-        return None;
-    }
-    let mut matching = plan
-        .commands
-        .iter()
-        .flat_map(|command| &command.words)
-        .filter(|original| original.tokens() == word);
-    let original = matching.next()?;
-    matching.next().is_none().then(|| original.clone())
-}
-
-/// Decode a static Body or Expr operand once, before reading its script data.
-#[cfg(test)]
-fn script_of(text: &str, word: &[Token], config: LexerConfig) -> Option<String> {
-    let original = original_data_word(text, word, config)?;
-    String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
-        &original,
-    )?)
-    .ok()
-}
-
-/// A whole command substitution contributes its original script, not its result.
-#[cfg(test)]
-fn command_source(text: &str, word: &[Token], config: LexerConfig) -> Option<String> {
-    let original = original_data_word(text, word, config)?;
-    if original.group().expand || original.group().kind != tcl_lexer::WordKind::Bare {
-        return None;
-    }
-    let arena = original.executable_parts();
-    let [part] = arena.list(arena.root()) else {
-        return None;
-    };
-    let tcl_lexer::ExecutablePart::Command { body } = part.part else {
-        return None;
-    };
-    if part.span != original.word_span() {
-        return None;
-    }
-    std::str::from_utf8(original.image().bytes().get(body.as_range())?)
-        .ok()
-        .map(str::to_owned)
-}
-
 /// What an `if` chain does to control flow.
 enum AfterIf {
     /// The command's words are not a clause chain this can read (a malformed
@@ -547,13 +488,6 @@ enum Guard {
     SourceTarget(SourceTargetCondition),
     /// A literal boolean (`1`, `0`, `true`, `off`, …).
     Constant(bool),
-    /// `package vsatisfies [package provide Tcl] REQ …`, `negated` when
-    /// written under a leading `!`.
-    #[cfg(test)]
-    TclSatisfies {
-        requirements: Vec<String>,
-        negated: bool,
-    },
     /// Anything else.
     Unknown,
 }
@@ -568,9 +502,6 @@ impl Guard {
                 expect: expect != condition.receipt.negated(),
             })),
             Self::Constant(value) => (*value != expect).then_some(Condition::Impossible),
-            // A lexical probe result carries no source-query receipt.
-            #[cfg(test)]
-            Self::TclSatisfies { .. } => Some(Condition::Undecidable),
             Self::Unknown => Some(Condition::Undecidable),
         }
     }
@@ -589,130 +520,6 @@ fn constant_guard(expr: &str, _config: LexerConfig) -> Guard {
         Some(value) => Guard::Constant(value != negated),
         None => Guard::Unknown,
     }
-}
-
-/// The inner text of `expr` when it is exactly one `[...]` substitution.
-#[cfg(test)]
-fn bracketed_body(expr: &str, config: LexerConfig) -> Option<String> {
-    let commands = walk_command_words_with_config(expr, config);
-    let [words] = commands.as_slice() else {
-        return None;
-    };
-    let [word] = words.as_slice() else {
-        return None;
-    };
-    let original = original_data_word(expr, word, config)?;
-    if original.word_span() != Span::new(0, u32::try_from(expr.len()).ok()?) {
-        return None;
-    }
-    command_source(expr, word, config)
-}
-
-/// Read `package vsatisfies [package provide Tcl] REQ …` — the only
-/// non-constant test this scan evaluates.
-///
-/// The subject must be a `[package provide Tcl]` or `[package require Tcl]`
-/// substitution: a `vsatisfies` over some *other* package says nothing about
-/// the Tcl release, and guessing there would be worse than abstaining.
-#[cfg(test)]
-fn parse_vsatisfies(script: &str, config: LexerConfig) -> Guard {
-    let commands = walk_command_words_with_config(script, config);
-    let [words] = commands.as_slice() else {
-        return Guard::Unknown;
-    };
-    if words.len() < 4 {
-        return Guard::Unknown;
-    }
-    let written_head = canonical_written_command(word_raw(script, &words[0]));
-    if unroot_rooted_key(&written_head).unwrap_or(&written_head) != "package"
-        || word_raw(script, &words[1]) != "vsatisfies"
-    {
-        return Guard::Unknown;
-    }
-    if !is_tcl_version_subject(script, &words[2], config) {
-        return Guard::Unknown;
-    }
-    let Ok(length) = u32::try_from(script.len()) else {
-        return Guard::Unknown;
-    };
-    let Ok(plan) = tcl_lexer::native_script_words_in_with_purpose(
-        SourceImage::document(script),
-        Span::new(0, length),
-        config,
-        tcl_lexer::SourceSegmentationPurpose::NestedScript,
-    ) else {
-        return Guard::Unknown;
-    };
-    let [command] = plan.commands.as_slice() else {
-        return Guard::Unknown;
-    };
-    if plan.fatal_tail.is_some()
-        || command.words.len() != words.len()
-        || command
-            .words
-            .iter()
-            .zip(words)
-            .any(|(original, tokens)| original.tokens() != tokens.as_slice())
-    {
-        return Guard::Unknown;
-    }
-    let Some(requirements) = command.words[3..]
-        .iter()
-        .map(|word| {
-            String::from_utf8(tcl_syntax::word_rules::original_static_word_unicode_value(
-                word,
-            )?)
-            .ok()
-        })
-        .collect::<Option<Vec<_>>>()
-    else {
-        return Guard::Unknown;
-    };
-    if requirements.iter().any(|r| !is_requirement_word(r)) {
-        return Guard::Unknown;
-    }
-    Guard::TclSatisfies {
-        requirements,
-        negated: false,
-    }
-}
-
-/// Whether `word` is `[package provide Tcl]` / `[package require Tcl]` — the
-/// running interpreter's own version.
-#[cfg(test)]
-fn is_tcl_version_subject(script: &str, word: &[Token], config: LexerConfig) -> bool {
-    if word.len() != 1 || word[0].kind != TokenType::Cmd {
-        return false;
-    }
-    let Some(inner) = command_source(script, word, config) else {
-        return false;
-    };
-    let commands = walk_command_words_with_config(&inner, config);
-    let [words] = commands.as_slice() else {
-        return false;
-    };
-    if words.len() != 3 {
-        return false;
-    }
-    let written_head = canonical_written_command(word_raw(&inner, &words[0]));
-    unroot_rooted_key(&written_head).unwrap_or(&written_head) == "package"
-        && matches!(word_raw(&inner, &words[1]), "provide" | "require")
-        // `Tcl` is matched case-sensitively — `tk` and the lowercase `tcl`
-        // alias are other packages.
-        && word_raw(&inner, &words[2]) == "Tcl"
-}
-
-/// Whether `word` has the shape of a version requirement (`8.5`, `9-`,
-/// `8.5-9.0`) rather than a substitution or an option flag.
-#[cfg(test)]
-fn is_requirement_word(word: &str) -> bool {
-    !word.is_empty()
-        && !word.starts_with('$')
-        && !word.starts_with('[')
-        && !word.starts_with('-')
-        && word
-            .bytes()
-            .all(|b| b.is_ascii_digit() || b == b'.' || b == b'-' || b == b'a' || b == b'b')
 }
 
 #[cfg(test)]

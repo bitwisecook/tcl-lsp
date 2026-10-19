@@ -1075917,16 +1075917,6 @@
           "path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
           "symbol": "Walker::control",
           "purpose": "Actual selected invocation completion and typed source-control premises supersede body_may_terminate; unavailable completion cannot prune and source survey does not issue Native success."
-        },
-        {
-          "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
-          "symbol": "parse_vsatisfies",
-          "purpose": "Require the existing Tcl-package subject and actual version-requirement geometry under authored written-head projection."
-        },
-        {
-          "path": "rust/tcl-lsp-core/src/package_resolver/reachability.rs",
-          "symbol": "is_tcl_version_subject",
-          "purpose": "Project only the complete written package head in the existing exact provide/require Tcl subject; other packages or malformed/dynamic subjects decline this guard."
         }
       ],
       "tests": [
