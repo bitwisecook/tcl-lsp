@@ -1,0 +1,9 @@
+{
+ "recorded_utc": "2026-10-19T07:10Z",
+ "source": "User answers in chat (AskUserQuestion)",
+ "decisions": {
+  "server108": "Profile and reduce per-document analysis cost; keep the original fixture and the 180 s budget; cached reuse only for open warm documents. The Salsa-published fixture change (measured 368-377 s) is not applied.",
+  "source_order_entry_script": "Assume a sourced file is not also an entry script, except files with a `#!` line or that read argv0 (those prove nothing). Stated in the contract (SourceOrderPremises UnlessMarked).",
+  "source_order_working_directory": "Anchored paths only: an absolute path or [file join [file dirname [info script]] ...] proves order; a relative literal `source` proves nothing. The both_tiers loader fixture is written in the anchored form."
+ }
+}
