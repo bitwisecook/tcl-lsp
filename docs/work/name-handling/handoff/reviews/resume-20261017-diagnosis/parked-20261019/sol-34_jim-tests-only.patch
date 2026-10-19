@@ -1,0 +1,243 @@
+--- a/rust/tcl-spectcl/tests/jim_own_surface.rs
++++ b/rust/tcl-spectcl/tests/jim_own_surface.rs
+@@ -22,12 +22,14 @@
+ //! environment sees any of it.
+ 
+ use std::collections::BTreeSet;
++use std::path::PathBuf;
+ 
+ use tcl_dialect::model::{Family, SpecProvider, SurfaceQuery, surface_admits};
+ use tcl_registry::ArgRole;
+ use tcl_registry::definer::DefinerFamily;
+ use tcl_registry::model::resolve_environment;
+ use tcl_registry::spec::CommandSpec;
++use tcl_spectcl::discovery::{Origin, PackFile, Tier};
+ 
+ /// The releases on Jim's ladder.
+ const LADDER: &[&str] = &[
+@@ -374,3 +376,106 @@
+         assert!(generation.resolve_command(name).is_some(), "{name}");
+     }
+ }
++
++/// Heads only `jimsh` has, which no other shipped surface declares under the
++/// same name, so a store either resolves each to its jim row or not at all.
++const JIM_ONLY: &[&str] = &[
++    "local",
++    "upcall",
++    "stackdump",
++    "getref",
++    "setref",
++    "ref",
++    "finalize",
++    "curry",
++    "defer",
++    "xtrace",
++    "lsubst",
++];
++
++/// A pack set declaring one command no shipped surface has, so installing it
++/// builds a pack-carrying store rather than returning the plain one.
++fn a_pack_set() -> tcl_spectcl::PackSet {
++    let pack = PackFile {
++        tier: Tier::Bundled,
++        path: PathBuf::from("probe.tclspec"),
++        origin: Origin::Bundled,
++        dependency_tier: None,
++    };
++    let source = "speclib probe 2.0 {\n    command probe::hello {\n        arity 0\n    }\n}\n";
++    tcl_spectcl::pack::load_in_memory(vec![(pack, source.to_owned())])
++}
++
++/// A pack set installed for a `jim` profile layers over Jim's own surface: the
++/// pack-carrying store holds every declared command beside the pack's, and
++/// resolves each Jim-only head to the row the `jim` generation resolves it to,
++/// exactly as the store without packs does. A `jim` generation asked for the
++/// set's key reads that same store.
++#[test]
++fn a_pack_carrying_jim_store_keeps_jims_own_surface() {
++    let profile = tcl_spectcl::environment::profile_for_dialect("jim");
++    let packs = a_pack_set();
++    assert!(!packs.is_empty(), "the probe pack loads");
++    assert_ne!(packs.key, 0, "a loaded set has a content key");
++    let with_packs = tcl_spectcl::install::registry_with_packs(profile, &packs);
++    let without =
++        tcl_spectcl::install::registry_with_packs(profile, &tcl_spectcl::PackSet::default());
++    assert!(
++        with_packs.get("probe::hello").is_some(),
++        "the pack's own command is installed"
++    );
++    for spec in declared() {
++        assert!(
++            with_packs
++                .specs(spec.name)
++                .iter()
++                .any(|held| std::ptr::eq(*held, spec)),
++            "{}: the pack-carrying store holds the jim row",
++            spec.name
++        );
++    }
++    let generation = jim();
++    for head in JIM_ONLY {
++        let expected = generation
++            .resolve_command(head)
++            .unwrap_or_else(|| panic!("{head} resolves for a jim document"));
++        for (label, store) in [("with packs", &with_packs), ("without packs", &without)] {
++            assert!(store.has_command_in_this_dialect(head), "{head}: {label}");
++            let held = store
++                .get(head)
++                .unwrap_or_else(|| panic!("{head}: unknown {label}"));
++            assert!(
++                std::ptr::eq(held, expected),
++                "{head}: {label} selects the jim row"
++            );
++        }
++    }
++    // A `jim` analysis handed the set's key reads Jim's own pack store.
++    let analysed = resolve_environment("jim")
++        .context_registry(&tcl_registry::model::KeyedVersions::default(), packs.key)
++        .expect("a jim generation finds the pack set installed for jim");
++    assert!(
++        std::sync::Arc::ptr_eq(analysed.commands(), &with_packs),
++        "the generation reads the store the jim profile was handed"
++    );
++    assert!(
++        analysed.commands().get("probe::hello").is_some(),
++        "the generation carries the pack's command"
++    );
++    for head in JIM_ONLY {
++        let resolved = analysed
++            .resolve_command(head)
++            .unwrap_or_else(|| panic!("{head} resolves in the pack-carrying generation"));
++        assert!(
++            std::ptr::eq(resolved, generation.resolve_command(head).expect("jim row")),
++            "{head}: the generation with packs selects the jim row"
++        );
++    }
++    let tcl = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
++    for head in JIM_ONLY {
++        assert!(
++            tcl.get(head).is_none(),
++            "{head} stays out of a Tcl 8.6 store"
++        );
++    }
++}
+--- a/rust/tcl-mcp/src/tools.rs
++++ b/rust/tcl-mcp/src/tools.rs
+@@ -2783,6 +2783,32 @@
+             .clone()
+     }
+ 
++    /// A `jim` document's diagnostics run with the shipped packs installed:
++    /// the generation the analysis reads at the packs' key exists, so the
++    /// analysis is available and Jim's own commands are neither disabled nor
++    /// unresolved, while the same source under Tcl 8.6 flags them.
++    #[test]
++    fn a_jim_document_is_analysed_with_the_shipped_packs() {
++        let source = "loop i 0 3 { puts $i }\nsleep 0.1\n";
++        let jim = json!({ "source": source, "dialect": "jim" });
++        let analysed = analyse_under(source, "jim", &inputs(&jim, "diagnostics", ""));
++        assert_eq!(
++            analysed.findings.analysis.analysis_context_unavailable,
++            None
++        );
++        let payload = analyze_with(&jim, &inputs(&jim, "diagnostics", ""));
++        assert!(
++            payload["analysis_context_unavailable"].is_null(),
++            "{payload}"
++        );
++        let shown = analyzed(&jim, "");
++        assert!(!has_code(&shown, "W002"), "{shown:?}");
++        assert!(!has_code(&shown, "W123"), "{shown:?}");
++        let tcl = json!({ "source": source, "dialect": "tcl8.6" });
++        let control = analyzed(&tcl, "");
++        assert!(has_code(&control, "W002"), "{control:?}");
++    }
++
+     #[test]
+     fn analyze_honours_an_inline_noqa() {
+         let plain = json!({ "source": UNSET_READ, "dialect": "tcl9.0" });
+--- a/rust/tcl-explorer/src/lib.rs
++++ b/rust/tcl-explorer/src/lib.rs
+@@ -298,6 +298,81 @@
+ mod tests {
+     use super::*;
+ 
++    /// With the shipped packs loaded, the registry a `jim` unit is built with
++    /// resolves Jim's own commands to the rows a `jim` document's context
++    /// resolves them to, and the pipeline built on it reports the same unknown
++    /// calls as the one built on the static context's store.
++    #[test]
++    fn jim_own_commands_resolve_with_packs_loaded() {
++        assert!(tcl_spectcl::bundled::active().is_none());
++        assert_ne!(
++            tcl_spectcl::bundled::packs().key,
++            0,
++            "the shipped packs are installed"
++        );
++        let context =
++            tcl_registry::model::ingress::resolve_environment("jim").default_context_registry();
++        let explorer = registry_for_dialect("jim");
++        let analysed = tcl_registry::model::ingress::resolve_environment("jim")
++            .context_registry(
++                &tcl_registry::model::KeyedVersions::default(),
++                tcl_spectcl::bundled::packs().key,
++            )
++            .expect("a jim analysis finds the shipped packs");
++        assert!(
++            std::sync::Arc::ptr_eq(analysed.commands(), &explorer),
++            "the explorer and a jim analysis read one store"
++        );
++        for head in [
++            "local",
++            "upcall",
++            "stackdump",
++            "getref",
++            "setref",
++            "defer",
++            "xtrace",
++        ] {
++            let expected = context
++                .resolve_command(head)
++                .unwrap_or_else(|| panic!("`{head}` resolves for a jim document"));
++            let held = explorer
++                .get(head)
++                .unwrap_or_else(|| panic!("`{head}` is unknown to the explorer's registry"));
++            assert!(std::ptr::eq(held, expected), "`{head}`");
++        }
++
++        let source = "proc ::p {} {\n    stackdump {}\n    getref r\n}\n\
++                      proc ::q {} {\n    nosuchcmd\n}\n";
++        let unknown_calls = |result: &ExplorerResult| {
++            let mut rows: Vec<(String, bool)> = result
++                .unit
++                .interproc
++                .as_ref()
++                .expect("interprocedural analysis")
++                .procedures
++                .values()
++                .map(|summary| (summary.qualified_name.clone(), summary.has_unknown_calls))
++                .collect();
++            rows.sort();
++            rows
++        };
++        let profile = environment::profile_for_dialect("jim");
++        let on_context = run_pipeline_with_inputs(
++            source,
++            "jim",
++            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
++            profile,
++            tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
++            None,
++        );
++        let expected = unknown_calls(&on_context);
++        assert!(
++            expected.contains(&("::q".to_owned(), true)),
++            "the control call is unknown: {expected:?}"
++        );
++        assert_eq!(unknown_calls(&run_pipeline(source, "jim")), expected);
++    }
++
+     #[test]
+     fn supplied_analysis_input_controls_the_document_pipeline() {
+         let profile =

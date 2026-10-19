@@ -1,0 +1,270 @@
+--- a/rust/tcl-registry/src/model/assembly.rs
++++ b/rust/tcl-registry/src/model/assembly.rs
+@@ -55,7 +55,7 @@
+ use rustc_hash::FxHashMap;
+ use smallvec::SmallVec;
+ use tcl_dialect::DialectProfile;
+-use tcl_dialect::model::{EnvironmentDefinition, EnvironmentIdentity, surface_nearness};
++use tcl_dialect::model::{EnvironmentDefinition, EnvironmentIdentity, Family, surface_nearness};
+ 
+ use crate::model::context::{ContextQueries, KeyedVersions, ResolvedContext, specificity_breadth};
+ use crate::model::surface::{SurfaceDeclaration, declarations_for_spec};
+@@ -336,26 +336,57 @@
+     u64,
+ );
+ 
+-/// The interned catalogue profile whose command store backs
+-/// `environment_id`'s generations. Catalogue IDs retain their named profile;
+-/// model-only Tcl, Tk and third-party IDs use the permissive plain profile.
+-fn store_profile(environment_id: &str) -> &'static DialectProfile {
+-    DialectProfile::find(environment_id).unwrap_or_else(DialectProfile::plain_tcl)
++/// The interned profile whose command store backs `environment`'s
++/// pack-carrying generations. A catalogue environment keeps its named
++/// profile. An environment on a core dialect of its own keeps its own
++/// execution profile, so its store is built for its own core rather than
++/// borrowed from C Tcl's. The model-only Tcl, Tk and third-party environments
++/// use the permissive plain profile.
++fn store_profile(
++    environment: &crate::model::ingress::DocumentEnvironment,
++) -> &'static DialectProfile {
++    if let Some(profile) = environment.catalogue_profile() {
++        return profile;
++    }
++    if owns_core_store(&environment.definition) {
++        environment.unit_profile()
++    } else {
++        DialectProfile::plain_tcl()
++    }
+ }
+ 
+-/// Every profile a generation's store key can carry: the catalogue's, and the
+-/// permissive sink [`store_profile`] answers for each environment the
+-/// catalogue does not hold — `tk`, the lenient `tcl`, and any environment a
+-/// pack declares.
++/// Whether `definition` runs on a core dialect other than C Tcl, whose
++/// command store is its own.
++fn owns_core_store(definition: &EnvironmentDefinition) -> bool {
++    definition
++        .core
++        .is_some_and(|core| core.family != Family::Tcl)
++}
++
++/// Every profile a generation's store key can carry: the catalogue's, the
++/// own execution profile [`store_profile`] answers for each live environment
++/// on a core dialect of its own that the catalogue does not hold, and the
++/// permissive sink it answers for the rest — `tk`, the lenient `tcl`, and any
++/// Tcl environment a pack declares.
+ ///
+ /// A host that installs a workspace's pack overlay installs it under each of
+ /// these, so that no environment the ingress resolves asks for a key nothing
+ /// installed: a document in one of them would otherwise meet an
+ /// [`OverlayMiss`] for the life of the session.
+ pub fn store_profiles() -> impl Iterator<Item = &'static DialectProfile> {
++    let own_cores: Vec<&'static DialectProfile> = crate::model::ingress::environments()
++        .definitions()
++        .iter()
++        .map(|definition| crate::model::ingress::resolve_environment(definition.id.as_str()))
++        .filter(|environment| {
++            environment.catalogue_profile().is_none() && owns_core_store(&environment.definition)
++        })
++        .map(|environment| store_profile(&environment))
++        .collect();
+     DialectProfile::all()
+         .iter()
+         .chain(std::iter::once(DialectProfile::plain_tcl()))
++        .chain(own_cores)
+ }
+ 
+ /// A pack overlay's registry generation that nothing has installed.
+@@ -406,28 +437,23 @@
+     overlay: u64,
+     inherited_surfaces: &tcl_dialect::model::inherited_surface::InheritedSurfaceSnapshot,
+ ) -> Option<Arc<CommandRegistry>> {
+-    let execution =
++    let document =
+         crate::model::ingress::DocumentEnvironment::from_resolved_with_inherited_surfaces(
+             Arc::clone(environment),
+             identity.clone(),
+             inherited_surfaces.clone(),
+-        )
+-        .unit_profile();
++        );
++    let execution = document.unit_profile();
+     // Unoverlaid execution views use the exact retained profile cache, including
+-    // projected Jim and Tk points. Published legacy overlays are looked up at
+-    // their authoring key and projected without losing registered rows.
++    // projected Jim and Tk points. Published overlays are looked up at the
++    // environment's store key and projected without losing registered rows.
+     let profile = if overlay == 0 {
+         execution
+     } else {
+-        store_profile(environment.id.as_str())
++        store_profile(&document)
+     };
+     let base = crate::cache::registry_for_profile_if_built(profile, overlay)?;
+-    let commands = match environment.core {
+-        // A family's own compiled-in commands sit over the shared store for
+-        // that family's documents only.
+-        Some(core) => crate::cache::registry_with_core_surface(base, profile, overlay, core.family),
+-        None => base,
+-    };
++    let commands = with_family_core_surface(base, environment);
+     Some(if execution.cache_key() == profile.cache_key() {
+         commands
+     } else {
+@@ -435,6 +461,45 @@
+     })
+ }
+ 
++/// `store` with the compiled-in surface of `environment`'s own core family
++/// indexed beneath its overlay, or `store` itself when the environment has no
++/// core, its family registered none, or `store` carries no profile.
++///
++/// The profile and overlay are the ones `store` was built with, so the store
++/// is cached under its own key. A family's own commands reach that family's
++/// documents only.
++fn with_family_core_surface(
++    store: Arc<CommandRegistry>,
++    environment: &EnvironmentDefinition,
++) -> Arc<CommandRegistry> {
++    let (Some(core), Some(profile)) = (environment.core, store.profile()) else {
++        return store;
++    };
++    let overlay = store.overlay_generation().unwrap_or(0);
++    crate::cache::registry_with_core_surface(store, profile, overlay, core.family)
++}
++
++/// The pack-carrying command store for `profile` at `overlay`: `profile`'s own
++/// layers and `extend`'s commands, built once per `(profile, overlay)`, with
++/// the compiled-in surface of the core family `profile`'s environment runs on
++/// beneath them.
++///
++/// When `profile` is its environment's store profile ([`store_profiles`]) this
++/// is the very store that environment's generations read at `overlay`, so a
++/// consumer holding the profile and an analysis holding the generation resolve
++/// one store. `extend` runs with the registry cache's lock held, as in
++/// [`crate::cache::registry_for_profile_with_overlay`].
++#[must_use]
++pub fn profile_store_with_overlay(
++    profile: &'static DialectProfile,
++    overlay: u64,
++    extend: impl FnOnce(&mut CommandRegistry),
++) -> Arc<CommandRegistry> {
++    let environment = crate::model::ingress::resolve_environment(profile.name);
++    let store = crate::cache::registry_for_profile_with_overlay(profile, overlay, extend);
++    with_family_core_surface(store, &environment.definition)
++}
++
+ /// The per-context registry for `environment`, assembled on first use and
+ /// cached by `(identity, keyed-versions hash)` — the un-overlaid (pack
+ /// overlay `0`) generation, which always builds.
+@@ -741,9 +806,9 @@
+         let ids = DialectProfile::all()
+             .iter()
+             .map(|profile| profile.name)
+-            .chain(["tk", "tcl", "a-pack-declared-environment"]);
++            .chain(["tk", "tcl", "jim", "a-pack-declared-environment"]);
+         for id in ids {
+-            let profile = store_profile(id);
++            let profile = store_profile(&crate::model::ingress::resolve_environment(id));
+             assert!(
+                 installable
+                     .iter()
+@@ -752,11 +817,42 @@
+             );
+         }
+         assert!(std::ptr::eq(
+-            store_profile("tk"),
++            store_profile(&crate::model::ingress::resolve_environment("tk")),
+             DialectProfile::plain_tcl()
+         ));
+     }
+ 
++    /// Jim is a core dialect of its own: its generations read their pack
++    /// overlay from the store built for Jim's own profile — the very `Arc` a
++    /// consumer holding that profile is handed — and never from plain Tcl's.
++    #[test]
++    fn a_core_dialect_of_its_own_reads_its_own_pack_store() {
++        const OVERLAY: u64 = 0x0071_1F00;
++        let environment = crate::model::ingress::resolve_environment("jim");
++        let profile = environment.unit_profile();
++        assert!(std::ptr::eq(store_profile(&environment), profile));
++        assert!(!std::ptr::eq(profile, DialectProfile::plain_tcl()));
++        let keyed = KeyedVersions::default();
++        let _plain = crate::cache::registry_for_profile_with_overlay(
++            DialectProfile::plain_tcl(),
++            OVERLAY,
++            |_| {},
++        );
++        assert_eq!(
++            environment.context_registry(&keyed, OVERLAY).err(),
++            Some(OverlayMiss {
++                environment: "jim".to_owned(),
++                overlay: OVERLAY,
++            }),
++            "a plain-Tcl store is not jim's"
++        );
++        let installed = profile_store_with_overlay(profile, OVERLAY, |_| {});
++        let generation = environment
++            .context_registry(&keyed, OVERLAY)
++            .expect("jim's own pack store is installed");
++        assert!(Arc::ptr_eq(generation.commands(), &installed));
++    }
++
+     fn new_registry_for(profile_name: &str) -> Arc<ContextRegistry> {
+         let environments = EnvironmentRegistry::compiled();
+         let definition = environments.resolve(profile_name).expect(profile_name);
+--- a/rust/tcl-registry/src/model/mod.rs
++++ b/rust/tcl-registry/src/model/mod.rs
+@@ -85,9 +85,9 @@
+ pub mod tcllib;
+ 
+ pub use assembly::{
+-    ContextRegistry, OverlayMiss, registry_for_environment, registry_for_environment_if_built,
+-    resolve_call_in_context, resolve_invocation_in_context, resolve_invocation_words_in_context,
+-    side_effect_hints_in_context, store_profiles,
++    ContextRegistry, OverlayMiss, profile_store_with_overlay, registry_for_environment,
++    registry_for_environment_if_built, resolve_call_in_context, resolve_invocation_in_context,
++    resolve_invocation_words_in_context, side_effect_hints_in_context, store_profiles,
+ };
+ pub use binding::{
+     BindingKnowledge, BindingTarget, PackageState, PackageStateMap, PackageTransition, SpecKey,
+--- a/rust/tcl-spectcl/src/install.rs
++++ b/rust/tcl-spectcl/src/install.rs
+@@ -60,6 +60,11 @@
+ /// registry, which keeps "no packs configured" exactly as cheap as it was
+ /// before packs existed.
+ ///
++/// Either way the registry carries the compiled-in surface of the core family
++/// `profile`'s environment runs on (Jim's own commands for a `jim` profile),
++/// with a non-empty set's commands indexed over it
++/// ([`tcl_registry::model::profile_store_with_overlay`]).
++///
+ /// Returned as an owning handle. This is the pack-carrying axis, so this is
+ /// exactly the registry that must be *retirable*: hold the handle for as long
+ /// as you are reading from it and drop it when you are done, and the
+@@ -83,7 +88,7 @@
+     // context takes that same lock to reach the un-overlaid store — doing
+     // it inside the closure deadlocks.
+     let context = tcl_registry::model::ingress::static_document_context_for_profile(profile);
+-    tcl_registry::registry_for_profile_with_overlay(profile, packs.key, |registry| {
++    tcl_registry::model::profile_store_with_overlay(profile, packs.key, |registry| {
+         install_into(registry, packs, context);
+     })
+ }
+--- a/docs/design/registry/spec-packs.md
++++ b/docs/design/registry/spec-packs.md
+@@ -942,7 +942,12 @@
+ Its specs are registered with the registry as the family's own surface
+ (`tcl_registry::register_core_surface_specs`), not installed as a pack
+ overlay: the registry assembled for a `jim` document extends the shared store
+-with them, and no other environment's store carries them. They are registered
++with them, and no other environment's store carries them. Jim is a core
++dialect of its own, so a pack set installed for it lands in a store keyed by
++Jim's own profile, not plain Tcl's: `registry_with_packs` builds it through
++`tcl_registry::model::profile_store_with_overlay`, with Jim's commands beneath
++the set's, and a `jim` generation handed the set's key reads that same store.
++They are registered
+ by `tcl_spectcl::core_surfaces::ensure`, which every constructor that hands a
+ consumer a registry or a pack set calls (`registry_with_packs`,
+ `bundled::packs`, `publish_pack_set`) and which the language server calls in its
