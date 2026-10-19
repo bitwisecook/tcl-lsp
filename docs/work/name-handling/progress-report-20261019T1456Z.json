@@ -1,0 +1,72 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-19T14:56:14.057021+00:00",
+  "scheduled_report_utc": "2026-10-19T14:44:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "candidates": {
+    "sol-37-fresh-entry": "in progress (user decision 14:20Z: fresh-interpreter default entry; Luna-37 cluster C1)"
+  },
+  "ci_dispatch": {
+    "run": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39268633543",
+    "head": "cf0612412",
+    "runner": "hosted",
+    "blockers": [
+      "tcl-runtime lib dead_code warnings under build.warnings=deny broke every Rust build job -> fixed aa8ff88fa (16 test-only helpers gated cfg(test)); no-tommath runtime config still reports 33 warnings",
+      "rust-check: clippy too_many_arguments in rust/tcl-runtime-api/src/native_literal.rs (first crate to fail; more may follow)",
+      "cargo-deny: RUSTSEC-2026-0346..0360 in rustls 0.23.45, wasmtime 49.0.2, zip 8.6.0; origin/rust already carries 0.23.46/49.0.3/9.0.3 -> resolved by merging origin/rust",
+      "python: rust/bigip-report-gen/python/Cargo.lock out of date under --locked",
+      "web-frontends: prettier check fails on rust/tcl-spec-studio/web src/nativeEditorHost.ts, test/units.test.ts",
+      "wasm-real-link: runtime/rust/include/tcl.h WASM leg declares Tcl_GetReturnOptions which the runtime does not export",
+      "lsp-server-wasi: E0275 overflow evaluating PhantomData<tcl_compiler::ir::WordPart>: Sync",
+      "rust-tests-doctest: tcl-cshim lib 2 warnings",
+      "spectcl-compat: tcl-spectcl eval_loader test fails"
+    ]
+  },
+  "merge_base": "127dba9d9 (2026-10-10); origin/rust is 26 commits ahead of it, work 1138. Trial merge (git merge-tree): 154 conflicted files (tcl-vm 32, runtime 30, tcl-compiler 27, tcl-cmd-core 17, others 48).",
+  "merge_bar": "Next: merge origin/rust into work (clears dependency advisories and possibly other CI items), then fix remaining CI blockers, then C1 and the remaining test clusters.",
+  "next_report_utc": "2026-10-19T15:36:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
