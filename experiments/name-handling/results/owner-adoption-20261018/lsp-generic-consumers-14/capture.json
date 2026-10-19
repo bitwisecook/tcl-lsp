@@ -1,0 +1,17 @@
+{
+ "status": "DIRECT_LSP_1085_EXECUTED_GUARDS_PASS",
+ "archive": "capture-lsp48.tar.gz",
+ "sha256": "8ad3516608b457036405b63385f9a10ca58a4b61cd92dd5fbac6cd94d30ff0ce",
+ "members_index_sha256": "c4d191fee5333c61b8586bd2bcc4e8561a86c48ac695beba65baff6ac25f1912",
+ "members": 1108,
+ "source_head": "82617ee15 (integration45: aff99dc7e + nested-cut memo amendment); built at c3e3f149b, docs-only commits after",
+ "source_snapshot_sha256": "c093d47f2ec54eaaed8d1c850316775e18612213797ef4ce7fbe9a389a2dff37",
+ "artifacts_sha256": "2f2c7e6df77e8b61ff24a2782c0003b5ae29ae232e14721d79c59919b992c1f3",
+ "completed": 1085,
+ "passed": 870,
+ "failed": 215,
+ "timeouts_in_failed": 2,
+ "comparison_to_capture46": "Zero pass->fail across all 1085 selectors; five gains: fixed_source_guard_retains_real_query_and_advertisement_dependencies (additive), workspace_symbols_do_not_mix_fallback_and_later_index_hits_1854, workspace_symbols_map_indexed_hits_through_captured_sources_1854, a_legacy_lattice_key_cannot_replace_a_later_original_worker_request, the_body_descent_leaves_top_level_declarations_alone. Same two server timeouts as capture46 (startup_index_and_factory_reindex_keep_checked_document_roles, workspace_symbol_caps_its_answer).",
+ "extra5_pin_drift": "Recorded under the separate label; pinned control sources changed since pinning.",
+ "scope": "Direct LSP selections; not compiler/integration/server-process/host acceptance."
+}
