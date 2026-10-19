@@ -1,0 +1,443 @@
+diff --git a/docs/design/analysis/name-resolution-proofs/manifest.json b/docs/design/analysis/name-resolution-proofs/manifest.json
+index e7f9deb612..ba483ba987 100644
+--- a/docs/design/analysis/name-resolution-proofs/manifest.json
++++ b/docs/design/analysis/name-resolution-proofs/manifest.json
+@@ -753504,7 +753504,7 @@
+         {
+           "path": "rust/tcl-compiler/src/command_binding/source_analysis_entry.rs",
+           "symbol": "SourceAnalysisEntry::for_supplied_source",
+-          "purpose": "Own complete supplied source metadata separately from Logical/Native name policy, execution entry or missing-input fallback."
++          "purpose": "Own complete supplied source metadata separately from Logical/Native name policy, execution entry or missing-input fallback; a Native-axis document with no explicit entry receives the fresh-interpreter authoring entry, while mismatched metadata keeps unknown runtime history."
+         },
+         {
+           "path": "rust/tcl-compiler/src/command_binding/source_analysis_entry.rs",
+diff --git a/docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md b/docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+index c1418a3245..e57cf5d989 100644
+--- a/docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
++++ b/docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+@@ -211,7 +211,7 @@ No implementation source excerpt is attached. Native outputs do not supply an im
+ - [rust/tcl-lsp-core/src/graphs.rs](../../../../rust/tcl-lsp-core/src/graphs.rs), `dataflow_graph_with_source_input`: Retain complete actual source metadata for dataflow advice.
+ - [rust/tcl-lsp-core/src/graphs.rs](../../../../rust/tcl-lsp-core/src/graphs.rs), `def_use_graph_with_source_input`: Retain complete actual source metadata for original definition/use advice.
+ - [rust/tcl-lsp-core/src/graphs.rs](../../../../rust/tcl-lsp-core/src/graphs.rs), `memory_alias_graph_with_source_input`: Project actual-source conditional alias exposure while preserving wildcard uncertainty and refusing unavailable owners.
+-- [rust/tcl-compiler/src/command_binding/source_analysis_entry.rs](../../../../rust/tcl-compiler/src/command_binding/source_analysis_entry.rs), `SourceAnalysisEntry::for_supplied_source`: Own complete supplied source metadata separately from Logical/Native name policy, execution entry or missing-input fallback.
++- [rust/tcl-compiler/src/command_binding/source_analysis_entry.rs](../../../../rust/tcl-compiler/src/command_binding/source_analysis_entry.rs), `SourceAnalysisEntry::for_supplied_source`: Own complete supplied source metadata separately from Logical/Native name policy, execution entry or missing-input fallback; a Native-axis document with no explicit entry receives the fresh-interpreter authoring entry, while mismatched metadata keeps unknown runtime history.
+ - [rust/tcl-compiler/src/command_binding/source_analysis_entry.rs](../../../../rust/tcl-compiler/src/command_binding/source_analysis_entry.rs), `SourceAnalysisEntry::for_hosted_source`: Retain the supplied vendor source policy and unknown runtime history without Native or TMM activation.
+ - [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs), `InvocationMetadataContext::for_source_input`: Require genuine complete actual unit profile, normalised source grammar and command-store identity before source metadata selection.
+ - [rust/tcl-compiler/src/registry_invocation/metadata_context.rs](../../../../rust/tcl-compiler/src/registry_invocation/metadata_context.rs), `InvocationMetadataContext::for_module`: Project only the Module's own validated complete actual source input; changed profile/config cannot recover from reporting metadata.
+diff --git a/docs/design/compiler/name-resolution-implementer-guide.md b/docs/design/compiler/name-resolution-implementer-guide.md
+index 6d92de910d..84ca5f1ba5 100644
+--- a/docs/design/compiler/name-resolution-implementer-guide.md
++++ b/docs/design/compiler/name-resolution-implementer-guide.md
+@@ -2275,10 +2275,12 @@ must arbitrate all retained alternatives before operation selection.
+ retains the complete caller input through lowering, the module and its function
+ units. Keep its ContextRegistry, lexer configuration and independently selected
+ source entry together. A supplied entry remains authoritative. Without an
+-explicit entry, `SourceAnalysisEntry::for_supplied_source` selects source advice
+-only when the input positively supplies the matching Logical or hosted policy.
+-Native, missing and contradictory inputs remain unknown; metadata availability
+-provides no Native execution entry.
++explicit entry, `SourceAnalysisEntry::for_supplied_source` keeps the matching
++Logical or hosted source policy, and gives a Native-axis document the fresh
++authoring entry: the document runs in a fresh interpreter of its dialect, so
++builtins are original until the source redefines them. Missing and
++contradictory metadata remain unknown, as does an explicitly supplied unknown
++entry; metadata availability provides no Native execution entry.
+ 
+ A caller using `Lowerer` directly retains that input with
+ `with_resolved_analysis_input(input.clone())`. That builder shares the supplied
+diff --git a/docs/design/contracts/naming-consumer-matrix.md b/docs/design/contracts/naming-consumer-matrix.md
+index ebd2ea5a7a..f47356e7f0 100644
+--- a/docs/design/contracts/naming-consumer-matrix.md
++++ b/docs/design/contracts/naming-consumer-matrix.md
+@@ -602,7 +602,7 @@ entry/routing excerpts remain distinct from the Rust recipe controls.
+ | Typed original path operations | SourcePathOperation; ResolvedInvocation::authored_source_path_operation; OriginalSourcePathExpression | Selected effective argv distinguishes real Join/Dirname/Normalize/ScriptPath from list with a file spelling. Authentic bound values remain values; explicit document filename advice supplies no Runtime info script or current filesystem result. |
+ | Child alias publication | NativeNameProtocol child-alias input/projection; independent counted/C-string report purposes | Whole 36-window source comparators retain public definition, call and inventory results. Pure projections and parent/child adapters grant no native header/prefix/current-table identity or executed software pass. |
+ | Registered Jim Info arity | NativeJimInfoProtocol::dispatch; NativeUsageProtocol formatter; exact Jim registration/caller source | Registered minargs precedes generic missing-selector parsing. Bare/empty Native292 observations stay distinct; renamed/NUL renderer controls supply no new Native invocation. |
+-| Supplied source entry correspondence | SourceAnalysisEntry::for_supplied_source/for_hosted_source; InvocationMetadataContext::for_source_input/for_module | Exact unit profile/config/store admits only its independent Logical or hosted source policy. Native or unsupported axes retain unknown runtime history; explicit execution entry remains separate. |
++| Supplied source entry correspondence | SourceAnalysisEntry::for_supplied_source/for_hosted_source; InvocationMetadataContext::for_source_input/for_module | Exact unit profile/config/store admits its independent Logical or hosted source policy. A Native-axis document with no supplied execution entry is analysed as a fresh interpreter of its dialect: builtins keep their original meaning unless the source itself (or a proven source-order predecessor) redefines them. Unknown runtime history remains only for an explicitly supplied unknown entry, mismatched or unsupported metadata, and hosted inputs; an explicit execution entry remains authoritative. |
+ | Authored uncompiled graph cards | Actual graph source input; uncompiled_procedure_nodes; hosted declaration policy | Original header/parameter/span cards survive without compiled body allocation; summaries stay null and storage wildcard opaque. A known replaced definer withdraws the later card; no runtime procedure/frame is created. |
+ | Declared procedure argument convention | OriginalDeclaredProcedureArgumentSlots; genuine DeclareProcedure + WholeModule + original topology/body | Fixed counted argument ordinals belong to the new declaration recipe. An authentic parent Script entry without native local layout supplies no Procedure frame, current C local cache or body admission. |
+ | Module source metadata projections | InvocationMetadataContext::for_module; actual producer profile/config/store | Pass, global, member/factory and caller advice needs the independently valid actual Module owner. Changed axes withdraw possible advice while retaining reporting input; no link/frame/execution is created. |
+diff --git a/rust/tcl-compiler/src/command_binding/compiled_invocation.rs b/rust/tcl-compiler/src/command_binding/compiled_invocation.rs
+index c7e223c0c8..4adcb62121 100644
+--- a/rust/tcl-compiler/src/command_binding/compiled_invocation.rs
++++ b/rust/tcl-compiler/src/command_binding/compiled_invocation.rs
+@@ -4019,8 +4019,10 @@ mod compiler_point_source_metadata_tests {
+             Arc::clone(&context),
+             config,
+         );
++        // Unknown execution is an explicit entry; no entry means a fresh interpreter.
+         let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
+-            .with_resolved_analysis_input(input.clone());
++            .with_resolved_analysis_input(input.clone())
++            .with_explicit_unknown_entry();
+         (lowerer.lower(source).clone(), input)
+     }
+ 
+diff --git a/rust/tcl-compiler/src/command_binding/generated_procedures.rs b/rust/tcl-compiler/src/command_binding/generated_procedures.rs
+index 55937b6935..33bd327e4e 100644
+--- a/rust/tcl-compiler/src/command_binding/generated_procedures.rs
++++ b/rust/tcl-compiler/src/command_binding/generated_procedures.rs
+@@ -576,9 +576,12 @@ mod original_native_body_tests {
+             std::sync::Arc::clone(&context),
+             config,
+         );
++        // Unentered native declarations need an explicit unknown entry; no
++        // entry means a fresh interpreter that defines each procedure.
+         crate::lowering::lower_to_ir_with(
+             crate::lowering::Lowerer::with_config(context.commands(), config)
+-                .with_resolved_analysis_input(input),
++                .with_resolved_analysis_input(input)
++                .with_explicit_unknown_entry(),
+             source,
+         )
+     }
+@@ -839,7 +842,8 @@ mod original_native_body_tests {
+         assert!(procedure.body.native_compilation_admission.is_none());
+         let foreign_same_input = crate::lowering::lower_to_ir_with(
+             crate::lowering::Lowerer::with_config(registry, input.lexer_config())
+-                .with_resolved_analysis_input(input.clone()),
++                .with_resolved_analysis_input(input.clone())
++                .with_explicit_unknown_entry(),
+             source,
+         );
+         let foreign_bindings = foreign_same_input
+diff --git a/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs b/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs
+index b6d725528f..a227fa1af8 100644
+--- a/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs
++++ b/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs
+@@ -424,9 +424,12 @@ impl SourceAnalysisEntry {
+         })
+     }
+ 
+-    /// Select only authored advice justified by the complete supplied input.
+-    /// An absent runtime entry stays unknown for Native, mismatched or unsupported
+-    /// source axes; catalogue metadata cannot assert a fresh interpreter.
++    /// Entry for a whole document supplied without an explicit execution entry.
++    /// A Native-axis document runs in a fresh interpreter of its dialect, so
++    /// builtins are original until the source itself redefines them. Logical
++    /// and hosted inputs keep their source policies; mismatched metadata keeps
++    /// unknown runtime history. A caller that knows the interpreter was used
++    /// before must supply `unknown_entry` explicitly.
+     #[must_use]
+     pub fn for_supplied_source(
+         registry: &tcl_registry::CommandRegistry,
+@@ -434,18 +437,31 @@ impl SourceAnalysisEntry {
+         config: tcl_lexer::LexerConfig,
+         profile: Option<&tcl_dialect::DialectProfile>,
+     ) -> Self {
+-        crate::registry_invocation::InvocationMetadataContext::for_source_input(
++        let metadata_context =
++            crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
++                input,
++            ));
++        if crate::registry_invocation::InvocationMetadataContext::for_source_input(
+             registry, input, config, profile,
+         )
+-        .and_then(|_| Self::for_logical_source(input).or_else(|| Self::for_hosted_source(input)))
+-        .unwrap_or_else(|| Self {
+-            metadata_context:
+-                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+-                    input,
++        .is_none()
++        {
++            return Self {
++                metadata_context,
++                unknown_entry: true,
++                ..Self::default()
++            };
++        }
++        Self::for_logical_source(input)
++            .or_else(|| Self::for_hosted_source(input))
++            .unwrap_or_else(|| Self {
++                metadata_context,
++                invocation_dialect: Some(crate::environment_ingress::authoring_invocation_dialect(
++                    registry, profile, config,
+                 )),
+-            unknown_entry: true,
+-            ..Self::default()
+-        })
++                native_compilation: crate::environment_ingress::authoring_native_compilation(),
++                ..Self::default()
++            })
+     }
+ 
+     /// Borrow the entry contract for a shared binding interpretation.
+@@ -474,6 +490,21 @@ impl SourceAnalysisEntry {
+     }
+ }
+ 
++#[cfg(test)]
++impl SourceAnalysisEntry {
++    /// An explicitly supplied entry whose prior interpreter history is unknown.
++    pub(crate) fn unknown_history_for_test(input: &crate::analyser::ResolvedAnalysisInput) -> Self {
++        Self {
++            metadata_context:
++                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
++                    input,
++                )),
++            unknown_entry: true,
++            ..Self::default()
++        }
++    }
++}
++
+ #[cfg(test)]
+ mod source_entry_tests {
+     use super::*;
+@@ -501,7 +532,15 @@ mod source_entry_tests {
+         assert!(entry.native_entry.is_none());
+         assert!(entry.execution_name_policy.is_none());
+         assert!(entry.logical_source_input.is_none());
+-        assert!(entry.unknown_entry);
++        // No supplied entry: the document runs in a fresh tclsh, not after
++        // unknown history (user decision 2026-10-19T14:20Z).
++        assert!(!entry.unknown_entry);
++        assert_eq!(
++            entry.options().execution_name_policy(),
++            Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
++                tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6)
++            ))
++        );
+         assert_eq!(
+             entry.options().retained_metadata_context(),
+             entry.metadata_context
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/native_declared_body.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/native_declared_body.rs
+index dcc460df92..f213929e38 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/native_declared_body.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/native_declared_body.rs
+@@ -757,9 +757,11 @@ mod may_terminal_tests {
+             Arc::clone(&context),
+             config,
+         );
++        // Unentered native declarations need an explicit unknown entry.
+         let module = crate::lowering::lower_to_ir_with(
+             crate::lowering::Lowerer::with_config(context.commands(), config)
+-                .with_resolved_analysis_input(input.clone()),
++                .with_resolved_analysis_input(input.clone())
++                .with_explicit_unknown_entry(),
+             "puts ROOT\nproc f {} {not-declared VALUE}\n",
+         );
+         (module, input)
+diff --git a/rust/tcl-compiler/src/compilation_unit.rs b/rust/tcl-compiler/src/compilation_unit.rs
+index 5bf97f1c84..1df12f554b 100644
+--- a/rust/tcl-compiler/src/compilation_unit.rs
++++ b/rust/tcl-compiler/src/compilation_unit.rs
+@@ -3737,8 +3737,8 @@ impl CompilationUnit {
+ 
+     /// Build using the caller's complete source input and independent entry.
+     /// With no supplied entry, matching Logical and hosted inputs retain their
+-    /// source advice. Runtime history stays unknown for other supplied inputs;
+-    /// catalogue availability never establishes an execution entry.
++    /// source advice and Native inputs start from a fresh interpreter
++    /// ([`crate::command_binding::SourceAnalysisEntry::for_supplied_source`]).
+     #[must_use]
+     pub fn build_with_analysis_input(
+         source: &str,
+@@ -5630,15 +5630,22 @@ mod tests {
+                 .logical_source_input
+                 .is_none()
+         );
+-        // The same metadata does not promote an ordinary supplied-document request.
++        // The same metadata does not promote an ordinary supplied-document
++        // request to Standalone; with no entry it starts a fresh interpreter.
+         let supplied = CompilationUnit::build_with_analysis_input(source, options, None, &input);
+         assert_eq!(
+             supplied.ir_module.source_metadata_input.as_ref(),
+             Some(&input)
+         );
+         assert!(supplied.ir_module.source_entry.native_entry.is_none());
+-        assert!(supplied.ir_module.source_entry.unknown_entry);
+-        assert!(supplied.ir_module.source_entry.invocation_dialect.is_none());
++        assert!(!supplied.ir_module.source_entry.unknown_entry);
++        assert!(
++            !supplied
++                .ir_module
++                .source_entry
++                .metadata_context
++                .is_standalone()
++        );
+         let mut changed_config = options.config;
+         changed_config.leading_bom = tcl_lexer::LeadingBom::Skip;
+         assert!(
+@@ -6519,7 +6526,8 @@ mod tests {
+                 .is_none()
+         );
+         assert!(native_unit.ir_module.source_entry.native_entry.is_none());
+-        assert!(native_unit.ir_module.source_entry.unknown_entry);
++        // No supplied entry: a fresh interpreter, not unknown history.
++        assert!(!native_unit.ir_module.source_entry.unknown_entry);
+         assert_eq!(
+             native_unit.ir_module.source_metadata_input.as_ref(),
+             Some(&native)
+@@ -6611,8 +6619,17 @@ mod tests {
+                 .original_authored_declaration_body_units
+                 .is_empty()
+         );
++        // No supplied entry: a fresh tclsh defines `::original` (user decision
++        // 2026-10-19T14:20Z); an unentered card needs explicit unknown history.
++        assert!(supplied.function("::original").is_some());
++        let unknown_supplied = CompilationUnit::build_with_analysis_input(
++            source,
++            options,
++            Some(&crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input)),
++            &input,
++        );
+         assert_eq!(
+-            supplied
++            unknown_supplied
+                 .ir_module
+                 .original_native_declaration_body_units
+                 .len(),
+diff --git a/rust/tcl-compiler/src/lowering/mod.rs b/rust/tcl-compiler/src/lowering/mod.rs
+index ce80c5a4a7..1288216064 100644
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -1576,6 +1576,20 @@ impl<'r> Lowerer<'r> {
+         self
+     }
+ 
++    /// Replace the default fresh entry of the retained input with an explicit
++    /// unknown prior history.
++    #[cfg(test)]
++    #[must_use]
++    pub(crate) fn with_explicit_unknown_entry(mut self) -> Self {
++        let input = self
++            .metadata_input
++            .clone()
++            .expect("retained analysis input");
++        let entry = crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input);
++        self.set_source_analysis_options(entry.options());
++        self
++    }
++
+     /// Retain the complete caller input independently of execution entry.
+     /// Missing or foreign source metadata cannot acquire a profile fallback.
+     #[must_use]
+@@ -11392,8 +11406,18 @@ mod tests {
+             std::sync::Arc::clone(&context),
+             tcl_lexer::LexerConfig::for_file_grammar(native_profile.grammar),
+         );
++        // No supplied entry: a fresh tclsh defines `::subject` (user decision
++        // 2026-10-19T14:20Z). Explicit unknown history still withholds it.
++        let mut fresh = Lowerer::with_config(context.commands(), native.lexer_config())
++            .with_resolved_analysis_input(native.clone());
++        let module = fresh.lower(source);
++        assert!(fixture_id_if_present(&module.procedures, "::subject").is_some());
++        assert!(module.source_entry.logical_source_input.is_none());
++        assert!(module.source_entry.native_entry.is_none());
++        assert!(!module.source_entry.unknown_entry);
+         let mut absent = Lowerer::with_config(context.commands(), native.lexer_config())
+-            .with_resolved_analysis_input(native);
++            .with_resolved_analysis_input(native)
++            .with_explicit_unknown_entry();
+         let module = absent.lower(source);
+         assert!(!fixture_id_if_present(&module.procedures, "::subject").is_some());
+         assert!(module.source_entry.logical_source_input.is_none());
+diff --git a/rust/tcl-compiler/src/lowering/source_body_syntax.rs b/rust/tcl-compiler/src/lowering/source_body_syntax.rs
+index 24804623bf..47079ca709 100644
+--- a/rust/tcl-compiler/src/lowering/source_body_syntax.rs
++++ b/rust/tcl-compiler/src/lowering/source_body_syntax.rs
+@@ -514,6 +514,9 @@ mod tests {
+             input.lexer_config(),
+         )
+         .with_resolved_analysis_input(input.clone())
++        // The cache serves unentered declarations, which need explicit unknown
++        // history; no entry means a fresh interpreter that defines them.
++        .with_explicit_unknown_entry()
+         .with_source_body_syntax_cache(cache);
+         lowerer.verify_source_body_syntax_cache = true;
+         crate::lowering::lower_to_ir_with(lowerer, source)
+diff --git a/rust/tcl-compiler/src/registry_invocation/source_name_roles.rs b/rust/tcl-compiler/src/registry_invocation/source_name_roles.rs
+index 1fa10ebf13..e7c4882ce3 100644
+--- a/rust/tcl-compiler/src/registry_invocation/source_name_roles.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_name_roles.rs
+@@ -785,9 +785,11 @@ mod tests {
+                     std::sync::Arc::clone(&context),
+                     config,
+                 );
++                // Unentered native declaration bodies need explicit unknown history.
+                 let module = crate::lowering::lower_to_ir_with(
+                     crate::lowering::Lowerer::with_config(context.commands(), config)
+-                        .with_resolved_analysis_input(input),
++                        .with_resolved_analysis_input(input)
++                        .with_explicit_unknown_entry(),
+                     &source,
+                 );
+                 assert!(module.source_entry.native_entry.is_none());
+diff --git a/rust/tcl-compiler/src/registry_invocation/source_taint.rs b/rust/tcl-compiler/src/registry_invocation/source_taint.rs
+index 0b9d2634e8..f7d78f99ab 100644
+--- a/rust/tcl-compiler/src/registry_invocation/source_taint.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_taint.rs
+@@ -540,9 +540,11 @@ mod tests {
+             Arc::clone(&context),
+             config,
+         );
++        // Unentered native declaration bodies need explicit unknown history.
+         let module = crate::lowering::lower_to_ir_with(
+             crate::lowering::Lowerer::with_config(context.commands(), config)
+-                .with_resolved_analysis_input(input.clone()),
++                .with_resolved_analysis_input(input.clone())
++                .with_explicit_unknown_entry(),
+             source,
+         );
+         (module, input)
+diff --git a/rust/tcl-compiler/src/unit_scope.rs b/rust/tcl-compiler/src/unit_scope.rs
+index 756d6cace2..15c4ae356c 100644
+--- a/rust/tcl-compiler/src/unit_scope.rs
++++ b/rust/tcl-compiler/src/unit_scope.rs
+@@ -5080,12 +5080,9 @@ mod tests {
+             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+         );
+         let registry = context.commands();
+-        let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+-            registry,
+-            &input,
+-            input.lexer_config(),
+-            Some(profile),
+-        );
++        // Unknown history is an explicit entry; with none supplied the
++        // document runs in a fresh interpreter (user decision 2026-10-19T14:20Z).
++        let entry = crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input);
+         let source = "proc helper {} {}; $command unknown";
+         let (module, cfg, _) = lower_source_callers(
+             source,
+diff --git a/rust/tcl-lsp-db/src/lib.rs b/rust/tcl-lsp-db/src/lib.rs
+index 52b0cf6ae3..7ebe614848 100644
+--- a/rust/tcl-lsp-db/src/lib.rs
++++ b/rust/tcl-lsp-db/src/lib.rs
+@@ -6281,14 +6281,28 @@ p\uD801 ordinary";
+             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+         );
+         let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
++        let supplied = tcl_compiler::analyser::ResolvedAnalysisInput::new(
++            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
++            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
++            Arc::clone(&generation),
++            config,
++        );
+         let mut lowerer =
+             tcl_compiler::lowering::Lowerer::with_config(generation.commands(), config)
+-                .with_resolved_analysis_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+-                    tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+-                    tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+-                    Arc::clone(&generation),
+-                    config,
+-                ));
++                .with_resolved_analysis_input(supplied.clone());
++        // Without an entry the document runs in a fresh interpreter; unknown
++        // history must be supplied explicitly.
++        lowerer.set_source_analysis_options(
++            tcl_compiler::command_binding::SourceAnalysisEntry {
++                metadata_context:
++                    tcl_compiler::registry_invocation::OwnedInvocationMetadataContext::for_source_input(
++                        Some(&supplied),
++                    ),
++                unknown_entry: true,
++                ..tcl_compiler::command_binding::SourceAnalysisEntry::default()
++            }
++            .options(),
++        );
+         let source = "throw ERROR payload; set reached 1";
+         let unknown_module = lowerer.lower(source).clone();
+         assert!(unknown_module.source_entry.unknown_entry);
