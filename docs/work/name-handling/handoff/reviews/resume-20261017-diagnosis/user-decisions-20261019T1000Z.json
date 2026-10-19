@@ -1,0 +1,8 @@
+{
+ "recorded_utc": "2026-10-19T10:00Z",
+ "source": "User in chat",
+ "decisions": {
+  "slow_test_review": "Deep review of slow tests: balance test performance against testing just enough to detect incorrectness or a performance regression.",
+  "test_tiers": "Light versions of tests are acceptable for fast iteration; the deeper tests run just before opening a PR. Proposals fit the existing tier contract (docs/design/contracts/test-tiers-and-ci-gates.md)."
+ }
+}
