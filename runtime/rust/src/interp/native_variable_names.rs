@@ -1013,6 +1013,7 @@ impl Interp {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn link_original_compiled_namespace_variable(
         &mut self,
         original: *mut TclObj,

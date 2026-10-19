@@ -290,6 +290,7 @@ impl NativeElementAliasEntry {
             epoch: self.epoch,
         }))
     }
+    #[cfg(test)]
     pub(crate) fn new_binding(&self) -> Rc<Self> {
         self.try_new_binding()
             .expect("current fixture element alias role")

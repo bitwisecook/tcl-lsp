@@ -1076,6 +1076,7 @@ impl VarTable {
     /// and one so a read of the default always sees it as *shared* — a
     /// read-modify-write (`lappend`/`append`/`dict`) then copies rather than
     /// mutating the stored default in place (TIP 508 copy-on-write).
+    #[cfg(test)]
     pub(crate) fn set_array_default(&mut self, name: &[u8], obj: *mut TclObj) {
         let retired = self.replace_array_default(name, obj);
         drop(retired);
@@ -1104,11 +1105,13 @@ impl VarTable {
 
     /// Array `name`'s default value, if one is set (`array default get`, and the
     /// fallback for a read of a missing element). Borrowed; the table keeps its +1.
+    #[cfg(test)]
     pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
         self.contents(name)?.borrow().array_default
     }
 
     /// Remove array `name`'s default value (`array default unset`).
+    #[cfg(test)]
     pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
         let retired = self.take_array_default(name);
         drop(retired);
@@ -1271,6 +1274,7 @@ impl VarTable {
 
     /// Remove the whole variable `name` (scalar or array); returns whether it
     /// existed. Releases every object it owned.
+    #[cfg(test)]
     pub(crate) fn remove(&mut self, name: &[u8]) -> bool {
         drop(self.take_array_default(name));
         let (removed, old) = self.publish_remove_after_default(name);
@@ -1396,6 +1400,7 @@ impl VarTable {
     }
 
     /// Remove one array element `name(key)`; returns whether it existed.
+    #[cfg(test)]
     pub(crate) fn remove_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
         if self.dictionary_variables() {
             return self.remove_dictionary_element(name, key);
@@ -1478,6 +1483,7 @@ impl VarTable {
 
     /// Whether `name` is an array variable here (the `set a` array-vs-scalar
     /// diagnostic; `array exists`).
+    #[cfg(test)]
     pub(crate) fn is_array(&self, name: &[u8]) -> bool {
         if self.dictionary_variables() {
             return self
@@ -1534,6 +1540,7 @@ impl VarTable {
             .collect()
     }
 
+    #[cfg(test)]
     pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<Vec<u8>>> {
         if self.dictionary_variables() {
             let root = self.load_scalar(name)?;

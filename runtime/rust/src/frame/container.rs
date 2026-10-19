@@ -146,6 +146,7 @@ impl VarTable {
         self.store_dictionary_root(name, root.as_ptr())
     }
 
+    #[cfg(test)]
     pub(super) fn remove_dictionary_element(&mut self, name: &[u8], key: &[u8]) -> bool {
         let Ok(root) = self.dictionary_copy(name) else {
             return false;

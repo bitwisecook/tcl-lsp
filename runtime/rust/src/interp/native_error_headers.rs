@@ -128,6 +128,7 @@ impl NativeReturnOptions {
     /// The original instruction retains its merged operand before conversion.
     /// The supplied check belongs to that actual entered operation, not a new
     /// Dict or source issuer. No key getter runs under interpreter state borrows.
+    #[cfg(test)]
     pub(super) fn from_original_checked(
         original: *mut TclObj,
         protocol: NativeStringProtocol,

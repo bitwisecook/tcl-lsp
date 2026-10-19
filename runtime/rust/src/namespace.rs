@@ -667,6 +667,7 @@ impl Namespaces {
     }
 
     /// The helper's info-commands List owns these exact current hash keys.
+    #[cfg(test)]
     pub(crate) fn original_jim_command_enumeration_keys(
         &self,
         names: &[Vec<u8>],

@@ -3287,6 +3287,7 @@ impl OriginalArrayMemberSelection {
     }
 }
 impl OriginalArrayMemberPreparation {
+    #[cfg(test)]
     pub(crate) fn finish(
         self,
         interpreter: &crate::interp::Interp,
