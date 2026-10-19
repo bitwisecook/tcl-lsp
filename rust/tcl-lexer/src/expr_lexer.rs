@@ -301,6 +301,15 @@ fn p(n: usize) -> u32 {
     u32::try_from(n).expect("expression offset fits u32")
 }
 
+/// Whether an expression of the grammar `expr_grammar_base` names reads a
+/// `$` with no variable name after it as the text `$`, as 8.4's
+/// `Tcl_ParseExpr` does; from 8.5 it is an invalid character. A grammar that
+/// names no base takes the newest.
+#[must_use]
+pub fn lone_dollar_is_text(expr_grammar_base: Option<tcl_dialect::TclVersion>) -> bool {
+    expr_grammar_base.is_some_and(|base| base < tcl_dialect::TclVersion::V8_5)
+}
+
 /// Known Tcl math functions. Exported so upstream consumers (like
 /// the compiler) can check for shadowed functions. In the lexer
 /// itself, any identifier not in the `Bool` or `Operator` sets
@@ -935,7 +944,12 @@ impl<'s> Inner<'s> {
             Ok(Some(reference)) => self.i = reference.next,
             Ok(None) => {
                 self.i += 1;
-                self.reject(start, ExprLexicalFailureKind::MissingVariableName);
+                // `Tcl_ParseVarName` reads a `$` with no name as text: 8.4's
+                // expression keeps that text, while from 8.5 it is an invalid
+                // character.
+                if !lone_dollar_is_text(self.expr_grammar_base) {
+                    self.reject(start, ExprLexicalFailureKind::MissingVariableName);
+                }
             }
             Err(message) => {
                 self.i = self.b.len();

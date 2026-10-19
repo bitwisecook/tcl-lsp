@@ -26,12 +26,14 @@
 //! `cmd [yield]` argument position both stay on the explicit stack (a whole-word
 //! `[…]` compiles to an inline `INVOKE`, not a runtime `subst_word` re-entry).
 //!
-//! `yield` also crosses `eval`, `uplevel 0`, `catch`, a straight-line `lmap`,
+//! `yield` also crosses `eval`, `uplevel` (at any level: `uplevel_coro_e2e.rs`),
+//! `catch`, a straight-line `lmap`,
 //! `subst`, `try` (body/handler/`finally`, each its own explicit-stack
 //! phase), a value-consuming `lmap`/`foreach` runtime fallback (the
 //! `each_loop` activation), and a bare `apply` call (bound to a temporary
 //! proc run via `pending_eval`, mirroring how `coroutine … apply {lambda}`
-//! already runs the lambda on the coroutine's own stack). Each of these runs
+//! already runs the lambda on the coroutine's own stack), and `package
+//! require`'s discovery scripts (`package_coro_e2e.rs`). Each of these runs
 //! its body on the explicit stack (a transparent script / catch / try-phase /
 //! each-loop activation, the inline collecting loop, or the scanner-driven
 //! subst frame) rather than through a nested `Vm::eval_source` drive on the

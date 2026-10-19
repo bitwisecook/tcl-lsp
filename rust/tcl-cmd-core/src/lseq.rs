@@ -162,7 +162,18 @@ fn number_error(bytes: &[u8]) -> LseqError {
     {
         overflow_error()
     } else {
-        argument_error(b"number", bytes, b"TCL VALUE NUMBER")
+        // `Tcl_GetNumberFromObj`'s refusal (`formaterr`): a well-formed list
+        // of several words is `a list`, anything else quoted and cut at 50
+        // bytes (upstream `not_a_number`).
+        let text = String::from_utf8_lossy(bytes);
+        let mut message = b"expected number but got ".to_vec();
+        message.extend_from_slice(tcl_syntax::list::describe_bad_value(&text).as_bytes());
+        LseqError::Command(CmdError::with_byte_error_details(
+            message,
+            b"TCL VALUE NUMBER".to_vec(),
+            None,
+            None,
+        ))
     }
 }
 

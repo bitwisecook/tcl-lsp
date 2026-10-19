@@ -495,6 +495,16 @@ fn seg_word_is_static_literal(seg: &SegmentedCommand, idx: usize) -> bool {
             .is_some_and(|t| matches!(t.kind, TokenType::Str | TokenType::Esc))
 }
 
+/// Word `idx` is C's `TCL_TOKEN_SIMPLE_WORD`: a [`seg_word_is_static_literal`]
+/// word whose value is its text, so a bareword or quoted word with a
+/// backslash is not (`\"a\"` is `"a"`). A condition or body that is not
+/// simple is substituted and then evaluated by the runtime command.
+fn seg_word_is_simple(seg: &SegmentedCommand, idx: usize) -> bool {
+    seg_word_is_static_literal(seg, idx)
+        && (seg.argv.get(idx).is_some_and(|t| t.kind == TokenType::Str)
+            || seg.texts.get(idx).is_some_and(|text| !text.contains('\\')))
+}
+
 /// Whether word `idx` runs a `$var` / `[cmd]` substitution when it is
 /// evaluated — so its value is run-time data rather than the text as written.
 ///
@@ -3320,9 +3330,18 @@ impl<'r> Lowerer<'r> {
                     this.record_consumed_command_binding(seg, namespace, resolved.requirement);
                     this.box_lowered_statement(|this| this.lower_while(seg, namespace))
                 }
-                LoweringHookId::Catch => this.box_lowered_statement(|this| {
-                    this.lower_catch_with_binding(seg, namespace, resolved.requirement)
-                }),
+                // A count the release's `catch` refuses is its `wrong # args`, which
+                // the command raises before it runs the body.
+                LoweringHookId::Catch => {
+                    if !this
+                        .release_admits_arity(resolved.requirement.binding_identity(), args.len())
+                    {
+                        return None;
+                    }
+                    this.box_lowered_statement(|this| {
+                        this.lower_catch_with_binding(seg, namespace, resolved.requirement)
+                    })
+                }
                 LoweringHookId::Try => {
                     this.record_consumed_command_binding(seg, namespace, resolved.requirement);
                     this.box_lowered_statement(|this| this.lower_try(seg, namespace))
@@ -3493,6 +3512,7 @@ impl<'r> Lowerer<'r> {
         let namespace_context = crate::registry_invocation::compiled_namespace_context(
             source_tokens.as_deref().expect("retained invocation"),
         );
+        let shape = self.invocation_shape(seg);
         let Some(sites) = self.command_binding_site_stack.last_mut() else {
             return;
         };
@@ -3525,7 +3545,33 @@ impl<'r> Lowerer<'r> {
             )
             .with_namespace_context(namespace_context)
             .with_guard(guard),
+            shape,
         });
+    }
+
+    /// Whether the release's signature of `command` admits `count` arguments.
+    fn release_admits_arity(&self, command: &str, count: usize) -> bool {
+        self.registry.get(command).is_none_or(|spec| {
+            self.registry
+                .release_arity(spec)
+                .accepts(u16::try_from(count).unwrap_or(u16::MAX))
+        })
+    }
+
+    /// The words after `seg`'s command, as a release's compile reads them.
+    fn invocation_shape(
+        &self,
+        seg: &SegmentedCommand,
+    ) -> tcl_registry::release_compilation::InvocationShape {
+        let release = self
+            .dialect
+            .map_or(tcl_dialect::TclVersion::V9_0, |profile| {
+                profile.vm_runtime_version
+            });
+        let args = seg.texts.get(1..).unwrap_or_default();
+        tcl_registry::release_compilation::InvocationShape::of(release, args, |index| {
+            seg_word_is_static_literal(seg, index + 1)
+        })
     }
 
     fn lower_catch_with_binding(
@@ -3734,6 +3780,11 @@ impl<'r> Lowerer<'r> {
             .binding
             .as_ref()
             .map(|_| Box::new(self.cmd_tokens(seg)));
+        let shape = lowered
+            .binding
+            .is_some()
+            .then(|| self.invocation_shape(seg))
+            .unwrap_or_default();
         if let Some(binding) = lowered.binding
             && let Some(sites) = self.command_binding_site_stack.last_mut()
         {
@@ -3760,6 +3811,7 @@ impl<'r> Lowerer<'r> {
                         .existing_namespace_cells
                 }),
                 binding,
+                shape,
             });
         }
         lowered.statement
@@ -4925,6 +4977,15 @@ impl<'r> Lowerer<'r> {
         let body = if body_tok.kind == TokenType::Str {
             self.lower_body_from_tok(&args[0], Some(&body_tok), namespace)
         } else if body_tok.kind == TokenType::Var {
+            // The script `eval` evaluates at run time is a unit of its own
+            // (8.4 runs it directly), which creates no locals and reaches only
+            // those the procedure compiled (`TclFindCompiledLocal`), and whose
+            // errors name its own commands; folded into the body it would
+            // create them and be logged as the body's text. Analysis keeps the
+            // structure it can see.
+            if self.target.is_bytecode() {
+                return None;
+            }
             let literal = self
                 .original_native_written_argument_value(seg, 0)
                 .or_else(|| self.const_map_lookup(&args[0]))?;
@@ -4946,6 +5007,16 @@ impl<'r> Lowerer<'r> {
                 args[0].trim_start_matches('[').trim_end_matches(']')
             };
             let synthesised = eval_list_literal_body(inner_text, self.config)?;
+            // `eval` runs the list as one command without compiling it; a word
+            // the release compiles apart stays with the runtime `eval`.
+            let release = self
+                .dialect
+                .map_or(tcl_dialect::TclVersion::V9_0, |profile| {
+                    profile.vm_runtime_version
+                });
+            if crate::const_subst::folded_literal_reads_apart(&synthesised, release) {
+                return None;
+            }
             self.lower_script(
                 &synthesised,
                 namespace,

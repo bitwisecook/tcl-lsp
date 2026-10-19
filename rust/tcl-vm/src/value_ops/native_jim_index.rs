@@ -1096,10 +1096,15 @@ mod tests {
         assert_eq!(first.native_object_type_name(), "index");
         let source = Value::new_native_string_bytes(b"abcdefg".as_slice());
         assert_eq!(
-            tcl_cmd_core::string::index(&mut vm, &source, &first)
-                .unwrap()
-                .string_bytes()
-                .as_ref(),
+            tcl_cmd_core::string::index(
+                &mut vm,
+                &source,
+                &first,
+                tcl_syntax::number::NumberSyntax::Tcl90
+            )
+            .unwrap()
+            .string_bytes()
+            .as_ref(),
             b"g"
         );
         assert_eq!(first.native_object_reference_count(), 1);
@@ -1141,8 +1146,11 @@ mod replacement_native_rows629 {
             let replacement = replacement.as_ref().unwrap_or(&subject);
             let args = [&subject, first, last, replacement]
                 .map(|v| v.native_lifetime_lease().into_value());
-            let reached =
-                tcl_cmd_core::string::replace(&mut vm, &args[..if row.omit { 3 } else { 4 }]);
+            let reached = tcl_cmd_core::string::replace(
+                &mut vm,
+                &args[..if row.omit { 3 } else { 4 }],
+                tcl_syntax::number::NumberSyntax::Tcl90,
+            );
             let label = (row.dialect, row.case, row.stream_sha);
             for (argument, expected) in args.iter().zip(row.argument_types) {
                 assert_eq!(argument.native_object_type_name(), expected, "{label:?}");
@@ -1339,8 +1347,11 @@ mod indexed_binary_native_projections633 {
             }
             let args = [&subject, &first, &last, &replacement]
                 .map(|value| value.native_lifetime_lease().into_value());
-            let reached =
-                tcl_cmd_core::string::replace(&mut vm, &args[..if row.omit { 3 } else { 4 }]);
+            let reached = tcl_cmd_core::string::replace(
+                &mut vm,
+                &args[..if row.omit { 3 } else { 4 }],
+                tcl_syntax::number::NumberSyntax::Tcl90,
+            );
             let label = (row.dialect, row.case, row.stream_sha);
             for (argument, expected) in args.iter().zip(row.argument_types) {
                 assert_eq!(argument.native_object_type_name(), expected, "{label:?}");
@@ -1423,9 +1434,20 @@ mod original_index_range_native_rows635 {
             let args =
                 [&subject, first, last].map(|value| value.native_lifetime_lease().into_value());
             let reached = if row.range {
-                tcl_cmd_core::string::range(&mut ops, &args[0], &args[1], &args[2])
+                tcl_cmd_core::string::range(
+                    &mut ops,
+                    &args[0],
+                    &args[1],
+                    &args[2],
+                    tcl_syntax::number::NumberSyntax::Tcl90,
+                )
             } else {
-                tcl_cmd_core::string::index(&mut ops, &args[0], &args[1])
+                tcl_cmd_core::string::index(
+                    &mut ops,
+                    &args[0],
+                    &args[1],
+                    tcl_syntax::number::NumberSyntax::Tcl90,
+                )
             };
             let label = (row.dialect, row.case, row.stream_sha);
             for (argument, expected) in args.iter().zip(row.argument_types) {

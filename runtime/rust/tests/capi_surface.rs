@@ -36,6 +36,7 @@ use tcl_runtime::capi::{
 };
 use tcl_runtime::interp::{Code, Interp};
 use tcl_runtime::obj::{self, TclObj};
+use tcl_syntax::utf;
 
 const TCL_OK: c_int = 0;
 const TCL_ERROR: c_int = 1;
@@ -601,45 +602,6 @@ fn the_list_calls_refuse_what_c_tcl_refuses() {
     });
 }
 
-/// What `Tcl_NumUtfChars` answers in C Tcl 9.0.4 for well-formed, modified
-/// (`C0 80`) and malformed UTF-8: the bytes, the length given, the count. Each
-/// answer was taken from a program linked with C Tcl's own library.
-const COUNTS: &[(&[u8], isize, isize)] = &[
-    (b"hello", -1, 5),
-    (b"h\xc3\xa9llo", 6, 5),
-    (b"a\xc0\x80b", 4, 3),
-    (b"a\xc0\x80b", -1, 3),
-    (b"\xc1\x80", 2, 2),
-    (b"\x80a", 2, 2),
-    (b"\x80a", -1, 2),
-    (b"\xe0\x80\x41", 3, 3),
-    (b"\xe0\xa0\x80", 3, 1),
-    (b"\xe0\x80\x80", 3, 3),
-    (b"\xf0\x90\x80\x80", 4, 1),
-    (b"\xf4\x90\x80\x80", 4, 4),
-    (b"\xf0\x80\x80\x80", 4, 4),
-    (b"ab\xc3", 3, 3),
-    (b"a\xe2\x82", 3, 3),
-    (b"\xff\xfe", 2, 2),
-    (b"ab\x80", 3, 3),
-    (b"a\xe2\x82\xac", 3, 3),
-    (b"\xf0\x9f\x98\x80", 3, 3),
-    (b"a\xe2\x82\xac", 4, 2),
-];
-
-/// What `Tcl_UtfNcmp` answers in C Tcl 9.0.4, taken the same way: the two
-/// strings, the characters compared, the answer.
-const COMPARISONS: &[(&[u8], &[u8], usize, c_int)] = &[
-    (b"\x80", b"\x81", 1, 8235),
-    (b"\x9f", b"\xa0", 1, 216),
-    (b"\xc0\x80", b"\x01", 1, -1),
-    (b"\xc0\x80", b"", 1, 0),
-    (b"\xc1\x80", b"\xc1a", 2, 8267),
-    (b"\xc3\xa9", b"e", 1, 132),
-    (b"\xf0\x9f\x98\x80", b"\xf0\x9f\x98\x81", 1, -1),
-    (b"\xe0\x80\x41", b"\xe0\x81\x41", 3, 8235),
-];
-
 /// `bytes` with C's terminator after them.
 fn terminated(bytes: &[u8]) -> Vec<u8> {
     let mut text = bytes.to_vec();
@@ -669,13 +631,13 @@ fn the_utf8_helpers_read_characters_and_a_nul_is_one() {
 
 #[test]
 fn the_utf8_helpers_read_malformed_bytes_as_c_tcl_reads_them() {
-    for &(bytes, length, expected) in COUNTS {
+    for &(bytes, length, expected) in utf::NUM_UTF_CHARS_VECTORS {
         let text = terminated(bytes);
         // SAFETY: the buffer holds `length` bytes and is terminated.
         let count = unsafe { Tcl_NumUtfChars(text.as_ptr().cast(), length) };
         assert_eq!(count, expected, "Tcl_NumUtfChars({bytes:x?}, {length})");
     }
-    for &(left, right, characters, expected) in COMPARISONS {
+    for &(left, right, characters, expected) in utf::UTF_NCMP_VECTORS {
         let (one, two) = (terminated(left), terminated(right));
         // SAFETY: each buffer holds the characters compared and is terminated.
         let answer = unsafe { Tcl_UtfNcmp(one.as_ptr().cast(), two.as_ptr().cast(), characters) };

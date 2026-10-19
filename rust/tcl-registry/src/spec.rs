@@ -4114,6 +4114,13 @@ impl CommandSpec {
         self.required_package.or(self.tcllib_package)
     }
 
+    /// The signature shape at `release`: the [`Self::arity_windows`] window
+    /// covering it, else [`Self::arity`].
+    #[must_use]
+    pub fn arity_at(&self, release: Option<&str>) -> Arity {
+        ArityWindow::select(self.arity_windows, release).map_or(self.arity, |window| window.arity)
+    }
+
     /// Whether this command exists given the resolved *`package_version`*.
     ///
     /// *`package_version`* is the guaranteed-available floor from a

@@ -97,6 +97,7 @@ pub mod codegen;
 pub mod command_binding;
 pub mod common_aot_plan;
 pub mod compilation_unit;
+mod compile_84;
 pub mod compile_service;
 pub mod compiler_checks;
 pub mod completion;

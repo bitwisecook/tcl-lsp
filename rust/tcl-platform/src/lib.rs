@@ -406,6 +406,8 @@ pub trait Env {
     fn get(&self, key: &str) -> Option<String>;
     /// Set environment variable `key` to `val`.
     fn set(&self, key: &str, val: &str);
+    /// Remove environment variable `key` (`unsetenv`).
+    fn unset(&self, key: &str);
     /// All environment variables.
     fn vars(&self) -> Vec<(String, String)>;
     /// The current working directory (`pwd`).
@@ -416,6 +418,12 @@ pub trait Env {
     /// `Tcl_GetNameOfExecutable`). `None` on a host with no such notion (the
     /// browser, and WASI where there is no host-process path).
     fn current_exe(&self) -> Option<String> {
+        None
+    }
+    /// The home directory of the user named `user` (`getpwnam`'s `pw_dir`):
+    /// `None` where the host knows no such user, or names no users at all
+    /// (the browser, WASI).
+    fn user_home(&self, _user: &str) -> Option<String> {
         None
     }
 }

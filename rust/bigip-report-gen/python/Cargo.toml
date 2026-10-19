@@ -59,12 +59,12 @@ name = "_engine"
 crate-type = ["cdylib"]
 
 [dependencies]
-# abi3 (the CPython stable ABI / limited API) is enabled with a 3.9 floor so a
-# single wheel loads on every CPython from 3.9 up — the interpreter used to
+# abi3 (the CPython stable ABI / limited API) is enabled with a 3.10 floor so a
+# single wheel loads on every CPython from 3.10 up — the interpreter used to
 # build it no longer has to match the one that runs it. The binding only uses
 # the subset of the C-API covered by the limited API, so nothing here needs the
 # full, version-specific C-API.
-pyo3 = { version = "0.29", features = ["extension-module", "abi3-py39"] }
+pyo3 = { version = "0.30", features = ["extension-module", "abi3-py310"] }
 # Resolves the release version from the git tag. The workspace manifest carries
 # 0.1.0 and is never bumped (releases are tag-only), so CARGO_PKG_VERSION would
 # make `f5-report --version` report `engine 0.1.0` forever.

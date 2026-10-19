@@ -1222,12 +1222,18 @@ mod tests {
                     &index.as_ptr(),
                     &index.as_ptr(),
                 ),
-                2 => tcl_cmd_core::string::index(&mut interp, &container.as_ptr(), &index.as_ptr()),
+                2 => tcl_cmd_core::string::index(
+                    &mut interp,
+                    &container.as_ptr(),
+                    &index.as_ptr(),
+                    tcl_syntax::number::NumberSyntax::Tcl90,
+                ),
                 _ => tcl_cmd_core::string::range(
                     &mut interp,
                     &container.as_ptr(),
                     &index.as_ptr(),
                     &index.as_ptr(),
+                    tcl_syntax::number::NumberSyntax::Tcl90,
                 ),
             }
             .unwrap();
@@ -1286,6 +1292,7 @@ mod tests {
                 &subject.as_ptr(),
                 &first.as_ptr(),
                 &last.as_ptr(),
+                tcl_syntax::number::NumberSyntax::Tcl90,
             )
             .unwrap_err();
             let original = interp.native_execution_refusal().unwrap();
@@ -1405,6 +1412,7 @@ mod replacement_native_rows629 {
             let reached = tcl_cmd_core::string::replace(
                 &mut interpreter,
                 &args[..if row.omit { 3 } else { 4 }],
+                tcl_syntax::number::NumberSyntax::Tcl90,
             );
             let label = (row.dialect, row.case, row.stream_sha);
             for (argument, expected) in args.iter().zip(row.argument_types) {
@@ -1722,6 +1730,7 @@ mod indexed_binary_native_projections633 {
             let reached = tcl_cmd_core::string::replace(
                 &mut interpreter,
                 &args[..if row.omit { 3 } else { 4 }],
+                tcl_syntax::number::NumberSyntax::Tcl90,
             );
             let label = (row.dialect, row.case, row.stream_sha);
             for (argument, expected) in args.iter().zip(row.argument_types) {
@@ -1838,9 +1847,20 @@ mod original_index_range_native_rows635 {
             }
             let args = [subject.as_ptr(), first.as_ptr(), last.as_ptr()];
             let reached = if row.range {
-                tcl_cmd_core::string::range(&mut ops, &args[0], &args[1], &args[2])
+                tcl_cmd_core::string::range(
+                    &mut ops,
+                    &args[0],
+                    &args[1],
+                    &args[2],
+                    tcl_syntax::number::NumberSyntax::Tcl90,
+                )
             } else {
-                tcl_cmd_core::string::index(&mut ops, &args[0], &args[1])
+                tcl_cmd_core::string::index(
+                    &mut ops,
+                    &args[0],
+                    &args[1],
+                    tcl_syntax::number::NumberSyntax::Tcl90,
+                )
             };
             let label = (row.dialect, row.case, row.stream_sha);
             for (argument, expected) in args.iter().zip(row.argument_types) {
@@ -1965,8 +1985,12 @@ mod original_c_string_stage_controls637 {
             INDEX_CALLS.with(|calls| calls.set(0));
             crate::codegen_abi::tcl_runtime_set_current_interp(&mut ops);
             let _current = Current;
-            let reached =
-                tcl_cmd_core::string::index(&mut ops, &subject.as_ptr(), &operand.as_ptr());
+            let reached = tcl_cmd_core::string::index(
+                &mut ops,
+                &subject.as_ptr(),
+                &operand.as_ptr(),
+                tcl_syntax::number::NumberSyntax::Tcl90,
+            );
             assert_eq!(INDEX_CALLS.with(Cell::get), 1);
             assert_eq!(REFS.with(Cell::get), 1);
             if profile == "tcl8.4" {
@@ -2020,8 +2044,13 @@ mod original_c_string_stage_controls637 {
             let prior = ops.get_obj_result();
             crate::codegen_abi::tcl_runtime_set_current_interp(&mut ops);
             let _current = Current;
-            let error = tcl_cmd_core::string::index(&mut ops, &subject.as_ptr(), &operand.as_ptr())
-                .unwrap_err();
+            let error = tcl_cmd_core::string::index(
+                &mut ops,
+                &subject.as_ptr(),
+                &operand.as_ptr(),
+                tcl_syntax::number::NumberSyntax::Tcl90,
+            )
+            .unwrap_err();
             assert_eq!(
                 error.native_execution_refusal(),
                 ops.native_execution_refusal().as_ref()

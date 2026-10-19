@@ -329,7 +329,7 @@ impl<'a> IndexLoader<'a> {
         for argument in arguments {
             parts.push(literal(words.get(argument.checked_add(1)?)?)?);
         }
-        let joined = tcl_cmd_core::path::join(&parts);
+        let joined = tcl_cmd_core::path::join(&parts, tcl_cmd_core::path::PathReading::Tcl9);
         Some(PathBuf::from(std::str::from_utf8(&joined).ok()?))
     }
 

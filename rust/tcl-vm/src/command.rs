@@ -127,6 +127,9 @@ pub struct ProcDef {
     /// is an implementation detail (`apply` lambdas and `TclOO` method bodies).
     /// Ordinary procs derive them from the dispatched head and arguments.
     pub(crate) call_identity: Option<Vec<Value>>,
+    /// For an `apply` lambda, the lambda expression C names in the
+    /// `(lambda term "…" line N)` errorInfo frame in place of a procedure's.
+    pub(crate) lambda_term: Option<Value>,
 }
 
 impl ProcDef {
@@ -406,7 +409,10 @@ fn cmd_exit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         }) {
             Some(code) => code,
             None => {
-                return err(format!("expected integer but got \"{}\"", c.to_str()));
+                return vm.cmd_error(CmdError::with_error_code(
+                    format!("expected integer but got \"{}\"", c.to_str()),
+                    "TCL VALUE NUMBER",
+                ));
             }
         },
         _ => {
@@ -800,6 +806,7 @@ pub(crate) fn build_lambda_proc(
             usage_name.unwrap_or_else(|| vec![Value::string("apply"), Value::string("lambdaExpr")]),
         ),
         call_identity: Some(call_identity),
+        lambda_term: Some(lambda.clone()),
     });
     let registration = vm.active_sidecar(crate::interp::CommandSidecarKey::visible(publication));
     Ok(OriginalLambdaDefinition {
@@ -916,13 +923,8 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     if let Some(error) = vm.jim_local_rename_error(&old_name, new_name.is_empty()) {
         return error;
     }
-    // Tcl rejects a rename onto an existing command (leaving both intact), so
-    // check the destination before removing the source.
-    if !new_name.is_empty()
-        && let Some(completion) = rename_destination_failure(vm, &new_name)
-    {
-        return completion;
-    }
+    // C's `TclRenameCommand` looks the source up first, so a missing source is
+    // the error even when the destination is taken.
     let prepared = match vm.prepare_command_rename(&old_name) {
         Ok(prepared) => prepared,
         Err(error) => return vm.refuse_host_command(error.to_string()),
@@ -938,6 +940,13 @@ fn cmd_rename(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             Err(error) => vm.refuse_host_command(error.to_string()),
         };
     };
+    // Tcl rejects a rename onto an existing command (leaving both intact), so
+    // check the destination, once the source is found, before removing it.
+    if !new_name.is_empty()
+        && let Some(completion) = rename_destination_failure(vm, &new_name)
+    {
+        return completion;
+    }
     let old_key = rename.old_key().to_owned();
     // A coroutine's state travels with its command: a delete (`rename $coro {}`)
     // drops it (no `finally` runs — the frozen continuation is inert data,
@@ -1180,7 +1189,7 @@ fn interp_create_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 fn interp_recursionlimit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let (path, newlimit) = match rest {
         [path] => (path, None),
-        [path, limit] => (path, Some(limit.to_str().to_string())),
+        [path, limit] => (path, Some(limit)),
         _ => {
             return native_wrong_arguments_message(
                 vm,
@@ -1192,11 +1201,10 @@ fn interp_recursionlimit_cmd(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         Ok(id) => id,
         Err(error) => return error,
     };
-    match vm.in_interp(id, |target| {
-        target.recursion_limit_apply(newlimit.as_deref())
-    }) {
-        Ok(limit) => ok(Value::int(limit)),
-        Err(message) => err(message),
+    // C answers a new limit with the word it was given.
+    match vm.in_interp(id, |target| target.recursion_limit_apply(newlimit)) {
+        Ok(limit) => ok(newlimit.cloned().unwrap_or_else(|| Value::int(limit))),
+        Err(error) => completion_from_tcl_error(vm, error),
     }
 }
 
@@ -2185,6 +2193,7 @@ fn define_procedure(
             body_src: body,
             usage_name: None,
             call_identity: None,
+            lambda_term: None,
         },
         report,
     );
@@ -2337,6 +2346,26 @@ pub(crate) fn err_with_code(
         Value::from_string_bytes(message.as_ref()),
         options,
     )
+}
+
+impl Vm {
+    /// A command core's error as this VM's completion, its error code the one
+    /// the emulated release sets ([`tcl_dialect::TclVersion::release_error_code`]):
+    /// a `TCL …` code the release does not set yet leaves the neutral `NONE`,
+    /// as C's command left `errorCode` unset.
+    pub(crate) fn cmd_error(&mut self, error: CmdError) -> Completion<Value> {
+        if error.native_execution_refusal().is_some() || error.native_access_refusal().is_some() {
+            return completion_from_cmd_error(self, error);
+        }
+        let release = self.runtime_version();
+        let mut details = error.into_byte_details();
+        if let tcl_cmd_core::CmdErrorCodeUpdate::Set(code) = &details.error_code
+            && !release.sets_error_code(code)
+        {
+            details.error_code = tcl_cmd_core::CmdErrorCodeUpdate::Default;
+        }
+        completion_from_cmd_error(self, CmdError::from_byte_details(details))
+    }
 }
 
 /// Convert a portable command-layer error without losing its Tcl identity.
@@ -2886,9 +2915,12 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             "wrong # args: should be \"time command ?count?\"",
         );
     }
+    // C reads the count as a C `int`, so `4294967295` is -1 iterations.
     let count = if args.len() == 2 {
-        match tcl_syntax::value::ValueOps::as_int(vm, &args[1]) {
-            Ok(n) => n,
+        match tcl_syntax::value::ValueOps::as_int(vm, &args[1])
+            .and_then(tcl_syntax::value::narrow_to_c_int)
+        {
+            Ok(n) => i64::from(n),
             Err(e) => return completion_from_cmd_error(vm, CmdError::from(e)),
         }
     } else {
@@ -2927,10 +2959,11 @@ fn cmd_time(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `encoding subcommand ?arg …?`: `convertto utf-8` uses the common native
-/// unit conversion and proper binary-result owner. Other output targets require
-/// independent encoding support. `convertfrom` retains the current bootstrap
-/// pass-through, `system` reports the typed host locale, and `dirs` has no
-/// encoding-file search.
+/// unit conversion and proper binary-result owner; other targets and
+/// `convertfrom` convert through `tcl_cmd_core::encoding` for the encodings
+/// `names` lists. `system` reports the typed host locale, and `dirs` has no
+/// encoding-file search. Other codepages (cp1252, shiftjis, …) are not
+/// implemented on either side.
 /// `encoding`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it.
 /// 9.0's table also carries `profiles` and `user`, which need the encoding
 /// machinery this engine does not model; like its other ensembles it names
@@ -3008,22 +3041,19 @@ fn cmd_encoding_in_scope(
                         Err(error) => return completion_from_cmd_error(vm, error),
                     };
                     if encoding.as_ref() != b"utf-8" {
-                        return vm.refuse_host_command(
-                            "external encoding target is unavailable".to_owned(),
+                        // Another target converts through the shared owner.
+                        return encoding_convert(
+                            vm,
+                            tcl_cmd_core::encoding::Direction::To,
+                            &args[1..],
                         );
                     }
                     data
                 }
-                [_, _] => {
-                    return vm.refuse_host_command(
-                        "external system encoding target is unavailable".to_owned(),
-                    );
-                }
+                // The system target, `-profile`/`-failindex` and the usage
+                // error follow the shared grammar and conversions.
                 _ => {
-                    return native_wrong_arguments_message(
-                        vm,
-                        "wrong # args: should be \"encoding convertto ?encoding? data\"",
-                    );
+                    return encoding_convert(vm, tcl_cmd_core::encoding::Direction::To, &args[1..]);
                 }
             };
             match tcl_cmd_core::encoding::convert_to_utf8(vm, data) {
@@ -3031,15 +3061,53 @@ fn cmd_encoding_in_scope(
                 Err(error) => completion_from_cmd_error(vm, error),
             }
         }
-        // External decoding retains the current bootstrap pass-through.
-        _ => {
-            if args.len() < 2 {
-                return native_wrong_arguments_message(
-                    vm,
-                    "wrong # args: should be \"encoding convertfrom ?encoding? data\"",
-                );
+        _ => encoding_convert(vm, tcl_cmd_core::encoding::Direction::From, &args[1..]),
+    }
+}
+
+/// `encoding convertfrom|convertto ?options? ?encoding? data` through the
+/// shared `tcl_cmd_core::encoding` grammar and conversions.
+fn encoding_convert(
+    vm: &mut Vm,
+    direction: tcl_cmd_core::encoding::Direction,
+    args: &[Value],
+) -> Completion<Value> {
+    use tcl_cmd_core::encoding;
+    let version = vm.runtime_version();
+    let words: Vec<_> = args.iter().map(Value::to_str).collect();
+    let words: Vec<&str> = words.iter().map(AsRef::as_ref).collect();
+    let parsed = match encoding::parse_convert_args(version, direction, &words) {
+        Ok(parsed) => parsed,
+        Err(error) => return completion_from_cmd_error(vm, error),
+    };
+    let name = parsed.encoding.unwrap_or_else(|| vm.system_encoding());
+    let data = words[parsed.data];
+    let (value, failure) = match direction {
+        encoding::Direction::From => {
+            let bytes = match encoding::text_bytes(data, version.byte_string_encoding()) {
+                Ok(bytes) => bytes,
+                Err(error) => return completion_from_cmd_error(vm, error.into()),
+            };
+            let converted = encoding::convert_from(&bytes, name, version, parsed.profile);
+            (Value::string(converted.value), converted.failure)
+        }
+        encoding::Direction::To => {
+            let converted = encoding::convert_to(data, name, version, parsed.profile);
+            let text: String = converted.value.iter().copied().map(char::from).collect();
+            (Value::string(text), converted.failure)
+        }
+    };
+    match (parsed.fail_var, failure) {
+        (None, Some(failure)) => completion_from_cmd_error(vm, failure.error),
+        (None, None) => ok(value),
+        (Some(var), failure) => {
+            let index = failure.map_or(-1, |failure| {
+                i64::try_from(failure.index).unwrap_or(i64::MAX)
+            });
+            match vm.var_set(words[var], Value::int(index)) {
+                Ok(()) => ok(value),
+                Err(completion) => completion,
             }
-            ok(args.last().expect("len >= 2").clone())
         }
     }
 }
@@ -3528,15 +3596,16 @@ impl Vm {
             Err(error) => return completion_from_tcl_error(self, error),
         };
         let _ = self.take_error_info();
+        // 8.4 and 8.5 replace a failed store's message with their own.
         if let Some(r) = resvar
             && let Err(e) = self.store_original_named_variable(r, comp.result.clone())
         {
-            return e;
+            return self.catch_store_failed(e, "couldn't save command result in variable");
         }
         if let Some(o) = optvar
             && let Err(e) = self.store_original_named_variable(o, opts)
         {
-            return e;
+            return self.catch_store_failed(e, "couldn't save return options in variable");
         }
         if let Some((einfo, ecode)) = &error_meta {
             self.publish_error(einfo, ecode);
@@ -3622,6 +3691,16 @@ impl Vm {
         match self.publish_native_interp_completion(ok(Value::int(comp.code.as_int()))) {
             Ok(completion) => completion,
             Err(error) => completion_from_tcl_error(self, error.into()),
+        }
+    }
+
+    /// The error `catch` raises when it cannot store into its result or
+    /// options variable: the store's own up to 8.5's replacement `message`.
+    fn catch_store_failed(&self, failed: Completion<Value>, message: &str) -> Completion<Value> {
+        if self.runtime_version() < tcl_dialect::TclVersion::V8_6 {
+            err(message)
+        } else {
+            failed
         }
     }
 

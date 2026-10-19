@@ -722,18 +722,6 @@ fn report_unproved_identity_candidate(
         )
 }
 
-/// Keep the native result operation after proving a partial expression rewrite.
-#[cfg(test)]
-fn collapse_return_expr_wrapper(simplified: &str) -> String {
-    format!("return [expr {{{simplified}}}]")
-}
-
-/// Keep the native result operation after proving a partial expression rewrite.
-#[cfg(test)]
-fn collapse_assign_expr_wrapper(name: &str, simplified: &str) -> String {
-    format!("set {name} [expr {{{simplified}}}]")
-}
-
 fn try_rewrite_expr(ctx: &mut PassContext<'_>, span: Span, expr: &ExprNode) {
     // Both rewrites below assume this statement's `expr` — and, for the
     // O115 unwrap, any nested `[expr {…}]` inside it — is the untouched

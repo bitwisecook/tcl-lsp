@@ -5486,12 +5486,26 @@ fn a_regexp_that_established_nothing_declines() {
 
     // A search cut short declines the whole answer: never a no-match.
     let mut starved = Budget::evaluation();
-    starved.fuel = 5_000;
+    starved.fuel = 100;
     let long = "a".repeat(300);
     assert_eq!(
         regex_route("regexp", &[w("^(a+)+b$"), w(&long), t("m")], &mut starved),
         EvalAnswer::Declined(DeclineReason::Approximate)
     );
+    // Under an ordinary budget the same search is a completed no-match, its
+    // variable preserved — unanchored too, which once spent the whole budget
+    // re-simulating the pattern from each of the 300 starts.
+    for pattern in ["^(a+)+b$", "(a+)+b"] {
+        assert_eq!(
+            regex_stores(&regex_route(
+                "regexp",
+                &[w(pattern), w(&long), t("m")],
+                &mut budget()
+            )),
+            ("0".to_owned(), vec![(2, None)]),
+            "{pattern}"
+        );
+    }
     // The command's error is no value: it is the completion, after no store.
     assert_eq!(
         raised(&regex_route("regexp", &[w("("), w("x")], &mut budget())),

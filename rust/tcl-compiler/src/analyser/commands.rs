@@ -2161,7 +2161,12 @@ impl Analyser {
             &self.source,
             registry,
             self.file_lexer_config(),
-            numbers,
+            // The numerals the document is lexed under, which an ingress
+            // grammar may set apart from the profile's.
+            crate::interval_bounds::BoundsRelease {
+                numbers,
+                ..self.bounds_release()
+            },
         );
         self.result.diagnostics.extend(idx_diags);
         self.result.diagnostics.extend(lset_diags);

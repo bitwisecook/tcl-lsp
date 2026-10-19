@@ -55,7 +55,9 @@
 
 use std::borrow::Cow;
 
-pub use tcl_dialect::NumberSyntax;
+mod print_double;
+
+pub use tcl_dialect::{DoubleFormat, DoubleSpelling, NumberSpelling, NumberSyntax};
 
 /// Retain the low signed 32 bits after an independently selected native integer conversion.
 /// Callers validate the getter, operand range and physical width before this bit projection.
@@ -217,8 +219,9 @@ pub struct ParseFlags {
 /// A caller that must be explicit (a test, or a tool handling several dialects
 /// in one process) passes [`ParseFlags::for_syntax`] instead of relying on it.
 mod ambient {
-    use super::NumberSyntax;
+    use super::{DoubleFormat, NumberSyntax};
     use std::cell::Cell;
+    use tcl_dialect::TclVersion;
 
     thread_local! {
         // Spelled out rather than `NumberSyntax::default()` because `Default` is
@@ -231,11 +234,41 @@ mod ambient {
     /// construction, before any script executes.
     pub fn set(syntax: NumberSyntax) {
         SYNTAX.with(|c| c.set(syntax));
+        PRINT.with(|c| c.set(None));
     }
 
     /// The installed grammar (Tcl 9.0 until an embedder says otherwise).
     pub fn get() -> NumberSyntax {
         SYNTAX.with(Cell::get)
+    }
+
+    thread_local! {
+        static PRINT: Cell<Option<DoubleFormat>> = const { Cell::new(None) };
+        static RELEASE: Cell<Option<TclVersion>> = const { Cell::new(None) };
+    }
+
+    pub fn set_release(release: TclVersion) {
+        set(release.number_syntax());
+        RELEASE.with(|c| c.set(Some(release)));
+    }
+
+    pub fn release() -> Option<TclVersion> {
+        RELEASE
+            .with(Cell::get)
+            .filter(|release| release.number_syntax() == get())
+    }
+
+    pub fn set_print(format: DoubleFormat) {
+        PRINT.with(|c| c.set(Some(format)));
+    }
+
+    /// The installed print format, or the grammar's own at its default
+    /// precision until a runtime installs one.
+    pub fn print() -> DoubleFormat {
+        PRINT.with(Cell::get).unwrap_or_else(|| {
+            let syntax = get();
+            syntax.double_format(syntax.default_precision())
+        })
     }
 }
 
@@ -252,6 +285,72 @@ pub fn set_runtime_syntax(syntax: NumberSyntax) {
 #[must_use]
 pub fn runtime_syntax() -> NumberSyntax {
     ambient::get()
+}
+
+/// Install the release this thread's runtime emulates: its numeric grammar
+/// ([`set_runtime_syntax`]) and the release itself, for the facts that
+/// differ between releases sharing a grammar (8.5 and 8.6).
+pub fn set_runtime_release(release: tcl_dialect::TclVersion) {
+    ambient::set_release(release);
+}
+
+/// The release installed by [`set_runtime_release`], while the grammar is
+/// still its own.
+#[must_use]
+pub fn runtime_release() -> Option<tcl_dialect::TclVersion> {
+    ambient::release()
+}
+
+/// Install how this thread's runtime prints a double: C keeps
+/// `tcl_precision` in thread data (`precisionKey`, `tclUtil.c`), so every
+/// interpreter on the thread prints at the one precision. Installing a
+/// grammar resets it to that grammar's default.
+pub fn set_runtime_print(format: DoubleFormat) {
+    ambient::set_print(format);
+}
+
+/// A double's string rep under the runtime's print format (see
+/// [`set_runtime_print`]): `Tcl_PrintDouble`, so `%.12g` under Tcl 8.4 and
+/// the shortest round-trip from 8.5 at the default precision.
+#[must_use]
+pub fn print_double(f: f64) -> String {
+    format_double_with(f, ambient::print())
+}
+
+/// The precision `text` sets through `tcl_precision` under `syntax`, or
+/// `None` when `TclPrecTraceProc` refuses it: a base-10 `strtoul` read on
+/// 8.4 (leading space and a sign allowed, nothing after the digits) and a
+/// Tcl integer from 8.5, inside [`NumberSyntax::precision_range`].
+#[must_use]
+pub fn parse_precision(text: &str, syntax: NumberSyntax) -> Option<u8> {
+    let value = if syntax.precision_reads_decimal() {
+        let body = text.trim_start_matches(|c: char| c.is_ascii_whitespace());
+        let (negative, digits) = match body.as_bytes().first() {
+            Some(b'-') => (true, &body[1..]),
+            Some(b'+') => (false, &body[1..]),
+            _ => (false, body),
+        };
+        if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) || negative {
+            return None;
+        }
+        digits.bytes().try_fold(0_u64, |n, d| {
+            n.checked_mul(10)?.checked_add(u64::from(d - b'0'))
+        })?
+    } else {
+        match parse_whole_with(
+            text,
+            ParseFlags {
+                integer_only: true,
+                ..ParseFlags::for_syntax(syntax)
+            },
+        ) {
+            Some(Number::Int(n)) => u64::try_from(n).ok()?,
+            _ => return None,
+        }
+    };
+    u8::try_from(value)
+        .ok()
+        .filter(|p| syntax.precision_range().contains(p))
 }
 
 impl Default for ParseFlags {
@@ -457,6 +556,30 @@ pub struct Parsed {
     pub number: Number,
     /// Offset in the input just past the number (before any trailing space).
     pub end: usize,
+    /// The numeral is a decimal spelling outside the double range: it
+    /// overflowed to `±Inf`, or a non-zero mantissa underflowed to zero or a
+    /// subnormal — the cases C `strtod` reports with `ERANGE`. The value is
+    /// still the rounded one (`TclParseNumber` from 8.5 takes it); a reader
+    /// that refuses it asks [`Parsed::is_range_error`].
+    pub out_of_range: bool,
+}
+
+impl Parsed {
+    /// Whether `syntax`'s `string is double` refuses this numeral for its
+    /// range ([`NumberSyntax::string_is_double_rejects_range_error`]).
+    #[must_use]
+    pub fn is_range_error(&self, syntax: NumberSyntax) -> bool {
+        self.out_of_range && syntax.string_is_double_rejects_range_error()
+    }
+}
+
+/// Whether `s`, read whole under `syntax`, is a decimal spelling outside the
+/// double range (see [`Parsed::out_of_range`]). For a consumer that has the
+/// text and not the [`Parsed`].
+#[must_use]
+pub fn is_out_of_range_double(s: &str, syntax: NumberSyntax) -> bool {
+    parse(s, ParseFlags::for_syntax(syntax))
+        .is_some_and(|p| p.out_of_range && s.as_bytes()[p.end..].iter().all(|&c| is_ws(c)))
 }
 
 /// Format an `f64` as Tcl's canonical double string, byte-for-byte with
@@ -467,7 +590,15 @@ pub struct Parsed {
 /// `.0` suffix so it re-parses as a `Double`, not an `Int` (`2.0` not `2`,
 /// `1e16` as `10000000000000000.0` not `10000000000000000`). The one shared
 /// number→string formatter for the runtime's `double` rep and the compiler's
-/// const-folder.
+/// const-folder: Tcl 8.5 to 9.1 at the default `tcl_precision` of 0
+/// ([`format_double_as`] has 8.4's and Jim's spelling).
+///
+/// A normal power of two is spelled as tclsh spells it, which is not always
+/// the shortest and not always a spelling that re-reads as the same double:
+/// `2^64` prints `1.844674407370955e+19`, which reads back as
+/// 18446744073709549568 ([`print_double::power_of_two_digits`]). A consumer
+/// that turns a computed double into source text asks [`spell_double`], which
+/// declines such a spelling.
 ///
 /// We must NOT use Rust's bare `{}` here: for large/small magnitudes it picks a
 /// different fixed/scientific cutover than C Tcl (`{}` prints `1e300` as 301
@@ -477,49 +608,44 @@ pub struct Parsed {
 /// same minimal digits as C's `dtoa`) and re-lay it out under Tcl's rule.
 #[must_use]
 pub fn format_double(f: f64) -> String {
-    if f.is_nan() {
-        return "NaN".to_owned();
+    if let Some(special) = non_finite_or_zero(f) {
+        return special;
     }
-    if f.is_infinite() {
-        return if f.is_sign_negative() {
-            "-Inf".to_owned()
-        } else {
-            "Inf".to_owned()
-        };
-    }
-    // Signed zero must keep its sign: `Tcl_PrintDouble` renders `-0.0` as `-0.0`,
-    // and `f == 0.0` is true for both zeros (so the sign bit is the only tell).
-    if f == 0.0 {
-        return if f.is_sign_negative() {
-            "-0.0".to_owned()
-        } else {
-            "0.0".to_owned()
-        };
-    }
+    let (digits, decpt) = shortest_digits(f.abs());
+    lay_out_digits(f < 0.0, &digits, decpt, 1)
+}
 
-    // `{:e}` gives the shortest round-tripping mantissa + a base-10 exponent,
-    // e.g. `1.5e2`, `1e17`, `6.022e23`. Split them to drive Tcl's layout.
-    let neg = f < 0.0;
-    let sci = format!("{:e}", f.abs());
-    let (mantissa, exp_str) = sci
-        .split_once('e')
-        .expect("Rust's {:e} always emits an 'e' separator");
-    let exp: i32 = exp_str
-        .parse()
-        .expect("Rust's {:e} exponent is a valid integer");
-    // `digits` are the significant digits (point removed); `decpt` is the
-    // position of the decimal point measured from the first digit, so the value
-    // is `0.<digits> * 10^decpt` (matching `dtoa`'s `decpt`).
-    let digits: String = mantissa.chars().filter(|&c| c != '.').collect();
+/// `NaN`, `Inf`/`-Inf` and the signed zeros, which every layout spells alike:
+/// `Tcl_PrintDouble` renders `-0.0` as `-0.0`, and `f == 0.0` is true for
+/// both zeros (so the sign bit is the only tell).
+fn non_finite_or_zero(f: f64) -> Option<String> {
+    let text = if f.is_nan() {
+        "NaN"
+    } else if f.is_infinite() {
+        if f.is_sign_negative() { "-Inf" } else { "Inf" }
+    } else if f == 0.0 {
+        if f.is_sign_negative() { "-0.0" } else { "0.0" }
+    } else {
+        return None;
+    };
+    Some(text.to_owned())
+}
+
+/// `Tcl_PrintDouble`'s layout of the significant `digits` with the decimal
+/// point at `decpt` (the value is `0.<digits> × 10^decpt`): fixed notation
+/// when the point sits in `[-3, 17]`, else scientific with an exponent of at
+/// least `exponent_width` digits (two at a non-zero `tcl_precision`).
+fn lay_out_digits(neg: bool, digits: &str, decpt: i32, exponent_width: usize) -> String {
     let ndigits = digits.len();
-    let decpt = exp + 1;
-
     // Tcl's `%g` cutover: scientific outside `decpt ∈ [-3, 17]`, else fixed.
     let out = if !(-3..=17).contains(&decpt) {
-        // Scientific: the shortest mantissa verbatim (a single digit stays bare,
-        // no `.0`), then `e`, an explicit sign, and the natural-width exponent.
+        // Scientific: the mantissa (a single digit stays bare, no `.0`), then
+        // `e`, an explicit sign, and the exponent.
+        let (lead, rest) = digits.split_at(1);
+        let point = if rest.is_empty() { "" } else { "." };
         let e = decpt - 1;
-        format!("{mantissa}e{}{}", if e < 0 { '-' } else { '+' }, e.abs())
+        let sign = if e < 0 { '-' } else { '+' };
+        format!("{lead}{point}{rest}e{sign}{:0exponent_width$}", e.abs())
     } else if decpt <= 0 {
         // Leading-zero fraction: `0.000<digits>` (`-decpt` is ≥ 0 here).
         let lead = decpt.unsigned_abs() as usize;
@@ -776,6 +902,123 @@ pub fn format_double_selected(value: f64, format: tcl_dialect::DoubleFormat) -> 
     out
 }
 
+/// The significant digits `TclDoubleDigits`' shortest mode gives a finite
+/// positive `f`, and its decimal-point position `decpt` (the value is
+/// `0.<digits> × 10^decpt`, as `dtoa` reports it). A normal power of two
+/// takes C Tcl's own loop ([`print_double::power_of_two_digits`]), whose
+/// answer is not always the shortest; every other double takes the shortest
+/// round-tripping digits.
+fn shortest_digits(f: f64) -> (String, i32) {
+    const FRACTION_MASK: u64 = (1 << 52) - 1;
+    let bits = f.to_bits();
+    let stored_exponent = bits >> 52;
+    if bits & FRACTION_MASK == 0 && stored_exponent != 0 {
+        let k = i32::try_from(stored_exponent).unwrap_or(0) - 1023;
+        let (digits, decpt) = print_double::power_of_two_digits(k);
+        let digits = digits.iter().map(|&d| char::from(b'0' + d)).collect();
+        return (digits, decpt);
+    }
+    let sci = shortest_nearest_scientific(f);
+    let (mantissa, exp_str) = sci
+        .split_once('e')
+        .expect("Rust's {:e} always emits an 'e' separator");
+    let exp: i32 = exp_str
+        .parse()
+        .expect("Rust's {:e} exponent is a valid integer");
+    (mantissa.chars().filter(|&c| c != '.').collect(), exp + 1)
+}
+
+/// `f`'s string rep under `spelling`: [`format_double`] for 8.5 onward, and
+/// `%.12g` with the `.0` rule for Tcl 8.4 and Jim (measured on tclsh 8.4.20
+/// and jimsh 0.84: `1e-05`, `1e+16`, `123456789012.0` for 123456789012.5,
+/// `1e+12` for 999999999999.5, `-0.0`).
+#[must_use]
+pub fn format_double_as(f: f64, spelling: DoubleSpelling) -> String {
+    match spelling {
+        DoubleSpelling::Shortest => format_double(f),
+        DoubleSpelling::Precision12 => print_double::printf_g(f, 12),
+    }
+}
+
+/// `f` as `Tcl_PrintDouble` lays it out under `format`
+/// ([`NumberSyntax::double_format`]): `TclSignificant` is 8.5/8.6's
+/// significant-digit layout, `General` the `%.<n>g` of 8.4 and Jim.
+#[must_use]
+pub fn format_double_with(f: f64, format: DoubleFormat) -> String {
+    match format {
+        DoubleFormat::Shortest => format_double(f),
+        DoubleFormat::TclSignificant(precision) => {
+            if let Some(special) = non_finite_or_zero(f) {
+                return special;
+            }
+            let sci = format!("{:.*e}", usize::from(precision.max(1) - 1), f.abs());
+            let (mantissa, exp) = sci
+                .split_once('e')
+                .expect("Rust's {:e} always emits an 'e' separator");
+            let exp: i32 = exp.parse().expect("Rust's {:e} exponent is an integer");
+            let digits: String = mantissa.chars().filter(char::is_ascii_digit).collect();
+            lay_out_digits(f < 0.0, digits.trim_end_matches('0'), exp + 1, 2)
+        }
+        DoubleFormat::General(precision) => print_double::printf_g(f, precision),
+    }
+}
+
+/// The source text a computed double may be written as for a target that
+/// spells numbers as `spelling` does: the target's own string rep of `f`,
+/// when that text reads back under the target's grammar as exactly `f`.
+///
+/// `None` when it would not, so the consumer keeps the computation instead:
+/// a lossy spelling (`2^64` under 8.5 to 9.1 is `1.844674407370955e+19`;
+/// `1.0/3` under 8.4 or Jim is `0.333333333333`), a spelling 8.4 cannot read
+/// back (a subnormal, [`NumberSyntax::double_read_rejects_range_error`]), a
+/// NaN, or a program that may have set the precision
+/// ([`NumberSpelling::doubles`]).
+#[must_use]
+pub fn spell_double(f: f64, spelling: NumberSpelling) -> Option<String> {
+    let text = format_double_as(f, spelling.doubles()?);
+    let numbers = spelling.numbers();
+    let parsed = parse(&text, ParseFlags::for_syntax(numbers))?;
+    let whole = parsed.end == text.len();
+    let in_range = !(parsed.out_of_range && numbers.double_read_rejects_range_error());
+    let same = matches!(parsed.number, Number::Double(g) if g.to_bits() == f.to_bits());
+    (whole && in_range && same).then_some(text)
+}
+
+/// The source text a computed wide integer may be written as for a target
+/// that spells numbers as `spelling` does: its decimal digits, or `None` for
+/// `INT64_MIN` on a release whose string rep of it is `-8`
+/// ([`NumberSpelling::garbles_wide_min`]).
+#[must_use]
+pub fn spell_wide(i: i64, spelling: NumberSpelling) -> Option<String> {
+    (i != i64::MIN || !spelling.garbles_wide_min()).then(|| i.to_string())
+}
+
+/// The shortest round-tripping digits of a finite positive `f`, and among
+/// those the digits nearest its exact value, ties to an even last digit — what
+/// `TclDoubleDigits`' shortest mode (David Gay's `dtoa` mode 0) picks.
+///
+/// Rust's `{:e}` picks the digit count but not that digit: when two candidates
+/// of that length both round-trip it can take the one further from the value
+/// (1e15 + 0.3 is exactly `…0.25` and `{:e}` spells it `…0.3`; Tcl `…0.2`).
+/// `{:.Ne}` rounds the exact binary value correctly, half to even, so it
+/// supplies the nearest candidate; it is kept only when it still round-trips.
+fn shortest_nearest_scientific(f: f64) -> String {
+    let shortest = format!("{f:e}");
+    let significant = shortest.split_once('e').map_or(0, |(mantissa, _)| {
+        mantissa.bytes().filter(u8::is_ascii_digit).count()
+    });
+    let nearest = format!("{f:.*e}", significant.saturating_sub(1));
+    if nearest != shortest
+        && nearest
+            .parse::<f64>()
+            .is_ok_and(|n| n.to_bits() == f.to_bits())
+    {
+        nearest
+    } else {
+        shortest
+    }
+}
+
 /// Exactly compare an integer against a double, the way C Tcl's
 /// `TclCompareTwoNumbers` (`tclExecute.c`) does for its wide/double arm —
 /// **without** first rounding the integer to a double, which above 2⁵³ merges
@@ -1025,13 +1268,28 @@ pub fn parse(s: &str, flags: ParseFlags) -> Option<Parsed> {
     // overflowing — e.g. magnitudes in `(i64::MAX, u64::MAX]`).
     let number = match (scan.overflow, to_i64(scan.magnitude, negative)) {
         (false, Some(v)) => Number::Int(v),
+        // Only an interpreter wraps: 8.4's reading depends on its host's
+        // `long`, so a static reader with no runtime installed keeps the
+        // value and lets its consumer decline (`runtime_release`).
+        (false, None) if flags.syntax.wraps_wide_integers() && ambient::release().is_some() => {
+            let wrapped = scan.magnitude.cast_signed();
+            Number::Int(if negative {
+                wrapped.wrapping_neg()
+            } else {
+                wrapped
+            })
+        }
         _ => Number::Big {
             negative,
             radix,
             digits: scan.digits.into_owned(),
         },
     };
-    Some(Parsed { number, end: i })
+    Some(Parsed {
+        number,
+        end: i,
+        out_of_range: false,
+    })
 }
 
 /// Whether the decimal-digit run at `i` is followed by `.` or an exponent — in
@@ -1223,7 +1481,23 @@ fn parse_decimal_float(
     Some(Parsed {
         number: Number::Double(value),
         end: i,
+        out_of_range: is_range_error_value(&cleaned, mag),
     })
+}
+
+/// Whether the decimal `lexeme` that rounded to the magnitude `mag` is a
+/// `strtod` range error: an overflow to infinity, or a non-zero mantissa that
+/// came out zero or subnormal (a zero mantissa is exactly zero, never an
+/// underflow — `0e999` is `0.0`).
+fn is_range_error_value(lexeme: &str, mag: f64) -> bool {
+    if mag.is_infinite() {
+        return true;
+    }
+    if mag != 0.0 && !mag.is_subnormal() {
+        return false;
+    }
+    let mantissa = lexeme.split(['e', 'E']).next().unwrap_or(lexeme);
+    mantissa.bytes().any(|c| matches!(c, b'1'..=b'9'))
 }
 
 /// Parse the alphabetic `Inf`/`Infinity`/`NaN`/`NaN(hex)` forms (case-insensitive).
@@ -1247,6 +1521,7 @@ fn parse_inf_nan(b: &[u8], start: usize, negative: bool, syntax: NumberSyntax) -
         return Some(Parsed {
             number: Number::Double(v),
             end,
+            out_of_range: false,
         });
     }
 
@@ -1267,6 +1542,7 @@ fn parse_inf_nan(b: &[u8], start: usize, negative: bool, syntax: NumberSyntax) -
         return Some(Parsed {
             number: Number::Nan { negative, payload },
             end,
+            out_of_range: false,
         });
     }
 
@@ -1640,6 +1916,26 @@ mod tests {
         assert_eq!(format_double(6.022e23), "6.022e+23");
     }
 
+    /// Two shortest candidates both round-trip and sit equally far from the
+    /// double's exact value; `TclDoubleDigits` takes the even last digit.
+    /// tclsh 8.5.19–9.1.0 (and Python's `repr`) print the left column;
+    /// Rust's bare `{:e}` printed the odd neighbour (#2432).
+    #[test]
+    fn format_double_breaks_a_shortest_tie_to_even() {
+        assert_eq!(format_double(1e15 + 0.3), "1000000000000000.2");
+        assert_eq!(format_double(-1e15 - 0.3), "-1000000000000000.2");
+        for (bits, tcl) in [
+            (0x430c_6bf5_2634_016a_u64, "1000000000000045.2"),
+            (0x430c_6bf5_2634_0732, "1000000000000230.2"),
+            (0x42d6_bcc4_1e90_0508, "100000000000020.12"),
+        ] {
+            assert_eq!(format_double(f64::from_bits(bits)), tcl);
+        }
+        assert_eq!(format_double(0.1 + 0.2), "0.30000000000000004");
+        assert_eq!(format_double(1e23), "1e+23");
+        assert_eq!(format_double(5e-324), "5e-324");
+    }
+
     #[test]
     fn format_double_round_trips_to_double_not_int() {
         // The point of the `.0`: every `format_double` output must re-parse as a
@@ -1651,6 +1947,225 @@ mod tests {
                 Some(Number::Double(_)) => {}
                 other => panic!("format_double({v}) = {s:?} re-parsed as {other:?}, not Double"),
             }
+        }
+    }
+
+    /// Every normal power of two, against tclsh: the 516 spellings 8.5.19 to
+    /// 9.1.0 print that are not the shortest are tabled (byte-identical
+    /// across the four releases), and the other 1530 are the shortest
+    /// round-tripping digits.
+    #[test]
+    fn format_double_spells_every_power_of_two_as_tclsh_does() {
+        let table: std::collections::HashMap<i32, &str> =
+            include_str!("../tests/data/tcl_pow2_spellings.txt")
+                .lines()
+                .filter(|line| !line.starts_with('#'))
+                .map(|line| {
+                    let (k, text) = line.split_once(' ').unwrap();
+                    (k.parse().unwrap(), text)
+                })
+                .collect();
+        assert_eq!(table.len(), 516);
+        let mut lossy = 0;
+        for k in -1022..=1023 {
+            let value = 2f64.powi(k);
+            let text = format_double(value);
+            if let Some(&tcl) = table.get(&k) {
+                assert_eq!(text, tcl, "2^{k}");
+                lossy += usize::from(text.parse::<f64>().unwrap().to_bits() != value.to_bits());
+            } else {
+                let shortest = shortest_nearest_scientific(value);
+                let digits = |s: &str| -> String {
+                    s.split(['e', 'E'])
+                        .next()
+                        .unwrap()
+                        .chars()
+                        .filter(char::is_ascii_digit)
+                        .collect::<String>()
+                        .trim_matches('0')
+                        .to_owned()
+                };
+                assert_eq!(digits(&text), digits(&shortest), "2^{k}: {text}");
+                assert_eq!(
+                    text.parse::<f64>().unwrap().to_bits(),
+                    value.to_bits(),
+                    "2^{k}: {text}"
+                );
+            }
+            assert_eq!(format_double(-value), format!("-{text}"));
+        }
+        assert_eq!(lossy, 263);
+        // The pinned cases: 2^64 and 2^-530 do not read back, 2^-1016 is
+        // longer than its shortest, 2^0 to 2^3 and 2^-1 are plain.
+        assert_eq!(format_double(2f64.powi(64)), "1.844674407370955e+19");
+        assert_eq!(format_double(2f64.powi(-530)), "2.845131199340899e-160");
+        assert_eq!(format_double(2f64.powi(-1016)), "1.4240472694446089e-306");
+        assert_eq!(format_double(2f64.powi(-24)), "5.960464477539062e-8");
+        for (value, text) in [(1.0, "1.0"), (2.0, "2.0"), (8.0, "8.0"), (0.5, "0.5")] {
+            assert_eq!(format_double(value), text);
+        }
+        // A subnormal power of two is not in the bw == 1 path.
+        assert_eq!(format_double(f64::from_bits(1)), "5e-324");
+        assert_eq!(
+            format_double(f64::from_bits(1 << 51)),
+            "1.1125369292536007e-308"
+        );
+    }
+
+    /// The doubles beside a power of two keep the shortest spelling.
+    #[test]
+    fn format_double_neighbours_of_a_power_of_two_are_shortest() {
+        for (value, text) in [
+            (
+                f64::from_bits(2f64.powi(64).to_bits() + 1),
+                "1.8446744073709556e+19",
+            ),
+            (
+                f64::from_bits(2f64.powi(64).to_bits() - 1),
+                "1.844674407370955e+19",
+            ),
+            (3.0 * 2f64.powi(64), "5.5340232221128655e+19"),
+            (0.1, "0.1"),
+            (1.0 / 3.0, "0.3333333333333333"),
+        ] {
+            assert_eq!(format_double(value), text);
+        }
+    }
+
+    /// `%.12g` and the `.0` rule, measured on tclsh 8.4.20 and jimsh 0.84
+    /// (identical on every row).
+    #[test]
+    fn precision_12_matches_tcl_8_4_and_jim() {
+        for (value, text) in [
+            (1.0 / 3.0, "0.333333333333"),
+            (1e15 + 0.3, "1e+15"),
+            (0.1 + 0.2, "0.3"),
+            (1e-5, "1e-05"),
+            (1.5e-7, "1.5e-07"),
+            (-1e-5, "-1e-05"),
+            (123_456_789_012.5, "123456789012.0"),
+            (123_456_789_012.0, "123456789012.0"),
+            (999_999_999_999.4, "999999999999.0"),
+            (999_999_999_999.5, "1e+12"),
+            (9.999_999_999_995e15, "1e+16"),
+            (9_999_999_999_995.0, "1e+13"),
+            (99_999_999_999.95, "99999999999.9"),
+            (100_000_000_000.0, "100000000000.0"),
+            (1e12, "1e+12"),
+            (2.0, "2.0"),
+            (100.0, "100.0"),
+            (0.5, "0.5"),
+            (-2.5, "-2.5"),
+            (0.0001, "0.0001"),
+            (0.000_099_999_999_999_995, "0.0001"),
+            (0.000_123_456_789_012_34, "0.000123456789012"),
+            (-5e-11, "-5e-11"),
+            (1e16, "1e+16"),
+            (1e17, "1e+17"),
+            (1e22, "1e+22"),
+            (1e100, "1e+100"),
+            (1e301, "1e+301"),
+            (1e-310, "1e-310"),
+            (2.5e-308 / 2.0, "1.25e-308"),
+            (4.611_686_018_427_388e18, "4.61168601843e+18"),
+            (2f64.powi(64), "1.84467440737e+19"),
+            (12_345_678_901_234_567.0, "1.23456789012e+16"),
+            (core::f64::consts::SQRT_2, "1.41421356237"),
+            (core::f64::consts::E, "2.71828182846"),
+            (5e-324, "4.94065645841e-324"),
+            (0.0, "0.0"),
+            (-0.0, "-0.0"),
+            (f64::INFINITY, "Inf"),
+            (f64::NEG_INFINITY, "-Inf"),
+            (f64::NAN, "NaN"),
+        ] {
+            assert_eq!(
+                format_double_as(value, DoubleSpelling::Precision12),
+                text,
+                "{value:e}"
+            );
+        }
+    }
+
+    #[test]
+    fn spell_double_declines_a_spelling_that_does_not_read_back() {
+        let tcl86 = NumberSpelling::of(NumberSyntax::Tcl85, Some(tcl_dialect::TclVersion::V8_6));
+        let tcl84 = NumberSpelling::of(NumberSyntax::Tcl84, Some(tcl_dialect::TclVersion::V8_4));
+        let jim = NumberSpelling::of(NumberSyntax::Jim080, None);
+        let tcl90 = NumberSpelling::default();
+        for spelling in [tcl86, tcl90] {
+            assert_eq!(spell_double(2f64.powi(64), spelling), None);
+            assert_eq!(
+                spell_double(2f64.powi(63), spelling).as_deref(),
+                Some("9.223372036854776e+18")
+            );
+            assert_eq!(
+                spell_double(1.0 / 3.0, spelling).as_deref(),
+                Some("0.3333333333333333")
+            );
+            assert_eq!(spell_double(1e-310, spelling).as_deref(), Some("1e-310"));
+            assert_eq!(
+                spell_double(f64::INFINITY, spelling).as_deref(),
+                Some("Inf")
+            );
+            assert_eq!(spell_double(f64::NAN, spelling), None);
+        }
+        for spelling in [tcl84, jim] {
+            assert_eq!(spell_double(1.0 / 3.0, spelling), None);
+            assert_eq!(spell_double(0.1 + 0.2, spelling), None);
+            assert_eq!(spell_double(1e-5, spelling).as_deref(), Some("1e-05"));
+            assert_eq!(spell_double(2.0, spelling).as_deref(), Some("2.0"));
+            assert_eq!(spell_double(1e16, spelling).as_deref(), Some("1e+16"));
+            assert_eq!(spell_double(-0.0, spelling).as_deref(), Some("-0.0"));
+        }
+        // 8.4 prints a computed subnormal but cannot read one back.
+        assert_eq!(spell_double(1e-310, tcl84), None);
+        assert_eq!(spell_double(1e-310, jim).as_deref(), Some("1e-310"));
+        // A program that may set `tcl_precision` has no known spelling
+        // through 8.6; 9.0 and Jim have no such variable.
+        assert_eq!(spell_double(2.0, tcl84.with_precision_written(true)), None);
+        assert_eq!(spell_double(2.0, tcl86.with_precision_written(true)), None);
+        assert_eq!(
+            spell_double(2.0, tcl90.with_precision_written(true)).as_deref(),
+            Some("2.0")
+        );
+        assert_eq!(
+            spell_double(2.0, jim.with_precision_written(true)).as_deref(),
+            Some("2.0")
+        );
+    }
+
+    #[test]
+    fn spell_wide_declines_int64_min_where_the_release_garbles_it() {
+        use tcl_dialect::TclVersion;
+        let min = i64::MIN;
+        for (spelling, garbled) in [
+            (
+                NumberSpelling::of(NumberSyntax::Tcl84, Some(TclVersion::V8_4)),
+                true,
+            ),
+            (
+                NumberSpelling::of(NumberSyntax::Tcl85, Some(TclVersion::V8_5)),
+                true,
+            ),
+            (
+                NumberSpelling::of(NumberSyntax::Tcl85, Some(TclVersion::V8_6)),
+                false,
+            ),
+            (NumberSpelling::of(NumberSyntax::Tcl85, None), true),
+            (
+                NumberSpelling::of(NumberSyntax::Tcl90, Some(TclVersion::V9_0)),
+                false,
+            ),
+            (NumberSpelling::of(NumberSyntax::Jim080, None), false),
+            (NumberSpelling::default(), false),
+        ] {
+            let expected = (!garbled).then(|| "-9223372036854775808".to_owned());
+            assert_eq!(spell_wide(min, spelling), expected, "{spelling:?}");
+            assert_eq!(
+                spell_wide(min + 1, spelling).as_deref(),
+                Some("-9223372036854775807")
+            );
         }
     }
 
@@ -1746,8 +2261,8 @@ mod tests {
 #[cfg(test)]
 mod dialect_tests {
     use super::{
-        Number, NumberSyntax, Numbers, ParseFlags, is_expr_number, parse, parse_whole_with,
-        runtime_syntax, set_runtime_syntax,
+        Number, NumberSyntax, Numbers, ParseFlags, is_expr_number, is_out_of_range_double, parse,
+        parse_whole_with, runtime_syntax, set_runtime_syntax,
     };
     use tcl_dialect::TclVersion;
 
@@ -2036,6 +2551,81 @@ mod dialect_tests {
         // still holds the initialiser's value.
         let ambient = std::thread::spawn(runtime_syntax).join().unwrap();
         assert_eq!(ambient, NumberSyntax::default());
+    }
+
+    /// The `strtod` `ERANGE` set, measured on tclsh 8.4.20 and jimsh 0.84
+    /// (glibc): an overflow, and a non-zero mantissa that comes out zero or
+    /// subnormal. The boundary values around `DBL_MAX` / `DBL_MIN` are normal.
+    #[test]
+    fn out_of_range_is_the_strtod_erange_set() {
+        let syntax = NumberSyntax::Tcl90;
+        for range_error in [
+            "1e400",
+            "-1e400",
+            "+1e400",
+            "1E400",
+            ".1e400",
+            "1.e400",
+            "100e398",
+            "1.7976931348623159e308",
+            "1.8e308",
+            "1e-400",
+            "-1e-400",
+            "1e-325",
+            "4.9e-324",
+            "5e-324",
+            "1e-320",
+            "1e-310",
+            "1e-308",
+            "2.2250738585072009e-308",
+            "1e999999999999",
+            "0.5e-323",
+            "123456789012345678901234567890e-340",
+        ] {
+            assert!(is_out_of_range_double(range_error, syntax), "{range_error}");
+        }
+        for in_range in [
+            "1.7976931348623157e308",
+            "1e308",
+            "2.2250738585072014e-308",
+            "2.2250738585072013e-308",
+            "1e-307",
+            "1e19",
+            "0.0",
+            "0e999",
+            "0.0e-400",
+            "00e999",
+            "0e-999",
+            "-0.0",
+            "Inf",
+            "-Infinity",
+            "NaN",
+            "1e5",
+            "42",
+            "1e400x",
+            "abc",
+        ] {
+            assert!(
+                !is_out_of_range_double(in_range, syntax),
+                "{in_range} is in range"
+            );
+        }
+        assert!(is_out_of_range_double(" 1e400 ", syntax));
+    }
+
+    #[test]
+    fn range_error_is_a_release_fact_not_a_parse_failure() {
+        for syntax in NumberSyntax::ALL {
+            let parsed = parse("1e400", ParseFlags::for_syntax(*syntax)).unwrap();
+            assert_eq!(parsed.number, Number::Double(f64::INFINITY));
+            assert!(parsed.out_of_range);
+            assert_eq!(
+                parsed.is_range_error(*syntax),
+                syntax.string_is_double_rejects_range_error()
+            );
+            let inf = parse("Inf", ParseFlags::for_syntax(*syntax)).unwrap();
+            assert!(!inf.is_range_error(*syntax));
+        }
     }
 }
 

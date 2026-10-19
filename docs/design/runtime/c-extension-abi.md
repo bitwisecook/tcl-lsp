@@ -610,8 +610,12 @@ and the limits are lifted when an evaluation ends, so what is set up between
 evaluations runs under none. In the interpreter itself the command count is
 charged at the dispatch boundary every command crosses, the wall clock is read
 there every 64 dispatches and at the loop commands' poll every 4096
-iterations, and the value size is charged in `string repeat`; a limit once
-outrun stays outrun until the next evaluation begins, so a body that catches
+iterations, and the value size is charged before allocating by the builders
+that can outgrow their inputs (`string repeat`, `string cat`, `string map`,
+`lrepeat`, `lseq`, `concat`, `join`, `format`, through the command core's
+`value_size` charge) and on every command's result at the same dispatch
+boundary, measuring a list through its elements rather than rendering it; a
+limit once outrun stays outrun until the next evaluation begins, so a body that catches
 the error cannot run on. Every WASI function either module imports is a stub
 that answers the same on every run: the clock reads zero, randomness is zeros,
 there is no environment, no argument and no preopened directory, output is

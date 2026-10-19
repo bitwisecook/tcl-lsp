@@ -34,8 +34,10 @@
 //! `rege_dfa.c`). This crate instead parses to a typed [`ast::Node`] tree
 //! ([`parser`]) and matches it *directly* by reachable-set (Thompson-style)
 //! simulation plus a recursive submatch dissector, with a separate
-//! continuation-passing backtracker for backreferences ([`exec`]). There is no
-//! color map, no NFA of states and arcs, and no DFA construction in the ARE
+//! continuation-passing backtracker for backreferences ([`exec`]). A regular
+//! pattern is first scanned for where its leftmost match starts by a
+//! Pike-style simulation of a flat instruction program compiled from the same
+//! tree ([`nfa`]). There is no color map and no DFA construction in the ARE
 //! implementation. [`jim`] retains Jim's distinct integer program, original
 //! `CString` extents, byte ranges and pinned UTF8 decoding/case rules.
 //!
@@ -67,6 +69,7 @@ pub mod cmd_core;
 pub mod defs;
 mod exec;
 pub mod jim;
+mod nfa;
 mod parser;
 
 pub use defs::Err as ErrorCode;

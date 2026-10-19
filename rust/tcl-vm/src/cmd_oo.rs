@@ -2192,6 +2192,7 @@ fn run_step_inner(
         body_src: m.body_src.clone(),
         usage_name: Some(usage_prefix.clone()),
         call_identity: Some(call_identity),
+        lambda_term: None,
     };
     // Refresh through the shared proc owner, then persist the replacement on
     // its defining facet.  Recompiling on every method call after a profile

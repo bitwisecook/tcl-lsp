@@ -21,7 +21,7 @@
 //! original ranges and per-match write callbacks. Runtime supplies physical
 //! object headers, variable writes and completion publication.
 
-use crate::interp::{Code, Interp};
+use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::{self, new_string_bytes, new_wide_int_obj, TclObj};
 use tcl_cmd_core::regex::{self as core_re, RegexpResult, RegsubError};
 
@@ -116,6 +116,9 @@ fn regexp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             outcome
         },
     );
+    if outcome.is_ok() {
+        convert_regexp_operands(interp, argv);
+    }
     match outcome {
         Ok(RegexpResult::Inline(v)) => {
             interp.set_result(v);
@@ -130,6 +133,84 @@ fn regexp_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         Err(core_re::RegexpExecutionError::Assignment(code)) => code,
     }
+}
+
+/// The words past `argv`'s switches (`-start` taking a word, `--` ending
+/// them): the pattern, the string, and the rest.
+fn regex_operands(argv: &[*mut TclObj]) -> &[*mut TclObj] {
+    let mut i = 1;
+    while let Some(word) = argv.get(i).map(|&word| obj_bytes(word)) {
+        if !word.starts_with(b"-") {
+            break;
+        }
+        i += 1;
+        if word == b"--" {
+            break;
+        }
+        if word.len() > 1 && b"-start".starts_with(&word) {
+            i += 1;
+        }
+    }
+    argv.get(i..).unwrap_or_default()
+}
+
+/// Leave `regexp`'s pattern a regular expression and its string read by
+/// character, as `Tcl_RegexpObjCmd` and `INST_REGEXP` do; a canonical list
+/// in either place is one no longer. Where the release compiles a literal
+/// pattern `TclReToGlob` converts, it compares the glob instead: exactly,
+/// reading nothing, or as `INST_STR_MATCH`, reading the string by character
+/// only where it already is a string.
+fn convert_regexp_operands(interp: &Interp, argv: &[*mut TclObj]) {
+    let [pattern, string, rest @ ..] = regex_operands(argv) else {
+        return;
+    };
+    if let Some(glob) = compiled_glob(interp, argv).filter(|_| rest.is_empty()) {
+        if !glob && crate::list::is_string_typed(*string) {
+            crate::list::read_as_string(*string);
+        }
+        return;
+    }
+    crate::list::read_as_other_type(*pattern);
+    crate::list::read_as_string(*string);
+}
+
+/// Whether the release compiles this `regexp` over a glob of its literal
+/// pattern (`TclCompileRegexpCmd`: only literal `-nocase` prefixes and `--`
+/// before the two words, a pattern that is no switch unless `--` came first,
+/// and that `TclReToGlob` converts), and that comparison inexact
+/// (`INST_STR_MATCH` rather than `INST_STR_EQ`); `None` where it does not.
+fn compiled_glob(interp: &Interp, argv: &[*mut TclObj]) -> Option<bool> {
+    let (hook, literal) = interp.release_compiled_hook(argv)?;
+    if hook != tcl_registry::hooks::InlineCodegenHookId::Regexp {
+        return None;
+    }
+    let mut nocase = false;
+    let mut ended = false;
+    let mut i = 1;
+    while i + 2 < argv.len() {
+        let word = obj_bytes(argv[i]);
+        if !literal[i] {
+            return None;
+        }
+        i += 1;
+        if word == b"--" {
+            ended = true;
+            break;
+        }
+        if !(word.len() > 1 && b"-nocase".starts_with(&word)) {
+            return None;
+        }
+        nocase = true;
+    }
+    if argv.len() != i + 2 || !literal[i] {
+        return None;
+    }
+    let pattern = obj_bytes(argv[i]);
+    if pattern.starts_with(b"-") && !ended {
+        return None;
+    }
+    let (_, exact) = tcl_syntax::glob::re_to_glob(&pattern)?;
+    Some(!exact || nocase)
 }
 
 impl core_re::NativeRegexSource for Interp {
@@ -415,6 +496,14 @@ impl core_re::NativeRegsubObjects for Interp {
 }
 
 fn regsub_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    // `Tcl_RegsubObjCmd` reads its pattern as a regular expression and its
+    // string and substitution by character: a canonical list among them is
+    // one no longer.
+    if let [pattern, string, subspec, ..] = regex_operands(argv) {
+        crate::list::read_as_other_type(*pattern);
+        crate::list::read_as_string(*string);
+        crate::list::read_as_string(*subspec);
+    }
     let version = interp.runtime_version();
     if interp
         .native_invocation_dialect()
@@ -856,6 +945,32 @@ mod tests {
                     );
                 });
             }
+        }
+    }
+
+    /// `regsub -all {}` substitutes before each of the pinned release's
+    /// characters (#2170). Measured with `regsub -all {} $s X out` over
+    /// U+1D11E, `out` read back with `scan … %c`: tclsh 8.4.20 / 8.5.19
+    /// count 4 (X 240 X 157 X 132 X 158), 8.6.18 2 (X 55348 X 56606) and
+    /// 9.0.4 / 9.1.0 1 (X 119070). 8.6's surrogate halves cannot be held
+    /// apart, so both replacements go before the pair.
+    #[test]
+    fn regsub_literal_empty_pattern_walks_the_releases_characters() {
+        use tcl_dialect::TclVersion;
+        let script = "set r [regsub -all {} \"\u{1D11E}\" X out]\n\
+                      foreach c [split $out {}] {lappend r [scan $c %c]}\n\
+                      set r";
+        for (version, want) in [
+            (TclVersion::V8_4, "4 88 240 88 157 88 132 88 158"),
+            (TclVersion::V8_5, "4 88 240 88 157 88 132 88 158"),
+            (TclVersion::V8_6, "2 88 88 119070"),
+            (TclVersion::V9_0, "1 88 119070"),
+            (TclVersion::V9_1, "1 88 119070"),
+        ] {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                assert_eq!(ok(i, script.as_bytes()), want.as_bytes(), "{version:?}");
+            });
         }
     }
 }

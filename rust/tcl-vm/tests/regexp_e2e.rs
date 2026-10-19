@@ -210,13 +210,6 @@ fn regsub_command_evaluates_the_prefix() {
 /// "regsub -command {.x.} abcxdef boomp"
 /// ```
 ///
-/// The VM's trace omits the `invoked from within "boomp cxd"` frame because
-/// the prefix is invoked argv-wise (`Vm::dispatch`), which carries no source
-/// text to quote — the same pre-existing shape `lsort -command` has here
-/// (tclsh prints `invoked from within "errchk 1 2"` for `lsort -command
-/// errchk {1 2}`, the VM does not). Everything this change owns — the
-/// message, the `(-command substitution computation script)` frame and its
-/// position before the enclosing command's frame — matches C.
 #[test]
 fn regsub_command_error_appends_the_c_error_info_trailer() {
     let (ok, result) = run(r#"proc boomp args { error boom }
@@ -229,7 +222,8 @@ fn regsub_command_error_appends_the_c_error_info_trailer() {
     assert_eq!(msg, "boom");
     assert_eq!(
         info,
-        "{boom\n    while executing\n\"error boom\"\n    (procedure \"boomp\" line 1)\n    \
+        "{boom\n    while executing\n\"error boom \"\n    (procedure \"boomp\" line 1)\n    \
+         invoked from within\n\"boomp cxd\"\n    \
          (-command substitution computation script)\n    invoked from within\n\"regsub -command \
          {.x.} abcxdef boomp\"}"
     );
@@ -294,6 +288,66 @@ fn regsub_command_is_a_9_0_option() {
         let (ok, result) = run_for_version(src, version);
         assert!(ok, "{version:?}: {result}");
         assert_eq!(result, "Abc", "for {version:?}");
+    }
+}
+
+/// `regsub -all {}` substitutes once before each of the release's characters
+/// (#2170): `string length` under its `StringCharacterModel`, never one more
+/// at end-of-string. The observation is `{counts points}`: for U+1D11E and
+/// `a<U+1D11E>b`, the count and the output's length, then the output's code
+/// points through `split`.
+///
+/// tclsh builds the subject with `encoding convertfrom utf-8` on its four
+/// bytes, which every release reads alike under any system encoding
+/// (measured with `LANG=C.UTF-8` and unset); the VM gets it as a literal,
+/// which every release of tclsh reads the same way under a UTF-8 locale.
+/// 8.6's output puts a replacement between the surrogate halves, which a
+/// Rust string cannot hold apart, so on 8.6 only the counts are compared
+/// and our points are the documented boundary (both replacements before the
+/// pair).
+#[test]
+fn regsub_literal_empty_pattern_walks_the_releases_characters() {
+    use tcl_dialect::TclVersion;
+    const OBSERVE: &str =
+        "proc cps v {set r {}; foreach c [split $v {}] {lappend r [scan $c %c]}; return $r}
+set counts {}
+set points {}
+foreach s [list $g a${g}b] {
+    lappend counts [regsub -all {} $s X out] [string length $out]
+    lappend points [cps $out]
+}
+set answer [list $counts $points]
+";
+    const TCL8: &str = "{4 8 6 12} {{88 240 88 157 88 132 88 158} \
+                        {88 97 88 240 88 157 88 132 88 158 88 98}}";
+    const TCL86: &str = "{2 4 4 8} {{88 88 119070} {88 97 88 88 119070 88 98}}";
+    const TCL9: &str = "{1 2 3 6} {{88 119070} {88 97 88 119070 88 98}}";
+    for (version, want) in [
+        (TclVersion::V8_4, TCL8),
+        (TclVersion::V8_5, TCL8),
+        (TclVersion::V8_6, TCL86),
+        (TclVersion::V9_0, TCL9),
+        (TclVersion::V9_1, TCL9),
+    ] {
+        let (ok, ours) = run_for_version(&format!("set g \"\u{1D11E}\"\n{OBSERVE}"), version);
+        assert!(ok, "{version:?}: {ours}");
+        assert_eq!(ours, want, "{version:?}");
+        let Some(tclsh) = tcl_test_support::witness_tclsh(version) else {
+            continue;
+        };
+        let script = format!(
+            "set g [encoding convertfrom utf-8 \"\\xf0\\x9d\\x84\\x9e\"]\n{OBSERVE}puts $answer\n"
+        );
+        let theirs = tcl_test_support::run_script(&tclsh.path, script.as_bytes())
+            .expect("tclsh runs")
+            .strict_text()
+            .expect("tclsh answers");
+        if version == TclVersion::V8_6 {
+            let counts = |answer: &str| answer.split('}').next().map(str::to_owned);
+            assert_eq!(counts(&ours), counts(&theirs), "{version:?} counts");
+        } else {
+            assert_eq!(ours, theirs, "{version:?} against tclsh");
+        }
     }
 }
 

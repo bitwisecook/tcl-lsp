@@ -41,7 +41,7 @@
 
 use std::{collections::HashMap, rc::Rc};
 
-use tcl_runtime_api::Completion;
+use tcl_runtime_api::{Code, Completion};
 
 use crate::command::{Command, NativeCommand};
 use crate::exec::{Frame, RunExit, YieldReq};
@@ -469,6 +469,9 @@ fn resume(
     // coroutine starts at pc 0, so it takes no delivered value. Any `coroinject`
     // commands run first, in the coroutine's context, each transforming the
     // delivered value (called with the suspend kind + current value appended).
+    // One that fails is raised at the suspend point instead, where the
+    // coroutine's own `catch` can take it, as C does.
+    let mut injected = None;
     if !was_fresh && stale_message.is_none() {
         // A `yield` returns the single resume value (or `""`); a `yieldto`
         // returns the whole resume-argument list.
@@ -498,26 +501,17 @@ fn resume(
                     top.push_operand(delivered);
                 }
             }
-            Err(r) => {
-                // An injected command failed: the coroutine is torn down (C
-                // unwinds it, so its command becomes invalid), the caller's flow
-                // is restored, and the error propagates.
-                retire_resume_activations(vm, &mut acts);
-                vm.finish_coroutine_flow();
-                vm.coro.stack.pop();
-                vm.swap_flow(&mut parked);
-                if let Some(key) = active_key.key() {
-                    teardown_coro(vm, &key);
-                }
-                drop((acts, parked));
-                return finish_original_coroutine(vm, &original, r);
-            }
+            // A failing injected command completes the parked `yield` with
+            // its own completion, raised at the suspend point where the
+            // coroutine's own `catch` (or loop) can take it, as C does.
+            Err(r) => injected = Some(r),
         }
     }
 
-    let mut exit = match stale_message {
-        Some(message) => vm.unwind_stale_coroutine(&mut acts, message),
-        None => vm.drive_coro(&mut acts),
+    let mut exit = match (stale_message, injected) {
+        (Some(message), _) => vm.unwind_stale_coroutine(&mut acts, message),
+        (None, Some(r)) => vm.raise_in_coroutine(&mut acts, r),
+        (None, None) => vm.drive_coro(&mut acts),
     };
 
     if let Err(error) = vm.check_original_scopes(&original) {
@@ -541,6 +535,8 @@ fn resume(
                 YieldReq::YieldTo { .. } => SuspendKind::YieldTo,
             };
             // Park the coroutine (its frozen stack + flow) for the next resume.
+            // One that deleted its own command while running has nowhere to
+            // park, so its frozen stack is retired like a deleted suspended one.
             if let Some(key) = key
                 && let Some(state) = vm.coro.live.get_mut(&key)
             {
@@ -548,6 +544,8 @@ fn resume(
                 state.parked = parked;
                 state.status = CoroStatus::Suspended;
                 state.last_suspend = kind;
+            } else {
+                vm.retire_parked_coroutine(&mut acts, &mut parked);
             }
             match req {
                 YieldReq::Yield(v) => ok(v),
@@ -557,6 +555,7 @@ fn resume(
             }
         }
         RunExit::Done(c) => {
+            vm.adopt_flow_error_trace(c.code, &mut parked);
             // The body finished: remove the command + state (unless `exit` is
             // propagating, in which case leave teardown to the unwinding caller).
             if let Some(key) = key {
@@ -631,6 +630,15 @@ fn run_injections(
         // resets the interpreter result. A lifetime view alone permits reuse.
         call.push(prior.result.into_native_reference());
         let reached = vm.invoke_host_original_object_vector(&prefix[0], &call);
+        if reached.code == Code::Error {
+            let mut words = vec![prefix[0].clone()];
+            words.extend(call.iter().cloned());
+            let text = tcl_syntax::list::join_list(words.iter().map(Value::to_str));
+            // The injected command and the parked `yield` it ran under are
+            // separate command frames, so the `yield` logs next.
+            vm.log_command_info(text.as_bytes(), reached.result.string_bytes().as_ref(), 0);
+            vm.clear_error_logged();
+        }
         drop(call);
         finish_original_coroutine(vm, original, reached)
     });

@@ -197,6 +197,16 @@ pub fn create<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, C
     Ok(ops.new_dict_checked(pairs)?)
 }
 
+/// `key "…" not known in dictionary` with `TCL LOOKUP DICT <key>`, C's
+/// refusal for a missing key on a `dict get`/`unset`/`with` path.
+#[must_use]
+pub fn key_not_known(key: &str) -> CmdError {
+    CmdError::with_error_code(
+        format!("key \"{key}\" not known in dictionary"),
+        tcl_syntax::list::join_list(["TCL", "LOOKUP", "DICT", key]),
+    )
+}
+
 /// `dict get dictionary ?key ...?` — descend nested keys; a missing key errors.
 pub fn get<O: ValueOps>(
     ops: &mut O,

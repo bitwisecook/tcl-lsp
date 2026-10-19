@@ -304,6 +304,64 @@ fn cache_parsed_rep(obj: *mut TclObj, value: &NumVal) {
     }
 }
 
+/// How an object read as a `Tcl_WideInt` (`Tcl_GetWideIntFromObj`) came out.
+pub(crate) enum WideRead {
+    /// The value, as a wide integer.
+    Wide(i64),
+    /// An integer past the wide range — C's `integer value too large to
+    /// represent` / `ARITH IOVERFLOW`.
+    Overflow,
+    /// A number that is not an integer (a double, or NaN).
+    NotInteger,
+    /// Not a number at all.
+    NotNumeric,
+}
+
+/// Read `obj` as a wide integer with `Tcl_GetWideIntFromObj`'s classification,
+/// caching the parsed rep back onto the object like every other tower read.
+///
+/// A bignum that still fits a wide narrows here, exactly as C's bignum branch
+/// does even with auto-narrowing enabled.
+pub(crate) fn read_wide(obj: *mut TclObj) -> WideRead {
+    match read(obj) {
+        Some(NumVal::Wide(w)) => WideRead::Wide(w),
+        Some(NumVal::Big(m)) => {
+            // SAFETY: `m` owns a live mp_int.
+            if unsafe { mp_count_bits(m.ptr()) } <= 63 {
+                // SAFETY: the magnitude fits, so the signed read is exact.
+                WideRead::Wide(unsafe { mp_get_i64(m.ptr()) })
+            } else {
+                WideRead::Overflow
+            }
+        }
+        Some(NumVal::Float(_)) => WideRead::NotInteger,
+        None => {
+            // A NaN spelling is a number the tower declines, not a non-number:
+            // `Tcl_GetWideIntFromObj` still reports it as "expected integer".
+            if is_nan_operand(obj) {
+                WideRead::NotInteger
+            } else {
+                WideRead::NotNumeric
+            }
+        }
+    }
+}
+
+/// Read `obj` as a double with `Tcl_GetDoubleFromObj`'s widening (an integer or
+/// bignum promotes), caching the parsed rep back onto the object. `None` is a
+/// non-numeric value; a NaN spelling yields `Some(NaN)`, which the boolean
+/// context rejects and the double context accepts.
+pub(crate) fn read_double(obj: *mut TclObj) -> Option<f64> {
+    match read(obj) {
+        Some(NumVal::Wide(w)) => Some(w as f64),
+        Some(NumVal::Float(f)) => Some(f),
+        // SAFETY: `m` owns a live mp_int; C promotes a bignum to the nearest
+        // double (±Inf past the range).
+        Some(NumVal::Big(m)) => Some(unsafe { mp_get_double(m.ptr()) }),
+        None => is_nan_operand(obj).then_some(f64::NAN),
+    }
+}
+
 /// Materialise a tower value as a fresh object, demoting a bignum that fits.
 fn to_obj(v: NumVal) -> *mut TclObj {
     match v {

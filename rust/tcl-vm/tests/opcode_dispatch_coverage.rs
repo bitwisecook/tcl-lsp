@@ -73,7 +73,7 @@ impl Asm {
     fn push(&mut self, text: &str) -> &mut Self {
         let idx = self.lits.intern(text);
         let mut instr = Instruction::new(Op::PUSH1, vec![Operand::Imm(bytecode_imm(idx))]);
-        instr.push_verbatim = true;
+        instr.literal_rep = tcl_bytecode::LiteralRep::Verbatim;
         self.instrs.push(instr);
         self
     }

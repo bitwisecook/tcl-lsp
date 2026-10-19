@@ -40,7 +40,7 @@ fn register_string(vm: &mut Vm) {
     let subs = crate::environment::release_subcommands(
         vm.actual_native_execution_profile().name,
         "string",
-        STRING_SUBS,
+        tcl_cmd_core::string::SUBCOMMANDS,
     );
     vm.register_stock_namespace_ensemble("string", namespace, STRING_MEMBERS, subs);
 }
@@ -111,70 +111,37 @@ pub(crate) fn physical_string_length(vm: &mut Vm, args: &[Value]) -> Completion<
     string_op(vm, "length", args)
 }
 
-/// The canonical `string` subcommands (Tcl 9 order), used for unique-prefix
-/// resolution and the error message.
-const STRING_SUBS: &[&str] = &[
-    "bytelength",
-    "cat",
-    "compare",
-    "equal",
-    "first",
-    "index",
-    "insert",
-    "is",
-    "last",
-    "length",
-    "map",
-    "match",
-    "range",
-    "repeat",
-    "replace",
-    "reverse",
-    "tolower",
-    "totitle",
-    "toupper",
-    "trim",
-    "trimleft",
-    "trimright",
-    "wordend",
-    "wordstart",
-];
-
-/// Resolve a (possibly abbreviated) `string` subcommand to its canonical name
-/// through the shared ensemble owner (`string` is a `TclMakeEnsemble` command),
-/// or the ensemble's own miss sentence — including its comma before `or`, which
-/// `prefix::choice_list` words differently.
-fn resolve_string_sub<'a>(subs: &[&'a str], input: &[u8]) -> Result<&'a str, Vec<u8>> {
-    match tcl_cmd_core::ensemble::resolve_subcommand(subs, input, true) {
-        Some(index) => Ok(subs[index]),
-        None => Err(tcl_cmd_core::ensemble::unknown_subcommand_message(
-            subs,
-            input,
-            true,
-            b"::tcl::string",
-        )),
-    }
+/// Resolve a (possibly abbreviated) `string` subcommand among `subs`, the
+/// release's, as `release`'s `string` does
+/// ([`tcl_cmd_core::string::select_subcommand`]), over the original word bytes.
+fn resolve_string_sub<'a>(
+    subs: &[&'a str],
+    input: &[u8],
+    release: tcl_dialect::TclVersion,
+) -> Result<&'a str, tcl_cmd_core::CmdError> {
+    tcl_cmd_core::string::select_subcommand(subs, input, release).map(|i| subs[i])
 }
 
 fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let release = vm.runtime_version();
     let Some((sub, rest)) = args.split_first() else {
-        return err_wrong_args(vm, "string subcommand ?arg ...?");
+        return vm.cmd_error(tcl_cmd_core::string::usage_error(release));
     };
     // `insert` arrives in Tcl 9 and `bytelength` leaves with it, so the table
     // is the emulated release's: on 8.6 `string in` is `index`, on 9.0 it is
     // ambiguous with `insert`.
     let subs = crate::environment::release_subcommands(
-        vm.runtime_version().dialect_profile_name(),
+        release.dialect_profile_name(),
         "string",
-        STRING_SUBS,
+        tcl_cmd_core::string::SUBCOMMANDS,
     );
     let sub_bytes = match vm.native_name_operand_bytes_checked(sub) {
         Ok(bytes) => bytes,
         Err(error) => return crate::command::completion_from_cmd_error(vm, error),
     };
-    let canon = match resolve_string_sub(subs, &sub_bytes) {
+    let canon = match resolve_string_sub(subs, &sub_bytes, release) {
         Ok(c) => c,
-        Err(e) => return err(e),
+        Err(e) => return vm.cmd_error(e),
     };
     // `string repeat` is the one subcommand that can allocate without bound in
     // a single command, so it is charged against the value-size limit before
@@ -191,10 +158,10 @@ fn cmd_string(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // Portable subcommands now live in the shared command core (`tcl-cmd-core`);
     // the VM is a thin adapter that maps `Result<Value, CmdError>` onto its
     // `Completion`. Subcommands not yet in the core fall through to the legacy arms.
-    if let Some(result) = tcl_cmd_core::string::dispatch_canon(vm, canon, rest) {
+    if let Some(result) = tcl_cmd_core::string::dispatch_canon_in(vm, canon, rest, release) {
         return match result {
             Ok(v) => ok(v),
-            Err(e) => crate::command::completion_from_cmd_error(vm, e),
+            Err(e) => vm.cmd_error(e),
         };
     }
     match canon {
@@ -250,7 +217,8 @@ fn string_repeat(vm: &mut Vm, s: &Value, count: &Value) -> Completion<Value> {
 /// (tclCmdMZ.c): an empty/inverted range leaves the string unchanged, but an
 /// empty *original* string is replaceable (so `string replace {} -1 0 A` → A).
 fn string_replace(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    match tcl_cmd_core::string::replace(vm, rest) {
+    let numbers = vm.runtime_version().number_syntax();
+    match tcl_cmd_core::string::replace(vm, rest, numbers) {
         Ok(value) => ok(value),
         Err(error) => crate::command::completion_from_cmd_error(vm, error),
     }
@@ -260,7 +228,8 @@ fn string_replace(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// Unlike most string ops, `end` denotes the position *after* the last
 /// character (so `end` appends).
 fn string_insert(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
-    match tcl_cmd_core::string::insert(vm, rest) {
+    let numbers = vm.runtime_version().number_syntax();
+    match tcl_cmd_core::string::insert(vm, rest, numbers) {
         Ok(value) => ok(value),
         Err(error) => crate::command::completion_from_cmd_error(vm, error),
     }
@@ -297,11 +266,13 @@ fn case_convert(vm: &mut Vm, rest: &[Value], op: &str) -> Completion<Value> {
         "tolower" => tcl_cmd_core::string::CaseMode::Lower,
         _ => tcl_cmd_core::string::CaseMode::Title,
     };
+    let numbers = vm.runtime_version().number_syntax();
     match tcl_cmd_core::string::case_convert(
         vm,
         rest,
         mode,
         &format!("string {op} string ?first? ?last?"),
+        numbers,
     ) {
         Ok(value) => ok(value),
         Err(error) => crate::command::completion_from_cmd_error(vm, error),
@@ -316,7 +287,8 @@ fn string_first(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         [needle, haystack, start] => (needle, haystack, Some(start)),
         _ => return err_wrong_args(vm, "string first needleString haystackString ?startIndex?"),
     };
-    match tcl_cmd_core::string::first(vm, needle, haystack, start) {
+    let numbers = vm.runtime_version().number_syntax();
+    match tcl_cmd_core::string::first(vm, needle, haystack, start, numbers) {
         Ok(value) => ok(value),
         Err(error) => crate::command::completion_from_cmd_error(vm, error),
     }
@@ -330,7 +302,8 @@ fn string_last(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         [needle, haystack, start] => (needle, haystack, Some(start)),
         _ => return err_wrong_args(vm, "string last needleString haystackString ?lastIndex?"),
     };
-    match tcl_cmd_core::string::last(vm, needle, haystack, start) {
+    let numbers = vm.runtime_version().number_syntax();
+    match tcl_cmd_core::string::last(vm, needle, haystack, start, numbers) {
         Ok(value) => ok(value),
         Err(error) => crate::command::completion_from_cmd_error(vm, error),
     }
@@ -381,7 +354,9 @@ fn string_map(vm: &mut Vm, pairs: &Value, s: &str, nocase: bool) -> Completion<V
         .iter()
         .map(|c| (c[0].to_str().to_string(), c[1].to_str().to_string()))
         .collect();
-    ok(Value::string(map_apply(&map, s, nocase)))
+    ok(Value::string(
+        map_apply(&map, s, nocase, None).unwrap_or_default(),
+    ))
 }
 
 /// Apply a `string map` char-map to `s`, left to right: at each position the
@@ -390,7 +365,14 @@ fn string_map(vm: &mut Vm, pairs: &Value, s: &str, nocase: bool) -> Completion<V
 /// Shared by the `string map` command and the `strmap` opcode (which passes a
 /// single, always case-sensitive pair — C `INST_STR_MAP`), so the two cannot
 /// drift. An empty key never matches (it would not advance).
-pub(crate) fn map_apply(map: &[(String, String)], s: &str, nocase: bool) -> String {
+///
+/// Building stops, answering `None`, once the result is over `limit` bytes.
+pub(crate) fn map_apply(
+    map: &[(String, String)],
+    s: &str,
+    nocase: bool,
+    limit: Option<u64>,
+) -> Option<String> {
     // Case-insensitive matching compares lower-cased keys against a lower-cased
     // view of the remaining input, advancing by the (original) key length.
     let starts = |rest: &str, from: &str| -> bool {
@@ -409,6 +391,9 @@ pub(crate) fn map_apply(map: &[(String, String)], s: &str, nocase: bool) -> Stri
         for (from, to) in map {
             if !from.is_empty() && rest.len() >= from.len() && starts(rest, from) {
                 out.push_str(to);
+                if limit.is_some_and(|limit| out.len() as u64 > limit) {
+                    return None;
+                }
                 rest = &rest[from.len()..];
                 continue 'outer;
             }
@@ -417,7 +402,7 @@ pub(crate) fn map_apply(map: &[(String, String)], s: &str, nocase: bool) -> Stri
         out.push(ch);
         rest = &rest[ch.len_utf8()..];
     }
-    out
+    Some(out)
 }
 
 fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -444,7 +429,7 @@ fn cmd_append(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 #[cfg(test)]
 mod tests {
-    use super::{STRING_SUBS, is_nocase};
+    use super::is_nocase;
 
     #[test]
     fn jim_repeat_charges_the_normalized_expression_count_and_exact_bytes() {
@@ -473,12 +458,20 @@ mod tests {
         );
     }
 
-    /// The unit tests below exercise the resolver over the engine's full
-    /// (Tcl 9) table; the release filter that narrows it per pin is covered
+    /// The unit tests below exercise the resolver over every release's
+    /// subcommands; the release filter that narrows it per pin is covered
     /// end-to-end in `tests/cmd_info_prefix_e2e.rs`.
     fn resolve_string_sub(input: &str) -> Result<&'static str, String> {
-        super::resolve_string_sub(STRING_SUBS, input.as_bytes())
-            .map_err(|bytes| String::from_utf8(bytes).expect("ASCII test operand and descriptors"))
+        super::resolve_string_sub(
+            tcl_cmd_core::string::SUBCOMMANDS,
+            input.as_bytes(),
+            tcl_dialect::TclVersion::V9_0,
+        )
+        .map_err(|error| {
+            error
+                .into_message()
+                .expect("ASCII test operand and descriptors")
+        })
     }
 
     #[test]

@@ -390,6 +390,7 @@ mod tests {
             body_src: body,
             usage_name: None,
             call_identity: None,
+            lambda_term: None,
         })
     }
 

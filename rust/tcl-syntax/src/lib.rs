@@ -46,6 +46,8 @@
 //!   generic over the big-integer backend.
 //! - [`scan`] — the `scan` conversion-specifier grammar.
 //! - [`switch_body`] — tokenising a `switch` braced pattern/body list.
+//! - [`utf`] — how C Tcl reads malformed UTF-8 as characters, and the
+//!   `Tcl_NumUtfChars` / `Tcl_UtfNcmp` answers built on it.
 //! - [`value`] — the `ValueOps` value seam + `ValueError` (the construct/inspect
 //!   parallel of [`expr::ExprOps`]).
 //! - [`word_rules`] — what a written word means as a value in a dialect.
@@ -109,6 +111,7 @@ pub mod scan;
 /// Selected script completeness delegates to the shared original Lexer owner.
 pub mod script_completeness;
 pub mod switch_body;
+pub mod utf;
 pub mod value;
 pub mod var_conformance;
 pub mod vector_ops;

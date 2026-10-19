@@ -224,6 +224,23 @@ pub enum CodegenHookId {
     Upvar => (14, "upvar"),
     /// Selected C Tcl 9.1 `uplevel` frame-evaluation operation.
     Uplevel => (15, "uplevel"),
+    /// `set varName` — the one-word form, a load of the variable
+    /// (`TclCompileSetCmd`).
+    Set => (16, "set"),
+    /// `array set arrayName list` — the command runs, its array a compiled
+    /// local (`TclCompileArraySetCmd`; subcommand-keyed).
+    ArraySet => (17, "array set"),
+    /// `array unset arrayName` — the command runs, its array a compiled
+    /// local; with a pattern `TclCompileArrayUnsetCmd` makes none
+    /// (subcommand-keyed).
+    ArrayUnset => (18, "array unset"),
+    /// `variable name ?value name value ...?` — the command runs, the tail of
+    /// each name a compiled local (`TclCompileVariableCmd`).
+    Variable => (19, "variable"),
+    /// `namespace upvar ns otherVar myVar ...` — the command runs, each
+    /// `myVar` a compiled local (`TclCompileNamespaceUpvarCmd`;
+    /// subcommand-keyed).
+    NamespaceUpvar => (20, "namespace upvar"),
 }
 }
 
@@ -254,6 +271,9 @@ pub enum InlineCodegenHookId {
     Expr => (0, "expr"),
     /// `incr varName ?increment?` — LVT / stack increment.
     Incr => (1, "incr"),
+    /// `set varName` — the one-word form, a load of the variable
+    /// (`TclCompileSetCmd`).
+    Set => (25, "set"),
     /// `info exists varName` — `existScalar` / `existStk`
     /// (subcommand-keyed: stamped on `info`'s `exists` subcommand).
     InfoExists => (2, "info exists"),
@@ -307,6 +327,26 @@ pub enum InlineCodegenHookId {
     /// `try body on error {var} handler` inside a catch body —
     /// inline two-range catch/handler sequence.
     Try => (22, "try"),
+    /// `string is class ?-strict? string` — `strclass` and the numeric
+    /// checks `TclCompileStringIsCmd` compiles (subcommand-keyed).
+    StringIs => (26, "string is"),
+    /// `string match ?-nocase? pattern string` — `streq` for a literal
+    /// pattern with no glob character, else `strmatch`
+    /// (`TclCompileStringMatchCmd`; subcommand-keyed).
+    StringMatch => (27, "string match"),
+    /// `string replace string first last ?newString?` — the forms
+    /// `TclCompileStringReplaceCmd` settles on literal indices, else
+    /// `strreplace` (subcommand-keyed).
+    StringReplace => (28, "string replace"),
+    /// `string trim string ?chars?` — `strtrim` (`TclCompileStringTrimCmd`;
+    /// subcommand-keyed).
+    StringTrim => (29, "string trim"),
+    /// `string trimleft string ?chars?` — `strtrimLeft`
+    /// (`TclCompileStringTrimLCmd`; subcommand-keyed).
+    StringTrimLeft => (30, "string trimleft"),
+    /// `string trimright string ?chars?` — `strtrimRight`
+    /// (`TclCompileStringTrimRCmd`; subcommand-keyed).
+    StringTrimRight => (31, "string trimright"),
 }
 }
 

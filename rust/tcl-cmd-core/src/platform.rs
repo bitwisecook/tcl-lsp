@@ -30,27 +30,35 @@ use tcl_platform::Host;
 use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
+use crate::path::PathReading;
 
-/// Installation directories appended to `auto_path`, in Tcl lookup order.
+/// Installation directories appended to `auto_path`, in Tcl lookup order,
+/// with paths read as `reading`'s release reads them.
 #[must_use]
-pub fn auto_path_installation(library: Option<&[u8]>, executable: Option<&[u8]>) -> Vec<Vec<u8>> {
+pub fn auto_path_installation(
+    library: Option<&[u8]>,
+    executable: Option<&[u8]>,
+    reading: PathReading,
+) -> Vec<Vec<u8>> {
     let mut paths = Vec::new();
     if let Some(library) = library {
         paths.push(library.to_vec());
-        paths.push(crate::path::dirname(library).into_owned());
+        paths.push(crate::path::dirname(library, reading).into_owned());
     }
     if let Some(executable) = executable {
-        let directory = crate::path::dirname(executable);
-        let parent = crate::path::dirname(&directory);
-        paths.push(crate::path::join(&[parent.as_ref(), b"lib"]));
+        let directory = crate::path::dirname(executable, reading);
+        let parent = crate::path::dirname(&directory, reading);
+        paths.push(crate::path::join(&[parent.as_ref(), b"lib"], reading));
     }
     paths
 }
 
-/// Expand the supplied host home directory without guessing named user homes.
+/// Expand the supplied host home directory without guessing named user homes;
+/// joined paths are read as `reading`'s release reads them.
 pub fn auto_path_environment(
     paths: Vec<Vec<u8>>,
     home: Option<&[u8]>,
+    reading: PathReading,
 ) -> Result<Vec<Vec<u8>>, CmdError> {
     let mut expanded = Vec::new();
     for path in paths {
@@ -58,7 +66,7 @@ pub fn auto_path_environment(
             if path == b"~" {
                 home.map(<[u8]>::to_vec)
             } else if path.starts_with(b"~/") {
-                home.map(|home| crate::path::join(&[home, &path[2..]]))
+                home.map(|home| crate::path::join(&[home, &path[2..]], reading))
             } else if path.starts_with(b"~") {
                 return Err(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                     "named home directory lookup",

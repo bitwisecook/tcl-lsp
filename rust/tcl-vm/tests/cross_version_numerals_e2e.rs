@@ -223,6 +223,36 @@ const VECTORS: &[Vector] = &[
         want_8x: "d",
         want_90: "b",
     },
+    // The `string` cores read their index words under the grammar the VM
+    // hands them (#2126), literal and through a variable alike.
+    Vector {
+        name: "string range index",
+        script: "set i 010\nputs [string range abcdefghijkl $i end],[string range abcdefghijkl 010 end]\n",
+        want_84: "ijkl,ijkl",
+        want_8x: "ijkl,ijkl",
+        want_90: "kl,kl",
+    },
+    Vector {
+        name: "string index and an end-relative index",
+        script: "set i end-010\nputs [string index abcdefghijkl 010][string index abcdefghijkl $i]\n",
+        want_84: "id",
+        want_8x: "id",
+        want_90: "kb",
+    },
+    Vector {
+        name: "string wordstart and wordend",
+        script: "set w {abcdefgh ijkl mnop}\nputs \"[string wordstart $w 010] [string wordend $w 010]\"\n",
+        want_84: "8 9",
+        want_8x: "8 9",
+        want_90: "9 13",
+    },
+    Vector {
+        name: "a 9.0 numeral as a string index",
+        script: "puts [catch {string range abcdefghijkl 1_0 end}]\n",
+        want_84: "1",
+        want_8x: "1",
+        want_90: "0",
+    },
     Vector {
         name: "string is integer",
         script: "puts [string is integer 08][string is integer 1_0]\n",

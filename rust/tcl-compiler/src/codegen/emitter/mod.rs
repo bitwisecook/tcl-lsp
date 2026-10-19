@@ -108,6 +108,9 @@ struct ModuleEmit<'a> {
     /// The pack commands' definitions the module's calls were inlined from:
     /// each procedure binding of a function that names one is claimed.
     references: &'a [crate::ir::ReferenceImport],
+    /// The spans of the top level's own commands where the release evaluates
+    /// them without compiling them ([`IrModule::top_level_evaluation`]).
+    direct_commands: Vec<tcl_lexer::Span>,
 }
 
 /// Retain original module source so
@@ -163,6 +166,9 @@ fn configured_codegen_context<'a>(
         },
         ..module.native_compilation
     };
+    if !is_proc {
+        ctx.direct_commands.clone_from(&module.direct_commands);
+    }
     ctx.set_indexed_source(module.source.clone(), module.line_index.clone());
     ctx
 }
@@ -564,6 +570,16 @@ fn module_emission_context<'a>(
         native_compilation: ir_module.source_entry.native_compilation,
         source_proofs: std::sync::Arc::new(source_proofs),
         references: &ir_module.reference_bodies.imports,
+        direct_commands: if ir_module.top_level_evaluation == crate::ir::CommandEvaluation::Direct {
+            ir_module
+                .top_level
+                .statements
+                .iter()
+                .map(crate::ir::Statement::span)
+                .collect()
+        } else {
+            Vec::new()
+        },
     }
 }
 

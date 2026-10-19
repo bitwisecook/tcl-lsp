@@ -344,7 +344,7 @@ fn operand_type_err_for_release(
     };
     TclError::with_error_code(
         errors::illegal_operand_message(desc, &s, side, op, release),
-        errors::illegal_operand_error_code(desc, release),
+        errors::illegal_operand_error_code(desc, &s, release),
     )
 }
 
@@ -523,7 +523,10 @@ fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
     // operand check is belt-and-braces. (The `ARITH DOMAIN` errorCode is not
     // threaded, as noted for the operand errors above.)
     if r.is_nan() && !x.is_nan() && !y.is_nan() {
-        return Err(TclError::new("domain error: argument not in valid range"));
+        return Err(TclError::with_error_code(
+            errors::DOMAIN_MESSAGE,
+            errors::DOMAIN_CODE,
+        ));
     }
     Ok(Value::double(r))
 }
@@ -1233,7 +1236,11 @@ fn context_operand_error(
         };
     TclError::with_error_code(
         errors::illegal_operand_message(description, &spelling, side, operator, release),
-        errors::illegal_operand_error_code(description, release),
+        errors::illegal_operand_error_code(
+            description,
+            &String::from_utf8_lossy(&original),
+            release,
+        ),
     )
 }
 
@@ -1958,10 +1965,14 @@ impl ExprOps for ExprEval<'_> {
             // C reports the command miss, not a special math-function error
             // (tclsh 8.6.16 / 9.0.4: `expr {frobnicate(1)}` →
             // `invalid command name "tcl::mathfunc::frobnicate"`).
-            return Err(TclError::with_error_code(
-                format!("invalid command name \"{name}\""),
-                format!("TCL LOOKUP COMMAND {name}"),
-            ));
+            let message = format!("invalid command name \"{name}\"");
+            return Err(
+                if self.vm.runtime_version().has_lookup_error_code("COMMAND") {
+                    TclError::with_error_code(message, format!("TCL LOOKUP COMMAND {name}"))
+                } else {
+                    TclError::new(message)
+                },
+            );
         }
         let c = self.vm.invoke_command(name, &args);
         self.accept_completion(c)

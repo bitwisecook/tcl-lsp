@@ -445,19 +445,23 @@ fn interp_cmd_original(
                 Err(code) => return code,
             };
             let newlimit = if argv.len() == 4 {
-                match arguments.bytes(3) {
-                    Ok(bytes) => Some(bytes),
-                    Err(error) => return interp.report_cmd_error(error),
+                if let Err(error) = arguments.bytes(3) {
+                    return interp.report_cmd_error(error);
                 }
+                argv.get(3).copied()
             } else {
                 None
             };
-            match interp.with_child_path(&path, |c| c.recursion_limit_apply(newlimit.as_deref())) {
+            match interp.with_child_path(&path, |c| c.recursion_limit_apply(newlimit)) {
                 Some(Ok(n)) => {
-                    interp.set_result_bytes(n.to_string().as_bytes());
+                    // C answers a new limit with the word it was given.
+                    match newlimit {
+                        Some(word) => interp.set_result(word),
+                        None => interp.set_result_bytes(n.to_string().as_bytes()),
+                    }
                     Code::Ok
                 }
-                Some(Err(m)) => interp.set_error(&m),
+                Some(Err(error)) => interp.report_cmd_error(error),
                 None => not_found_original_path(interp, argv[2]),
             }
         }
@@ -597,12 +601,14 @@ fn interp_create_original(
         }
         i += 1;
     }
+    // A safe parent makes every child safe, with or without `-safe`
+    // (`Tcl_CreateChild`).
     let Some(original) = name_obj else {
         let created = interp.create_child(None);
         if interp.host_refusal_pending() {
             return Code::Error;
         }
-        if safe {
+        if safe || interp.is_safe() {
             interp.with_child(&created, |child| child.make_safe());
         }
         interp.set_result_bytes(&created);
@@ -652,7 +658,7 @@ fn interp_create_from_original_path(
         if owner.host_refusal_pending() {
             return Err(owner.clone());
         }
-        if safe {
+        if safe || owner.is_safe() {
             owner.with_child(&leaf, |child| child.make_safe());
         }
         Ok(true)

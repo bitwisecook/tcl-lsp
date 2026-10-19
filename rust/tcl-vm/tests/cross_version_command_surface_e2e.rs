@@ -1091,11 +1091,14 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         exact_84.result.to_str().as_ref(),
         "invalid command name \"lassign\""
     );
+    // 8.4 compiles the script whole, and `expr`'s compile procedure refuses
+    // the `0b10` it has no grammar for (tclsh 8.4.20).
     assert_eq!(
-        vm.eval_source("expr {0b10 + 1}")
-            .expect("8.4 expression repro compiles")
-            .code,
-        Code::Error
+        &*vm.eval_source("expr {0b10 + 1}")
+            .expect_err("8.4 refuses to compile the expression")
+            .message_bytes()
+            .unwrap(),
+        b"syntax error in expression \"0b10 + 1\": extra tokens at end of expression"
     );
     assert!(
         vm.eval_source("{*}[list set ::profile_mutation_lexer 1]")
@@ -1156,10 +1159,11 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     // The exact same source must not be served from its newer-profile eval cache:
     // expression grammar and lexer grammar changed with the profile too.
     assert_eq!(
-        vm.eval_source("expr {0b10 + 1}")
-            .expect("8.4 expr compile")
-            .code,
-        Code::Error
+        &*vm.eval_source("expr {0b10 + 1}")
+            .expect_err("8.4 refuses to compile the expression")
+            .message_bytes()
+            .unwrap(),
+        b"syntax error in expression \"0b10 + 1\": extra tokens at end of expression"
     );
     assert!(
         vm.eval_source("{*}[list set ::profile_mutation_lexer 1]")

@@ -291,10 +291,19 @@ impl CodegenCtx<'_> {
         if !stmt.is_executable_invocation() {
             return;
         }
+        // An empty `for` clause is three `nop`s inside the `for` command, not
+        // a command of its own: Tcl gives it no startCommand. As the init
+        // clause it still opens the `for`'s startCommand, which then starts
+        // one command rather than two.
+        let empty_clause = stmt.synthetic_marker() == Some(crate::ir::SyntheticMarker::EmptyClause);
         // The wrapping startCommand shares the statement's source span.
         self.set_command_source_span(stmt.span());
-        let count = count_override.unwrap_or(1);
-        let emit_sc = self.cmd_index > 0;
+        let count = if empty_clause {
+            1
+        } else {
+            count_override.unwrap_or(1)
+        };
+        let emit_sc = self.cmd_index > 0 && (!empty_clause || deferred_end_label.is_some());
         let mut end_label: Option<String> = None;
         let mut sc_idx: Option<usize> = None;
 
@@ -478,6 +487,7 @@ impl CodegenCtx<'_> {
             name_braced,
             expr,
             command_binding,
+            fallback_value,
             ..
         } = stmt
         else {
@@ -506,11 +516,13 @@ impl CodegenCtx<'_> {
         let parent = self.invocation_tokens.clone();
         let nested =
             self.nested_command_tokens(parent.as_deref().and_then(|tokens| tokens.words().get(2)));
+        let expr_start = self.instructions.len();
         self.with_invocation_tokens(nested.as_ref(), |ctx| {
             if !ctx.emit_retained_native_expression() && !ctx.emit_expr(expr) {
                 ctx.emit(Op::TRY_CVT_TO_NUMERIC, vec![]);
             }
         });
+        self.stamp_substitution_error_info(expr_start, fallback_value.trim(), None);
         self.place_label(&inner_end);
         self.store_var(name);
         self.emit(Op::POP, vec![]);
@@ -565,6 +577,7 @@ impl CodegenCtx<'_> {
                 name,
                 name_braced,
                 amount,
+                amount_braced,
                 ..
             } => {
                 if self.try_emit_original_increment() {
@@ -574,7 +587,12 @@ impl CodegenCtx<'_> {
                 let Some(target) = self.store_target(name, *name_braced) else {
                     return true;
                 };
-                self.emit_incr(&target.name, target.key_is_literal, amount.as_deref());
+                self.emit_incr(
+                    &target.name,
+                    target.key_is_literal,
+                    amount.as_deref(),
+                    *amount_braced,
+                );
                 self.emit(Op::POP, vec![]);
                 true
             }
@@ -685,6 +703,8 @@ impl CodegenCtx<'_> {
             if marker == crate::ir::SyntheticMarker::EmptyClause {
                 // tclsh's bytecode keeps three `nop`s where a `for` clause is
                 // empty; match it so the instruction stream stays byte-true.
+                // They are compiler control, never a replayable command.
+                self.set_control_source_span(self.current_span);
                 self.literals.intern("");
                 self.emit(Op::NOP, vec![]);
                 self.emit(Op::NOP, vec![]);
@@ -697,6 +717,23 @@ impl CodegenCtx<'_> {
             .is_some_and(|ew| ew.iter().any(|&e| e));
         if has_expand {
             let ew = tokens.and_then(|t| t.expand_word.as_ref()).unwrap();
+            if let Some(words) = super::cmd_subst::parse_time_expansion(
+                std::iter::once(command)
+                    .chain(args.iter().map(String::as_str))
+                    .enumerate()
+                    .map(|(index, word)| {
+                        let braced = tokens.is_some_and(|t| {
+                            t.argv_kinds.get(index) == Some(&tcl_lexer::TokenType::Str)
+                                && t.single_token_word.get(index).copied().unwrap_or(false)
+                        });
+                        (word, braced, ew.get(index).copied().unwrap_or(false))
+                    }),
+            ) && let Some(((command, _), args)) = words.split_first()
+            {
+                let args: Vec<String> = args.iter().map(|(word, _)| word.clone()).collect();
+                self.emit_call(command, &args, None, used_generic_invoke);
+                return;
+            }
             self.emit_expanded_call(command, args, ew, tokens);
             *used_generic_invoke = true;
         } else {
@@ -1300,9 +1337,14 @@ impl CodegenCtx<'_> {
         value: &str,
         tokens: Option<&crate::ir::CommandTokens>,
     ) -> bool {
-        self.with_invocation_tokens(tokens, |ctx| {
+        let start = self.instructions.len();
+        let emitted = self.with_invocation_tokens(tokens, |ctx| {
             ctx.try_emit_whole_cmd_subst_inner(value, tokens)
-        })
+        });
+        if emitted {
+            self.stamp_substitution_error_info(start, value.trim(), tokens);
+        }
+        emitted
     }
 
     fn try_emit_whole_cmd_subst_inner(
@@ -1346,6 +1388,9 @@ impl CodegenCtx<'_> {
             self.emit_inline_cmd_subst_with_tokens(value, tokens);
             return true;
         }
+        if self.try_emit_compiled_index_command(&head.0, args) {
+            return true;
+        }
         // A source snapshot may be unavailable for a compatibility caller.
         // Preserve its established generic value emission rather than
         // guessing from flattened text.
@@ -1362,7 +1407,7 @@ impl CodegenCtx<'_> {
     /// substitution over a name it has already resolved, or it strips a name's
     /// outer braces (`set {{a}} V` creating `a` instead of `{a}`), reads a
     /// `${…}` inside one, and runs a `[…]` inside one. The
-    /// literal bytes are unchanged — only the out-of-band `push_verbatim` flag
+    /// literal bytes are unchanged — only the out-of-band `literal_rep`
     /// differs — so the disassembly is byte-stable.
     ///
     /// `key_is_literal` says whether an array-element key is likewise finished
@@ -1586,7 +1631,23 @@ impl CodegenCtx<'_> {
         // Native compilation can select a token even when this backend uses
         // a generic surrogate. Capture that token before any argument executes.
         let entered_binding = self.entered_command_surrogate(cmd);
+        // The command C compiles in its place makes these locals.
+        if entered_binding.is_some() {
+            self.intern_entered_command_locals(cmd, args);
+        }
         let body_start = self.instructions.len();
+        let words: Vec<(&str, bool)> = args
+            .iter()
+            .enumerate()
+            .map(|(i, a)| {
+                (
+                    a.as_str(),
+                    self.cmd_arg_braced.get(i).copied().unwrap_or(false),
+                )
+            })
+            .collect();
+        let release_compiled = self.release_compiled(cmd, &words);
+        let release_binding = self.release_invoke_binding(cmd, &words);
         // The original head owns both its lexical evaluation and cache actions.
         if !self.try_emit_original_command_head(cmd) {
             self.emit_cmd_word(cmd, false);
@@ -1604,7 +1665,9 @@ impl CodegenCtx<'_> {
         } else {
             Op::INVOKE_STK4
         };
-        self.emit_comment(op, vec![Operand::Imm(arg_count)], cmd);
+        let invoke = self.emit_comment(op, vec![Operand::Imm(arg_count)], cmd);
+        self.instructions[invoke].release_compiled = release_compiled;
+        self.instructions[invoke].release_binding = release_binding;
         self.retain_entered_command(body_start, entered_binding);
         self.emit(Op::POP, vec![]);
         *used_generic_invoke = true;

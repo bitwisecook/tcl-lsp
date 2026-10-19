@@ -66,6 +66,21 @@ pub fn bytecode_imm(n: usize) -> i32 {
     i32::try_from(n).expect("bytecode operand exceeds i32::MAX")
 }
 
+/// How far from [`INDEX_END`] an index immediate still reads as `end`-relative:
+/// the VM reads one within the band as `end` plus its distance from
+/// `INDEX_END`, and any other as the index it is.
+pub const INDEX_END_BAND: i32 = 1 << 29;
+
+/// The index immediate for `end` plus `offset`, `None` outside
+/// [`INDEX_END_BAND`].
+#[must_use]
+pub fn end_relative_imm(offset: i64) -> Option<i32> {
+    let offset = i32::try_from(offset)
+        .ok()
+        .filter(|offset| offset.unsigned_abs() < INDEX_END_BAND.unsigned_abs())?;
+    Some(INDEX_END + offset)
+}
+
 /// Parse a Tcl index string to an integer suitable for IMM instructions.
 ///
 /// Plain integers compile directly. `end`-based indices are encoded
@@ -526,6 +541,36 @@ impl Op {
     }
 
     /// Stack, control-flow and invocation mnemonics.
+    /// The name a release whose compiler emits only the wide operand forms
+    /// (Tcl 9.1) gives the instruction it emits in this one's place: the
+    /// width suffix is gone, and the narrow forms are replaced by wide ones.
+    #[must_use]
+    pub const fn wide_mnemonic(self) -> &'static str {
+        match self {
+            Self::PUSH1 | Self::PUSH4 => "push",
+            Self::INVOKE_STK1 | Self::INVOKE_STK4 => "invokeStk",
+            Self::JUMP1 | Self::JUMP4 => "jump",
+            Self::JUMP_TRUE1 | Self::JUMP_TRUE4 => "jumpTrue",
+            Self::JUMP_FALSE1 | Self::JUMP_FALSE4 => "jumpFalse",
+            Self::BEGIN_CATCH4 => "beginCatch",
+            Self::RETURN_CODE_BRANCH => "returnCodeBranch1",
+            Self::LREPLACE4 => "lreplace",
+            Self::LOAD_SCALAR1 | Self::LOAD_SCALAR4 => "loadScalar",
+            Self::STORE_SCALAR1 | Self::STORE_SCALAR4 => "storeScalar",
+            Self::LOAD_ARRAY1 | Self::LOAD_ARRAY4 => "loadArray",
+            Self::STORE_ARRAY1 | Self::STORE_ARRAY4 => "storeArray",
+            Self::INCR_SCALAR1 => "incrScalar",
+            Self::INCR_SCALAR1_IMM => "incrScalarImm",
+            Self::INCR_ARRAY1 => "incrArray",
+            Self::INCR_ARRAY1_IMM => "incrArrayImm",
+            Self::APPEND_SCALAR1 | Self::APPEND_SCALAR4 => "appendScalar",
+            Self::APPEND_ARRAY1 | Self::APPEND_ARRAY4 => "appendArray",
+            Self::LAPPEND_SCALAR1 | Self::LAPPEND_SCALAR4 => "lappendScalar",
+            Self::LAPPEND_ARRAY1 | Self::LAPPEND_ARRAY4 => "lappendArray",
+            other => other.mnemonic(),
+        }
+    }
+
     const fn mnemonic_core(self) -> Option<&'static str> {
         Some(match self {
             Self::PUSH1 => "push1",
@@ -1208,6 +1253,59 @@ pub enum ErrorStackContext {
     },
 }
 
+/// The command C's `TclLogCommandInfo` names: the command's source up to its
+/// terminator, trailing whitespace included, and for an instruction lowered
+/// from a command substitution the command inside the brackets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ErrorInfoCommand {
+    pub text: String,
+    pub line: u32,
+    /// Names a command inside a substitution, so an enclosing substitution
+    /// keeps it.
+    pub nested: bool,
+    /// For a substitution in a statement the release evaluates without
+    /// compiling it, the commands C's `TclEvalEx` logs after this one as the
+    /// error leaves each enclosing substitution: innermost first, ending with
+    /// the statement. Empty for compiled code, which logs only the innermost.
+    pub enclosing: Vec<(String, u32)>,
+}
+
+/// Where an error an instruction raises comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ErrorOrigin {
+    #[default]
+    Execution,
+    /// An operation of a constant `expr` subexpression C folds at compile
+    /// time: the error is the fold's failure, so `errorInfo` already holds
+    /// the message when the command is logged.
+    ConstantFold,
+}
+
+impl Instruction {
+    /// The command text and line `errorInfo` logs for this instruction.
+    #[must_use]
+    pub fn error_info_text(&self) -> (&str, u32) {
+        self.error_info_command.as_ref().map_or(
+            // Work's command text is a byte `SourceImage`; a non-UTF-8 command
+            // has no `&str` view, so it names no text here.
+            (
+                self.source_cmd_text.try_text().unwrap_or_default(),
+                self.source_line,
+            ),
+            |command| (command.text.as_str(), command.line),
+        )
+    }
+
+    /// The commands logged after [`Self::error_info_text`]'s
+    /// ([`ErrorInfoCommand::enclosing`]).
+    #[must_use]
+    pub fn error_info_enclosing(&self) -> &[(String, u32)] {
+        self.error_info_command
+            .as_ref()
+            .map_or(&[], |command| command.enclosing.as_slice())
+    }
+}
+
 // Instruction
 
 /// Whether an instruction begins an executable source command.
@@ -1287,6 +1385,11 @@ pub struct Instruction {
     pub source_cmd_text: tcl_lexer::SourceImage,
     /// Runtime-only recipe for structured error-stack logging.
     pub error_stack_context: Option<ErrorStackContext>,
+    /// The command `errorInfo` names for this instruction where C's differs
+    /// from [`Self::source_cmd_text`], which stays the replayable statement.
+    pub error_info_command: Option<ErrorInfoCommand>,
+    /// Whether an error raised here is a compile-time fold failure in C.
+    pub error_origin: ErrorOrigin,
     /// Canonical unrooted constructed namespace in which
     /// [`Self::source_cmd_text`] resolves when this instruction is an
     /// executable command boundary. Empty denotes the global namespace.
@@ -1351,6 +1454,37 @@ pub struct Instruction {
     /// so the literal pool and disassembly stay byte-stable (keeps identity
     /// stable).
     pub push_verbatim: bool,
+    /// `PUSH1`/`PUSH4` only: how the VM pushes the literal ([`LiteralRep`]).
+    /// Carried out-of-band so the literal pool and disassembly stay
+    /// byte-stable.
+    pub literal_rep: LiteralRep,
+    /// `PUSH1`/`PUSH4` only: how the emulated release evaluates the command
+    /// the word belongs to, and so a command substitution the VM makes in it.
+    pub evaluation: tcl_runtime_api::CommandEvaluation,
+    /// `INVOKE_STK1`/`INVOKE_STK4` of a literal command only: how an emulated
+    /// release that keeps the commands running bytecode compiled
+    /// (`TclVersion::revalidates_running_bytecode`) binds the invoked command.
+    /// Where it compiled the command into the running unit, a command-table
+    /// change after the unit was entered does not reach this invocation.
+    pub release_binding: Option<tcl_runtime_api::ReleaseBinding>,
+    /// A command's boundary instruction only, under such a release: where the
+    /// release compiled every command whose binding this command's
+    /// specialised instructions rely on, so that running bytecode keeps them
+    /// across a command-table change rather than evaluating the command
+    /// afresh.
+    pub release_hold: Option<tcl_runtime_api::ReleaseBinding>,
+    /// A boundary of one of the commands of a script the release evaluates
+    /// directly, as `tclsh` evaluates the script file it is given: the
+    /// outermost command running, which C's level-0 evaluation names when it
+    /// turns an unexpected completion code into an error.
+    pub script_command: bool,
+    /// Under such a release, the script body this compiler inlined that this
+    /// instruction runs part of: `0` for none, otherwise one more than the
+    /// body's index in the function.
+    pub release_body: u32,
+    /// The first instruction of [`Self::release_body`]'s body, where running
+    /// it evaluates the body afresh.
+    pub release_body_entry: Option<ReleaseBodyEntry>,
     /// Literal command-head `PUSH1`/`PUSH4` only: token provenance carried
     /// through argument substitution to its consuming invoke.
     pub entered_command: Option<EnteredCommandSite>,
@@ -1377,6 +1511,46 @@ pub struct Instruction {
     /// Exclusive end of the protected body, excluding a native epilogue that
     /// runs before `END_CATCH`. Absent uses the handler instruction as the end.
     pub catch_end: Option<String>,
+    /// `INVOKE_STK1`/`INVOKE_STK4` only: the emulated release compiles the
+    /// command this invoke leaves to the command at run time. Carried
+    /// out-of-band so the disassembly stays byte-stable.
+    pub release_compiled: Option<ReleaseCompiled>,
+}
+
+/// Where a script body this compiler inlined starts, under a release that
+/// keeps the commands running bytecode compiled: a body whose owner the
+/// release does not compile into the unit enclosing it runs as a unit of its
+/// own, compiled afresh each time the owner evaluates it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReleaseBodyEntry {
+    /// The body enclosing this one ([`Instruction::release_body`]).
+    pub parent: u32,
+    /// How the release binds the command that owns the body; `Invoked` for a
+    /// command it evaluates directly.
+    pub owner: tcl_runtime_api::ReleaseBinding,
+}
+
+/// A command the emulated release's compiler compiles with its words, which
+/// the VM runs as the command does where it reads them as that compiled
+/// command would.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReleaseCompiled {
+    /// The word, counting the command word, that the release compiles as a
+    /// script with the command whatever it holds (C's `TclCompileCmdWord`,
+    /// whose `INST_EVAL_STK` compiles the value): the VM compiles that value
+    /// in place before it invokes, so a canonical list there is no longer
+    /// one.
+    pub script_word: Option<u8>,
+    /// The words, one bit per index counting the command word, that must name
+    /// compiled locals of the procedure frame the command runs in. A script
+    /// the release compiles outside a procedure body creates no locals and
+    /// reaches only that frame's (`TclFindCompiledLocal` without a
+    /// `procPtr`), so it compiles the command only where every one is.
+    pub frame_local_words: u8,
+    /// Whether the release compiles the command only in a procedure body, so
+    /// a script compiled apart from one compiles it only where it runs as the
+    /// body of a command the release compiled into a procedure body.
+    pub in_procedure_only: bool,
 }
 
 impl Instruction {
@@ -1410,6 +1584,8 @@ impl Instruction {
             source_value_line: None,
             source_cmd_text: tcl_lexer::SourceImage::default(),
             error_stack_context: None,
+            error_info_command: None,
+            error_origin: ErrorOrigin::Execution,
             source_command_namespace: tcl_runtime_api::ByteNamespacePath::root(),
             source_command_namespace_context: None,
             source_command_boundary: SourceCommandBoundary::None,
@@ -1423,12 +1599,20 @@ impl Instruction {
             foreach_collect: false,
             dict_vars: None,
             push_verbatim: false,
+            literal_rep: LiteralRep::Word,
+            evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
+            release_binding: None,
+            release_hold: None,
+            script_command: false,
+            release_body: 0,
+            release_body_entry: None,
             entered_command: None,
             native_compiler_selection: None,
             native_operation_selections: Vec::new(),
             catch_target: None,
             catch_start: None,
             catch_end: None,
+            release_compiled: None,
         }
     }
 }
@@ -1443,6 +1627,23 @@ pub struct NativeEachAuxiliary {
     /// C8.4/8.5 value-list locals followed by their counter local.
     /// Empty for stack-based C8.6 and later iteration.
     pub temporaries: Vec<usize>,
+}
+
+/// How the VM pushes a literal.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum LiteralRep {
+    /// A word the VM substitutes as it pushes it (see
+    /// `tcl-vm::subst::subst_word`).
+    #[default]
+    Word,
+    /// Its string exactly as it is, with no word substitution: a braced or
+    /// constant word, or a value the compiler finished. The analogue of the
+    /// reference VM's brace/`_RAW_PREFIX` `PUSH` handling.
+    Verbatim,
+    /// A list the compiler built from literal words, spelt canonically: C's
+    /// `TclCompileListCmd` pushes such a list as its list object, a canonical
+    /// list.
+    List,
 }
 
 /// A statically literal command entered before its remaining words perform
@@ -2523,7 +2724,7 @@ impl FunctionAsm {
 }
 
 /// An inlined command body's instruction range and the `errorInfo` frame the
-/// enclosing command (`eval`/`while`/`for`/`foreach`) would add when its body
+/// enclosing command (`eval`, a loop, `if`, `switch`) would add when its body
 /// errors — the compiled analogue of C's per-command `CmdFrame`. Populated by
 /// codegen when it folds a literal body inline (so the LSP keeps its inlined
 /// view), consumed by the executor as an error unwinds (see
@@ -2537,9 +2738,8 @@ pub struct ErrorRegion {
     pub start: u32,
     /// End byte offset of the enclosing command's source span (exclusive).
     pub end: u32,
-    /// The body-frame label — `eval`/`while`/`for`/`foreach` — quoted in the
-    /// `("LABEL" body line N)` frame.
-    pub label: String,
+    /// The frame the body adds before the command is logged.
+    pub frame: ErrorRegionFrame,
     /// The enclosing command's surface text, for its `invoked from within "…"`
     /// frame (truncated to 150 bytes by the logger, as in C).
     pub cmd_text: tcl_lexer::SourceImage,
@@ -2550,6 +2750,23 @@ pub struct ErrorRegion {
     /// The enclosing command's own source line — the line its `invoked from
     /// within` frame contributes to any further-out (proc) frame.
     pub cmd_line: u32,
+    /// Whether the release compiles the command in a procedure body, so the
+    /// region adds no frame where its script runs as part of one.
+    pub compiled_in_procedure: bool,
+}
+
+/// The `errorInfo` frame an [`ErrorRegion`] adds, `N` the failing command's
+/// line within the body.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ErrorRegionFrame {
+    /// `("LABEL" body line N)`: `eval`, `foreach`, `while`, `for`, `lmap`.
+    Body(String),
+    /// `(TEXT line N)`: a `switch` arm's `"PATTERN" arm`.
+    Line(String),
+    /// `(TEXT)`: `"for" initial command`.
+    Fixed(String),
+    /// None: the command is logged alone (`if`).
+    None,
 }
 
 /// Assembly for an entire module.
@@ -2747,6 +2964,20 @@ mod tests {
     fn parse_tcl_index_invalid() {
         assert_eq!(parse_tcl_index("foo"), None);
         assert_eq!(parse_tcl_index("end-abc"), None);
+    }
+
+    #[test]
+    fn end_relative_imm_stays_in_the_band() {
+        assert_eq!(end_relative_imm(0), Some(INDEX_END));
+        assert_eq!(end_relative_imm(-1), Some(INDEX_END - 1));
+        assert_eq!(end_relative_imm(2), Some(INDEX_END + 2));
+        assert_eq!(
+            end_relative_imm(1 - i64::from(INDEX_END_BAND)),
+            Some(INDEX_END - INDEX_END_BAND + 1)
+        );
+        assert_eq!(end_relative_imm(-i64::from(INDEX_END_BAND)), None);
+        assert_eq!(end_relative_imm(-2_147_483_648), None);
+        assert_eq!(end_relative_imm(-2_147_483_649), None);
     }
 
     #[test]

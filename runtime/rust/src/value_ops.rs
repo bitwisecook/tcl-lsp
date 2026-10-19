@@ -1343,6 +1343,20 @@ impl Interp {
     }
 }
 
+/// A failed integer read as the shared seam's error: the overflow and a held
+/// double keep their own variants, and anything else is the non-integer `v`
+/// spells.
+fn value_error(v: *mut TclObj, error: &crate::typed_value::TypedError) -> ValueError {
+    let text = || String::from_utf8_lossy(&obj_bytes(v)).into_owned();
+    if error.is_overflow() {
+        ValueError::IntegerOverflow
+    } else if error.code == crate::typed_value::HELD_DOUBLE_CODE {
+        ValueError::DoubleNotInteger(text())
+    } else {
+        ValueError::NotInteger(text())
+    }
+}
+
 impl ValueOps for Interp {
     fn string_character_model(&self) -> Option<tcl_dialect::StringCharacterModel> {
         self.native_invocation_dialect().characters
@@ -1624,6 +1638,18 @@ impl ValueOps for Interp {
         }
     }
 
+    fn value_size_limit(&self) -> Option<u64> {
+        self.value_limit()
+    }
+
+    fn measure_value(&mut self, v: &*mut TclObj, cap: u64) -> u64 {
+        crate::budget::measured_bytes(*v, cap)
+    }
+
+    fn admit_value_bytes(&mut self, bytes: u64) -> bool {
+        self.charge_allocation(bytes).is_none()
+    }
+
     fn new_str(&mut self, s: &str) -> *mut TclObj {
         obj::new_string_bytes(&str_to_bytes(s))
     }
@@ -1727,6 +1753,20 @@ impl ValueOps for Interp {
         tcl_syntax::raw_string::RawString::from_bytes(obj_bytes(*v)).unicode()
     }
 
+    /// A character-indexed read converts the value to a string (C's
+    /// `Tcl_GetUnicodeFromObj`): a canonical list is one no longer.
+    fn as_chars(
+        &mut self,
+        v: &*mut TclObj,
+    ) -> Result<Rc<str>, tcl_syntax::raw_string::UnicodeAccessError> {
+        list::read_as_string(*v);
+        self.try_as_str(v)
+    }
+
+    fn is_untyped_or_string(&mut self, v: &*mut TclObj) -> bool {
+        list::is_untyped_or_string(*v)
+    }
+
     fn native_char_len(&mut self, value: &Self::Value) -> Result<usize, ValueError> {
         obj::check_native_liveness(*value)?;
         use tcl_registry::native_string_materialization::LogicalStringProvider;
@@ -1813,6 +1853,15 @@ impl ValueOps for Interp {
         }
     }
 
+    /// `Tcl_GetIntFromObj` through the runtime's one typed-read owner
+    /// (`typed_value::int`), under the same coercion currency as `as_int`.
+    fn as_c_int(&mut self, v: &*mut TclObj) -> Result<i32, ValueError> {
+        let operation = ValueCoercion::enter(self, *v)?;
+        let read = crate::typed_value::int(*v).map_err(|error| value_error(*v, &error));
+        operation.check()?;
+        read
+    }
+
     #[cfg(have_tommath)]
     fn integer_magnitude(
         &mut self,
@@ -1820,6 +1869,10 @@ impl ValueOps for Interp {
         radix: Radix,
         syntax: tcl_dialect::NumberSyntax,
     ) -> Result<IntegerMagnitude, ValueError> {
+        // A held double is refused before its spelling is read.
+        if let Some(error) = crate::typed_value::held_double(*v) {
+            return Err(value_error(*v, &error));
+        }
         let operation = ValueCoercion::enter(self, *v)?;
         let number = match operation.integer_number()? {
             Some(number @ (Number::Int(_) | Number::Big { .. })) => number,
@@ -1857,6 +1910,13 @@ impl ValueOps for Interp {
 
     fn as_double(&mut self, v: &*mut TclObj) -> Result<f64, ValueError> {
         let operation = ValueCoercion::enter(self, *v)?;
+        // A held double is its own value (`Tcl_GetDoubleFromObj`), not its
+        // spelling, which 8.4 rounds to twelve digits.
+        if obj::obj_type_ptr(*v) == &obj::TCL_DOUBLE_TYPE && !obj::double_of(*v).is_nan() {
+            let value = obj::double_of(*v);
+            operation.check()?;
+            return Ok(value);
+        }
         match operation.scalar(tcl_syntax::scalar_getter::NativeScalarGetterKind::Double)? {
             tcl_syntax::scalar_getter::NativeScalarGetterValue::Double(value) => Ok(value),
             _ => Err(ValueCoercion::value_error(

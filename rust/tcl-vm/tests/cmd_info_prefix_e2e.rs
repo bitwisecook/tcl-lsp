@@ -1775,10 +1775,10 @@ fn info_and_file_ensemble_misses_carry_the_full_option_list() {
 ///                          … tempdir, tempfile, tildeexpand, …
 ///   catch {file h} m    -> 0 /root        (home)
 ///
-/// UNIMPLEMENTED: the VM implements neither `tempfile` nor `home`, so a word
-/// that resolves to one still lands on the unknown-subcommand arm — under the
+/// UNIMPLEMENTED: the VM does not implement `tempfile`, so a word that
+/// resolves to it still lands on the unknown-subcommand arm — under the
 /// *canonical* name, which is exactly what shows the resolution happened, and
-/// with the release's own enumeration.
+/// with the release's own enumeration. `home` answers as tclsh does.
 #[test]
 fn file_subcommand_table_follows_the_emulated_release() {
     const FILE_MUST_86: &str = "must be atime, attributes, channels, copy, delete, dirname, \
@@ -1811,11 +1811,9 @@ fn file_subcommand_table_follows_the_emulated_release() {
         format!("unknown or ambiguous subcommand \"te\": {FILE_MUST}")
     );
     let (ok, msg, _) = run_for_version("file h", tcl_dialect::TclVersion::V9_0);
-    assert!(!ok);
-    assert_eq!(
-        msg,
-        format!("unknown or ambiguous subcommand \"home\": {FILE_MUST}")
-    );
+    assert!(ok, "{msg}");
+    let home = std::env::var("HOME").expect("the test process has a HOME");
+    assert_eq!(msg, home.trim_end_matches('/'));
 
     // A prefix that is unique in both releases still resolves in both.
     assert_eq!(

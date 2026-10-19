@@ -84,16 +84,11 @@ fn time_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 || argv.len() > 3 {
         return interp.wrong_args(b"time command ?count?");
     }
-    let count: i128 = if argv.len() == 3 {
-        let bytes = obj_bytes(argv[2]);
-        match tcl_cmd_core::sort::parse_wide(&bytes) {
-            Some(n) => n,
-            None => {
-                let mut m = b"expected integer but got \"".to_vec();
-                m.extend_from_slice(&bytes);
-                m.push(b'"');
-                return interp.wrong_arguments_message(&m);
-            }
+    // C reads the count as a C `int`, so `4294967295` is -1 iterations.
+    let count = if argv.len() == 3 {
+        match crate::typed_value::int(argv[2]) {
+            Ok(n) => i64::from(n),
+            Err(error) => return interp.report_typed_error(&error),
         }
     } else {
         1
@@ -197,18 +192,16 @@ fn timerate_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let mut max_ms: i128 = i128::MIN;
     let mut max_cnt: u128 = u128::MAX;
     if i < argv.len() {
-        let b = obj_bytes(argv[i]);
-        let Some(v) = tcl_cmd_core::sort::parse_wide(&b) else {
-            return expected_integer(interp, &b);
+        max_ms = match crate::typed_value::wide_int(argv[i]) {
+            Ok(v) => i128::from(v),
+            Err(error) => return interp.report_typed_error(&error),
         };
-        max_ms = v;
         i += 1;
         if i < argv.len() {
-            let b = obj_bytes(argv[i]);
-            let Some(v) = tcl_cmd_core::sort::parse_wide(&b) else {
-                return expected_integer(interp, &b);
+            max_cnt = match crate::typed_value::wide_int(argv[i]) {
+                Ok(v) => u128::try_from(v).unwrap_or(0),
+                Err(error) => return interp.report_typed_error(&error),
             };
-            max_cnt = if v > 0 { v as u128 } else { 0 };
         }
     }
 
@@ -251,13 +244,6 @@ fn timerate_usage(interp: &mut Interp) -> Code {
     interp.wrong_args(
         b"timerate ?-direct? ?-calibrate? ?-overhead double? command ?time ?max-count??",
     )
-}
-
-fn expected_integer(interp: &mut Interp, got: &[u8]) -> Code {
-    let mut m = b"expected integer but got \"".to_vec();
-    m.extend_from_slice(got);
-    m.push(b'"');
-    interp.wrong_arguments_message(&m)
 }
 
 /// The measurement loop: evaluate `script` until `max_ms` elapses or `max_cnt`
@@ -490,14 +476,21 @@ fn if_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         );
     }
 
-    match then_body {
-        Some(body) => interp.eval_control_body(body),
-        None if i < objc => interp.eval_control_body(argv[i]),
+    let compiled = interp.release_compiles_control(argv);
+    let code = match then_body {
+        Some(body) => interp.eval_compiled_control_body(body, compiled),
+        None if i < objc => interp.eval_compiled_control_body(argv[i], compiled),
         None => {
             interp.set_result_bytes(b"");
             Code::Ok
         }
+    };
+    // The `if` the release runs evaluates its body as a script of its own,
+    // after which the `if` logs itself; one it compiles shares the body's.
+    if code == Code::Error && !compiled {
+        interp.clear_error_logged();
     }
+    code
 }
 
 /// `wrong # args: no script following "<token>" argument` (C's `missingScript`).
@@ -518,6 +511,7 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
         return interp.wrong_args(b"while test command");
     }
+    let compiled = interp.release_compiles_control(argv);
     let cond = argv[1];
     let body = argv[2];
     let import = match interp.original_import_while(argv) {
@@ -546,7 +540,7 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             }
             Err(code) => return code,
         }
-        let code = interp.eval_control_body(body);
+        let code = interp.eval_compiled_control_body(body, compiled);
         if let Some(import) = &import {
             if let Err(error) = import.body_completed(interp, code) {
                 return interp.report_cmd_error(error.into());
@@ -556,10 +550,9 @@ fn while_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
             Code::Error => {
-                // `("while" body line N)` — the interpreted `Tcl_WhileObjCmd`
-                // frame, added only outside a proc (Tcl inlines `while` when it
-                // compiles a proc body, so no frame there; see `foreach`).
-                if !interp.in_proc() {
+                // `("while" body line N)`, the frame of the `while` the release
+                // runs rather than compiles.
+                if !compiled {
                     interp.append_body_frame(b"while");
                 }
                 return Code::Error;
@@ -579,15 +572,24 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
         return interp.wrong_args(b"for start test next command");
     }
+    let compiled = interp.release_compiles_control(argv);
     let (init, cond, next, body) = (argv[1], argv[2], argv[3], argv[4]);
+    // `TclCompileForCmd` compiles a substituted start with the command
+    // beside literal clauses (`INST_EVAL_STK`), the value with it.
+    if interp
+        .compiled_words(argv)
+        .is_some_and(|literal| !literal[1] && literal[2..].iter().all(|&word| word))
+    {
+        crate::list::read_as_other_type(init);
+    }
     // `start`/`next` are scripts too — run them through `eval_control_body` so a
     // located literal reports `type source` at its own line (TIP 280), matching
     // the body. (Their result is discarded; only their completion code matters.)
-    match interp.eval_control_body(init) {
+    match interp.eval_compiled_control_body(init, compiled) {
         Code::Ok => {}
         Code::Error => {
             // `("for" initial command)` (no line) — interpreted `Tcl_ForObjCmd`.
-            if !interp.in_proc() {
+            if !compiled {
                 interp.append_frame_noline(b"\"for\" initial command");
             }
             return Code::Error;
@@ -603,20 +605,19 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Ok(false) => break,
             Err(code) => return code,
         }
-        match interp.eval_control_body(body) {
+        match interp.eval_compiled_control_body(body, compiled) {
             Code::Ok | Code::Continue => {} // `continue` still runs `next`
             Code::Break => break,
             Code::Error => {
-                // `("for" body line N)` (interpreted `Tcl_ForObjCmd`), outside a
-                // proc only — as for `while`/`foreach`.
-                if !interp.in_proc() {
+                // `("for" body line N)` (interpreted `Tcl_ForObjCmd`).
+                if !compiled {
                     interp.append_body_frame(b"for");
                 }
                 return Code::Error;
             }
             other => return other,
         }
-        match interp.eval_control_body(next) {
+        match interp.eval_compiled_control_body(next, compiled) {
             Code::Ok => {}
             // A `break` in the step clause ends the loop cleanly (C's
             // `Tcl_ForObjCmd`: `case TCL_BREAK: result = TCL_OK`), unlike
@@ -624,7 +625,7 @@ fn for_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Break => break,
             Code::Error => {
                 // `("for" loop-end command)` (no line) — interpreted `Tcl_ForObjCmd`.
-                if !interp.in_proc() {
+                if !compiled {
                     interp.append_frame_noline(b"\"for\" loop-end command");
                 }
                 return Code::Error;
@@ -1049,6 +1050,7 @@ fn each_loop_with_original(
     } else {
         NativeEachLoopKind::Foreach
     };
+    let compiled = interp.release_compiles_control(argv);
     if argv.len() < 4 || argv.len() % 2 != 0 {
         return interp.wrong_args(if collect {
             b"lmap varList list ?varList list ...? command"
@@ -1164,7 +1166,14 @@ fn each_loop_with_original(
                 if let Err(first) = interp.begin_control_options_checked(policy) {
                     return interp.refuse_native_execution(first);
                 }
-                let code = interp.eval_generic_control_body(argv[argv.len() - 1]);
+                // A loop the release compiles runs its body as code of the
+                // script holding it (upstream `eval_compiled_control_body`);
+                // one it runs keeps the original-object body protocol.
+                let code = if compiled {
+                    interp.eval_compiled_control_body(argv[argv.len() - 1], true)
+                } else {
+                    interp.eval_generic_control_body(argv[argv.len() - 1])
+                };
                 if let Err(error) = arguments.check_for(interp) {
                     return interp.report_cmd_error(error);
                 }
@@ -1186,7 +1195,9 @@ fn each_loop_with_original(
                     }
                     BodyDecision::Continue | BodyDecision::Finish => {}
                     BodyDecision::Propagate => {
-                        if code == Code::Error {
+                        // `("<cmd>" body line N)`, the frame of the loop the
+                        // release runs rather than compiles.
+                        if code == Code::Error && !compiled {
                             interp.append_body_frame(kind.name().as_bytes());
                         }
                         return code;

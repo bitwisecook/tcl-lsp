@@ -136,6 +136,7 @@ under every grammar and only a few disagree.
 | `1_000` digit separators | — bareword | — bareword | ✓ |
 | `0755` leading zero | **octal → 493** | **octal → 493** | **decimal → 755** |
 | `08` leading zero | — invalid octal | — invalid octal | ✓ 8 |
+| `1e400`, `1e-400`, `4.9e-324` (outside the double range) | `string is double` is `0` | ✓ the rounded value | ✓ the rounded value |
 
 The leading-zero row is the dangerous one: the same text is a *valid number
 with a different value*, so nothing errors — the answer is just wrong. C settles
@@ -145,6 +146,17 @@ numbers with leading zero as octal") and defines it from 9.0. `changes.md` for
 9.0 records: "`0NNN` format is no longer octal interpretation. Use `0oNNN`."
 
 Consequences that are *not* obvious, and are pinned by tests:
+
+* **A range error is a release fact, not a parse failure.** 8.4 reads a double
+  with C `strtod` and treats `ERANGE` as "not a number": `1e400`, `1e-400` and
+  every subnormal (`4.9e-324`, `1e-310`) are `0` for `string is double` and
+  raise `ARITH OVERFLOW` / `UNDERFLOW` in `expr`; `DBL_MAX`, `DBL_MIN` and a
+  zero mantissa (`0e999`) are fine. `JimTcl` refuses them in `string is
+  double` too (not in `expr`). From 8.5 `TclParseNumber` returns `Inf` / `0.0` /
+  the subnormal. The numeral parser reports the fact (`Parsed::out_of_range`),
+  `NumberSyntax::string_is_double_rejects_range_error` is the release switch,
+  and the const-folder declines such a literal wherever the target does not
+  widen.
 
 * **A level word inherits it.** `upvar`/`uplevel` read their level through
   `Tcl_GetIntFromObj`, so `uplevel 010` goes **8 frames up on 8.6 and 10 on
@@ -334,12 +346,163 @@ accident, always in the same shape: strip two characters, call
 * **Comparisons:** `==`/`!=` compare numerically when both sides look
   numeric, else as strings; `eq`/`ne` always string. `in`/`ni` use list
   membership with string equality.
-* **Float → string** uses the **shortest decimal that round-trips**
-  (C Tcl 9's `tcl_precision`-free default); `format`/`%g`/`%.17g` and the
-  default rep must match byte-for-byte, including `-0.0`, `Inf`, `NaN`.
+* **Float → string** is the release's `Tcl_PrintDouble`, byte for byte,
+  including `-0.0`, `Inf`, `NaN` — see [the number
+  spelling](#a-computed-number-is-spelled-as-its-release-spells-it): the
+  shortest digits from 8.5 (with C Tcl's own power-of-two misprint), `%.12g`
+  for 8.4 and Jim. `format`/`%g`/`%.17g` must match byte for byte too.
 * **Errors** are verbatim: `divide by zero`, `domain error`,
   `can't use non-numeric string as operand`, `too many digits` (charset
   parse), etc.
+
+## A computed number is spelled as its release spells it
+
+The string rep of a number a script computes is a release fact, and so is
+whether that string reads back as the number. Both owners are shared:
+`tcl_dialect::NumberSpelling` carries the release facts (built from the
+profile's `NumberSyntax` and runtime release), and `tcl_syntax::number`
+does the spelling — `format_double` (8.5+), `format_double_as` (either
+spelling), and the two predicates a folder asks before it writes a computed
+value as source text, `spell_double` and `spell_wide`. Each answers the
+release's spelling **only when it reads back under the release's grammar as
+the same value**, and `None` otherwise; the folder then keeps the
+computation and the program's own runtime prints whatever the release
+prints.
+
+| Release | Double spelling | Source | Reads back? |
+|---|---|---|---|
+| 8.4 | `%.12g`, then `.0` when the output has no `.` and no letter | `tclUtil.c` `Tcl_PrintDouble`, `tcl_precision` 12 | only when 12 digits hold the value; a subnormal never (`Tcl_GetDouble` rejects `strtod`'s `ERANGE`: `set x 1e-310; expr {$x*1}` raises) |
+| 8.5–9.1 | shortest digits, `%g` layout (fixed for `decpt` in [-3, 17]), `.0` on an integral fixed value | `tclStrToD.c` `TclDoubleDigits` shortest mode | always, **except 263 normal powers of two** |
+| Jim 0.76–0.84 | `%.12g`, then `.0` when the output has no `.` and no `e`; `Inf`, `-Inf`, `NaN` | `jim.c` `UpdateStringOfDouble` | only when 12 digits hold the value |
+
+Measured, tclsh 8.4.20 and jimsh 0.84 identical on every row:
+`expr {1.0/3}` is `0.333333333333`, `1e15 + 0.3` is `1e+15`, `0.1 + 0.2` is
+`0.3`, `1e-5` is `1e-05` (C's two-digit exponent minimum), `123456789012.5`
+is `123456789012.0`, `999999999999.5` is `1e+12`, `9.999999999995e15` is
+`1e+16`, `2.0` is `2.0`, `1e16` is `1e+16`, `-0.0` is `-0.0`. 8.4 raises
+before an expression can produce `Inf` or `NaN`.
+
+**The power-of-two misprint.** For a normal double whose significand is 1,
+`TclDoubleDigits` (`ShorteningInt64Conversion` and its two bignum twins,
+8.5.19 to 9.1.0) tests the remainder for the low termination against
+`mplus`, half the gap *above* the value, and for the high one against
+`mminus`, half the gap *below* — swapped. Of the 2046 normal powers of two
+1530 still print their shortest spelling, 253 print a longer one that reads
+back (2^-1016 is `1.4240472694446089e-306`), and 263 print one that does not
+(2^64 is `1.844674407370955e+19`, which reads back as 2^64 - 2048; also
+2^-24, 2^-25, 2^-44, 2^64 to 2^68, 2^-530). `format_double` ports that loop
+in exact integer arithmetic (`tcl_syntax::number::print_double`), so the
+runtimes print what tclsh prints; the table of the 516 non-shortest
+spellings, generated from tclsh 9.0.4 and byte-identical on 8.5.19, 8.6.18
+and 9.1.0, is checked into `rust/tcl-syntax/tests/data/`. A subnormal power
+of two takes the ordinary path.
+
+**`tcl_precision`.** Through 8.6 a write to `tcl_precision` changes every
+later double spelling (`TclPrecTraceProc`; 8.4 accepts 1 to 17, 8.5 and 8.6
+0 to 17); 9.0 removed the variable and Jim never had one
+(`NumberSyntax::precision_variable`). Measured, `set tcl_precision 6` makes
+`expr {$a/3}` print `0.333333` on 8.4.20, 8.5.19 and 8.6.18 and leaves it
+`0.3333333333333333` on 9.0.4 and 9.1.0. A module that may write it — its
+source names the variable, or it writes a variable whose name it computes
+(`ModuleCommandMutations::may_set_precision`, carried to the evaluators as
+`AnalysisContext::precision_written`) — has no compile-time spelling for a
+computed double under 8.4 to 8.6, and the folder writes none. `format %g`
+is not affected: it is C's `%g` at its own precision, and after `set
+tcl_precision 3` every tclsh from 8.4.20 to 9.1.0 prints `format %g
+1.23456` as `1.23456` (a computed double's own string rep, `format %s [expr
+{1.23456 * 1}]`, is `1.23` through 8.6).
+
+**A computed `INT64_MIN` under 8.4 and 8.5.** tclsh 8.4.20 and 8.5.19 print
+`expr {-9223372036854775807 - 1}`, `~9223372036854775807`,
+`int(-9223372036854775808.0)` and `wide(-9223372036854775807 - 1)` as `-8`
+(`string length` 2). `TclFormatInt` (`tclUtil.c`) guards the most negative
+`long` with `n == -n || intVal == n`, signed overflow the compiler may drop,
+and its digit loop then stops after one digit; 8.6 negates through
+`unsigned long`. A literal `-9223372036854775808` keeps its own spelling, and
+8.6.18 to 9.1.0 and jimsh print the digits everywhere
+(`TclVersion::garbles_wide_min`). `spell_wide` declines that value for 8.4
+and 8.5, and for a release this does not know where the grammar leaves
+either possible; the bytecode codegen asks it too.
+
+**The runtime.** The VM follows the same facts. `tcl_precision` is linked
+to the printing precision through a native trace (`TclPrecTraceProc`), and
+the precision is one value for the interpreter tree, as C keeps it in thread
+data; doubles print by `NumberSyntax::double_format`: 8.4's `%.<p>g`, or
+8.5 and 8.6's shortest digits at 0 and `p` correctly rounded significant
+digits otherwise, with a two-digit exponent minimum. The runtime installs its
+exact release with `tcl_syntax::number::set_runtime_release`, so 8.5 and 8.6,
+which share a grammar, can differ where C does.
+
+**8.4's arithmetic.** 8.4 has no bignums: an integer literal up to 2^64 - 1
+wraps to 64 bits as `strtoull` reads it, and a larger one is `integer value
+too large to represent` (`NumberSyntax::wraps_wide_integers`); `+`, `-`,
+`*`, unary minus and `incr` wrap, a shift by 64 or more gives 0 and a
+negative count is taken modulo 64. A double result that overflows or is NaN,
+and a division by a zero double, are errors
+(`TclVersion::raises_float_range_errors`), and an out-of-range double string
+is not a number. Its math functions take only 64-bit integers or in-range
+doubles (`argument to math function didn't have numeric value`), bound
+`int`/`round`/`wide` to 64 bits, and report `exp`/`pow` underflow to zero.
+
+The folder's choke points are the places a computed number becomes a value
+with text: the expression route's full value (`ExprServices::full_value`),
+the registry value model's `ConstOps::new_double` / `new_int` (which poison
+the run with `DeclineReason::Unspellable`), and the expression folder's
+string operations (`FoldOps::text_of`). A lattice double keeps the
+`ConstValue::Float` form only where its text is `format_double`'s, so every
+later rendering of it is the release's.
+
+## `format` integer widths are LP64's
+
+A fixed-width `format` conversion takes its value modulo 2^width and reads
+the bits signed (`d`/`i`) or unsigned (`u`/`x`/`X`/`o`/`b`/`p`). The width
+comes from the size modifier and the release, and for two rows from the C
+ABI the reference `tclsh` was built for:
+
+| Conversion | C Tcl's width | Modelled as |
+|---|---|---|
+| Unmodified, before Tcl 9 | C `long` | 64 bits |
+| Unmodified, Tcl 9 | C `int` | 32 bits |
+| `h` | C `short` | 16 bits |
+| `l` | `Tcl_WideInt` | 64 bits |
+| `j`, `q`, `I64`, Tcl 9 | `Tcl_WideInt` | 64 bits |
+| `I`, `I32`, Tcl 9 | C `int` | 32 bits |
+| `z`, `t`, `p`, Tcl 9 | wide iff `sizeof(void *) > sizeof(int)` | 64 bits |
+| `ll`, `L` | bignum | unbounded |
+
+The ABI-dependent rows are answered for **LP64** on every target the
+crates compile for, wasm32 included; `tcl-dialect` has no platform axis.
+`tcl_syntax::format::IntegerWidth::{C_LONG, POINTER}` carry the
+assumption, `integer_width` and `pointer_bits` are its only readers, and
+the shared renderer (`tcl_cmd_core::format`, behind both `tcl-vm` and the
+WASM runtime) and the const-folder use no host-width type. Every reference
+`tclsh` (8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0) runs on LP64: `format %d
+4294967296` is `4294967296` on 8.x and `0` on 9.x, `format %u -1` is
+`18446744073709551615` on 8.x, and `format %zd 4294967296` and `format %p
+4294967296` are `4294967296` and `0x100000000` on 9.x. Tcl's own suites
+agree: 8.6's `format-1.*.1` variants are `longIs64bit`, 9.0's `format-8.25`
+and `format-8.27` are `pointerIs64bit`.
+
+**LLP64** (64-bit Windows: 32-bit `long`, so 8.x unmodified is 32 bits) and
+**ILP32** (32-bit hosts: 32-bit `long` and pointers, so `z`/`t`/`p` are
+32 bits too) are **known-unverified**: C Tcl's source says they differ, and
+no oracle on either has been run. A wasm32 build of the runtime answers the
+LP64 values, not the ones a 32-bit C build of Tcl would.
+
+Two `%p` cases follow C Tcl 9 on LP64 rather than its intent: `%p` forces
+the wide read under any modifier (`format %Ip 4294967296` is
+`0x100000000`), and `%hp` renders the zero-initialised `short` that read
+never assigns (`format %hp 65537` is `0x0`). `%llp`/`%Lp` print an
+uninitialised value in C Tcl 9 and are rendered as `%p`.
+
+Before Tcl 9, `z`, `t`, `j`, `q`, `I` and `L` are not modifiers: the older
+parser reads the first byte as the verb, so `format %zd 1` and `format %z
+1` are both `bad field specifier "z"` (8.4 likewise rejects `ll` with `"l"`).
+Jim (0.84) behaves the same way for them and formats every non-`h` integer
+as its 64-bit `jim_wide` whatever the ABI; it also ignores `h` on `%b`,
+which nothing here executes. `int()` before Tcl 9 shares the C `long`
+assumption (`ExprIntFunc` truncates through `TclGetLongFromObj`), answered
+as the 64-bit `IntWidth::Windowed`.
 
 ## Contract vs. incompatible-by-design
 
@@ -351,7 +514,9 @@ accident, always in the same shape: strip two characters, call
 | `mathfunc`/`mathop` dispatch through the namespace (overridable) | **Contract** |
 | `Inf`/`NaN`/`NaN(hex)`, booleans | **Contract** |
 | Literal radices, `_` separators, leading-zero octal | **Contract, keyed to the release** — see [the numeral grammar](#the-numeral-grammar-is-release-dependent). Not invariant: `0755` is 493 up to 8.6 and 755 from 9.0. |
-| Shortest-round-trip float formatting, `-0.0`/`Inf`/`NaN` text | **Contract** |
+| Float formatting (`%.12g` on 8.4 and Jim, shortest with C's power-of-two misprint from 8.5), `-0.0`/`Inf`/`NaN` text | **Contract, keyed to the release** — see [the spelling](#a-computed-number-is-spelled-as-its-release-spells-it). The runtimes print the 8.5+ form under every release and do not model `tcl_precision`. |
+| A computed `INT64_MIN` printed as `-8` (8.4, 8.5) | **Not modelled by the runtimes**; the folder declines it |
+| `format` integer widths that depend on the C ABI (pre-9 unmodified, `z`/`t`/`p`) | **Contract for LP64** — see [the widths](#format-integer-widths-are-lp64s). LLP64 and ILP32 are known-unverified. |
 | `eq`/`ne`/`in`/`ni`, numeric-vs-string `==` rule | **Contract** |
 | Error wording (`divide by zero`, `domain error`, …) | **Contract** |
 | Which internal rep a value currently holds (`tcl::unsupported::representation`) | **Incompatible-by-design** — shimmering is observable but rep identity is not a from-scratch contract (W9-internal). |
@@ -379,7 +544,22 @@ accident, always in the same shape: strip two characters, call
   the whole expression falls back to `exprStk` and the engines' one gate
   produces C Tcl's own diagnostic. Constant folding is downstream of that
   check, or `expr {2 ** 3}` folds to `8` for an 8.4 target that cannot parse
-  `**` (issue #1435).
+  `**` (issue #1435): the const-folder's two entry points
+  (`tcl_expr_eval::evaluate_expression`, the route every rewrite and the
+  lattice take, and the legacy `eval_with_config`) ask the profile-only
+  `tcl_registry::expr_surface::validate_operators` first and decline when
+  it names an operator the release lacks. Measured on tclsh 8.4.20:
+  `2**3` is `syntax error in expression "2**3": unexpected operator *`,
+  `1 in {1 2}` an `invalid bareword`; `eq`/`ne` exist from 8.4,
+  `lt`/`le`/`gt`/`ge` from 9.0 (and in jimsh 0.84). A math function
+  is gated the same way through the registry's `math_function` service:
+  `bool`, `entier`, `isqrt`, `max`, `min` from 8.5, the `is*`
+  classifiers from 9.0, TIP 745's from 9.1; Jim has 8.4's set. Jim's `pow`
+  is its `**` operator (`pow(2,3)` is `8` on jimsh 0.84, `8.0` on every
+  tclsh), so `mathfunc::dispatch_under` declines `pow` of two integers there
+  (`NumberSyntax::pow_of_integers_is_integer`). The `TIP 461` operators fold
+  under no Jim profile: `operator_admitted` reads the operator's
+  `tcl::mathop` command surface, which Jim lacks, though its `expr` has them.
 
 ## See also
 

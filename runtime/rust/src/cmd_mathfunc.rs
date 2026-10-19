@@ -190,7 +190,18 @@ fn mathfunc_original(
         let number = match operation.number(argv[1]) {
             Ok(Some(number)) => number,
             Ok(None) => {
-                return interp.set_error(b"argument to math function didn't have numeric value")
+                // 8.4's `ExprUnaryFunc` and kin: one message and no code; from
+                // 8.5 the reader's own words with `TCL VALUE NUMBER`.
+                let unread = match operation.string(argv[1]) {
+                    Ok(unread) => unread,
+                    Err(error) => return interp.report_expr_error(error),
+                };
+                let (message, code) = tcl_syntax::expr::mathfunc::non_numeric_argument_error(
+                    &lname,
+                    &String::from_utf8_lossy(&unread),
+                    interp.runtime_version(),
+                );
+                return interp.error_with_code(message.as_bytes(), code.as_bytes());
             }
             Err(error) => return interp.report_expr_error(error),
         };

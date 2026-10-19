@@ -798,14 +798,33 @@ fn package_lookup(
             }
         }
     }
+    let mut message = [b"can't find package ".as_slice(), &name].concat();
+    append_requirements(&mut message, exact, &requirements, release);
     package_error_effect(
         interp,
-        &[b"can't find package ".as_slice(), &name].concat(),
+        &message,
         protocol.failure_error_code_update(
             tcl_registry::native_package::NativePackageFailure::RequireMissing,
             &name,
         ),
     )
+}
+
+/// C's `AddRequirementsToResult`: each requirement after a space, an exact
+/// one spelled `exactly V` from 8.5 (8.4 has no ranges to distinguish).
+fn append_requirements<R: AsRef<[u8]>>(
+    message: &mut Vec<u8>,
+    exact: bool,
+    requirements: &[R],
+    release: TclVersion,
+) {
+    for requirement in requirements {
+        message.push(b' ');
+        if exact && release.has_package_requirement_ranges() {
+            message.extend_from_slice(b"exactly ");
+        }
+        message.extend_from_slice(requirement.as_ref());
+    }
 }
 
 fn best_ifneeded(
@@ -861,16 +880,10 @@ fn check_provided(
         name,
         b"\": have ",
         &version,
-        b", need ",
-        if exact { b"exactly " } else { b"" },
+        b", need",
     ]
     .concat();
-    for (index, req) in requirements.iter().enumerate() {
-        if index > 0 {
-            message.push(b' ');
-        }
-        message.extend_from_slice(req);
-    }
+    append_requirements(&mut message, exact, requirements, release);
     Some(Err(if load {
         package_error_effect(interp, &message, protocol.conflict_error_code_update())
     } else {
@@ -1280,10 +1293,11 @@ mod original_argument_tests;
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::TclVersion;
+
     use crate::counters;
     use crate::interp::{Code, Interp};
     use crate::obj;
-    use tcl_dialect::TclVersion;
     use tcl_syntax::value::ValueOps;
 
     fn leak_free(body: impl FnOnce(&mut Interp)) {
@@ -1489,6 +1503,65 @@ mod tests {
                 b"absent {1.2+x space{brace}-1.2+x space{brace}}"
             );
         });
+    }
+
+    /// Structured package codes arrive at 8.6 and `package present`'s lookup
+    /// code at 8.5; 8.4 spells an exact requirement bare. Measured on tclsh
+    /// 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 (#2229).
+    #[test]
+    fn package_error_codes_follow_the_pinned_release() {
+        let probe = |i: &mut Interp, script: &str| {
+            let caught =
+                format!("set ::errorCode SENTINEL; list [catch {{{script}}} m] $m $::errorCode");
+            String::from_utf8(run(i, caught.as_bytes())).expect("utf-8")
+        };
+        for version in TclVersion::ALL {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                let structured = version >= TclVersion::V8_6;
+                let pick = |code: &'static str| if structured { code } else { "NONE" };
+                run(i, b"package provide foo 1");
+                let need = if version == TclVersion::V8_4 {
+                    "1.1"
+                } else {
+                    "exactly 1.1"
+                };
+                assert_eq!(
+                    probe(i, "package require -exact foo 1.1"),
+                    format!(
+                        "1 {{version conflict for package \"foo\": have 1, need {need}}} {}",
+                        tcl_syntax::list::list_element(pick("TCL PACKAGE VERSIONCONFLICT"))
+                    ),
+                    "{version:?}"
+                );
+                assert_eq!(
+                    probe(i, "package require nope 1.2"),
+                    format!(
+                        "1 {{can't find package nope 1.2}} {}",
+                        tcl_syntax::list::list_element(pick("TCL PACKAGE UNFOUND"))
+                    ),
+                    "{version:?}"
+                );
+                assert_eq!(
+                    probe(i, "package vcompare a 1"),
+                    format!(
+                        "1 {{expected version number but got \"a\"}} {}",
+                        tcl_syntax::list::list_element(pick("TCL VALUE VERSION"))
+                    ),
+                    "{version:?}"
+                );
+                let lookup = if version >= TclVersion::V8_5 {
+                    "{TCL LOOKUP PACKAGE nope}"
+                } else {
+                    "NONE"
+                };
+                assert_eq!(
+                    probe(i, "package present nope"),
+                    format!("1 {{package nope is not present}} {lookup}"),
+                    "{version:?}"
+                );
+            });
+        }
     }
 
     #[test]

@@ -28,6 +28,8 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 use tcl_registry::InlineBodyErrorContext;
 
+use crate::cfg::BodyErrorContext;
+
 use crate::cfg::{Function as CfgFunction, Terminator};
 use crate::ir::Statement;
 
@@ -78,9 +80,6 @@ struct GenerateState {
     /// Foreach startCommand end labels: `foreach_end_N` → deferred
     /// label placed at the `foreach_end` block's trailing pop.
     foreach_end_labels: HashMap<String, String>,
-    /// For-body startCommand end labels: `if_end_N` → deferred label
-    /// placed at the join block's trailing pop.
-    for_body_end_labels: HashMap<String, String>,
     /// Pending startCommand end labels for if/switch join pops — each
     /// label is placed *before* the join pop once it is emitted.
     pending_join_labels: HashMap<String, String>,
@@ -92,6 +91,11 @@ struct GenerateState {
     /// the same bytecode position as the enclosing command. Tcl represents the
     /// pair with one count-two `START_CMD`, not nested markers.
     first_command_covered_by_if: HashSet<String>,
+    /// `if`/`switch` head blocks whose command `START_CMD` is already open.
+    opened_branch_commands: HashSet<String>,
+    /// Blocks in the emitted layout; a join outside it has no result pop to
+    /// end a `START_CMD` at.
+    laid_out: HashSet<String>,
 }
 
 impl GenerateState {
@@ -103,10 +107,11 @@ impl GenerateState {
             while_end_labels: HashMap::new(),
             for_init_end_labels: HashMap::new(),
             foreach_end_labels: HashMap::new(),
-            for_body_end_labels: HashMap::new(),
             pending_join_labels: HashMap::new(),
             command_boundary_end_labels: HashMap::new(),
             first_command_covered_by_if: HashSet::new(),
+            opened_branch_commands: HashSet::new(),
+            laid_out: HashSet::new(),
         }
     }
 }
@@ -332,89 +337,15 @@ fn emit_block_prologue(
     is_loop_end
 }
 
-/// Emit the per-block startCommand markers for for-body and complex-foreach
-/// if-condition blocks, deferring their end labels to the relevant join pop,
-/// then place any pending for-body end label and pop the incoming arm value
-/// at join blocks with work.
-fn emit_block_start_cmds(
+/// Place any pending `if`/`switch` startCommand end label, then pop the
+/// incoming arm value at join blocks with work.
+fn emit_join_prologue(
     ctx: &mut CodegenCtx,
     cfg: &CfgFunction,
     state: &mut GenerateState,
-    fe: &ForeachData,
     bname: &str,
     blk: &crate::cfg::Block,
 ) {
-    // For-body startCommand: a `for_body_*` block
-    // whose terminator is a Branch (the first statement is an
-    // `if`) gets a startCommand that spans from here to the
-    // `if_end_*` join pop. The end label is deferred into
-    // `for_body_end_labels` keyed by the join block name.
-    if bname.starts_with("for_body_")
-        && matches!(blk.terminator, Some(Terminator::Branch { .. }))
-        && ctx.cmd_index > 0
-    {
-        ctx.set_command_boundary_site(
-            cfg.block_id(bname)
-                .and_then(|id| cfg.command_boundary_sites.get(&id)),
-        );
-        let fb_end_label = ctx.fresh_label("for_body_end");
-        ctx.emit_comment(
-            Op::START_CMD,
-            vec![Operand::Label(fb_end_label.clone()), Operand::Imm(1)],
-            "",
-        );
-        // Find the convergence point by following the true branch.
-        if let Some(Terminator::Branch { true_target, .. }) = &blk.terminator
-            && let Some(tt_blk) = cfg.blocks.get(true_target)
-            && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
-            && cfg.block_name(*join).starts_with("if_end_")
-        {
-            state
-                .for_body_end_labels
-                .insert(cfg.block_name(*join).to_owned(), fb_end_label);
-        }
-    }
-
-    // Complex-foreach if-condition startCommand:
-    // body blocks inside a complex foreach whose terminator is a
-    // Branch (the first element is an `if`) also get a per-body
-    // startCommand, with the end label deferred to the `if_end_*`
-    // or `if_next_*` join pop.
-    if fe.complex_body_blocks.contains(bname)
-        && matches!(blk.terminator, Some(Terminator::Branch { .. }))
-        && ctx.cmd_index > 0
-        && !bname.starts_with("foreach_header_")
-    {
-        ctx.set_command_boundary_site(
-            cfg.block_id(bname)
-                .and_then(|id| cfg.command_boundary_sites.get(&id)),
-        );
-        let fif_end_label = ctx.fresh_label("foreach_if_end");
-        ctx.emit_comment(
-            Op::START_CMD,
-            vec![Operand::Label(fif_end_label.clone()), Operand::Imm(1)],
-            "",
-        );
-        ctx.seen_generic_invoke = true;
-        if let Some(Terminator::Branch { true_target, .. }) = &blk.terminator
-            && let Some(tt_blk) = cfg.blocks.get(true_target)
-            && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
-            && {
-                let j = cfg.block_name(*join);
-                j.starts_with("if_end_") || j.starts_with("if_next_")
-            }
-        {
-            state
-                .for_body_end_labels
-                .insert(cfg.block_name(*join).to_owned(), fif_end_label);
-        }
-    }
-
-    // Defer for-body end label to the join block's pop.
-    if let Some(lbl) = state.for_body_end_labels.remove(bname) {
-        state.pending_join_labels.insert(bname.to_owned(), lbl);
-    }
-
     // Pop incoming arm value at join blocks with work. Place any
     // pending startCommand end label *before* the pop so the
     // startCommand covers only the arm body, not the result
@@ -455,6 +386,11 @@ fn emit_foreach_header(
         );
         ctx.seen_generic_invoke = true;
         state.foreach_end_labels.insert(fi.end.clone(), fe_lbl);
+    }
+    // `CompileEachloopCmd` makes each loop variable a compiled local before
+    // it compiles the list words.
+    for var in fi.var_groups.iter().flatten() {
+        ctx.intern_compiled_local(var);
     }
     // Native compilation allocates every iterator target before compiling the
     // value words. Original dynamic names remain data on authored backends.
@@ -568,7 +504,7 @@ fn emit_block_statements(
     // For-init blocks: the last statement before a Goto to a
     // for_header_N block is the for command's init clause. Wrap
     // it with a count=2 startCommand spanning the whole for loop.
-    let for_init_last_idx = detect_for_init_last_stmt(ctx, cfg, blk);
+    let for_init_last_idx = detect_for_init_last_stmt(cfg, blk);
 
     let first_command_covered = state
         .first_command_covered_by_if
@@ -644,6 +580,7 @@ fn emit_block_statements(
                 .and_then(|t| t.synthetic)
                 .is_some_and(|m| m == crate::ir::SyntheticMarker::Condition)
         {
+            open_branch_command(ctx, cfg, state, bname, blk);
             let cond_label = ctx.fresh_label("cmd_end");
             ctx.pending_cond_end_label = Some(cond_label.clone());
             ctx.emit_stmt_with_start_cmd(stmt, None, Some(&cond_label));
@@ -747,20 +684,11 @@ fn emit_block_terminator_inner(
         // the compile epoch; the first body command then shares that marker.
         // Top-level emission always emits the marker; later peepholes remove
         // it when the unit has no generic invocation.
-        if let Terminator::Branch {
-            condition,
-            true_target,
-            ..
-        } = term
-            && super::ordering::fold_const_branch(condition) == Some(true)
-            && let Some(tt_blk) = cfg.blocks.get(true_target)
-            && let Some(Terminator::Goto { target: join, .. }) = &tt_blk.terminator
-            && cfg.block_name(*join).starts_with("if_end_")
-        {
+        if let Some((true_target, join)) = constant_true_if(cfg, term) {
             if ctx.is_proc {
                 state
                     .first_command_covered_by_if
-                    .insert(cfg.block_name(*true_target).to_owned());
+                    .insert(cfg.block_name(true_target).to_owned());
             }
             if !ctx.is_proc || ctx.seen_generic_invoke {
                 ctx.set_command_boundary_site(
@@ -780,7 +708,7 @@ fn emit_block_terminator_inner(
                 ctx.seen_generic_invoke = true;
                 state
                     .pending_join_labels
-                    .insert(cfg.block_name(*join).to_owned(), end_label);
+                    .insert(cfg.block_name(join).to_owned(), end_label);
             }
         }
 
@@ -905,7 +833,7 @@ fn emit_block(
     }
 
     let is_loop_end = emit_block_prologue(ctx, cfg, state, fe, bname, blk);
-    emit_block_start_cmds(ctx, cfg, state, fe, bname, blk);
+    emit_join_prologue(ctx, cfg, state, bname, blk);
 
     if emit_foreach_header(ctx, cfg, state, fe, bname) {
         return;
@@ -949,12 +877,15 @@ fn emit_block(
         let is_while_entry = cfg.block_name(*wh_header).starts_with("while_header_")
             && !bname.starts_with("while_body_")
             && !bname.starts_with("while_step_");
+        // A body block ending in a join (`if_end_*`) also jumps back to the
+        // header; the entry is laid out first, so its end label is pending.
         if is_while_entry
             && let Some(wh_blk) = cfg.blocks.get(wh_header)
             && let Some(Terminator::Branch {
                 false_target: wh_end,
                 ..
             }) = &wh_blk.terminator
+            && !state.while_end_labels.contains_key(cfg.block_name(*wh_end))
         {
             ctx.set_command_boundary_site(
                 cfg.block_id(bname)
@@ -973,7 +904,78 @@ fn emit_block(
         }
     }
 
+    open_branch_command(ctx, cfg, state, bname, blk);
     emit_block_terminator(ctx, cfg, state, bname, blk, block_order, i);
+}
+
+/// The selected arm and join of a constant-true `if` whose arm falls through
+/// to the join: the shape Tcl gives one count-sharing `startCommand`.
+fn constant_true_if(
+    cfg: &CfgFunction,
+    term: &Terminator,
+) -> Option<(crate::cfg::BlockId, crate::cfg::BlockId)> {
+    let Terminator::Branch {
+        condition,
+        true_target,
+        ..
+    } = term
+    else {
+        return None;
+    };
+    if ordering::fold_const_branch(condition) != Some(true) {
+        return None;
+    }
+    let Some(Terminator::Goto { target: join, .. }) = &cfg.blocks.get(true_target)?.terminator
+    else {
+        return None;
+    };
+    cfg.block_name(*join)
+        .starts_with("if_end_")
+        .then_some((*true_target, *join))
+}
+
+/// Open the replayable `START_CMD` of a branch-lowered `if` or exact `switch`
+/// at its head block, ending it before the join's result pop. Without it a
+/// command-table change replays the preceding command and resumes at the
+/// first command inside an arm, skipping the test.
+fn open_branch_command(
+    ctx: &mut CodegenCtx,
+    cfg: &CfgFunction,
+    state: &mut GenerateState,
+    bname: &str,
+    blk: &crate::cfg::Block,
+) {
+    let Some(term @ Terminator::Branch { .. }) = &blk.terminator else {
+        return;
+    };
+    let Some(head) = cfg.block_id(bname) else {
+        return;
+    };
+    let Some(join) = cfg.branch_command_joins.get(&head) else {
+        return;
+    };
+    // A constant-true `if` whose arm reaches the join opens its own
+    // count-sharing marker in `emit_block_terminator`. A join outside the
+    // layout has no result pop to end a marker at.
+    let join_name = cfg.block_name(*join);
+    if ctx.cmd_index == 0
+        || !state.laid_out.contains(join_name)
+        || constant_true_if(cfg, term).is_some()
+        || !state.opened_branch_commands.insert(bname.to_owned())
+    {
+        return;
+    }
+    ctx.set_command_boundary_site(cfg.command_boundary_sites.get(&head));
+    let end_label = ctx.fresh_label("cmd_end");
+    ctx.emit_comment(
+        Op::START_CMD,
+        vec![Operand::Label(end_label.clone()), Operand::Imm(1)],
+        "",
+    );
+    ctx.cmd_index += 1;
+    state
+        .pending_join_labels
+        .insert(join_name.to_owned(), end_label);
 }
 
 /// Emit the trailing `DONE` / proc-exit machinery after all blocks.
@@ -1096,6 +1098,17 @@ fn finalize_function(
         }
     }
 
+    let direct_commands = std::mem::take(&mut ctx.direct_commands);
+    for instruction in &mut ctx.instructions {
+        instruction.script_command = instruction.source_command_boundary.is_start()
+            && instruction
+                .source_span
+                .is_some_and(|span| direct_commands.contains(&span));
+    }
+    ctx.direct_commands = direct_commands;
+
+    stamp_release_units(ctx, cfg, block_order);
+
     // Loop-target table: each loop-body instruction → its loop's break/continue
     // byte offsets, so the executor can catch a command-returned break/continue
     // (`if {…} $z`, `eval break`). Built post-layout from the (innermost-first)
@@ -1138,23 +1151,82 @@ fn finalize_function(
     // builder retained becomes a region keyed by the enclosing command's source
     // span. Source text is used only for Tcl's `invoked from within` payload;
     // the body-frame identity comes from semantic metadata, never re-parsing.
+    // A structured command the release compiles where it stands adds no
+    // frame; one it runs — evaluating it directly, or declining to compile
+    // it there — adds the frame its command does.
+    // A script an inlined `eval` runs is compiled apart from the procedure
+    // body holding it, as a script outside one.
+    let compiled_apart = |span: tcl_lexer::Span| {
+        cfg.inline_body_error_sites.iter().any(|eval| {
+            matches!(eval.context, BodyErrorContext::Registry(_))
+                && eval.span != span
+                && eval.region.start() <= span.start()
+                && span.end() <= eval.region.end()
+        })
+    };
+    let compiled_here = |site: &crate::cfg::InlineBodyErrorSite| {
+        !ctx.direct_commands.contains(&site.span)
+            && !ctx.direct_body_commands.contains(&site.span)
+            && if ctx.compiles_locals() && !compiled_apart(site.span) {
+                site.compiled.in_procedure
+            } else {
+                site.compiled.outside_procedure
+            }
+    };
     let error_regions = cfg
         .inline_body_error_sites
         .iter()
+        .filter(|site| !compiled_here(site))
         .filter_map(|site| {
             let span = site.span;
-            let cmd_text = ctx.source_text(span);
+            let cmd_text = ctx.error_info_source_text(span);
             if cmd_text.is_empty() {
                 return None;
             }
             let cmd_line = ctx.source_line(span);
+            let (frame, base_line) = match site.context {
+                BodyErrorContext::Registry(context) => (
+                    tcl_bytecode::ErrorRegionFrame::Body(
+                        inline_body_frame_label(context).to_owned(),
+                    ),
+                    cmd_line,
+                ),
+                BodyErrorContext::LoopBody(label) => (
+                    tcl_bytecode::ErrorRegionFrame::Body(label.to_owned()),
+                    ctx.source_line(site.region),
+                ),
+                BodyErrorContext::Clause(text) => (
+                    tcl_bytecode::ErrorRegionFrame::Fixed(text.to_owned()),
+                    ctx.source_line(site.region),
+                ),
+                BodyErrorContext::Arm(pattern) => {
+                    let pattern = ctx
+                        .source
+                        .get(pattern.start() as usize..pattern.end() as usize);
+                    let text = tcl_cmd_core::switch::arm_frame_text(
+                        pattern.unwrap_or_default(),
+                        ctx.vm_release(),
+                    );
+                    (
+                        tcl_bytecode::ErrorRegionFrame::Line(
+                            String::from_utf8_lossy(&text).into_owned(),
+                        ),
+                        ctx.source_line(site.region),
+                    )
+                }
+                BodyErrorContext::Script => (
+                    tcl_bytecode::ErrorRegionFrame::None,
+                    ctx.source_line(site.region),
+                ),
+            };
             Some(tcl_bytecode::ErrorRegion {
-                start: span.start(),
-                end: span.end(),
-                label: inline_body_frame_label(site.context).to_string(),
+                start: site.region.start(),
+                end: site.region.end(),
+                frame,
                 cmd_text,
-                line_base: cmd_line.saturating_sub(1),
+                line_base: base_line.saturating_sub(1),
                 cmd_line,
+                compiled_in_procedure: site.compiled.in_procedure,
             })
         })
         .collect();
@@ -1255,15 +1327,13 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction) -> FunctionAsm {
         || !ctx.retain_math_invocations(&cfg.required_math_invocations);
     if !ctx.plain_command_dispatch {
         for site in &cfg.command_binding_sites {
-            if let Some(binding) = crate::registry_invocation::native_site_binding_requirement(site)
-            {
-                ctx.require_command_binding(binding);
-            }
+            ctx.require_command_site(site);
         }
     }
     let block_order = linearise(cfg);
     let mut loop_ctx = ordering::build_loop_context(cfg);
     let mut state = GenerateState::new();
+    state.laid_out = block_order.iter().cloned().collect();
     // Native Tcl compiles an original zero-command script as an empty result,
     // independently of the synthetic return used to terminate an IR graph.
     // The retained source instance also covers procedure bodies whose parent
@@ -1296,7 +1366,10 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction) -> FunctionAsm {
         .inline_body_error_sites
         .iter()
         .filter(|site| {
-            site.context == tcl_registry::InlineBodyErrorContext::SameFrameScriptEvaluation
+            site.context
+                == BodyErrorContext::Registry(
+                    tcl_registry::InlineBodyErrorContext::SameFrameScriptEvaluation,
+                )
         })
         .map(|site| (site.span.start(), site.span.end()))
         .collect();
@@ -1311,12 +1384,240 @@ pub fn generate(ctx: &mut CodegenCtx, cfg: &CfgFunction) -> FunctionAsm {
         state.skip_blocks.insert(info.try_after.clone());
     }
 
+    let bodies = BodyTree::new(cfg);
     for i in 0..block_order.len() {
+        let block = cfg.block_id(&block_order[i]);
+        ctx.direct_body = block.is_some_and(|block| bodies.block_evaluated_directly(ctx, block));
+        if ctx.direct_body
+            && let Some(block) = block.and_then(|block| cfg.blocks.get(&block))
+        {
+            let condition_owner = match &block.terminator {
+                Some(crate::cfg::Terminator::Branch {
+                    span: Some(span), ..
+                }) => cfg.condition_owners.get(span).map(|owner| owner.command),
+                _ => None,
+            };
+            ctx.direct_body_commands.extend(
+                block
+                    .statements
+                    .iter()
+                    .map(crate::ir::Statement::span)
+                    .chain(condition_owner),
+            );
+        }
         emit_block(ctx, cfg, &mut state, &fe, &loop_ctx, &block_order, i);
     }
+    ctx.direct_body = false;
+    intern_dead_compiled_locals(ctx, cfg, &state.laid_out);
 
     emit_function_tail(ctx, cfg);
     finalize_function(ctx, cfg, &block_order, &loop_ctx)
+}
+
+/// Make compiled locals of the variables of the code C compiles though this
+/// compiler laid none of it out: the clauses of a `for` whose test is a
+/// literal constant false, and the commands after one that never completes
+/// (`return`, an endless loop). C's `if` and `while` alone leave the script
+/// a literal constant test never runs uncompiled.
+fn intern_dead_compiled_locals(
+    ctx: &mut CodegenCtx,
+    cfg: &CfgFunction,
+    laid_out: &std::collections::HashSet<String>,
+) {
+    if !ctx.compiles_locals() || laid_out.len() == cfg.blocks.len() {
+        return;
+    }
+    let predecessors = cfg.predecessors();
+    let mut stack: Vec<crate::cfg::BlockId> = std::iter::once(cfg.entry)
+        .chain(
+            cfg.blocks
+                .keys()
+                .copied()
+                .filter(|block| predecessors.get(block).is_none_or(HashSet::is_empty)),
+        )
+        .collect();
+    let mut compiled: HashSet<crate::cfg::BlockId> = HashSet::new();
+    while let Some(block) = stack.pop() {
+        if !compiled.insert(block) {
+            continue;
+        }
+        let Some(data) = cfg.blocks.get(&block) else {
+            continue;
+        };
+        let successors = match &data.terminator {
+            Some(Terminator::Branch {
+                condition,
+                true_target,
+                false_target,
+                span,
+                ..
+            }) if span
+                .and_then(|span| cfg.condition_owners.get(&span))
+                .is_some_and(|owner| owner.skips_constant_dead_script) =>
+            {
+                match ordering::fold_const_branch(condition) {
+                    Some(true) => vec![*true_target],
+                    Some(false) => vec![*false_target],
+                    None => vec![*true_target, *false_target],
+                }
+            }
+            _ => data.successors(),
+        };
+        stack.extend(successors);
+    }
+    let mut dead: Vec<crate::cfg::BlockId> = compiled
+        .into_iter()
+        .filter(|block| !laid_out.contains(cfg.block_name(*block)))
+        .collect();
+    dead.sort_unstable();
+    for block in dead {
+        let scripts: Vec<String> = cfg.blocks[&block]
+            .statements
+            .iter()
+            .filter(|statement| statement.is_executable_invocation())
+            // A script with no Unicode spelling has no text to lower here.
+            .filter_map(|statement| {
+                ctx.error_info_source_text(statement.span())
+                    .try_text()
+                    .ok()
+                    .map(str::to_owned)
+            })
+            .collect();
+        for script in scripts {
+            ctx.intern_script_locals(&script);
+        }
+    }
+}
+
+/// Stamp what a release that keeps the commands running bytecode compiled
+/// needs to run this function as it would: each command's
+/// [`release_hold`](tcl_bytecode::Instruction::release_hold), and the script
+/// body each instruction runs part of
+/// ([`release_body`](tcl_bytecode::Instruction::release_body)) with where each
+/// body starts. Whether the release compiles a body into the unit enclosing it
+/// depends on whether that unit is a procedure body, which for a script
+/// compiled at run time only the activation running it knows.
+fn stamp_release_units(ctx: &mut CodegenCtx, cfg: &CfgFunction, block_order: &[String]) {
+    if ctx.vm_release().revalidates_running_bytecode() {
+        return;
+    }
+    for index in 0..ctx.instructions.len() {
+        let instruction = &ctx.instructions[index];
+        if instruction.source_command_boundary != SourceCommandBoundary::None
+            || (instruction.op == Op::START_CMD && !instruction.source_cmd_text.is_empty())
+        {
+            let hold = ctx.release_hold(instruction.source_span);
+            ctx.instructions[index].release_hold = hold;
+        }
+    }
+
+    let tree = BodyTree::new(cfg);
+    let mut starts: Vec<(usize, crate::cfg::BlockId)> = block_order
+        .iter()
+        .filter_map(|name| Some((*ctx.label_positions.get(name)?, cfg.block_id(name)?)))
+        .collect();
+    starts.sort_by_key(|&(position, _)| position);
+    for (k, &(start, block)) in starts.iter().enumerate() {
+        let end = starts
+            .get(k + 1)
+            .map_or(ctx.instructions.len(), |&(position, _)| position);
+        if let Some(body) = tree.innermost(block) {
+            for instruction in &mut ctx.instructions[start.min(end)..end] {
+                instruction.release_body = BodyTree::id(body);
+            }
+        }
+    }
+    // A body starts where control reaches its first block, whichever block
+    // its first instruction was emitted in.
+    for (index, body) in cfg.body_scripts.iter().enumerate() {
+        let Some(position) = ctx
+            .label_positions
+            .get(cfg.block_name(body.entry))
+            .copied()
+            .filter(|&position| {
+                ctx.instructions
+                    .get(position)
+                    .is_some_and(|instruction| instruction.release_body == BodyTree::id(index))
+            })
+        else {
+            continue;
+        };
+        let parent = tree.parent(index);
+        let owner_direct = ctx.direct_commands.contains(&body.owner.span)
+            || parent.is_some_and(|parent| tree.evaluated_directly(ctx, parent));
+        let owner = if owner_direct {
+            tcl_runtime_api::ReleaseBinding::Invoked
+        } else {
+            ctx.release_binding_of(&body.owner.binding.name, &body.owner.shape)
+                .unwrap_or(tcl_runtime_api::ReleaseBinding::Invoked)
+        };
+        ctx.instructions[position].release_body_entry = Some(tcl_bytecode::ReleaseBodyEntry {
+            parent: parent.map_or(0, BodyTree::id),
+            owner,
+        });
+    }
+}
+
+/// The script bodies of a CFG function ([`CfgFunction::body_scripts`]) as
+/// they nest.
+struct BodyTree<'c> {
+    bodies: &'c [crate::cfg::BodyScript],
+    /// How many other bodies enclose each body.
+    depths: Vec<usize>,
+}
+
+impl<'c> BodyTree<'c> {
+    fn new(cfg: &'c CfgFunction) -> Self {
+        let bodies = cfg.body_scripts.as_slice();
+        let depths = (0..bodies.len())
+            .map(|inner| {
+                (0..bodies.len())
+                    .filter(|&outer| Self::encloses(bodies, outer, inner))
+                    .count()
+            })
+            .collect();
+        Self { bodies, depths }
+    }
+
+    fn encloses(bodies: &[crate::cfg::BodyScript], outer: usize, inner: usize) -> bool {
+        outer != inner && bodies[outer].contains(bodies[inner].entry)
+    }
+
+    /// The [`tcl_bytecode::Instruction::release_body`] of body `index`.
+    fn id(index: usize) -> u32 {
+        u32::try_from(index + 1).expect("body count fits in u32")
+    }
+
+    /// The innermost body `block` runs part of.
+    fn innermost(&self, block: crate::cfg::BlockId) -> Option<usize> {
+        (0..self.bodies.len())
+            .filter(|&index| self.bodies[index].contains(block))
+            .max_by_key(|&index| self.depths[index])
+    }
+
+    /// The body enclosing body `index`.
+    fn parent(&self, index: usize) -> Option<usize> {
+        (0..self.bodies.len())
+            .filter(|&outer| Self::encloses(self.bodies, outer, index))
+            .max_by_key(|&outer| self.depths[outer])
+    }
+
+    /// Whether the release evaluates body `index` directly, as its owner's
+    /// script ([`tcl_registry::release_compilation::evaluates_script_directly`]).
+    fn evaluated_directly(&self, ctx: &CodegenCtx, index: usize) -> bool {
+        tcl_registry::release_compilation::evaluates_script_directly(
+            ctx.vm_release(),
+            &self.bodies[index].owner.binding.name,
+            1,
+        )
+    }
+
+    /// Whether the release evaluates the commands of `block` directly: the
+    /// innermost body it runs part of is one it evaluates directly.
+    fn block_evaluated_directly(&self, ctx: &CodegenCtx, block: crate::cfg::BlockId) -> bool {
+        self.innermost(block)
+            .is_some_and(|index| self.evaluated_directly(ctx, index))
+    }
 }
 
 /// Build the per-instruction loop-target table (see `FunctionAsm::loop_targets`).
@@ -1362,20 +1663,13 @@ fn build_loop_targets(
 
 /// Return `Some(idx)` where `idx` is the index of the for-init
 /// statement within `blk.statements`. Returns `None` if this block
-/// is not a for-init block, or if `ctx.is_proc` is false.
+/// is not a for-init block.
 ///
 /// A for-init block ends with a `Goto` to a `for_header_N` block and
 /// is not itself a `for_step_*` block. The init statement is the
 /// last executable one in the block; analysis-only markers do not own a
 /// source-command boundary.
-fn detect_for_init_last_stmt(
-    ctx: &CodegenCtx,
-    cfg: &CfgFunction,
-    blk: &crate::cfg::Block,
-) -> Option<usize> {
-    if !ctx.is_proc {
-        return None;
-    }
+fn detect_for_init_last_stmt(cfg: &CfgFunction, blk: &crate::cfg::Block) -> Option<usize> {
     let Terminator::Goto { target, .. } = blk.terminator.as_ref()? else {
         return None;
     };
@@ -1531,7 +1825,11 @@ mod tests {
         let mut cfg = trivial_cfg();
         cfg.inline_body_error_sites.push(InlineBodyErrorSite {
             span,
-            context: InlineBodyErrorContext::SameFrameScriptEvaluation,
+            context: crate::cfg::BodyErrorContext::Registry(
+                InlineBodyErrorContext::SameFrameScriptEvaluation,
+            ),
+            region: span,
+            compiled: crate::cfg::CompiledAt::NEVER,
         });
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
@@ -1542,7 +1840,10 @@ mod tests {
         let [region] = asm.error_regions.as_slice() else {
             panic!("semantic inline-body context should emit exactly one error region");
         };
-        assert_eq!(region.label, "eval");
+        assert_eq!(
+            region.frame,
+            tcl_bytecode::ErrorRegionFrame::Body("eval".to_owned())
+        );
         assert_eq!(region.cmd_text, source);
 
         let mut source_less = CodegenCtx::new(false, &[], &registry);

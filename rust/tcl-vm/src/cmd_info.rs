@@ -37,6 +37,7 @@ mod native_jim_inventory_tests;
 mod native_oo;
 
 pub(crate) fn register(vm: &mut Vm) {
+    vm.register_stock_builtin("::tcl::unsupported::representation", cmd_representation);
     if !native_ensemble_available(vm) {
         vm.register_stock_builtin("info", cmd_info);
         return;
@@ -147,6 +148,22 @@ fn info_command_listing(
         Ok(value) => ok(value),
         Err(error) => completion_from_cmd_error(vm, error),
     }
+}
+
+/// `::tcl::unsupported::representation value` — the value's own rep, count
+/// and address in C's sentence (`Tcl_RepresentationCmd`), worded by
+/// [`tcl_cmd_core::representation`] for the emulated release.
+fn cmd_representation(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let [value] = args else {
+        let invoked = vm
+            .invoked_name()
+            .unwrap_or("tcl::unsupported::representation")
+            .to_owned();
+        return err(format!("wrong # args: should be \"{invoked} value\""));
+    };
+    ok(Value::from_native_string_bytes(
+        value.representation(vm.runtime_version()),
+    ))
 }
 
 /// `info`'s subcommand set, alphabetical as `TclMakeEnsemble` sorts it — the
@@ -402,7 +419,8 @@ fn cmd_info(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 };
                 match result {
                     Ok(v) => ok(v),
-                    Err(e) => crate::command::completion_from_cmd_error(vm, e),
+                    // The release's error code for the core's `bad level`.
+                    Err(e) => vm.cmd_error(e),
                 }
             }
             // commands/procs route through the shared namespace-aware core (over the

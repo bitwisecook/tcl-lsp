@@ -564,7 +564,150 @@ pub fn fixed_string_operand(text: &str) -> Option<&str> {
     }
 }
 
+/// The prefix of [`ExprNode::substituted_word`]'s command text.
+const SUBSTITUTED_WORD_PREFIX: &str = "[expr \"";
+/// Its suffix.
+const SUBSTITUTED_WORD_SUFFIX: &str = "\"]";
+
 impl ExprNode {
+    /// The condition C compiles for a word that is not a simple word
+    /// (`TclCompileExprWords`): the word is substituted and its value is
+    /// evaluated as an expression, which is `[expr "<word>"]`. `word` is the
+    /// word's spelling without its own quotes; a bare `"` in it is written
+    /// `\x22` so [`Self::substituted_word_source`] can recover the word.
+    #[must_use]
+    pub fn substituted_word(word: &str) -> Self {
+        let mut text = String::with_capacity(word.len() + 10);
+        text.push_str(SUBSTITUTED_WORD_PREFIX);
+        let mut depth = 0usize;
+        let mut chars = word.chars();
+        while let Some(c) = chars.next() {
+            match c {
+                '\\' => {
+                    text.push(c);
+                    if let Some(next) = chars.next() {
+                        text.push(next);
+                    }
+                    continue;
+                }
+                '[' => depth += 1,
+                ']' => depth = depth.saturating_sub(1),
+                '"' if depth == 0 => {
+                    text.push_str("\\x22");
+                    continue;
+                }
+                _ => {}
+            }
+            text.push(c);
+        }
+        text.push_str(SUBSTITUTED_WORD_SUFFIX);
+        let end = ExprOffset::try_from(text.len()).unwrap_or(ExprOffset::MAX);
+        Self::Command {
+            text,
+            start: 0,
+            end,
+        }
+    }
+
+    /// The word a [`Self::substituted_word`] node evaluates, for an analysis
+    /// that reads the condition as written.
+    #[must_use]
+    pub fn substituted_word_source(&self) -> Option<String> {
+        let Self::Command { text, .. } = self else {
+            return None;
+        };
+        let word = text
+            .strip_prefix(SUBSTITUTED_WORD_PREFIX)?
+            .strip_suffix(SUBSTITUTED_WORD_SUFFIX)?;
+        Some(word.replace("\\x22", "\""))
+    }
+
+    /// Whether this is an operation C Tcl folds at compile time when its
+    /// operands are constant: arithmetic, shift, bitwise, logical, and
+    /// numeric comparison, and the standard unary operators. String
+    /// comparison, list membership and every iRules operator are not.
+    #[must_use]
+    pub const fn is_foldable_operation(&self) -> bool {
+        match self {
+            Self::Binary { op, .. } => matches!(
+                op,
+                BinOp::Add
+                    | BinOp::Sub
+                    | BinOp::Mul
+                    | BinOp::Div
+                    | BinOp::Mod
+                    | BinOp::Pow
+                    | BinOp::LShift
+                    | BinOp::RShift
+                    | BinOp::BitAnd
+                    | BinOp::BitOr
+                    | BinOp::BitXor
+                    | BinOp::And
+                    | BinOp::Or
+                    | BinOp::Eq
+                    | BinOp::Ne
+                    | BinOp::Lt
+                    | BinOp::Le
+                    | BinOp::Gt
+                    | BinOp::Ge
+            ),
+            Self::Unary { op, .. } => matches!(
+                op,
+                UnaryOp::Neg | UnaryOp::Pos | UnaryOp::BitNot | UnaryOp::Not
+            ),
+            _ => false,
+        }
+    }
+
+    /// Whether this is an operator expression over literals only: no
+    /// variable, command, or math-function call, and no quoted operand that
+    /// substitutes.
+    #[must_use]
+    pub fn is_constant(&self) -> bool {
+        match self {
+            Self::Literal { .. } => true,
+            Self::String { text, .. } => {
+                text.starts_with('{') || !(text.contains('$') || text.contains('['))
+            }
+            Self::Binary { left, right, .. } => left.is_constant() && right.is_constant(),
+            Self::Unary { operand, .. } => operand.is_constant(),
+            Self::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => condition.is_constant() && true_branch.is_constant() && false_branch.is_constant(),
+            _ => false,
+        }
+    }
+
+    /// The outermost operations of this expression C folds at compile time
+    /// ([`Self::is_foldable_operation`] over [`Self::is_constant`] operands),
+    /// in order.
+    #[must_use]
+    pub fn folded_operations(&self) -> Vec<&ExprNode> {
+        if self.is_foldable_operation() && self.is_constant() {
+            return vec![self];
+        }
+        match self {
+            Self::Binary { left, right, .. } => {
+                let mut folded = left.folded_operations();
+                folded.extend(right.folded_operations());
+                folded
+            }
+            Self::Unary { operand, .. } => operand.folded_operations(),
+            Self::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => [condition, true_branch, false_branch]
+                .into_iter()
+                .flat_map(|node| node.folded_operations())
+                .collect(),
+            Self::Call { args, .. } => args.iter().flat_map(ExprNode::folded_operations).collect(),
+            _ => Vec::new(),
+        }
+    }
+
     /// Recursively extract variable names from this expression AST.
     ///
     /// This is the structured replacement for the scattered

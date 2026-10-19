@@ -2341,6 +2341,7 @@ mod tests {
                     tcl_runtime_api::ScriptCompileTarget {
                         source: "info exists missing",
                         namespace: "",
+                        evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
                     },
                     profile,
                     &snapshot,

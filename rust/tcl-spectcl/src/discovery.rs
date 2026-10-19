@@ -692,6 +692,11 @@ pub(crate) fn required_bundled_files(
     Ok(files.into_iter().collect())
 }
 
+enum ManifestDirectiveObservation {
+    Parsed(Option<SpecDirective>),
+    Unavailable,
+}
+
 /// Add the packs that sit beside each `tclpkg.tcl` under `root`.
 ///
 /// A manifest with a `spec` directive names its packs, and exactly those are
@@ -699,16 +704,6 @@ pub(crate) fn required_bundled_files(
 /// stays out. One without keeps the scan of every `.tclspec` under its
 /// directory — except under a directory whose own manifest has a directive,
 /// which decides its own packs and is read through its own entry.
-#[cfg(test)]
-fn collect_beside_manifests(store: &dyn SourceStore, root: &Path, out: &mut BTreeSet<PackFile>) {
-    collect_beside_manifests_observed(store, root, out, &mut ManifestSelectionInputs::default());
-}
-
-enum ManifestDirectiveObservation {
-    Parsed(Option<SpecDirective>),
-    Unavailable,
-}
-
 fn collect_beside_manifests_observed(
     store: &dyn SourceStore,
     root: &Path,

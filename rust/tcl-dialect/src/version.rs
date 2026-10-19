@@ -95,21 +95,46 @@ impl StringCharacterModel {
         Self::Jim084Utf8,
     ];
 
-    /// The number of Tcl characters `value` holds under this model.
+    /// The number of Tcl characters `value` holds under this model: the
+    /// [`Self::units`] it spans.
     ///
     /// The one place the counting rule lives, so a compile-time fold and a
     /// runtime `string length` cannot drift apart.
     #[must_use]
     pub fn count(self, value: &str) -> usize {
         match self {
-            // A BMP scalar is one character; anything above it was never
-            // assembled, so it contributes its UTF-8 byte count (always 4).
-            Self::BmpCharsElseUtf8Bytes => value
-                .chars()
-                .map(|c| if (c as u32) > 0xFFFF { c.len_utf8() } else { 1 })
-                .sum(),
-            Self::Utf16CodeUnits => value.encode_utf16().count(),
             Self::UnicodeScalars | Self::Jim084Utf8 => value.chars().count(),
+            Self::BmpCharsElseUtf8Bytes | Self::Utf16CodeUnits => {
+                self.units(value).map(|run| run.units).sum()
+            }
+        }
+    }
+
+    /// `value`'s characters as this model addresses them, in order: each
+    /// run is a character a Rust string holds and the number of the model's
+    /// units it spans.
+    ///
+    /// - 8.4/8.5 never assemble a supplementary scalar (`TCL_UTF_MAX` 3):
+    ///   its units are its four UTF-8 bytes, each an ordinary character
+    ///   `U+0000`–`U+00FF`, so it yields four one-unit runs. Measured with
+    ///   `scan [string index $s $i] %c` over a literal U+1D11E on tclsh
+    ///   8.4.20 and 8.5.19: 240, 157, 132, 158.
+    /// - 8.6 splits a supplementary scalar into a UTF-16 surrogate pair
+    ///   (55348, 56606 on tclsh 8.6.18). A lone surrogate is not a value a
+    ///   Rust string holds, so the pair stays one run spanning two units
+    ///   (the boundary in `semantic-aot-optimisation.md` § *Tcl 8
+    ///   supplementary-character boundary*).
+    /// - 9.x and Jim 0.84 UTF8: one run per scalar.
+    ///
+    /// Every other character is one run of one unit under every model.
+    #[must_use]
+    pub fn units(self, value: &str) -> CharacterUnits<'_> {
+        CharacterUnits {
+            model: self,
+            chars: value.chars(),
+            bytes: [0; 4],
+            next_byte: 0,
+            byte_len: 0,
         }
     }
 
@@ -144,6 +169,63 @@ pub enum CorePackageRole {
     InterpreterRelease,
     /// The separately versioned `TclOO` package.
     ObjectSystem,
+}
+
+/// One run of [`StringCharacterModel::units`]: a character a Rust string
+/// holds and the number of the model's units it spans.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnitRun {
+    /// The character, as the model's units materialise it.
+    pub held: char,
+    /// 1, or more where the model's units for `held` cannot be held apart.
+    pub units: usize,
+}
+
+/// The iterator [`StringCharacterModel::units`] returns.
+#[derive(Debug, Clone)]
+pub struct CharacterUnits<'a> {
+    model: StringCharacterModel,
+    chars: core::str::Chars<'a>,
+    /// The UTF-8 bytes of a supplementary scalar 8.4/8.5 never assembled.
+    bytes: [u8; 4],
+    next_byte: usize,
+    byte_len: usize,
+}
+
+impl Iterator for CharacterUnits<'_> {
+    type Item = UnitRun;
+
+    fn next(&mut self) -> Option<UnitRun> {
+        if self.next_byte < self.byte_len {
+            let byte = self.bytes[self.next_byte];
+            self.next_byte += 1;
+            return Some(UnitRun {
+                held: char::from(byte),
+                units: 1,
+            });
+        }
+        let held = self.chars.next()?;
+        if u32::from(held) <= 0xFFFF {
+            return Some(UnitRun { held, units: 1 });
+        }
+        Some(match self.model {
+            StringCharacterModel::BmpCharsElseUtf8Bytes => {
+                self.byte_len = held.encode_utf8(&mut self.bytes).len();
+                self.next_byte = 1;
+                UnitRun {
+                    held: char::from(self.bytes[0]),
+                    units: 1,
+                }
+            }
+            StringCharacterModel::Utf16CodeUnits => UnitRun {
+                held,
+                units: held.len_utf16(),
+            },
+            StringCharacterModel::UnicodeScalars | StringCharacterModel::Jim084Utf8 => {
+                UnitRun { held, units: 1 }
+            }
+        })
+    }
 }
 
 /// One package a bare interpreter pre-provides for the core itself
@@ -582,10 +664,278 @@ impl TclVersion {
         }
     }
 
+    /// Whether `lset` appends when an index equals the length of the list it
+    /// addresses, rather than raising `list index out of range`.
+    ///
+    /// Tcl 8.6 reads the index against `elemCount` inclusive (`TclLsetFlat`,
+    /// `tclListObj.c` 8.6.18:1444, `index > elemCount`); 8.4 and 8.5 reject it
+    /// (8.4.20:1175 and 8.5.19:1373, `index >= elemCount`). Measured on
+    /// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0: `set x {a b c}; lset x 3
+    /// Z` raises on the first two and gives `a b c Z` on the rest, and so does
+    /// the empty list's `lset x 0 Z`. The rule holds at every level of a
+    /// nested index path, and for the `end+1` spelling where the release reads
+    /// it as an index at all (8.4 calls it a bad index).
+    #[must_use]
+    pub const fn lset_appends_at_length(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// [`Self::lset_appends_at_length`] for the release a consumer targets,
+    /// or — when it names none — the answer **every** release gives, `None`
+    /// where they disagree.
+    ///
+    /// Unanimity is over [`Self::ALL`], so a document that selects no release
+    /// is never told that an `lset` at the length raises (8.4/8.5) or that it
+    /// appends (8.6 and later): the boundary index is the one place the
+    /// releases split.
+    #[must_use]
+    pub fn lset_appends_at_length_for(release: Option<Self>) -> Option<bool> {
+        if let Some(release) = release {
+            return Some(release.lset_appends_at_length());
+        }
+        let mut answers = Self::ALL.into_iter().map(Self::lset_appends_at_length);
+        let first = answers.next()?;
+        answers.all(|answer| answer == first).then_some(first)
+    }
+
+    /// Whether the string rep this release generates for a computed
+    /// `INT64_MIN` is `-8` rather than `-9223372036854775808`.
+    ///
+    /// `TclFormatInt` (`tclUtil.c`, 8.4.20 and 8.5.19) guards the most
+    /// negative `long` with `n == -n || intVal == n`, both signed overflow, so
+    /// the compiler may drop the test, and the digit loop over the negated
+    /// (still negative) value emits one digit and stops at `intVal > 0`.
+    /// `UpdateStringOfInt` spells every 64-bit integer through it on LP64.
+    /// 8.6 negates through `unsigned long` instead. Measured: `expr {-9223372036854775807 - 1}`,
+    /// `expr {~9223372036854775807}` and `expr {int(-9223372036854775808.0)}`
+    /// print `-8` (`string length` 2) on tclsh 8.4.20 and 8.5.19, and the
+    /// digits on 8.6.18, 9.0.4, 9.1.0 and jimsh 0.84; a literal
+    /// `-9223372036854775808` keeps its own spelling everywhere.
+    #[must_use]
+    pub const fn garbles_wide_min(self) -> bool {
+        matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
     /// Whether the core implements `namespace path` (introduced in Tcl 8.5).
     #[must_use]
     pub const fn has_namespace_path(self) -> bool {
         !matches!(self, Self::V8_4)
+    }
+
+    /// Whether `return` keeps its options in a dictionary (TIP 90, Tcl 8.5):
+    /// `-level`, `-options` and any other pair are accepted. 8.4 reads its
+    /// words as `-code`/`-errorinfo`/`-errorcode` pairs while two remain and
+    /// rejects any other name.
+    #[must_use]
+    pub const fn has_return_options_dictionary(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// Whether an `expr` operator subexpression whose operands are all
+    /// literals is folded at compile time, so its error is a fold failure:
+    /// raised where the subexpression is evaluated, with `errorInfo` already
+    /// holding the message (`invoked from within` the command). Measured on
+    /// tclsh 8.4.20 (no folding) and 8.5.19 onward.
+    #[must_use]
+    pub const fn raises_folded_expr_errors(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// Whether an error leaving a command substitution in an expression the
+    /// release evaluates as it runs (`Tcl_ExprObj`) stays logged
+    /// (`ERR_ALREADY_LOGGED`) through every command enclosing the
+    /// expression, so none of them logs and `errorLine` keeps the line the
+    /// command inside logged. 8.4's `Tcl_ExprObj` runs the expression's
+    /// bytecode without the clear `Tcl_EvalObjEx` ends with
+    /// (`tclExecute.c`); a procedure boundary still logs its call. Measured
+    /// on tclsh 8.4.20 and 8.5.19.
+    #[must_use]
+    pub const fn keeps_expression_substitution_errors_logged(self) -> bool {
+        matches!(self, Self::V8_4)
+    }
+
+    /// Whether the error a completion code becomes where it cannot be taken
+    /// (`invoked "break" outside of a loop`, `command returned bad code`)
+    /// sets an errorCode: `TCL RESULT UNEXPECTED` at a procedure boundary,
+    /// `TCL UNEXPECTED_RESULT_CODE n` at top level. Measured on tclsh 8.5.19
+    /// (`NONE`) and 8.6.18.
+    #[must_use]
+    pub const fn has_unexpected_result_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// Whether an error from an `enter` or `leave` execution trace adds an
+    /// `(enter trace on "cmd")` frame in place of logging the traced command
+    /// (`TEOV_RunEnterTraces`, 8.6). Measured on tclsh 8.5.19 and 8.6.18.
+    #[must_use]
+    pub const fn has_execution_trace_error_frames(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// How a math function called with too few arguments says so: `too
+    /// few` through 8.5, `not enough` from 8.6.
+    #[must_use]
+    pub const fn math_arity_shortfall(self) -> &'static str {
+        if matches!(self, Self::V8_4 | Self::V8_5) {
+            "too few arguments"
+        } else {
+            "not enough arguments"
+        }
+    }
+
+    /// Whether `srand` of a non-integer reports the conversion error. 9.0's
+    /// `ExprSrandFunc` converts with a NULL interpreter, so the error is
+    /// empty with errorCode `NONE`. Measured on tclsh 8.6.18 and 9.0.4.
+    #[must_use]
+    pub const fn srand_reports_conversion_error(self) -> bool {
+        matches!(self, Self::V8_4 | Self::V8_5 | Self::V8_6)
+    }
+
+    /// Whether builtins set the errorCode `TCL <family> <detail> …`. 8.4's
+    /// sources set no `TCL` code; 8.5's set `TCL LOOKUP` for the kinds
+    /// [`Self::has_lookup_error_code`] lists, `TCL VALUE NUMBER`, `TCL
+    /// IDELETE` and `TCL API_ABUSE`, and none of `TCL WRONGARGS`, `TCL PARSE`,
+    /// `TCL UPVAR` or the other `TCL VALUE` codes, which 8.6 adds. Measured:
+    /// `catch set`, `expr {1 +}`, `lindex {a} x` and an `upvar` onto an
+    /// existing local leave `NONE` on tclsh 8.4.20 and 8.5.19.
+    #[must_use]
+    pub fn has_tcl_error_code(self, family: &str, detail: Option<&str>) -> bool {
+        match self {
+            Self::V8_4 => false,
+            Self::V8_5 => match (family, detail) {
+                ("LOOKUP", Some(kind)) => self.has_lookup_error_code(kind),
+                ("VALUE", Some("NUMBER")) | ("IDELETE" | "API_ABUSE", _) => true,
+                _ => false,
+            },
+            Self::V8_6 | Self::V9_0 | Self::V9_1 => true,
+        }
+    }
+
+    /// Whether a failed lookup of `kind` carries `TCL LOOKUP <kind> …`. 8.5
+    /// sets it for an ensemble, index, namespace, alias, package, channel,
+    /// interpreter, encoding, array search or variable lookup, and not for a
+    /// command, dictionary key or variable name, which 8.6 adds everywhere
+    /// (8.5 already sets the first two for `namespace origin` and a nested
+    /// dictionary path, which this does not single out). Measured:
+    /// `dict get {a 1} b` and `upvar 0 nosuch::x y` leave `NONE` on tclsh
+    /// 8.5.19 and set `TCL LOOKUP DICT b` and `TCL LOOKUP VARNAME
+    /// nosuch::x` on 8.6.18.
+    #[must_use]
+    pub fn has_lookup_error_code(self, kind: &str) -> bool {
+        match self {
+            Self::V8_4 => false,
+            Self::V8_5 => matches!(
+                kind,
+                "SUBCOMMAND"
+                    | "INDEX"
+                    | "NAMESPACE"
+                    | "ALIAS"
+                    | "PACKAGE"
+                    | "ENSEMBLE"
+                    | "CHANNEL"
+                    | "VARIABLE"
+                    | "INTERP"
+                    | "ENCODING"
+                    | "ELEMENT"
+                    | "ARRAYSEARCH"
+            ),
+            Self::V8_6 | Self::V9_0 | Self::V9_1 => true,
+        }
+    }
+
+    /// Whether an operand `expr` cannot use carries `ARITH DOMAIN <desc>`
+    /// (8.5). Measured: `expr {"x" + 1}` leaves `NONE` on tclsh 8.4.20.
+    #[must_use]
+    pub const fn has_illegal_operand_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// Whether a floating-point `expr` result that is infinite or NaN is an
+    /// error, as is a division by a zero double (8.4's
+    /// `TclExprFloatError`); later releases return `Inf`. Measured: `expr
+    /// {1e308 * 10}` is `floating-point value too large to represent` and
+    /// `expr {1.0 / 0}` `divide by zero` on tclsh 8.4.20, `Inf` from 8.5.19.
+    #[must_use]
+    pub const fn raises_float_range_errors(self) -> bool {
+        matches!(self, Self::V8_4)
+    }
+
+    /// Whether a failed variable trace keeps its callback's errorInfo and
+    /// adds a `(write trace on "x")` frame (`TclCallVarTraces`, 8.5). 8.4's
+    /// `CallVarTraces` resets the result to `can't set "x": <message>`, so
+    /// errorInfo starts again from that message. Measured on tclsh 8.4.20
+    /// and 8.5.19.
+    #[must_use]
+    pub const fn has_var_trace_error_frames(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// Whether the bytecode compiler emits only the wide (4-byte operand)
+    /// instruction forms, which then drop their width suffix (`invokeStk`,
+    /// `loadScalar`). Measured in `-errorstack` on tclsh 9.1.0.
+    #[must_use]
+    pub const fn emits_wide_instructions_only(self) -> bool {
+        matches!(self, Self::V9_1)
+    }
+
+    /// Whether an error's `(file "…" line N)` frame marks a path cut at 150
+    /// bytes with `...`. 8.4 cuts it silently (`%.150s`, `tclIOUtil.c`).
+    #[must_use]
+    pub const fn marks_truncated_file_path(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// Whether `return`'s own option errors (`bad completion code`, `bad -level
+    /// value`, an `-options` value that is not a dictionary) set `TCL RESULT
+    /// ILLEGAL_…` errorCode words. Measured on tclsh 8.5.19 and 8.6.18: they
+    /// arrive at 8.6; earlier releases leave `NONE`.
+    #[must_use]
+    pub const fn has_return_option_error_codes(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// Whether `return -options` rejects an odd-sized list. 8.5 merges its
+    /// complete pairs and ignores the last word; 8.6 rejects it.
+    #[must_use]
+    pub const fn rejects_odd_return_options(self) -> bool {
+        !matches!(self, Self::V8_4 | Self::V8_5)
+    }
+
+    /// Whether `package` requirements are TIP 268 ranges (`min-max`, `min-`)
+    /// and `-exact` is spelled `exactly V` in diagnostics. 8.4 reads a
+    /// requirement as one bare version, rejecting `1-2` as a bad version.
+    #[must_use]
+    pub const fn has_package_requirement_ranges(self) -> bool {
+        !matches!(self, Self::V8_4)
+    }
+
+    /// The `errorCode` words a `package` diagnostic sets on this release, or
+    /// `None` where C leaves `errorCode` at `NONE`. Measured on tclsh 8.4.20
+    /// through 9.1.0: the `TCL PACKAGE` and `TCL VALUE VERSION…` families
+    /// arrive at 8.6, `package present`'s lookup code at 8.5.
+    #[must_use]
+    pub const fn package_error_code(
+        self,
+        diagnostic: PackageDiagnostic,
+    ) -> Option<&'static [&'static str]> {
+        let structured = match diagnostic {
+            PackageDiagnostic::NotPresent => !matches!(self, Self::V8_4),
+            _ => !matches!(self, Self::V8_4 | Self::V8_5),
+        };
+        if structured {
+            Some(diagnostic.error_code_words())
+        } else {
+            None
+        }
+    }
+
+    /// Whether `rename` sets a structured `errorCode` for a missing source
+    /// (`TCL LOOKUP COMMAND <name>`) and a taken destination
+    /// (`TCL OPERATION RENAME TARGET_EXISTS`). Measured on tclsh 8.4.20
+    /// through 9.1.0: both arrive at 8.6, earlier releases leave `NONE`.
+    #[must_use]
+    pub fn has_rename_error_codes(self) -> bool {
+        self.has_tcl_error_code("LOOKUP", Some("COMMAND"))
     }
 
     /// Whether this release exposes TIP 348 structured error stacks.
@@ -596,6 +946,83 @@ impl TclVersion {
     #[must_use]
     pub fn has_error_stack(self) -> bool {
         matches!(self, Self::V8_6 | Self::V9_0 | Self::V9_1)
+    }
+
+    /// Whether this release tags a `wrong # args` usage error
+    /// (`Tcl_WrongNumArgs`) and a malformed list (`TclFindElement`) with a
+    /// `TCL …` error code. 8.4 and 8.5 set none, so `$errorCode` is `NONE`.
+    #[must_use]
+    pub fn tags_usage_error_codes(self) -> bool {
+        self.has_tcl_error_code("WRONGARGS", None)
+    }
+
+    /// Whether a builtin raising errorCode `code` leaves it under this
+    /// release: any code but a `TCL …` one the release does not set yet
+    /// ([`Self::has_tcl_error_code`]).
+    #[must_use]
+    pub fn sets_error_code(self, code: &[u8]) -> bool {
+        let mut words = code
+            .split(u8::is_ascii_whitespace)
+            .filter(|w| !w.is_empty());
+        if words.next() != Some(b"TCL") {
+            return true;
+        }
+        let word = |w: &[u8]| std::str::from_utf8(w).ok().map(str::to_owned);
+        match words.next().and_then(word) {
+            Some(family) => {
+                self.has_tcl_error_code(&family, words.next().and_then(word).as_deref())
+            }
+            None => true,
+        }
+    }
+
+    /// The `-errorcode` a builtin raising `code` leaves under this release:
+    /// `NONE` for a code this release does not set yet
+    /// ([`Self::sets_error_code`]), and `code` otherwise.
+    #[must_use]
+    pub fn release_error_code(self, code: &[u8]) -> &[u8] {
+        if self.sets_error_code(code) {
+            code
+        } else {
+            b"NONE"
+        }
+    }
+
+    /// Whether this release tags an expression's parse error with a
+    /// `TCL PARSE EXPR …` error code. `ParseExpr` sets one from 8.6; 8.4's
+    /// and 8.5's parsers set none, so `$errorCode` is `NONE`.
+    #[must_use]
+    pub fn tags_expression_parse_errors(self) -> bool {
+        self.has_tcl_error_code("PARSE", Some("EXPR"))
+    }
+
+    /// Whether a script this release compiles fails whole on a compile
+    /// procedure's error or a parse error, so that none of it runs (8.4's
+    /// `TclCompileScript`). From 8.5 a compile procedure that cannot compile
+    /// a command leaves it to run, and a parse error is raised where it lies.
+    #[must_use]
+    pub fn compile_errors_fail_scripts(self) -> bool {
+        matches!(self, Self::V8_4)
+    }
+
+    /// Whether this release parses an expression with its own
+    /// recursive-descent parser (`tclParseExpr.c`), whose syntax errors read
+    /// `syntax error in expression "…": <reason>` and carry no `(parsing
+    /// expression …)` frame. 8.5 replaced it.
+    #[must_use]
+    pub fn parses_expressions_as_8_4(self) -> bool {
+        matches!(self, Self::V8_4)
+    }
+
+    /// Does this release revalidate bytecode that is already running? From
+    /// 8.5 every compiled command starts with `INST_START_CMD`, which checks
+    /// the compile epoch and evaluates the command's source afresh when a
+    /// command-table change outdated it. 8.4 checks the epoch only when
+    /// bytecode is entered (`TclCompEvalObj`), so running bytecode keeps the
+    /// commands it compiled until its next entry.
+    #[must_use]
+    pub fn revalidates_running_bytecode(self) -> bool {
+        !matches!(self, Self::V8_4)
     }
 
     /// Does this release **definitely** satisfy any of `requirements` — the
@@ -939,6 +1366,49 @@ impl<'v> ParsedVersion<'v> {
         }
         segments.push(number_segment(&bytes[run_start..]));
         segments
+    }
+}
+
+/// A `package` diagnostic whose `errorCode` is release policy
+/// ([`TclVersion::package_error_code`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackageDiagnostic {
+    /// An `ifneeded` or `package unknown` script ended with a non-error,
+    /// non-ok code.
+    BadResult,
+    /// A loader provided a different version than the one it was selected for.
+    WrongProvide,
+    /// A loader returned without providing the package.
+    Unprovided,
+    /// A loader required the package it is providing.
+    Circularity,
+    /// The provided version does not satisfy the request, or a second
+    /// `package provide` names another version.
+    VersionConflict,
+    /// No provider satisfies `package require`.
+    Unfound,
+    /// A word is not a valid version number.
+    InvalidVersion,
+    /// A requirement has more than one `-`.
+    InvalidVersionRange,
+    /// `package present` found nothing provided; the code words are followed
+    /// by the package name.
+    NotPresent,
+}
+
+impl PackageDiagnostic {
+    const fn error_code_words(self) -> &'static [&'static str] {
+        match self {
+            Self::BadResult => &["TCL", "PACKAGE", "BADRESULT"],
+            Self::WrongProvide => &["TCL", "PACKAGE", "WRONGPROVIDE"],
+            Self::Unprovided => &["TCL", "PACKAGE", "UNPROVIDED"],
+            Self::Circularity => &["TCL", "PACKAGE", "CIRCULARITY"],
+            Self::VersionConflict => &["TCL", "PACKAGE", "VERSIONCONFLICT"],
+            Self::Unfound => &["TCL", "PACKAGE", "UNFOUND"],
+            Self::InvalidVersion => &["TCL", "VALUE", "VERSION"],
+            Self::InvalidVersionRange => &["TCL", "VALUE", "VERSIONRANGE"],
+            Self::NotPresent => &["TCL", "LOOKUP", "PACKAGE"],
+        }
     }
 }
 
@@ -2038,6 +2508,23 @@ mod tests {
     };
 
     #[test]
+    fn lset_appends_at_the_length_from_8_6() {
+        for v in [TclVersion::V8_4, TclVersion::V8_5] {
+            assert!(!v.lset_appends_at_length(), "{v:?}");
+            assert_eq!(TclVersion::lset_appends_at_length_for(Some(v)), Some(false));
+        }
+        for v in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            assert!(v.lset_appends_at_length(), "{v:?}");
+            assert_eq!(TclVersion::lset_appends_at_length_for(Some(v)), Some(true));
+        }
+    }
+
+    #[test]
+    fn lset_append_boundary_has_no_answer_without_a_release() {
+        assert_eq!(TclVersion::lset_appends_at_length_for(None), None);
+    }
+
+    #[test]
     fn regex_compile_error_prefix_is_reworded_in_9_0() {
         for v in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
             assert_eq!(
@@ -2086,15 +2573,15 @@ mod tests {
             assert!(!release.allows_package_version_suffix());
             assert!(!super::validate_version_for("1.2+platform", release));
             assert!(super::validate_requirement_for("1.2+platform", release).is_err());
+            // 8.4 has no ranges and reports the whole word (tclsh 8.4.20).
+            let reported = if release == TclVersion::V8_4 {
+                "1-2+platform"
+            } else {
+                "2+platform"
+            };
             assert_eq!(
                 super::validate_requirement_for("1-2+platform", release),
-                Err(RequirementValidationError::InvalidVersion(
-                    if release == TclVersion::V8_4 {
-                        "1-2+platform"
-                    } else {
-                        "2+platform"
-                    }
-                ))
+                Err(RequirementValidationError::InvalidVersion(reported))
             );
             assert!(!super::version_satisfies_for(
                 "1.2",
@@ -2555,6 +3042,88 @@ mod tests {
         // 8.6/9.0-pair rule would have answered 2 and been wrong for 8.4.
         assert_eq!(StringCharacterModel::count_for(None, three_byte), Some(1));
         assert_eq!(StringCharacterModel::count_for(None, supplementary), None);
+    }
+
+    /// Issue #2170: the model's units, not just their count. Measured with
+    /// `scan [string index $s $i] %c` over every index of a literal
+    /// `a<U+1D11E>b` in a UTF-8 script, `LANG=C.UTF-8`:
+    ///
+    /// | release | code points |
+    /// |---|---|
+    /// | 8.4.20, 8.5.19 | 97 240 157 132 158 98 |
+    /// | 8.6.18 | 97 55348 56606 98 |
+    /// | 9.0.4, 9.1.0 | 97 119070 98 |
+    ///
+    /// 8.6's surrogate halves cannot be held apart, so the pair is one run of
+    /// two units.
+    #[test]
+    fn units_are_the_releases_characters_issue_2170() {
+        let runs = |version: TclVersion, value: &str| -> Vec<(u32, usize)> {
+            version
+                .string_character_model()
+                .units(value)
+                .map(|run| (u32::from(run.held), run.units))
+                .collect()
+        };
+        let subject = "a\u{1D11E}b";
+        for version in [TclVersion::V8_4, TclVersion::V8_5] {
+            assert_eq!(
+                runs(version, subject),
+                [(97, 1), (240, 1), (157, 1), (132, 1), (158, 1), (98, 1)],
+                "{version:?}"
+            );
+        }
+        assert_eq!(
+            runs(TclVersion::V8_6, subject),
+            [(97, 1), (0x1D11E, 2), (98, 1)]
+        );
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            assert_eq!(
+                runs(version, subject),
+                [(97, 1), (0x1D11E, 1), (98, 1)],
+                "{version:?}"
+            );
+        }
+        // `count` is the units' sum under every model.
+        for model in StringCharacterModel::ALL {
+            for value in ["", "abc", "\u{00E9}\u{20AC}", subject, "\u{1F600}\u{1D11E}"] {
+                assert_eq!(
+                    model.count(value),
+                    model.units(value).map(|run| run.units).sum::<usize>(),
+                    "{model:?} {value:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn package_error_codes_follow_the_measured_release_boundaries() {
+        use super::PackageDiagnostic;
+        for version in TclVersion::ALL {
+            assert_eq!(
+                version.package_error_code(PackageDiagnostic::BadResult),
+                (version >= TclVersion::V8_6).then_some(&["TCL", "PACKAGE", "BADRESULT"][..]),
+                "{version:?}"
+            );
+            assert_eq!(
+                version.package_error_code(PackageDiagnostic::NotPresent),
+                (version >= TclVersion::V8_5).then_some(&["TCL", "LOOKUP", "PACKAGE"][..]),
+                "{version:?}"
+            );
+            assert_eq!(
+                version.has_package_requirement_ranges(),
+                version != TclVersion::V8_4,
+                "{version:?}"
+            );
+        }
+        assert_eq!(
+            super::validate_requirement_for("1-2", TclVersion::V8_4),
+            Err(super::RequirementValidationError::InvalidVersion("1-2"))
+        );
+        assert_eq!(
+            super::validate_requirement_for("1-2", TclVersion::V8_5),
+            Ok(())
+        );
     }
 
     #[test]

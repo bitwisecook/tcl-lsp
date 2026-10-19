@@ -1187,7 +1187,7 @@ namespace eval ::orch {
 
         # Run body
         set err ""
-        set code [::tmm::_host_catch {uplevel 1 $body} result opts]
+        set code [::tmm::_host_catch {uplevel 1 $body} result]
 
         # Cleanup (always runs)
         if {$cleanup ne ""} {

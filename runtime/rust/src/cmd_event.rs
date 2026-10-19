@@ -211,12 +211,8 @@ fn schedule(
     delay: Duration,
     kind: EventKind,
 ) -> Result<*mut TclObj, Code> {
-    if Instant::now().checked_add(delay).is_none() {
-        return Err(failure(
-            interp,
-            ValueError::CommandProtocolUnavailable("host timer deadline capacity"),
-        ));
-    }
+    // A deadline past the clock's range saturates in the queue
+    // (`tcl_cmd_core::event::deadline_after`), as C accepts any wide delay.
     let original = script(interp, p, args)?;
     let reported = if kind == EventKind::Idle || (delay.is_zero() && p.zero_timer_reports_idle()) {
         EventKind::Idle

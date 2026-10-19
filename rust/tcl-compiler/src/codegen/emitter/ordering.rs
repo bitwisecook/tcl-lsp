@@ -110,11 +110,21 @@ fn dfs(cfg: &CfgFunction, name: &str, visited: &mut HashSet<String>, order: &mut
         return;
     };
     visited.insert(name.to_owned());
-    if let Some(block) = cfg.block_id(name)
-        && let Some(continuation) = cfg.command_boundary_continuations.get(&block)
-    {
-        let continuation = cfg.block_name(*continuation).to_owned();
-        dfs(cfg, &continuation, visited, order);
+    // A replayed command resumes at its continuation even when no CFG edge
+    // reaches it: an `if`/`switch` whose arms all leave through
+    // `break`/`continue`/`return` still continues at its join when a
+    // redefinition returns normally, so the code after it stays laid out.
+    if let Some(block) = cfg.block_id(name) {
+        for continuation in [
+            cfg.command_boundary_continuations.get(&block),
+            cfg.branch_command_joins.get(&block),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            let continuation = cfg.block_name(*continuation).to_owned();
+            dfs(cfg, &continuation, visited, order);
+        }
     }
     if let Some(term) = &blk.terminator {
         match term {
@@ -181,6 +191,15 @@ pub(crate) fn collect_loop_body(
         return;
     };
     result.insert(start.to_owned());
+    // The join `dfs` lays out for a replayed `if`/`switch` belongs to the same
+    // loop body even when no CFG edge reaches it.
+    if let Some(join) = cfg
+        .block_id(start)
+        .and_then(|block| cfg.branch_command_joins.get(&block))
+    {
+        let join = cfg.block_name(*join).to_owned();
+        collect_loop_body(cfg, &join, header, result, exit_block);
+    }
     if let Some(term) = &blk.terminator {
         match term {
             Terminator::Goto { target, .. } => {

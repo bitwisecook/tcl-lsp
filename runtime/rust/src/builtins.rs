@@ -624,7 +624,7 @@ fn exit_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     let mut m = b"expected integer but got \"".to_vec();
                     m.extend_from_slice(&bytes);
                     m.push(b'"');
-                    return interp.set_error(&m);
+                    return interp.error_with_code(&m, b"TCL VALUE NUMBER");
                 }
             }
         }
@@ -1228,7 +1228,7 @@ fn eval_expr_prepared_source(
     let node = match parse_runtime_expr_cached(interp, cached_on, src) {
         Ok(node) => node,
         Err(e) => {
-            return interp.report_expr_error(e);
+            return raise_expr_parse_error(interp, src, e);
         }
     };
     let mut ctx = InterpExprCtx {
@@ -1254,7 +1254,7 @@ fn eval_expr_prepared_source(
         // command — preserve it (an error keeps its `::errorInfo`; a
         // `return`/`break`/`continue` keeps the substitution's value).
         Err(_) if propagated => propagated_code,
-        Err(e) => interp.report_expr_error(e),
+        Err(e) => raise_expr_error(interp, &node, e),
     }
 }
 
@@ -1289,7 +1289,7 @@ fn eval_expr_obj_at_original(
             interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
         })?;
     let node = parse_runtime_expr_cached(interp, original, src)
-        .map_err(|e| interp.report_expr_error(e))?;
+        .map_err(|e| raise_expr_parse_error(interp, src, e))?;
     let mut ctx = InterpExprCtx {
         interp: &mut *interp,
         propagated: false,
@@ -1315,12 +1315,149 @@ fn eval_expr_obj_at_original(
             tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi,
         ).map_err(|e| interp.report_cmd_error(e)),
         Err(_) if propagated => Err(propagated_code),
-        Err(e) => Err(interp.report_expr_error(e)),
+        Err(e) => Err(raise_expr_error(interp, &node, e)),
     };
     currency.ensure_current().map_err(|error| {
         interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))
     })?;
     result.map(crate::obj::Owned::into_raw)
+}
+
+/// Whether `error` is a guest error (not a host refusal) an expression frame
+/// may annotate.
+#[cfg(have_tommath)]
+fn is_guest_expr_error(error: &crate::expr_error::ExprError) -> bool {
+    error.native_execution_refusal.is_none() && error.native_access_refusal.is_none()
+}
+
+/// The outermost operations of `node` C folds at compile time (an operator
+/// over constant operands), in order (`ExprNode::folded_operations` over the
+/// byte-leaf tree the runtime parses).
+#[cfg(have_tommath)]
+fn folded_operations<Text: tcl_syntax::expr::ExprText>(
+    node: &tcl_syntax::expr::ExprNode<Text>,
+) -> Vec<&tcl_syntax::expr::ExprNode<Text>> {
+    use tcl_syntax::expr::{BinOp, ExprNode, UnaryOp};
+    fn foldable<Text>(node: &ExprNode<Text>) -> bool {
+        match node {
+            ExprNode::Binary { op, .. } => matches!(
+                op,
+                BinOp::Add
+                    | BinOp::Sub
+                    | BinOp::Mul
+                    | BinOp::Div
+                    | BinOp::Mod
+                    | BinOp::Pow
+                    | BinOp::LShift
+                    | BinOp::RShift
+                    | BinOp::BitAnd
+                    | BinOp::BitOr
+                    | BinOp::BitXor
+                    | BinOp::And
+                    | BinOp::Or
+                    | BinOp::Eq
+                    | BinOp::Ne
+                    | BinOp::Lt
+                    | BinOp::Le
+                    | BinOp::Gt
+                    | BinOp::Ge
+            ),
+            ExprNode::Unary { op, .. } => matches!(
+                op,
+                UnaryOp::Neg | UnaryOp::Pos | UnaryOp::BitNot | UnaryOp::Not
+            ),
+            _ => false,
+        }
+    }
+    fn constant<Text: tcl_syntax::expr::ExprText>(node: &ExprNode<Text>) -> bool {
+        match node {
+            ExprNode::Literal { .. } => true,
+            ExprNode::String { text, .. } => {
+                let bytes = text.bytes();
+                bytes.first() == Some(&b'{') || !(bytes.contains(&b'$') || bytes.contains(&b'['))
+            }
+            ExprNode::Binary { left, right, .. } => constant(left) && constant(right),
+            ExprNode::Unary { operand, .. } => constant(operand),
+            ExprNode::Ternary {
+                condition,
+                true_branch,
+                false_branch,
+            } => constant(condition) && constant(true_branch) && constant(false_branch),
+            _ => false,
+        }
+    }
+    if foldable(node) && constant(node) {
+        return vec![node];
+    }
+    match node {
+        ExprNode::Binary { left, right, .. } => {
+            let mut folded = folded_operations(left);
+            folded.extend(folded_operations(right));
+            folded
+        }
+        ExprNode::Unary { operand, .. } => folded_operations(operand),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => [condition, true_branch, false_branch]
+            .into_iter()
+            .flat_map(|node| folded_operations(node))
+            .collect(),
+        ExprNode::Call { args, .. } => args.iter().flat_map(|arg| folded_operations(arg)).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Raise `error`, which evaluating `node` failed with: where it is the error C
+/// raises folding a constant operation of the expression as it compiles it
+/// (from 8.5), its message already starts the trace, as C's does.
+#[cfg(have_tommath)]
+fn raise_expr_error(
+    interp: &mut Interp,
+    node: &tcl_syntax::expr::NativeExprNode,
+    error: crate::expr_error::ExprError,
+) -> Code {
+    let folded = is_guest_expr_error(&error)
+        && !interp.uses_jim_error_stack()
+        && interp.runtime_version().raises_folded_expr_errors()
+        && folded_operations(node).into_iter().any(|operation| {
+            let mut ctx = InterpExprCtx {
+                interp: &mut *interp,
+                propagated: false,
+                propagated_code: Code::Error,
+            };
+            matches!(crate::expr::eval_expr(operation, &mut ctx), Err(e) if e.msg == error.msg)
+        });
+    let code = interp.report_expr_error(error);
+    if folded && !interp.host_refusal_pending() {
+        interp.start_error_info_at_message();
+    }
+    code
+}
+
+/// Raise the parse error `error` of the expression `source`: from 8.5 with
+/// the `(parsing expression "…")` frame `ParseExpr` adds, so the command
+/// holding the expression logs itself as invoked from within.
+#[cfg(have_tommath)]
+fn raise_expr_parse_error(
+    interp: &mut Interp,
+    source: &[u8],
+    error: crate::expr_error::ExprError,
+) -> Code {
+    let guest = is_guest_expr_error(&error);
+    let code = interp.report_expr_error(error);
+    if guest
+        && !interp.host_refusal_pending()
+        && !interp.uses_jim_error_stack()
+        && !interp.runtime_version().parses_expressions_as_8_4()
+    {
+        let frame = tcl_syntax::expr::ExprSyntaxError::error_info_frame_bytes(source);
+        let text = frame.strip_prefix(b"\n    (".as_slice()).unwrap_or(&frame);
+        let text = text.strip_suffix(b")".as_slice()).unwrap_or(text);
+        interp.append_frame_noline(text);
+    }
+    code
 }
 
 /// Evaluate the condition object `cond` as a Tcl expression and coerce the result
@@ -1350,7 +1487,7 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
             if let Some(old) = saved {
                 interp.restore_line_base(old);
             }
-            return Err(interp.report_expr_error(e));
+            return Err(raise_expr_parse_error(interp, &src, e));
         }
     };
     let mut ctx = InterpExprCtx {
@@ -1385,7 +1522,7 @@ pub(crate) fn eval_bool_expr(interp: &mut Interp, cond: *mut TclObj) -> Result<b
         // trace (no condition `expr` frame); a `return`/`break`/`continue` from a
         // `[cmd]` substitution carries that code out of the loop/`if`.
         Err(_) if propagated => Err(propagated_code),
-        Err(e) => Err(interp.report_expr_error(e)),
+        Err(e) => Err(raise_expr_error(interp, &node, e)),
     };
     currency.ensure_current().map_err(|error| {
         interp.report_cmd_error(tcl_cmd_core::CmdError::from_execution_refusal(error))

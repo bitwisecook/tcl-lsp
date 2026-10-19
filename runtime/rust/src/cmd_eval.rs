@@ -57,14 +57,21 @@ fn eval_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // A single body argument keeps its object identity, so a literal from a
     // sourced file evaluates as `type source` (TIP 280 LABC); multiple args are
     // concatenated into a fresh dynamic script (`type eval`).
-    let code = if argv.len() == 2 {
-        interp.eval_body_obj(argv[1])
+    // The native concat owner joins as `Tcl_ConcatObj` does, keeping a
+    // canonical list of canonical-list words a list (upstream `concat_lists`).
+    let joined = if argv.len() == 2 {
+        None
     } else {
         match joined_body(interp, &argv[1..]) {
-            Ok(body) => interp.eval_body_obj(body.as_ptr()),
+            Ok(body) => Some(body),
             Err(code) => return code,
         }
     };
+    let code = interp.with_script_evaluation("eval", argv.len() - 1, |interp| match &joined {
+        None => interp.eval_body_obj(argv[1]),
+        Some(body) => interp.eval_body_obj(body.as_ptr()),
+    });
+    drop(joined);
     if code == Code::Error {
         // `("eval" body line N)` — a body evaluated through a fresh frame.
         interp.append_body_frame(b"eval");
@@ -191,14 +198,20 @@ fn uplevel_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if body_start >= argv.len() {
         return interp.wrong_args(usage);
     }
-    let code = if body_start == argv.len() - 1 {
-        interp.eval_uplevel_obj(target, argv[body_start])
+    let joined = if body_start == argv.len() - 1 {
+        None
     } else {
         match joined_body(interp, &argv[body_start..]) {
-            Ok(body) => interp.eval_uplevel_obj(target, body.as_ptr()),
+            Ok(body) => Some(body),
             Err(code) => return code,
         }
     };
+    let code =
+        interp.with_script_evaluation("uplevel", argv.len() - body_start, |interp| match &joined {
+            None => interp.eval_uplevel_obj(target, argv[body_start]),
+            Some(body) => interp.eval_uplevel_obj(target, body.as_ptr()),
+        });
+    drop(joined);
     if code == Code::Error {
         // `("uplevel" body line N)`.
         interp.append_body_frame(b"uplevel");

@@ -9459,7 +9459,7 @@ mod tests {
         let read_site = word.source();
         let mut read_owner = None;
         for (block, data) in &unit.top_level.ssa.blocks {
-            for (index, statement) in data.statements.iter().enumerate() {
+            for index in 0..data.statements.len() {
                 let point =
                     crate::ssa::SsaSourceView::at_statement(&unit.top_level.ssa, *block, index);
                 if let Some(read) = point.read_reference(read_site, "$input")

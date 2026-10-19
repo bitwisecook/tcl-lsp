@@ -74,6 +74,7 @@ fn original_control_compiler_enters_the_original_expression_worklist() {
                 ScriptCompileTarget {
                     source: ORIGINAL_MATHOP_TEST,
                     namespace: "",
+                    evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
                 },
                 profile,
                 &entry,
@@ -207,6 +208,7 @@ fn replaced_control_preserves_initial_compiler_selection_for_runtime_replay() {
             ScriptCompileTarget {
                 source,
                 namespace: "",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             },
             profile,
             &entry,

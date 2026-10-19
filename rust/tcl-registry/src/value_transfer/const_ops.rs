@@ -48,11 +48,13 @@ use std::rc::Rc;
 
 use tcl_cmd_core::error::CmdError;
 use tcl_dialect::{
-    ByteStringEncoding, DialectProfile, LexerGrammar, NumberSyntax, StringCharacterModel,
-    TclVersion,
+    ByteStringEncoding, DialectProfile, LexerGrammar, NumberSpelling, NumberSyntax,
+    StringCharacterModel, TclVersion,
 };
 use tcl_runtime_api::NativeExecutionError;
-use tcl_syntax::number::{Number, ParseFlags, format_double, parse_whole_with};
+use tcl_syntax::number::{
+    Number, ParseFlags, format_double, parse_whole_with, spell_double, spell_wide,
+};
 use tcl_syntax::raw_string::{NativeValueAccessRefusal, UnicodeAccessError};
 use tcl_syntax::value::{DictPairs, ValueError, ValueOps, canonical_dict_slots};
 
@@ -324,6 +326,14 @@ pub struct TargetSemantics {
     /// (`[list # a]` is `{#} a`, so the list is never a comment when it is
     /// evaluated as a script), not in 8.4 (`# a`).
     pub quotes_leading_hash: Option<bool>,
+    /// How a computed number is spelled and read back, when the declared
+    /// release decides it; with none, a double is spelled only where every
+    /// release spells it alike. [`ConstOps::admit`] widens it for a module
+    /// that may set the precision ([`AnalysisContext::precision_written`]).
+    pub spelling: Option<NumberSpelling>,
+    /// Whether the module may set the precision variable — the
+    /// [`AnalysisContext::precision_written`] the run was admitted under.
+    pub precision_written: bool,
     /// The profile, when the request names one.
     pub profile: Option<&'static DialectProfile>,
     /// Actual source grammar retained by the analysis request.
@@ -358,6 +368,8 @@ impl TargetSemantics {
             byte_strings: release.map(TclVersion::byte_string_encoding),
             source_utf8: release.is_some_and(|v| v >= TclVersion::V9_0),
             quotes_leading_hash: release.map(|v| v >= TclVersion::V8_5),
+            spelling: release.map(|_| NumberSpelling::of_profile(profile)),
+            precision_written: false,
             profile,
             grammar: profile.map_or_else(LexerGrammar::default, |profile| profile.grammar),
         }
@@ -374,7 +386,42 @@ impl TargetSemantics {
         target.numerals = target
             .numerals
             .filter(|numbers| *numbers == context.grammar.numbers);
+        // A spelling read back under another grammar proves nothing: fall
+        // back to the spelling every grammar agrees on.
+        target.spelling = target
+            .spelling
+            .filter(|spelling| spelling.numbers() == context.grammar.numbers);
         target
+    }
+
+    /// The text a computed double is written as under this target
+    /// ([`spell_double`]), or `None` where it has none that reads back as
+    /// `f`. With no release named, the text every grammar's spelling agrees
+    /// on.
+    #[must_use]
+    pub fn spell_double(&self, f: f64) -> Option<String> {
+        let under = |spelling: NumberSpelling| {
+            spell_double(f, spelling.with_precision_written(self.precision_written))
+        };
+        match self.spelling {
+            Some(spelling) => under(spelling),
+            None => NumberSyntax::unanimous(|numbers| under(NumberSpelling::of(numbers, None)))
+                .flatten(),
+        }
+    }
+
+    /// The text a computed wide integer is written as under this target
+    /// ([`spell_wide`]): `None` for an `INT64_MIN` the target may print as
+    /// `-8`.
+    #[must_use]
+    pub fn spell_wide(&self, i: i64) -> Option<String> {
+        match self.spelling {
+            Some(spelling) => spell_wide(i, spelling),
+            None => {
+                NumberSyntax::unanimous(|numbers| spell_wide(i, NumberSpelling::of(numbers, None)))
+                    .flatten()
+            }
+        }
     }
 
     /// `elements` rendered as one canonical list under this target, or
@@ -546,7 +593,10 @@ impl<'ctx> ConstOps<'ctx> {
         }
         budget.charge_work(ADMISSION_CHARGE)?;
         Ok(Self {
-            target: TargetSemantics::for_context(ctx),
+            target: TargetSemantics {
+                precision_written: ctx.precision_written,
+                ..TargetSemantics::for_context(ctx)
+            },
             admitted: needs,
             budget,
             fault: None,
@@ -647,12 +697,14 @@ impl<'ctx> ConstOps<'ctx> {
     }
 
     /// Resolve an index operand under the admitted release, returning the
-    /// canonical decimal spelling the cores' own `index::resolve` reads
-    /// identically in every release. This is what keeps the `010` answer
-    /// honest: `string range abcdefghijkl 010 end` is `ijkl` up to 8.6 and
-    /// `kl` from 9.0, and calling the core directly would lose that. An index
-    /// further out than −1 or `len + 1` is spelt as that one, which every
-    /// release reads alike and no command reads apart from it.
+    /// canonical decimal spelling every release's grammar reads identically.
+    /// The cores read an index under the grammar they are handed, but only
+    /// this step declines what no single grammar can answer: a release-less
+    /// target whose releases disagree (`string range abcdefghijkl 010 end` is
+    /// `ijkl` up to 8.6 and `kl` from 9.0), a literal 8.6 compiles apart, and
+    /// a reading the host's `long` decides. An index further out than −1 or
+    /// `len + 1` is spelt as that one, which every release reads alike and no
+    /// command reads apart from it.
     ///
     /// # Errors
     ///
@@ -716,6 +768,14 @@ impl<'ctx> ConstOps<'ctx> {
             });
             Err(self.decline_raising(raised))
         }
+    }
+
+    /// The grammar a core reads an index [`Self::index`] returned under: the
+    /// target's where it names one, else 9.0's, which reads the canonical
+    /// decimal spelling `index` answers as every other release does.
+    #[must_use]
+    pub fn index_numbers(&self) -> NumberSyntax {
+        self.target.numerals.unwrap_or(NumberSyntax::Tcl90)
     }
 
     /// The decline a failed core call answers with: the run's fault when
@@ -989,14 +1049,26 @@ impl ValueOps for ConstOps<'_> {
         ConstValue::text(s)
     }
 
+    /// A computed integer, spelled as the target spells it; an `INT64_MIN`
+    /// the target may print as `-8` poisons the run (`Unspellable`).
     fn new_int(&mut self, n: i64) -> ConstValue {
         let _ = self.charge(1);
+        if self.target.spell_wide(n).is_none() {
+            self.poison(DeclineReason::Unspellable);
+        }
         ConstValue::int(n)
     }
 
+    /// A computed double, spelled as the target spells it; a spelling that
+    /// would not read back as `f`, or one the module's precision may change,
+    /// poisons the run (`Unspellable`).
     fn new_double(&mut self, f: f64) -> ConstValue {
         let _ = self.charge(1);
-        ConstValue::bytes(format_double(f).as_bytes(), Representation::Double)
+        let text = self.target.spell_double(f).unwrap_or_else(|| {
+            self.poison(DeclineReason::Unspellable);
+            format_double(f)
+        });
+        ConstValue::bytes(text.as_bytes(), Representation::Double)
     }
 
     fn new_bool(&mut self, b: bool) -> ConstValue {

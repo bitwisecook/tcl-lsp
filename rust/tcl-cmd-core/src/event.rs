@@ -40,6 +40,17 @@ impl<S> Default for EventQueue<S> {
         }
     }
 }
+/// The instant `delay` from now; a delay past what the clock can represent
+/// saturates (to `u32::MAX` seconds, else now) instead of overflowing the
+/// clock, so `after 9223372036854775807 script` is accepted as C's is.
+#[must_use]
+pub fn deadline_after(delay: Duration) -> Instant {
+    let now = Instant::now();
+    now.checked_add(delay)
+        .or_else(|| now.checked_add(Duration::from_secs(u64::from(u32::MAX))))
+        .unwrap_or(now)
+}
+
 impl<S> EventQueue<S> {
     /// Register an original script under the selected first-id and kind rules.
     pub fn push(
@@ -55,7 +66,7 @@ impl<S> EventQueue<S> {
         match kind {
             EventKind::Timer => self.timers.push(Timer {
                 id,
-                deadline: Instant::now() + delay,
+                deadline: deadline_after(delay),
                 reported,
                 script,
             }),

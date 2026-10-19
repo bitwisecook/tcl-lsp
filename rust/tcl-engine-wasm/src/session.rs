@@ -669,6 +669,7 @@ impl Session {
     }
 
     /// Register `command` as the host command `name`.
+    #[cfg(test)]
     pub(crate) fn define_command(
         &mut self,
         name: &[u8],

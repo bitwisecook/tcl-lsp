@@ -28,6 +28,7 @@
 
 use crate::error::CmdError;
 use crate::prefix::OptionTable;
+use tcl_dialect::TclVersion;
 use tcl_syntax::number::{self, Number, NumberSyntax, ParseFlags};
 
 /// Canonical class names, in the order Tcl lists them in error messages.
@@ -61,16 +62,76 @@ fn ci(i: usize) -> i64 {
     i64::try_from(i).unwrap_or(i64::MAX)
 }
 
-/// Resolve a (possibly abbreviated) class name via the shared
-/// [`OptionTable`] rule — C's `StringIsCmd` matches its class table with
-/// abbreviations allowed (flags 0), noun `class`. `Err` carries the
-/// bad/ambiguous `CmdError`.
+/// The classes [`CLASSES`] holds that arrived after 8.4, with the release
+/// each arrived in.
+const CLASSES_SINCE: &[(&str, TclVersion)] = &[
+    ("dict", TclVersion::V9_0),
+    ("entier", TclVersion::V8_6),
+    ("list", TclVersion::V8_5),
+    ("wideinteger", TclVersion::V8_5),
+];
+
+/// `release`'s classes, in [`CLASSES`] order.
+#[must_use]
+pub fn classes(release: TclVersion) -> Vec<&'static str> {
+    CLASSES
+        .iter()
+        .copied()
+        .filter(|class| {
+            CLASSES_SINCE
+                .iter()
+                .find(|(name, _)| name == class)
+                .is_none_or(|&(_, since)| release >= since)
+        })
+        .collect()
+}
+
+/// Resolve a (possibly abbreviated) class name among `release`'s
+/// ([`classes`]) via the shared [`OptionTable`] rule — C's `StringIsCmd`
+/// matches its class table with abbreviations allowed (flags 0), noun
+/// `class`. `Err` carries the bad/ambiguous `CmdError`, with
+/// `TCL LOOKUP INDEX class …` from 8.5; 8.4 sets no error code.
 ///
 /// # Errors
-/// `bad class "X"` / `ambiguous class "X"`, enumerating [`CLASSES`].
-pub fn resolve_class(input: &str) -> Result<&'static str, CmdError> {
-    const TABLE: OptionTable<'static> = OptionTable::abbreviating("class", CLASSES);
-    TABLE.index_of_str(input).map(|i| CLASSES[i])
+/// `bad class "X"` / `ambiguous class "X"`, enumerating the release's classes.
+pub fn resolve_class(input: &str, release: TclVersion) -> Result<&'static str, CmdError> {
+    let classes = classes(release);
+    let table = OptionTable::abbreviating("class", &classes);
+    table
+        .index_of_in(input.as_bytes(), release)
+        .map(|i| classes[i])
+}
+
+/// The usage error `string is` raises for `args`, its words after `is`,
+/// where their count is wrong before the class is read: below two, or above
+/// five (`StringIsCmd` checks the count first).
+#[must_use]
+pub fn arity_error(args: usize) -> Option<CmdError> {
+    (!(2..=5).contains(&args))
+        .then(|| CmdError::wrong_args("string is class ?-strict? ?-failindex var? str"))
+}
+
+/// Whether `class` (canonical) tests each character, which 8.6's
+/// `TclCompileStringIsCmd` compiles to `INST_STR_CLASS`, a read of the value
+/// by character; the boolean, numeric and list classes read it otherwise.
+#[must_use]
+pub fn is_character_class(class: &str) -> bool {
+    matches!(
+        class,
+        "alnum"
+            | "alpha"
+            | "ascii"
+            | "control"
+            | "digit"
+            | "graph"
+            | "lower"
+            | "print"
+            | "punct"
+            | "space"
+            | "upper"
+            | "wordchar"
+            | "xdigit"
+    )
 }
 
 /// Classify `s` against `class` (canonical), returning `(is_member, fail_index)`.
@@ -253,11 +314,19 @@ fn scan_integer(chars: &[char], width: Width, numbers: NumberSyntax) -> (bool, i
 /// C reads a radix integer as a perfectly good double, so `string is double
 /// 0x1f` and `0o17` are true on every release. Going through the shared numeral
 /// parser also picks up the release-dependent spellings (`08`, `1_0`).
+///
+/// A decimal spelling outside the double range (`1e400`, `1e-400`, a subnormal)
+/// is a double from 8.5 but not under 8.4 or Jim, whose `strtod` reports
+/// `ERANGE` ([`number::Parsed::is_range_error`]). 8.4 checks it before the trailing
+/// text, so it reports `-failindex` -1 even for `1e400x` (tclsh 8.4.20).
 fn scan_double(chars: &[char], numbers: NumberSyntax) -> (bool, i64) {
     let s: String = chars.iter().collect();
     let Some(parsed) = number::parse(&s, ParseFlags::for_syntax(numbers)) else {
         return (false, 0);
     };
+    if parsed.is_range_error(numbers) {
+        return (false, -1);
+    }
     let end = skip_trailing_ws(&s, parsed.end);
     if end == s.len() {
         (true, -1)
@@ -443,6 +512,75 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// `string is double` on a spelling outside the double range: 8.4 and Jim
+    /// take `strtod`'s `ERANGE` as "not a double" (overflow, underflow to zero,
+    /// and subnormals alike), 8.5 onward accept the rounded value. Every row
+    /// measured on tclsh 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0 and jimsh
+    /// 0.84 (#2435); the boundary values and zero mantissas are doubles
+    /// everywhere.
+    #[test]
+    fn a_double_range_error_is_a_double_only_from_8_5() {
+        let range_errors = [
+            "1e400",
+            "-1e400",
+            "1e-400",
+            "-1e-400",
+            "1.8e308",
+            "4.9e-324",
+            "1e-320",
+            "1e-310",
+            "2.2250738585072009e-308",
+        ];
+        let in_range = [
+            "1.7976931348623157e308",
+            "2.2250738585072014e-308",
+            "1e308",
+            "1e-307",
+            "0e999",
+            "0.0e-400",
+            "0",
+            "Inf",
+            "-Infinity",
+            "NaN",
+            "0x1f",
+        ];
+        for numbers in NumberSyntax::ALL.iter().copied() {
+            let rejects = numbers.string_is_double_rejects_range_error();
+            for v in range_errors {
+                for strict in [false, true] {
+                    let want = if rejects { (false, -1) } else { (true, -1) };
+                    assert_eq!(
+                        class_check("double", v, strict, numbers),
+                        want,
+                        "string is double {v} under {numbers:?}"
+                    );
+                }
+            }
+            for v in in_range {
+                assert_eq!(
+                    class_check("double", v, false, numbers),
+                    (true, -1),
+                    "string is double {v} under {numbers:?}"
+                );
+            }
+        }
+        // 8.4 reports the range error ahead of trailing text; 8.5+ report the
+        // junk's offset.
+        assert_eq!(
+            class_check("double", "1e400x", false, NumberSyntax::Tcl84),
+            (false, -1)
+        );
+        assert_eq!(
+            class_check("double", "1e400x", false, NumberSyntax::Tcl85),
+            (false, 5)
+        );
+        // The integer classes never see a range error.
+        assert_eq!(
+            class_check("integer", "1e400", false, NumberSyntax::Tcl84),
+            (false, 1)
+        );
     }
 
     /// Which classes are bounded to a wide is a class-semantics change, not a

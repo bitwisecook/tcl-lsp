@@ -505,6 +505,28 @@ fn ascii_digit_value(byte: u8) -> Option<u8> {
     }
 }
 
+/// Where Tcl 8.4's `IllegalExprOperandType` stops reading a value that
+/// looks formally like an integer from `start`: a `0x` and any hexadecimal
+/// digits after it, or else decimal digits. The value looks like one when
+/// only space follows (`tclExecute.c`, after its sign is skipped); `0x` alone
+/// does, which 8.4 then reports as an integer too large.
+#[must_use]
+pub fn tcl84_formal_integer_end(source: &[u8], start: usize) -> usize {
+    let hex = source.get(start) == Some(&b'0')
+        && source
+            .get(start + 1)
+            .is_some_and(|byte| matches!(byte, b'x' | b'X'));
+    let (mut end, digit): (usize, fn(&u8) -> bool) = if hex {
+        (start + 2, u8::is_ascii_hexdigit)
+    } else {
+        (start, u8::is_ascii_digit)
+    };
+    while source.get(end).is_some_and(digit) {
+        end += 1;
+    }
+    end
+}
+
 /// Tcl 8.4's pre-`TclParseNumber` expression scanner.
 ///
 /// `GetLexeme` first uses `TclParseInteger`, then falls back to `strtod`; it

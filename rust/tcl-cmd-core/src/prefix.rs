@@ -319,6 +319,25 @@ impl<'t, T: AsRef<[u8]>> OptionTable<'t, T> {
         self.index_of_cmd(word.as_bytes())
     }
 
+    /// [`Self::index_of_cmd`] as `release`'s `Tcl_GetIndexFromObj` reports
+    /// a miss: with `TCL LOOKUP INDEX …` from 8.5, and no error code in 8.4.
+    ///
+    /// # Errors
+    /// The C-shaped message, and the release's error code, for an unmatched
+    /// or ambiguous word.
+    pub fn index_of_in(
+        &self,
+        word: &[u8],
+        release: tcl_dialect::TclVersion,
+    ) -> Result<usize, CmdError> {
+        if release == tcl_dialect::TclVersion::V8_4 {
+            self.index_of(word)
+                .map_err(|message| CmdError::new(String::from_utf8_lossy(&message).into_owned()))
+        } else {
+            self.index_of_cmd(word)
+        }
+    }
+
     /// [`Self::index_of`] for byte-word [`CmdError`] consumers.
     ///
     /// # Errors

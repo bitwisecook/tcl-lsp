@@ -226,6 +226,7 @@ impl CfgBuilder<'_> {
                 variable_context: Some(std::sync::Arc::clone(&source.variable_context)),
                 existing_namespace_cells: Some(source.existing_namespace_cells.clone()),
                 source_tokens: Some(Box::new(tokens.clone())),
+                shape: tokens_invocation_shape(self.registry, tokens),
             })
         });
         for &(condition, body) in branches {
@@ -788,6 +789,31 @@ impl CfgBuilder<'_> {
         }
         self.current_source = previous_source;
     }
+}
+
+/// The words after the command of `tokens`, as the registry's release reads
+/// them when it compiles the invocation: a word is known only where it is one
+/// literal token.
+fn tokens_invocation_shape(
+    registry: &tcl_registry::CommandRegistry,
+    tokens: &CommandTokens,
+) -> tcl_registry::release_compilation::InvocationShape {
+    let release = registry
+        .profile()
+        .map_or(tcl_dialect::TclVersion::V9_0, |profile| {
+            profile.vm_runtime_version
+        });
+    let args = tokens.argv_texts.get(1..).unwrap_or_default();
+    tcl_registry::release_compilation::InvocationShape::of(release, args, |index| {
+        tokens
+            .single_token_word
+            .get(index + 1)
+            .copied()
+            .unwrap_or(false)
+            && tokens.argv_kinds.get(index + 1).is_some_and(|kind| {
+                matches!(kind, tcl_lexer::TokenType::Str | tcl_lexer::TokenType::Esc)
+            })
+    })
 }
 
 #[cfg(test)]

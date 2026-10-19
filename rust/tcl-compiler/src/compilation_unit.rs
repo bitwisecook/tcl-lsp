@@ -3388,6 +3388,7 @@ impl CompilationUnit {
                 irules_event_bodies: HashMap::new(),
                 procedure_implementation_bodies: std::sync::Arc::from([]),
                 top_level_kind: crate::ir::TopLevelKind::Script,
+                top_level_evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
                 source: tcl_lexer::SourceImage::default(),
                 native_namespace: None,
                 original_byte_source_namespace: None,

@@ -175,6 +175,41 @@ fn resolve_tclsh(requested: Option<&str>) -> Result<PathBuf, TclPkgError> {
 }
 
 fn tclsh_version_string(tclsh: &Path) -> String {
+    probe_tclsh(tclsh, "puts [info patchlevel]")
+        .trim()
+        .to_string()
+}
+
+/// The trees `tclsh` reads to start and run, as the interpreter itself reports
+/// them: the directory its executable sits in, the `lib` and `share` beside
+/// that, and its script library. A `tclsh` on `PATH` may be a wrapper that
+/// execs an interpreter elsewhere, so this is what a sandbox that confines a
+/// shell's reads must grant it beside the program's own directory. Empty when
+/// the probe fails.
+#[must_use]
+pub fn tclsh_installation(tclsh: &Path) -> Vec<PathBuf> {
+    let printed = probe_tclsh(
+        tclsh,
+        "puts [file dirname [file normalize [info nameofexecutable]]]\n\
+         puts [info library]",
+    );
+    let mut lines = printed.lines().map(PathBuf::from);
+    let executable_dir = lines.next();
+    let siblings = executable_dir
+        .iter()
+        .filter_map(|dir| dir.parent())
+        .flat_map(|prefix| [prefix.join("lib"), prefix.join("share")])
+        .collect::<Vec<_>>();
+    executable_dir
+        .into_iter()
+        .chain(siblings)
+        .chain(lines)
+        .filter(|path| path.is_absolute() && path.exists())
+        .collect()
+}
+
+/// Run `script` on `tclsh` and answer what it printed, empty on failure.
+fn probe_tclsh(tclsh: &Path, script: &str) -> String {
     use tcl_sandbox::{Profile, SandboxPolicy};
 
     let cwd = tclsh
@@ -186,12 +221,12 @@ fn tclsh_version_string(tclsh: &Path) -> String {
     let mut profile = Profile::new("tclsh-probe", tclsh, cwd)
         .arg("-")
         .network(false)
-        .stdin_bytes(b"puts [info patchlevel]".to_vec());
+        .stdin_bytes(script.as_bytes().to_vec());
     for name in ["PATH", "HOME", "TCL_LIBRARY", "TCLLIBPATH", "TMPDIR"] {
         profile = profile.pass_env(name);
     }
     match crate::exec::execute(&profile, &SandboxPolicy::default()) {
-        Ok(out) if out.success => String::from_utf8_lossy(&out.stdout).trim().to_string(),
+        Ok(out) if out.success => String::from_utf8_lossy(&out.stdout).into_owned(),
         _ => String::new(),
     }
 }

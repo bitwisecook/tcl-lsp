@@ -63,7 +63,8 @@ use std::rc::Rc;
 
 use crate::interp::native_operation_currency::{NativeOperationCurrency, NativeOperationScope};
 use tcl_bytecode::{
-    ErrorRegion, ErrorStackContext, FunctionAsm, INDEX_END, Instruction, ModuleAsm, Op, Operand,
+    ErrorRegion, ErrorRegionFrame, ErrorStackContext, FunctionAsm, INDEX_END, INDEX_END_BAND,
+    Instruction, ModuleAsm, Op, Operand,
 };
 use tcl_runtime_api::{Code, Completion, FatalTail};
 use tcl_syntax::expr::{BinOp, UnaryOp};
@@ -619,6 +620,9 @@ impl Frame {
             compiler,
             fatal_tail,
             native_local_names: _,
+            // Upstream's per-unit literal binding is not read by this
+            // activation yet: PUSH reads `push_verbatim` and the literal pool.
+            literal_values: _,
             manifest,
         } = unit;
         let off2idx = Rc::new(build_off2idx(&asm));
@@ -1190,16 +1194,16 @@ fn ilen(n: usize) -> i64 {
 /// to `INDEX_END`) against a length.
 ///
 /// `end-N` encodes as `INDEX_END - N` and `end+N` as `INDEX_END + N`
-/// (`parse_tcl_index`), so an end-relative index occupies a band *around*
+/// (`end_relative_imm`), so an end-relative index occupies a band *around*
 /// `INDEX_END`, not just `<= INDEX_END`. Detecting only `<= INDEX_END` would
 /// misread `end+N` as a huge negative plain index, so e.g. `lrange $l
 /// end+1 0` and `lrange $l 0 end+1` would disagree with the uncompiled command
-/// (lrange-5 battery). The band's half-width `1 << 29` sits midway between
-/// `INDEX_END` (`-2^30`) and 0: any plausible `end±N` lands inside it, while no
-/// realistic literal plain index is that far negative.
+/// (lrange-5 battery). The band's half-width `INDEX_END_BAND` sits midway
+/// between `INDEX_END` (`-2^30`) and 0: any plausible `end±N` lands inside it,
+/// while no realistic literal plain index is that far negative.
 fn imm_index(imm: i32, len: usize) -> isize {
     let n = isize::try_from(len).unwrap_or(isize::MAX);
-    if imm <= INDEX_END + (1 << 29) {
+    if imm <= INDEX_END + INDEX_END_BAND {
         (n - 1) + (imm as isize - INDEX_END as isize)
     } else {
         imm as isize
@@ -2571,6 +2575,35 @@ impl Vm {
     /// Plain drive mode turns any attempted yield during cleanup into another
     /// unwinding error, so a stale continuation can never become suspended
     /// again.
+    /// Raise `c` at a resumed coroutine's suspend point — the completion of
+    /// the `yield` a failing `coroinject` command ran under — then drive the
+    /// coroutine on from wherever its catch ranges and loops take it.
+    pub(crate) fn raise_in_coroutine(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        c: Completion<Value>,
+    ) -> RunExit {
+        match self.settle_completion(acts, c) {
+            Some(done) => RunExit::Done(done),
+            None => self.drive_coro(acts),
+        }
+    }
+
+    /// Tear down a coroutine's frozen continuation without running it (no
+    /// `finally` runs, as in C): one that deleted its own command while it ran
+    /// has nowhere to park. Its call frames are destroyed, firing their
+    /// locals' `unset` traces (coroutine-4.3), and its lambda registrations
+    /// retire with it.
+    pub(crate) fn retire_parked_coroutine(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        parked: &mut crate::interp::ParkedFlow,
+    ) {
+        let _ = self.fire_parked_unset_traces(parked, acts);
+        self.retire_parked_lambda_registrations(acts);
+        acts.clear();
+    }
+
     pub(crate) fn unwind_stale_coroutine(
         &mut self,
         acts: &mut Vec<Frame>,
@@ -2731,7 +2764,14 @@ impl Vm {
         covering.sort_by(|a, b| b.start.cmp(&a.start).then(a.end.cmp(&b.end)));
         for r in covering {
             let body_line = self.error_line().saturating_sub(r.line_base).max(1);
-            self.append_body_frame_line(&r.label, body_line);
+            match &r.frame {
+                ErrorRegionFrame::Body(label) => self.append_body_frame_line(label, body_line),
+                ErrorRegionFrame::Line(text) => {
+                    self.append_frame_text(&format!("{text} line {body_line}"));
+                }
+                ErrorRegionFrame::Fixed(text) => self.append_frame_text(text),
+                ErrorRegionFrame::None => self.clear_error_logged(),
+            }
             self.log_command_info_only(&r.cmd_text, "", r.cmd_line);
         }
     }
@@ -3325,10 +3365,12 @@ impl Vm {
             {
                 self.set_error_line(line);
             }
-            *c = crate::command::err_with_code(
-                format!("invoked \"{word}\" outside of a loop"),
-                "TCL RESULT UNEXPECTED",
-            );
+            let message = format!("invoked \"{word}\" outside of a loop");
+            *c = if self.runtime_version().has_unexpected_result_error_codes() {
+                crate::command::err_with_code(message, "TCL RESULT UNEXPECTED")
+            } else {
+                err(message)
+            };
             self.seed_error_info(format!("invoked \"{word}\" outside of a loop"));
         }
         if !self.check_oo_proc_exit(oo_exit) {
@@ -3351,7 +3393,11 @@ impl Vm {
                     .saturating_add(1)
                     .max(1)
             };
-            self.append_proc_frame(&name, n);
+            // An `apply` lambda's body names its lambda (C's `MakeLambdaError`).
+            match self.current_lambda_term() {
+                Some(lambda) => self.append_lambda_frame(&lambda.to_str(), n),
+                None => self.append_proc_frame(&name, n),
+            }
         }
         if !self.check_oo_proc_exit(oo_exit) {
             return;
@@ -3366,13 +3412,52 @@ impl Vm {
             self.pop_call_frame();
             self.pop_ns();
         }
+        if !self.update_return_info(c) {
+            return;
+        }
+        if let Some((_, original)) = oo_exit {
+            if let Err(error) = original.check(self) {
+                crate::interp::oo_cleanup::retain_error(self, &error);
+                return;
+            }
+        }
+        if c.code == Code::Error && self.uses_jim_error_stack() {
+            self.refresh_jim_evaluation_frames(acts);
+            self.capture_jim_error_stack();
+        }
+        if let Some((_, original)) = oo_exit {
+            if let Err(error) = original.check(self) {
+                crate::interp::oo_cleanup::retain_error(self, &error);
+                return;
+            }
+        }
+        if c.code == Code::Error
+            && let Some((cmd, line)) = acts.last().and_then(|parent| {
+                parent
+                    .asm
+                    .instructions
+                    .get(parent.pc.saturating_sub(1))
+                    .map(|i| (i.source_cmd_text.clone(), i.source_line))
+            })
+        {
+            self.log_command_info(&cmd, "", line);
+        }
+    }
+
+    /// C's `TclUpdateReturnInfo`, run where a `return` completion reaches a
+    /// procedure boundary, the end of a sourced file, or level 0: while the
+    /// carried `-level` stays positive the `return` keeps unwinding; once it
+    /// runs out the carried `-code` takes effect.
+    /// Returns `false` where settling the options failed (`c` then holds
+    /// that failure).
+    pub(crate) fn update_return_info(&mut self, c: &mut Completion<Value>) -> bool {
         if c.code == Code::Return && self.uses_jim_error_stack() {
             c.code = self.jim_errors.pending_return.settle_procedure(c.code);
             c.options = match self.jim_return_options(c.code) {
                 Ok(options) => options,
                 Err(error) => {
                     *c = crate::command::completion_from_cmd_error(self, error);
-                    return;
+                    return false;
                 }
             };
         } else if c.code == Code::Return
@@ -3407,7 +3492,7 @@ impl Vm {
                 Ok(level) => level,
                 Err(error) => {
                     *c = crate::command::completion_from_tcl_error(self, error);
-                    return;
+                    return false;
                 }
             };
             if level > 1 {
@@ -3415,7 +3500,7 @@ impl Vm {
                     Ok(options) => options,
                     Err(error) => {
                         *c = crate::command::completion_from_tcl_error(self, error);
-                        return;
+                        return false;
                     }
                 };
                 self.settle_native_c_return_level(level - 1);
@@ -3424,14 +3509,14 @@ impl Vm {
                     Ok(code) => code,
                     Err(error) => {
                         *c = crate::command::completion_from_tcl_error(self, error);
-                        return;
+                        return false;
                     }
                 };
                 c.options = match crate::command::with_return_level(self, &c.options, 0) {
                     Ok(options) => options,
                     Err(error) => {
                         *c = crate::command::completion_from_tcl_error(self, error);
-                        return;
+                        return false;
                     }
                 };
                 c.code = code;
@@ -3444,33 +3529,7 @@ impl Vm {
                 }
             }
         }
-        if let Some((_, original)) = oo_exit {
-            if let Err(error) = original.check(self) {
-                crate::interp::oo_cleanup::retain_error(self, &error);
-                return;
-            }
-        }
-        if c.code == Code::Error && self.uses_jim_error_stack() {
-            self.refresh_jim_evaluation_frames(acts);
-            self.capture_jim_error_stack();
-        }
-        if let Some((_, original)) = oo_exit {
-            if let Err(error) = original.check(self) {
-                crate::interp::oo_cleanup::retain_error(self, &error);
-                return;
-            }
-        }
-        if c.code == Code::Error
-            && let Some((cmd, line)) = acts.last().and_then(|parent| {
-                parent
-                    .asm
-                    .instructions
-                    .get(parent.pc.saturating_sub(1))
-                    .map(|i| (i.source_cmd_text.clone(), i.source_line))
-            })
-        {
-            self.log_command_info(&cmd, "", line);
-        }
+        true
     }
 
     fn check_oo_proc_exit(
@@ -6500,7 +6559,8 @@ impl Vm {
             Op::STR_INDEX => {
                 let index = pop(f);
                 let value = pop(f);
-                let result = try_core!(tcl_cmd_core::string::index(self, &value, &index));
+                let numbers = self.runtime_version().number_syntax();
+                let result = try_core!(tcl_cmd_core::string::index(self, &value, &index, numbers));
                 f.stack.push(result);
             }
             Op::STR_RANGE if instr.native_switch_version.is_some() => {
@@ -6520,14 +6580,20 @@ impl Vm {
                 let last = pop(f);
                 let first = pop(f);
                 let value = pop(f);
-                let result = try_core!(tcl_cmd_core::string::range(self, &value, &first, &last));
+                let numbers = self.runtime_version().number_syntax();
+                let result = try_core!(tcl_cmd_core::string::range(
+                    self, &value, &first, &last, numbers
+                ));
                 f.stack.push(result);
             }
             Op::STR_RANGE_IMM => {
                 let value = pop(f);
                 let first = encoded_string_index(imm0(instr));
                 let last = encoded_string_index(imm_at(instr, 1));
-                let result = try_core!(tcl_cmd_core::string::range(self, &value, &first, &last));
+                let numbers = self.runtime_version().number_syntax();
+                let result = try_core!(tcl_cmd_core::string::range(
+                    self, &value, &first, &last, numbers
+                ));
                 f.stack.push(result);
             }
             Op::STR_FIND | Op::STR_RFIND if instr.native_switch_version.is_some() => {
@@ -6677,7 +6743,11 @@ impl Vm {
                 let s = pop(f).to_str();
                 let to = pop(f).to_str().to_string();
                 let from = pop(f).to_str().to_string();
-                let out = crate::cmd_string::map_apply(&[(from, to)], &s, false);
+                let limit = self.value_size_limit_value();
+                let Some(out) = crate::cmd_string::map_apply(&[(from, to)], &s, false, limit)
+                else {
+                    return Tick::Return(self.exceed_limit_inner(crate::LimitKind::ValueSize));
+                };
                 f.stack.push(Value::string(out));
             }
             Op::STR_REPEAT => {
@@ -6710,9 +6780,12 @@ impl Vm {
                 ));
                 f.stack.push(result);
             }
+            // `INST_STR_TRIM` and its one-sided forms leave the value itself
+            // where nothing is trimmed.
             Op::STR_TRIM | Op::STR_TRIM_LEFT | Op::STR_TRIM_RIGHT => {
                 let chars = pop(f).to_str();
-                let s = pop(f).to_str();
+                let value = pop(f);
+                let s = value.to_str();
                 let set: Vec<char> = chars.chars().collect();
                 let pred = |c: char| set.contains(&c);
                 let out = match instr.op {
@@ -6720,7 +6793,11 @@ impl Vm {
                     Op::STR_TRIM_LEFT => s.trim_start_matches(pred),
                     _ => s.trim_end_matches(pred),
                 };
-                f.stack.push(Value::string(out));
+                if out.len() == s.len() {
+                    f.stack.push(value);
+                } else {
+                    f.stack.push(Value::string(out));
+                }
             }
 
             // Numeric/boolean coercion checks (expr result validation)
@@ -7509,9 +7586,12 @@ impl Vm {
                 let version = self.runtime_version();
                 match crate::cmd_regexp::regexp_matches(&pat, &s, nocase, version) {
                     Ok(m) => f.stack.push(Value::bool(m)),
+                    // The command's error, `TclRegError`'s code included.
                     Err(detail) => {
-                        let prefix = version.regex_compile_error_prefix();
-                        return Tick::Return(err(format!("{prefix}{detail}")));
+                        return Tick::Return(crate::cmd_regexp::regex_completion(
+                            self,
+                            tcl_cmd_core::regex::compile_error(version, detail.as_bytes()),
+                        ));
                     }
                 }
             }
@@ -8376,6 +8456,7 @@ impl Vm {
                     return Err(refused);
                 }
                 if !r.code.is_ok() {
+                    self.exec_trace_failed("enter", &cmd_string, &r);
                     return Err(r);
                 }
             }
@@ -8435,6 +8516,34 @@ impl Vm {
     /// (tclsh-pinned shapes).  Returns `Some(error)` when a trace errored —
     /// the error REPLACES the command's completion (tclsh-pinned) — else
     /// `None`.
+    /// An `enter` or `leave` execution trace on `command` failed with `c`.
+    /// From 8.6 C names the trace in a frame of its own and the command is
+    /// not logged again; before, the failure is the command's, which a leave
+    /// trace's caller logs as the error leaves it.
+    fn exec_trace_failed(&mut self, op: &str, command: &Value, c: &Completion<Value>) {
+        if c.code != Code::Error {
+            return;
+        }
+        let command = command.to_str();
+        if self.runtime_version().has_execution_trace_error_frames() {
+            const LIMIT: usize = 55;
+            let mut end = command.len().min(LIMIT);
+            while !command.is_char_boundary(end) {
+                end -= 1;
+            }
+            let marker = if end < command.len() { "..." } else { "" };
+            let message = c.result.to_str().to_string();
+            self.seed_error_info_frame(
+                &message,
+                &format!("\n    ({op} trace on \"{}{marker}\")", &command[..end]),
+            );
+            self.mark_error_logged();
+        } else if op == "leave" {
+            self.clear_error_logged();
+            self.log_command_info(command.as_bytes(), c.result.to_str().as_bytes(), 0);
+        }
+    }
+
     pub(crate) fn finish_exec_leave(
         &mut self,
         ctx: &ExecLeaveCtx,
@@ -8486,6 +8595,7 @@ impl Vm {
                         return Some(refused);
                     }
                     if !r.code.is_ok() {
+                        self.exec_trace_failed("leave", &ctx.cmd_string, &r);
                         replacement = Some(r);
                         break;
                     }

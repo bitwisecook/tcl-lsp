@@ -10,9 +10,9 @@
 #
 # Prerequisites:
 #   - Rust stable with cargo (via rustup).  The workspace tracks the floating
-#     `stable` channel pinned in rust-toolchain.toml; current stable is 1.99.0,
-#     released 2026-10-01.  `Cargo.toml` `rust-version` is authoritative.
-#   - Node.js 24+ with npm
+#     `stable` channel pinned in rust-toolchain.toml; current stable is 1.99.1,
+#     released 2026-10-15.  `Cargo.toml` `rust-version` is authoritative.
+#   - Node.js 26+ with npm
 #   - macOS WASM builds: `make ensure-rust-deps` installs the pinned wasi-sdk;
 #     stock Apple clang has no wasm32 backend.
 #
@@ -91,7 +91,7 @@ VSIX_FILE      := $(BUILD_DIR)/tcl-lsp-vscode-$(VERSION)-universal.vsix
 VSCE_TARGET ?=
 # Self-contained BIG-IP report .pyz (native `_engine` + MiniJinja bundled by shiv).
 # Native + abi3, so the artefact is OS/arch-specific but runs on any CPython
-# >= 3.9 for that platform; the tag keeps CI matrix outputs from clobbering.
+# >= 3.10 for that platform; the tag keeps CI matrix outputs from clobbering.
 REPORT_PY_DIR  := $(ROOT)rust/bigip-report-gen/python
 REPORT_WHEELS  := $(BUILD_DIR)/report-wheels
 REPORT_PYZ_OS   := $(shell uname -s | tr '[:upper:]' '[:lower:]')
@@ -633,8 +633,8 @@ format: format-ts format-py ## Format TypeScript and Python code
 # Python tooling. Versions are pinned so a new ruff/ty/pyright release cannot
 # change the verdict of a gate between a local run and CI — the failure mode the
 # floating Rust `stable` channel already gives us (see rust-toolchain.toml).
-RUFF_VERSION    := 0.16.10
-TY_VERSION      := 0.0.84
+RUFF_VERSION    := 0.17.1
+TY_VERSION      := 0.0.88
 PYRIGHT_VERSION := 1.1.414
 PYTEST_VERSION  := 9.1.1
 
@@ -736,7 +736,7 @@ test-py-engine: py-venv ## Test the native f5report query-engine binding
 # `test-rust`.
 
 lint-ts: $(NPM_STAMP) ## Lint/format-check TypeScript extension code
-	@echo "==> Linting TypeScript code (ESLint + Prettier check)"
+	@echo "==> Format-checking TypeScript code (Prettier)"
 	cd $(EXT_DIR) && $(NPM) run lint
 
 format-ts: $(NPM_STAMP) ## Format TypeScript extension code with Prettier
@@ -773,7 +773,7 @@ build-report-pyz: build-report-assets ## Build a self-contained f5report .pyz (n
 	@echo "==> Built $(REPORT_PYZ)"
 
 lint-report-ts: $(REPORT_NPM_STAMP) ## Lint/format-check the shared report search modules
-	@echo "==> Linting shared report front-end (ESLint + Prettier check)"
+	@echo "==> Format-checking shared report front-end (Prettier)"
 	cd $(REPORT_SHARED_DIR) && $(NPM) run lint
 
 typecheck-report-ts: $(REPORT_NPM_STAMP) ## Type-check the shared report front-end with tsc
@@ -781,7 +781,7 @@ typecheck-report-ts: $(REPORT_NPM_STAMP) ## Type-check the shared report front-e
 	cd $(REPORT_SHARED_DIR) && $(NPM) run typecheck
 
 lint-spec-studio-ts: $(SPEC_STUDIO_NPM_STAMP) ## Lint/format-check the spec studio front-end
-	@echo "==> Linting spec studio front-end (ESLint + Prettier check)"
+	@echo "==> Format-checking spec studio front-end (Prettier)"
 	cd $(SPEC_STUDIO_WEB) && $(NPM) run lint
 
 typecheck-spec-studio-ts: $(SPEC_STUDIO_NPM_STAMP) ## Type-check the spec studio front-end with tsc
@@ -1980,7 +1980,7 @@ codegen: generate gen-editor-settings ## Regenerate ALL generated files (catalog
 # into that same dir. `build.rs` then embeds the whole bundle, and
 # `tcl explore --serve` serves it from memory — no CDN, no network at runtime.
 
-MERMAID_VERSION  := 12.1.0
+MERMAID_VERSION  := 12.2.0
 MERMAID_JS       := $(EXPLORER_STATIC)/mermaid.min.js
 MERMAID_CDN      := https://cdn.jsdelivr.net/npm/mermaid@$(MERMAID_VERSION)/dist/mermaid.min.js
 

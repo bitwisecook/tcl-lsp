@@ -174,6 +174,23 @@ impl EncodingProfile {
     }
 }
 
+/// Resolve an exact Tcl 9 conversion profile name
+/// (`TclEncodingProfileNameToId`).
+///
+/// # Errors
+/// A non-profile spelling.
+pub fn resolve_profile(value: &str) -> Result<EncodingProfile, CmdError> {
+    match value {
+        "replace" => Ok(EncodingProfile::Replace),
+        "strict" => Ok(EncodingProfile::Strict),
+        "tcl8" => Ok(EncodingProfile::Tcl8),
+        _ => Err(CmdError::with_error_code(
+            format!("bad profile name \"{value}\": must be replace, strict, or tcl8"),
+            tcl_syntax::list::join_list(["TCL", "ENCODING", "PROFILE", value]),
+        )),
+    }
+}
+
 /// Newline translation retained by a channel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputTranslation {
@@ -401,17 +418,7 @@ impl ChannelConfig {
     /// # Errors
     /// A non-profile spelling.
     pub fn set_profile(&mut self, value: &str) -> Result<(), CmdError> {
-        self.profile = match value {
-            "replace" => EncodingProfile::Replace,
-            "strict" => EncodingProfile::Strict,
-            "tcl8" => EncodingProfile::Tcl8,
-            _ => {
-                return Err(CmdError::with_error_code(
-                    format!("bad profile name \"{value}\": must be replace, strict, or tcl8"),
-                    tcl_syntax::list::join_list(["TCL", "ENCODING", "PROFILE", value]),
-                ));
-            }
-        };
+        self.profile = resolve_profile(value)?;
         Ok(())
     }
 

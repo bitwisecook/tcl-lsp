@@ -399,6 +399,9 @@ impl CfgBuilder<'_> {
         };
 
         let end_block = self.new_block("if_end");
+        self.branch_command_joins
+            .insert(block_name.to_owned(), end_block.clone());
+        let owner = self.command_boundary_sites.get(block_name).cloned();
         let mut dispatch = block_name.to_owned();
 
         for clause in clauses {
@@ -421,6 +424,13 @@ impl CfgBuilder<'_> {
 
             let true_target = self.bid(&then_block);
             let false_target = self.bid(&next_dispatch);
+            self.condition_owners.insert(
+                clause.condition_span,
+                crate::cfg::ConditionOwner {
+                    command: *span,
+                    skips_constant_dead_script: true,
+                },
+            );
             self.set_terminator(
                 &dispatch,
                 Terminator::Branch {
@@ -432,7 +442,7 @@ impl CfgBuilder<'_> {
                 },
             );
 
-            if let Some(tail) = self.lower_script(&clause.body, &then_block) {
+            if let Some(tail) = self.lower_body(owner.as_ref(), &clause.body, &then_block) {
                 self.ensure_goto(&tail, &end_block, Some(clause.body_span));
             }
 
@@ -440,7 +450,7 @@ impl CfgBuilder<'_> {
         }
 
         if let Some(eb) = else_body {
-            if let Some(tail) = self.lower_script(eb, &dispatch) {
+            if let Some(tail) = self.lower_body(owner.as_ref(), eb, &dispatch) {
                 self.ensure_goto(&tail, &end_block, *else_span);
             }
         } else {
@@ -516,6 +526,7 @@ impl CfgBuilder<'_> {
         let header = self.new_block("for_header");
         let body_block = self.new_block("for_body");
         let step_block = self.new_block("for_step");
+        let owner = self.command_boundary_sites.get(&init_tail).cloned();
         let end_block = self.new_block("for_end");
 
         self.ensure_goto(&init_tail, &header, Some(*init_span));
@@ -533,6 +544,13 @@ impl CfgBuilder<'_> {
 
         let body_id = self.bid(&body_block);
         let end_id = self.bid(&end_block);
+        self.condition_owners.insert(
+            *condition_span,
+            crate::cfg::ConditionOwner {
+                command: stmt.span(),
+                skips_constant_dead_script: matches!(stmt, Statement::While { .. }),
+            },
+        );
         self.set_terminator(
             &header,
             Terminator::Branch {
@@ -547,7 +565,7 @@ impl CfgBuilder<'_> {
         // `break` exits to `end_block`; `continue` runs the step at `step_block`.
         self.loop_stack
             .push((end_block.clone(), step_block.clone()));
-        let body_tail = self.lower_script(body, &body_block);
+        let body_tail = self.lower_body(owner.as_ref(), body, &body_block);
         self.loop_stack.pop();
         if let Some(tail) = body_tail {
             self.ensure_goto(&tail, &step_block, Some(*body_span));
@@ -569,7 +587,7 @@ impl CfgBuilder<'_> {
         // remain sound); `loop_nodes` + the init exit versions are unchanged, so
         // the solver enumerates the loop from the same state.
         let rotate = self.faithful_exceptions && self.for_runs_at_least_once(stmt);
-        let step_tail = self.lower_script(next, &step_block);
+        let step_tail = self.lower_body(owner.as_ref(), next, &step_block);
         if let Some(step_tail) = step_tail {
             if rotate {
                 self.condition_binding_sites.remove(&header);
@@ -650,6 +668,7 @@ impl CfgBuilder<'_> {
         let header = self.new_block("while_header");
         let body_block = self.new_block("while_body");
         let end_block = self.new_block("while_end");
+        let owner = self.command_boundary_sites.get(block_name).cloned();
 
         self.ensure_goto(block_name, &header, Some(*condition_span));
         self.copy_condition_binding(block_name, &header);
@@ -667,6 +686,13 @@ impl CfgBuilder<'_> {
         }
         let body_id = self.bid(&body_block);
         let end_id = self.bid(&end_block);
+        self.condition_owners.insert(
+            *condition_span,
+            crate::cfg::ConditionOwner {
+                command: stmt.span(),
+                skips_constant_dead_script: matches!(stmt, Statement::While { .. }),
+            },
+        );
         self.set_terminator(
             &header,
             Terminator::Branch {
@@ -680,7 +706,7 @@ impl CfgBuilder<'_> {
 
         // `break` exits to `end_block`; `continue` re-tests at `header`.
         self.loop_stack.push((end_block.clone(), header.clone()));
-        let body_tail = self.lower_script(body, &body_block);
+        let body_tail = self.lower_body(owner.as_ref(), body, &body_block);
         self.loop_stack.pop();
         if let Some(tail) = body_tail {
             self.ensure_goto(&tail, &header, Some(*body_span));
@@ -744,6 +770,7 @@ impl CfgBuilder<'_> {
         // The iterator condition does not evaluate the original foreach argv.
         // Its input dependencies belong to the pre-loop argument boundary.
         // The runtime iterator-entry marker nevertheless replays that command.
+        let owner = command_owner.clone();
         if let Some(site) = command_owner {
             self.command_boundary_sites.insert(header.clone(), site);
         }
@@ -789,7 +816,7 @@ impl CfgBuilder<'_> {
             // `continue` re-checks via the latch; `break` exits the loop.
             self.loop_stack
                 .push((end_block.clone(), latch_block.clone()));
-            let body_tail = self.lower_script(body, &body_block);
+            let body_tail = self.lower_body(owner.as_ref(), body, &body_block);
             self.loop_stack.pop();
             if let Some(tail) = body_tail {
                 self.ensure_goto(&tail, &latch_block, Some(*body_span));
@@ -824,7 +851,7 @@ impl CfgBuilder<'_> {
 
         // `break` exits to `end_block`; `continue` advances at `header`.
         self.loop_stack.push((end_block.clone(), header.clone()));
-        let body_tail = self.lower_script(body, &body_block);
+        let body_tail = self.lower_body(owner.as_ref(), body, &body_block);
         self.loop_stack.pop();
         if let Some(tail) = body_tail {
             self.ensure_goto(&tail, &header, Some(*body_span));
@@ -1068,15 +1095,18 @@ impl CfgBuilder<'_> {
         // case-insensitive match has to run through the generic `switch`
         // command (the VM/runtime `cmd_switch`). So must one whose subject a
         // release's option scan may read (`switch_is_flattened`).
-        if !super::switch_is_flattened(stmt, self.registry, &self.config) {
+        if !self.flattens_switch(stmt) {
             return self.lower_opaque_switch(stmt, block_name);
         }
 
         let end_block = self.new_block("switch_end");
+        self.branch_command_joins
+            .insert(block_name.to_owned(), end_block.clone());
         let default_block = self.new_block("switch_default");
 
         let body_name = "switch_arm_body";
         let body_targets: Vec<String> = arms.iter().map(|_| self.new_block(body_name)).collect();
+        let owner = self.command_boundary_sites.get(block_name).cloned();
 
         // Resolve fallthrough: fallthrough arms jump to the next
         // non-fallthrough body, or to default.
@@ -1154,7 +1184,7 @@ impl CfgBuilder<'_> {
                 continue;
             }
             if let Some(ref body) = arm.body
-                && let Some(tail) = self.lower_script(body, &body_targets[i])
+                && let Some(tail) = self.lower_body(owner.as_ref(), body, &body_targets[i])
             {
                 self.ensure_goto(&tail, &end_block, arm.body_span);
             }
@@ -1162,7 +1192,7 @@ impl CfgBuilder<'_> {
 
         // Default body.
         if let Some(db) = default_body {
-            if let Some(tail) = self.lower_script(db, &default_block) {
+            if let Some(tail) = self.lower_body(owner.as_ref(), db, &default_block) {
                 self.ensure_goto(&tail, &end_block, *default_span);
             }
         } else {
@@ -2273,6 +2303,7 @@ impl CfgBuilder<'_> {
         self.copy_command_boundary(block_name, &body_block);
         self.command_boundary_continuations
             .insert(body_block.clone(), end_block.clone());
+        let owner = self.command_boundary_sites.get(block_name).cloned();
         self.ensure_goto(block_name, &body_block, Some(*span));
 
         // Same throw-block bookkeeping as `lower_try`: install a fresh list
@@ -2299,7 +2330,7 @@ impl CfgBuilder<'_> {
             (None, None)
         } else {
             (
-                self.lower_script(body, &body_block),
+                self.lower_body(owner.as_ref(), body, &body_block),
                 self.last_terminal_block.take(),
             )
         };
@@ -2823,9 +2854,18 @@ mod tests {
     }
 
     /// The operands of the first dispatch branch of the `switch` in `source`,
-    /// lowered and built under `dialect`'s own registry; `None` where the
-    /// statement stayed one opaque statement.
+    /// lowered and built for analysis under `dialect`'s own registry; `None`
+    /// where the statement stayed one opaque statement.
     fn dispatch_operands(source: &str, dialect: &str) -> Option<(ExprNode, ExprNode)> {
+        dispatch_operands_built(source, dialect, true)
+    }
+
+    /// [`dispatch_operands`], built for analysis (`faithful`) or for codegen.
+    fn dispatch_operands_built(
+        source: &str,
+        dialect: &str,
+        faithful: bool,
+    ) -> Option<(ExprNode, ExprNode)> {
         use tcl_registry::model::ingress::{resolve_environment, static_context_for};
         let registry = static_context_for(dialect).commands();
         let profile = resolve_environment(dialect).analyser_profile();
@@ -2835,8 +2875,14 @@ mod tests {
             LexerConfig::for_profile(registry.profile()),
             Some(profile),
         );
-        let func =
-            build_cfg_function_for_registry("::test", &module.top_level, false, registry, false);
+        let builder = crate::cfg_builder::CfgBuilder::new(false, registry)
+            .with_lexer_config(LexerConfig::for_profile(registry.profile()));
+        let mut builder = if faithful {
+            builder.with_faithful_exceptions()
+        } else {
+            builder
+        };
+        let func = builder.build_function("::test", &module.top_level);
         match &func.blocks[&func.entry].terminator {
             Some(Terminator::Branch {
                 condition:
@@ -2865,7 +2911,7 @@ mod tests {
         };
         for (source, subject, pattern) in [
             (r#"switch a\nb {"a\nb" {puts hit}}"#, "a\nb", "a\nb"),
-            (r#"switch "a\tb" a\tb {puts hit}"#, "a\tb", "a\tb"),
+            (r#"switch -- "a\tb" a\tb {puts hit}"#, "a\tb", "a\tb"),
             (r#"switch {a\b} {"a\\b" {puts hit}}"#, r"a\b", r"a\b"),
             ("switch {a\\\nb} {{a b} {puts hit}}", "a b", "a b"),
             (r"switch a\$b {a\$b {puts hit}}", "a$b", "a$b"),
@@ -2959,6 +3005,28 @@ mod tests {
                     "{dialect}: {source}"
                 );
             }
+        }
+    }
+
+    /// Codegen flattens a `switch` only where the release's compile procedure
+    /// compiles it: never in 8.4, and from 8.5 the two-word form or options
+    /// that `--` closes.
+    #[test]
+    fn codegen_flattens_the_switch_the_release_compiles() {
+        for (dialect, source, flattened) in [
+            ("tcl8.4", "switch $x {a {puts A}}", false),
+            ("tcl8.4", "switch -- $x a {puts A}", false),
+            ("tcl8.5", "switch $x {a {puts A}}", true),
+            ("tcl8.6", "switch -exact $x {a {puts A}}", false),
+            ("tcl8.6", "switch -exact -- $x {a {puts A}}", true),
+            ("tcl8.6", "switch $x a {puts A}", false),
+            ("tcl9.0", "switch -- $x a {puts A} b {puts B}", true),
+        ] {
+            assert_eq!(
+                dispatch_operands_built(source, dialect, false).is_some(),
+                flattened,
+                "{dialect}: {source}"
+            );
         }
     }
 

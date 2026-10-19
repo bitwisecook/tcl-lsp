@@ -45,6 +45,10 @@ struct TclList {
     /// resident string; it does not require this flag to be set.
     canonical: Rc<Cell<bool>>,
     string_protocol: Cell<Option<NativeStringProtocol>>,
+    /// Whether C would hold the value as its string type (`tclStringType`)
+    /// rather than as a list: a character-indexed read converts it so, and a
+    /// list read parses it back ([`is_untyped_or_string`]).
+    string_typed: bool,
 }
 
 #[path = "list/native_list_storage.rs"]
@@ -411,6 +415,7 @@ pub(crate) fn duplicate_native_backing(
         elems: original.elems.clone(),
         canonical: Rc::clone(&original.canonical),
         string_protocol: original.string_protocol.clone(),
+        string_typed: false,
     });
     obj::change_type(
         duplicate,
@@ -481,6 +486,7 @@ extern "C" fn list_dup(src: *mut TclObj, dup: *mut TclObj) {
             elems,
             canonical,
             string_protocol: src_ref.string_protocol.clone(),
+            string_typed: src_ref.string_typed,
         });
         obj::change_type(dup, &TCL_LIST_TYPE, Box::into_raw(boxed) as usize as u64);
     }
@@ -544,6 +550,9 @@ pub(crate) fn install_native_string(
 /// elements if it does not (string → list shimmer). The string rep is kept.
 fn ensure_list(obj: *mut TclObj) -> Result<(), ListError> {
     if obj::obj_type_ptr(obj) == &TCL_LIST_TYPE {
+        // A list C holds as a string it parses back into a list.
+        // SAFETY: the list type was just checked.
+        unsafe { list_mut(obj) }.string_typed = false;
         return Ok(());
     }
     let bytes = obj::bytes_of(obj);
@@ -561,6 +570,7 @@ fn ensure_list(obj: *mut TclObj) -> Result<(), ListError> {
         elems: NativeListStorage::new(elems),
         canonical: Rc::new(Cell::new(false)),
         string_protocol: Cell::new(None),
+        string_typed: false,
     });
     obj::change_type(obj, &TCL_LIST_TYPE, Box::into_raw(boxed) as usize as u64);
     Ok(())
@@ -579,6 +589,7 @@ pub fn new_list_obj(elems: &[*mut TclObj]) -> *mut TclObj {
         elems: NativeListStorage::new(v),
         canonical: Rc::new(Cell::new(false)),
         string_protocol: Cell::new(None),
+        string_typed: false,
     });
     obj::alloc_typed(&TCL_LIST_TYPE, Box::into_raw(boxed) as usize as u64)
 }
@@ -594,6 +605,17 @@ pub(crate) fn new_list_obj_native(
     let value = new_list_obj(elems);
     seal_string_protocol(value, protocol).expect("fresh native List recipe");
     value
+}
+
+/// `f` over `obj`'s elements when it already holds the list rep — no shimmer
+/// (the value-size measure, `budget::measured_bytes`).
+pub(crate) fn with_list_rep<R>(obj: *mut TclObj, f: impl FnOnce(&[*mut TclObj]) -> R) -> Option<R> {
+    if obj::obj_type_ptr(obj) != &TCL_LIST_TYPE {
+        return None;
+    }
+    // SAFETY: the list type was just checked.
+    let elements = unsafe { list_ref(obj) }.elems.elements();
+    Some(f(&elements))
 }
 
 /// Read an authenticated ordinary list backing without converting storage.
@@ -642,6 +664,51 @@ pub fn list_index(obj: *mut TclObj, i: usize) -> Result<Option<*mut TclObj>, Lis
 pub fn is_pure_list(obj: *mut TclObj) -> bool {
     obj::obj_type_ptr(obj) == &TCL_LIST_TYPE
         && (!obj::has_string_rep(obj) || unsafe { list_ref(obj) }.canonical.get())
+}
+
+/// Read `obj` as a character-indexed read does (C's `Tcl_GetUnicodeFromObj`),
+/// which converts it to a string: a canonical list is one no longer, so a
+/// later evaluation parses and compiles its string. The list rep is kept,
+/// read from that string, as C would parse it again.
+pub(crate) fn read_as_string(obj: *mut TclObj) {
+    convert_from_list(obj, true);
+}
+
+/// Read `obj` as C converts it to another type than a list or a string: a
+/// regular expression (`Tcl_GetRegExpFromObj`) or a script compiled in place
+/// (`TclCompileObj`). A canonical list is one no longer.
+pub(crate) fn read_as_other_type(obj: *mut TclObj) {
+    convert_from_list(obj, false);
+}
+
+/// Leave a list `obj` read from the string it renders to, held as a string
+/// where `string_typed` says so.
+fn convert_from_list(obj: *mut TclObj, string_typed: bool) {
+    if obj::obj_type_ptr(obj) != &TCL_LIST_TYPE {
+        return;
+    }
+    // The string the list renders to, which the list is now read from.
+    let _ = obj::bytes_of(obj);
+    // SAFETY: the list type was just checked.
+    let list = unsafe { list_mut(obj) };
+    // Unshare the canonical flag a Tcl copy holds with its original before
+    // clearing it, as the copy's own conversion would.
+    list.canonical = Rc::new(Cell::new(false));
+    list.string_typed = string_typed;
+}
+
+/// Whether C holds `obj` with no type or as its string type, as
+/// `TclStringMatchObj` and `INST_STR_MATCH` ask: a plain string, or a list a
+/// character read left a string. Another typed value is held as its type.
+pub(crate) fn is_untyped_or_string(obj: *mut TclObj) -> bool {
+    obj::is_plain_string(obj) || is_string_typed(obj)
+}
+
+/// Whether C holds the list `obj` as its string type, as `INST_STR_MATCH`
+/// asks of either operand; a plain string has no type.
+pub(crate) fn is_string_typed(obj: *mut TclObj) -> bool {
+    // SAFETY: the list type is checked before the rep is read.
+    obj::obj_type_ptr(obj) == &TCL_LIST_TYPE && unsafe { list_ref(obj) }.string_typed
 }
 
 pub fn list_elements(obj: *mut TclObj) -> Result<Vec<*mut TclObj>, tcl_syntax::value::ValueError> {
@@ -969,6 +1036,7 @@ fn ordinary_list_elements_native_with_stage_handlers(
         elems: NativeListStorage::new(elements),
         canonical: Rc::new(Cell::new(false)),
         string_protocol: Cell::new(Some(protocol)),
+        string_typed: false,
     });
     let adopted = install_list_backing(value, backing, None, stage_check, retain_error);
     drop(members);
@@ -1049,6 +1117,7 @@ fn native_list_copy_with_stage_handlers(
         elems: list.elems.clone(),
         canonical: Rc::clone(&list.canonical),
         string_protocol: Cell::new(Some(protocol)),
+        string_typed: false,
     });
     Ok(obj::Owned::fresh(obj::alloc_typed(
         &TCL_LIST_TYPE,
@@ -1093,6 +1162,7 @@ fn prepare_native_list_mutation_with_stage_check(
             elems: NativeListStorage::new(elements),
             canonical: Rc::new(Cell::new(false)),
             string_protocol: Cell::new(Some(protocol)),
+            string_typed: false,
         });
         install_list_backing(value, backing, None, stage_check, retain_error)?;
     }
@@ -1450,6 +1520,7 @@ fn list_elements_using<E>(
             elems: NativeListStorage::new(elems),
             canonical: Rc::new(Cell::new(false)),
             string_protocol: Cell::new(native),
+            string_typed: false,
         });
         install(backing)?;
     }
@@ -1472,6 +1543,7 @@ fn list_elements_using<E>(
                 elems: NativeListStorage::new(Vec::new()),
                 canonical: Rc::new(Cell::new(false)),
                 string_protocol: Cell::new(native),
+                string_typed: false,
             });
             install(backing)?;
         }
@@ -1507,6 +1579,7 @@ fn list_elements_using<E>(
             elems: storage,
             canonical: Rc::new(Cell::new(false)),
             string_protocol: Cell::new(native),
+            string_typed: false,
         });
         install(backing)?;
     }

@@ -106,6 +106,10 @@ fn num_or_nan_using(value: &Value, original: Stages<'_>) -> Result<f64, TclError
 const DOMAIN_MSG: &str = "domain error: argument not in valid range";
 const DOMAIN_CODE: &str = "ARITH DOMAIN {domain error: argument not in valid range}";
 
+/// The `-errorcode` of a math function's non-numeric argument
+/// (`expected number but got "x"`), from 8.5.
+const VALUE_NUMBER_CODE: &str = "TCL VALUE NUMBER";
+
 fn domain_err() -> Completion<Value> {
     err_with_code(DOMAIN_MSG, DOMAIN_CODE)
 }
@@ -134,6 +138,8 @@ fn num_err(message: String) -> Completion<Value> {
         err_with_code(message, errors::NAN_CODE)
     } else if message == errors::IOVERFLOW_MESSAGE {
         err_with_code(message, errors::IOVERFLOW_CODE)
+    } else if message.starts_with("expected ") {
+        release_err_with_code(message, VALUE_NUMBER_CODE)
     } else {
         err(message)
     }
@@ -159,14 +165,7 @@ fn shared_math_using(
             .max
             .is_some_and(|maximum| args.len() > usize::from(maximum))
     {
-        return Ok(err(format!(
-            "{} for math function \"{name}\"",
-            if args.len() < min {
-                "not enough arguments"
-            } else {
-                "too many arguments"
-            }
-        )));
+        return Ok(arity_err(name, args.len() < min));
     }
     let operands = args
         .iter()
@@ -194,12 +193,14 @@ fn shared_math_using(
             ) {
                 return Ok(NumValue::Float(f64::NAN));
             }
-            let message = if tcl_syntax::expr::mathfunc::expects_floating_operand_error(name) {
-                format!("expected floating-point number but got \"{text}\"")
-            } else {
-                format!("expected number but got \"{text}\"")
-            };
-            Err(TclError::Guest(err(message)))
+            // 8.4 has one message and no code; from 8.5 the reader's own
+            // words with `TCL VALUE NUMBER`.
+            let (message, code) = tcl_syntax::expr::mathfunc::non_numeric_argument_error(
+                name,
+                &text,
+                tcl_syntax::expr::errors::ambient_release(),
+            );
+            Err(TclError::Guest(err_with_code(message, code)))
         })
         .collect::<Result<Vec<_>, TclError>>()?;
     Ok(
@@ -510,14 +511,32 @@ pub(crate) fn register(
 fn one<'a>(args: &'a [Value], name: &str) -> Result<&'a Value, Completion<Value>> {
     match args {
         [x] => Ok(x),
-        _ => Err(err(format!(
-            "{} for math function \"{name}\"",
-            if args.is_empty() {
-                "not enough arguments"
-            } else {
-                "too many arguments"
-            }
-        ))),
+        _ => Err(arity_err(name, args.is_empty())),
+    }
+}
+
+/// A math function called with the wrong number of arguments, worded for
+/// the release (`too few`/`not enough`), with `TCL WRONGARGS` from 8.6.
+fn arity_err(name: &str, short: bool) -> Completion<Value> {
+    let release = tcl_syntax::expr::errors::ambient_release();
+    let words = if short {
+        release.math_arity_shortfall()
+    } else {
+        "too many arguments"
+    };
+    release_err_with_code(
+        format!("{words} for math function \"{name}\""),
+        "TCL WRONGARGS",
+    )
+}
+
+/// [`err_with_code`] where the emulated release sets `code`
+/// ([`tcl_dialect::TclVersion::sets_error_code`]); a bare error otherwise.
+fn release_err_with_code(message: impl AsRef<[u8]>, code: &str) -> Completion<Value> {
+    if tcl_syntax::expr::errors::ambient_release().sets_error_code(code.as_bytes()) {
+        err_with_code(message, code)
+    } else {
+        err(message)
     }
 }
 
@@ -698,7 +717,7 @@ fn m_rand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return refused;
     }
     if !args.is_empty() {
-        return err("too many arguments for math function \"rand\"");
+        return arity_err("rand", false);
     }
     ok(Value::native_double(
         vm.rand_next(),

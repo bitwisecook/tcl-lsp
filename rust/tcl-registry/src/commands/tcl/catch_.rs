@@ -18,6 +18,8 @@
 
 //! `catch` — evaluate script and trap exceptional returns.
 
+use crate::arity::ArityWindow;
+use crate::lifecycle::Lifecycle;
 use crate::prelude::*;
 use tcl_dialect::model::Family;
 use tcl_dialect::model::SpecSurface;
@@ -56,6 +58,20 @@ const FORMS: &[FormSpec] = &[
             SpecSurface::core(Family::F5Irules)
         ]),
         ..FormSpec::DEFAULT
+    },
+];
+
+/// Tcl 8.4's `catch` takes the result variable alone (`TclCompileCatchCmd`
+/// and `Tcl_CatchObjCmd` raise `wrong # args` for a third word); the options
+/// variable arrives in 8.5.
+const ARITY_WINDOWS: &[ArityWindow] = &[
+    ArityWindow {
+        lifecycle: Lifecycle::UNSPECIFIED.retired_from("8.5"),
+        arity: Arity::new(1, 2),
+    },
+    ArityWindow {
+        lifecycle: Lifecycle::introduced_in("8.5"),
+        arity: Arity::new(1, 3),
     },
 ];
 
@@ -101,6 +117,7 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::UNCONDITIONAL_VARIABLE_WRITE,
         arity: Arity::new(1, 3),
+        arity_windows: ARITY_WINDOWS,
         arg_roles: &[
             (0, ArgRole::Body),
             (1, ArgRole::VarWrite),

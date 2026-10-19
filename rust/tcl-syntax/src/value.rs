@@ -64,10 +64,12 @@ use crate::raw_string::{
 /// scalar has the same width C Tcl assigns it: one Tcl 9 character, and one or
 /// two Tcl 8 `Tcl_UniChar` units depending on whether it is supplementary.
 ///
-/// **Counting is the only versioned string operation.** Character *indexing*
-/// (`string index`, `range`, `first`, `last`, …) addresses Unicode scalars in
-/// both runtimes whatever the dialect, so on Tcl 8 a string holding a
-/// supplementary character has a length that disagrees with those indices.
+/// **Counting is the only versioned string operation** — it and `regsub -all
+/// {}`'s walk of the same units, which publishes no index (#2170).
+/// Character *indexing* (`string index`, `range`, `first`, `last`, …)
+/// addresses Unicode scalars in both runtimes whatever the dialect, so on
+/// Tcl 8 a string holding a supplementary character has a length that
+/// disagrees with those indices.
 /// That case is unsupported, deliberately rather than accidentally: reproducing
 /// it needs a value layer that can hold an unpaired surrogate, and anything
 /// less approximates. See the Tcl 8 supplementary-character boundary in
@@ -75,6 +77,23 @@ use crate::raw_string::{
 #[must_use]
 pub fn string_char_len(value: &str, version: TclVersion) -> usize {
     version.string_character_model().count(value)
+}
+
+/// C's `Tcl_GetIntFromObj` narrowing of a wide read: `INT_MIN` to `UINT_MAX`
+/// is taken, an unsigned value truncated to its low 32 bits rather than
+/// refused (`4294967295` reads -1), and anything wider is
+/// [`ValueError::IntegerOverflow`].
+///
+/// # Errors
+/// [`ValueError::IntegerOverflow`] outside `INT_MIN..=UINT_MAX`.
+pub fn narrow_to_c_int(wide: i64) -> Result<i32, ValueError> {
+    if !(i64::from(i32::MIN)..=i64::from(u32::MAX)).contains(&wide) {
+        return Err(ValueError::IntegerOverflow);
+    }
+    // C's `(int)` of the `long`: the low 32 bits.
+    i32::try_from(wide)
+        .or_else(|_| i32::try_from(wide - (1_i64 << 32)))
+        .map_err(|_| ValueError::IntegerOverflow)
 }
 
 /// A value-coercion / list-parse failure — the closed set Tcl reports with
@@ -94,6 +113,10 @@ pub enum ValueError {
     NotInteger(String),
     /// Native integer failure retaining the actual non-Unicode input bytes.
     NotIntegerBytes(Vec<u8>),
+    /// The value already holds a double, which `Tcl_GetWideIntFromObj`
+    /// refuses as no integer without reparsing its spelling (`tclObj.c`:
+    /// `expected integer but got "…"`, `TCL VALUE INTEGER`).
+    DoubleNotInteger(String),
     /// The value is not a float (`expected floating-point number but got "…"`).
     NotDouble(String),
     /// Native floating-point failure retaining actual input bytes.
@@ -225,6 +248,7 @@ impl ValueError {
                     crate::list::describe_bad_value(s)
                 )
             }
+            ValueError::DoubleNotInteger(s) => format!("expected integer but got \"{s}\""),
             ValueError::NotDouble(s) => format!(
                 "expected floating-point number but got {}",
                 crate::list::describe_bad_value(s)
@@ -264,7 +288,27 @@ impl ValueError {
             ValueError::UnicodeAccess(error) => {
                 format!("host Unicode access refused at byte {}", error.valid_up_to)
             }
-            ValueError::IntegerOverflow => "integer value too large to represent".to_string(),
+            ValueError::IntegerOverflow => crate::expr::errors::IOVERFLOW_MESSAGE.to_string(),
+        }
+    }
+
+    /// The `-errorcode` C sets beside [`Self::message`]: `TclParseNumber`'s
+    /// `TCL VALUE NUMBER` for an unparsable spelling, `TCL VALUE INTEGER` for
+    /// a held double, `ARITH IOVERFLOW` for an integer past the wide range. A
+    /// list failure's code depends on the parse fault, and the native getter
+    /// and host refusals carry their own outcome, so they have none here.
+    #[must_use]
+    pub fn error_code(&self) -> Option<&'static str> {
+        match self {
+            ValueError::NotInteger(_)
+            | ValueError::NotIntegerBytes(_)
+            | ValueError::NotDouble(_)
+            | ValueError::NotDoubleBytes(_)
+            | ValueError::NotBoolean(_)
+            | ValueError::NotBooleanBytes(_) => Some("TCL VALUE NUMBER"),
+            ValueError::DoubleNotInteger(_) => Some("TCL VALUE INTEGER"),
+            ValueError::IntegerOverflow => Some(crate::expr::errors::IOVERFLOW_CODE),
+            _ => None,
         }
     }
 }
@@ -825,6 +869,22 @@ pub trait ValueOps {
             .map_err(UnicodeAccessError::from)
     }
 
+    /// The string as a character-indexed read takes it (C's
+    /// `Tcl_GetUnicodeFromObj`), which converts the value to a string. A
+    /// runtime whose values keep a list's canonical status drops it here.
+    /// Checked like [`Self::try_as_str`]: a value with no Unicode projection
+    /// is a host refusal, outside guest completion.
+    fn as_chars(&mut self, v: &Self::Value) -> Result<Rc<str>, UnicodeAccessError> {
+        self.try_as_str(v)
+    }
+
+    /// Whether C holds the value with no type or as its string type, as
+    /// `TclStringMatchObj` asks before it reads both operands by character.
+    /// A runtime that keeps no such distinction answers `false`.
+    fn is_untyped_or_string(&mut self, _v: &Self::Value) -> bool {
+        false
+    }
+
     /// Checked character count for adapters that require Unicode. Native byte
     /// character engines may override this without asking for a Unicode view.
     fn try_char_len(&mut self, v: &Self::Value) -> Result<usize, UnicodeAccessError> {
@@ -842,6 +902,13 @@ pub trait ValueOps {
 
     /// As a wide integer (`Tcl_GetWideIntFromObj`).
     fn as_int(&mut self, v: &Self::Value) -> Result<i64, ValueError>;
+
+    /// As a C `int` (`Tcl_GetIntFromObj`): the wide read narrowed as C
+    /// narrows it ([`narrow_to_c_int`]). A runtime whose `long` read takes
+    /// more than the wide range overrides this to read the way it does.
+    fn as_c_int(&mut self, v: &Self::Value) -> Result<i32, ValueError> {
+        narrow_to_c_int(self.as_int(v)?)
+    }
 
     /// The integer's sign and magnitude in `radix` for a bignum format path.
     ///
@@ -1122,6 +1189,32 @@ pub trait ValueOps {
         _item: &Self::Value,
     ) -> Result<bool, ValueError> {
         Ok(false)
+    }
+
+    // -- the embedder's value-size limit --
+
+    /// The byte length no single value may exceed, when an embedder has set
+    /// one. The default (no limit) lets a builder skip measuring altogether.
+    fn value_size_limit(&self) -> Option<u64> {
+        None
+    }
+
+    /// The byte length `v` has, or would have once rendered, measured no
+    /// further than just past `cap`. A runtime overrides this to measure a
+    /// list or dict through its elements rather than render it: rendering is
+    /// itself an allocation the limit must see first.
+    fn measure_value(&mut self, v: &Self::Value, cap: u64) -> u64 {
+        let _ = cap;
+        // The native bytes, not a Unicode projection: measuring grants no
+        // Unicode access and must not refuse a byte value.
+        self.as_bytes(v).len() as u64
+    }
+
+    /// Admit a value of `bytes` bytes about to be built, or refuse it — and
+    /// record the refusal as the evaluation's breach — when it is over
+    /// [`value_size_limit`](Self::value_size_limit).
+    fn admit_value_bytes(&mut self, bytes: u64) -> bool {
+        self.value_size_limit().is_none_or(|limit| bytes <= limit)
     }
 }
 

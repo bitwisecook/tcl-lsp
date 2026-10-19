@@ -62,13 +62,7 @@ fn make(
         // Every argument here is an ordinary, already-substituted numeric
         // value (`divmod x y` / `frexp value` / `modf value` / `remquo x
         // y` — no brace-protected inner expression anywhere in any of the
-        // four manpages). That's unlike `lseq`, which evaluates one of its
-        // own arguments as a Tcl expression at runtime (`lseq
-        // {[llength $l]-1} 0`) and therefore must carry `PURE_EVALUATION`
-        // while deliberately *omitting* `CSE_CANDIDATE` — see lseq.rs's own
-        // comment: a `[...]` inside that brace can be side-effecting, so
-        // eliding a "duplicate" call there would be an unsound false
-        // guarantee. No such expression-argument
+        // four manpages). No expression-argument
         // mechanism exists for these four — confirmed via their manpages
         // and via `tcl-vm`, which has no dedicated implementation for any
         // of them at all (falls through to generic invoke, so there's no

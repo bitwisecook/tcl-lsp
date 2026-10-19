@@ -832,20 +832,30 @@ impl IndexReading {
 }
 
 /// Resolve an index `spec` against a container length `len` (so `end` is
-/// `len - 1`) as this runtime's release reads it on this host. The result may
-/// be negative or `>= len`; callers clamp per their command's rules. Errors
-/// with the canonical message on an unparseable spec.
-pub fn resolve(spec: &str, len: usize) -> Result<i64, CmdError> {
-    resolve_opt(spec, len).ok_or_else(|| bad_index(spec.trim()))
-}
-
-/// Read an index under an explicit numeral grammar. A host-width or release
-/// ambiguity remains unavailable; [`read_with`] retains its typed reason.
+/// `len - 1`) under the numeral grammar `numbers`, as a runtime on this host
+/// reads it. The result may be negative or `>= len`; callers clamp per their
+/// command's rules. Errors with the canonical message on an unparseable spec.
+/// The numeral grammar 8.5 and 8.6 share reads as 8.6 here.
 ///
 /// # Errors
-/// A bad-index error when the selected grammar establishes no index.
+/// `bad index` for a spec `numbers` does not read as an index on this host.
 pub fn resolve_with(spec: &str, len: usize, numbers: NumberSyntax) -> Result<i64, CmdError> {
-    resolve_opt_with(spec, len, numbers).ok_or_else(|| bad_index(spec.trim()))
+    read_with(spec, len, numbers)
+        .on_this_host()
+        .ok_or_else(|| bad_index_with(spec.trim(), numbers))
+}
+
+/// [`resolve_with`] under the grammar this thread's interpreter installed
+/// (`tcl_syntax::number::runtime_syntax`). Runtime-only: a caller under a
+/// stated profile — a registry folder, the compiler, a test running two
+/// releases in one process — names its grammar through [`resolve_with`] or
+/// [`resolve_opt_with`] instead, since the ambient is whatever the thread
+/// last installed.
+///
+/// # Errors
+/// As [`resolve_with`].
+pub fn resolve(spec: &str, len: usize) -> Result<i64, CmdError> {
+    resolve_with(spec, len, tcl_syntax::number::runtime_syntax())
 }
 
 /// Legacy C modern-index compatibility API; use [`resolve_opt_in`] for
@@ -853,8 +863,8 @@ pub fn resolve_with(spec: &str, len: usize, numbers: NumberSyntax) -> Result<i64
 ///
 /// Resolve an index `spec` against `len`, returning `None` (rather than an
 /// error) on an unparseable spec — the `lsearch`/`lsort -index` driving needs the
-/// raw option to classify "bad index" vs "out of range" itself. The numeral
-/// grammar 8.5 and 8.6 share reads as 8.6 here.
+/// raw option to classify "bad index" vs "out of range" itself. Runtime-only,
+/// as [`resolve`] is.
 #[must_use]
 pub fn resolve_opt(spec: &str, len: usize) -> Option<i64> {
     read_with(spec, len, tcl_syntax::number::runtime_syntax()).on_this_host()
@@ -913,6 +923,414 @@ pub fn compiles_apart(spec: &str, len: usize, release: TclVersion) -> bool {
                 };
                 offset > 0 && end_32(len) + offset > i64::from(i32::MAX)
             })
+}
+
+/// A literal index word fixed ahead of the length it indexes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Encoded {
+    /// This index, zero or more.
+    Index(i64),
+    /// `end` plus this offset.
+    FromEnd(i64),
+    /// Before the first element, whatever the length.
+    Before,
+    /// After the last element, whatever the length.
+    After,
+}
+
+/// The literal index word `spec` as `release` reads it whatever the length,
+/// `None` for a word it reads apart by length or by host, or not at all.
+///
+/// `compiled` says whether the release compiles the word with its command, as
+/// it does a literal in any body it compiles, rather than reading it as the
+/// command runs: 8.6 compiles an index of `string range`, `lindex` and `lrange`
+/// through `TclIndexEncode`, which places an `end` offset that is positive
+/// after the 32-bit wrap after the end, and one below `INT_MIN + 2` before the
+/// first element, whatever the length. Read as the command runs, 8.4 to 8.6
+/// sum `end` and its offset in an `int`, so a positive offset passes
+/// `INT_MAX` and wraps for a long enough value, and that word has no fixed
+/// reading. Measured on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0: see
+/// `a_literal_index_is_fixed_as_each_release_compiles_or_reads_it`.
+#[must_use]
+pub fn encode(spec: &str, release: TclVersion, compiled: bool) -> Option<Encoded> {
+    let at = |len| match read_under(spec, len, release) {
+        IndexReading::At(index) => Some(index),
+        IndexReading::Bad | IndexReading::HostLong(_) | IndexReading::Unsure => None,
+    };
+    let (one, two) = (at(1)?, at(2)?);
+    if one == two {
+        return Some(if one < 0 {
+            Encoded::Before
+        } else {
+            Encoded::Index(one)
+        });
+    }
+    // An `end` word: against one element `end` is 0, so the reading is the
+    // offset, as the release reads it.
+    let offset = one;
+    let int_min = i64::from(i32::MIN);
+    if compiled && release == TclVersion::V8_6 {
+        return Some(if offset > 0 {
+            Encoded::After
+        } else if offset < int_min + 2 {
+            Encoded::Before
+        } else {
+            Encoded::FromEnd(offset)
+        });
+    }
+    let sums_in_int = matches!(
+        release,
+        TclVersion::V8_4 | TclVersion::V8_5 | TclVersion::V8_6
+    );
+    // An `int` sum holds for every length only from `INT_MIN + 1` to zero: a
+    // positive offset wraps for a long enough value, and `INT_MIN` for an
+    // empty one.
+    (!sums_in_int || (int_min < offset && offset <= 0)).then_some(Encoded::FromEnd(offset))
+}
+
+/// Whether `release` compiles the literal index word `spec` to a reading apart
+/// from the one its command makes as it runs ([`encode`]), for some length: 8.6
+/// places an `end` offset that passes `INT_MAX` after the end, where its
+/// command wraps it before the first element.
+#[must_use]
+pub fn encodes_apart(spec: &str, release: TclVersion) -> bool {
+    encode(spec, release, true) != encode(spec, release, false)
+}
+
+/// Whether `release`'s compiler reads some literal index word apart from its
+/// command ([`encodes_apart`]), so that a runtime evaluating a command it
+/// compiles needs its literal words: 8.6's `TclIndexEncode` alone.
+#[must_use]
+pub const fn compiles_literals_apart(release: TclVersion) -> bool {
+    matches!(release, TclVersion::V8_6)
+}
+
+/// A command whose literal index words 8.6's compiler encodes
+/// (`TclGetIndexFromToken`), each by the rule of its compile procedure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IndexCompiler {
+    /// `lindex list index`, three words only (`TclCompileLindexCmd`).
+    Lindex,
+    /// `lrange list first last`, both literal (`TclCompileLrangeCmd`).
+    Lrange,
+    /// `linsert list index ?element ...?` (`TclCompileLinsertCmd`).
+    Linsert,
+    /// `lreplace list first last ?element ...?`, both literal and in an
+    /// order the compiler can settle (`TclCompileLreplaceCmd`).
+    Lreplace,
+    /// `string range string first last` (`TclCompileStringRangeCmd`): a
+    /// `first` after the end settles the command alone, else both literal.
+    StringRange,
+    /// `string replace string first last ?newString?`, both literal and as
+    /// [`string_replace_compiles_encoded`] says (`TclCompileStringReplaceCmd`).
+    StringReplace {
+        /// Whether the command has a replacement string.
+        replacing: bool,
+    },
+}
+
+impl IndexCompiler {
+    /// How many leading words select the compile procedure: the command word,
+    /// and an ensemble's subcommand word (`TclCompileEnsemble`). The release
+    /// compiles the command only where each is one literal word; a
+    /// substituted one leaves it to the generic invocation, which reads every
+    /// index word as the command runs.
+    #[must_use]
+    pub const fn selecting_words(self) -> usize {
+        match self {
+            Self::StringRange | Self::StringReplace { .. } => 2,
+            Self::Lindex | Self::Lrange | Self::Linsert | Self::Lreplace => 1,
+        }
+    }
+}
+
+/// The index words of a command `compiler` compiles, each respelt where
+/// `release` compiles it to a reading apart from the one its command makes as
+/// it runs ([`encodes_apart`]): `2147483647` after the end and `-1` before
+/// the first element, which every release's command reads so whatever the
+/// length. `words` holds each index word's text where it is a literal and
+/// `None` where it is substituted; the answer is aligned with it, `None`
+/// where the word is passed as written.
+#[must_use]
+pub fn compiled_index_words(
+    compiler: IndexCompiler,
+    words: &[Option<&str>],
+    release: TclVersion,
+) -> Vec<Option<&'static str>> {
+    let encoded: Vec<Option<Encoded>> = words
+        .iter()
+        .map(|word| word.and_then(|word| encode(word, release, true)))
+        .collect();
+    let all = encoded.iter().all(Option::is_some);
+    let settled: Vec<bool> = match (compiler, encoded.as_slice()) {
+        (IndexCompiler::StringRange, [Some(Encoded::After), _]) => vec![true, false],
+        (IndexCompiler::Lreplace, [Some(first), Some(last)]) => {
+            vec![lreplace_compiles_encoded(*first, *last); 2]
+        }
+        (IndexCompiler::StringReplace { replacing }, [Some(first), Some(last)]) => {
+            vec![string_replace_compiles_encoded(*first, *last, replacing); 2]
+        }
+        (IndexCompiler::Lreplace | IndexCompiler::StringReplace { .. }, _) => {
+            vec![false; words.len()]
+        }
+        _ => vec![all; words.len()],
+    };
+    words
+        .iter()
+        .zip(encoded)
+        .zip(settled)
+        .map(|((word, encoded), settled)| {
+            if !settled || !word.is_some_and(|word| encodes_apart(word, release)) {
+                return None;
+            }
+            match encoded? {
+                Encoded::After => Some("2147483647"),
+                Encoded::Before => Some("-1"),
+                Encoded::Index(_) | Encoded::FromEnd(_) => None,
+            }
+        })
+        .collect()
+}
+
+/// `TclIndexEncode`'s spaces: `TCL_INDEX_END` is -2 with `end-N` below it,
+/// `TCL_INDEX_BEFORE` -1, `TCL_INDEX_START` 0 and `TCL_INDEX_AFTER` `INT_MAX`.
+const ENCODED_BEFORE: i64 = -1;
+const ENCODED_END: i64 = -2;
+const ENCODED_START: i64 = 0;
+const ENCODED_AFTER: i64 = i32::MAX as i64;
+
+/// `encoded` in `TclIndexEncode`'s space, with what `before` and `after` the
+/// first element and the end stand for.
+fn encoded_value(encoded: Encoded, before: i64, after: i64) -> i64 {
+    match encoded {
+        Encoded::Index(index) if index >= ENCODED_AFTER => after,
+        Encoded::Index(index) => index,
+        Encoded::FromEnd(offset) => ENCODED_END + offset,
+        Encoded::Before => before,
+        Encoded::After => after,
+    }
+}
+
+/// Whether 8.6's `TclCompileLreplaceCmd` compiles `lreplace` on its encoded
+/// indices: where it can tell which of `first` and `last + 1` the kept suffix
+/// starts at.
+#[must_use]
+pub fn lreplace_compiles_encoded(first: Encoded, last: Encoded) -> bool {
+    let first = encoded_value(first, ENCODED_START, ENCODED_AFTER);
+    let last = encoded_value(last, ENCODED_BEFORE, ENCODED_END);
+    first == ENCODED_AFTER
+        || last == ENCODED_BEFORE
+        || last == ENCODED_END
+        || (last < ENCODED_END && first <= ENCODED_END)
+        || (last >= ENCODED_START && first >= ENCODED_START)
+}
+
+/// Whether 8.6's `TclCompileStringReplaceCmd` compiles `string replace` on
+/// its encoded indices, rather than falling through to `INST_STR_REPLACE`
+/// over the words as written: always without a replacement string, and with
+/// one only for a no-op it can prove, `first` before the first element, or
+/// `last` after the end with `first` relative to `end`.
+#[must_use]
+pub fn string_replace_compiles_encoded(first: Encoded, last: Encoded, replacing: bool) -> bool {
+    let first = encoded_value(first, ENCODED_BEFORE, ENCODED_AFTER);
+    let last = encoded_value(last, ENCODED_BEFORE, ENCODED_AFTER);
+    let no_op = last == ENCODED_BEFORE
+        || first == ENCODED_AFTER
+        || (first <= ENCODED_END && last <= ENCODED_END && last < first)
+        || (first >= ENCODED_START && last >= ENCODED_START && last < first);
+    no_op
+        || !replacing
+        || (first == ENCODED_BEFORE && last >= ENCODED_START)
+        || (last == ENCODED_AFTER && first <= ENCODED_END)
+}
+
+/// How a release's `TclCompileStringReplaceCmd` settles a `string replace`
+/// on its literal indices, so what the compiled command reads and returns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StringReplaceSettlement {
+    /// A replacement it proves changes nothing: the string itself, unread.
+    Unchanged,
+    /// The whole string replaced: the replacement itself, unread.
+    Replacement,
+    /// The whole string removed: the empty string.
+    Empty,
+    /// The kept part read by character (`INST_STR_RANGE_IMM`) and joined.
+    Ranges,
+    /// Left to `INST_STR_REPLACE` over the words as written.
+    Runtime,
+}
+
+/// [`StringReplaceSettlement`] for the indices `first` and `last` as the
+/// release encodes them (`None` for a word it does not settle), with a
+/// replacement string where `replacing` says; it settles exactly where
+/// [`string_replace_compiles_encoded`] says it compiles.
+#[must_use]
+pub fn settle_string_replace(
+    first: Option<Encoded>,
+    last: Option<Encoded>,
+    replacing: bool,
+) -> StringReplaceSettlement {
+    let (Some(first), Some(last)) = (first, last) else {
+        return StringReplaceSettlement::Runtime;
+    };
+    if !string_replace_compiles_encoded(first, last, replacing) {
+        return StringReplaceSettlement::Runtime;
+    }
+    let first = encoded_value(first, ENCODED_BEFORE, ENCODED_AFTER);
+    let last = encoded_value(last, ENCODED_BEFORE, ENCODED_AFTER);
+    let no_op = last == ENCODED_BEFORE
+        || first == ENCODED_AFTER
+        || (first <= ENCODED_END && last <= ENCODED_END && last < first)
+        || (first >= ENCODED_START && last >= ENCODED_START && last < first);
+    if no_op {
+        StringReplaceSettlement::Unchanged
+    } else if replacing && first == ENCODED_BEFORE && last == ENCODED_AFTER {
+        StringReplaceSettlement::Replacement
+    } else if !replacing
+        && (first == ENCODED_BEFORE || first == ENCODED_START)
+        && (last == ENCODED_END || last == ENCODED_AFTER)
+    {
+        StringReplaceSettlement::Empty
+    } else {
+        StringReplaceSettlement::Ranges
+    }
+}
+
+/// A failed `lsearch`/`lsort -index` path step: C's message and, where C sets
+/// one, its `-errorcode`.
+pub struct IndexPathError {
+    pub message: Vec<u8>,
+    pub code: Option<&'static [u8]>,
+}
+
+/// Why `TclIndexEncode` refuses an `-index` path element.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Refusal {
+    /// Not index syntax at all.
+    Bad,
+    /// An index it cannot encode.
+    OutOfRange,
+}
+
+/// An `-index` path element as `TclIndexEncode` encodes it: an absolute index,
+/// or one `end` plus a non-positive offset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PathEncoding {
+    At(i64),
+    FromEnd(i64),
+}
+
+impl PathEncoding {
+    /// Encode `spec`, or refuse it: out of range is an absolute index outside
+    /// `0..=INT_MAX`, `end+N`, or `end-N` with `N` at or past `INT_MAX`
+    /// (measured on 64-bit tclsh 9.0.4). End-relativity is told apart by
+    /// resolving against two different lengths.
+    fn of(spec: &str) -> Result<Self, Refusal> {
+        const BIG: usize = 1 << 20;
+        let r_big = resolve_opt(spec, BIG + 1).ok_or(Refusal::Bad)?;
+        let r_small = resolve_opt(spec, 1).ok_or(Refusal::Bad)?;
+        let int_max = i64::from(i32::MAX);
+        if r_big == r_small {
+            return if (0..=int_max).contains(&r_big) {
+                Ok(Self::At(r_big))
+            } else {
+                Err(Refusal::OutOfRange)
+            };
+        }
+        let offset = r_big - i64::try_from(BIG).unwrap_or(i64::MAX);
+        if (1 - int_max..=0).contains(&offset) {
+            Ok(Self::FromEnd(offset))
+        } else {
+            Err(Refusal::OutOfRange)
+        }
+    }
+
+    /// The index into a level of `len` elements.
+    fn decode(self, len: usize) -> i64 {
+        match self {
+            Self::At(index) => index,
+            Self::FromEnd(offset) => i64::try_from(len).unwrap_or(i64::MAX) - 1 + offset,
+        }
+    }
+}
+
+/// Check every `-index` path element encodes (`TclIndexEncode` at option
+/// parse): a syntactically bad spec is `bad index`, an unencodable one `index
+/// "…" out of range`.
+///
+/// # Errors
+/// The first element that does not encode.
+pub fn check_index_path(path: &[Vec<u8>]) -> Result<(), IndexPathError> {
+    for spec in path {
+        PathEncoding::of(&String::from_utf8_lossy(spec))
+            .map_err(|refusal| path_error(spec, refusal))?;
+    }
+    Ok(())
+}
+
+fn path_error(spec: &[u8], refusal: Refusal) -> IndexPathError {
+    match refusal {
+        Refusal::Bad => {
+            let (message, code) = bad_index_parts(spec);
+            IndexPathError { message, code }
+        }
+        Refusal::OutOfRange => {
+            let mut message = b"index \"".to_vec();
+            message.extend_from_slice(spec);
+            message.extend_from_slice(b"\" out of range");
+            IndexPathError {
+                message,
+                code: Some(b"TCL VALUE INDEX OUTOFRANGE"),
+            }
+        }
+    }
+}
+
+/// Drill into a (nested) list `value` by an index `path` (`lsearch`/`lsort
+/// -index`) over plain [`ValueOps`]: each spec steps one level. A step past
+/// its level is `element <n> missing from sublist "<list>"`, naming the index
+/// as `release`'s `SelectObjFromSublists` does ([`failed_step_name`]); a
+/// non-list step stops, returning the current value (C's `TclLindexFlat`
+/// fallthrough). Upstream's release-aware `drill`; work's native
+/// [`drill`]/[`drill_prepared_c`] keep the selected original getters.
+///
+/// # Errors
+/// `bad index` / `out of range`, the list-parse error, or `element … missing
+/// from sublist …`.
+pub fn drill_in_release<O: ValueOps>(
+    ops: &mut O,
+    value: &O::Value,
+    path: &[Vec<u8>],
+    release: TclVersion,
+) -> Result<O::Value, IndexPathError> {
+    let mut cur = value.clone();
+    for spec in path {
+        let len = ops.list_len(&cur).map_err(|e| {
+            let error = CmdError::from(e).into_byte_details();
+            IndexPathError {
+                message: error.message,
+                code: None,
+            }
+        })?;
+        let encoded = PathEncoding::of(&String::from_utf8_lossy(spec))
+            .map_err(|refusal| path_error(spec, refusal))?;
+        let idx = encoded.decode(len);
+        if idx < 0 || usize::try_from(idx).unwrap_or(usize::MAX) >= len {
+            let named = failed_step_name(encoded, idx, release);
+            let mut message = format!("element {named} missing from sublist \"").into_bytes();
+            message.extend_from_slice(&ops.as_bytes(&cur));
+            message.push(b'"');
+            return Err(IndexPathError {
+                message,
+                code: (release >= TclVersion::V8_6).then_some(b"TCL OPERATION LSORT INDEXFAILED"),
+            });
+        }
+        match ops.list_index(&cur, usize::try_from(idx).unwrap_or(0)) {
+            Ok(Some(e)) => cur = e,
+            _ => return Ok(cur),
+        }
+    }
+    Ok(cur)
 }
 
 /// Resolve an index with the complete selected native policy.
@@ -1143,10 +1561,30 @@ pub fn resolve_for_ops<O: NativeIndexOps>(
     spec: &str,
     len: usize,
 ) -> Result<i64, CmdError> {
+    resolve_for_ops_with(ops, spec, len, None)
+}
+
+/// [`resolve_for_ops`] reading a Tcl (non-Jim) index's integers under
+/// `numbers` where the caller names the grammar (a runtime its pinned
+/// release's, a folder the target's) rather than the ops' own.
+///
+/// # Errors
+/// As [`resolve_for_ops`].
+pub fn resolve_for_ops_with<O: NativeIndexOps>(
+    ops: &mut O,
+    spec: &str,
+    len: usize,
+    numbers: Option<NumberSyntax>,
+) -> Result<i64, CmdError> {
     run_index_metadata(ops, |ops| {
-        let syntax = ops
+        let mut syntax = ops
             .index_syntax()
             .ok_or_else(|| CmdError::new("container index dialect is not selected"))?;
+        if syntax.grammar != tcl_dialect::IndexGrammar::Jim
+            && let Some(numbers) = numbers
+        {
+            syntax.numbers = numbers;
+        }
         if syntax.grammar != tcl_dialect::IndexGrammar::Jim {
             if let Some(value) = resolve_opt_in(spec, len, syntax) {
                 return Ok(value);
@@ -1222,6 +1660,34 @@ pub(crate) fn wide_expression(
 ///
 /// # Errors
 /// The same errors as [`resolve_for_ops`].
+pub fn resolve_value_with<O: NativeIndexOps>(
+    ops: &mut O,
+    value: &O::Value,
+    len: usize,
+    numbers: NumberSyntax,
+) -> Result<i64, CmdError> {
+    run_index_metadata(ops, |ops| {
+        if ops
+            .index_syntax()
+            .is_some_and(|syntax| syntax.grammar == tcl_dialect::IndexGrammar::Jim)
+            && let Some(encoded) = ops.original_jim_index(value)?
+        {
+            return Ok(resolve_jim_encoding(encoded, len));
+        }
+        if ops.index_c_version().is_some()
+            && let Some(resolved) = ops.original_c_index(value, len)?
+        {
+            return Ok(resolved);
+        }
+        let spelling = ops.index_unicode(value)?;
+        resolve_for_ops_with(ops, &spelling, len, Some(numbers))
+    })
+}
+
+/// [`resolve_value_with`] under the numeral grammar the selected ops carry.
+///
+/// # Errors
+/// As [`resolve_for_ops`].
 pub fn resolve_value<O: NativeIndexOps>(
     ops: &mut O,
     value: &O::Value,
@@ -1532,6 +1998,11 @@ pub fn drill_prepared_c<O: NativeIndexOps>(
                     message.extend_from_slice(
                         format!("end-{}", -2_i64 - i64::from(coordinate.encoded())).as_bytes(),
                     );
+                } else if version == TclVersion::V8_4 && decoded < 0 {
+                    // 8.4.20 names a step before the first element by its
+                    // encoding, `end` being -2 (`lsort -index end-5 {{a b}
+                    // {c d}}` names `-7`); 8.5 and 8.6 the decoded index.
+                    message.extend_from_slice(coordinate.encoded().to_string().as_bytes());
                 } else {
                     message.extend_from_slice(decoded.to_string().as_bytes());
                 }
@@ -1618,25 +2089,34 @@ pub fn drill_original_jim<O: NativeIndexOps>(
     )
 }
 
+/// How `release` names an `-index` step that falls outside its sublist.
+/// Measured (`lsort -index end-5 {{a b} {c d}}`, the step decoding to -4):
+/// tclsh 9.0.4 and 9.1.0 name the word (`end-5`) when an `end` step falls
+/// before the first element; 8.5.19 and 8.6.18 name the decoded index (`-4`);
+/// 8.4.20 names its encoding, `end` being -2 (`-7`). An index past the end is
+/// the decoded number everywhere.
+fn failed_step_name(step: PathEncoding, decoded: i64, release: TclVersion) -> String {
+    match step {
+        PathEncoding::FromEnd(offset) if decoded < 0 => match release {
+            TclVersion::V8_4 => (offset - 2).to_string(),
+            TclVersion::V8_5 | TclVersion::V8_6 => decoded.to_string(),
+            _ => format!("end-{}", -offset),
+        },
+        _ => decoded.to_string(),
+    }
+}
+
 /// Whether an index `spec` is *encodable* the way `TclIndexEncode` requires for
-/// `lsearch`/`lsort -index`: `Some(true)` for a normal index (a non-negative
-/// integer, or `end`/`end-N`), `Some(false)` for one that can never be in range
-/// (a negative integer, or `end+N`), and `None` for a syntactically bad spec.
-/// Length-independent: it classifies end-relativity by resolving against two
-/// different lengths.
+/// `lsearch`/`lsort -index`: `Some(true)` for a normal index (an integer in
+/// `0..=INT_MAX`, or `end`/`end-N`), `Some(false)` for one it refuses as out of
+/// range, and `None` for a syntactically bad spec.
 #[must_use]
 pub fn encodable(spec: &str) -> Option<bool> {
-    const BIG: usize = 1 << 20;
-    let r_big = resolve_opt(spec, BIG + 1)?; // None ⇒ syntactically bad
-    let r_small = resolve_opt(spec, 1)?;
-    let big = i64::try_from(BIG).unwrap_or(i64::MAX);
-    Some(if r_big == r_small {
-        // Absolute: encodable iff non-negative.
-        r_big >= 0
-    } else {
-        // End-relative: encodable iff it lands at or before `end` (offset ≤ 0).
-        r_big - big <= 0
-    })
+    match PathEncoding::of(spec) {
+        Ok(_) => Some(true),
+        Err(Refusal::OutOfRange) => Some(false),
+        Err(Refusal::Bad) => None,
+    }
 }
 
 /// Whose integer range reads an index's integers.
@@ -2034,18 +2514,188 @@ fn parse_int_whole(s: &str, numbers: NumberSyntax) -> Option<i64> {
     tail.trim_matches(is_space).is_empty().then_some(val)
 }
 
-/// The canonical `bad index "<spec>": …` error.
+/// The canonical `bad index "<spec>": …` error, as Tcl 8.6 and later raise it
+/// ([`bad_index_under`]).
 #[must_use]
 pub fn bad_index(spec: &str) -> CmdError {
-    CmdError::new(format!(
-        "bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?"
-    ))
+    bad_index_under(spec, TclVersion::V8_6)
+}
+
+/// The `bad index` error for `spec` a caller reading it under `numbers`
+/// raises: 8.4's wording under its grammar, 8.6's otherwise
+/// ([`bad_index_under`]). The grammar does not tell 8.5 from 8.6, so 8.6's
+/// `TCL VALUE INDEX` error code is left for an 8.5 runtime to drop.
+#[must_use]
+pub fn bad_index_with(spec: &str, numbers: NumberSyntax) -> CmdError {
+    if numbers == NumberSyntax::Tcl84 {
+        bad_index_under(spec, TclVersion::V8_4)
+    } else {
+        bad_index(spec)
+    }
+}
+
+/// [`bad_index_with`] under the grammar this thread's interpreter installed,
+/// as a message and the code it carries, for an option word read under it
+/// (`lsearch -start`, an `-index` step).
+#[must_use]
+pub fn bad_index_parts(spec: &[u8]) -> (Vec<u8>, Option<&'static [u8]>) {
+    let details = bad_index_with(
+        &String::from_utf8_lossy(spec),
+        tcl_syntax::number::runtime_syntax(),
+    )
+    .into_byte_details();
+    let coded = matches!(details.error_code, crate::error::CmdErrorCodeUpdate::Set(_));
+    (details.message, coded.then_some(&b"TCL VALUE INDEX"[..]))
+}
+
+/// The `bad index` error `release` raises for `spec`: 8.4 words the grammar
+/// it reads (`integer or end?-integer?`), 8.5 on the sums too, and from 8.6
+/// the error carries `TCL VALUE INDEX` (measured, 8.4.20 to 9.1.0).
+#[must_use]
+pub fn bad_index_under(spec: &str, release: TclVersion) -> CmdError {
+    if release < TclVersion::V8_5 {
+        return CmdError::new(format!(
+            "bad index \"{spec}\": must be integer or end?-integer?"
+        ));
+    }
+    let message = format!("bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?");
+    if release < TclVersion::V8_6 {
+        CmdError::new(message)
+    } else {
+        CmdError::with_error_code(message, "TCL VALUE INDEX")
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::IndexReading::{At, Bad, HostLong};
     use super::*;
+
+    /// `lsort -index <step> {{a b} {c d}}` against each release (tclsh 8.4.20,
+    /// 8.5.19, 8.6.18, 9.0.4, 9.1.0): a step before the first element names
+    /// the word from 9.0, the decoded index in 8.5/8.6 and 8.4's `end` = -2
+    /// encoding; a step past the end is the number everywhere.
+    #[test]
+    fn a_failed_step_is_named_as_each_release_names_it() {
+        let rows: &[(&str, [&str; 5])] = &[
+            ("end-5", ["-7", "-4", "-4", "end-5", "end-5"]),
+            ("end-3", ["-5", "-2", "-2", "end-3", "end-3"]),
+            ("7", ["7", "7", "7", "7", "7"]),
+        ];
+        let releases = [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ];
+        for (spec, names) in rows {
+            let step = PathEncoding::of(spec).expect("encodes");
+            let decoded = step.decode(2);
+            for (release, name) in releases.iter().zip(names) {
+                assert_eq!(
+                    failed_step_name(step, decoded, *release),
+                    *name,
+                    "{spec} {release:?}"
+                );
+            }
+        }
+    }
+
+    /// `TclCompileStringReplaceCmd` (8.6.18) settles the command on its encoded
+    /// indices without a replacement string, for a no-op it proves, for
+    /// `first` before the first element, and for `last` after the end with
+    /// `first` relative to `end`; otherwise `INST_STR_REPLACE` reads the words
+    /// at run time. Measured in a proc on `abcdefghijkl`: `string replace $s
+    /// end+2147483647 end X` is unchanged (the run-time reading replaces it
+    /// all), and so is `string replace $s 0 end+2147483647 X`, as at run time.
+    #[test]
+    fn string_replace_settles_on_its_encoded_indices_where_8_6_does() {
+        use super::Encoded::{After, Before, FromEnd, Index};
+        for (first, last, replacing, encoded) in [
+            (After, FromEnd(0), true, true),
+            (Index(0), After, true, false),
+            (Index(0), After, false, true),
+            (Before, After, true, true),
+            (FromEnd(-1), After, true, true),
+            (Index(2), Before, true, true),
+            (Index(2), FromEnd(-1), true, false),
+        ] {
+            assert_eq!(
+                string_replace_compiles_encoded(first, last, replacing),
+                encoded,
+                "{first:?} {last:?} replacing: {replacing}"
+            );
+        }
+    }
+
+    /// Each command's index words as 8.6's compile procedure encodes them, or
+    /// leaves them to the command. Measured on tclsh 8.6.18 in a proc with
+    /// `$l` `{a b c}` and `$i` 1: `lreplace $l end-2147483649 $i X` is
+    /// `X c` (read as it runs), `string range abcdef end-2147483649 $i` is
+    /// empty (a `first` after the end settles it), and `lrange $l 0
+    /// end+2147483647`, `lindex $l end-2147483649` and `linsert $l
+    /// end-2147483649 X` read their literal after the end.
+    #[test]
+    fn each_compile_procedure_encodes_its_own_index_words() {
+        let words = |compiler, words: &[Option<&str>]| {
+            compiled_index_words(compiler, words, TclVersion::V8_6)
+        };
+        let past = Some("end-2147483649");
+        let after = Some("2147483647");
+        assert_eq!(words(IndexCompiler::Lindex, &[past]), [after]);
+        assert_eq!(words(IndexCompiler::Linsert, &[past]), [after]);
+        assert_eq!(
+            words(IndexCompiler::Lrange, &[Some("0"), Some("end+2147483647")]),
+            [None, after]
+        );
+        assert_eq!(words(IndexCompiler::Lrange, &[past, None]), [None, None]);
+        assert_eq!(words(IndexCompiler::Lreplace, &[past, None]), [None, None]);
+        assert_eq!(
+            words(IndexCompiler::Lreplace, &[Some("2"), past]),
+            [None, after]
+        );
+        assert_eq!(
+            words(IndexCompiler::StringRange, &[past, None]),
+            [after, None]
+        );
+        assert_eq!(
+            words(
+                IndexCompiler::StringReplace { replacing: true },
+                &[Some("0"), Some("end+2147483647")]
+            ),
+            [None, None]
+        );
+        assert_eq!(
+            words(
+                IndexCompiler::StringReplace { replacing: false },
+                &[Some("0"), Some("end+2147483647")]
+            ),
+            [None, after]
+        );
+        for release in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V9_0] {
+            assert_eq!(
+                compiled_index_words(IndexCompiler::Lindex, &[past], release),
+                [None]
+            );
+        }
+    }
+
+    #[test]
+    fn string_replace_settles_as_the_compiler_does() {
+        use StringReplaceSettlement as S;
+        let at = |index| Some(Encoded::Index(index));
+        let end = Some(Encoded::FromEnd(0));
+        assert_eq!(settle_string_replace(at(5), at(2), true), S::Unchanged);
+        assert_eq!(settle_string_replace(at(0), at(2), true), S::Runtime);
+        assert_eq!(
+            settle_string_replace(Some(Encoded::Before), Some(Encoded::After), true),
+            S::Replacement
+        );
+        assert_eq!(settle_string_replace(at(0), end, false), S::Empty);
+        assert_eq!(settle_string_replace(at(1), end, false), S::Ranges);
+        assert_eq!(settle_string_replace(None, end, false), S::Runtime);
+    }
 
     #[test]
     fn jim_literal_index_expressions_preserve_end_encoding() {
@@ -2467,6 +3117,106 @@ mod tests {
         }
     }
 
+    /// A literal index word fixed as each release reads it whatever the length,
+    /// compiled in a body and read by its command at run time. Measured on
+    /// tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 with `string index`,
+    /// `string range` from each side, `lindex` and `lrange` over a 12-element
+    /// string and list, each word a literal inside a proc against the same
+    /// word in a variable (`end+2147483647` in a proc ranges the whole string
+    /// on 8.6 and nothing through a variable; 8.5 ranges nothing either way,
+    /// 9.0 and 9.1 the whole string either way). `None` is a reading that turns
+    /// on the length or the host, or `bad index`.
+    #[test]
+    fn a_literal_index_is_fixed_as_each_release_compiles_or_reads_it() {
+        use Encoded::{After, Before, FromEnd, Index};
+        use TclVersion::{V8_4, V8_5, V8_6, V9_0, V9_1};
+        // (spec, release, compiled, read at run time)
+        type Row = (&'static str, TclVersion, Option<Encoded>, Option<Encoded>);
+        let table: &[Row] = &[
+            ("end+2147483647", V8_6, Some(After), None),
+            ("end+2147483646", V8_6, Some(After), None),
+            ("end+2147483637", V8_6, Some(After), None),
+            ("end+2147483636", V8_6, Some(After), None),
+            ("end-2147483649", V8_6, Some(After), None),
+            ("end--2147483647", V8_6, Some(After), None),
+            ("end+1", V8_6, Some(After), None),
+            (
+                "end-2147483647",
+                V8_6,
+                Some(Before),
+                Some(FromEnd(-2_147_483_647)),
+            ),
+            ("end-2147483648", V8_6, Some(Before), None),
+            ("end+2147483648", V8_6, Some(Before), None),
+            ("end-1", V8_6, Some(FromEnd(-1)), Some(FromEnd(-1))),
+            ("end", V8_6, Some(FromEnd(0)), Some(FromEnd(0))),
+            ("e", V8_6, Some(FromEnd(0)), Some(FromEnd(0))),
+            ("end+4294967295", V8_6, Some(FromEnd(-1)), Some(FromEnd(-1))),
+            ("end+4294967296", V8_6, None, None),
+            (
+                "2147483647",
+                V8_6,
+                Some(Index(2_147_483_647)),
+                Some(Index(2_147_483_647)),
+            ),
+            ("2147483648", V8_6, Some(Before), Some(Before)),
+            (
+                "-2147483649",
+                V8_6,
+                Some(Index(2_147_483_647)),
+                Some(Index(2_147_483_647)),
+            ),
+            ("1+2147483647", V8_6, Some(Before), Some(Before)),
+            ("010", V8_6, Some(Index(8)), Some(Index(8))),
+            ("-1", V8_6, Some(Before), Some(Before)),
+            ("end+2147483647", V8_5, None, None),
+            ("end-2147483649", V8_5, None, None),
+            (
+                "end-2147483647",
+                V8_5,
+                Some(FromEnd(-2_147_483_647)),
+                Some(FromEnd(-2_147_483_647)),
+            ),
+            ("end-1", V8_5, Some(FromEnd(-1)), Some(FromEnd(-1))),
+            ("2147483648", V8_5, Some(Before), Some(Before)),
+            ("end-2147483649", V8_4, None, None),
+            ("end+1", V8_4, None, None),
+            ("end-1", V8_4, Some(FromEnd(-1)), Some(FromEnd(-1))),
+            (
+                "end+2147483647",
+                V9_0,
+                Some(FromEnd(2_147_483_647)),
+                Some(FromEnd(2_147_483_647)),
+            ),
+            (
+                "end-2147483649",
+                V9_0,
+                Some(FromEnd(-2_147_483_649)),
+                Some(FromEnd(-2_147_483_649)),
+            ),
+            (
+                "2147483648",
+                V9_0,
+                Some(Index(2_147_483_648)),
+                Some(Index(2_147_483_648)),
+            ),
+            ("end+1", V9_1, Some(FromEnd(1)), Some(FromEnd(1))),
+            ("010", V9_1, Some(Index(10)), Some(Index(10))),
+        ];
+        for &(spec, release, compiled, run_time) in table {
+            assert_eq!(
+                encode(spec, release, true),
+                compiled,
+                "{spec:?} compiled on {release:?}"
+            );
+            assert_eq!(
+                encode(spec, release, false),
+                run_time,
+                "{spec:?} read on {release:?}"
+            );
+        }
+    }
+
     /// The version-less entry takes the grammar this runtime was built for. The
     /// ambient starts at 9.0, so an unpinned process reads `010` as decimal —
     /// and pinning it to 8.5 flips the same spec to octal.
@@ -2478,6 +3228,31 @@ mod tests {
         assert_eq!(resolve_opt("010", 12), Some(10));
         set_runtime_syntax(NumberSyntax::Tcl85);
         assert_eq!(resolve_opt("010", 12), Some(8));
+        set_runtime_syntax(restore);
+    }
+
+    /// The grammar-taking entry ignores the installed grammar. Measured on a
+    /// 12-character subject with `string index` (LANG=C.UTF-8): `010` is 8
+    /// and `end-010` is 3 on tclsh 8.4.20, 8.5.19 and 8.6.18, 10 and 1 on
+    /// 9.0.4 and 9.1.0; `1_0` is `bad index` up to 8.6 and 10 from 9.0.
+    #[test]
+    fn the_grammar_taking_entry_ignores_the_installed_grammar() {
+        use tcl_syntax::number::{NumberSyntax, runtime_syntax, set_runtime_syntax};
+        let restore = runtime_syntax();
+        for ambient in [NumberSyntax::Tcl85, NumberSyntax::Tcl90] {
+            set_runtime_syntax(ambient);
+            for numbers in [NumberSyntax::Tcl84, NumberSyntax::Tcl85] {
+                assert_eq!(resolve_with("010", 12, numbers).ok(), Some(8));
+                assert_eq!(resolve_with("end-010", 12, numbers).ok(), Some(3));
+                assert!(resolve_with("1_0", 12, numbers).is_err());
+            }
+            assert_eq!(resolve_with("010", 12, NumberSyntax::Tcl90).ok(), Some(10));
+            assert_eq!(
+                resolve_with("end-010", 12, NumberSyntax::Tcl90).ok(),
+                Some(1)
+            );
+            assert_eq!(resolve_with("1_0", 12, NumberSyntax::Tcl90).ok(), Some(10));
+        }
         set_runtime_syntax(restore);
     }
 }

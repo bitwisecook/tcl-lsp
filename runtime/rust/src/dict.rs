@@ -101,6 +101,18 @@ unsafe fn dict_mut<'a>(obj: *mut TclObj) -> &'a mut TclDict {
     dictionary
 }
 
+/// `f` over `obj`'s entries when it already holds the dict rep — no shimmer.
+pub(crate) fn with_dict_rep<R>(
+    obj: *mut TclObj,
+    f: impl FnOnce(&[(*mut TclObj, *mut TclObj)]) -> R,
+) -> Option<R> {
+    if obj::obj_type_ptr(obj) != &TCL_DICT_TYPE {
+        return None;
+    }
+    // SAFETY: the dict type was just checked.
+    Some(f(&unsafe { dict_ref(obj) }.entries))
+}
+
 // type procs
 
 extern "C" fn dict_free(obj: *mut TclObj) {
@@ -1475,16 +1487,31 @@ impl DictError {
             }
         })
     }
+
+    /// The `-errorcode` C sets beside the message.
+    #[must_use]
+    pub fn error_code(&self) -> Vec<u8> {
+        match self {
+            Self::Parse { error, .. } => error
+                .error_code()
+                .replace(" LIST", " DICTIONARY")
+                .into_bytes(),
+            Self::MissingValue => b"TCL VALUE DICTIONARY".to_vec(),
+            Self::BraceJunk(_) | Self::QuoteJunk(_) => b"TCL VALUE DICTIONARY JUNK".to_vec(),
+            Self::UnmatchedBrace => b"TCL VALUE DICTIONARY BRACE".to_vec(),
+            Self::UnmatchedQuote => b"TCL VALUE DICTIONARY QUOTE".to_vec(),
+        }
+    }
 }
 
 /// Decoded (key, value) byte pairs from a dict's string rep.
-type BytePairs = Vec<(Vec<u8>, Vec<u8>)>;
+pub(crate) type BytePairs = Vec<(Vec<u8>, Vec<u8>)>;
 
 /// Parse `bytes` into dict (key, value) byte pairs — `SetDictFromAny`'s string
 /// path, over the shared list codec. A later duplicate key is *not* deduped
 /// here (the caller handles it); an odd element count is `missing value to go
 /// with key`.
-fn scan_dict_pairs(bytes: &[u8]) -> Result<BytePairs, DictError> {
+pub(crate) fn scan_dict_pairs(bytes: &[u8]) -> Result<BytePairs, DictError> {
     let elements = crate::parse::split_list(bytes).map_err(|error| DictError::Parse {
         error: error.shared(),
         source: bytes.to_vec(),

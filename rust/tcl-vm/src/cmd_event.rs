@@ -192,12 +192,8 @@ fn schedule(
     delay: Duration,
     kind: EventKind,
 ) -> Completion<Value> {
-    if Instant::now().checked_add(delay).is_none() {
-        return failure(
-            vm,
-            ValueError::CommandProtocolUnavailable("host timer deadline capacity"),
-        );
-    }
+    // A deadline past the clock's range saturates in the queue
+    // (`tcl_cmd_core::event::deadline_after`), as C accepts any wide delay.
     let original = match script(vm, p, args) {
         Ok(s) => s,
         Err(c) => return c,

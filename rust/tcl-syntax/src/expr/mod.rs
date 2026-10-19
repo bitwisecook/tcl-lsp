@@ -33,6 +33,7 @@ pub mod operators;
 pub mod parser;
 pub mod rand;
 pub mod substitution;
+pub mod syntax_84;
 pub mod syntax_error;
 pub mod wide;
 

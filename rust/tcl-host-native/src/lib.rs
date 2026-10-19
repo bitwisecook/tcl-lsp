@@ -37,6 +37,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::io::Write;
+use std::rc::Rc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use tcl_platform::{
@@ -61,12 +62,13 @@ impl NativeHost {
     /// A host with every native capability.
     #[must_use]
     pub fn new() -> Self {
+        let env = NativeEnv::default();
         Self {
             clock: NativeClock,
             stdio: NativeStdIo,
-            env: NativeEnv::default(),
+            env: env.clone(),
             fs: NativeFs,
-            process: NativeProcess,
+            process: NativeProcess { env },
             allow_filesystem: true,
             allow_process: true,
             integer_formatter: None,
@@ -247,10 +249,12 @@ impl StdIo for NativeStdIo {
 }
 
 /// Environment view: reads fall through to the real process environment, but
-/// writes are kept in a per-host override map (no `unsafe` global mutation).
-#[derive(Default)]
+/// writes and unsets are kept in a per-host override map (no `unsafe` global
+/// mutation), a `None` entry hiding a variable the process has. The map is
+/// shared with [`NativeProcess`], so a subprocess sees the same environment.
+#[derive(Default, Clone)]
 struct NativeEnv {
-    overrides: RefCell<HashMap<String, String>>,
+    overrides: Rc<RefCell<HashMap<String, Option<String>>>>,
 }
 
 impl Env for NativeEnv {
@@ -261,7 +265,7 @@ impl Env for NativeEnv {
 
     fn get(&self, key: &str) -> Option<String> {
         if let Some(v) = self.overrides.borrow().get(key) {
-            return Some(v.clone());
+            return v.clone();
         }
         std::env::var(key).ok()
     }
@@ -269,7 +273,11 @@ impl Env for NativeEnv {
     fn set(&self, key: &str, val: &str) {
         self.overrides
             .borrow_mut()
-            .insert(key.to_string(), val.to_string());
+            .insert(key.to_string(), Some(val.to_string()));
+    }
+
+    fn unset(&self, key: &str) {
+        self.overrides.borrow_mut().insert(key.to_string(), None);
     }
 
     fn vars(&self) -> Vec<(String, String)> {
@@ -280,8 +288,11 @@ impl Env for NativeEnv {
         let mut map: HashMap<String, String> = std::env::vars_os()
             .filter_map(|(key, value)| Some((key.into_string().ok()?, value.into_string().ok()?)))
             .collect();
-        for (k, v) in self.overrides.borrow().iter() {
-            map.insert(k.clone(), v.clone());
+        for (key, value) in self.overrides.borrow().iter() {
+            match value {
+                Some(value) => map.insert(key.clone(), value.clone()),
+                None => map.remove(key),
+            };
         }
         map.into_iter().collect()
     }
@@ -301,6 +312,25 @@ impl Env for NativeEnv {
             .ok()
             .map(|p| p.to_string_lossy().into_owned())
     }
+
+    /// The system user database's `pw_dir` for `user` (`getpwnam_r`).
+    fn user_home(&self, user: &str) -> Option<String> {
+        user_home(user)
+    }
+}
+
+#[cfg(unix)]
+fn user_home(user: &str) -> Option<String> {
+    if user.is_empty() {
+        return None;
+    }
+    let entry = nix::unistd::User::from_name(user).ok()??;
+    Some(entry.dir.to_string_lossy().into_owned())
+}
+
+#[cfg(not(unix))]
+fn user_home(_user: &str) -> Option<String> {
+    None
 }
 
 #[cfg(unix)]
@@ -310,7 +340,7 @@ impl tcl_platform::NativeEnvironmentBytes for NativeEnv {
         if let Ok(text) = std::str::from_utf8(key)
             && let Some(value) = self.overrides.borrow().get(text)
         {
-            return Some(value.as_bytes().to_vec());
+            return value.as_ref().map(|value| value.as_bytes().to_vec());
         }
         std::env::var_os(std::ffi::OsStr::from_bytes(key))
             .map(|value| value.as_os_str().as_bytes().to_vec())
@@ -603,15 +633,29 @@ fn meta_from(m: &std::fs::Metadata) -> Metadata {
     }
 }
 
-struct NativeProcess;
+/// Runs subprocesses in the host's environment: the process's own, with the
+/// [`NativeEnv`] overrides applied.
+struct NativeProcess {
+    env: NativeEnv,
+}
 
 impl Process for NativeProcess {
     fn run(&self, args: &[&str]) -> Result<ExecOutput, HostError> {
         let (cmd, rest) = args.split_first().ok_or(HostError::NotFound)?;
-        let output = std::process::Command::new(cmd)
-            .args(rest)
-            .output()
-            .map_err(|e| map_io(&e))?;
+        let mut command = std::process::Command::new(cmd);
+        command.args(rest);
+        for (key, value) in self.env.overrides.borrow().iter() {
+            // A NUL cannot reach a child's environment: C's `environ` cuts
+            // there, and `Command` would refuse to spawn at all.
+            if key.contains('\0') {
+                continue;
+            }
+            match value {
+                Some(value) => command.env(key, value.split('\0').next().unwrap_or_default()),
+                None => command.env_remove(key),
+            };
+        }
+        let output = command.output().map_err(|e| map_io(&e))?;
         Ok(ExecOutput {
             status: output.status.code().unwrap_or(-1),
             stdout: output.stdout,
@@ -756,6 +800,69 @@ mod tests {
             link_target
         );
         std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn an_unset_hides_the_process_variable_and_a_set_restores_it() {
+        let env = NativeEnv::default();
+        let path = env.get("PATH");
+        env.unset("PATH");
+        assert_eq!(env.get("PATH"), None);
+        assert!(env.vars().iter().all(|(key, _)| key != "PATH"));
+        env.set("PATH", "/x");
+        assert_eq!(env.get("PATH").as_deref(), Some("/x"));
+        assert!(env.vars().contains(&("PATH".to_owned(), "/x".to_owned())));
+        assert!(path.is_some(), "the test process has a PATH");
+    }
+
+    /// tclsh hands `set env() val` to a child as the entry `=val`.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn an_empty_name_reaches_a_subprocess() {
+        let host = NativeHost::new();
+        host.env().set("", "val");
+        let out = host
+            .process()
+            .expect("a process capability")
+            .run(&["cat", "/proc/self/environ"])
+            .expect("cat runs");
+        assert!(
+            out.stdout
+                .split(|&byte| byte == 0)
+                .any(|entry| entry == b"=val")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_subprocess_runs_in_the_hosts_environment() {
+        let host = NativeHost::new();
+        host.env().set("TCL_LSP_ENV_PROBE", "seen");
+        host.env().unset("HOME");
+        host.env().set("TCL_LSP_NUL\0NAME", "x");
+        host.env().set("TCL_LSP_NUL_VALUE", "a\0b");
+        let out = host
+            .process()
+            .expect("a process capability")
+            .run(&[
+                "sh",
+                "-c",
+                "echo \"$TCL_LSP_ENV_PROBE:${HOME-unset}:$TCL_LSP_NUL_VALUE\"",
+            ])
+            .expect("sh runs despite NULs in the overrides");
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "seen:unset:a");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_user_home_comes_from_the_system_user_database() {
+        let home = NativeEnv::default()
+            .user_home("root")
+            .expect("root has a home");
+        assert!(home.starts_with('/'), "{home}");
+        assert_eq!(NativeEnv::default().user_home("no_such_user_x"), None);
+        assert_eq!(NativeEnv::default().user_home(""), None);
+        assert_eq!(NativeEnv::default().user_home("a\0b"), None);
     }
 
     #[test]

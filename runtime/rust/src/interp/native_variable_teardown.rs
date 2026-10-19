@@ -47,6 +47,15 @@ impl Interp {
         if self.check_entered_native_operation().is_err() {
             return;
         }
+        // The native `env` trace keeps the host in step: an element's unset
+        // unsets the host variable (C's `EnvTraceProc`); the whole array's
+        // leaves the host alone.
+        if access.match_elem.is_some() && access.whole_array && self.env_trace_reaches(home) {
+            self.run_env_trace(access.match_elem.as_deref(), b"unset");
+            if self.check_entered_native_operation().is_err() {
+                return;
+            }
+        }
         self.fire_native_error_variable_trace(home, &access, b"unset");
         if self.check_entered_native_operation().is_err() {
             return;
@@ -123,7 +132,16 @@ impl Interp {
                         tcl_cmd_core::CmdError::from_execution_refusal(first)));
                 }
             }
+            // The `env` trace dies with its variable, whoever spells it; the
+            // binding it hangs off is gone once the variable is.
+            let unsets_env = element.is_none()
+                && home
+                    .as_ref()
+                    .is_some_and(|home| home.link_elem.is_none() && self.env_trace_reaches(home));
             let removed = selected.remove(self, scope.currency(), callbacks && level.is_none())?;
+            if removed && unsets_env {
+                self.disarm_env_trace();
+            }
             if let Some(home) = home.as_ref() {
                 if !removed && self.native_error_variable_at(home).is_some() {
                     let access = self.trace_access(spelling, root, element, home, true);

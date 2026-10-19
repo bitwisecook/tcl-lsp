@@ -729,8 +729,9 @@ pub fn inline_module(module: Module, registry: &CommandRegistry) -> Module {
 /// [`tcl_runtime_api::SiteClaim::ReferenceBody`] beside it, so the unit is
 /// admitted only while the live command is that definition and the pack that
 /// declared it is the one the runtime holds. A module that calls none, a plain
-/// dispatch compile, and a registry that holds no pack with a body are returned
-/// unchanged.
+/// dispatch compile, a release that keeps the commands running bytecode
+/// compiled (`TclVersion::revalidates_running_bytecode`), and a registry that
+/// holds no pack with a body are returned unchanged.
 ///
 /// `config` and `profile` are the compile's own, so a definition is read under
 /// the grammar its caller is.
@@ -741,7 +742,13 @@ pub fn inline_reference_bodies(
     config: tcl_lexer::LexerConfig,
     profile: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Module {
-    if module.plain_command_dispatch {
+    // A procedure body is a unit of its own that a release keeping the
+    // commands running bytecode compiled enters afresh at each call, which a
+    // body spliced into its caller would not be.
+    let release = profile.map_or(tcl_dialect::TclVersion::V9_0, |profile| {
+        profile.vm_runtime_version
+    });
+    if module.plain_command_dispatch || !release.revalidates_running_bytecode() {
         return module;
     }
     let imported = reference::import(&mut module, registry, config, profile);
@@ -2061,6 +2068,7 @@ fn substitute_irreturn(script: &Script, result_var: &str) -> Script {
         if let Statement::Return {
             span,
             value,
+            expr,
             braced,
             command_binding,
             ..
@@ -2075,6 +2083,9 @@ fn substitute_irreturn(script: &Script, result_var: &str) -> Script {
                     variable_context: None,
                     existing_namespace_cells: None,
                     source_tokens: None,
+                    shape: tcl_registry::release_compilation::InvocationShape::counted(
+                        usize::from(value.is_some() || expr.is_some()),
+                    ),
                 });
             }
             let v = value.clone().unwrap_or_default();

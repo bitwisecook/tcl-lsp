@@ -42,11 +42,32 @@ becomes `ERROR` with `-errorcode {TCL PACKAGE BADRESULT}`. For an `ifneeded`
 script the result is `attempt to provide package NAME VERSION failed: bad
 return code: N`; for `unknown` it is `bad return code: N`. The selected
 script is recorded in `-errorinfo` as `("package ifneeded NAME VERSION" script)`
-or `("package unknown" script)` respectively. The selected
-loader's transient provision and circular marker are cleared on failure,
-while its registration remains available for a later retry. This is owned by
-`tcl-vm/src/cmd_package.rs`; coroutine suspension is a separate execution
-state and must not be treated as a completed loader result.
+or `("package unknown" script)` respectively — for a loader, on every failure,
+including the `UNPROVIDED` and `WRONGPROVIDE` errors the require raises itself.
+The selected loader's transient provision and circular marker are cleared on
+failure, while its registration remains available for a later retry. This is
+owned by `tcl-vm/src/cmd_package.rs`.
+
+Each discovery script runs as a package activation on the VM's explicit
+stack at level `#0`, mirroring C's `PkgRequireCore` → `SelectPackage` →
+`SelectPackageFinal` NRE chain, so a coroutine `yield` inside either script
+suspends the require instead of failing with `cannot yield: C stack busy`
+(upstream package-3.54). Suspension is not a completion: the loader's circular
+marker stays set while the coroutine is parked, so a require of the same
+package from elsewhere is still circular, and the marker is retired only when
+the loader completes or the coroutine is deleted. Deleting the coroutine also
+withdraws any version the parked loader had already provided, as C does.
+
+Which `errorCode` a package diagnostic sets is release policy, owned by
+`tcl_dialect::TclVersion::package_error_code` over `PackageDiagnostic` and
+consumed by both `tcl-vm` and `runtime/rust`. Measured on tclsh 8.4.20–9.1.0:
+the `TCL PACKAGE …` (`BADRESULT`, `WRONGPROVIDE`, `UNPROVIDED`,
+`CIRCULARITY`, `VERSIONCONFLICT`, `UNFOUND`) and `TCL VALUE VERSION` /
+`VERSIONRANGE` codes arrive at 8.6, `package present`'s
+`TCL LOOKUP PACKAGE NAME` at 8.5; earlier releases leave `NONE`. A loader's
+own `ERROR` keeps its code on every release. 8.4 predates TIP 268: a
+requirement is one bare version (`1-2` is a bad version) and `-exact` is not
+spelled `exactly` in messages (`TclVersion::has_package_requirement_ranges`).
 
 ## Runtime package operands
 
@@ -492,6 +513,11 @@ infer an engine from a lexer grammar, or derive an error code from message text.
   `pull_path_applies_w120_package_refinement`).
 - `tcl-registry/tests/registry_sweep.rs` — registry-wide command / package
   coverage.
+- `tcl-vm/tests/package_diagnostics_e2e.rs` — per-release diagnostic messages
+  and `errorCode`; `runtime/rust/src/cmd_package.rs`
+  `package_error_codes_follow_the_pinned_release`.
+- `tcl-vm/tests/package_coro_e2e.rs` — coroutine suspension through package
+  loading; `tcl-vm/tests/tcltest_load.rs` runs upstream package-3.54.
 
 ## Cross-reference: tclpkg
 

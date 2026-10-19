@@ -654,6 +654,22 @@ where
     Ok(writes)
 }
 
+/// The text of the `("PATTERN" arm line N)` frame a body's error leaves,
+/// before ` line N`: the matched pattern quoted, cut at 50 bytes, with `...`
+/// after a cut from 8.5 (`SwitchPostProc`; 8.4's `%.50s` adds none).
+#[must_use]
+pub fn arm_frame_text(pattern: &[u8], release: tcl_dialect::TclVersion) -> Vec<u8> {
+    const LIMIT: usize = 50;
+    let overflow = pattern.len() > LIMIT;
+    let mut text = vec![b'"'];
+    text.extend_from_slice(&pattern[..pattern.len().min(LIMIT)]);
+    if overflow && release != tcl_dialect::TclVersion::V8_4 {
+        text.extend_from_slice(b"...");
+    }
+    text.extend_from_slice(b"\" arm");
+    text
+}
+
 /// `extra switch pattern with no body` — an odd number of pattern/body words.
 /// `comment_hint` appends the "misplaced comment" note (a braced body whose
 /// first word begins with `#`), matching C.

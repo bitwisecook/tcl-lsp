@@ -93,7 +93,7 @@ pub use embed::{FunctionHandle, ProcedureDefinitionError, VmCompilationError};
 pub use error::{TclError, TclHostFailure};
 pub use interp::native_scalar_ingress::NativeScalarIngress;
 pub use interp::{
-    NativeCommandLookupUnavailable, NativePreparedPublication, NativePublicationCommit,
+    LimitKind, NativeCommandLookupUnavailable, NativePreparedPublication, NativePublicationCommit,
     NativePublicationError, NativePublicationKey, NativePublicationPurpose,
     NativePublicationService, NativeRegisteredCommandToken, Vm,
 };

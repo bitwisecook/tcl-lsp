@@ -26,49 +26,8 @@ use tcl_registry::expr_surface::{MathFunctionCallTarget, RuntimeExprSurface};
 
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
-use crate::expr_ast::{BinOp, ExprNode, UnaryOp, render_expr};
+use crate::expr_ast::{BinOp, ExprNode, render_expr};
 use crate::tcl_expr_eval::{Env, FoldPolicy, TclValue, eval_tcl_expr_with_math_bindings};
-
-/// Operators whose constant integer value `eval_tcl_expr` computes soundly and
-/// which C Tcl folds at compile time: arithmetic, shift, bitwise, logical, and
-/// **numeric** comparison. Deliberately excludes string comparisons (`eq`/`lt`/
-/// …) and list membership (`in`/`ni`) — the evaluator has no string value type,
-/// so those cannot be folded soundly here — and every iRules dialect operator
-/// (`contains`, `and`/`or`, `matches_*`, …), which has no C-Tcl equivalent and
-/// must keep its dedicated opcode.
-const fn binop_folds(op: BinOp) -> bool {
-    matches!(
-        op,
-        BinOp::Add
-            | BinOp::Sub
-            | BinOp::Mul
-            | BinOp::Div
-            | BinOp::Mod
-            | BinOp::Pow
-            | BinOp::LShift
-            | BinOp::RShift
-            | BinOp::BitAnd
-            | BinOp::BitOr
-            | BinOp::BitXor
-            | BinOp::And
-            | BinOp::Or
-            | BinOp::Eq
-            | BinOp::Ne
-            | BinOp::Lt
-            | BinOp::Le
-            | BinOp::Gt
-            | BinOp::Ge
-    )
-}
-
-/// Unary operators eligible for constant integer folding (the standard numeric
-/// and logical ones; not the iRules word-`!`).
-const fn unaryop_folds(op: UnaryOp) -> bool {
-    matches!(
-        op,
-        UnaryOp::Neg | UnaryOp::Pos | UnaryOp::BitNot | UnaryOp::Not
-    )
-}
 
 /// Whether `text` begins the way a numeral does — an optional sign then an
 /// ASCII digit — which is what makes a failed parse a *bad number* rather than
@@ -421,6 +380,15 @@ impl CodegenCtx<'_> {
     }
 
     fn emit_prepared_expr(&mut self, node: &ExprNode) -> bool {
+        // The release compiles an expression, and the commands in it, even in
+        // a command it evaluates without compiling.
+        self.expr_depth += 1;
+        let emitted = self.emit_prepared_expr_at_depth(node);
+        self.expr_depth -= 1;
+        emitted
+    }
+
+    fn emit_prepared_expr_at_depth(&mut self, node: &ExprNode) -> bool {
         let bindings = crate::math_function_binding::ExpressionMathBindings::for_origin(
             &self.math_invocations,
             self.math_source.as_deref(),
@@ -634,11 +602,7 @@ impl CodegenCtx<'_> {
         // never mis-folded; float results are left to the normal path
         // (their string formatting is the runtime's job). Literals keep their
         // own arm (the caller's `tryCvtToNumeric` / invalid-prefix handling).
-        let foldable = match node {
-            ExprNode::Binary { op, .. } => binop_folds(*op),
-            ExprNode::Unary { op, .. } => unaryop_folds(*op),
-            _ => false,
-        };
+        let foldable = node.is_foldable_operation();
         let compiler_pools_constants =
             self.fold_policy()
                 .preparation_context()
@@ -648,13 +612,37 @@ impl CodegenCtx<'_> {
                     )
                 })
                 == Some(true);
+        // A computed `INT64_MIN` has no literal under 8.4 and 8.5, whose own
+        // string rep of it is `-8`, so the operation stays.
         if foldable
             && compiler_pools_constants
             && let Some(TclValue::Int(i)) = self.fold_integer_expression(node)
+            && let Some(text) = tcl_syntax::number::spell_wide(i, self.fold_policy().spelling())
         {
-            self.push_lit(&i.to_string());
+            self.push_lit(&text);
             return true;
         }
+        // A constant operator subexpression left unfolded may still be one C
+        // folds and fails to: mark its operations so an error they raise is
+        // reported as that fold failure. A statement evaluated directly
+        // evaluates its expressions as it runs, with no fold to fail.
+        if foldable
+            && self.vm_release().raises_folded_expr_errors()
+            && node.is_constant()
+            && !self.in_direct_statement()
+        {
+            let start = self.instructions.len();
+            let emitted = self.emit_expr_operation(node, depth);
+            for instruction in &mut self.instructions[start..] {
+                instruction.error_origin = tcl_bytecode::ErrorOrigin::ConstantFold;
+            }
+            return emitted;
+        }
+        self.emit_expr_operation(node, depth)
+    }
+
+    /// [`Self::emit_expr_at`] past constant folding.
+    fn emit_expr_operation(&mut self, node: &ExprNode, depth: u32) -> bool {
         match node {
             ExprNode::Literal { text, .. } => self.emit_expr_literal(text),
 

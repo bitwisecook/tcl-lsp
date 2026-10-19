@@ -74,8 +74,10 @@ pub(crate) fn regexp_matches(
     }
 }
 
-fn regex_completion(vm: &mut Vm, error: core_re::RegexError) -> Completion<Value> {
-    crate::command::completion_from_cmd_error(vm, error.into_cmd_error())
+/// A `regexp`/`regsub` failure as this VM's completion, keeping `TclRegError`'s
+/// `REGEXP …` code and the release's `TCL OPERATION REGEXP …` codes.
+pub(crate) fn regex_completion(vm: &mut Vm, error: core_re::RegexError) -> Completion<Value> {
+    vm.cmd_error(error.into_cmd_error())
 }
 
 pub(crate) fn register(vm: &mut Vm) {

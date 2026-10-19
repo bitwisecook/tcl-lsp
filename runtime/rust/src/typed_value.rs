@@ -1892,3 +1892,275 @@ mod native_number_tests;
 #[cfg(test)]
 #[path = "typed_value/native_scalar_input_tests.rs"]
 mod native_scalar_input_tests;
+
+// ---------------------------------------------------------------------------
+// The C typed reads (`Tcl_Get{Int,Long,WideInt,Double,Boolean}FromObj`) over a
+// live object, for the commands whose argument reads C makes through these
+// calls (`interp limit`, `after`, `time`, `file mtime`, `info level`, `seek`,
+// `read`, `incr`, `dict incr`, `zlib`, `string repeat`, `return -level`, ...).
+// Each read writes the parsed rep back as C does and fails with C's message
+// and `-errorcode` ([`TypedError`]); the native scalar getters above keep the
+// selected engine's primitive conversions.
+// ---------------------------------------------------------------------------
+
+/// A failed typed read: C's interpreter result and its `-errorcode` list text.
+pub(crate) struct TypedError {
+    /// The message C leaves as the interpreter result.
+    pub message: Vec<u8>,
+    /// The `-errorcode` list C sets alongside it.
+    pub code: &'static [u8],
+}
+
+impl TypedError {
+    /// C's integer overflow: `integer value too large to represent`, with the
+    /// message as the third word of `ARITH IOVERFLOW {…}`.
+    pub(crate) fn overflow() -> Self {
+        Self {
+            message: tcl_syntax::expr::errors::IOVERFLOW_MESSAGE
+                .as_bytes()
+                .to_vec(),
+            code: tcl_syntax::expr::errors::IOVERFLOW_CODE.as_bytes(),
+        }
+    }
+
+    pub(crate) fn is_overflow(&self) -> bool {
+        self.code == tcl_syntax::expr::errors::IOVERFLOW_CODE.as_bytes()
+    }
+
+    /// `expected <what> but got <value>` + `TCL VALUE NUMBER` — the error
+    /// `TclParseNumber`'s `formaterr` raises for every unparsable spelling.
+    fn expected(what: &str, obj: *mut TclObj) -> Self {
+        let bytes = obj::bytes_of(obj);
+        let text = String::from_utf8_lossy(&bytes);
+        let mut message = format!("expected {what} but got ").into_bytes();
+        message.extend_from_slice(tcl_syntax::list::describe_bad_value(&text).as_bytes());
+        TypedError {
+            message,
+            code: b"TCL VALUE NUMBER",
+        }
+    }
+}
+
+/// The code `tclObj.c` sets when an integer read meets an object holding a
+/// double.
+pub(crate) const HELD_DOUBLE_CODE: &[u8] = b"TCL VALUE INTEGER";
+
+/// Read `obj` as a Tcl wide integer — `Tcl_GetWideIntFromObj`.
+///
+/// A double-typed object is refused under C's own wording and `TCL VALUE
+/// INTEGER` code (`tclObj.c`); an integer past the wide range is C's
+/// [`TypedError::overflow`]; anything else unparsable is `TclParseNumber`'s
+/// `TCL VALUE NUMBER`.
+pub(crate) fn wide_int(obj: *mut TclObj) -> Result<i64, TypedError> {
+    if let Some(error) = held_double(obj) {
+        return Err(error);
+    }
+    read_wide_int(obj)
+}
+
+/// The refusal every integer read makes of an object already holding a
+/// double, before any reparse of its spelling (`tclObj.c`).
+pub(crate) fn held_double(obj: *mut TclObj) -> Option<TypedError> {
+    if obj::obj_type_ptr(obj) != &obj::TCL_DOUBLE_TYPE {
+        return None;
+    }
+    let bytes = obj::bytes_of(obj);
+    let mut message = b"expected integer but got \"".to_vec();
+    message.extend_from_slice(&bytes);
+    message.push(b'"');
+    Some(TypedError {
+        message,
+        code: HELD_DOUBLE_CODE,
+    })
+}
+
+/// Read `obj` as C Tcl reads a 64-bit `long` (`Tcl_GetLongFromObj` on an LP64
+/// host): a wide integer, or an integer past the wide range that is not
+/// negative and fits 64 bits unsigned, taken modulo 2^64 as C's `(long)` of an
+/// `unsigned long` takes it, so `18446744073709551615` reads -1. Past 64 bits,
+/// or below the wide range, it is the overflow [`wide_int`] reports.
+pub(crate) fn wide_int_modulo_unsigned(obj: *mut TclObj) -> Result<i64, TypedError> {
+    match wide_int(obj) {
+        Err(error) if error.is_overflow() => unsigned_past_wide(obj).ok_or(error),
+        read => read,
+    }
+}
+
+/// Read `obj` as C Tcl reads a `long` (`Tcl_GetLongFromObj`) on this target,
+/// as a wide integer for the caller to narrow. Where `long` is 32 bits
+/// (`wasm32`), an integer from `LONG_MIN` to `ULONG_MAX`, which the caller
+/// truncates; where it is 64 bits, [`wide_int_modulo_unsigned`]. Anything else
+/// is the overflow.
+pub(crate) fn long(obj: *mut TclObj) -> Result<i64, TypedError> {
+    if core::mem::size_of::<core::ffi::c_long>() == 4 {
+        let wide = wide_int(obj)?;
+        if (i64::from(i32::MIN)..=i64::from(u32::MAX)).contains(&wide) {
+            Ok(wide)
+        } else {
+            Err(TypedError::overflow())
+        }
+    } else {
+        wide_int_modulo_unsigned(obj)
+    }
+}
+
+/// Read `obj` as a C `int` — `Tcl_GetIntFromObj`, the read behind every
+/// `int`-typed count, level and option value: a [`long`] narrowed as C narrows
+/// it ([`tcl_syntax::value::narrow_to_c_int`]), so `4294967295` reads -1 and
+/// `4294967296` is the overflow.
+pub(crate) fn int(obj: *mut TclObj) -> Result<i32, TypedError> {
+    tcl_syntax::value::narrow_to_c_int(long(obj)?).map_err(|_| TypedError::overflow())
+}
+
+/// Check `obj` is an integer of any size — `Tcl_GetBignumFromObj`'s acceptance,
+/// with [`wide_int`]'s refusal for anything else.
+pub(crate) fn integer(obj: *mut TclObj) -> Result<(), TypedError> {
+    match wide_int(obj) {
+        Err(error) if !error.is_overflow() => Err(error),
+        _ => Ok(()),
+    }
+}
+
+/// Check `obj` is an `incr` operand the way `TclIncrObj` checks one: it reads
+/// the value as a number first, so a non-integer number is refused as the
+/// double it then holds (`TCL VALUE INTEGER`) and anything else as unparsable.
+pub(crate) fn incr_operand(obj: *mut TclObj) -> Result<(), TypedError> {
+    integer(obj).or_else(|error| match double(obj) {
+        Ok(_) => integer(obj),
+        Err(_) => Err(error),
+    })
+}
+
+impl From<TypedError> for tcl_cmd_core::CmdError {
+    fn from(error: TypedError) -> Self {
+        let code = String::from_utf8_lossy(error.code).into_owned();
+        Self::with_error_code(String::from_utf8_lossy(&error.message).into_owned(), code)
+    }
+}
+
+/// The bits of `obj`'s integer spelling as an `i64`, when the value is past the
+/// wide range, not negative, and fits 64 bits unsigned.
+fn unsigned_past_wide(obj: *mut TclObj) -> Option<i64> {
+    let bytes = obj::bytes_of(obj);
+    let text = core::str::from_utf8(&bytes).ok()?;
+    match tcl_syntax::number::parse_whole(text)? {
+        tcl_syntax::number::Number::Big {
+            negative: false,
+            radix,
+            digits,
+        } => u64::from_str_radix(&digits, radix as u32)
+            .ok()
+            // C's `(long)` of an `unsigned long`: the same 64 bits.
+            .map(|value| value as i64),
+        _ => None,
+    }
+}
+
+/// Read `obj` as a Tcl double — `Tcl_GetDoubleFromObj`. An integer or bignum
+/// widens; `NaN` is a value here (the boolean context is where it is an error).
+pub(crate) fn double(obj: *mut TclObj) -> Result<f64, TypedError> {
+    read_double(obj).ok_or_else(|| TypedError::expected("floating-point number", obj))
+}
+
+/// The wide-integer classification over the numeric tower.
+#[cfg(have_tommath)]
+fn read_wide_int(obj: *mut TclObj) -> Result<i64, TypedError> {
+    use crate::bignum::WideRead;
+    match crate::bignum::read_wide(obj) {
+        WideRead::Wide(value) => Ok(value),
+        WideRead::Overflow => Err(TypedError::overflow()),
+        WideRead::NotInteger | WideRead::NotNumeric => Err(TypedError::expected("integer", obj)),
+    }
+}
+
+/// The double read over the numeric tower.
+#[cfg(have_tommath)]
+fn read_double(obj: *mut TclObj) -> Option<f64> {
+    crate::bignum::read_double(obj)
+}
+
+/// Without the tower (a wasm build whose libtommath cross-compile was
+/// unavailable) the same classification runs over the shared number grammar
+/// alone: the typed reps still short-circuit, a beyond-wide integer is the same
+/// overflow, and the write-back still happens for the two reps this build has.
+#[cfg(not(have_tommath))]
+fn read_wide_int(obj: *mut TclObj) -> Result<i64, TypedError> {
+    use tcl_syntax::number::Number;
+    if obj::obj_type_ptr(obj) == &obj::TCL_INT_TYPE {
+        return Ok(obj::wide_of(obj));
+    }
+    match parse_string_rep(obj) {
+        Some(Number::Int(value)) => {
+            obj::cache_wide_rep(obj, value);
+            Ok(value)
+        }
+        Some(Number::Big { .. }) => Err(TypedError::overflow()),
+        _ => Err(TypedError::expected("integer", obj)),
+    }
+}
+
+/// [`read_double`] without the numeric tower — see [`read_wide_int`]'s note.
+#[cfg(not(have_tommath))]
+fn read_double(obj: *mut TclObj) -> Option<f64> {
+    use tcl_syntax::number::Number;
+    let type_ptr = obj::obj_type_ptr(obj);
+    if type_ptr == &obj::TCL_INT_TYPE {
+        return Some(obj::wide_of(obj) as f64);
+    }
+    if type_ptr == &obj::TCL_DOUBLE_TYPE {
+        return Some(obj::double_of(obj));
+    }
+    match parse_string_rep(obj)? {
+        Number::Int(value) => {
+            obj::cache_wide_rep(obj, value);
+            Some(value as f64)
+        }
+        Number::Double(value) => {
+            obj::cache_double_rep(obj, value);
+            Some(value)
+        }
+        // A parsed `Big` is beyond `i64`, but it still has a real double
+        // widening: C answers `1e23` for `99999999999999999999999`, not an
+        // infinity, and only overflows past `f64`'s range. Reporting ±Inf
+        // for every `Big` would be correct for the boolean read above, which
+        // only wants sign and non-zeroness, but wrong here: this is what
+        // `tcl_codegen_value_get_double` returns.
+        Number::Big {
+            negative,
+            radix,
+            digits,
+        } => {
+            let magnitude = big_magnitude_as_double(radix, &digits);
+            Some(if negative { -magnitude } else { magnitude })
+        }
+        Number::Nan { .. } => Some(f64::NAN),
+    }
+}
+
+/// Widen a beyond-wide magnitude to `f64` without a bignum — the tower-less
+/// stand-in for `mp_get_double`.
+///
+/// A decimal magnitude goes through Rust's own parser, which is correctly
+/// rounded and answers infinity exactly where the value really is past
+/// `f64::MAX`. A power-of-two radix folds digit by digit: every scaling step
+/// is an exact binary shift, so only the digit additions round, and each of
+/// those is below the running value's ULP once the magnitude passes `2^53`.
+#[cfg(not(have_tommath))]
+fn big_magnitude_as_double(radix: tcl_syntax::number::Radix, digits: &str) -> f64 {
+    let base = radix as u32;
+    if base == 10 {
+        return digits.parse::<f64>().unwrap_or(f64::INFINITY);
+    }
+    let scale = f64::from(base);
+    digits.chars().fold(0.0_f64, |acc, digit| {
+        acc * scale + f64::from(digit.to_digit(base).unwrap_or(0))
+    })
+}
+
+/// The shared number grammar over an object's string rep (tower-less build).
+#[cfg(not(have_tommath))]
+fn parse_string_rep(obj: *mut TclObj) -> Option<tcl_syntax::number::Number> {
+    let bytes = obj::bytes_of(obj);
+    let text = core::str::from_utf8(&bytes).ok()?;
+    tcl_syntax::number::parse_whole(text)
+}

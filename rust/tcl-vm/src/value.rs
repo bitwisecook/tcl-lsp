@@ -7668,6 +7668,18 @@ impl Value {
         Ok(value)
     }
 
+    /// The value as a C `int` (`Tcl_GetIntFromObj`): [`Self::as_int`] narrowed
+    /// as C narrows it ([`tcl_syntax::value::narrow_to_c_int`]), so
+    /// `4294967295` reads -1 and `4294967296` is the overflow.
+    pub fn as_c_int(&self) -> Result<i32, TclError> {
+        tcl_syntax::value::narrow_to_c_int(self.as_int()?).map_err(|_| {
+            TclError::with_error_code(
+                tcl_syntax::expr::errors::IOVERFLOW_MESSAGE,
+                tcl_syntax::expr::errors::IOVERFLOW_CODE,
+            )
+        })
+    }
+
     /// The value truncated to a 64-bit wide (`wide()`): an in-range integer
     /// as-is, else a bignum literal reduced modulo 2^64 and bit-cast to `i64`
     /// (two's-complement wrap — what C's `wide()` does, e.g.
@@ -9731,4 +9743,173 @@ mod jim_result_publication_tests {
         );
         assert!(untouched.resident_string_bytes().is_none());
     }
+}
+
+impl Value {
+    /// `tcl::unsupported::representation` of this value under `release`: its
+    /// rep as C names the type, its handle count and its address
+    /// ([`tcl_cmd_core::representation::describe`]). A boolean read from a
+    /// word (`yes`) is C's `boolean` (`booleanString` before 9.0); one a
+    /// comparison made is C's `int`.
+    pub(crate) fn representation(&self, release: tcl_dialect::TclVersion) -> Vec<u8> {
+        use tcl_cmd_core::representation::{Internal, Representation, describe};
+        let string = self.0.string.borrow().as_ref().map(RawString::bytes);
+        let address = |p: *const ()| p as usize;
+        let modern = release >= tcl_dialect::TclVersion::V9_0;
+        let boolean_word = |word: bool| match (word, modern) {
+            (false, _) => "int",
+            (true, true) => "boolean",
+            (true, false) => "booleanString",
+        };
+        let (type_name, internal): (Option<&str>, Internal) = match &*self.0.intrep.borrow() {
+            IntRep::Str => (None, Internal::None),
+            IntRep::NativeString { .. } | IntRep::JimString(_) => {
+                (Some("string"), Internal::Words(0, 0))
+            }
+            IntRep::ByteArray(rep) => (
+                Some(if modern {
+                    "proper bytearray"
+                } else {
+                    "bytearray"
+                }),
+                Internal::Words(address(Rc::as_ptr(rep).cast()), 0),
+            ),
+            IntRep::JimSource(_) => (Some("source"), Internal::Words(0, 0)),
+            IntRep::JimScript(_) => (Some("script"), Internal::Words(0, 0)),
+            IntRep::JimDictionarySubstitution { .. } => {
+                (Some("dict-substitution"), Internal::Words(0, 0))
+            }
+            IntRep::JimInterpolated(_) => (Some("interpolated"), Internal::Words(0, 0)),
+            IntRep::JimScriptLine { argc, line } => (
+                Some("scriptline"),
+                Internal::Words(
+                    usize::try_from(*argc).unwrap_or(0),
+                    usize::try_from(*line).unwrap_or(0),
+                ),
+            ),
+            IntRep::Expression(rep) => (
+                Some("exprcode"),
+                Internal::Words(address(Rc::as_ptr(rep).cast()), 0),
+            ),
+            IntRep::NativeRegexp(_) | IntRep::JimRegexp(_) => {
+                (Some("regexp"), Internal::Words(0, 0))
+            }
+            IntRep::JimIndex(_) => (Some("index"), Internal::Words(0, 0)),
+            IntRep::NativeEndOffset(_) => (Some("end-offset"), Internal::Words(0, 0)),
+            IntRep::NativePropertyName(_) => (Some("TclOO property name"), Internal::Words(0, 0)),
+            IntRep::NativeInstructionName(_) => (Some("instname"), Internal::Words(0, 0)),
+            IntRep::NativeMethodName(rep) => (
+                Some("TclOO method name"),
+                Internal::Words(address(Rc::as_ptr(rep).cast()), 0),
+            ),
+            IntRep::NativeBytecode(rep) => (
+                Some("bytecode"),
+                Internal::Words(address(Rc::as_ptr(rep).cast()), 0),
+            ),
+            IntRep::Int(n) | IntRep::Tcl84Long(n) => {
+                (Some("int"), Internal::Bits(n.cast_unsigned()))
+            }
+            IntRep::Tcl84Wide(n) => (Some("wideInt"), Internal::Bits(n.cast_unsigned())),
+            IntRep::Big { .. } => (Some("bignum"), Internal::Words(0, 0)),
+            IntRep::Double(x) => (Some("double"), Internal::Double(*x)),
+            #[allow(clippy::cast_precision_loss)]
+            IntRep::CoercedDouble(n) => (Some("coerced-double"), Internal::Double(*n as f64)),
+            IntRep::Bool(b) => {
+                let word = string
+                    .as_deref()
+                    .is_some_and(|s| s != b"0".as_slice() && s != b"1".as_slice());
+                (
+                    Some(boolean_word(word)),
+                    Internal::Words(usize::from(*b), 0),
+                )
+            }
+            IntRep::WordBoolean { value, .. } => (
+                Some(boolean_word(true)),
+                Internal::Words(usize::from(*value), 0),
+            ),
+            IntRep::CompletionCode(_) | IntRep::NativeIndex { .. } => {
+                (Some("index"), Internal::Words(0, 0))
+            }
+            IntRep::FrameLevel { .. } => (Some("levelReference"), Internal::Words(0, 0)),
+            IntRep::NativeArraySearch { .. } => (Some("array search"), Internal::Words(0, 0)),
+            IntRep::NativeCommandName(_) | IntRep::NativeCommandNameUnresolved(_) => {
+                (Some("cmdName"), Internal::Words(0, 0))
+            }
+            IntRep::JimCommand(_) => (Some("command"), Internal::Words(0, 0)),
+            IntRep::JimVariable(_) => (Some("variable"), Internal::Words(0, 0)),
+            IntRep::JimOption(_) => (Some("enum"), Internal::Words(0, 0)),
+            IntRep::JimSubcommand(_) => (Some("subcmd"), Internal::Words(0, 0)),
+            IntRep::NativeParsedVariableName(_) => (Some("parsedVarName"), Internal::Words(0, 0)),
+            IntRep::NativeLocalVariableName(_) => (Some("localVarName"), Internal::Words(0, 0)),
+            IntRep::NativeNamespaceName(_) => (Some("nsName"), Internal::Words(0, 0)),
+            IntRep::List { canonical, .. } => (
+                Some("list"),
+                Internal::Words(address(Rc::as_ptr(canonical).cast()), 0),
+            ),
+            IntRep::Dict(rep) => (
+                Some("dict"),
+                Internal::Words(address(Rc::as_ptr(rep).cast()), 0),
+            ),
+        };
+        describe(
+            &Representation {
+                type_name,
+                ref_count: Rc::strong_count(&self.0),
+                address: address(Rc::as_ptr(&self.0).cast()),
+                internal,
+                string: string.as_deref(),
+            },
+            release,
+        )
+    }
+}
+
+impl Value {
+    /// The bytes this value measures to without rendering it, stopping once
+    /// past `cap`: its string where it has one, a number's digits, and a
+    /// list's or dict's elements plus a separator between each (the quoting
+    /// rendering may add is not counted). A list is measured through its
+    /// elements rather than rendered, so a list holding itself twice, nested
+    /// a few dozen deep, costs one pass instead of more bytes than any host
+    /// has (the value-size budget, `charge_value_size`).
+    pub(crate) fn measured_bytes(&self, cap: u64) -> u64 {
+        self.measured_bytes_at_depth(cap, 0)
+    }
+
+    fn measured_bytes_at_depth(&self, cap: u64, depth: u32) -> u64 {
+        const MAX_DEPTH: u32 = 1000;
+        if let Some(s) = self.0.string.borrow().as_ref() {
+            return s.bytes().len() as u64;
+        }
+        let measured = {
+            let rep = self.0.intrep.borrow();
+            match &*rep {
+                IntRep::Str => Some(0),
+                IntRep::Bool(_) => Some(1),
+                IntRep::Int(n) | IntRep::Tcl84Long(n) | IntRep::Tcl84Wide(n) => Some(
+                    u64::from(n.unsigned_abs().checked_ilog10().unwrap_or(0) + 1)
+                        + u64::from(*n < 0),
+                ),
+                _ if depth >= MAX_DEPTH => Some(1),
+                IntRep::List { items, .. } => Some(measure_elements(items.iter(), cap, depth)),
+                _ => None,
+            }
+        };
+        measured.unwrap_or_else(|| self.string_bytes().len() as u64)
+    }
+}
+
+/// The bytes `items` measure to with a separator between each, stopping once
+/// past `cap`.
+fn measure_elements<'a>(items: impl Iterator<Item = &'a Value>, cap: u64, depth: u32) -> u64 {
+    let mut total = 0u64;
+    for (i, item) in items.enumerate() {
+        total = total
+            .saturating_add(u64::from(i > 0))
+            .saturating_add(item.measured_bytes_at_depth(cap.saturating_sub(total), depth + 1));
+        if total > cap {
+            break;
+        }
+    }
+    total
 }

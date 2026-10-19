@@ -1182,7 +1182,12 @@ mod tests {
             | CodegenHookId::Concat
             | CodegenHookId::Global
             | CodegenHookId::Upvar
-            | CodegenHookId::Uplevel => true,
+            | CodegenHookId::Uplevel
+            | CodegenHookId::Set
+            | CodegenHookId::ArraySet
+            | CodegenHookId::ArrayUnset
+            | CodegenHookId::Variable
+            | CodegenHookId::NamespaceUpvar => true,
         }
     }
 
@@ -1191,6 +1196,7 @@ mod tests {
         match h {
             InlineCodegenHookId::Expr
             | InlineCodegenHookId::Incr
+            | InlineCodegenHookId::Set
             | InlineCodegenHookId::InfoExists
             | InlineCodegenHookId::InfoLevel
             | InlineCodegenHookId::NamespaceCurrent
@@ -1213,7 +1219,13 @@ mod tests {
             | InlineCodegenHookId::Continue
             | InlineCodegenHookId::Try
             | InlineCodegenHookId::Yield
-            | InlineCodegenHookId::YieldTo => true,
+            | InlineCodegenHookId::YieldTo
+            | InlineCodegenHookId::StringIs
+            | InlineCodegenHookId::StringMatch
+            | InlineCodegenHookId::StringReplace
+            | InlineCodegenHookId::StringTrim
+            | InlineCodegenHookId::StringTrimLeft
+            | InlineCodegenHookId::StringTrimRight => true,
         }
     }
 

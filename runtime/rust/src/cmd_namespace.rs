@@ -424,24 +424,26 @@ fn ns_eval(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args_for_prefix(argv, 2, b"name arg ?arg...?");
     }
-    if argv.len() == 4 {
-        return interp.ns_eval_objects_with_arguments(
+    interp.with_script_evaluation("namespace eval", argv.len() - 3, |interp| {
+        if argv.len() == 4 {
+            return interp.ns_eval_objects_with_arguments(
+                argv[2],
+                argv[3],
+                tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+                Some(argv),
+            );
+        }
+        let body = match interp.concat_original_arguments(&argv[3..]) {
+            Ok(body) => obj::Owned::fresh(body),
+            Err(error) => return interp.report_cmd_error(error),
+        };
+        interp.ns_eval_objects_with_arguments(
             argv[2],
-            argv[3],
-            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceBody,
+            body.as_ptr(),
+            tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceConcat,
             Some(argv),
-        );
-    }
-    let body = match interp.concat_original_arguments(&argv[3..]) {
-        Ok(body) => obj::Owned::fresh(body),
-        Err(error) => return interp.report_cmd_error(error),
-    };
-    interp.ns_eval_objects_with_arguments(
-        argv[2],
-        body.as_ptr(),
-        tcl_registry::native_eval_object::EvalObjectPurpose::NamespaceConcat,
-        Some(argv),
-    )
+        )
+    })
 }
 
 /// `namespace exists name` — whether the namespace resolves.
@@ -1408,14 +1410,18 @@ fn ns_inscope(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         )
     };
     let location = interp.arg_location(argv[3]);
-    interp.ns_eval_in_token(
-        namespace,
-        &[],
-        location,
-        true,
-        Some((purpose, body.as_ptr())),
-        Some(argv),
-    )
+    // An error leaving the script is framed `(in namespace inscope "<fqn>"
+    // script line N)` (C's `NsEval_Callback` under `namespace inscope`).
+    interp.with_namespace_frame_command("inscope", |interp| {
+        interp.ns_eval_in_token(
+            namespace,
+            &[],
+            location,
+            true,
+            Some((purpose, body.as_ptr())),
+            Some(argv),
+        )
+    })
 }
 
 /// `namespace origin command` — the fully-qualified original name of `command`

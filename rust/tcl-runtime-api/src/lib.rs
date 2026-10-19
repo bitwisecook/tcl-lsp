@@ -814,6 +814,87 @@ pub struct ScriptCompileTarget<'a> {
     pub source: &'a str,
     /// Canonical unrooted constructed namespace key. Empty denotes global.
     pub namespace: &'a str,
+    /// How the emulated release evaluates the script's own commands.
+    pub evaluation: CommandEvaluation,
+}
+
+/// How the emulated release evaluates a command.
+///
+/// `tclsh` compiles every body a command evaluates, every script `source`
+/// reads and every command its stdin feeds it, but evaluates the commands of
+/// the script file it is given as `Tcl_EvalEx` does, one at a time without
+/// compiling them. A release whose compiler reads a literal word apart from
+/// its command (8.6's `TclIndexEncode`) reads such a command's words as the
+/// command does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum CommandEvaluation {
+    /// Compiled.
+    #[default]
+    Compiled,
+    /// Parsed and invoked without compiling it.
+    Direct,
+}
+
+/// Whether the emulated release binds a command when it compiles the
+/// enclosing script (its `compileProc` emits the command inline) or looks it
+/// up when the command runs. Observable only in a release whose running
+/// bytecode keeps the commands it compiled
+/// (`TclVersion::revalidates_running_bytecode`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ReleaseBinding {
+    /// Looked up each time the command runs.
+    Invoked,
+    /// Compiled inline wherever it appears.
+    Compiled,
+    /// Compiled inline only in a procedure body, whose local variable table
+    /// its `compileProc` needs; looked up elsewhere.
+    CompiledInProcedure,
+    /// Compiled inline only in a procedure body and outside the script body
+    /// of a `catch` compiled into it (8.4's `return`).
+    CompiledInProcedureOutsideCatch,
+}
+
+/// What a release's compile of a unit can see where a command stands.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct UnitKind {
+    /// The unit is a procedure body.
+    pub in_procedure: bool,
+    /// The command stands in the script body of a `catch` the release
+    /// compiled into the unit.
+    pub in_catch_body: bool,
+}
+
+impl ReleaseBinding {
+    /// Whether the command is bound at compile time where a unit of `kind`
+    /// holds it.
+    #[must_use]
+    pub fn binds(self, kind: UnitKind) -> bool {
+        match self {
+            Self::Invoked => false,
+            Self::Compiled => true,
+            Self::CompiledInProcedure => kind.in_procedure,
+            Self::CompiledInProcedureOutsideCatch => kind.in_procedure && !kind.in_catch_body,
+        }
+    }
+
+    /// The binding that holds where both `self` and `other` hold. Each
+    /// binding holds wherever the next one in `Invoked`,
+    /// `CompiledInProcedureOutsideCatch`, `CompiledInProcedure`, `Compiled`
+    /// does.
+    #[must_use]
+    pub fn meet(self, other: Self) -> Self {
+        let rank = |binding: Self| match binding {
+            Self::Invoked => 0,
+            Self::CompiledInProcedureOutsideCatch => 1,
+            Self::CompiledInProcedure => 2,
+            Self::Compiled => 3,
+        };
+        if rank(self) <= rank(other) {
+            self
+        } else {
+            other
+        }
+    }
 }
 
 /// A native script in its exact constructed byte namespace.
@@ -897,6 +978,40 @@ pub struct FatalTail {
     /// One-based line of the malformed command's first byte, for the
     /// enclosing `(procedure …)` / `("eval" body line N)` frames.
     pub line: u32,
+    /// The `while compiling` frames of a script the release refused to
+    /// compile whole ([`CompileFailure`]), which run nothing at all and
+    /// replace the `while executing` frame `command_text` would log.
+    pub compile_info: Option<String>,
+    /// The `-errorcode` the error carries, where it carries one.
+    pub error_code: Option<String>,
+}
+
+/// What a release that compiles a script whole compiles at once.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CompileUnit {
+    /// A procedure body, compiled when the procedure is first called.
+    ProcedureBody,
+    /// A script a command evaluates, or a chunk of commands `tclsh` reads
+    /// from its stdin, compiled whole.
+    Script,
+}
+
+/// Why a release that compiles a script whole refused it: the error, the
+/// `-errorinfo` frames after the message (a `while compiling` frame per
+/// script the failure is nested in, and the context line each compile
+/// procedure adds), and the line of the failing command in the script.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompileFailure {
+    /// The error message.
+    pub message: String,
+    /// The `-errorinfo` text that follows the message.
+    pub error_info: String,
+    /// One-based line of the outermost failing command (C's
+    /// `iPtr->errorLine`).
+    pub line: u32,
+    /// The `-errorcode` the error carries, where it carries one (a numeral
+    /// 8.4's expression parser cannot read).
+    pub error_code: Option<String>,
 }
 
 impl FatalTail {
@@ -911,6 +1026,21 @@ impl FatalTail {
             command_text: Vec::new(),
             compilation_command_text: None,
             line: 0,
+            compile_info: None,
+            error_code: None,
+        }
+    }
+
+    /// The tail a refused compile raises before anything runs.
+    #[must_use]
+    pub fn compile_failure(failure: CompileFailure) -> Self {
+        Self {
+            message: failure.message,
+            command_text: Vec::new(),
+            compilation_command_text: None,
+            line: failure.line,
+            compile_info: Some(failure.error_info),
+            error_code: failure.error_code,
         }
     }
 }
@@ -1248,6 +1378,19 @@ pub trait CompileService {
         _profile: &'static tcl_dialect::DialectProfile,
     ) -> Result<ScriptCommandPlan, CompileError> {
         Ok(ScriptCommandPlan::complete(src.len()))
+    }
+
+    /// Why a release that compiles a script whole
+    /// (`TclVersion::compile_errors_fail_scripts`) refuses `src`, compiled as
+    /// `unit`; `None` when it compiles. The default knows of no refusal.
+    fn compile_failure_for_profile(
+        &self,
+        src: &str,
+        profile: &'static tcl_dialect::DialectProfile,
+        unit: CompileUnit,
+    ) -> Option<CompileFailure> {
+        let _ = (src, profile, unit);
+        None
     }
 
     /// Compile a procedure body for an exact dialect profile and dispatch

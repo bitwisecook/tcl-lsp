@@ -77,8 +77,9 @@ pub type Num = NumValue<NoBig>;
 pub enum NoBig {}
 
 impl super::super::number_tower::BigIntOps for NoBig {
+    const HAS_BIGNUM_RUNG: bool = false;
     fn from_i64(_: i64) -> Self {
-        unreachable!()
+        unreachable!("NoBig has no value; promote through `promote_i64`")
     }
     fn to_i64(&self) -> Option<i64> {
         match *self {}
@@ -133,14 +134,6 @@ impl super::super::number_tower::BigIntOps for NoBig {
     }
     fn to_f64(&self) -> f64 {
         match *self {}
-    }
-    /// A backend with no arbitrary-precision rung cannot represent a double
-    /// outside the wide range, so it declines rather than panicking in the
-    /// default implementation's `from_i64`. Callers (the const-folder) read
-    /// the `None` as "abstain", which is exactly right: the value is a real
-    /// bignum they have no way to carry.
-    fn from_f64_trunc(_: f64) -> Option<Self> {
-        None
     }
 }
 
@@ -245,6 +238,13 @@ pub enum MathFuncError {
     NegativeSqrt,
     /// Jim's integer power rejects zero with a negative integer exponent.
     JimZeroToNegativePower,
+    /// Tcl 8.4: a result past the double range (`floating-point value too
+    /// large to represent`, `-errorcode ARITH OVERFLOW …`).
+    FloatOverflow,
+    /// Tcl 8.4: a zero result where the exact value is not zero
+    /// (`floating-point value too small to represent`, `-errorcode ARITH
+    /// UNDERFLOW …`).
+    FloatUnderflow,
     /// **Not a Tcl error.** There is no answer *this caller* can carry: its
     /// backend has no arbitrary-precision rung ([`Num`], the const-folder's
     /// shape) or it did not resolve a release and `int()`'s width is
@@ -266,6 +266,8 @@ impl MathFuncError {
             MathFuncError::Domain => super::errors::DOMAIN_MESSAGE,
             MathFuncError::NegativeSqrt => "square root of negative argument",
             MathFuncError::JimZeroToNegativePower => "exponentiation of zero by negative power",
+            MathFuncError::FloatOverflow => super::errors::FLOAT_OVERFLOW_MESSAGE,
+            MathFuncError::FloatUnderflow => super::errors::FLOAT_UNDERFLOW_MESSAGE,
             _ => "",
         }
     }
@@ -280,6 +282,8 @@ impl MathFuncError {
             MathFuncError::NotANumber => super::errors::NAN_CODE,
             MathFuncError::JimZeroToNegativePower => "NONE",
             MathFuncError::Domain | MathFuncError::NegativeSqrt => super::errors::DOMAIN_CODE,
+            MathFuncError::FloatOverflow => super::errors::FLOAT_OVERFLOW_CODE,
+            MathFuncError::FloatUnderflow => super::errors::FLOAT_UNDERFLOW_CODE,
             _ => "",
         }
     }
@@ -498,6 +502,78 @@ fn jim_math_float_to_wide(value: f64) -> i64 {
     }
 }
 
+/// [`try_dispatch_with_backend_int_width`] under `release`: its `int()` width,
+/// and the checks Tcl 8.4 makes after each call. 8.4 refuses a double past the
+/// integer range in `int`, `wide` and `round` (`ExprIntFunc`, `ExprWideFunc`,
+/// `ExprRoundFunc`), and checks `errno` and the result of every other function
+/// (`ExprUnaryFunc`, `ExprBinaryFunc`).
+///
+/// # Errors
+/// As [`try_dispatch_with_backend_int_width`], and under 8.4
+/// [`MathFuncError::IntegerOverflow`], [`MathFuncError::FloatOverflow`],
+/// [`MathFuncError::FloatUnderflow`] or [`MathFuncError::Domain`].
+pub fn try_dispatch_for_release<B: super::super::number_tower::BigIntOps>(
+    name: &str,
+    args: &[NumValue<B>],
+    release: tcl_dialect::TclVersion,
+) -> Result<NumValue<B>, MathFuncError> {
+    let checks = release.raises_float_range_errors();
+    if checks && matches!(args, [NumValue::Float(x)] if integer_conversion_overflows_84(name, *x)) {
+        return Err(MathFuncError::IntegerOverflow);
+    }
+    let result =
+        try_dispatch_with_backend_int_width(name, args, IntWidth::for_tcl_version(release))?;
+    match result {
+        NumValue::Float(value) if checks => {
+            let operands: Vec<f64> = args.iter().map(NumValue::as_f64).collect();
+            float_function_error(name, &operands, value).map_or(Ok(result), Err)
+        }
+        _ => Ok(result),
+    }
+}
+
+/// What 8.4 makes of `value`, the double `name` computed from `args`
+/// (`TclExprFloatError` after the `errno` check): a NaN is a domain error, an
+/// infinity too large, and a zero where the exact value is not zero too small.
+/// The C library reports `ERANGE` only for a result that overflows or
+/// underflows to zero, so a subnormal one passes (tclsh 8.4.20: `exp(-745)` is
+/// `4.94065645841e-324`, `exp(-746)` is too small).
+fn float_function_error(name: &str, args: &[f64], value: f64) -> Option<MathFuncError> {
+    if value.is_nan() {
+        Some(MathFuncError::Domain)
+    } else if value.is_infinite() {
+        Some(MathFuncError::FloatOverflow)
+    } else if value == 0.0 && exact_value_is_non_zero(name, args) {
+        Some(MathFuncError::FloatUnderflow)
+    } else {
+        None
+    }
+}
+
+/// Whether the exact value of `name` over the finite `args` is non-zero, so a
+/// zero result is an underflow rather than the answer.
+fn exact_value_is_non_zero(name: &str, args: &[f64]) -> bool {
+    match (name, args) {
+        ("exp", _) => true,
+        ("pow" | "atan2", [first, _]) => *first != 0.0,
+        ("sin" | "tan" | "asin" | "atan" | "sinh" | "tanh", [x]) => *x != 0.0,
+        _ => false,
+    }
+}
+
+/// Whether 8.4 refuses the double `x` in the integer conversion `name`: `int`
+/// and `wide` beyond ±2^63, `round` once rounded to ±2^63 or beyond (tclsh
+/// 8.4.20: `int(9.3e18)` and `round(9223372036854775807.0)` are `integer value
+/// too large to represent`, `int(9223372036854775807.0)` is not).
+fn integer_conversion_overflows_84(name: &str, x: f64) -> bool {
+    const LIMIT: f64 = 9_223_372_036_854_775_808.0;
+    match name {
+        "int" | "wide" => x.abs() > LIMIT,
+        "round" => x.round().abs() >= LIMIT,
+        _ => false,
+    }
+}
+
 /// Whether `v` is negative (`isqrt`'s own refusal, which C words specially).
 fn is_negative<B: super::super::number_tower::BigIntOps>(v: &NumValue<B>) -> bool {
     match v {
@@ -509,13 +585,16 @@ fn is_negative<B: super::super::number_tower::BigIntOps>(v: &NumValue<B>) -> boo
 
 /// Whether a `None` from the value table means "no answer this caller can
 /// carry" rather than "C would raise a domain error": an exact conversion
-/// whose result needs a bignum rung the backend lacks, or `int()` under an
-/// unresolved release.
+/// (or `abs(i64::MIN)`) whose result needs a bignum rung the backend lacks,
+/// or `int()` under an unresolved release.
 fn abstains<B: super::super::number_tower::BigIntOps>(
     name: &str,
     args: &[NumValue<B>],
     int_width: IntWidth,
 ) -> bool {
+    if name == "abs" {
+        return !B::HAS_BIGNUM_RUNG && matches!(args[0], NumValue::Int(i64::MIN));
+    }
     if !converts_to_integer(name) {
         return false;
     }
@@ -524,9 +603,7 @@ fn abstains<B: super::super::number_tower::BigIntOps>(
         NumValue::Big(b) => b.to_i64().is_none(),
         NumValue::Int(_) => false,
     };
-    beyond_wide
-        && (B::from_f64_trunc(1.0e300).is_none()
-            || (name == "int" && int_width == IntWidth::Unresolved))
+    beyond_wide && (!B::HAS_BIGNUM_RUNG || (name == "int" && int_width == IntWidth::Unresolved))
 }
 
 /// Dispatch a math function by (lowercased) `name` over already-evaluated
@@ -540,6 +617,25 @@ fn abstains<B: super::super::number_tower::BigIntOps>(
 #[must_use]
 pub fn dispatch(name: &str, args: &[Num]) -> Option<Num> {
     dispatch_with_backend(name, args)
+}
+
+/// [`dispatch`] as an implementation reading numbers under `numbers`
+/// computes `name`, or `None` where this table does not model its answer.
+///
+/// Jim's `pow` is its `**` operator (`JimExprOpBin`, `jim.c`), an integer
+/// power when both operands are integers
+/// ([`NumberSyntax::pow_of_integers_is_integer`]): jimsh 0.84 prints `8` for
+/// `pow(2,3)` and `0` for `pow(2,-1)`, where tclsh 8.4.20 to 9.1.0 print `8.0`
+/// and `0.5`. That case declines; a double operand computes alike.
+///
+/// [`NumberSyntax::pow_of_integers_is_integer`]: tcl_dialect::NumberSyntax::pow_of_integers_is_integer
+#[must_use]
+pub fn dispatch_under(name: &str, args: &[Num], numbers: tcl_dialect::NumberSyntax) -> Option<Num> {
+    let integer_operands = args.iter().all(|arg| matches!(arg, Num::Int(_)));
+    if name == "pow" && integer_operands && numbers.pow_of_integers_is_integer() {
+        return None;
+    }
+    dispatch(name, args)
 }
 
 /// Dispatch through the same math-function table while preserving the
@@ -594,6 +690,33 @@ pub fn dispatch_with_backend_int_width<B: super::super::number_tower::BigIntOps>
 #[must_use]
 pub fn accepts_boolean_operand(name: &str) -> bool {
     name == "bool"
+}
+
+/// The message and `-errorcode` `release` gives an argument of the math
+/// function `name` that is no number: 8.4's `ExprUnaryFunc` and kin one
+/// message and no code, from 8.5 the reader's own words with `TCL VALUE
+/// NUMBER`.
+#[must_use]
+pub fn non_numeric_argument_error(
+    name: &str,
+    value: &str,
+    release: tcl_dialect::TclVersion,
+) -> (String, &'static str) {
+    if release == tcl_dialect::TclVersion::V8_4 {
+        return (
+            "argument to math function didn't have numeric value".to_owned(),
+            "NONE",
+        );
+    }
+    let expected = if expects_floating_operand_error(name) {
+        "floating-point number"
+    } else {
+        "number"
+    };
+    (
+        format!("expected {expected} but got \"{value}\""),
+        "TCL VALUE NUMBER",
+    )
 }
 
 /// Whether a failed operand parse uses Tcl's floating-point error wording.
@@ -1370,8 +1493,10 @@ fn type_conv<B: super::super::number_tower::BigIntOps>(
         }))),
         _ if matches!(v, NumValue::Float(f) if f.is_nan()) => None,
         "abs" => match v {
+            // `abs(i64::MIN)` is `2^63`, past the wide rung: a backend with no
+            // bignum rung declines (`None`) rather than invent a value.
             NumValue::Int(i) => i.checked_abs().map_or_else(
-                || Some(NumValue::Big(B::from_i64(*i).neg())),
+                || B::promote_i64(*i).map(|b| NumValue::Big(b.neg())),
                 |m| Some(NumValue::Int(m)),
             ),
             NumValue::Big(b) => Some(NumValue::Big(b.abs())),
@@ -1433,6 +1558,7 @@ fn type_conv<B: super::super::number_tower::BigIntOps>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::number_tower::BigIntOps;
 
     /// Every built-in has a class of its own, and the classes are what the
     /// interpreters return (tclsh 8.4 to 9.1: `int(2.5)` is 2, `ceil(3.14)`
@@ -1471,6 +1597,45 @@ mod tests {
         );
     }
 
+    /// Tcl 8.4 checks each result as tclsh 8.4.20 does; 8.5 on keep it.
+    #[test]
+    fn release_range_checks() {
+        use tcl_dialect::TclVersion::{V8_4, V8_6};
+        let call = |name: &str, args: &[f64], release| {
+            let args: Vec<Num> = args.iter().map(|&f| Num::Float(f)).collect();
+            try_dispatch_for_release(name, &args, release)
+        };
+        let refused = [
+            ("exp", vec![-1000.0], MathFuncError::FloatUnderflow),
+            ("exp", vec![710.0], MathFuncError::FloatOverflow),
+            ("pow", vec![10.0, -400.0], MathFuncError::FloatUnderflow),
+            ("pow", vec![0.0, -1.0], MathFuncError::FloatOverflow),
+            ("atan2", vec![1e-300, 1e300], MathFuncError::FloatUnderflow),
+            ("log", vec![0.0], MathFuncError::FloatOverflow),
+            ("cosh", vec![1000.0], MathFuncError::FloatOverflow),
+            ("sqrt", vec![-1.0], MathFuncError::Domain),
+            ("int", vec![9.3e18], MathFuncError::IntegerOverflow),
+            ("wide", vec![-9.3e18], MathFuncError::IntegerOverflow),
+            ("round", vec![9.3e18], MathFuncError::IntegerOverflow),
+        ];
+        for (name, args, error) in refused {
+            assert_eq!(call(name, &args, V8_4), Err(error), "{name}{args:?}");
+        }
+        let kept = [
+            ("exp", vec![-745.0]),
+            ("pow", vec![0.0, 0.0]),
+            ("atan2", vec![0.0, 0.0]),
+            ("fmod", vec![0.0, 1.0]),
+            ("tanh", vec![1000.0]),
+            ("round", vec![9.2e18]),
+        ];
+        for (name, args) in kept {
+            assert!(call(name, &args, V8_4).is_ok(), "{name}{args:?}");
+        }
+        assert_eq!(call("exp", &[-1000.0], V8_6), Ok(Num::Float(0.0)));
+        assert_eq!(call("cosh", &[1000.0], V8_6), Ok(Num::Float(f64::INFINITY)));
+    }
+
     #[test]
     fn float_functions() {
         assert_eq!(dispatch("sqrt", &[Num::Int(4)]), Some(Num::Float(2.0)));
@@ -1484,6 +1649,32 @@ mod tests {
             dispatch("pow", &[Num::Int(2), Num::Int(10)]),
             Some(Num::Float(1024.0))
         );
+    }
+
+    /// Jim's `pow` of two integers is an integer power (jimsh 0.84: `pow(2,3)`
+    /// is `8`, `pow(2,-1)` is `0`); every Tcl release computes C `pow`.
+    #[test]
+    fn dispatch_under_declines_jims_integer_pow() {
+        use tcl_dialect::NumberSyntax;
+        let ints = [Num::Int(2), Num::Int(3)];
+        for jim in [NumberSyntax::Jim, NumberSyntax::Jim080] {
+            assert_eq!(dispatch_under("pow", &ints, jim), None);
+            assert_eq!(
+                dispatch_under("pow", &[Num::Float(2.0), Num::Int(3)], jim),
+                Some(Num::Float(8.0))
+            );
+            assert_eq!(
+                dispatch_under("hypot", &[Num::Int(3), Num::Int(4)], jim),
+                Some(Num::Float(5.0))
+            );
+        }
+        for tcl in [
+            NumberSyntax::Tcl84,
+            NumberSyntax::Tcl85,
+            NumberSyntax::Tcl90,
+        ] {
+            assert_eq!(dispatch_under("pow", &ints, tcl), Some(Num::Float(8.0)));
+        }
     }
 
     #[test]
@@ -1554,6 +1745,118 @@ mod tests {
             dispatch("isinf", &[Num::Float(f64::NAN)]),
             Some(Num::Int(0))
         );
+    }
+
+    /// The wide-range edges every integer/double conversion in the table has
+    /// to survive: the most negative wide (whose `abs` and negation promote),
+    /// the first doubles past each wide bound, and the non-finite operands.
+    fn edge_operands<B: BigIntOps>() -> Vec<NumValue<B>> {
+        vec![
+            NumValue::Int(i64::MIN),
+            NumValue::Int(i64::MIN + 1),
+            NumValue::Int(-1),
+            NumValue::Int(0),
+            NumValue::Int(1),
+            NumValue::Int(i64::MAX),
+            NumValue::Float(I64_MIN_F64),
+            NumValue::Float(I64_MAX_PLUS_ONE_F64),
+            NumValue::Float(1.0e19),
+            NumValue::Float(1.0e300),
+            NumValue::Float(-1.0e300),
+            NumValue::Float(f64::INFINITY),
+            NumValue::Float(f64::NAN),
+            NumValue::Float(-0.0),
+            NumValue::Float(5e-324),
+        ]
+    }
+
+    const WIDTHS: [IntWidth; 3] = [
+        IntWidth::Windowed,
+        IntWidth::Unbounded,
+        IntWidth::Unresolved,
+    ];
+
+    /// `abs(-9223372036854775808)` is `2^63`, past the wide rung. A backend
+    /// with no bignum rung (`Num`, the const-folder's shape) must decline —
+    /// it once reached `NoBig::from_i64` and aborted `tcl opt` / `tcl diag`
+    /// (#2401). tclsh 8.5 to 9.1 answer `9223372036854775808`, 8.4 raises
+    /// `ARITH IOVERFLOW`, and jimsh 0.84 wraps to `-9223372036854775808`, so
+    /// no single wide answer is right either.
+    #[test]
+    fn abs_of_the_most_negative_wide_declines_without_a_bignum_rung() {
+        assert_eq!(dispatch("abs", &[Num::Int(i64::MIN)]), None);
+        const { assert!(!NoBig::HAS_BIGNUM_RUNG) };
+        assert!(NoBig::promote_i64(i64::MIN).is_none());
+        assert!(NoBig::from_f64_trunc(1.0e300).is_none());
+        for width in WIDTHS {
+            assert_eq!(
+                try_dispatch_with_backend_int_width::<NoBig>("abs", &[Num::Int(i64::MIN)], width),
+                Err(MathFuncError::Abstain),
+                "{width:?}"
+            );
+        }
+        assert_eq!(
+            dispatch("abs", &[Num::Int(i64::MIN + 1)]),
+            Some(Num::Int(i64::MAX))
+        );
+        assert_eq!(
+            dispatch("abs", &[Num::Float(I64_MIN_F64)]),
+            Some(Num::Float(-I64_MIN_F64))
+        );
+    }
+
+    /// No call over the wide edges reaches the unreachable `NoBig::from_i64`:
+    /// every function, every arity, every width.
+    #[test]
+    fn a_backend_without_a_bignum_rung_never_panics() {
+        let operands = edge_operands::<NoBig>();
+        for &name in ALL_NAMES {
+            for width in WIDTHS {
+                for a in &operands {
+                    let _ = try_dispatch_with_backend_int_width(name, &[*a], width);
+                    for b in &operands {
+                        let _ = try_dispatch_with_backend_int_width(name, &[*a, *b], width);
+                        for c in &operands {
+                            let _ = try_dispatch_with_backend_int_width(name, &[*a, *b, *c], width);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// The no-bignum backend only ever declines: whenever `Num` answers, a real
+    /// bignum backend gives the identical wide or double, and a bignum answer
+    /// (or a conversion whose exact intermediate is one) is declined, never
+    /// approximated.
+    #[cfg(feature = "num-bigint")]
+    #[test]
+    fn a_backend_without_a_bignum_rung_agrees_wherever_it_answers() {
+        use num_bigint::BigInt;
+        let narrow = edge_operands::<NoBig>();
+        let wide = edge_operands::<BigInt>();
+        let agree = |name: &str, width, n: &[Num], w: &[NumValue<BigInt>]| {
+            let want = dispatch_with_backend_int_width::<BigInt>(name, w, width);
+            let got = dispatch_with_backend_int_width::<NoBig>(name, n, width);
+            match (want, got) {
+                (Some(NumValue::Int(a)), Some(NumValue::Int(b))) => assert_eq!(a, b, "{name}"),
+                (Some(NumValue::Float(a)), Some(NumValue::Float(b))) => {
+                    assert_eq!(a.to_bits(), b.to_bits(), "{name}");
+                }
+                (_, None) => {}
+                (want, got) => panic!("{name}{n:?} {width:?}: {want:?} vs {got:?}"),
+            }
+        };
+        for &name in ALL_NAMES {
+            for width in WIDTHS {
+                for (i, a) in narrow.iter().enumerate() {
+                    agree(name, width, &[*a], &[wide[i].clone()]);
+                    for (j, b) in narrow.iter().enumerate() {
+                        agree(name, width, &[*a, *b], &[wide[i].clone(), wide[j].clone()]);
+                    }
+                }
+            }
+        }
     }
 
     /// `round()` is half away from zero on the *exact* operand — C's `modf`

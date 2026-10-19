@@ -59,7 +59,8 @@
 //! An engine also accepts host commands ([`HostCommand`]) — the emitter verbs
 //! and sandbox builtins a host injects — and a [`Budget`], which it must
 //! enforce: a body that outruns its budget fails with
-//! [`EngineError::BudgetExceeded`] rather than running on.
+//! [`EngineError::BudgetExceeded`] rather than running on — however the body
+//! completed, since a `catch` of the limit error does not let it run on.
 
 pub mod value;
 
@@ -954,6 +955,16 @@ pub struct Budget {
     /// Maximum wall-clock time one invocation may take.
     pub wall_clock: Option<Duration>,
     /// Maximum byte length of any single value the body may build.
+    ///
+    /// Every builder answers to it. One that can outgrow what it was given —
+    /// `string repeat`, `string cat`, `string map`, `lrepeat`, `lseq`,
+    /// `concat`, `join`, `format` — measures its result and refuses before it
+    /// allocates; every other value is measured once built, so none over the
+    /// cap outlives the command (or inline instruction) that built it. A
+    /// string is measured by its bytes; a list or dict by its elements' bytes
+    /// plus a separator between each, without rendering it, so a list that
+    /// holds itself twice, nested deep, is refused before rendering it could
+    /// exhaust the host. The quoting a rendered list adds is not counted.
     ///
     /// Separate from [`Self::commands`] because neither of the other two can
     /// bound it: one opcode can allocate without dispatching a command or

@@ -70,11 +70,36 @@ fn boolean_word_prefixes_are_literals_in_every_release() {
                 .code,
             tcl_vm::Code::Error,
         );
-        assert_eq!(
-            ambiguous.error_code_bytes().unwrap().as_deref(),
-            Some(b"TCL PARSE EXPR BAREWORD".as_slice()),
-            "{version:?}"
-        );
+        if version == TclVersion::V8_4 {
+            // tclsh 8.4.20: its own expression parser, and no error code.
+            assert_eq!(
+                &*ambiguous.message_bytes().unwrap(),
+                b"syntax error in expression \"o\": variable references require preceding $"
+                    .as_slice()
+            );
+            assert!(matches!(
+                ambiguous.error_code_bytes().unwrap().as_deref(),
+                None | Some(b"NONE")
+            ));
+        } else if version == TclVersion::V8_5 {
+            // tclsh 8.5.19: the message, and still no error code.
+            assert!(
+                ambiguous
+                    .message_bytes()
+                    .unwrap()
+                    .starts_with(b"invalid bareword \"o\"")
+            );
+            assert!(matches!(
+                ambiguous.error_code_bytes().unwrap().as_deref(),
+                None | Some(b"NONE")
+            ));
+        } else {
+            assert_eq!(
+                ambiguous.error_code_bytes().unwrap().as_deref(),
+                Some(b"TCL PARSE EXPR BAREWORD".as_slice()),
+                "{version:?}"
+            );
+        }
     }
 }
 

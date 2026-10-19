@@ -25,7 +25,10 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
+use tcl_cmd_core::index::IndexCompiler;
 use tcl_cmd_core::prefix::Resolution;
+use tcl_registry::hooks::InlineCodegenHookId;
+use tcl_syntax::value::ValueOps;
 
 use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
@@ -251,9 +254,26 @@ fn stock_wordstart(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     interp.invoke_stock_worker(argv, &[b"string", b"wordstart"], string_cmd)
 }
 
+/// Every release's `string` subcommands ([`tcl_cmd_core::string::SUBCOMMANDS`])
+/// as the bytes this runtime's words are.
+fn string_subcommands() -> Vec<&'static [u8]> {
+    tcl_cmd_core::string::SUBCOMMANDS
+        .iter()
+        .map(|sub| sub.as_bytes())
+        .collect()
+}
+
 fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    let release = interp.runtime_version();
     if argv.len() < 2 {
-        return interp.wrong_args_for_invocation(argv, b"subcommand ?arg ...?");
+        // 8.4's `Tcl_StringObjCmd`, 8.5's ensemble, and 8.6's
+        // (`tcl_cmd_core::string::usage_error`).
+        let usage: &[u8] = match release {
+            tcl_dialect::TclVersion::V8_4 => b"option arg ?arg ...?",
+            tcl_dialect::TclVersion::V8_5 => b"subcommand ?argument ...?",
+            _ => b"subcommand ?arg ...?",
+        };
+        return interp.wrong_args_for_invocation(argv, usage);
     }
     // The `string` ensemble resolves its subcommand by unambiguous prefix
     // (`Tcl_GetIndexFromObj`): `string fir` → `first`, `string trim` wins over
@@ -262,29 +282,23 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `insert` arrives in Tcl 9, so under an earlier pin it must not resolve
     // and must not make `string in` ambiguous with `index`.
     let subs = crate::environment::release_subcommands(
-        interp.runtime_version().dialect_profile_name(),
+        release.dialect_profile_name(),
         "string",
-        STRING_SUBCOMMANDS,
+        &string_subcommands(),
     );
-    let canonical: &[u8] = match tcl_cmd_core::ensemble::resolve_subcommand(subs, &sub, true) {
-        Some(index) => subs[index],
-        // The whole sentence — including the ensemble's comma before `or` —
-        // belongs to the owner, not to a literal beside the table.
-        None => {
-            return interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
-                subs,
-                &sub,
-                true,
-                b"::tcl::string",
-            ));
-        }
+    let canonical: &[u8] = match tcl_cmd_core::string::select_subcommand(subs, &sub, release) {
+        Ok(index) => subs[index],
+        Err(error) => return interp.report_cmd_error(error),
     };
     // `string repeat` is the one subcommand that can allocate without bound in
     // one command, so it is charged against an embedder's value-size limit
     // before the shared core builds anything; the limit is the interpreter's,
     // which is why the guard is here and not in the core.
     if canonical == b"repeat" && argv.len() == 4 && interp.has_value_limit() {
-        if let Some(count) = parse_isize(&obj_bytes(argv[3])).filter(|&count| count > 0) {
+        if let Some(count) = crate::typed_value::wide_int(argv[3])
+            .ok()
+            .filter(|&count| count > 0)
+        {
             let wanted = (obj_bytes(argv[2]).len() as u64).saturating_mul(count as u64);
             if let Some(code) = interp.charge_allocation(wanted) {
                 return code;
@@ -295,8 +309,30 @@ fn string_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // driven over this runtime's `*mut TclObj` `ValueOps`. The runtime is a thin
     // adapter: map `Result<*mut TclObj, CmdError>` onto set_result/set_error.
     // Not-yet-ported subcommands fall through to the legacy arms below.
+    // A subcommand the release compiles reads and returns its words as its
+    // compiled form does, where that differs from the command.
+    if let Some(code) = interp
+        .release_compiled_hook(argv)
+        .and_then(|(hook, literal)| compiled_string(interp, hook, &literal, argv))
+    {
+        return code;
+    }
+    // `range` and `replace` read their literal indices as the release
+    // compiles them in a command it compiles.
+    let compiler = match (canonical, argv.len()) {
+        (b"range", 5) => Some(IndexCompiler::StringRange),
+        (b"replace", 5 | 6) => Some(IndexCompiler::StringReplace {
+            replacing: argv.len() == 6,
+        }),
+        _ => None,
+    };
+    let compiled =
+        compiler.and_then(|compiler| interp.compiled_index_argv(compiler, argv, &[3, 4]));
+    let argv = compiled.as_ref().map_or(argv, |c| c.argv.as_slice());
     if let Ok(canon_str) = std::str::from_utf8(canonical) {
-        if let Some(result) = tcl_cmd_core::string::dispatch_canon(interp, canon_str, &argv[2..]) {
+        if let Some(result) =
+            tcl_cmd_core::string::dispatch_canon_in(interp, canon_str, &argv[2..], release)
+        {
             return match result {
                 Ok(v) => {
                     interp.set_result(v);
@@ -359,6 +395,151 @@ const STRING_SUBCOMMANDS: &[&[u8]] = &[
     b"wordend",
     b"wordstart",
 ];
+/// `string`'s subcommand `argv`, as the release compiles it through `hook`
+/// with the words `literal` marks literal, where its compiled form reads or
+/// returns its words apart from the command; `None` where it runs as the
+/// command, after any read the compiled form makes first.
+fn compiled_string(
+    interp: &mut Interp,
+    hook: InlineCodegenHookId,
+    literal: &[bool],
+    argv: &[*mut TclObj],
+) -> Option<Code> {
+    let is_option = |index: usize, option: &[u8]| {
+        literal[index] && {
+            let word = obj_bytes(argv[index]);
+            word.len() > 1 && option.starts_with(&word)
+        }
+    };
+    match hook {
+        // `TclCompileStringIsCmd` reads a character class's value by
+        // character (`INST_STR_CLASS`).
+        InlineCodegenHookId::StringIs => {
+            let compiles = argv.len() == 4 || (argv.len() == 5 && is_option(3, b"-strict"));
+            let class = (compiles && literal[2])
+                .then(|| obj_bytes(argv[2]))
+                .and_then(|class| String::from_utf8(class).ok())
+                .and_then(|class| {
+                    tcl_cmd_core::string_is::resolve_class(&class, interp.runtime_version()).ok()
+                });
+            if compiles && class.is_some_and(tcl_cmd_core::string_is::is_character_class) {
+                crate::list::read_as_string(argv[argv.len() - 1]);
+            }
+            None
+        }
+        // `INST_STR_EQ` for a literal pattern with no glob character, else
+        // `INST_STR_MATCH`, which reads both by character only where either
+        // already is a string.
+        InlineCodegenHookId::StringMatch => {
+            let nocase = match argv.len() {
+                4 => false,
+                5 if is_option(2, b"-nocase") => true,
+                _ => return None,
+            };
+            let (pattern, string) = (argv[argv.len() - 2], argv[argv.len() - 1]);
+            let exact = !nocase
+                && literal[argv.len() - 2]
+                && !obj_bytes(pattern)
+                    .iter()
+                    .any(|b| matches!(b, b'*' | b'?' | b'[' | b'\\'));
+            if !exact
+                && (crate::list::is_string_typed(pattern) || crate::list::is_string_typed(string))
+            {
+                crate::list::read_as_string(pattern);
+                crate::list::read_as_string(string);
+            }
+            let pattern = String::from_utf8_lossy(&obj_bytes(pattern)).into_owned();
+            let string = String::from_utf8_lossy(&obj_bytes(string)).into_owned();
+            let matched = tcl_syntax::glob::string_case_match(&pattern, &string, nocase);
+            interp.set_result(obj::new_boolean_obj(i32::from(matched)));
+            Some(Code::Ok)
+        }
+        // The compiled trims leave the value itself where they trim nothing.
+        InlineCodegenHookId::StringTrim
+        | InlineCodegenHookId::StringTrimLeft
+        | InlineCodegenHookId::StringTrimRight
+            if matches!(argv.len(), 3 | 4) =>
+        {
+            let (left, right) = match hook {
+                InlineCodegenHookId::StringTrimLeft => (true, false),
+                InlineCodegenHookId::StringTrimRight => (false, true),
+                _ => (true, true),
+            };
+            let trimmed =
+                match tcl_cmd_core::string::trim(interp, &argv[2], argv.get(3), left, right) {
+                    Ok(trimmed) => trimmed,
+                    Err(error) => return Some(interp.report_cmd_error(error)),
+                };
+            if obj_bytes(trimmed) == obj_bytes(argv[2]) {
+                crate::interp::drop_fresh(trimmed);
+                interp.set_result(argv[2]);
+            } else {
+                interp.set_result(trimmed);
+            }
+            Some(Code::Ok)
+        }
+        InlineCodegenHookId::StringReplace if matches!(argv.len(), 5 | 6) => {
+            compiled_string_replace(interp, literal, argv)
+        }
+        _ => None,
+    }
+}
+
+/// `string replace` as `TclCompileStringReplaceCmd` settles it on its
+/// literal indices (`tcl_cmd_core::index::settle_string_replace`): a no-op
+/// leaves the string unread, a whole replacement is the replacement itself,
+/// and `INST_STR_REPLACE` reads the replacement by character where it keeps
+/// part of the string; `None` where it reads as the command.
+fn compiled_string_replace(
+    interp: &mut Interp,
+    literal: &[bool],
+    argv: &[*mut TclObj],
+) -> Option<Code> {
+    use tcl_cmd_core::index::StringReplaceSettlement as Settlement;
+    let release = interp.runtime_version();
+    let encoded = |index: usize| {
+        literal[index]
+            .then(|| String::from_utf8_lossy(&obj_bytes(argv[index])).into_owned())
+            .and_then(|word| tcl_cmd_core::index::encode(&word, release, true))
+    };
+    let replacement = argv.get(5).copied();
+    match tcl_cmd_core::index::settle_string_replace(encoded(3), encoded(4), replacement.is_some())
+    {
+        Settlement::Unchanged => interp.set_result(argv[2]),
+        Settlement::Replacement => interp.set_result(replacement?),
+        Settlement::Empty => interp.set_result_bytes(b""),
+        Settlement::Ranges => return None,
+        Settlement::Runtime => {
+            let chars = interp.as_chars(&argv[2]).ok()?.chars().count();
+            let numbers = release.number_syntax();
+            let index = |word: *mut TclObj| {
+                tcl_cmd_core::index::resolve_with(
+                    &String::from_utf8_lossy(&obj_bytes(word)),
+                    chars,
+                    numbers,
+                )
+                .ok()
+            };
+            let (first, last) = (index(argv[3])?, index(argv[4])?);
+            let end = i64::try_from(chars).unwrap_or(i64::MAX) - 1;
+            if last < 0 || first > end || last < first {
+                return None;
+            }
+            if first <= 0 && last >= end {
+                match replacement {
+                    Some(replacement) => interp.set_result(replacement),
+                    None => interp.set_result_bytes(b""),
+                }
+                return Some(Code::Ok);
+            }
+            if let Some(replacement) = replacement {
+                crate::list::read_as_string(replacement);
+            }
+            return None;
+        }
+    }
+    Some(Code::Ok)
+}
 
 fn str_length(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 3 {
@@ -373,7 +554,8 @@ fn str_index(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
         return interp.wrong_args_for_prefix(argv, 2, b"string charIndex");
     }
-    let result = tcl_cmd_core::string::index(interp, &argv[2], &argv[3]);
+    let numbers = interp.runtime_version().number_syntax();
+    let result = tcl_cmd_core::string::index(interp, &argv[2], &argv[3], numbers);
     adapt_string_result(interp, result)
 }
 
@@ -381,7 +563,8 @@ fn str_range(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
         return interp.wrong_args_for_prefix(argv, 2, b"string first last");
     }
-    let result = tcl_cmd_core::string::range(interp, &argv[2], &argv[3], &argv[4]);
+    let numbers = interp.runtime_version().number_syntax();
+    let result = tcl_cmd_core::string::range(interp, &argv[2], &argv[3], &argv[4], numbers);
     adapt_string_result(interp, result)
 }
 
@@ -392,7 +575,8 @@ fn str_replace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if !(5..=6).contains(&argv.len()) {
         return interp.wrong_args_for_prefix(argv, 2, b"string first last ?string?");
     }
-    let result = tcl_cmd_core::string::replace(interp, &argv[2..]);
+    let numbers = interp.runtime_version().number_syntax();
+    let result = tcl_cmd_core::string::replace(interp, &argv[2..], numbers);
     adapt_string_result(interp, result)
 }
 
@@ -402,7 +586,8 @@ fn str_insert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 5 {
         return interp.wrong_args_for_prefix(argv, 2, b"string index insertString");
     }
-    let result = tcl_cmd_core::string::insert(interp, &argv[2..]);
+    let numbers = interp.runtime_version().number_syntax();
+    let result = tcl_cmd_core::string::insert(interp, &argv[2..], numbers);
     adapt_string_result(interp, result)
 }
 
@@ -614,9 +799,9 @@ fn str_repeat(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args_for_prefix(argv, 2, b"string count");
     }
     let s = obj_bytes(argv[2]);
-    let count = match parse_isize(&obj_bytes(argv[3])) {
-        Some(c) => c,
-        None => return not_integer(interp, &obj_bytes(argv[3])),
+    let count = match crate::typed_value::wide_int(argv[3]) {
+        Ok(c) => c,
+        Err(error) => return interp.report_typed_error(&error),
     };
     if count <= 0 {
         interp.set_result_bytes(b"");
@@ -688,7 +873,8 @@ fn str_case(interp: &mut Interp, argv: &[*mut TclObj], mode: CaseMode) -> Code {
             "string totitle string ?first? ?last?",
         ),
     };
-    let result = tcl_cmd_core::string::case_convert(interp, &argv[2..], mode, usage);
+    let numbers = interp.runtime_version().number_syntax();
+    let result = tcl_cmd_core::string::case_convert(interp, &argv[2..], mode, usage, numbers);
     adapt_string_result(interp, result)
 }
 
@@ -735,10 +921,11 @@ fn str_first_last(interp: &mut Interp, argv: &[*mut TclObj], first: bool) -> Cod
             b"string last needleString haystackString ?lastIndex?"
         });
     }
+    let numbers = interp.runtime_version().number_syntax();
     let result = if first {
-        tcl_cmd_core::string::first(interp, &argv[2], &argv[3], argv.get(4))
+        tcl_cmd_core::string::first(interp, &argv[2], &argv[3], argv.get(4), numbers)
     } else {
-        tcl_cmd_core::string::last(interp, &argv[2], &argv[3], argv.get(4))
+        tcl_cmd_core::string::last(interp, &argv[2], &argv[3], argv.get(4), numbers)
     };
     adapt_string_result(interp, result)
 }
@@ -829,9 +1016,18 @@ fn str_map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// The recognised `string is` classes, in C's declaration order (`tclCmdMZ.c`
 /// `StringIsCmd`'s `isClasses[]`). The order is significant: it drives the
 /// `bad class`/`ambiguous class` "must be …" diagnostic, and the class is
-/// resolved against this table by exact name or unambiguous prefix.
-const IS_CLASSES: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
-    tcl_cmd_core::prefix::OptionTable::abbreviating("class", IS_CLASS_NAMES);
+/// resolved against this table by exact name or unambiguous prefix. Each
+/// release holds the classes it has (`tcl_cmd_core::string_is::classes`):
+/// `list` and `wideinteger` from 8.5, `entier` from 8.6, `dict` from 9.0.
+fn is_class_names(release: tcl_dialect::TclVersion) -> &'static [&'static [u8]] {
+    use tcl_dialect::TclVersion;
+    match release {
+        TclVersion::V8_4 => IS_CLASS_NAMES_8_4,
+        TclVersion::V8_5 => IS_CLASS_NAMES_8_5,
+        TclVersion::V8_6 => IS_CLASS_NAMES_8_6,
+        _ => IS_CLASS_NAMES,
+    }
+}
 
 const IS_CLASS_NAMES: &[&[u8]] = &[
     b"alnum",
@@ -858,8 +1054,74 @@ const IS_CLASS_NAMES: &[&[u8]] = &[
     b"xdigit",
 ];
 
-/// `string is`'s own options (`Tcl_GetIndexFromObj(…, "option", 0)`), in C
-/// table order — the two-entry enumeration has no comma before `or`.
+const IS_CLASS_NAMES_8_6: &[&[u8]] = &[
+    b"alnum",
+    b"alpha",
+    b"ascii",
+    b"control",
+    b"boolean",
+    b"digit",
+    b"double",
+    b"entier",
+    b"false",
+    b"graph",
+    b"integer",
+    b"list",
+    b"lower",
+    b"print",
+    b"punct",
+    b"space",
+    b"true",
+    b"upper",
+    b"wideinteger",
+    b"wordchar",
+    b"xdigit",
+];
+
+const IS_CLASS_NAMES_8_5: &[&[u8]] = &[
+    b"alnum",
+    b"alpha",
+    b"ascii",
+    b"control",
+    b"boolean",
+    b"digit",
+    b"double",
+    b"false",
+    b"graph",
+    b"integer",
+    b"list",
+    b"lower",
+    b"print",
+    b"punct",
+    b"space",
+    b"true",
+    b"upper",
+    b"wideinteger",
+    b"wordchar",
+    b"xdigit",
+];
+
+const IS_CLASS_NAMES_8_4: &[&[u8]] = &[
+    b"alnum",
+    b"alpha",
+    b"ascii",
+    b"control",
+    b"boolean",
+    b"digit",
+    b"double",
+    b"false",
+    b"graph",
+    b"integer",
+    b"lower",
+    b"print",
+    b"punct",
+    b"space",
+    b"true",
+    b"upper",
+    b"wordchar",
+    b"xdigit",
+];
+
 const IS_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
     tcl_cmd_core::prefix::OptionTable::abbreviating("option", &[b"-strict", b"-failindex"]);
 
@@ -868,15 +1130,16 @@ const IS_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
 /// when the result is 0** (`StringIsCmd`). Empty input is a class member unless
 /// `-strict` (except `list`/`dict`, which ignore `-strict`).
 fn str_is(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
-    const USAGE: &[u8] = b"string is class ?-strict? ?-failindex var? str";
-    if argv.len() < 4 || argv.len() > 7 {
-        return interp.wrong_args(USAGE);
+    let release = interp.runtime_version();
+    if let Some(error) = tcl_cmd_core::string_is::arity_error(argv.len() - 2) {
+        return interp.report_cmd_error(error);
     }
-    let class: &[u8] =
-        match interp.native_static_option_index(argv[2], IS_CLASSES.names(), false, "class") {
-            Ok(i) => IS_CLASSES.names()[i],
-            Err(m) => return interp.report_cmd_error(m),
-        };
+    let class_names = is_class_names(release);
+    let class: &[u8] = match interp.native_static_option_index(argv[2], class_names, false, "class")
+    {
+        Ok(i) => class_names[i],
+        Err(m) => return interp.report_cmd_error(m),
+    };
 
     // The last argument is always the string under test; the args between the
     // class and it are options (`Tcl_GetIndexFromObj` over IS_OPTIONS).
@@ -964,10 +1227,6 @@ fn char_count(s: &[u8]) -> usize {
     n
 }
 
-fn parse_isize(b: &[u8]) -> Option<isize> {
-    core::str::from_utf8(b).ok()?.trim().parse::<isize>().ok()
-}
-
 // error helpers
 /// Whether `opt` abbreviates `-nocase` (`strncmp` with `length > 1`), the sole
 /// option of `string map`/`string match`.
@@ -986,13 +1245,6 @@ fn cant_set(interp: &mut Interp, name: &[u8]) -> Code {
     m.extend_from_slice(b"\": variable is array");
     interp.set_error(&m)
 }
-fn not_integer(interp: &mut Interp, bytes: &[u8]) -> Code {
-    let mut m = b"expected integer but got \"".to_vec();
-    m.extend_from_slice(bytes);
-    m.push(b'"');
-    interp.set_error(&m)
-}
-
 fn drop_fresh(obj: *mut TclObj) {
     // SAFETY: `obj` is a live rc-0 object; retain-then-release frees it cleanly.
     unsafe {

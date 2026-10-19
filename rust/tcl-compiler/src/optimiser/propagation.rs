@@ -1456,14 +1456,22 @@ fn retained_call_at(
     matching.next().is_none().then_some(call)
 }
 
+/// A result whose literal spelling a script evaluation would read apart from
+/// the result itself ([`crate::const_subst::folded_literal_reads_apart`])
+/// abstains: `[list string range $s 0 end-2147483649]` evaluates directly,
+/// its braced literal compiles. `dialect` names the release that reads it.
 fn fold_retained_builtin(
     registry: &CommandRegistry,
     call: &crate::word_subst::LiftedCall,
     calls: &[crate::word_subst::LiftedCall],
     defining_class: Option<&str>,
     metadata: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<String> {
     let metadata = metadata?;
+    let release = dialect.map_or(tcl_dialect::TclVersion::V9_0, |profile| {
+        profile.vm_runtime_version
+    });
     crate::const_subst::ConstSubstCtx {
         registry,
         resolution_namespace: "::",
@@ -1477,6 +1485,7 @@ fn fold_retained_builtin(
         lookup_var: &|_| None,
     }
     .fold_retained_call_with_metadata_context(call, calls, metadata)
+    .filter(|value| !crate::const_subst::folded_literal_reads_apart(value, release))
 }
 
 fn retained_expr_call(
@@ -1564,6 +1573,7 @@ fn visit_oo_frame_folds(
             &calls,
             Some(&frame.defining_class),
             metadata,
+            ctx.dialect,
         ) {
             if let Some(word) = render_propagation_word(&value, ctx.lexer_config()) {
                 rewrites.push((call.span, word));
@@ -1623,6 +1633,7 @@ fn try_oo_frame_return_fold(
         &calls,
         Some(&frame.defining_class),
         metadata,
+        ctx.dialect,
     ) else {
         return;
     };
@@ -2655,7 +2666,8 @@ fn visit_call_cmd_subst_folds(
             ));
             continue;
         }
-        if let Some(value) = fold_retained_builtin(registry, call, &calls, None, metadata)
+        if let Some(value) =
+            fold_retained_builtin(registry, call, &calls, None, metadata, ctx.dialect)
             && let Some(word) = render_propagation_word(&value, ctx.lexer_config())
         {
             let code = call
@@ -2998,7 +3010,9 @@ fn visit_string_interpolation_cmd_subs(
     let mut last = 0;
     let mut folded_any = false;
     for call in roots {
-        let Some(result) = fold_retained_builtin(registry, call, &calls, None, metadata) else {
+        let Some(result) =
+            fold_retained_builtin(registry, call, &calls, None, metadata, ctx.dialect)
+        else {
             continue;
         };
         if result
@@ -5410,6 +5424,17 @@ mod tests {
             vec!["b".to_string()]
         );
         assert_eq!(fold_code("set x [list]", "O116"), vec!["{}".to_string()]);
+        // A list 8.6 would read apart as a script, once a literal, stays the
+        // list (`if 1 $x` ranges nothing; the braced literal ranges `abc`).
+        let hazard = "set x [list string range abc 0 end-2147483649]\nif 1 $x";
+        let o116 = |dialect| {
+            crate::optimiser::optimise_raw(hazard, &registry(), Some(dialect))
+                .into_iter()
+                .filter(|o| o.code.as_str() == "O116")
+                .count()
+        };
+        assert_eq!(o116("tcl8.6"), 0);
+        assert_eq!(o116("tcl9.0"), 1);
         assert_eq!(fold("puts [dict get {a 1 b 2} b]"), vec!["2".to_string()]);
         assert_eq!(
             fold("puts [lreverse {a b c}]"),
@@ -5905,7 +5930,7 @@ mod tests {
             )
             .expect("selected builtin independent of native object effects");
         assert!(invocation.facts.effects.requires_world_barrier());
-        assert!(fold_retained_builtin(registry, call, &calls, None, metadata).is_none());
+        assert!(fold_retained_builtin(registry, call, &calls, None, metadata, None).is_none());
     }
 
     #[test]
@@ -6049,14 +6074,14 @@ mod tests {
         let calls = retained_substitution_calls(tokens, &cu.ir_module, registry).unwrap();
         let outer = calls.iter().find(|call| call.command == "list").unwrap();
         assert_eq!(
-            fold_retained_builtin(registry, outer, &calls, None, Some(current.into())),
+            fold_retained_builtin(registry, outer, &calls, None, Some(current.into()), None),
             Some("{key value}".into())
         );
         let older = tcl_registry::model::ingress::static_context_for("tcl8.4")
             .with_command_store(std::sync::Arc::clone(registry));
         let foreign = tcl_registry::model::ingress::static_context_for("tcl9.1");
         for metadata in [Some((&older).into()), Some(foreign.into()), None] {
-            assert!(fold_retained_builtin(registry, outer, &calls, None, metadata).is_none());
+            assert!(fold_retained_builtin(registry, outer, &calls, None, metadata, None).is_none());
         }
         let tokens = tokens.clone();
         let span = statement.span();

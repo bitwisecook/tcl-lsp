@@ -35,7 +35,7 @@ use super::super::Op;
 use super::super::Operand;
 use super::super::values::{is_qualified, split_array_ref};
 use super::super::{CodegenCtx, SiteBinding};
-use super::super::{INDEX_END, bytecode_imm, parse_tcl_index};
+use super::super::{INDEX_END, bytecode_imm};
 
 /// Try to emit specialised bytecode for `cmd args...` via a typed registry
 /// hook. Returns `true` if the hook handled the command;
@@ -92,7 +92,10 @@ fn try_bytecoded_in_layout(
     if let Some((hook, site)) = resolved_codegen_hook(ctx, cmd, args) {
         let emitted = dispatch_codegen_hook(hook, ctx, args, used_generic_invoke);
         if emitted {
-            ctx.require_site_binding(&site);
+            let shape = ctx.invocation_shape(args, |index| {
+                ctx.cmd_arg_braced.get(index).copied().unwrap_or(false)
+            });
+            ctx.require_site_binding(&site, &shape);
             return true;
         }
     }
@@ -161,6 +164,39 @@ fn registry_codegen_hook(
     Some((hook, site))
 }
 
+/// The compiled locals of `cmd args…` when C compiles the command in place
+/// of this compiler's generic surrogate
+/// ([`CodegenCtx::entered_command_surrogate`]).
+///
+/// Probe the hook's own emission in an isolated context so the locals come
+/// from the hook's one authoritative applicability guard rather than a
+/// second command/arity table. The probe's local table holds the compiled
+/// locals the hook's emission makes.
+pub(crate) fn codegen_hook_locals(
+    ctx: &CodegenCtx,
+    cmd: &str,
+    args: &[String],
+) -> Option<super::super::LocalVarTable> {
+    if ctx.plain_command_dispatch || !ctx.compiles_locals() {
+        return None;
+    }
+    let (hook, _site) = registry_codegen_hook(ctx, cmd, args)?;
+    let mut probe = CodegenCtx::new(ctx.is_proc, &[], ctx.registry);
+    probe.numbers = ctx.numbers;
+    probe.escapes = ctx.escapes;
+    probe.word_rules = ctx.word_rules;
+    probe.braced_var = ctx.braced_var;
+    probe.dialect = ctx.dialect;
+    probe.cmd_arg_braced.clone_from(&ctx.cmd_arg_braced);
+    probe.current_span = ctx.current_span;
+    probe.current_span_is_command = ctx.current_span_is_command;
+    probe.direct_commands.clone_from(&ctx.direct_commands);
+    probe.invocation_tokens.clone_from(&ctx.invocation_tokens);
+    let mut used_generic_invoke = false;
+    let applies = dispatch_codegen_hook(hook, &mut probe, args, &mut used_generic_invoke);
+    applies.then_some(probe.lvt)
+}
+
 /// Dispatch a typed [`CodegenHookId`] to its emitter.
 ///
 /// Public so external pipelines (tests, future LSP feature
@@ -189,6 +225,11 @@ pub fn dispatch_codegen_hook(
         CodegenHookId::Global => global_cmd(ctx, args),
         CodegenHookId::Upvar => upvar_cmd(ctx, args),
         CodegenHookId::Uplevel => uplevel_cmd(ctx, args),
+        CodegenHookId::Set => set_cmd(ctx, args),
+        CodegenHookId::ArraySet => array_local(ctx, args, 3),
+        CodegenHookId::ArrayUnset => array_local(ctx, args, 2),
+        CodegenHookId::Variable => variable_locals(ctx, args),
+        CodegenHookId::NamespaceUpvar => namespace_upvar_locals(ctx, args),
     }
 }
 
@@ -250,6 +291,7 @@ fn lassign(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     ctx.emit_word_arg(0, &args[0]);
     let var_names = &args[1..];
     for (i, var) in var_names.iter().enumerate() {
+        ctx.intern_compiled_local(var);
         ctx.push_lit(var);
         ctx.emit(Op::OVER, vec![Operand::Imm(1)]);
         ctx.emit(Op::LIST_INDEX_IMM, vec![Operand::Imm(bytecode_imm(i))]);
@@ -274,10 +316,10 @@ fn lrange(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if args.len() != 3 {
         return false;
     }
-    let Some(start_idx) = parse_tcl_index(&args[1]) else {
+    let Some(start_idx) = ctx.literal_index_imm(&args[1]) else {
         return false;
     };
-    let Some(end_idx) = parse_tcl_index(&args[2]) else {
+    let Some(end_idx) = ctx.literal_index_imm(&args[2]) else {
         return false;
     };
     ctx.emit_word_arg(0, &args[0]);
@@ -296,8 +338,15 @@ fn linsert(ctx: &mut CodegenCtx, args: &[String]) -> bool {
     if args.len() < 2 {
         return false;
     }
+    let respelt = ctx.compiled_index_words(
+        tcl_cmd_core::index::IndexCompiler::Linsert,
+        &[args[1].as_str()],
+    );
     for (i, a) in args.iter().enumerate() {
-        ctx.emit_word_arg(i, a);
+        match respelt[0].filter(|_| i == 1) {
+            Some(compiled) => ctx.push_lit_exact(compiled),
+            None => ctx.emit_word_arg(i, a),
+        }
     }
     ctx.emit(
         Op::LREPLACE4,
@@ -442,6 +491,12 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         return false;
     }
 
+    // A script word with a substitution is not compiled with the command
+    // (C's `TclCompileDictUpdateCmd`/`TclCompileDictWithCmd` decline it): its
+    // value is the script, evaluated at run time.
+    let last = args.len() - 1;
+    let script_is_literal = ctx.cmd_arg_braced.get(last).copied().unwrap_or(false)
+        || !(tcl_syntax::naming::word_is_dynamic(&args[last], false) || args[last].contains('\\'));
     match sub {
         "set" if rest.len() >= 3 => dict_set(ctx, var_name, rest),
         "unset" if rest.len() >= 2 => dict_unset(ctx, var_name, rest),
@@ -449,20 +504,17 @@ fn dict(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         "append" if rest.len() == 3 => dict_append(ctx, var_name, rest),
         "lappend" if rest.len() == 3 => dict_lappend(ctx, var_name, rest),
         // `dict update var k1 v1 ?k2 v2 …? body` and `dict with var body`
-        // Compile literal bodies with the shared command-at-time owner.
-        // The path form of `dict with` uses the runtime command.
-        "update"
-            if rest.len() >= 4
-                && rest.len().is_multiple_of(2)
-                && ctx.cmd_arg_braced.get(args.len() - 1).copied() == Some(true) =>
-        {
+        // Compile literal bodies with the shared command-at-time owner: a
+        // braced body, or a word with nothing to substitute. The path form of
+        // `dict with` uses the runtime command.
+        "update" if script_is_literal && rest.len() >= 4 && rest.len().is_multiple_of(2) => {
             let emitted = ctx.emit_dict_update(rest);
             if emitted {
                 ctx.emit(Op::POP, vec![]);
             }
             emitted
         }
-        "with" if rest.len() == 2 && ctx.cmd_arg_braced.get(2).copied() == Some(true) => {
+        "with" if script_is_literal && rest.len() == 2 => {
             let emitted = ctx.emit_dict_with(&rest[0], &rest[1]);
             if emitted {
                 ctx.emit(Op::POP, vec![]);
@@ -736,6 +788,72 @@ fn array(ctx: &mut CodegenCtx, args: &[String], used_generic_invoke: &mut bool) 
         }
         _ => false,
     }
+}
+
+/// Text gate for the compiled locals a release's compile of `set`, `variable`
+/// or `namespace upvar` makes: an unqualified literal name in a procedure
+/// body. A name whose word holds a substitution or escape stays with the
+/// command; such words have no static local here.
+fn is_compilable_local(ctx: &CodegenCtx, var: &str) -> bool {
+    ctx.compiles_locals() && !is_qualified(var) && !var.contains(['$', '[', '\\'])
+}
+
+/// `set varName` — the load `TclCompileSetCmd` compiles the one-word form
+/// to. The two-word form is lowered as an assignment before it gets here.
+fn set_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    let [var] = args else {
+        return false;
+    };
+    if !is_compilable_local(ctx, var) {
+        return false;
+    }
+    ctx.load_var(var);
+    ctx.emit(Op::POP, vec![]);
+    true
+}
+
+/// `array set arrayName list` and `array unset arrayName`, `words` long with
+/// the subcommand: 8.6 compiles each, making the array a compiled local; the
+/// command itself runs here.
+fn array_local(ctx: &mut CodegenCtx, args: &[String], words: usize) -> bool {
+    if args.len() == words {
+        ctx.intern_compiled_local(&args[1]);
+    }
+    false
+}
+
+/// `variable name ?value name value ...?` — `TclCompileVariableCmd` makes
+/// the tail of each name a compiled local, up to the first that cannot be
+/// one; the command itself runs here.
+fn variable_locals(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    for name in args.iter().step_by(2) {
+        let tail = name.rsplit("::").next().unwrap_or_default();
+        if tail.is_empty() || split_array_ref(tail).is_some() {
+            break;
+        }
+        ctx.intern_compiled_local(tail);
+    }
+    false
+}
+
+/// `namespace upvar ns otherVar myVar ...` — `TclCompileNamespaceUpvarCmd`
+/// takes whole pairs and makes each `myVar` a compiled local, up to the first
+/// that cannot be one; the command itself runs here.
+fn namespace_upvar_locals(ctx: &mut CodegenCtx, args: &[String]) -> bool {
+    if args.len() >= 4 && args.len().is_multiple_of(2) {
+        for name in args.iter().skip(3).step_by(2) {
+            if !is_compilable_local(ctx, name) {
+                break;
+            }
+            // `LocalScalarFromToken` makes an element's array a local, and
+            // stops the compile there.
+            ctx.intern_compiled_local(name);
+            if split_array_ref(name).is_some() {
+                break;
+            }
+        }
+    }
+    false
 }
 
 // append / lappend
@@ -1027,7 +1145,11 @@ pub(crate) fn try_expanded_lappend(
         return false;
     };
     emit_lappend_values(ctx, variable, &arguments[1..]);
-    ctx.require_site_binding(&binding);
+    // An expanded word leaves the words after the command unknown.
+    ctx.require_site_binding(
+        &binding,
+        &tcl_registry::release_compilation::InvocationShape::default(),
+    );
     true
 }
 
@@ -1329,7 +1451,11 @@ fn try_value_bytecoded_in_layout(
             .map(|(word, braced)| (word.clone(), *braced, false))
             .collect::<Vec<_>>();
         emit_lappend_values(ctx, variable, &additions);
-        ctx.require_site_binding(&binding);
+        // An expanded word leaves the words after the command unknown.
+        ctx.require_site_binding(
+            &binding,
+            &tcl_registry::release_compilation::InvocationShape::default(),
+        );
         ctx.used_inline_cmd_subst = true;
         return true;
     }
@@ -1342,7 +1468,11 @@ fn try_value_bytecoded_in_layout(
         Some(Op::POP)
     );
     ctx.instructions.pop();
-    ctx.require_site_binding(&binding);
+    // An expanded word leaves the words after the command unknown.
+    ctx.require_site_binding(
+        &binding,
+        &tcl_registry::release_compilation::InvocationShape::default(),
+    );
     ctx.used_inline_cmd_subst = true;
     true
 }
@@ -1368,7 +1498,11 @@ pub(in crate::codegen) fn try_expanded_tailcall(
     if !emit_tailcall(ctx, &words) {
         return false;
     }
-    ctx.require_site_binding(&binding);
+    // An expanded word leaves the words after the command unknown.
+    ctx.require_site_binding(
+        &binding,
+        &tcl_registry::release_compilation::InvocationShape::default(),
+    );
     ctx.used_inline_cmd_subst = true;
     true
 }

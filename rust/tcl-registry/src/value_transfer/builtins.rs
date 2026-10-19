@@ -153,8 +153,9 @@ pub(super) fn result_type_transfer(domain: FactDomain, result_type: TclType) -> 
 
 /// `string range string first last` on the direct route: the shared string
 /// core over [`ConstOps`], with the index numerals pre-resolved under the
-/// admitted grammar (`string range abcdefghijkl 010 end` is `ijkl` up to
-/// 8.6 and `kl` from 9.0, and declines with no release named) and a
+/// admitted grammar so the release-less target declines where the releases
+/// disagree (`string range abcdefghijkl 010 end` is `ijkl` up to 8.6 and
+/// `kl` from 9.0) and a
 /// non-ASCII operand admitted only where the target decodes source as
 /// UTF-8.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -194,7 +195,8 @@ impl StringRangeSemantics {
             let len = text.chars().count();
             let first = ops.index(first, len)?;
             let last = ops.index(last, len)?;
-            tcl_cmd_core::string::range(&mut ops, subject, &first, &last)
+            let numbers = ops.index_numbers();
+            tcl_cmd_core::string::range(&mut ops, subject, &first, &last, numbers)
                 .map_err(|error| ops.decline(&error))
         });
         let value = match computed {
@@ -602,7 +604,8 @@ impl CommandSemantics for StringFirstSemantics {
                     Some(start) => Some(ops.index(start, len)?),
                     None => None,
                 };
-                tcl_cmd_core::string::first(ops, needle, haystack, start.as_ref())
+                let numbers = ops.index_numbers();
+                tcl_cmd_core::string::first(ops, needle, haystack, start.as_ref(), numbers)
                     .map_err(|error| ops.decline(&error))
             },
         ) {

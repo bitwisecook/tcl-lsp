@@ -45,8 +45,9 @@ use tcl_lexer::LexerConfig;
 use tcl_registry::CommandRegistry;
 use tcl_registry::model::{KeyedVersions, OverlayMiss};
 use tcl_runtime_api::{
-    CompileError, CompileService, FatalTail, ProcedureCompileTarget, ProcedureCompileTargetBytes,
-    ProcedureDispatch, ScriptCommandPlan, ScriptCompileTarget, ScriptCompileTargetBytes,
+    CommandEvaluation, CompileError, CompileService, FatalTail, ProcedureCompileTarget,
+    ProcedureCompileTargetBytes, ProcedureDispatch, ScriptCommandPlan, ScriptCompileTarget,
+    ScriptCompileTargetBytes,
 };
 
 fn validate_native_function(function: &tcl_bytecode::FunctionAsm) -> Result<(), CompileError> {
@@ -251,8 +252,11 @@ impl BytecodeCompileService {
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         let registry = self.registry.registry()?;
         Self::compile_target_with(
-            source,
-            "",
+            ScriptCompileTarget {
+                source,
+                namespace: "",
+                evaluation: CommandEvaluation::Compiled,
+            },
             plain_command_dispatch,
             registry.as_ref(),
             self.config,
@@ -269,8 +273,11 @@ impl BytecodeCompileService {
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_target_with(
-            source,
-            "",
+            ScriptCompileTarget {
+                source,
+                namespace: "",
+                evaluation: CommandEvaluation::Compiled,
+            },
             plain_command_dispatch,
             registry.as_ref(),
             LexerConfig::from_grammar(profile.grammar),
@@ -280,8 +287,7 @@ impl BytecodeCompileService {
     }
 
     fn compile_target_with(
-        source: &str,
-        namespace: &str,
+        target: ScriptCompileTarget<'_>,
         plain_command_dispatch: bool,
         registry: &CommandRegistry,
         config: LexerConfig,
@@ -291,7 +297,7 @@ impl BytecodeCompileService {
         let native_entry = policy.entry;
         let config = Self::native_entry_config(config, native_entry);
         if let Some(cut) = tcl_lexer::first_parse_cut_image_checked(
-            &tcl_runtime_api::SourceImage::document(source),
+            &tcl_runtime_api::SourceImage::document(target.source),
             config,
         )
         .map_err(|error| CompileError::Unsupported(error.to_string()))?
@@ -299,15 +305,16 @@ impl BytecodeCompileService {
             return Err(CompileError::Message(cut.message.into()));
         }
         let ir = lower_script_module_for_bytecode_with_options(
-            source,
-            namespace,
+            target.source,
+            target.namespace,
             registry,
             config,
             profile,
             plain_command_dispatch,
             Self::source_analysis_options(policy, registry, config, profile),
         );
-        let ir = crate::inlining::inline_reference_bodies(ir, registry, config, profile);
+        let mut ir = crate::inlining::inline_reference_bodies(ir, registry, config, profile);
+        ir.top_level_evaluation = target.evaluation;
         let prepared = prepare_cfg_context_bundle(&ir, registry);
         let cfg =
             build_cfg_codegen_with_registry_and_context(&ir, false, registry, &prepared, config);
@@ -578,8 +585,7 @@ impl CompileService for BytecodeCompileService {
     ) -> Result<Self::Module, CompileError> {
         let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_target_with(
-            target.source,
-            target.namespace,
+            target,
             false,
             registry.as_ref(),
             LexerConfig::from_grammar(profile.grammar),
@@ -601,8 +607,7 @@ impl CompileService for BytecodeCompileService {
         }
         let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_target_with(
-            target.source,
-            target.namespace,
+            target,
             false,
             registry.as_ref(),
             LexerConfig::from_grammar(profile.grammar),
@@ -653,8 +658,7 @@ impl CompileService for BytecodeCompileService {
     ) -> Result<Self::Module, CompileError> {
         let registry = self.registry.registry_for_profile(profile)?;
         Self::compile_target_with(
-            target.source,
-            target.namespace,
+            target,
             true,
             registry.as_ref(),
             LexerConfig::from_grammar(profile.grammar),
@@ -812,6 +816,16 @@ impl CompileService for BytecodeCompileService {
         })
     }
 
+    fn compile_failure_for_profile(
+        &self,
+        source: &str,
+        profile: &'static DialectProfile,
+        unit: tcl_runtime_api::CompileUnit,
+    ) -> Option<tcl_runtime_api::CompileFailure> {
+        let registry = self.registry.registry_for_profile(profile).ok()?;
+        crate::compile_84::compile_failure(source, registry.as_ref(), profile, unit)
+    }
+
     fn compile_procedure_for_profile(
         &self,
         target: ProcedureCompileTarget<'_>,
@@ -939,6 +953,8 @@ fn fatal_tail_frame_bytes(
         )
         .map(<[u8]>::to_vec),
         line,
+        compile_info: None,
+        error_code: None,
     }
 }
 
@@ -1587,6 +1603,7 @@ mod tests {
                 ScriptCompileTarget {
                     source: "set x 1",
                     namespace: "",
+                    evaluation: CommandEvaluation::Compiled,
                 },
                 profile,
                 &entry,
@@ -1806,6 +1823,7 @@ mod tests {
                     ScriptCompileTarget {
                         source: "proc child {} {\"}; set marker ENTERED",
                         namespace: "",
+                        evaluation: CommandEvaluation::Compiled,
                     },
                     profile,
                 )
@@ -2053,6 +2071,7 @@ mod tests {
                         ScriptCompileTarget {
                             source: "set x 1",
                             namespace: "",
+                            evaluation: CommandEvaluation::Compiled,
                         },
                         profile,
                     )
@@ -2564,6 +2583,7 @@ mod tests {
         let script = ScriptCompileTarget {
             source,
             namespace: "",
+            evaluation: CommandEvaluation::Compiled,
         };
         let parameters = Vec::new();
         let procedure = ProcedureCompileTarget {
@@ -2636,6 +2656,7 @@ mod tests {
             let script = ScriptCompileTarget {
                 source: "set x 1",
                 namespace: "",
+                evaluation: CommandEvaluation::Compiled,
             };
             let procedure = ProcedureCompileTarget {
                 source: "set x 1",
@@ -2780,6 +2801,49 @@ mod tests {
                 "{procedure} lost its {dependency} inline dependency: {bindings:?}",
             );
         }
+    }
+
+    #[test]
+    fn structured_commands_after_a_generic_invoke_own_their_start_command() {
+        let source = "set n 0; foo\n\
+                      if {$n} {puts a}\n\
+                      switch $n {1 {puts b}}\n\
+                      for {set i 0} {$i < 1} {incr i} {puts c}\n\
+                      for {} {$n} {} {puts d}\n\
+                      while {$n} {if {$n} {puts e} else {puts f}}";
+        let module = BytecodeCompileService::default().compile(source).unwrap();
+        let markers: Vec<(&str, i32)> = module
+            .top_level
+            .instructions
+            .iter()
+            .filter(|instruction| instruction.op == tcl_bytecode::Op::START_CMD)
+            .map(|instruction| {
+                let count = match instruction.operands.get(1) {
+                    Some(tcl_bytecode::Operand::Imm(count)) => *count,
+                    _ => 0,
+                };
+                (
+                    instruction
+                        .source_cmd_text
+                        .try_text()
+                        .expect("utf-8 command"),
+                    count,
+                )
+            })
+            .collect();
+        // Tcl 9.0.4's startCommands for the same script, in order.
+        assert_eq!(
+            markers,
+            [
+                ("if {$n} {puts a}", 1),
+                ("switch $n {1 {puts b}}", 1),
+                ("for {set i 0} {$i < 1} {incr i} {puts c}", 2),
+                ("incr i", 1),
+                ("for {} {$n} {} {puts d}", 1),
+                ("while {$n} {if {$n} {puts e} else {puts f}}", 1),
+                ("if {$n} {puts e} else {puts f}", 1),
+            ],
+        );
     }
 
     #[test]

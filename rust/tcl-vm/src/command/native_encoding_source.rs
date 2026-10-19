@@ -262,6 +262,17 @@ fn source_in(vm: &mut Vm, args: &[Value], names: &OriginalNameConsumerScope) -> 
         Ok(completion) => completion,
         Err(error) => completion_from_tcl_error(vm, error),
     };
+    // C's `Tcl_FSEvalFileEx`: an error leaving the file adds its
+    // `(file "PATH" line N)` frame (the path cut at 150 bytes, `...` after a
+    // cut from 8.5); an error a `return` settles names no file.
+    if completion.code == tcl_core_types::Code::Error && !vm.uses_jim_error_stack() {
+        let text = tcl_cmd_core::error::file_frame_text(path, vm.runtime_version());
+        let mut frame = b"\n    (".to_vec();
+        frame.extend_from_slice(&text);
+        frame.extend_from_slice(format!(" line {})", vm.error_line()).as_bytes());
+        let message = completion.result.string_bytes();
+        vm.seed_error_info_frame(&*message, frame);
+    }
     if label.is_some() {
         vm.pop_script();
     }

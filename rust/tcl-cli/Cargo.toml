@@ -83,7 +83,7 @@ regex = "1"
 # `spec_verbs.rs` builds a release `.zip` in a tempdir to exercise the archive
 # path of `tcl spec import` without a committed binary fixture. Writing stored
 # entries needs no compression feature.
-zip = { version = "8", default-features = false }
+zip = { version = "9", default-features = false }
 
 [features]
 # The interactive `tcl explore --tui` shell. Off by default so the lean CLI

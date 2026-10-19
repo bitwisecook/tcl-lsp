@@ -181,6 +181,10 @@ enum RangeTable<'a> {
     /// The command's own option words (a command with no subcommands).
     CommandOptions,
     /// The named subcommand's option words.
+    #[expect(
+        dead_code,
+        reason = "no range test checks a subcommand's own options yet"
+    )]
     SubcommandOptions(&'a str),
 }
 

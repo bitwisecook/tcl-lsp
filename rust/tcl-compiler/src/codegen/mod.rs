@@ -364,6 +364,25 @@ pub struct CodegenCtx<'r> {
     /// Complete original command extent supplied by the byte word owner.
     /// Its closing delimiters need no legacy representative-span widening.
     exact_command_source: Option<tcl_lexer::SourceImage>,
+    /// The spans of the commands the release evaluates without compiling
+    /// them: the top level's own commands where the module says so
+    /// ([`crate::ir::Module::top_level_evaluation`]), and none elsewhere.
+    pub(crate) direct_commands: Vec<Span>,
+    /// Whether the block being emitted runs a script body the release
+    /// evaluates without compiling it (8.4's `eval` and `uplevel`).
+    pub(crate) direct_body: bool,
+    /// The commands of the script bodies the release evaluates without
+    /// compiling them ([`Self::direct_body`]), as their blocks are emitted.
+    pub(crate) direct_body_commands: Vec<Span>,
+    /// How many expressions enclose the code being emitted. The release
+    /// compiles an expression, and the commands in it, even in a command it
+    /// evaluates without compiling.
+    expr_depth: u32,
+    /// Per command span, under a release that keeps the commands running
+    /// bytecode compiled: where it compiled every command whose binding the
+    /// command's specialised instructions retain
+    /// ([`tcl_bytecode::Instruction::release_hold`]).
+    release_holds: HashMap<Span, tcl_runtime_api::ReleaseBinding>,
     /// Unrooted constructed namespace paired with the current executable
     /// command source site. This follows explicit IR binding sites across
     /// inlining rather than inheriting the surrounding function's namespace.
@@ -489,6 +508,11 @@ impl<'r> CodegenCtx<'r> {
             line_index: None,
             current_span_is_command: false,
             exact_command_source: None,
+            direct_commands: Vec::new(),
+            direct_body: false,
+            direct_body_commands: Vec::new(),
+            expr_depth: 0,
+            release_holds: HashMap::new(),
             current_command_namespace: tcl_runtime_api::ByteNamespacePath::root(),
             current_command_namespace_context: None,
             cmd_arg_braced: Vec::new(),
@@ -525,6 +549,117 @@ impl<'r> CodegenCtx<'r> {
             .lvt
             .set_native_protocol(context.compiled_variable_protocol);
         context
+    }
+
+    /// How the release evaluates the command being emitted.
+    fn command_evaluation(&self) -> tcl_runtime_api::CommandEvaluation {
+        if self.in_direct_command() {
+            tcl_runtime_api::CommandEvaluation::Direct
+        } else {
+            tcl_runtime_api::CommandEvaluation::Compiled
+        }
+    }
+
+    /// Whether the release evaluates the command being emitted without
+    /// compiling it, so reads a literal word in it as the command runs.
+    #[must_use]
+    pub(crate) fn in_direct_command(&self) -> bool {
+        self.expr_depth == 0
+            && self.current_span_is_command
+            && self
+                .current_span
+                .is_some_and(|span| self.evaluates_directly(span))
+    }
+
+    /// Whether the release evaluates the command at `span` without compiling
+    /// it: one of [`Self::direct_commands`], or a command of a script body it
+    /// evaluates directly ([`Self::direct_body`]).
+    pub(crate) fn evaluates_directly(&self, span: Span) -> bool {
+        self.direct_body || self.direct_commands.contains(&span)
+    }
+
+    /// How the release binds an invocation of `command` of `shape`, where it
+    /// keeps the commands running bytecode compiled; `None` elsewhere.
+    pub(crate) fn release_binding_of(
+        &self,
+        command: &str,
+        shape: &tcl_registry::release_compilation::InvocationShape,
+    ) -> Option<tcl_runtime_api::ReleaseBinding> {
+        tcl_registry::release_compilation::release_binding(self.vm_release(), command, shape)
+    }
+
+    /// The binding a literal-headed invocation of `command` with `words`
+    /// after it carries to its `INVOKE` ([`tcl_bytecode::Instruction::release_binding`]).
+    /// A command the release evaluates directly binds nothing.
+    pub(crate) fn release_invoke_binding(
+        &self,
+        command: &str,
+        words: &[(&str, bool)],
+    ) -> Option<tcl_runtime_api::ReleaseBinding> {
+        if tcl_syntax::naming::word_is_dynamic(command, false) || self.in_direct_command() {
+            return None;
+        }
+        let args: Vec<&str> = words.iter().map(|&(text, _)| text).collect();
+        self.release_binding_of(
+            command,
+            &self.invocation_shape(&args, |index| words[index].1),
+        )
+    }
+
+    /// The shape of an invocation whose words after the command are `args`,
+    /// the word at each index braced where `braced` says so.
+    pub(crate) fn invocation_shape<S: AsRef<str>>(
+        &self,
+        args: &[S],
+        braced: impl Fn(usize) -> bool,
+    ) -> tcl_registry::release_compilation::InvocationShape {
+        tcl_registry::release_compilation::InvocationShape::of(self.vm_release(), args, |index| {
+            !tcl_syntax::naming::word_is_dynamic(args[index].as_ref(), braced(index))
+        })
+    }
+
+    /// Note that the command being emitted retains `command`'s binding, for
+    /// the command's [`tcl_bytecode::Instruction::release_hold`].
+    fn hold_release_binding(
+        &mut self,
+        command: &str,
+        shape: &tcl_registry::release_compilation::InvocationShape,
+    ) {
+        if let Some(span) = self.current_span.filter(|_| self.current_span_is_command) {
+            self.hold_release_binding_at(span, command, shape);
+        }
+    }
+
+    /// [`Self::hold_release_binding`] for the command at `span`.
+    fn hold_release_binding_at(
+        &mut self,
+        span: Span,
+        command: &str,
+        shape: &tcl_registry::release_compilation::InvocationShape,
+    ) {
+        let Some(binding) = self.release_binding_of(command, shape) else {
+            return;
+        };
+        self.release_holds
+            .entry(span)
+            .and_modify(|held| *held = held.meet(binding))
+            .or_insert(binding);
+    }
+
+    /// The release hold of the command at `span`
+    /// ([`tcl_bytecode::Instruction::release_hold`]): where the release keeps
+    /// running bytecode, a command that retains no binding holds everywhere.
+    pub(crate) fn release_hold(
+        &self,
+        span: Option<Span>,
+    ) -> Option<tcl_runtime_api::ReleaseBinding> {
+        if self.vm_release().revalidates_running_bytecode() {
+            return None;
+        }
+        Some(
+            span.and_then(|span| self.release_holds.get(&span).copied())
+                .unwrap_or(tcl_runtime_api::ReleaseBinding::Compiled),
+        )
     }
 
     /// Whether a variable named here may be addressed as a *compiled local* of
@@ -936,6 +1071,19 @@ impl<'r> CodegenCtx<'r> {
 
     /// Record one source binding relied on by specialised emission.
     pub fn require_command_binding(&mut self, binding: &tcl_runtime_api::CommandBindingIdentity) {
+        self.require_invocation_binding(
+            binding,
+            &tcl_registry::release_compilation::InvocationShape::default(),
+        );
+    }
+
+    /// [`Self::require_command_binding`] for an invocation of `shape`.
+    pub(crate) fn require_invocation_binding(
+        &mut self,
+        binding: &tcl_runtime_api::CommandBindingIdentity,
+        shape: &tcl_registry::release_compilation::InvocationShape,
+    ) {
+        self.hold_release_binding(&binding.name, shape);
         self.command_binding_requirements.insert(binding.clone());
         self.current_command_namespace = namespace_path_for_binding(binding);
         self.current_command_namespace_context
@@ -1074,14 +1222,31 @@ impl<'r> CodegenCtx<'r> {
         true
     }
 
+    /// [`Self::require_command_binding`] for the command whose head `site`
+    /// says typed lowering consumed, wherever emission stands.
+    pub(crate) fn require_command_site(&mut self, site: &crate::ir::CommandBindingSite) {
+        self.hold_release_binding_at(site.span, &site.binding.name, &site.shape);
+        if let Some(binding) = crate::registry_invocation::native_site_binding_requirement(site) {
+            self.command_binding_requirements.insert(binding.clone());
+        }
+        self.current_command_namespace = namespace_path_for_binding(&site.binding);
+        self.current_command_namespace_context
+            .clone_from(&site.binding.namespace_context);
+    }
+
     /// Record one spec-pack claim a specialised operation rests on.
     pub fn require_site_claim(&mut self, claim: &tcl_runtime_api::SiteClaim) {
         self.site_claim_requirements.insert(claim.clone());
     }
 
-    /// Record a site binding: the binding, and its claim when it has one.
-    pub(crate) fn require_site_binding(&mut self, site: &SiteBinding) {
-        self.require_command_binding(&site.binding);
+    /// Record a site binding of an invocation of `shape`: the binding, and its
+    /// claim when it has one.
+    pub(crate) fn require_site_binding(
+        &mut self,
+        site: &SiteBinding,
+        shape: &tcl_registry::release_compilation::InvocationShape,
+    ) {
+        self.require_invocation_binding(&site.binding, shape);
         if let Some(claim) = &site.claim {
             self.require_site_claim(claim);
         }
@@ -1182,11 +1347,8 @@ impl<'r> CodegenCtx<'r> {
             self.current_command_namespace = namespace_path_for_binding(&site.binding);
             self.current_command_namespace_context
                 .clone_from(&site.binding.namespace_context);
-            if !self.plain_command_dispatch
-                && let Some(binding) =
-                    crate::registry_invocation::native_site_binding_requirement(site)
-            {
-                self.require_command_binding(binding);
+            if !self.plain_command_dispatch {
+                self.require_command_site(site);
             }
         }
     }
@@ -1201,11 +1363,9 @@ impl<'r> CodegenCtx<'r> {
     ) {
         let (span, text, line) =
             site.map_or((None, tcl_lexer::SourceImage::default(), 0), |site| {
-                if !self.plain_command_dispatch
-                    && let Some(binding) =
-                        crate::registry_invocation::native_site_binding_requirement(site)
-                {
-                    self.require_command_binding(binding);
+                if !self.plain_command_dispatch {
+                    // The owner's command, not the clause the marker wraps.
+                    self.require_command_site(site);
                 }
                 (
                     Some(site.span),
@@ -1213,7 +1373,15 @@ impl<'r> CodegenCtx<'r> {
                     self.source_line(site.span),
                 )
             });
+        // The owner's evaluation, not that of the clause the marker was
+        // emitted under: a directly evaluated `for` keeps its init compiled.
+        let evaluation = if span.is_some_and(|span| self.evaluates_directly(span)) {
+            tcl_runtime_api::CommandEvaluation::Direct
+        } else {
+            tcl_runtime_api::CommandEvaluation::Compiled
+        };
         if let Some(instr) = self.instructions.get_mut(instruction) {
+            instr.evaluation = evaluation;
             instr.source_span = span;
             instr.source_cmd_text = text;
             instr.source_line = line;
@@ -1284,6 +1452,20 @@ impl<'r> CodegenCtx<'r> {
                 // boundary of the enclosing IR/source command used to locate
                 // that outer command's continuation.
                 instruction.source_command_boundary = SourceCommandBoundary::InlineReplay;
+            } else if instruction.source_cmd_text == enclosing_text
+                && instruction
+                    .error_info_command
+                    .as_ref()
+                    .is_none_or(|command| !command.nested)
+            {
+                // errorInfo names the body command, which an enclosing
+                // substitution's stamp then keeps.
+                instruction.error_info_command = Some(tcl_bytecode::ErrorInfoCommand {
+                    text: text.to_owned(),
+                    line,
+                    nested: true,
+                    enclosing: Vec::new(),
+                });
             }
         }
     }
@@ -1341,6 +1523,178 @@ impl<'r> CodegenCtx<'r> {
                 )
             }
             None => tcl_lexer::SourceImage::default(),
+        }
+    }
+
+    /// C logs a command's source through any whitespace before its
+    /// terminator (`error x }` names `error x `); `None` when there is none.
+    fn trailing_space_error_info(&self, text: &str) -> Option<tcl_bytecode::ErrorInfoCommand> {
+        let span = self.current_span.filter(|_| !text.is_empty())?;
+        let trailing = self.space_after(span);
+        (!trailing.is_empty()).then(|| tcl_bytecode::ErrorInfoCommand {
+            text: format!("{text}{trailing}"),
+            line: self.span_line(),
+            nested: false,
+            enclosing: Vec::new(),
+        })
+    }
+
+    /// The word separators between `span` and the terminator after it, by
+    /// this dialect's grammar.
+    fn space_after(&self, span: Span) -> &str {
+        let separators = self.lexer_config().word_separators;
+        let rest = self
+            .source
+            .get(self.command_end(span)..)
+            .unwrap_or_default();
+        let end = rest
+            .iter()
+            .position(|&byte| !separators.is_separator(byte))
+            .unwrap_or(rest.len());
+        // Word separators are ASCII, so the run is always Unicode.
+        std::str::from_utf8(&rest[..end]).unwrap_or_default()
+    }
+
+    /// [`Self::source_text`] through the whitespace before the command's
+    /// terminator, as C's `errorInfo` names a command. The original bytes and
+    /// channel are retained, as [`Self::source_text`] retains them.
+    pub(crate) fn error_info_source_text(&self, span: Span) -> tcl_lexer::SourceImage {
+        let start = span.start() as usize;
+        let end = self.command_end(span) + self.space_after(span).len();
+        tcl_lexer::SourceImage::from_bytes(
+            self.source.get(start..end).unwrap_or_default(),
+            self.source.channel(),
+        )
+    }
+
+    /// Where the command at `span` ends: a quoted last word's span ends inside
+    /// its closing `"` (see [`Self::span_text`]).
+    fn command_end(&self, span: Span) -> usize {
+        let end = span.end() as usize;
+        if self.source.bytes().get(end) == Some(&b'"') {
+            end + 1
+        } else {
+            end
+        }
+    }
+
+    /// Name the command inside the substitution `spelling` (`[cmd …]`) in
+    /// the `errorInfo` of every instruction emitted for it from `start`, as
+    /// C logs the inner command rather than the enclosing statement. A more
+    /// deeply nested substitution's stamp is kept. The line is that of the
+    /// inner command's first word when its `tokens` place it.
+    pub(crate) fn stamp_substitution_error_info(
+        &mut self,
+        start: usize,
+        spelling: &str,
+        tokens: Option<&crate::ir::CommandTokens>,
+    ) {
+        let Some(inner) = spelling
+            .strip_prefix('[')
+            .and_then(|rest| rest.strip_suffix(']'))
+        else {
+            return;
+        };
+        let separators = self.lexer_config().word_separators;
+        let text = inner.trim_start_matches(|c: char| {
+            c == '\n' || u8::try_from(c).is_ok_and(|byte| separators.is_separator(byte))
+        });
+        if text.trim().is_empty() {
+            return;
+        }
+        let statement = self.command_span_text();
+        // A statement whose original bytes are not Unicode keeps its default
+        // `errorInfo` rather than a stamp read from a lossy projection.
+        let Ok(statement_text) = statement.try_text() else {
+            return;
+        };
+        let before = statement_text
+            .find(spelling)
+            .map_or(0, |at| statement_text[..at].matches('\n').count())
+            + inner[..inner.len() - text.len()].matches('\n').count();
+        let line = tokens
+            .and_then(|tokens| tokens.argv.first())
+            .map(|word| self.source_line(*word))
+            .filter(|&line| line != 0)
+            .unwrap_or_else(|| self.span_line() + u32::try_from(before).unwrap_or(0));
+        // Evaluated directly, each substitution is a script of its own that
+        // the enclosing one logs again as the error leaves it.
+        let direct = self.direct_statement_error_info();
+        // An inlined body inside the substitution names its own commands.
+        for instruction in self
+            .instructions
+            .iter_mut()
+            .skip(start)
+            .filter(|instruction| instruction.source_cmd_text == statement)
+        {
+            match instruction.error_info_command.as_mut() {
+                Some(command) if command.nested => {
+                    if direct.is_some() {
+                        let at = command.enclosing.len().saturating_sub(1);
+                        command.enclosing.insert(at, (text.to_owned(), line));
+                    }
+                }
+                _ => {
+                    instruction.error_info_command = Some(tcl_bytecode::ErrorInfoCommand {
+                        text: text.to_owned(),
+                        line,
+                        nested: true,
+                        enclosing: direct.iter().cloned().collect(),
+                    });
+                }
+            }
+        }
+    }
+
+    /// Whether the statement being emitted is one the release evaluates
+    /// without compiling it.
+    pub(crate) fn in_direct_statement(&self) -> bool {
+        self.current_span
+            .is_some_and(|span| self.current_span_is_command && self.evaluates_directly(span))
+    }
+
+    /// The command `errorInfo` names for the statement being emitted when
+    /// the release evaluates it without compiling it.
+    fn direct_statement_error_info(&self) -> Option<(String, u32)> {
+        self.current_span
+            .filter(|_| self.in_direct_statement())
+            .map(|span| {
+                // `errorInfo` is presentation: bytes that are not Unicode
+                // are shown lossily rather than refused.
+                let text = self.error_info_source_text(span);
+                (
+                    String::from_utf8_lossy(text.bytes()).into_owned(),
+                    self.span_line(),
+                )
+            })
+    }
+
+    /// A substitution of several commands runs as a script of its own: in a
+    /// directly evaluated statement, the statement logs its error again.
+    pub(crate) fn stamp_substitution_script(&mut self, start: usize) {
+        let Some(statement) = self.direct_statement_error_info() else {
+            return;
+        };
+        let text = self.command_span_text();
+        for instruction in self
+            .instructions
+            .iter_mut()
+            .skip(start)
+            .filter(|instruction| instruction.source_cmd_text == text)
+        {
+            if instruction
+                .error_info_command
+                .as_ref()
+                .is_none_or(|command| !command.nested)
+            {
+                let (text, line) = instruction.error_info_text();
+                instruction.error_info_command = Some(tcl_bytecode::ErrorInfoCommand {
+                    text: text.to_owned(),
+                    line,
+                    nested: true,
+                    enclosing: vec![statement.clone()],
+                });
+            }
         }
     }
 
@@ -1403,8 +1757,12 @@ impl<'r> CodegenCtx<'r> {
         let idx = self.instructions.len();
         let mut instr = Instruction::new(op, operands);
         instr.source_span = self.current_span;
+        instr.evaluation = self.command_evaluation();
         instr.source_cmd_text = self.command_span_text();
         instr.source_line = self.span_line();
+        // A non-UTF-8 command has no text view to stamp; it names none.
+        instr.error_info_command =
+            self.trailing_space_error_info(instr.source_cmd_text.try_text().unwrap_or_default());
         if !instr.source_cmd_text.is_empty() {
             instr
                 .source_command_namespace
@@ -1425,8 +1783,12 @@ impl<'r> CodegenCtx<'r> {
         let mut instr = Instruction::new(op, operands);
         comment.clone_into(&mut instr.comment);
         instr.source_span = self.current_span;
+        instr.evaluation = self.command_evaluation();
         instr.source_cmd_text = self.command_span_text();
         instr.source_line = self.span_line();
+        // A non-UTF-8 command has no text view to stamp; it names none.
+        instr.error_info_command =
+            self.trailing_space_error_info(instr.source_cmd_text.try_text().unwrap_or_default());
         if !instr.source_cmd_text.is_empty() {
             instr
                 .source_command_namespace

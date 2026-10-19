@@ -408,7 +408,11 @@ fn operand_type_err(
     };
     let message =
         tcl_syntax::expr::errors::illegal_operand_message_bytes(desc, value, side, op, release);
-    let code = tcl_syntax::expr::errors::illegal_operand_error_code(desc, release);
+    let code = tcl_syntax::expr::errors::illegal_operand_error_code(
+        desc,
+        &String::from_utf8_lossy(value),
+        release,
+    );
     let error = ExprError::from_parts(message, code.into_bytes());
     if desc == OperandDesc::NonNumericFloatingPointValue {
         error
@@ -1043,11 +1047,24 @@ impl ExprOps for TowerOps<'_> {
         // Resolve `func(…)` through the context: the interp routes it to the
         // command table (`::tcl::mathfunc::func`, so overrides/renames win — A3),
         // falling back to the shared built-in dispatch for the standalone case.
-        self.ctx.call_function(function, &args)
+        float_result(self.ctx.call_function(function, &args)?)
     }
 
     fn arith(&mut self, op: BinOp, left: Owned, right: Owned) -> Result<Owned, ExprError> {
-        native_numeric::binary(self.ctx, op, left, right)
+        // 8.4 refuses a double quotient by zero (`divide by zero`) where it
+        // computes one, and any non-finite result (`TclExprFloatError`).
+        let divisor = (op == BinOp::Div).then(|| right.clone());
+        let value = native_numeric::binary(self.ctx, op, left, right)?;
+        if let Some(divisor) = divisor {
+            if tcl_syntax::expr::errors::ambient_release().raises_float_range_errors()
+                && !bignum::is_integer(value.ptr())
+                && bignum::read_double(value.ptr()).is_some_and(|f| !f.is_finite())
+                && bignum::read_double(divisor.ptr()) == Some(0.0)
+            {
+                return Err(arith_err(ArithError::DivideByZero));
+            }
+        }
+        float_result(value)
     }
 
     fn unary(&mut self, op: UnaryOp, value: Owned) -> Result<Owned, ExprError> {
@@ -1205,8 +1222,24 @@ pub fn eval_expr<Text: tcl_syntax::expr::ExprText>(
         jim: None,
         safe: false,
     };
-    let value = eval(node, &mut ops)?;
+    let value = float_result(eval(node, &mut ops)?)?;
     ops.ctx.original_expression_result(value.as_ptr(), tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi)
+}
+
+/// `value`, or the error the release raises for a double it holds that is
+/// not finite ([`tcl_syntax::expr::errors::float_result_error`]).
+fn float_result(value: Owned) -> Result<Owned, ExprError> {
+    let release = tcl_syntax::expr::errors::ambient_release();
+    let refused = if bignum::is_integer(value.ptr()) {
+        None
+    } else {
+        bignum::read_double(value.ptr())
+            .and_then(|f| tcl_syntax::expr::errors::float_result_error(f, release))
+    };
+    match refused {
+        Some((message, code)) => Err(ExprError::with_code(message.as_bytes(), code.as_bytes())),
+        None => Ok(value),
+    }
 }
 
 /// Execute the compiler's temporary constant program without the public
@@ -1215,14 +1248,14 @@ pub(crate) fn eval_compiled_expression_node(
     node: &tcl_syntax::expr::NativeExprNode,
     ctx: &mut dyn ExprCtx,
 ) -> Result<Owned, ExprError> {
-    eval(
+    float_result(eval(
         node,
         &mut TowerOps {
             ctx,
             jim: None,
             safe: false,
         },
-    )
+    )?)
 }
 
 /// C8.4 TRY_CVT_TO_NUMERIC on a compiled primary. Conversion failures keep

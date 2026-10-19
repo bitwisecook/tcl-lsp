@@ -817,6 +817,7 @@ impl CompileService for InliningCompilerSvc {
             ScriptCompileTarget {
                 source: src,
                 namespace: "",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             },
             profile,
         )
@@ -1065,6 +1066,7 @@ fn explicit_inline_codegen_pipeline_invalidates_after_user_proc_redefinition() {
             ScriptCompileTarget {
                 source,
                 namespace: "",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             },
             profile,
         )
@@ -1131,6 +1133,7 @@ fn inlined_bare_procedure_call_revalidates_resolution_after_local_shadow() {
             ScriptCompileTarget {
                 source,
                 namespace: "",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             },
             profile,
         )
@@ -1203,6 +1206,7 @@ fn inlined_namespaced_body_revalidates_commands_in_its_defining_namespace() {
             ScriptCompileTarget {
                 source,
                 namespace: "",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             },
             profile,
         )
@@ -1291,6 +1295,7 @@ fn active_inlined_namespaced_boundary_replays_in_its_defining_namespace() {
             ScriptCompileTarget {
                 source,
                 namespace: "",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             },
             profile,
         )
@@ -2457,6 +2462,7 @@ fn native_reentry_recompiles_module_in_the_running_namespace() {
             ScriptCompileTarget {
                 source: "expr {1+2}",
                 namespace: "a",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             },
             profile,
         )
@@ -2488,6 +2494,7 @@ fn native_reentry_rejects_a_bare_function_from_another_namespace() {
             ScriptCompileTarget {
                 source: "expr {1+2}",
                 namespace: "a",
+                evaluation: tcl_runtime_api::CommandEvaluation::Compiled,
             },
             profile,
         )
@@ -3948,7 +3955,7 @@ fn a_rung_zero_module_is_admitted_under_a_changed_pack_set() {
     let module = BytecodeCompileService::default()
         .compile("set l {a b c}\nset n [llength $l]\nlindex $l $n")
         .expect("module compiles");
-    assert!(module.top_level.site_claims.is_empty());
+    assert_eq!(module.top_level.site_claims, []);
     assert!(
         !module.top_level.command_bindings.is_empty(),
         "specialised code, whose bindings admission checks"
@@ -4144,8 +4151,8 @@ fn a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites() {
         .compile("set l {a b c}\nlindex $l [llength $l]")
         .expect("compiles");
     let generic = service.compile("native_probe").expect("compiles");
-    assert!(!specialised.top_level.command_bindings.is_empty());
-    assert!(generic.top_level.command_bindings.is_empty());
+    assert_ne!(specialised.top_level.command_bindings, []);
+    assert_eq!(generic.top_level.command_bindings, []);
 
     let run = |module: &tcl_bytecode::ModuleAsm| {
         let plain_calls = Rc::new(Cell::new(0));
@@ -4271,4 +4278,128 @@ fn a_running_function_is_checked_against_its_manifest_when_the_pin_changes() {
         ("2".to_owned(), 1),
         "other floors: plain from the next command"
     );
+}
+
+/// A stale binding replays the next command from source and resumes after
+/// it, so every structured command the compiler inlines must open its own
+/// boundary: one without lets the resume land inside its body.
+#[test]
+fn replay_after_a_stale_binding_resumes_after_each_structured_command() {
+    let tclsh =
+        tcl_test_support::locate_tclsh(TclVersion::V9_0).expect("the Tcl 9.0 oracle is valid");
+    for (source, expected) in &stale_replay_cases() {
+        let (mut vm, output) = vm();
+        eval_ok(&mut vm, source);
+        let printed = String::from_utf8(output.0.borrow().clone()).expect("UTF-8 output");
+        assert_eq!(printed.trim_end(), *expected, "{source}");
+        if let Some(tclsh) = &tclsh {
+            let outcome = tcl_test_support::run_script(&tclsh.path, source.as_bytes())
+                .expect("Tcl 9.0 oracle runs");
+            assert_eq!(
+                outcome.strict_text().expect("Tcl 9.0 succeeds"),
+                *expected,
+                "Tcl 9.0: {source}",
+            );
+        }
+    }
+}
+
+/// Scripts and their Tcl 9.0 output for
+/// [`replay_after_a_stale_binding_resumes_after_each_structured_command`].
+fn stale_replay_cases() -> [(String, &'static str); 17] {
+    let stale = "set n 0; proc try args {}; try a b\n";
+    [
+        (
+            format!("{stale}if {{$n}} {{\n    puts WRONG\n}}\nputs done"),
+            "done",
+        ),
+        (
+            format!("{stale}if {{$n}} {{puts WRONG}} else {{puts RIGHT}}"),
+            "RIGHT",
+        ),
+        (
+            format!("{stale}switch $n {{1 {{puts W}} default {{puts D}}}}"),
+            "D",
+        ),
+        (
+            format!("{stale}for {{set i 0}} {{$i < 2}} {{incr i}} {{puts $i; if {{$n}} {{puts W}}}}"),
+            "0\n1",
+        ),
+        (
+            format!("{stale}for {{}} {{$n}} {{}} {{puts W}}\nputs done"),
+            "done",
+        ),
+        (
+            format!("{stale}while {{$n < 2}} {{incr n; if {{$n == 1}} {{puts one}} else {{puts two}}}}"),
+            "one\ntwo",
+        ),
+        (
+            // tclsh reads stdin through `if`, so restore it before the line ends.
+            "set n 1; puts pre; rename if _if; proc if args {puts redefined}; \
+             if {$n} {puts W}; rename if {}; rename _if if"
+                .to_owned(),
+            "pre\nredefined",
+        ),
+        (
+            "set n 1; puts pre; rename switch _s; proc switch args {puts redefined}\nswitch $n {1 {puts W}}"
+                .to_owned(),
+            "pre\nredefined",
+        ),
+        (
+            "puts pre; rename for _f; proc for args {puts redefined}\nfor {set i 0} {$i < 1} {incr i} {puts W}"
+                .to_owned(),
+            "pre\nredefined",
+        ),
+        (
+            "set n 0; puts pre; rename for _f; proc for args {puts redefined}\nfor {} {$n} {} {puts W}"
+                .to_owned(),
+            "pre\nredefined",
+        ),
+        // A constant-false `if` still owns a boundary.
+        (
+            "proc r {} {rename if _if; proc if args {puts redefined}}; \
+             foreach x {a} {r; if {0} {puts W}}; rename if {}; rename _if if"
+                .to_owned(),
+            "redefined",
+        ),
+        // Every arm leaves, so only a replay reaches the code after the `if`.
+        (
+            "for {set i 0} {$i < 2} {incr i} {proc try args {}; if {1} {break}}\n\
+             try a b; puts end"
+                .to_owned(),
+            "end",
+        ),
+        (
+            "proc p {n} {proc try args {}; if {$n} {return x} else {return y}; try a b}; puts [p 1]"
+                .to_owned(),
+            "x",
+        ),
+        (
+            "proc r {} {rename if _if; proc if args {puts redefined}}; \
+             proc p {} {foreach x {1} {r; if {1} {break}; puts after}}; p; \
+             rename if {}; rename _if if"
+                .to_owned(),
+            "redefined\nafter",
+        ),
+        (
+            "proc r {} {rename if _if; proc if args {puts redefined}}; \
+             foreach x {1} {r; if {1} {continue}; puts after}; rename if {}; rename _if if"
+                .to_owned(),
+            "redefined\nafter",
+        ),
+        (
+            "proc r {} {rename if _if; proc if args {puts redefined}}; \
+             proc p {n} {foreach x {1} {r; if {$n} {break} else {continue}; puts after}}; p 0; \
+             rename if {}; rename _if if"
+                .to_owned(),
+            "redefined\nafter",
+        ),
+        (
+            "proc r {} {rename switch _s; proc switch args {puts redefined}}; \
+             proc p {n} {foreach x {1} {r; switch $n {0 {break} default {continue}}; puts after}}; \
+             p 0; rename switch {}; rename _s switch"
+                .to_owned(),
+            "redefined\nafter",
+        ),
+    ]
 }

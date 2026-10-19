@@ -277,6 +277,107 @@ fn do_match(p: &[char], mut pi: usize, s: &[char], mut si: usize, nocase: bool) 
     }
 }
 
+/// A regular expression as the glob pattern `TclReToGlob` turns it into, with
+/// whether matching it is an exact comparison (both anchors and nothing
+/// else special), or `None` where it is no simple glob: the conversion
+/// `TclCompileRegexpCmd` (8.5 on) makes of a literal pattern before it
+/// chooses `INST_STR_EQ` or `INST_STR_MATCH` over `INST_REGEXP`.
+#[must_use]
+pub fn re_to_glob(re: &[u8]) -> Option<(Vec<u8>, bool)> {
+    let mut out = Vec::with_capacity(re.len() + 2);
+    if let Some(rest) = re.strip_prefix(b"***=") {
+        out.push(b'*');
+        for &c in rest {
+            if matches!(c, b'\\' | b'*' | b'[' | b']' | b'?') {
+                out.push(b'\\');
+            }
+            out.push(c);
+        }
+        out.push(b'*');
+        return Some((out, false));
+    }
+    let mut anchor_left = re.first() == Some(&b'^');
+    let mut anchor_right = false;
+    let mut last_is_star = !anchor_left;
+    let mut stars = 0;
+    let mut p = usize::from(anchor_left);
+    if !anchor_left {
+        out.push(b'*');
+    }
+    while p < re.len() {
+        match re[p] {
+            b'\\' => {
+                p += 1;
+                match re.get(p).copied().unwrap_or(0) {
+                    b'a' => out.push(0x07),
+                    b'b' => out.push(0x08),
+                    b'f' => out.push(0x0c),
+                    b'n' => out.push(b'\n'),
+                    b'r' => out.push(b'\r'),
+                    b't' => out.push(b'\t'),
+                    b'v' => out.push(0x0b),
+                    b'B' | b'\\' => {
+                        out.extend_from_slice(b"\\\\");
+                        anchor_left = false;
+                    }
+                    c @ (b'*' | b'[' | b']' | b'?') => {
+                        out.push(b'\\');
+                        out.push(c);
+                        anchor_left = false;
+                    }
+                    c @ (b'{' | b'}' | b'(' | b')' | b'+' | b'.' | b'|' | b'^' | b'$') => {
+                        out.push(c);
+                    }
+                    _ => return None,
+                }
+            }
+            b'.' => {
+                anchor_left = false;
+                match re.get(p + 1) {
+                    Some(b'*') => {
+                        p += 2;
+                        if !last_is_star {
+                            out.push(b'*');
+                            last_is_star = true;
+                            stars += 1;
+                        }
+                        continue;
+                    }
+                    Some(b'+') => {
+                        p += 2;
+                        out.extend_from_slice(b"?*");
+                        last_is_star = true;
+                        stars += 1;
+                        continue;
+                    }
+                    _ => out.push(b'?'),
+                }
+            }
+            b'$' => {
+                if p + 1 != re.len() {
+                    return None;
+                }
+                anchor_right = true;
+            }
+            b'*' | b'+' | b'?' | b'|' | b'^' | b'{' | b'}' | b'(' | b')' | b'[' | b']' => {
+                return None;
+            }
+            c => out.push(c),
+        }
+        last_is_star = false;
+        p += 1;
+    }
+    // More than one unanchored `*` risks more backtracking than the regexp
+    // engine, so C declines it.
+    if stars > 1 {
+        return None;
+    }
+    if !anchor_right && !last_is_star {
+        out.push(b'*');
+    }
+    Some((out, anchor_left && anchor_right))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -466,5 +567,25 @@ mod tests {
             "glob match took too long: {:?}",
             start.elapsed()
         );
+    }
+
+    /// `TclReToGlob` (8.6.18): anchors become an exact comparison, `.` a
+    /// `?`, `.*` and `.+` a star, and anything else special declines.
+    #[test]
+    fn re_to_glob_converts_as_tcl_re_to_glob_does() {
+        let glob =
+            |re: &str| re_to_glob(re.as_bytes()).map(|(g, e)| (String::from_utf8(g).unwrap(), e));
+        assert_eq!(glob("abc"), Some(("*abc*".into(), false)));
+        assert_eq!(glob("^abc$"), Some(("abc".into(), true)));
+        assert_eq!(glob("^a.c$"), Some(("a?c".into(), false)));
+        assert_eq!(glob("^a.*"), Some(("a*".into(), false)));
+        assert_eq!(glob("a.+b"), Some(("*a?*b*".into(), false)));
+        assert_eq!(glob("a\\.b"), Some(("*a.b*".into(), false)));
+        assert_eq!(glob("***=a*b"), Some(("*a\\*b*".into(), false)));
+        assert_eq!(glob("a.*b.*c"), None);
+        assert_eq!(glob("a+"), None);
+        assert_eq!(glob("a$b"), None);
+        assert_eq!(glob("a\\d"), None);
+        assert_eq!(glob(""), Some(("*".into(), false)));
     }
 }

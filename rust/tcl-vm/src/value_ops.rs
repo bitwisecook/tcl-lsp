@@ -457,6 +457,20 @@ impl Vm {
 impl ValueOps for Vm {
     type Value = Value;
 
+    fn value_size_limit(&self) -> Option<u64> {
+        self.value_size_limit_value()
+    }
+
+    fn admit_value_bytes(&mut self, bytes: u64) -> bool {
+        self.charge_allocation(bytes).is_none()
+    }
+
+    /// A list or dict is measured through its elements rather than rendered
+    /// ([`Value::measured_bytes`]).
+    fn measure_value(&mut self, v: &Value, cap: u64) -> u64 {
+        v.measured_bytes(cap)
+    }
+
     fn name_policy_protocol(&self) -> Option<tcl_syntax::naming::NamePolicyProtocol> {
         crate::interp::InterpState::name_policy_protocol(self)
     }
@@ -1360,24 +1374,40 @@ mod raw_value_tests {
         let raw = vec![0xff, b'A', 0xed, 0xa0, 0x80, 0xc3, 0xa9];
         let value = Value::from_string_bytes(raw.clone());
         assert_eq!(
-            tcl_cmd_core::string::index(&mut vm, &value, &Value::int(0))
-                .unwrap()
-                .string_bytes()
-                .as_ref(),
+            tcl_cmd_core::string::index(
+                &mut vm,
+                &value,
+                &Value::int(0),
+                tcl_syntax::number::runtime_syntax()
+            )
+            .unwrap()
+            .string_bytes()
+            .as_ref(),
             &[0xff]
         );
         assert_eq!(
-            tcl_cmd_core::string::index(&mut vm, &value, &Value::int(2))
-                .unwrap()
-                .string_bytes()
-                .as_ref(),
+            tcl_cmd_core::string::index(
+                &mut vm,
+                &value,
+                &Value::int(2),
+                tcl_syntax::number::runtime_syntax()
+            )
+            .unwrap()
+            .string_bytes()
+            .as_ref(),
             &[0xed, 0xa0, 0x80]
         );
         assert_eq!(
-            tcl_cmd_core::string::range(&mut vm, &value, &Value::int(1), &Value::string("end"))
-                .unwrap()
-                .string_bytes()
-                .as_ref(),
+            tcl_cmd_core::string::range(
+                &mut vm,
+                &value,
+                &Value::int(1),
+                &Value::string("end"),
+                tcl_syntax::number::runtime_syntax()
+            )
+            .unwrap()
+            .string_bytes()
+            .as_ref(),
             &[b'A', 0xed, 0xa0, 0x80, 0xc3, 0xa9]
         );
         assert_eq!(
@@ -1432,42 +1462,74 @@ mod raw_value_tests {
         let source = Value::from_string_bytes(vec![0xc3, b'A', 0xc3, 0xa9]);
         assert_eq!(vm.native_char_len(&source), Ok(3));
         assert_eq!(
-            tcl_cmd_core::string::index(&mut vm, &source, &Value::int(1))
-                .unwrap()
-                .string_bytes()
-                .as_ref(),
+            tcl_cmd_core::string::index(
+                &mut vm,
+                &source,
+                &Value::int(1),
+                tcl_syntax::number::runtime_syntax()
+            )
+            .unwrap()
+            .string_bytes()
+            .as_ref(),
             &[0xc3, 0xa9],
         );
         assert_eq!(
-            tcl_cmd_core::string::index(&mut vm, &source, &Value::int(2))
-                .unwrap()
-                .string_bytes()
-                .as_ref(),
+            tcl_cmd_core::string::index(
+                &mut vm,
+                &source,
+                &Value::int(2),
+                tcl_syntax::number::runtime_syntax()
+            )
+            .unwrap()
+            .string_bytes()
+            .as_ref(),
             &[0],
         );
-        let range =
-            tcl_cmd_core::string::range(&mut vm, &source, &Value::int(0), &Value::int(1)).unwrap();
+        let range = tcl_cmd_core::string::range(
+            &mut vm,
+            &source,
+            &Value::int(0),
+            &Value::int(1),
+            tcl_syntax::number::runtime_syntax(),
+        )
+        .unwrap();
         assert_eq!(range.string_bytes(), source.string_bytes());
         assert_eq!(vm.native_char_len(&range), Ok(2));
         let reconstruction = Value::from_string_bytes(range.string_bytes());
         assert_eq!(vm.native_char_len(&reconstruction), Ok(3));
         assert_eq!(vm.list_elements(&range).unwrap().len(), 1);
         assert_eq!(vm.native_char_len(&range), Ok(3));
-        let suffix =
-            tcl_cmd_core::string::range(&mut vm, &source, &Value::int(1), &Value::string("end"))
-                .unwrap();
+        let suffix = tcl_cmd_core::string::range(
+            &mut vm,
+            &source,
+            &Value::int(1),
+            &Value::string("end"),
+            tcl_syntax::number::runtime_syntax(),
+        )
+        .unwrap();
         assert_eq!(suffix.string_bytes().as_ref(), &[0xc3, 0xa9, 0]);
         assert_eq!(vm.native_char_len(&suffix), Ok(2));
 
         let unowned = Value::from_string_bytes(vec![0xe0, 0xe0, 0xe0, 0xc3, 0xa9]);
         assert_eq!(
-            tcl_cmd_core::string::index(&mut vm, &unowned, &Value::int(2))
-                .unwrap()
-                .string_bytes()
-                .as_ref(),
+            tcl_cmd_core::string::index(
+                &mut vm,
+                &unowned,
+                &Value::int(2),
+                tcl_syntax::number::runtime_syntax()
+            )
+            .unwrap()
+            .string_bytes()
+            .as_ref(),
             &[0]
         );
-        let error = tcl_cmd_core::string::index(&mut vm, &unowned, &Value::int(3)).unwrap_err();
+        let error = tcl_cmd_core::string::index(
+            &mut vm,
+            &unowned,
+            &Value::int(3),
+            tcl_syntax::number::runtime_syntax(),
+        )
+        .unwrap_err();
         let original = error
             .native_access_refusal()
             .expect("original string-access refusal");

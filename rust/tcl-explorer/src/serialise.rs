@@ -40,7 +40,8 @@ use tcl_compiler::gvn::{
 };
 use tcl_compiler::interprocedural::InterproceduralAnalysis;
 use tcl_compiler::interval_bounds::{
-    BoundsSemantics, find_divide_by_zero_with_entered_operands, find_interval_bounds_resolved,
+    BoundsRelease, BoundsSemantics, find_divide_by_zero_with_entered_operands,
+    find_interval_bounds_in_release,
 };
 use tcl_compiler::intervals::compute_intervals;
 use tcl_compiler::ir::{Module, Script, Statement};
@@ -2950,13 +2951,18 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
                 context: Some(metadata),
                 grammar: snap.unit.source_lexer_config().grammar_over(profile.grammar),
             };
-            let findings: Vec<Value> = find_interval_bounds_resolved(
+            let findings: Vec<Value> = find_interval_bounds_in_release(
                 &snap.unit.cfg,
                 &snap.unit.ssa,
                 (&snap.unit.sccp.values, (&snap.unit.sccp, &snap.unit.types)),
                 &snap.unit.sccp.executable_blocks,
-                profile.character_model(),
-                numbers,
+                BoundsRelease {
+                    characters: profile.character_model(),
+                    numbers,
+                    lset_appends_at_length: tcl_dialect::TclVersion::lset_appends_at_length_for(
+                        profile.const_fold_version(),
+                    ),
+                },
                 semantics,
             )
             .iter()

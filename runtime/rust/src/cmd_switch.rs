@@ -67,10 +67,11 @@ fn switch_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
     // A single trailing argument is the `{pattern body ...}` list form; anything
     // else is inline pattern/body words.
+    let compiled = interp.release_compiles_control(argv);
     if rest.len() == 1 {
-        switch_list_form(interp, &opts, value, rest[0], version)
+        switch_list_form(interp, &opts, value, rest[0], version, compiled)
     } else {
-        switch_inline_form(interp, &opts, value, rest, version)
+        switch_inline_form(interp, &opts, value, rest, version, compiled)
     }
 }
 
@@ -97,6 +98,7 @@ fn switch_inline_form(
     value: *mut TclObj,
     words: &[*mut TclObj],
     version: tcl_dialect::TclVersion,
+    compiled: bool,
 ) -> Code {
     let objc = words.len();
     if objc % 2 != 0 {
@@ -152,9 +154,9 @@ fn switch_inline_form(
             Err(error) => return interp.report_cmd_error(error),
         }
     }
-    let code = interp.eval_control_body(words[b * 2 + 1]);
+    let code = interp.eval_compiled_control_body(words[b * 2 + 1], compiled);
     if code == Code::Error {
-        arm_error_info(interp, &obj_bytes(words[matched * 2]));
+        arm_error_info(interp, &obj_bytes(words[matched * 2]), compiled);
     }
     code
 }
@@ -168,6 +170,7 @@ fn switch_list_form(
     value: *mut TclObj,
     list_obj: *mut TclObj,
     version: tcl_dialect::TclVersion,
+    compiled: bool,
 ) -> Code {
     use tcl_syntax::value::ValueOps;
     let members = match interp.list_elements(&list_obj) {
@@ -268,25 +271,20 @@ fn switch_list_form(
             Ok(bytes) => bytes,
             Err(error) => return interp.report_cmd_error(error.into()),
         };
-        arm_error_info(interp, &pattern);
+        arm_error_info(interp, &pattern, compiled);
     }
     code
 }
 
 /// Append the `("PATTERN" arm line N)` errorInfo frame (C's `SwitchPostProc`),
 /// then clear the logged flag so the enclosing eval logs the `switch` command's
-/// own `invoked from within` frame. `PATTERN` is the matched pattern, truncated
-/// to 50 bytes with a trailing `...` (C's `limit`).
-fn arm_error_info(interp: &mut Interp, pattern: &[u8]) {
-    let overflow = pattern.len() > 50;
-    let mut inner = Vec::with_capacity(pattern.len().min(50) + 8);
-    inner.push(b'"');
-    inner.extend_from_slice(if overflow { &pattern[..50] } else { pattern });
-    if overflow {
-        inner.extend_from_slice(b"...");
+/// own `invoked from within` frame ([`tcl_cmd_core::switch::arm_frame_text`]).
+fn arm_error_info(interp: &mut Interp, pattern: &[u8], compiled: bool) {
+    if compiled {
+        return;
     }
-    inner.extend_from_slice(b"\" arm");
-    interp.append_frame_line(&inner);
+    let text = tcl_cmd_core::switch::arm_frame_text(pattern, interp.runtime_version());
+    interp.append_frame_line(&text);
     interp.clear_error_logged();
 }
 

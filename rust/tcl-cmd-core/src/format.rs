@@ -32,6 +32,7 @@ use tcl_syntax::number::Radix;
 use tcl_syntax::value::{IntegerMagnitude, ValueOps};
 
 use crate::error::CmdError;
+use crate::value_size;
 
 /// Whether `verb` belongs to the format conversion grammar consumed by the
 /// shared renderer.  This forwards the parser owner rather than maintaining a
@@ -71,6 +72,12 @@ pub fn format_cmd_with_syntax<O: ValueOps>(
 
 const MAX_RUNTIME_FIELD: usize = i32::MAX as usize;
 
+/// C's `overflow` failure (`TCL FORMAT OVERFLOW`): a field the result could
+/// not hold.
+fn value_too_large() -> CmdError {
+    CmdError::with_error_code("max size for a Tcl value exceeded", "TCL FORMAT OVERFLOW")
+}
+
 /// Render `fmt` against `args`, consuming arguments left-to-right.
 fn render<O: ValueOps>(
     ops: &mut O,
@@ -106,32 +113,30 @@ fn render<O: ValueOps>(
                 }));
             }
             Err(ParseSpecError::MissingVerb(partial)) => {
-                // C Tcl 8 rejects I-family modifiers before it can report the
-                // missing verb; Tcl 9 reports the conversion as incomplete.
+                // A release that predates the modifier reads its first byte as
+                // the verb and rejects it before it can report the missing
+                // verb (`format %z 1` on 8.6 is `bad field specifier "z"`);
+                // one that knows it reports the conversion as incomplete.
                 // The parser retains this source fact, so the renderer does
                 // not need to re-scan the raw format.
                 let mut fields = ConversionFields::from(partial);
                 let _ = consume_conversion_args(ops, &mut fields, args, &mut arg_state)?;
-                let i_family = partial.size.is_some_and(|size| {
-                    matches!(
-                        size,
-                        SizeModifier::Int | SizeModifier::Int32 | SizeModifier::Int64
-                    )
-                });
-                if i_family && syntax != tcl_dialect::NumberSyntax::Tcl90 {
-                    return Err(CmdError::new("bad field specifier \"I\""));
+                if let Some(size) = partial.size {
+                    reject_unknown_modifier(size, syntax)?;
                 }
                 return Err(CmdError::new(
                     "format string ended in middle of field specifier",
                 ));
             }
         };
+        // A `%s` precision only truncates, so C takes any that parses.
         if spec.width.is_some_and(|width| width > MAX_RUNTIME_FIELD)
-            || spec
-                .precision
-                .is_some_and(|precision| precision > MAX_RUNTIME_FIELD)
+            || (spec.verb != b's'
+                && spec
+                    .precision
+                    .is_some_and(|precision| precision > MAX_RUNTIME_FIELD))
         {
-            return Err(CmdError::new("max size for a Tcl value exceeded"));
+            return Err(value_too_large());
         }
         // A positional `%n$` spec consumes consecutively starting at `n-1`
         // (the `*` width, then the `.*` precision, then the value), leaving
@@ -143,6 +148,21 @@ fn render<O: ValueOps>(
         let mut fields = ConversionFields::from(&spec);
         let arg = consume_conversion_args(ops, &mut fields, args, &mut arg_state)?;
         fields.apply_to(&mut spec);
+        // A field is at least its width and its argument, and a numeric
+        // conversion at least its precision (`%.9d` pads with zeros; a `%s`
+        // precision only truncates): all charged before the field is rendered.
+        value_size::charge(ops, |ops, cap| {
+            let precision = if spec.verb == b's' {
+                0
+            } else {
+                spec.precision.unwrap_or(0)
+            };
+            let field = ops
+                .measure_value(arg, cap)
+                .max(spec.width.unwrap_or(0) as u64)
+                .max(precision as u64);
+            (out.len() as u64).saturating_add(field)
+        })?;
         out.push_str(&render_spec(ops, &spec, arg, syntax)?);
         i = j;
     }
@@ -259,7 +279,7 @@ fn consume_conversion_args<'a, O: ValueOps>(
         }
         let magnitude = usize::try_from(w.unsigned_abs()).unwrap_or(usize::MAX);
         if magnitude > MAX_RUNTIME_FIELD {
-            return Err(CmdError::new("max size for a Tcl value exceeded"));
+            return Err(value_too_large());
         }
         fields.width = Some(magnitude);
     }
@@ -324,6 +344,22 @@ pub(crate) fn fixed_integer_magnitude(magnitude: IntegerMagnitude) -> i64 {
     i64::from_ne_bytes(bits.to_ne_bytes())
 }
 
+/// Reject a size modifier the release predates, naming the byte it reads as
+/// the verb (`format %zd 1` on Tcl 8.6 is `bad field specifier "z"`).
+fn reject_unknown_modifier(
+    size: SizeModifier,
+    syntax: tcl_dialect::NumberSyntax,
+) -> Result<(), CmdError> {
+    if size.accepted_under(syntax) {
+        Ok(())
+    } else {
+        Err(CmdError::new(format!(
+            "bad field specifier \"{}\"",
+            char::from(size.lead_byte())
+        )))
+    }
+}
+
 /// Render one conversion against `arg`.
 fn render_spec<O: ValueOps>(
     ops: &mut O,
@@ -332,23 +368,11 @@ fn render_spec<O: ValueOps>(
     syntax: tcl_dialect::NumberSyntax,
 ) -> Result<String, CmdError> {
     let verb = spec.verb;
-    let i_family = spec.size.is_some_and(|size| {
-        matches!(
-            size,
-            SizeModifier::Int | SizeModifier::Int32 | SizeModifier::Int64
-        )
-    });
-    if i_family && syntax != tcl_dialect::NumberSyntax::Tcl90 {
-        return Err(CmdError::new("bad field specifier \"I\""));
+    if let Some(size) = spec.size {
+        reject_unknown_modifier(size, syntax)?;
     }
     if verb == b'p' && syntax != tcl_dialect::NumberSyntax::Tcl90 {
         return Err(CmdError::new("bad field specifier \"p\""));
-    }
-    if spec.size == Some(SizeModifier::LongLong) && syntax == tcl_dialect::NumberSyntax::Tcl84 {
-        return Err(CmdError::new("bad field specifier \"l\""));
-    }
-    if spec.size == Some(SizeModifier::Big) && syntax != tcl_dialect::NumberSyntax::Tcl90 {
-        return Err(CmdError::new("bad field specifier \"L\""));
     }
     if spec.size.is_some_and(SizeModifier::is_big)
         && verb == b'u'
@@ -389,17 +413,11 @@ fn render_spec<O: ValueOps>(
             Ok(pad_unsigned_number(&uint_digits(u, spec, syntax), spec))
         }
         b'p' => {
-            // `%p` is Tcl's pointer-style hexadecimal conversion. It always
-            // carries a lowercase `0x` prefix and follows the host pointer
-            // width, while an unmodified integer conversion in Tcl 9 uses C
-            // `int` width. `usize` tracks the VM's target pointer size,
-            // including wasm32.
-            let width = if usize::BITS > 32 {
-                tcl_syntax::format::IntegerWidth::Wide
-            } else {
-                tcl_syntax::format::IntegerWidth::Int
-            };
-            let u = width.unsigned(fixed_integer_value(ops, arg, syntax)?);
+            // `%p` is Tcl's pointer-style hexadecimal conversion, always with
+            // a lowercase `0x` prefix. Its width is LP64's pointer width on
+            // every target, wasm32 included; see `pointer_bits`.
+            let u =
+                tcl_syntax::format::pointer_bits(spec.size, fixed_integer_value(ops, arg, syntax)?);
             Ok(pad_unsigned_number(&pointer_digits(u, spec), spec))
         }
         b'x' | b'X' | b'o' | b'b' => {
@@ -408,7 +426,7 @@ fn render_spec<O: ValueOps>(
             Ok(pad_unsigned_number(&based_digits(u, spec, syntax), spec))
         }
         b'c' => {
-            let n = ops.as_int(arg)?;
+            let n = ops.as_c_int(arg)?;
             let ch = u32::try_from(n)
                 .ok()
                 .and_then(char::from_u32)
@@ -417,6 +435,11 @@ fn render_spec<O: ValueOps>(
         }
         b'f' | b'e' | b'E' | b'g' | b'G' => {
             let x = ops.as_double(arg)?;
+            // C renders through `snprintf`, whose `int` count cannot reach a
+            // precision of `INT_MAX` digits.
+            if spec.precision.is_some_and(|p| p >= MAX_RUNTIME_FIELD) {
+                return Err(value_too_large());
+            }
             Ok(pad_number(
                 &float_digits(x, spec),
                 x.is_sign_negative(),
@@ -595,6 +618,27 @@ fn c_style_exp(rust_e: &str) -> String {
 }
 
 /// Magnitude digits for a float verb (sign handled by `pad_number`).
+/// C's `%g` at its default precision, with the sign: what `snprintf` writes
+/// for a finite or infinite double (`1.23457e+08`, `-0`, `inf`).
+pub(crate) fn c_default_g(x: f64) -> String {
+    let spec = Spec {
+        flags: FmtFlags::empty(),
+        width: None,
+        precision: None,
+        verb: b'g',
+        width_star: false,
+        precision_star: false,
+        arg_index: None,
+        size: None,
+    };
+    let digits = float_digits(x, &spec);
+    if x.is_sign_negative() {
+        format!("-{digits}")
+    } else {
+        digits
+    }
+}
+
 fn float_digits(x: f64, spec: &Spec) -> String {
     let prec = spec.precision.unwrap_or(6);
     let m = x.abs();
@@ -746,5 +790,87 @@ fn numeric_prefix(body: &str) -> (&str, &str) {
         body.split_at(2)
     } else {
         ("", body)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tcl_dialect::NumberSyntax;
+    use tcl_syntax::value::{ValueError, ValueOps};
+
+    /// Strings as values, with `i64` integers: enough for fixed-width
+    /// conversions, and free of any host-width type.
+    struct StrOps;
+
+    impl ValueOps for StrOps {
+        type Value = String;
+        fn new_str(&mut self, s: &str) -> String {
+            s.to_owned()
+        }
+        fn new_int(&mut self, n: i64) -> String {
+            n.to_string()
+        }
+        fn new_double(&mut self, f: f64) -> String {
+            tcl_syntax::number::format_double(f)
+        }
+        fn new_bool(&mut self, b: bool) -> String {
+            (if b { "1" } else { "0" }).to_owned()
+        }
+        fn new_list(&mut self, items: Vec<String>) -> String {
+            items.join(" ")
+        }
+        fn as_bytes(&mut self, v: &String) -> std::rc::Rc<[u8]> {
+            std::rc::Rc::from(v.as_bytes())
+        }
+        fn new_bytes(&mut self, bytes: &[u8]) -> String {
+            std::str::from_utf8(bytes)
+                .expect("Unicode-only fixture input")
+                .to_owned()
+        }
+        fn as_int(&mut self, v: &String) -> Result<i64, ValueError> {
+            v.parse().map_err(|_| ValueError::NotInteger(v.clone()))
+        }
+        fn as_double(&mut self, v: &String) -> Result<f64, ValueError> {
+            v.parse().map_err(|_| ValueError::NotInteger(v.clone()))
+        }
+        fn as_bool(&mut self, _v: &String) -> Result<bool, ValueError> {
+            Ok(false)
+        }
+        fn list_elements(&mut self, v: &String) -> Result<Vec<String>, ValueError> {
+            Ok(v.split_whitespace().map(str::to_owned).collect())
+        }
+    }
+
+    fn render(syntax: NumberSyntax, words: &[&str]) -> String {
+        let args: Vec<String> = words.iter().map(|&w| w.to_owned()).collect();
+        super::format_cmd_with_syntax(&mut StrOps, &args, syntax)
+            .unwrap_or_else(|err| panic!("{words:?}: {err:?}"))
+    }
+
+    /// #2163: the renderer's ABI-dependent widths are LP64's whatever it is
+    /// compiled for, so these hold on a wasm32 build as on the LP64 tclsh
+    /// (8.6.18 / 9.0.4) the vectors come from.
+    #[test]
+    fn abi_dependent_widths_do_not_follow_the_compile_target_issue_2163() {
+        for (words, expected) in [
+            (&["%p", "4294967296"][..], "0x100000000"),
+            (&["%Ip", "-1"], "0xffffffffffffffff"),
+            (&["%hp", "65537"], "0x0"),
+            (&["%zd", "4294967296"], "4294967296"),
+            (&["%td", "-4294967297"], "-4294967297"),
+            (&["%zx", "-1"], "ffffffffffffffff"),
+            (&["%tu", "-1"], "18446744073709551615"),
+            (&["%d", "4294967296"], "0"),
+        ] {
+            assert_eq!(render(NumberSyntax::Tcl90, words), expected, "{words:?}");
+        }
+        for (words, expected) in [
+            (&["%d", "4294967296"][..], "4294967296"),
+            (&["%u", "-1"], "18446744073709551615"),
+            (&["%x", "-1"], "ffffffffffffffff"),
+        ] {
+            assert_eq!(render(NumberSyntax::Tcl85, words), expected, "{words:?}");
+            assert_eq!(render(NumberSyntax::Tcl84, words), expected, "{words:?}");
+        }
     }
 }

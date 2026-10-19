@@ -51,6 +51,7 @@ macro_rules! engine_cases {
             the_command_budget_is_enforced_and_distinguishable,
             a_body_cannot_catch_its_way_past_a_budget,
             the_value_size_budget_stops_an_allocation_the_other_two_cannot_see,
+            every_value_builder_answers_to_the_value_size_budget,
             the_wall_clock_budget_stops_a_loop_the_command_budget_cannot_see,
             a_restricted_engine_has_only_the_whitelist_and_the_host_commands,
             a_whitelisted_ensembles_subcommands_run_wherever_they_are_called,
@@ -431,6 +432,52 @@ pub(crate) fn the_value_size_budget_stops_an_allocation_the_other_two_cannot_see
     assert_eq!(
         run(&mut engine, "string repeat ab 8"),
         Ok("abababababababab".to_owned())
+    );
+}
+
+/// Every value builder answers to the value-size budget, not `string repeat`
+/// alone: a concatenation, a repeated list, an append loop, a word built from
+/// substitutions, and a list that holds itself twice — which renders to more
+/// than any host has while its elements stay small — are each refused, and a
+/// `catch` does not hide it.
+pub(crate) fn every_value_builder_answers_to_the_value_size_budget<E: Engine>(new: &dyn Fn() -> E) {
+    let mut engine = new();
+    engine
+        .set_budget(
+            Budget::of_commands(1_000_000)
+                .with_wall_clock(Duration::from_secs(5))
+                .with_max_value_bytes(64),
+        )
+        .expect("the runtime enforces all three");
+    for body in [
+        "return [string cat abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh \
+         abcdefgh abcdefgh abcdefgh]",
+        "return [lrepeat 100 abcdefgh]",
+        "return [lrepeat 1000000000 abcdefgh]",
+        "return [concat abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh \
+         abcdefgh]",
+        "return [join [lrepeat 8 abcdefgh] --]",
+        "return [format %100s x]",
+        "return [format %.100d 1]",
+        "return [lseq 10000000 10000020]",
+        "return [string map {a abcdefgh} aaaaaaaaaa]",
+        "set s abcdefgh; while 1 {append s $s}",
+        "set s abcdefgh; while 1 {set s $s$s}",
+        "set l x; for {set i 0} {$i < 64} {incr i} {set l [list $l $l]}; string length $l",
+        "set s abcdefgh; catch {while 1 {append s $s}}; return exact",
+    ] {
+        assert_eq!(
+            run(&mut engine, body),
+            Err(EngineError::BudgetExceeded(BudgetKind::ValueSize)),
+            "{body}"
+        );
+    }
+    assert_eq!(
+        run(
+            &mut engine,
+            "list [string cat ab cd] [lrepeat 2 x] [concat a b] [format %3s x]"
+        ),
+        Ok("abcd {x x} {a b} {  x}".to_owned())
     );
 }
 

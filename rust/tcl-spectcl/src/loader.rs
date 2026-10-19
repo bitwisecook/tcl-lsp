@@ -2898,11 +2898,18 @@ const CODEGEN_HOOKS: &[CodegenHookId] = &[
     CodegenHookId::Concat,
     CodegenHookId::Global,
     CodegenHookId::Upvar,
+    CodegenHookId::Uplevel,
+    CodegenHookId::Set,
+    CodegenHookId::ArraySet,
+    CodegenHookId::ArrayUnset,
+    CodegenHookId::Variable,
+    CodegenHookId::NamespaceUpvar,
 ];
 
 const INLINE_CODEGEN_HOOKS: &[InlineCodegenHookId] = &[
     InlineCodegenHookId::Expr,
     InlineCodegenHookId::Incr,
+    InlineCodegenHookId::Set,
     InlineCodegenHookId::InfoExists,
     InlineCodegenHookId::InfoLevel,
     InlineCodegenHookId::NamespaceCurrent,
@@ -2925,6 +2932,12 @@ const INLINE_CODEGEN_HOOKS: &[InlineCodegenHookId] = &[
     InlineCodegenHookId::Try,
     InlineCodegenHookId::Yield,
     InlineCodegenHookId::YieldTo,
+    InlineCodegenHookId::StringIs,
+    InlineCodegenHookId::StringMatch,
+    InlineCodegenHookId::StringReplace,
+    InlineCodegenHookId::StringTrim,
+    InlineCodegenHookId::StringTrimLeft,
+    InlineCodegenHookId::StringTrimRight,
 ];
 
 const RETURN_TYPE_HOOKS: &[ReturnTypeHookId] = &[

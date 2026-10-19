@@ -36,7 +36,7 @@ pub(crate) fn eval_native_constant(node: &ExprNode, policy: FoldPolicy) -> Nativ
     );
     ops.constant_compilation.enabled = true;
     match tcl_syntax::expr::eval(node, &mut ops) {
-        Ok(_) if ops.ambiguous => NativeConstantResult::Unavailable,
+        Ok(_) if ops.declined.is_some() => NativeConstantResult::Unavailable,
         Ok(FoldValue::Str(bytes)) => {
             let number = ops.strict_number(&FoldValue::Str(bytes.clone()));
             NativeConstantResult::Resident {
@@ -88,7 +88,7 @@ impl FoldOps<'_> {
         let format = dialect
             .double_string_policy()
             .and_then(tcl_dialect::DoubleStringPolicy::constant_format);
-        let Some(bytes) = value.to_string_val(format) else {
+        let Some(bytes) = self.text_of(value, format) else {
             return Err(());
         };
         let desc = if desc == OperandDesc::NonNumericString
@@ -101,7 +101,7 @@ impl FoldOps<'_> {
         };
         self.constant_failure(
             errors::illegal_operand_message(desc, &bytes, side, operator, version),
-            Some(errors::illegal_operand_error_code(desc, version)),
+            Some(errors::illegal_operand_error_code(desc, &bytes, version)),
         )
     }
 

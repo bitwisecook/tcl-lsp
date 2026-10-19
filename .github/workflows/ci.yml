@@ -576,7 +576,7 @@ jobs:
 
       - name: Upload tcl-lsp-server binary
         if: env.RUN_EXT == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: tcl-lsp-server-release
           path: target/ci/tcl-lsp-server
@@ -643,9 +643,9 @@ jobs:
 
       - name: Set up Node.js
         if: env.RUN_EXT == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       # Pin the npm CLI via the `packageManager` field in
       # editors/vscode/package.json. Corepack downloads and activates the
@@ -659,6 +659,7 @@ jobs:
           # explicitly (`corepack enable npm`) or the shim isn't created and
           # the npm bundled with setup-node wins. Assert the pin is live so a
           # silent regression fails loudly instead of using the wrong npm.
+          npm install -g corepack@0.36.0
           corepack enable npm
           cd editors/vscode
           active="$(npm --version)"
@@ -756,7 +757,7 @@ jobs:
       # fetch it instead of compiling a second copy.
       - name: Download tcl-lsp-server binary
         if: env.RUN_EXT == 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: tcl-lsp-server-release
           path: target/release
@@ -775,7 +776,7 @@ jobs:
 
       - name: Upload single-root partition metadata
         if: always() && env.RUN_EXT == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vscode-test-partition-${{ matrix.partition.id }}
           path: editors/vscode/.vscode-test/mocha-result.json
@@ -822,9 +823,9 @@ jobs:
 
       - name: Set up Node.js
         if: env.RUN_EXT == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       # Pin the npm CLI via the `packageManager` field in
       # editors/vscode/package.json. Corepack downloads and activates the
@@ -838,6 +839,7 @@ jobs:
           # explicitly (`corepack enable npm`) or the shim isn't created and
           # the npm bundled with setup-node wins. Assert the pin is live so a
           # silent regression fails loudly instead of using the wrong npm.
+          npm install -g corepack@0.36.0
           corepack enable npm
           cd editors/vscode
           active="$(npm --version)"
@@ -935,7 +937,7 @@ jobs:
       # fetch it instead of compiling a second copy.
       - name: Download tcl-lsp-server binary
         if: env.RUN_EXT == 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: tcl-lsp-server-release
           path: target/release
@@ -954,7 +956,7 @@ jobs:
 
       - name: Upload multi-folder test metadata
         if: always() && env.RUN_EXT == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: vscode-test-multi-folder
           path: editors/vscode/.vscode-test/mocha-result-multifolder.json
@@ -986,7 +988,7 @@ jobs:
           fi
       - name: Download extension test metadata
         if: env.RUN_EXT == 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: vscode-test-*
           path: ${{ runner.temp }}/vscode-test-results
@@ -1041,21 +1043,22 @@ jobs:
 
       - name: Install wasm-bindgen CLI
         if: env.RUN_EXT_WEB == 'true'
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: wasm-bindgen-cli@0.2.129
 
       - name: Set up Node.js
         if: env.RUN_EXT_WEB == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Enable Corepack (pin npm via packageManager)
         if: env.RUN_EXT_WEB == 'true'
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
         run: |
+          npm install -g corepack@0.36.0
           corepack enable npm
           cd editors/vscode
           active="$(npm --version)"
@@ -1380,9 +1383,9 @@ jobs:
 
       - name: Install cargo-nextest
         if: needs.channel.outputs.rust_tests_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true') && (needs.channel.outputs.already_green != 'true' || matrix.shard == '1/5')
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: nextest@0.9.146
+          tool: nextest@0.9.148
 
       # The real-tclsh conformance binaries fail closed when no manifest-pinned
       # interpreter is available. Provision the shared Tcl 9.0 gold-standard
@@ -1448,7 +1451,7 @@ jobs:
 
       - name: Upload selected shard listing
         if: always() && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: rust-tests-listing-${{ matrix.id }}
           path: ${{ runner.temp }}/rust-tests-${{ matrix.id }}.json
@@ -1459,7 +1462,7 @@ jobs:
 
       - name: Upload authoritative Cargo metadata
         if: always() && matrix.shard == '1/5' && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: rust-tests-metadata
           path: ${{ runner.temp }}/rust-tests-metadata.json
@@ -1583,7 +1586,7 @@ jobs:
 
       - name: Download shard listings
         if: needs.channel.result == 'success' && needs.channel.outputs.rust_tests_changed == 'true' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: rust-tests-*
           merge-multiple: true
@@ -1712,9 +1715,9 @@ jobs:
           cache-key: rust-tests-heavy
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: nextest@0.9.146
+          tool: nextest@0.9.148
 
       # Same skip/downgrade contract as rust-tests-shard — see the channel job header.
       # tcl-fuzz lives here, not in rust-tests-shard: its wasmtime/cranelift
@@ -1859,9 +1862,9 @@ jobs:
       # under test drift without a commit.
       - name: Install the wasmtime CLI
         if: needs.channel.outputs.docs_only != 'true'
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: wasmtime@49.0.2
+          tool: wasmtime@49.0.3
 
       # wasi-sdk supplies the `clang` that compiles libtommath's C sources to
       # wasm objects.  The test finds it at the default /opt/wasi-sdk, so no
@@ -1970,15 +1973,15 @@ jobs:
 
       - name: Install wasm-bindgen CLI
         if: env.RUN_LSP_WASM == 'true'
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: wasm-bindgen-cli@0.2.129
 
       - name: Set up Node.js
         if: env.RUN_LSP_WASM == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Build and exercise the browser LSP server
         if: env.RUN_LSP_WASM == 'true'
@@ -2050,9 +2053,9 @@ jobs:
       # (RELEASE_WASI without RUN_LSP_WASI) never downloads it.
       - name: Install the wasmtime CLI
         if: env.RUN_LSP_WASI == 'true'
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
-          tool: wasmtime@49.0.2
+          tool: wasmtime@49.0.3
 
       # binaryen supplies `wasm-opt`, which build-wasi.sh runs (safely — this
       # module has no wasm-bindgen externref table to mis-rebind).  The script
@@ -2065,9 +2068,9 @@ jobs:
 
       - name: Set up Node.js
         if: env.RUN_LSP_WASI == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Build and exercise the WASI LSP server
         if: env.RUN_LSP_WASI == 'true'
@@ -2094,7 +2097,7 @@ jobs:
       # the one that can be sure `create-release` has already run.
       - name: Upload the WASI module
         if: env.RELEASE_WASI == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: wasi-module
           path: rust/tcl-lsp-server-wasi/dist/tcl-lsp-server-wasi.wasm
@@ -2134,28 +2137,28 @@ jobs:
 
       - name: Download producer proof metadata
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: lsp-e2e-proof
           path: ${{ runner.temp }}/lsp-e2e-aggregate/producer
 
       - name: Download partition 1 metadata
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: lsp-e2e-result-1-3
           path: ${{ runner.temp }}/lsp-e2e-aggregate/first
 
       - name: Download partition 2 metadata
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: lsp-e2e-result-2-3
           path: ${{ runner.temp }}/lsp-e2e-aggregate/second
 
       - name: Download partition 3 metadata
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: lsp-e2e-result-3-3
           path: ${{ runner.temp }}/lsp-e2e-aggregate/third
@@ -2205,10 +2208,10 @@ jobs:
 
       - name: Install cargo-nextest
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           # Archive/list/execute must use the exact same nextest format.
-          tool: nextest@0.9.146
+          tool: nextest@0.9.148
 
       - name: Warm already-green merge push once
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green == 'true' && !startsWith(github.ref, 'refs/tags/')
@@ -2299,7 +2302,7 @@ jobs:
 
       - name: Upload lsp-e2e archive
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: lsp-e2e-archive
           path: ${{ runner.temp }}/lsp-e2e-archive-artifact
@@ -2309,7 +2312,7 @@ jobs:
 
       - name: Upload lsp-e2e proof
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: lsp-e2e-proof
           path: ${{ runner.temp }}/lsp-e2e-proof-artifact
@@ -2360,12 +2363,12 @@ jobs:
           cache-key: lsp-e2e
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
         with:
           # Keep the machine-readable partition proof and the runner on the
           # same nextest format/version.
-          tool: nextest@0.9.146
+          tool: nextest@0.9.148
 
       # The integration tests spawn the real `tcl-lsp-server` binary via
       # nextest's runtime `NEXTEST_BIN_EXE_tcl-lsp-server` path (the archive
@@ -2376,14 +2379,14 @@ jobs:
       # Same skip/downgrade contract as rust-tests — see the channel job header.
       - name: Download lsp-e2e archive
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: lsp-e2e-archive
           path: ${{ runner.temp }}/lsp-e2e-archive
 
       - name: Download lsp-e2e proof
         if: needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: lsp-e2e-proof
           path: ${{ runner.temp }}/lsp-e2e-proof
@@ -2484,7 +2487,7 @@ jobs:
 
       - name: Upload partition listing and result metadata
         if: ${{ always() && needs.channel.result == 'success' && needs.channel.outputs.docs_only != 'true' && needs.channel.outputs.lsp_e2e_changed == 'true' && needs.channel.outputs.already_green != 'true' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: lsp-e2e-result-${{ matrix.artifact }}
           path: ${{ runner.temp }}/lsp-e2e-result
@@ -2514,7 +2517,7 @@ jobs:
           fetch-depth: 1
 
       - name: Install cargo-deny
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: cargo-deny@0.20.2
 
@@ -2588,8 +2591,8 @@ jobs:
       - name: Install uv
         if: env.RUN_PY == 'true'
         env:
-          UV_VERSION: "0.12.23"
-          UV_INSTALLER_SHA256: "b8e6c43099ee9f9a550984d3ad56948457c689e7a99c090b35377234ac241491"
+          UV_VERSION: "0.13.1"
+          UV_INSTALLER_SHA256: "7c482d409673a53f4d9bd34ae95c9166be3b8d89ca82f27dd7bca3cab457afff"
         run: |
           set -euo pipefail
           curl -LsSf --max-time 120 -o /tmp/uv-installer.sh \
@@ -2603,7 +2606,7 @@ jobs:
         run: |
           actual="$(uv --version | awk '{print $2}')"
           echo "uv $actual"
-          [ "$actual" = "0.12.23" ] || { echo "::error::expected uv 0.12.23, got $actual"; exit 1; }
+          [ "$actual" = "0.13.1" ] || { echo "::error::expected uv 0.13.1, got $actual"; exit 1; }
 
       - name: ruff (format --check + check)
         if: env.RUN_PY == 'true'
@@ -2639,9 +2642,9 @@ jobs:
 
       - name: Set up Node
         if: env.RUN_WEB_FRONTENDS == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       # Both front-end package.json files pin the npm CLI through
       # `packageManager`, and this job's entire value is how npm resolves a
@@ -2654,6 +2657,7 @@ jobs:
         run: |
           # `corepack enable` alone only shims pnpm/yarn; npm must be named
           # explicitly or the shim isn't created and the bundled npm wins.
+          npm install -g corepack@0.36.0
           corepack enable npm
           cd rust/bigip-report-gen/frontend
           active="$(npm --version)"
@@ -3031,7 +3035,7 @@ jobs:
         run: make server-cross-test
 
       - name: Upload server binaries
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           # Per-triple/program artifacts have disjoint filenames; downstream
           # consumers merge `server-bins-*` into the original directory shape.
@@ -3062,7 +3066,7 @@ jobs:
           fetch-depth: 1
 
       - name: Download server-matrix binaries
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: server-bins-*
           path: target
@@ -3115,7 +3119,7 @@ jobs:
       contents: write # gh release upload
     steps:
       - name: Download server-matrix binaries
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: server-bins-*
           path: server-bins
@@ -3197,7 +3201,7 @@ jobs:
       # The VSIX embeds the spec studio, whose real LSP worker is built from
       # Rust to wasm32 and post-processed with the version matching its lockfile.
       - name: Install wasm-bindgen CLI
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: wasm-bindgen-cli@0.2.129
 
@@ -3205,7 +3209,7 @@ jobs:
       # (compile + filter-readme + vsce) is Node-only.
 
       - name: Download native server binaries
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: server-bins-*
           path: target
@@ -3218,15 +3222,15 @@ jobs:
       # mtimes, so the module lands newer than every prerequisite.  It is used
       # as-is and nothing here re-links wasm32-wasip1.
       - name: Download the WASI language server module
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: wasi-module
           path: rust/tcl-lsp-server-wasi/dist
 
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       # Pin the npm CLI via the `packageManager` field in
       # editors/vscode/package.json. Corepack downloads and activates the
@@ -3239,6 +3243,7 @@ jobs:
           # explicitly (`corepack enable npm`) or the shim isn't created and
           # the npm bundled with setup-node wins. Assert the pin is live so a
           # silent regression fails loudly instead of using the wrong npm.
+          npm install -g corepack@0.36.0
           corepack enable npm
           cd editors/vscode
           active="$(npm --version)"
@@ -3385,7 +3390,7 @@ jobs:
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
       - name: Download native server binaries
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: server-bins-*
           path: target
@@ -3400,12 +3405,12 @@ jobs:
       # The JetBrains plugin embeds the same spec studio as the VSIX. Keep the
       # CLI pinned to the wasm-bindgen crate version in the standalone lockfile.
       - name: Install wasm-bindgen CLI
-        uses: taiki-e/install-action@e407f7bafb71fd004bc5c2da3032e5470cbb6ef0 # v2.87.24
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
         with:
           tool: wasm-bindgen-cli@0.2.129
 
       - name: Set up Java 17
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
           java-version: 17
@@ -3419,14 +3424,16 @@ jobs:
       # Node this job used whatever the runner image happened to ship, and the
       # compiler explorer extraction silently no-opped.
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Enable Corepack (pin npm via packageManager)
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
-        run: corepack enable npm
+        run: |
+          npm install -g corepack@0.36.0
+          corepack enable npm
 
       # The plugin's Kotlin suite runs nowhere else — it needs the IntelliJ
       # SDK this job already downloads to build against.
@@ -3472,7 +3479,7 @@ jobs:
       # publish-native-binaries attaches to the release, so hashing them here
       # pins exactly what the plugin will later download.
       - name: Download server-matrix binaries (for their digests)
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: server-bins-*
           path: server-bins
@@ -3662,7 +3669,7 @@ jobs:
           # Pin the cosign binary itself, not just the installer action.
           # Without this, the installer downloads "latest" cosign — which
           # is itself a moving target.  Bump in lockstep with the action.
-          cosign-release: 'v2.6.3'
+          cosign-release: 'v2.6.5'
 
       - name: Sign SHA256SUMS (keyless OIDC)
         working-directory: dist
@@ -3710,14 +3717,16 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Enable Corepack (pin npm via packageManager)
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
-        run: corepack enable npm
+        run: |
+          npm install -g corepack@0.36.0
+          corepack enable npm
 
       - name: Install vsce from the committed lockfile
         run: cd editors/vscode && npm ci
@@ -3725,7 +3734,7 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
-          cosign-release: 'v2.6.3'
+          cosign-release: 'v2.6.5'
 
       - name: Download the released VSIX and verify against the signed SHA256SUMS
         env:
@@ -3794,14 +3803,16 @@ jobs:
           fetch-depth: 1
 
       - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Enable Corepack (pin npm via packageManager)
         env:
           COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
-        run: corepack enable npm
+        run: |
+          npm install -g corepack@0.36.0
+          corepack enable npm
 
       - name: Install ovsx from the committed lockfile
         run: cd editors/vscode && npm ci
@@ -3809,7 +3820,7 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
-          cosign-release: 'v2.6.3'
+          cosign-release: 'v2.6.5'
 
       - name: Download the released VSIX and verify against the signed SHA256SUMS
         env:
@@ -3878,7 +3889,7 @@ jobs:
       - name: Install cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
         with:
-          cosign-release: 'v2.6.3'
+          cosign-release: 'v2.6.5'
 
       - name: Download the released plugin zip and verify against the signed SHA256SUMS
         env:

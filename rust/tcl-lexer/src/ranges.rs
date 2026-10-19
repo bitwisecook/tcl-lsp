@@ -689,30 +689,26 @@ pub(crate) fn close_quote_offset_in(
 /// Byte offset one past the `]` closing the command substitution opening
 /// at *`open_bracket`*, or `None` when it is unterminated.
 ///
-/// Brackets nest, a `\`-escape is inert, and a `]` inside a braced or
-/// quoted word of the inner command does not close the substitution.
+/// The substituted script is read as `Tcl_ParseCommand` reads a nested
+/// script: command by command, word by word. A word's first character
+/// decides its kind, so a `{` or `"` opens a braced or quoted word only
+/// there; inside a bare word both are ordinary text, and
+/// `[string length a"]` ends at its `]`. A braced word nests its braces
+/// and holds every `[`, `]` and `"` inert; a quoted word holds `]` and `{`
+/// inert but opens a nested substitution at `[`. A `$` reads a variable
+/// name as `Tcl_ParseVarName` does: a `${…}` name runs to the first `}`,
+/// and an array index to its `)`, substitutions in it included. A
+/// `\`-escape is inert everywhere, and a backslash-newline separates words
+/// as a space does.
 ///
 /// # Comments are part of the grammar here
 ///
-/// A substituted script is a *script*, so C Tcl's parser runs its
-/// comment rule inside the brackets: at command position an unescaped
-/// `#` starts a comment that runs to the next unescaped newline, and
-/// every `]`, `[`, `"` and `{` written in that comment is inert.  A
-/// scanner without comment state stops at the first commented-out `]`
-/// and hands its caller a truncated span — for
-/// `"a[\n# ] comment\nset y "b"\n]c"` it would report the `"` opening
-/// the inner `"b"` as the outer word's closer, and O129 or the minifier
-/// would then rewrite over the middle of otherwise valid source.
-///
-/// Command position is the start of the substitution, and whatever
-/// follows an unescaped newline or `;` at bracket top level, leading
-/// whitespace skipped.  A backslash-newline counts as that leading
-/// whitespace — it substitutes to a space — so a `#` after one still
-/// opens a comment and the `]` in `"a[\n\\\n# ] c\n]b"` stays inert.
-/// A `#` inside a `"…"` or `{…}` word is ordinary
-/// text, never a comment — hence the invariant that `at_command_start`
-/// is only ever raised while `braces == 0 && !in_quotes`, which is what
-/// lets the `#` arm below test that flag alone.
+/// At command position, leading whitespace skipped, an unescaped `#`
+/// starts a comment that runs to the next unescaped newline, and every
+/// `]`, `[`, `"` and `{` written in it is inert, so for
+/// `"a[\n# ] comment\nset y "b"\n]c"` the substitution ends at the last
+/// `]`. A backslash-newline counts as that leading whitespace, so a `#`
+/// after one still opens a comment. A `#` inside a word is ordinary text.
 #[must_use]
 pub fn command_substitution_end(source: &str, open_bracket: usize) -> Option<usize> {
     command_substitution_end_bytes(source.as_bytes(), open_bracket)
@@ -725,91 +721,288 @@ pub(crate) fn command_substitution_end_bytes(bytes: &[u8], open_bracket: usize) 
 }
 
 /// A bracket boundary under the containing word's complete lexical grammar.
-/// Braced variable names are inert name bytes, rather than script delimiters.
+/// Braced variable names are inert name bytes, rather than script delimiters,
+/// and end where the grammar's `${...}` close rule ends them.
 pub(crate) fn command_substitution_end_bytes_in(
     bytes: &[u8],
     open_bracket: usize,
     config: crate::LexerConfig,
 ) -> Option<usize> {
-    if bytes.get(open_bracket) != Some(&b'[') {
-        return None;
+    match scan_command_substitution(
+        bytes,
+        open_bracket,
+        Continuation::Script,
+        config.braced_var,
+        &mut |_| false,
+    ) {
+        SubstitutionEnd::Closed(end) => Some(end),
+        SubstitutionEnd::Ghost(_) | SubstitutionEnd::Unterminated => None,
     }
+}
+
+/// Which backslash sequences continue a line.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Continuation {
+    /// A script's bytes: a backslash-newline alone.
+    Script,
+    /// A document's source, which the channel reading it translates: a
+    /// backslash before a CR or a CRLF as well.
+    Document,
+}
+
+/// Where the scan of a command substitution ended.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SubstitutionEnd {
+    /// One past its closing `]`.
+    Closed(usize),
+    /// At the offset of the recovery ghost `]` that closed it.
+    Ghost(usize),
+    /// At the end of the source, unclosed.
+    Unterminated,
+}
+
+/// Scan the command substitution opening at `open_bracket` word by word, as
+/// [`command_substitution_end`] describes. `ghost` says whether a recovery
+/// ghost `]` sits before the byte at an offset: a ghost closes the innermost
+/// substitution open there, whatever word it is in, and is asked about once
+/// per offset the scan stops at. `braced_var` is the release's `${...}` close
+/// rule ([`braced_var_name_end`]).
+///
+/// The nesting lives on an explicit stack, so no depth of brackets can
+/// exhaust the native one.
+pub(crate) fn scan_command_substitution(
+    bytes: &[u8],
+    open_bracket: usize,
+    continuation: Continuation,
+    braced_var: BracedVarStyle,
+    ghost: &mut dyn FnMut(usize) -> bool,
+) -> SubstitutionEnd {
+    if bytes.get(open_bracket) != Some(&b'[') {
+        return SubstitutionEnd::Unterminated;
+    }
+    let mut stack = vec![Nesting::Script {
+        command_start: true,
+    }];
     let mut pos = open_bracket + 1;
-    let mut depth: u32 = 1;
-    let mut braces: u32 = 0;
-    let mut in_quotes = false;
-    let mut in_comment = false;
-    let mut at_command_start = true;
-    while pos < bytes.len() {
-        let byte = bytes[pos];
-        if byte == b'\\' {
-            // One unit everywhere, comments included: a backslash-newline
-            // continues a comment onto the following line rather than
-            // ending it.
-            //
-            // A continuation substitutes to a space, and C Tcl runs
-            // `ParseAllWhiteSpace` — which absorbs it — *before* testing for
-            // the `#` that opens a comment, so it keeps command position just
-            // as a literal space does. Any other escape is content and ends
-            // command position.
-            let continuation = bytes.get(pos + 1) == Some(&b'\n');
-            pos = (pos + 2).min(bytes.len());
-            at_command_start &= continuation;
-            continue;
-        }
-        if in_comment {
-            if byte == b'\n' {
-                in_comment = false;
-                at_command_start = true;
-            }
-            pos += 1;
-            continue;
-        }
-        match byte {
-            b'#' if at_command_start => in_comment = true,
-            b'$' if braces == 0 && bytes.get(pos + 1) == Some(&b'{') => {
-                let BracedVarEnd::Closed(end) =
-                    braced_var_name_end(bytes, pos + 2, config.braced_var)
-                else {
-                    return None;
-                };
-                pos = end + 1;
-                at_command_start = false;
+    let mut asked = None;
+    while let Some(top) = stack.last_mut() {
+        if asked != Some(pos) {
+            asked = Some(pos);
+            if ghost(pos) {
+                while let Some(frame) = stack.pop() {
+                    if matches!(frame, Nesting::Script { .. }) {
+                        break;
+                    }
+                }
+                if stack.is_empty() {
+                    return SubstitutionEnd::Ghost(pos);
+                }
                 continue;
             }
-            b'"' if braces == 0 => {
-                in_quotes = !in_quotes;
-                at_command_start = false;
+        }
+        let Some(&byte) = bytes.get(pos) else {
+            return SubstitutionEnd::Unterminated;
+        };
+        match top {
+            Nesting::Script { command_start } => {
+                if is_word_space(byte) || (*command_start && matches!(byte, b'\n' | b';')) {
+                    pos += 1;
+                    continue;
+                }
+                if let Some(width) = continuation_width(bytes, pos, continuation) {
+                    pos += width;
+                    continue;
+                }
+                match byte {
+                    b'#' if *command_start => pos = comment_end(bytes, pos, continuation),
+                    b']' => {
+                        stack.pop();
+                        pos += 1;
+                    }
+                    b'\n' | b';' => {
+                        *command_start = true;
+                        pos += 1;
+                    }
+                    b'{' => {
+                        *command_start = false;
+                        match braced_word_end(bytes, pos) {
+                            Some(end) => pos = end,
+                            None => return SubstitutionEnd::Unterminated,
+                        }
+                    }
+                    b'"' => {
+                        *command_start = false;
+                        pos += 1;
+                        stack.push(Nesting::Quoted);
+                    }
+                    _ => {
+                        *command_start = false;
+                        stack.push(Nesting::Bare);
+                    }
+                }
             }
-            b'{' if !in_quotes => {
-                braces += 1;
-                at_command_start = false;
+            Nesting::Bare => {
+                if is_word_space(byte)
+                    || matches!(byte, b'\n' | b';' | b']')
+                    || continuation_width(bytes, pos, continuation).is_some()
+                {
+                    stack.pop();
+                } else {
+                    match word_char_end(bytes, pos, braced_var, &mut stack) {
+                        Some(end) => pos = end,
+                        None => return SubstitutionEnd::Unterminated,
+                    }
+                }
             }
-            b'}' if !in_quotes => {
-                braces = braces.saturating_sub(1);
-                at_command_start = false;
+            Nesting::Quoted | Nesting::Index => {
+                let closer = if matches!(top, Nesting::Quoted) {
+                    b'"'
+                } else {
+                    b')'
+                };
+                if byte == closer {
+                    stack.pop();
+                    pos += 1;
+                } else {
+                    match word_char_end(bytes, pos, braced_var, &mut stack) {
+                        Some(end) => pos = end,
+                        None => return SubstitutionEnd::Unterminated,
+                    }
+                }
             }
-            b'[' if braces == 0 && !in_quotes => {
-                depth += 1;
-                // The nested script opens at command position too.
-                at_command_start = true;
-            }
-            b']' if braces == 0 && !in_quotes => {
+        }
+    }
+    SubstitutionEnd::Closed(pos)
+}
+
+/// What the scan of a command substitution is inside.
+enum Nesting {
+    /// A script, at the start of a command or between the words of one.
+    Script { command_start: bool },
+    /// A bare word, which whitespace, a command terminator or `]` ends.
+    Bare,
+    /// A quoted word, which the closing `"` ends.
+    Quoted,
+    /// An array variable's index, which `)` ends.
+    Index,
+}
+
+/// Whether `byte` separates the words of a command (`TYPE_SPACE`).
+const fn is_word_space(byte: u8) -> bool {
+    matches!(byte, b' ' | b'\t' | b'\r' | b'\x0b' | b'\x0c')
+}
+
+/// The width of the line continuation, which separates words, starting at
+/// `pos`, if one does.
+fn continuation_width(bytes: &[u8], pos: usize, continuation: Continuation) -> Option<usize> {
+    if bytes.get(pos) != Some(&b'\\') {
+        return None;
+    }
+    match bytes.get(pos + 1) {
+        Some(b'\n') => Some(2),
+        Some(b'\r') if continuation == Continuation::Document => {
+            Some(if bytes.get(pos + 2) == Some(&b'\n') {
+                3
+            } else {
+                2
+            })
+        }
+        _ => None,
+    }
+}
+
+/// The offset of the newline ending the comment opening at `pos`, or the
+/// end of the source; a backslash-escaped newline continues the comment.
+fn comment_end(bytes: &[u8], mut pos: usize, continuation: Continuation) -> usize {
+    while pos < bytes.len() {
+        match bytes[pos] {
+            b'\\' => pos += continuation_width(bytes, pos, continuation).unwrap_or(2),
+            b'\n' => return pos,
+            _ => pos += 1,
+        }
+    }
+    bytes.len()
+}
+
+/// One past the `}` closing the braced word that opens at `pos`.
+fn braced_word_end(bytes: &[u8], mut pos: usize) -> Option<usize> {
+    let mut depth = 0u32;
+    while pos < bytes.len() {
+        match bytes[pos] {
+            b'\\' => pos += 1,
+            b'{' => depth += 1,
+            b'}' => {
                 depth -= 1;
                 if depth == 0 {
                     return Some(pos + 1);
                 }
-                at_command_start = false;
             }
-            b'\n' | b';' if braces == 0 && !in_quotes => at_command_start = true,
-            // Whitespace before the first word of a command keeps the
-            // scanner at command position, so `[foo; # ]` still comments.
-            b' ' | b'\t' | b'\r' | b'\x0b' | b'\x0c' => {}
-            _ => at_command_start = false,
+            _ => {}
         }
         pos += 1;
     }
     None
+}
+
+/// One past the unit of a bare or quoted word, or of an array index, that
+/// starts at `pos`: an escape, a character, or a substitution, whose
+/// nesting it pushes on `stack`.
+fn word_char_end(
+    bytes: &[u8],
+    pos: usize,
+    braced_var: BracedVarStyle,
+    stack: &mut Vec<Nesting>,
+) -> Option<usize> {
+    match bytes[pos] {
+        b'\\' => Some((pos + 2).min(bytes.len())),
+        b'[' => {
+            stack.push(Nesting::Script {
+                command_start: true,
+            });
+            Some(pos + 1)
+        }
+        b'$' => variable_name_end(bytes, pos, braced_var, stack),
+        _ => Some(pos + 1),
+    }
+}
+
+/// One past the name of the variable whose `$` is at `dollar`, as
+/// `Tcl_ParseVarName` reads it: a `${…}` name runs to its `}` under the
+/// release's `braced_var` rule ([`braced_var_name_end`]), and a name followed
+/// by `(` opens an index, pushed on `stack`. A `$` that opens no name is
+/// itself text.
+fn variable_name_end(
+    bytes: &[u8],
+    dollar: usize,
+    braced_var: BracedVarStyle,
+    stack: &mut Vec<Nesting>,
+) -> Option<usize> {
+    let mut pos = dollar + 1;
+    if bytes.get(pos) == Some(&b'{') {
+        return match braced_var_name_end(bytes, pos + 1, braced_var) {
+            BracedVarEnd::Closed(close) => Some(close + 1),
+            BracedVarEnd::Unterminated => None,
+        };
+    }
+    while pos < bytes.len() {
+        let byte = bytes[pos];
+        if byte.is_ascii_alphanumeric() || byte == b'_' || byte >= 0x80 {
+            pos += 1;
+        } else if byte == b':' && bytes.get(pos + 1) == Some(&b':') {
+            pos += 2;
+            while bytes.get(pos) == Some(&b':') {
+                pos += 1;
+            }
+        } else {
+            break;
+        }
+    }
+    // An empty name before `(` is the array with the empty name.
+    if bytes.get(pos) == Some(&b'(') {
+        stack.push(Nesting::Index);
+        pos += 1;
+    }
+    Some(pos)
 }
 
 #[cfg(test)]

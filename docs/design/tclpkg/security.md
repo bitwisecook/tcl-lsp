@@ -84,13 +84,47 @@ child under the strongest available **confinement tier**:
   allow-list with a sensitive-name denylist (`*_TOKEN`, `AWS_*`, `SSH_*`,
   `GITHUB_*`, `NETRC`, …), working-directory pinning, output capture, and a
   wall-clock timeout that kills runaways.
-- **OS-native (per platform):** the [`Confinement`] trait is the seam where
-  Landlock + seccomp on Linux, Seatbelt on macOS, `pledge`/`unveil` on OpenBSD,
-  Capsicum on FreeBSD and restricted tokens + Job Objects on Windows are
-  layered in. **No host implementation is wired**, so `detect_confinement()`
-  returns `Baseline` everywhere; the achieved [`IsolationLevel`] is recorded
-  and reported, `tcl pkg build` warns, and a `fail-closed` policy refuses
-  rather than under-confine.
+- **OS-native (Linux):** behind the [`Confinement`] trait, Landlock confines a
+  profile that names any `fs_read`/`fs_write` path to them — read and execute
+  beneath the read paths and the working directory, everything beneath the
+  write paths, plus read access to the system trees (`/usr`, `/lib*`, `/bin`,
+  `/sbin`, `/etc`, `/opt`, `/nix/store`), the program's own directory and the
+  `lib`/`share` beside it, and the standard devices. A profile denied the
+  network gets a seccomp filter refusing `socket` for `AF_INET`, `AF_INET6` and
+  `AF_PACKET` (and `io_uring_setup`, which could open one past it) with
+  `EACCES`. Both restrict the calling thread and what it forks, so the child
+  is spawned from a thread of its own that takes them on first; the parent
+  keeps its authority. Each mechanism is probed once per process on a
+  throwaway thread, so a kernel without it reports Baseline for it rather
+  than claiming it.
+- **OS-native (macOS):** Seatbelt. The program runs under
+  `/usr/bin/sandbox-exec` with a profile written from the grant: everything
+  allowed by default, then the network denied but for Unix-domain sockets,
+  writes denied outside the write paths and the standard devices, and reading
+  file contents denied outside the read and write paths, the system trees
+  (`/System`, `/usr`, `/Library`, `/private/etc`, `/private/var/db`, `/dev`,
+  `/opt/homebrew`, …), the `PATH` directories and the program's installation;
+  metadata stays readable so lookups through an ungranted directory resolve.
+  Paths reach the profile as `-D` parameters, never spliced into its text, and
+  each is granted as named and as resolved (`/tmp` is `/private/tmp`).
+- **OS-native (Windows):** an AppContainer, through the `rappct` crate (which
+  holds the Win32 calls), for a profile that names paths. The read paths and
+  the program's installation are granted read/execute and the write paths full
+  access for the one `tcl-lsp.sandbox` package SID — access-control entries
+  that persist on those directories and admit no process outside that
+  container — and the child holds `internetClient` and
+  `privateNetworkClientServer` only when it may use the network. It runs in a
+  Job Object that kills the whole tree when the run ends or times out. A
+  profile that names no path runs as an ordinary process, its network not
+  denied either: an AppContainer cannot leave the filesystem open.
+- **Other platforms:** `pledge`/`unveil` on OpenBSD and Capsicum on FreeBSD are
+  not built; `detect_confinement()` answers `Baseline` there, and wherever the
+  host lacks the mechanism (probed once per process).
+
+`Outcome::isolation` is `Os` only when the OS layer enforced something for that
+run, and `Outcome::enforced` says which (`network`, `filesystem`); the audit log
+records both, `tcl pkg build` warns when either was not enforced, and a
+`fail-closed` policy refuses rather than under-confine.
 
 If a policy marks a floor mandatory (e.g. `require-network-deny`) and the host
 cannot enforce it, `run()` **fails closed** rather than running weaker than
@@ -160,7 +194,8 @@ lock = ["sandbox", "registry", "verification", "build", "hooks"]
 
 Nothing in `tcl-pkg` spawns a process directly. `exec::execute()` builds the
 profile, applies the sandbox policy and appends a JSON audit record (label,
-program, requested/enforced network, achieved isolation, exit code, timeout) to
+program, requested/enforced network, enforced filesystem, achieved isolation,
+exit code, timeout) to
 `$XDG_STATE_HOME/tcl-lsp/pkg-audit.log` (`tcl pkg audit`). The wired call sites:
 
 - `fetchers::fetch_git` — git clone/rev-parse; the one trusted tool granted the
@@ -196,8 +231,9 @@ trusts the package (`[build] trusted` / `tcl pkg trust <name>`) — mirroring np
 v12 / pnpm / Bun / Deno's "scripts off by default". When it does run, it is the
 most confined profile: environment scrubbed of secrets, `HOME` pointed at a
 throwaway directory, network denied unless the manifest declared it (and policy
-allows it), confined to the project tree, with the achieved isolation level
-reported.
+allows it), `TMPDIR` pointed at a throwaway directory inside the project, its
+filesystem confined to the project tree and the Tcl libraries named by
+`TCL_LIBRARY`/`TCLLIBPATH` where the host enforces it, with the achieved isolation level reported.
 
 ## CLI surface
 
@@ -213,7 +249,10 @@ reported.
 ## Testing
 
 - `tcl-sandbox` unit tests cover env scrubbing (including the sensitive-name
-  denylist), the fail-closed path, the timeout kill, and capability merging,
+  denylist), the fail-closed path, the timeout kill, capability merging, and —
+  on Linux and macOS — that a granted path is reachable and an ungranted one is not, and
+  that a child denied the network cannot open an internet socket (each
+  asserting the outcome reports what the kernel actually enforced),
   without mutating the process environment (an injectable env lookup keeps the
   crate `unsafe`-free under edition 2024).
 - `tcl-pkg` unit tests cover layered policy merging and all three lock modes
@@ -221,16 +260,31 @@ reported.
   hook stage parsing / `${VAR}` expansion.
 - End-to-end: an operator hook that exits non-zero aborts `tcl pkg install`; a
   `build` script cannot see a `GITHUB_TOKEN` planted in the parent environment
-  and runs against a throwaway `HOME`.
+  and runs against a throwaway `HOME`; `tcl pkg build` still builds under the
+  confinement, and a script that did not declare the network cannot reach a
+  local listener wherever the audit log says the denial was enforced
+  (`rust/tcl-cli/tests/pkg_build.rs`).
 
 ## Boundaries of the model
 
 These are the edges of what the sandbox promises, and they matter when
 reasoning about a threat:
 
-- **Isolation is baseline-only.** The enforced confinement is environment
-  scrubbing, cwd pinning, output capture, and the wall-clock timeout. A
-  policy that needs more must set `fail-closed`.
+- **OS-native isolation is partial, and absent on the BSDs.** There the
+  enforced confinement is environment scrubbing, cwd pinning, output capture
+  and the wall-clock timeout. On Linux, Landlock does not govern every
+  operation (sockets, signals, `ioctl` on already-open files, and on older
+  kernels truncation and renames across directories), and the seccomp filter
+  refuses internet sockets but not a local socket that a daemon outside the
+  sandbox could forward; macOS likewise leaves Unix-domain sockets open and
+  file metadata readable, and `sandbox-exec` is deprecated by Apple though
+  still shipped; Windows confines only a profile that names paths, and leaves
+  its ACL grants in place. A profile that names no path is not filesystem
+  confined anywhere. A policy that needs more must set `fail-closed`.
+- **The macOS and Windows tiers are compile-checked here and exercised on
+  those hosts' runners.** The enforcement tests in `tcl-sandbox` run on Linux
+  and macOS; Windows has the command-line quoting test, and its enforcement
+  is verified on a Windows host.
 - **Only the project's own build script runs.** The resolver does not read
   a dependency's manifest for a declared build phase, so a dependency's
   `build` directive is inert.

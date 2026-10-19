@@ -511,3 +511,21 @@ fn tclsh_output(bin_env: &str, names: &[&str], src: &str) -> Option<String> {
     }
     None
 }
+
+/// A safe parent's children are safe with or without `-safe`, down every
+/// level; an ordinary parent's are not, and a `marktrusted` parent's are not
+/// either (tclsh 8.6.18 and 9.0.4 print `1 1 1 0 1` then `0`).
+#[test]
+fn children_of_a_safe_interp_inherit_safety() {
+    let (ok, out) = run("interp create -safe s\n\
+         interp create n\n\
+         puts [list [s eval {interp issafe [interp create]}] \
+           [s eval {interp issafe [interp create -safe]}] \
+           [s eval {interp create t; t eval {interp issafe [interp create]}}] \
+           [n eval {interp issafe [interp create]}] \
+           [s eval {interp issafe t}]]\n\
+         interp marktrusted s\n\
+         puts [s eval {interp issafe [interp create]}]\n");
+    assert!(ok, "safe-inheritance script failed: {out}");
+    assert_eq!(out, "1 1 1 0 1\n0");
+}

@@ -612,6 +612,7 @@ Every command, subcommand, and declaring form, resolved through the value-transf
 | `lreplace` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `no-route:unauthored` | none (unauthored) | — | no | — | — | — |
 | `lreverse` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `no-route:unauthored` | none (unauthored) · callback fold | — | no | — | — | — |
 | `lsearch` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `no-route:unauthored` | none (unauthored) | — | no | — | — | — |
+| `lseq` | command | bpf, spectcl, sslictcl, tcl9.0, tcl9.1, tk | none | — | — | no | — | pure, no route | — |
 | `lset` | command | bpf, cadence-eda-tcl, expect, f5-iapps, f5-irules, f5-tmsh, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `list-update:set` | direct `list-set` | registry | yes | `VarWrite@0`, `assigns_variable_at 0` | — | — |
 | `lt` | command | bpf, spectcl, sslictcl, tcl9.0, tcl9.1, tk | declared (command) · `no-route:unauthored` | none (unauthored) | — | no | — | — | — |
 | `math::cov` | command | bpf, expect, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, spectcl, sslictcl, synopsys-eda-tcl, tcl8.5, tcl8.6, tcl9.0, tcl9.1, tk, xilinx-eda-tcl | declared (command) · `no-route:unauthored` | none (unauthored) | — | no | — | — | — |
@@ -1159,24 +1160,24 @@ Commands and subcommands that declare no semantics, write no variable, and decla
 
 | Dialect | Rows |
 |---|---|
-| bpf | 2615 |
+| bpf | 2616 |
 | cadence-eda-tcl | 1191 |
-| expect | 2532 |
+| expect | 2534 |
 | f5-iapps | 1017 |
 | f5-irules | 1075 |
 | f5-tmsh | 998 |
 | intel-quartus-eda-tcl | 2570 |
-| mentor-eda-tcl | 2829 |
+| mentor-eda-tcl | 2831 |
 | microchip-libero-eda-tcl | 2751 |
-| spectcl | 2708 |
-| sslictcl | 2653 |
-| synopsys-eda-tcl | 2734 |
+| spectcl | 2709 |
+| sslictcl | 2654 |
+| synopsys-eda-tcl | 2736 |
 | tcl8.4 | 968 |
 | tcl8.5 | 2345 |
-| tcl8.6 | 2518 |
-| tcl9.0 | 2591 |
-| tcl9.1 | 2607 |
-| tk | 2623 |
+| tcl8.6 | 2520 |
+| tcl9.0 | 2592 |
+| tcl9.1 | 2608 |
+| tk | 2624 |
 | xilinx-eda-tcl | 3283 |
 
 ## Hand-written command knowledge outside the registry
@@ -1189,11 +1190,11 @@ Every reviewed site the source lint found, with the waiver that names the axis i
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:970` | site | the W230–W232 index positions await an index-argument role on the registry |
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:977` | site | the W230–W232 index positions await an index-argument role on the registry |
 | arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:999` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1070` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1390` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1423` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1456` | site | the W230–W232 index positions await an index-argument role on the registry |
-| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1492` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1075` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1405` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1438` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1471` | site | the W230–W232 index positions await an index-argument role on the registry |
+| arg_roles | `rust/tcl-compiler/src/analyser/bounds_checks.rs:1507` | site | the W230–W232 index positions await an index-argument role on the registry |
 | dataflow | `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2587` | site | needs each value's token span, which no outcome carries |
 | dataflow | `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2596` | site | needs each value's token span, which no outcome carries |
 | dataflow | `rust/tcl-compiler/src/analyser/diagnostics/var_command.rs:2620` | site | needs each value's token span, which no outcome carries |

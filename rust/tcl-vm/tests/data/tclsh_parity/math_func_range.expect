@@ -1,0 +1,1406 @@
+==== 8.4 file ====
+acos(0.5) -> 0 <1.0471975512> <NONE>
+acos(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+acos(-2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(0.5) -> 0 <0.523598775598> <NONE>
+asin(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+atan(1) -> 0 <0.785398163397> <NONE>
+atan(1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+atan2(1,2) -> 0 <0.463647609001> <NONE>
+atan2(0,0) -> 0 <0.0> <NONE>
+atan2(0,-1) -> 0 <3.14159265359> <NONE>
+atan2(1,0) -> 0 <1.57079632679> <NONE>
+atan2(1e-300,1e300) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+atan2(-1e-300,1e300) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+atan2(1e-300,-1e300) -> 0 <3.14159265359> <NONE>
+atan2(1e-300*1e-20,1) -> 0 <9.99988867183e-321> <NONE>
+ceil(1.5) -> 0 <2.0> <NONE>
+ceil(-0.5) -> 0 <-0.0> <NONE>
+ceil(1e-300*1e-20) -> 0 <1.0> <NONE>
+cos(0) -> 0 <1.0> <NONE>
+cosh(1) -> 0 <1.54308063482> <NONE>
+cosh(0) -> 0 <1.0> <NONE>
+cosh(710) -> 0 <1.11699738308e+308> <NONE>
+cosh(1000) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+cosh(-1000) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+double(3) -> 0 <3.0> <NONE>
+double(1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+exp(1) -> 0 <2.71828182846> <NONE>
+exp(0) -> 0 <1.0> <NONE>
+exp(709) -> 0 <8.21840746155e+307> <NONE>
+exp(710) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+exp(1000) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+exp(-708) -> 0 <3.30755300364e-308> <NONE>
+exp(-720) -> 0 <2.03223080242e-313> <NONE>
+exp(-745) -> 0 <4.94065645841e-324> <NONE>
+exp(-746) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+exp(-1000) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+exp(1e-300*1e-20) -> 0 <1.0> <NONE>
+floor(-1.5) -> 0 <-2.0> <NONE>
+floor(1e-300*1e-20) -> 0 <0.0> <NONE>
+fmod(7,3) -> 0 <1.0> <NONE>
+fmod(1,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,1) -> 0 <0.0> <NONE>
+fmod(5,1e-300*1e-20) -> 0 <9.52558565182e-321> <NONE>
+fmod(1e-300*1e-20,1) -> 0 <9.99988867183e-321> <NONE>
+hypot(3,4) -> 0 <5.0> <NONE>
+hypot(1e308,1e308) -> 0 <1.41421356237e+308> <NONE>
+hypot(1e-300*1e-20,0) -> 0 <9.99988867183e-321> <NONE>
+int(2.5) -> 0 <2> <NONE>
+int(1e300) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+log(1) -> 0 <0.0> <NONE>
+log(0) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+log(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+log(-0.0) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+log(1e-300*1e-20) -> 0 <-736.827240891> <NONE>
+log10(100) -> 0 <2.0> <NONE>
+log10(0) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+log10(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(2,10) -> 0 <1024.0> <NONE>
+pow(0,0) -> 0 <1.0> <NONE>
+pow(0,1) -> 0 <0.0> <NONE>
+pow(-2,3) -> 0 <-8.0> <NONE>
+pow(10,308) -> 0 <1e+308> <NONE>
+pow(10,309) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+pow(-10,309) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+pow(0,-1) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+pow(0,-0.5) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+pow(-1,0.5) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(-8,1.0/3) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(10,-320) -> 0 <9.99988867183e-321> <NONE>
+pow(10,-400) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+pow(2,-1074) -> 0 <4.94065645841e-324> <NONE>
+pow(2,-1075) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+pow(-2,-1074) -> 0 <4.94065645841e-324> <NONE>
+pow(-2,-1075) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+pow(0.5,1100) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+pow(-0.5,1101) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+pow(1e-160,2) -> 0 <9.99988867183e-321> <NONE>
+pow(1e-200,2) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+pow(1e-300*1e-20,1) -> 0 <9.99988867183e-321> <NONE>
+pow(1e-300*1e-20,2) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+round(2.5) -> 0 <3> <NONE>
+round(1e300) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+sin(1) -> 0 <0.841470984808> <NONE>
+sin(1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+sinh(1) -> 0 <1.17520119364> <NONE>
+sinh(0) -> 0 <0.0> <NONE>
+sinh(710) -> 0 <1.11699738308e+308> <NONE>
+sinh(-710) -> 0 <-1.11699738308e+308> <NONE>
+sinh(1000) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+sinh(-1000) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+sinh(1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+sqrt(4) -> 0 <2.0> <NONE>
+sqrt(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+sqrt(-0.0) -> 0 <-0.0> <NONE>
+sqrt(1e-300*1e-20) -> 0 <9.99994433576e-161> <NONE>
+tan(1) -> 0 <1.55740772465> <NONE>
+tan(1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+tanh(1) -> 0 <0.761594155956> <NONE>
+tanh(1000) -> 0 <1.0> <NONE>
+tanh(-1000) -> 0 <-1.0> <NONE>
+tanh(1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+wide(2.5) -> 0 <2> <NONE>
+wide(1e300) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+wide(-1e300) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+wide(9.3e18) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+wide(-9.3e18) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+int(9.3e18) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+int(-9.3e18) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+int(9.2e18) -> 0 <9200000000000000000> <NONE>
+int(-1e19) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+round(9.2e18) -> 0 <9200000000000000000> <NONE>
+round(-9.2e18) -> 0 <-9200000000000000000> <NONE>
+round(9.3e18) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+round(-1e300) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+abs(-2.5) -> 0 <2.5> <NONE>
+abs(-1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+1e-300*1e-300 -> 0 <0.0> <NONE>
+1e300*1e300 -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1e-320 -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+-1e-320 -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+sin(1e-320) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1e-400 -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+0e-400 -> 0 <0.0> <NONE>
+1e400 -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+2.5e-308 -> 0 <2.5e-308> <NONE>
+2.2250738585072014e-308 -> 0 <2.22507385851e-308> <NONE>
+exp: 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+exp big: 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+pow: 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+atan2: 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+log: 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+sqrt: 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+exp var: 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+exp sum: 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+pow var: 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+literal: 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+floating-point value too small to represent
+    while executing
+"expr {exp(-1000)}"
+    invoked from within
+"puts [expr {exp(-1000)}]"
+    (file "parity.tcl" line 75)
+==== 8.4 stdin ====
+acos(0.5) -> 0 <1.0471975512> <NONE>
+acos(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+acos(-2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(0.5) -> 0 <0.523598775598> <NONE>
+asin(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+atan(1) -> 0 <0.785398163397> <NONE>
+atan(1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+atan2(1,2) -> 0 <0.463647609001> <NONE>
+atan2(0,0) -> 0 <0.0> <NONE>
+atan2(0,-1) -> 0 <3.14159265359> <NONE>
+atan2(1,0) -> 0 <1.57079632679> <NONE>
+atan2(1e-300,1e300) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+atan2(-1e-300,1e300) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+atan2(1e-300,-1e300) -> 0 <3.14159265359> <NONE>
+atan2(1e-300*1e-20,1) -> 0 <9.99988867183e-321> <NONE>
+ceil(1.5) -> 0 <2.0> <NONE>
+ceil(-0.5) -> 0 <-0.0> <NONE>
+ceil(1e-300*1e-20) -> 0 <1.0> <NONE>
+cos(0) -> 0 <1.0> <NONE>
+cosh(1) -> 0 <1.54308063482> <NONE>
+cosh(0) -> 0 <1.0> <NONE>
+cosh(710) -> 0 <1.11699738308e+308> <NONE>
+cosh(1000) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+cosh(-1000) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+double(3) -> 0 <3.0> <NONE>
+double(1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+exp(1) -> 0 <2.71828182846> <NONE>
+exp(0) -> 0 <1.0> <NONE>
+exp(709) -> 0 <8.21840746155e+307> <NONE>
+exp(710) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+exp(1000) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+exp(-708) -> 0 <3.30755300364e-308> <NONE>
+exp(-720) -> 0 <2.03223080242e-313> <NONE>
+exp(-745) -> 0 <4.94065645841e-324> <NONE>
+exp(-746) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+exp(-1000) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+exp(1e-300*1e-20) -> 0 <1.0> <NONE>
+floor(-1.5) -> 0 <-2.0> <NONE>
+floor(1e-300*1e-20) -> 0 <0.0> <NONE>
+fmod(7,3) -> 0 <1.0> <NONE>
+fmod(1,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,1) -> 0 <0.0> <NONE>
+fmod(5,1e-300*1e-20) -> 0 <9.52558565182e-321> <NONE>
+fmod(1e-300*1e-20,1) -> 0 <9.99988867183e-321> <NONE>
+hypot(3,4) -> 0 <5.0> <NONE>
+hypot(1e308,1e308) -> 0 <1.41421356237e+308> <NONE>
+hypot(1e-300*1e-20,0) -> 0 <9.99988867183e-321> <NONE>
+int(2.5) -> 0 <2> <NONE>
+int(1e300) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+log(1) -> 0 <0.0> <NONE>
+log(0) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+log(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+log(-0.0) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+log(1e-300*1e-20) -> 0 <-736.827240891> <NONE>
+log10(100) -> 0 <2.0> <NONE>
+log10(0) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+log10(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(2,10) -> 0 <1024.0> <NONE>
+pow(0,0) -> 0 <1.0> <NONE>
+pow(0,1) -> 0 <0.0> <NONE>
+pow(-2,3) -> 0 <-8.0> <NONE>
+pow(10,308) -> 0 <1e+308> <NONE>
+pow(10,309) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+pow(-10,309) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+pow(0,-1) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+pow(0,-0.5) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+pow(-1,0.5) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(-8,1.0/3) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(10,-320) -> 0 <9.99988867183e-321> <NONE>
+pow(10,-400) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+pow(2,-1074) -> 0 <4.94065645841e-324> <NONE>
+pow(2,-1075) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+pow(-2,-1074) -> 0 <4.94065645841e-324> <NONE>
+pow(-2,-1075) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+pow(0.5,1100) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+pow(-0.5,1101) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+pow(1e-160,2) -> 0 <9.99988867183e-321> <NONE>
+pow(1e-200,2) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+pow(1e-300*1e-20,1) -> 0 <9.99988867183e-321> <NONE>
+pow(1e-300*1e-20,2) -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+round(2.5) -> 0 <3> <NONE>
+round(1e300) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+sin(1) -> 0 <0.841470984808> <NONE>
+sin(1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+sinh(1) -> 0 <1.17520119364> <NONE>
+sinh(0) -> 0 <0.0> <NONE>
+sinh(710) -> 0 <1.11699738308e+308> <NONE>
+sinh(-710) -> 0 <-1.11699738308e+308> <NONE>
+sinh(1000) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+sinh(-1000) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+sinh(1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+sqrt(4) -> 0 <2.0> <NONE>
+sqrt(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+sqrt(-0.0) -> 0 <-0.0> <NONE>
+sqrt(1e-300*1e-20) -> 0 <9.99994433576e-161> <NONE>
+tan(1) -> 0 <1.55740772465> <NONE>
+tan(1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+tanh(1) -> 0 <0.761594155956> <NONE>
+tanh(1000) -> 0 <1.0> <NONE>
+tanh(-1000) -> 0 <-1.0> <NONE>
+tanh(1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+wide(2.5) -> 0 <2> <NONE>
+wide(1e300) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+wide(-1e300) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+wide(9.3e18) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+wide(-9.3e18) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+int(9.3e18) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+int(-9.3e18) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+int(9.2e18) -> 0 <9200000000000000000> <NONE>
+int(-1e19) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+round(9.2e18) -> 0 <9200000000000000000> <NONE>
+round(-9.2e18) -> 0 <-9200000000000000000> <NONE>
+round(9.3e18) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+round(-1e300) -> 1 <integer value too large to represent> <ARITH IOVERFLOW {integer value too large to represent}>
+abs(-2.5) -> 0 <2.5> <NONE>
+abs(-1e-300*1e-20) -> 0 <9.99988867183e-321> <NONE>
+1e-300*1e-300 -> 0 <0.0> <NONE>
+1e300*1e300 -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1e-320 -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+-1e-320 -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+sin(1e-320) -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+1e-400 -> 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+0e-400 -> 0 <0.0> <NONE>
+1e400 -> 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+2.5e-308 -> 0 <2.5e-308> <NONE>
+2.2250738585072014e-308 -> 0 <2.22507385851e-308> <NONE>
+exp: 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+exp big: 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+pow: 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+atan2: 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+log: 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+sqrt: 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+exp var: 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+exp sum: 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+pow var: 1 <floating-point value too small to represent> <ARITH UNDERFLOW {floating-point value too small to represent}>
+literal: 1 <floating-point value too large to represent> <ARITH OVERFLOW {floating-point value too large to represent}>
+--- stderr
+floating-point value too small to represent
+==== 8.5 file ====
+acos(0.5) -> 0 <1.0471975511965979> <NONE>
+acos(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+acos(-2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(0.5) -> 0 <0.5235987755982989> <NONE>
+asin(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan(1) -> 0 <0.7853981633974483> <NONE>
+atan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan2(1,2) -> 0 <0.4636476090008061> <NONE>
+atan2(0,0) -> 0 <0.0> <NONE>
+atan2(0,-1) -> 0 <3.141592653589793> <NONE>
+atan2(1,0) -> 0 <1.5707963267948966> <NONE>
+atan2(1e-300,1e300) -> 0 <0.0> <NONE>
+atan2(-1e-300,1e300) -> 0 <-0.0> <NONE>
+atan2(1e-300,-1e300) -> 0 <3.141592653589793> <NONE>
+atan2(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+ceil(1.5) -> 0 <2.0> <NONE>
+ceil(-0.5) -> 0 <-0.0> <NONE>
+ceil(1e-300*1e-20) -> 0 <1.0> <NONE>
+cos(0) -> 0 <1.0> <NONE>
+cosh(1) -> 0 <1.5430806348152437> <NONE>
+cosh(0) -> 0 <1.0> <NONE>
+cosh(710) -> 0 <1.1169973830808557e+308> <NONE>
+cosh(1000) -> 0 <Inf> <NONE>
+cosh(-1000) -> 0 <Inf> <NONE>
+double(3) -> 0 <3.0> <NONE>
+double(1e-300*1e-20) -> 0 <1e-320> <NONE>
+exp(1) -> 0 <2.718281828459045> <NONE>
+exp(0) -> 0 <1.0> <NONE>
+exp(709) -> 0 <8.218407461554972e+307> <NONE>
+exp(710) -> 0 <Inf> <NONE>
+exp(1000) -> 0 <Inf> <NONE>
+exp(-708) -> 0 <3.307553003638408e-308> <NONE>
+exp(-720) -> 0 <2.0322308024e-313> <NONE>
+exp(-745) -> 0 <5e-324> <NONE>
+exp(-746) -> 0 <0.0> <NONE>
+exp(-1000) -> 0 <0.0> <NONE>
+exp(1e-300*1e-20) -> 0 <1.0> <NONE>
+floor(-1.5) -> 0 <-2.0> <NONE>
+floor(1e-300*1e-20) -> 0 <0.0> <NONE>
+fmod(7,3) -> 0 <1.0> <NONE>
+fmod(1,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,1) -> 0 <0.0> <NONE>
+fmod(5,1e-300*1e-20) -> 0 <9.526e-321> <NONE>
+fmod(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+hypot(3,4) -> 0 <5.0> <NONE>
+hypot(1e308,1e308) -> 0 <1.4142135623730951e+308> <NONE>
+hypot(1e-300*1e-20,0) -> 0 <1e-320> <NONE>
+int(2.5) -> 0 <2> <NONE>
+int(1e300) -> 0 <0> <NONE>
+log(1) -> 0 <0.0> <NONE>
+log(0) -> 0 <-Inf> <NONE>
+log(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+log(-0.0) -> 0 <-Inf> <NONE>
+log(1e-300*1e-20) -> 0 <-736.8272408909739> <NONE>
+log10(100) -> 0 <2.0> <NONE>
+log10(0) -> 0 <-Inf> <NONE>
+log10(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(2,10) -> 0 <1024.0> <NONE>
+pow(0,0) -> 0 <1.0> <NONE>
+pow(0,1) -> 0 <0.0> <NONE>
+pow(-2,3) -> 0 <-8.0> <NONE>
+pow(10,308) -> 0 <1e+308> <NONE>
+pow(10,309) -> 0 <Inf> <NONE>
+pow(-10,309) -> 0 <-Inf> <NONE>
+pow(0,-1) -> 0 <Inf> <NONE>
+pow(0,-0.5) -> 0 <Inf> <NONE>
+pow(-1,0.5) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(-8,1.0/3) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(10,-320) -> 0 <1e-320> <NONE>
+pow(10,-400) -> 0 <0.0> <NONE>
+pow(2,-1074) -> 0 <5e-324> <NONE>
+pow(2,-1075) -> 0 <0.0> <NONE>
+pow(-2,-1074) -> 0 <5e-324> <NONE>
+pow(-2,-1075) -> 0 <-0.0> <NONE>
+pow(0.5,1100) -> 0 <0.0> <NONE>
+pow(-0.5,1101) -> 0 <-0.0> <NONE>
+pow(1e-160,2) -> 0 <1e-320> <NONE>
+pow(1e-200,2) -> 0 <0.0> <NONE>
+pow(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+pow(1e-300*1e-20,2) -> 0 <0.0> <NONE>
+round(2.5) -> 0 <3> <NONE>
+round(1e300) -> 0 <1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+sin(1) -> 0 <0.8414709848078965> <NONE>
+sin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sinh(1) -> 0 <1.1752011936438014> <NONE>
+sinh(0) -> 0 <0.0> <NONE>
+sinh(710) -> 0 <1.1169973830808557e+308> <NONE>
+sinh(-710) -> 0 <-1.1169973830808557e+308> <NONE>
+sinh(1000) -> 0 <Inf> <NONE>
+sinh(-1000) -> 0 <-Inf> <NONE>
+sinh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sqrt(4) -> 0 <2.0> <NONE>
+sqrt(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+sqrt(-0.0) -> 0 <-0.0> <NONE>
+sqrt(1e-300*1e-20) -> 0 <9.99994433575849e-161> <NONE>
+tan(1) -> 0 <1.5574077246549023> <NONE>
+tan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+tanh(1) -> 0 <0.7615941559557649> <NONE>
+tanh(1000) -> 0 <1.0> <NONE>
+tanh(-1000) -> 0 <-1.0> <NONE>
+tanh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+wide(2.5) -> 0 <2> <NONE>
+wide(1e300) -> 0 <0> <NONE>
+wide(-1e300) -> 0 <0> <NONE>
+wide(9.3e18) -> 0 <-9146744073709551616> <NONE>
+wide(-9.3e18) -> 0 <9146744073709551616> <NONE>
+int(9.3e18) -> 0 <-9146744073709551616> <NONE>
+int(-9.3e18) -> 0 <9146744073709551616> <NONE>
+int(9.2e18) -> 0 <9200000000000000000> <NONE>
+int(-1e19) -> 0 <8446744073709551616> <NONE>
+round(9.2e18) -> 0 <9200000000000000000> <NONE>
+round(-9.2e18) -> 0 <-9200000000000000000> <NONE>
+round(9.3e18) -> 0 <9300000000000000000> <NONE>
+round(-1e300) -> 0 <-1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+abs(-2.5) -> 0 <2.5> <NONE>
+abs(-1e-300*1e-20) -> 0 <1e-320> <NONE>
+1e-300*1e-300 -> 0 <0.0> <NONE>
+1e300*1e300 -> 0 <Inf> <NONE>
+1e-320 -> 0 <1e-320> <NONE>
+-1e-320 -> 0 <-1e-320> <NONE>
+sin(1e-320) -> 0 <1e-320> <NONE>
+1e-400 -> 0 <0.0> <NONE>
+0e-400 -> 0 <0.0> <NONE>
+1e400 -> 0 <Inf> <NONE>
+2.5e-308 -> 0 <2.5e-308> <NONE>
+2.2250738585072014e-308 -> 0 <2.2250738585072014e-308> <NONE>
+exp: 0 <0.0> <NONE>
+exp big: 0 <Inf> <NONE>
+pow: 0 <0.0> <NONE>
+atan2: 0 <0.0> <NONE>
+log: 0 <-Inf> <NONE>
+sqrt: 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+exp var: 0 <0.0> <NONE>
+exp sum: 0 <1.0> <NONE>
+pow var: 0 <-0.0> <NONE>
+literal: 0 <1e-320> <NONE>
+0.0
+==== 8.5 stdin ====
+acos(0.5) -> 0 <1.0471975511965979> <NONE>
+acos(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+acos(-2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(0.5) -> 0 <0.5235987755982989> <NONE>
+asin(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan(1) -> 0 <0.7853981633974483> <NONE>
+atan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan2(1,2) -> 0 <0.4636476090008061> <NONE>
+atan2(0,0) -> 0 <0.0> <NONE>
+atan2(0,-1) -> 0 <3.141592653589793> <NONE>
+atan2(1,0) -> 0 <1.5707963267948966> <NONE>
+atan2(1e-300,1e300) -> 0 <0.0> <NONE>
+atan2(-1e-300,1e300) -> 0 <-0.0> <NONE>
+atan2(1e-300,-1e300) -> 0 <3.141592653589793> <NONE>
+atan2(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+ceil(1.5) -> 0 <2.0> <NONE>
+ceil(-0.5) -> 0 <-0.0> <NONE>
+ceil(1e-300*1e-20) -> 0 <1.0> <NONE>
+cos(0) -> 0 <1.0> <NONE>
+cosh(1) -> 0 <1.5430806348152437> <NONE>
+cosh(0) -> 0 <1.0> <NONE>
+cosh(710) -> 0 <1.1169973830808557e+308> <NONE>
+cosh(1000) -> 0 <Inf> <NONE>
+cosh(-1000) -> 0 <Inf> <NONE>
+double(3) -> 0 <3.0> <NONE>
+double(1e-300*1e-20) -> 0 <1e-320> <NONE>
+exp(1) -> 0 <2.718281828459045> <NONE>
+exp(0) -> 0 <1.0> <NONE>
+exp(709) -> 0 <8.218407461554972e+307> <NONE>
+exp(710) -> 0 <Inf> <NONE>
+exp(1000) -> 0 <Inf> <NONE>
+exp(-708) -> 0 <3.307553003638408e-308> <NONE>
+exp(-720) -> 0 <2.0322308024e-313> <NONE>
+exp(-745) -> 0 <5e-324> <NONE>
+exp(-746) -> 0 <0.0> <NONE>
+exp(-1000) -> 0 <0.0> <NONE>
+exp(1e-300*1e-20) -> 0 <1.0> <NONE>
+floor(-1.5) -> 0 <-2.0> <NONE>
+floor(1e-300*1e-20) -> 0 <0.0> <NONE>
+fmod(7,3) -> 0 <1.0> <NONE>
+fmod(1,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,1) -> 0 <0.0> <NONE>
+fmod(5,1e-300*1e-20) -> 0 <9.526e-321> <NONE>
+fmod(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+hypot(3,4) -> 0 <5.0> <NONE>
+hypot(1e308,1e308) -> 0 <1.4142135623730951e+308> <NONE>
+hypot(1e-300*1e-20,0) -> 0 <1e-320> <NONE>
+int(2.5) -> 0 <2> <NONE>
+int(1e300) -> 0 <0> <NONE>
+log(1) -> 0 <0.0> <NONE>
+log(0) -> 0 <-Inf> <NONE>
+log(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+log(-0.0) -> 0 <-Inf> <NONE>
+log(1e-300*1e-20) -> 0 <-736.8272408909739> <NONE>
+log10(100) -> 0 <2.0> <NONE>
+log10(0) -> 0 <-Inf> <NONE>
+log10(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(2,10) -> 0 <1024.0> <NONE>
+pow(0,0) -> 0 <1.0> <NONE>
+pow(0,1) -> 0 <0.0> <NONE>
+pow(-2,3) -> 0 <-8.0> <NONE>
+pow(10,308) -> 0 <1e+308> <NONE>
+pow(10,309) -> 0 <Inf> <NONE>
+pow(-10,309) -> 0 <-Inf> <NONE>
+pow(0,-1) -> 0 <Inf> <NONE>
+pow(0,-0.5) -> 0 <Inf> <NONE>
+pow(-1,0.5) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(-8,1.0/3) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(10,-320) -> 0 <1e-320> <NONE>
+pow(10,-400) -> 0 <0.0> <NONE>
+pow(2,-1074) -> 0 <5e-324> <NONE>
+pow(2,-1075) -> 0 <0.0> <NONE>
+pow(-2,-1074) -> 0 <5e-324> <NONE>
+pow(-2,-1075) -> 0 <-0.0> <NONE>
+pow(0.5,1100) -> 0 <0.0> <NONE>
+pow(-0.5,1101) -> 0 <-0.0> <NONE>
+pow(1e-160,2) -> 0 <1e-320> <NONE>
+pow(1e-200,2) -> 0 <0.0> <NONE>
+pow(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+pow(1e-300*1e-20,2) -> 0 <0.0> <NONE>
+round(2.5) -> 0 <3> <NONE>
+round(1e300) -> 0 <1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+sin(1) -> 0 <0.8414709848078965> <NONE>
+sin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sinh(1) -> 0 <1.1752011936438014> <NONE>
+sinh(0) -> 0 <0.0> <NONE>
+sinh(710) -> 0 <1.1169973830808557e+308> <NONE>
+sinh(-710) -> 0 <-1.1169973830808557e+308> <NONE>
+sinh(1000) -> 0 <Inf> <NONE>
+sinh(-1000) -> 0 <-Inf> <NONE>
+sinh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sqrt(4) -> 0 <2.0> <NONE>
+sqrt(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+sqrt(-0.0) -> 0 <-0.0> <NONE>
+sqrt(1e-300*1e-20) -> 0 <9.99994433575849e-161> <NONE>
+tan(1) -> 0 <1.5574077246549023> <NONE>
+tan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+tanh(1) -> 0 <0.7615941559557649> <NONE>
+tanh(1000) -> 0 <1.0> <NONE>
+tanh(-1000) -> 0 <-1.0> <NONE>
+tanh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+wide(2.5) -> 0 <2> <NONE>
+wide(1e300) -> 0 <0> <NONE>
+wide(-1e300) -> 0 <0> <NONE>
+wide(9.3e18) -> 0 <-9146744073709551616> <NONE>
+wide(-9.3e18) -> 0 <9146744073709551616> <NONE>
+int(9.3e18) -> 0 <-9146744073709551616> <NONE>
+int(-9.3e18) -> 0 <9146744073709551616> <NONE>
+int(9.2e18) -> 0 <9200000000000000000> <NONE>
+int(-1e19) -> 0 <8446744073709551616> <NONE>
+round(9.2e18) -> 0 <9200000000000000000> <NONE>
+round(-9.2e18) -> 0 <-9200000000000000000> <NONE>
+round(9.3e18) -> 0 <9300000000000000000> <NONE>
+round(-1e300) -> 0 <-1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+abs(-2.5) -> 0 <2.5> <NONE>
+abs(-1e-300*1e-20) -> 0 <1e-320> <NONE>
+1e-300*1e-300 -> 0 <0.0> <NONE>
+1e300*1e300 -> 0 <Inf> <NONE>
+1e-320 -> 0 <1e-320> <NONE>
+-1e-320 -> 0 <-1e-320> <NONE>
+sin(1e-320) -> 0 <1e-320> <NONE>
+1e-400 -> 0 <0.0> <NONE>
+0e-400 -> 0 <0.0> <NONE>
+1e400 -> 0 <Inf> <NONE>
+2.5e-308 -> 0 <2.5e-308> <NONE>
+2.2250738585072014e-308 -> 0 <2.2250738585072014e-308> <NONE>
+exp: 0 <0.0> <NONE>
+exp big: 0 <Inf> <NONE>
+pow: 0 <0.0> <NONE>
+atan2: 0 <0.0> <NONE>
+log: 0 <-Inf> <NONE>
+sqrt: 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+exp var: 0 <0.0> <NONE>
+exp sum: 0 <1.0> <NONE>
+pow var: 0 <-0.0> <NONE>
+literal: 0 <1e-320> <NONE>
+0.0
+==== 8.6 file ====
+acos(0.5) -> 0 <1.0471975511965979> <NONE>
+acos(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+acos(-2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(0.5) -> 0 <0.5235987755982989> <NONE>
+asin(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan(1) -> 0 <0.7853981633974483> <NONE>
+atan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan2(1,2) -> 0 <0.4636476090008061> <NONE>
+atan2(0,0) -> 0 <0.0> <NONE>
+atan2(0,-1) -> 0 <3.141592653589793> <NONE>
+atan2(1,0) -> 0 <1.5707963267948966> <NONE>
+atan2(1e-300,1e300) -> 0 <0.0> <NONE>
+atan2(-1e-300,1e300) -> 0 <-0.0> <NONE>
+atan2(1e-300,-1e300) -> 0 <3.141592653589793> <NONE>
+atan2(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+ceil(1.5) -> 0 <2.0> <NONE>
+ceil(-0.5) -> 0 <-0.0> <NONE>
+ceil(1e-300*1e-20) -> 0 <1.0> <NONE>
+cos(0) -> 0 <1.0> <NONE>
+cosh(1) -> 0 <1.5430806348152437> <NONE>
+cosh(0) -> 0 <1.0> <NONE>
+cosh(710) -> 0 <1.1169973830808557e+308> <NONE>
+cosh(1000) -> 0 <Inf> <NONE>
+cosh(-1000) -> 0 <Inf> <NONE>
+double(3) -> 0 <3.0> <NONE>
+double(1e-300*1e-20) -> 0 <1e-320> <NONE>
+exp(1) -> 0 <2.718281828459045> <NONE>
+exp(0) -> 0 <1.0> <NONE>
+exp(709) -> 0 <8.218407461554972e+307> <NONE>
+exp(710) -> 0 <Inf> <NONE>
+exp(1000) -> 0 <Inf> <NONE>
+exp(-708) -> 0 <3.307553003638408e-308> <NONE>
+exp(-720) -> 0 <2.0322308024e-313> <NONE>
+exp(-745) -> 0 <5e-324> <NONE>
+exp(-746) -> 0 <0.0> <NONE>
+exp(-1000) -> 0 <0.0> <NONE>
+exp(1e-300*1e-20) -> 0 <1.0> <NONE>
+floor(-1.5) -> 0 <-2.0> <NONE>
+floor(1e-300*1e-20) -> 0 <0.0> <NONE>
+fmod(7,3) -> 0 <1.0> <NONE>
+fmod(1,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,1) -> 0 <0.0> <NONE>
+fmod(5,1e-300*1e-20) -> 0 <9.526e-321> <NONE>
+fmod(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+hypot(3,4) -> 0 <5.0> <NONE>
+hypot(1e308,1e308) -> 0 <1.4142135623730951e+308> <NONE>
+hypot(1e-300*1e-20,0) -> 0 <1e-320> <NONE>
+int(2.5) -> 0 <2> <NONE>
+int(1e300) -> 0 <0> <NONE>
+log(1) -> 0 <0.0> <NONE>
+log(0) -> 0 <-Inf> <NONE>
+log(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+log(-0.0) -> 0 <-Inf> <NONE>
+log(1e-300*1e-20) -> 0 <-736.8272408909739> <NONE>
+log10(100) -> 0 <2.0> <NONE>
+log10(0) -> 0 <-Inf> <NONE>
+log10(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(2,10) -> 0 <1024.0> <NONE>
+pow(0,0) -> 0 <1.0> <NONE>
+pow(0,1) -> 0 <0.0> <NONE>
+pow(-2,3) -> 0 <-8.0> <NONE>
+pow(10,308) -> 0 <1e+308> <NONE>
+pow(10,309) -> 0 <Inf> <NONE>
+pow(-10,309) -> 0 <-Inf> <NONE>
+pow(0,-1) -> 0 <Inf> <NONE>
+pow(0,-0.5) -> 0 <Inf> <NONE>
+pow(-1,0.5) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(-8,1.0/3) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(10,-320) -> 0 <1e-320> <NONE>
+pow(10,-400) -> 0 <0.0> <NONE>
+pow(2,-1074) -> 0 <5e-324> <NONE>
+pow(2,-1075) -> 0 <0.0> <NONE>
+pow(-2,-1074) -> 0 <5e-324> <NONE>
+pow(-2,-1075) -> 0 <-0.0> <NONE>
+pow(0.5,1100) -> 0 <0.0> <NONE>
+pow(-0.5,1101) -> 0 <-0.0> <NONE>
+pow(1e-160,2) -> 0 <1e-320> <NONE>
+pow(1e-200,2) -> 0 <0.0> <NONE>
+pow(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+pow(1e-300*1e-20,2) -> 0 <0.0> <NONE>
+round(2.5) -> 0 <3> <NONE>
+round(1e300) -> 0 <1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+sin(1) -> 0 <0.8414709848078965> <NONE>
+sin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sinh(1) -> 0 <1.1752011936438014> <NONE>
+sinh(0) -> 0 <0.0> <NONE>
+sinh(710) -> 0 <1.1169973830808557e+308> <NONE>
+sinh(-710) -> 0 <-1.1169973830808557e+308> <NONE>
+sinh(1000) -> 0 <Inf> <NONE>
+sinh(-1000) -> 0 <-Inf> <NONE>
+sinh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sqrt(4) -> 0 <2.0> <NONE>
+sqrt(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+sqrt(-0.0) -> 0 <-0.0> <NONE>
+sqrt(1e-300*1e-20) -> 0 <9.99994433575849e-161> <NONE>
+tan(1) -> 0 <1.5574077246549023> <NONE>
+tan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+tanh(1) -> 0 <0.7615941559557649> <NONE>
+tanh(1000) -> 0 <1.0> <NONE>
+tanh(-1000) -> 0 <-1.0> <NONE>
+tanh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+wide(2.5) -> 0 <2> <NONE>
+wide(1e300) -> 0 <0> <NONE>
+wide(-1e300) -> 0 <0> <NONE>
+wide(9.3e18) -> 0 <-9146744073709551616> <NONE>
+wide(-9.3e18) -> 0 <9146744073709551616> <NONE>
+int(9.3e18) -> 0 <-9146744073709551616> <NONE>
+int(-9.3e18) -> 0 <9146744073709551616> <NONE>
+int(9.2e18) -> 0 <9200000000000000000> <NONE>
+int(-1e19) -> 0 <8446744073709551616> <NONE>
+round(9.2e18) -> 0 <9200000000000000000> <NONE>
+round(-9.2e18) -> 0 <-9200000000000000000> <NONE>
+round(9.3e18) -> 0 <9300000000000000000> <NONE>
+round(-1e300) -> 0 <-1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+abs(-2.5) -> 0 <2.5> <NONE>
+abs(-1e-300*1e-20) -> 0 <1e-320> <NONE>
+1e-300*1e-300 -> 0 <0.0> <NONE>
+1e300*1e300 -> 0 <Inf> <NONE>
+1e-320 -> 0 <1e-320> <NONE>
+-1e-320 -> 0 <-1e-320> <NONE>
+sin(1e-320) -> 0 <1e-320> <NONE>
+1e-400 -> 0 <0.0> <NONE>
+0e-400 -> 0 <0.0> <NONE>
+1e400 -> 0 <Inf> <NONE>
+2.5e-308 -> 0 <2.5e-308> <NONE>
+2.2250738585072014e-308 -> 0 <2.2250738585072014e-308> <NONE>
+exp: 0 <0.0> <NONE>
+exp big: 0 <Inf> <NONE>
+pow: 0 <0.0> <NONE>
+atan2: 0 <0.0> <NONE>
+log: 0 <-Inf> <NONE>
+sqrt: 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+exp var: 0 <0.0> <NONE>
+exp sum: 0 <1.0> <NONE>
+pow var: 0 <-0.0> <NONE>
+literal: 0 <1e-320> <NONE>
+0.0
+==== 8.6 stdin ====
+acos(0.5) -> 0 <1.0471975511965979> <NONE>
+acos(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+acos(-2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(0.5) -> 0 <0.5235987755982989> <NONE>
+asin(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan(1) -> 0 <0.7853981633974483> <NONE>
+atan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan2(1,2) -> 0 <0.4636476090008061> <NONE>
+atan2(0,0) -> 0 <0.0> <NONE>
+atan2(0,-1) -> 0 <3.141592653589793> <NONE>
+atan2(1,0) -> 0 <1.5707963267948966> <NONE>
+atan2(1e-300,1e300) -> 0 <0.0> <NONE>
+atan2(-1e-300,1e300) -> 0 <-0.0> <NONE>
+atan2(1e-300,-1e300) -> 0 <3.141592653589793> <NONE>
+atan2(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+ceil(1.5) -> 0 <2.0> <NONE>
+ceil(-0.5) -> 0 <-0.0> <NONE>
+ceil(1e-300*1e-20) -> 0 <1.0> <NONE>
+cos(0) -> 0 <1.0> <NONE>
+cosh(1) -> 0 <1.5430806348152437> <NONE>
+cosh(0) -> 0 <1.0> <NONE>
+cosh(710) -> 0 <1.1169973830808557e+308> <NONE>
+cosh(1000) -> 0 <Inf> <NONE>
+cosh(-1000) -> 0 <Inf> <NONE>
+double(3) -> 0 <3.0> <NONE>
+double(1e-300*1e-20) -> 0 <1e-320> <NONE>
+exp(1) -> 0 <2.718281828459045> <NONE>
+exp(0) -> 0 <1.0> <NONE>
+exp(709) -> 0 <8.218407461554972e+307> <NONE>
+exp(710) -> 0 <Inf> <NONE>
+exp(1000) -> 0 <Inf> <NONE>
+exp(-708) -> 0 <3.307553003638408e-308> <NONE>
+exp(-720) -> 0 <2.0322308024e-313> <NONE>
+exp(-745) -> 0 <5e-324> <NONE>
+exp(-746) -> 0 <0.0> <NONE>
+exp(-1000) -> 0 <0.0> <NONE>
+exp(1e-300*1e-20) -> 0 <1.0> <NONE>
+floor(-1.5) -> 0 <-2.0> <NONE>
+floor(1e-300*1e-20) -> 0 <0.0> <NONE>
+fmod(7,3) -> 0 <1.0> <NONE>
+fmod(1,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,1) -> 0 <0.0> <NONE>
+fmod(5,1e-300*1e-20) -> 0 <9.526e-321> <NONE>
+fmod(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+hypot(3,4) -> 0 <5.0> <NONE>
+hypot(1e308,1e308) -> 0 <1.4142135623730951e+308> <NONE>
+hypot(1e-300*1e-20,0) -> 0 <1e-320> <NONE>
+int(2.5) -> 0 <2> <NONE>
+int(1e300) -> 0 <0> <NONE>
+log(1) -> 0 <0.0> <NONE>
+log(0) -> 0 <-Inf> <NONE>
+log(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+log(-0.0) -> 0 <-Inf> <NONE>
+log(1e-300*1e-20) -> 0 <-736.8272408909739> <NONE>
+log10(100) -> 0 <2.0> <NONE>
+log10(0) -> 0 <-Inf> <NONE>
+log10(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(2,10) -> 0 <1024.0> <NONE>
+pow(0,0) -> 0 <1.0> <NONE>
+pow(0,1) -> 0 <0.0> <NONE>
+pow(-2,3) -> 0 <-8.0> <NONE>
+pow(10,308) -> 0 <1e+308> <NONE>
+pow(10,309) -> 0 <Inf> <NONE>
+pow(-10,309) -> 0 <-Inf> <NONE>
+pow(0,-1) -> 0 <Inf> <NONE>
+pow(0,-0.5) -> 0 <Inf> <NONE>
+pow(-1,0.5) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(-8,1.0/3) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(10,-320) -> 0 <1e-320> <NONE>
+pow(10,-400) -> 0 <0.0> <NONE>
+pow(2,-1074) -> 0 <5e-324> <NONE>
+pow(2,-1075) -> 0 <0.0> <NONE>
+pow(-2,-1074) -> 0 <5e-324> <NONE>
+pow(-2,-1075) -> 0 <-0.0> <NONE>
+pow(0.5,1100) -> 0 <0.0> <NONE>
+pow(-0.5,1101) -> 0 <-0.0> <NONE>
+pow(1e-160,2) -> 0 <1e-320> <NONE>
+pow(1e-200,2) -> 0 <0.0> <NONE>
+pow(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+pow(1e-300*1e-20,2) -> 0 <0.0> <NONE>
+round(2.5) -> 0 <3> <NONE>
+round(1e300) -> 0 <1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+sin(1) -> 0 <0.8414709848078965> <NONE>
+sin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sinh(1) -> 0 <1.1752011936438014> <NONE>
+sinh(0) -> 0 <0.0> <NONE>
+sinh(710) -> 0 <1.1169973830808557e+308> <NONE>
+sinh(-710) -> 0 <-1.1169973830808557e+308> <NONE>
+sinh(1000) -> 0 <Inf> <NONE>
+sinh(-1000) -> 0 <-Inf> <NONE>
+sinh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sqrt(4) -> 0 <2.0> <NONE>
+sqrt(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+sqrt(-0.0) -> 0 <-0.0> <NONE>
+sqrt(1e-300*1e-20) -> 0 <9.99994433575849e-161> <NONE>
+tan(1) -> 0 <1.5574077246549023> <NONE>
+tan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+tanh(1) -> 0 <0.7615941559557649> <NONE>
+tanh(1000) -> 0 <1.0> <NONE>
+tanh(-1000) -> 0 <-1.0> <NONE>
+tanh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+wide(2.5) -> 0 <2> <NONE>
+wide(1e300) -> 0 <0> <NONE>
+wide(-1e300) -> 0 <0> <NONE>
+wide(9.3e18) -> 0 <-9146744073709551616> <NONE>
+wide(-9.3e18) -> 0 <9146744073709551616> <NONE>
+int(9.3e18) -> 0 <-9146744073709551616> <NONE>
+int(-9.3e18) -> 0 <9146744073709551616> <NONE>
+int(9.2e18) -> 0 <9200000000000000000> <NONE>
+int(-1e19) -> 0 <8446744073709551616> <NONE>
+round(9.2e18) -> 0 <9200000000000000000> <NONE>
+round(-9.2e18) -> 0 <-9200000000000000000> <NONE>
+round(9.3e18) -> 0 <9300000000000000000> <NONE>
+round(-1e300) -> 0 <-1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+abs(-2.5) -> 0 <2.5> <NONE>
+abs(-1e-300*1e-20) -> 0 <1e-320> <NONE>
+1e-300*1e-300 -> 0 <0.0> <NONE>
+1e300*1e300 -> 0 <Inf> <NONE>
+1e-320 -> 0 <1e-320> <NONE>
+-1e-320 -> 0 <-1e-320> <NONE>
+sin(1e-320) -> 0 <1e-320> <NONE>
+1e-400 -> 0 <0.0> <NONE>
+0e-400 -> 0 <0.0> <NONE>
+1e400 -> 0 <Inf> <NONE>
+2.5e-308 -> 0 <2.5e-308> <NONE>
+2.2250738585072014e-308 -> 0 <2.2250738585072014e-308> <NONE>
+exp: 0 <0.0> <NONE>
+exp big: 0 <Inf> <NONE>
+pow: 0 <0.0> <NONE>
+atan2: 0 <0.0> <NONE>
+log: 0 <-Inf> <NONE>
+sqrt: 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+exp var: 0 <0.0> <NONE>
+exp sum: 0 <1.0> <NONE>
+pow var: 0 <-0.0> <NONE>
+literal: 0 <1e-320> <NONE>
+0.0
+==== 9.0 file ====
+acos(0.5) -> 0 <1.0471975511965979> <NONE>
+acos(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+acos(-2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(0.5) -> 0 <0.5235987755982989> <NONE>
+asin(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan(1) -> 0 <0.7853981633974483> <NONE>
+atan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan2(1,2) -> 0 <0.4636476090008061> <NONE>
+atan2(0,0) -> 0 <0.0> <NONE>
+atan2(0,-1) -> 0 <3.141592653589793> <NONE>
+atan2(1,0) -> 0 <1.5707963267948966> <NONE>
+atan2(1e-300,1e300) -> 0 <0.0> <NONE>
+atan2(-1e-300,1e300) -> 0 <-0.0> <NONE>
+atan2(1e-300,-1e300) -> 0 <3.141592653589793> <NONE>
+atan2(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+ceil(1.5) -> 0 <2.0> <NONE>
+ceil(-0.5) -> 0 <-0.0> <NONE>
+ceil(1e-300*1e-20) -> 0 <1.0> <NONE>
+cos(0) -> 0 <1.0> <NONE>
+cosh(1) -> 0 <1.5430806348152437> <NONE>
+cosh(0) -> 0 <1.0> <NONE>
+cosh(710) -> 0 <1.1169973830808557e+308> <NONE>
+cosh(1000) -> 0 <Inf> <NONE>
+cosh(-1000) -> 0 <Inf> <NONE>
+double(3) -> 0 <3.0> <NONE>
+double(1e-300*1e-20) -> 0 <1e-320> <NONE>
+exp(1) -> 0 <2.718281828459045> <NONE>
+exp(0) -> 0 <1.0> <NONE>
+exp(709) -> 0 <8.218407461554972e+307> <NONE>
+exp(710) -> 0 <Inf> <NONE>
+exp(1000) -> 0 <Inf> <NONE>
+exp(-708) -> 0 <3.307553003638408e-308> <NONE>
+exp(-720) -> 0 <2.0322308024e-313> <NONE>
+exp(-745) -> 0 <5e-324> <NONE>
+exp(-746) -> 0 <0.0> <NONE>
+exp(-1000) -> 0 <0.0> <NONE>
+exp(1e-300*1e-20) -> 0 <1.0> <NONE>
+floor(-1.5) -> 0 <-2.0> <NONE>
+floor(1e-300*1e-20) -> 0 <0.0> <NONE>
+fmod(7,3) -> 0 <1.0> <NONE>
+fmod(1,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,1) -> 0 <0.0> <NONE>
+fmod(5,1e-300*1e-20) -> 0 <9.526e-321> <NONE>
+fmod(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+hypot(3,4) -> 0 <5.0> <NONE>
+hypot(1e308,1e308) -> 0 <1.4142135623730951e+308> <NONE>
+hypot(1e-300*1e-20,0) -> 0 <1e-320> <NONE>
+int(2.5) -> 0 <2> <NONE>
+int(1e300) -> 0 <1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+log(1) -> 0 <0.0> <NONE>
+log(0) -> 0 <-Inf> <NONE>
+log(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+log(-0.0) -> 0 <-Inf> <NONE>
+log(1e-300*1e-20) -> 0 <-736.8272408909739> <NONE>
+log10(100) -> 0 <2.0> <NONE>
+log10(0) -> 0 <-Inf> <NONE>
+log10(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(2,10) -> 0 <1024.0> <NONE>
+pow(0,0) -> 0 <1.0> <NONE>
+pow(0,1) -> 0 <0.0> <NONE>
+pow(-2,3) -> 0 <-8.0> <NONE>
+pow(10,308) -> 0 <1e+308> <NONE>
+pow(10,309) -> 0 <Inf> <NONE>
+pow(-10,309) -> 0 <-Inf> <NONE>
+pow(0,-1) -> 0 <Inf> <NONE>
+pow(0,-0.5) -> 0 <Inf> <NONE>
+pow(-1,0.5) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(-8,1.0/3) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(10,-320) -> 0 <1e-320> <NONE>
+pow(10,-400) -> 0 <0.0> <NONE>
+pow(2,-1074) -> 0 <5e-324> <NONE>
+pow(2,-1075) -> 0 <0.0> <NONE>
+pow(-2,-1074) -> 0 <5e-324> <NONE>
+pow(-2,-1075) -> 0 <-0.0> <NONE>
+pow(0.5,1100) -> 0 <0.0> <NONE>
+pow(-0.5,1101) -> 0 <-0.0> <NONE>
+pow(1e-160,2) -> 0 <1e-320> <NONE>
+pow(1e-200,2) -> 0 <0.0> <NONE>
+pow(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+pow(1e-300*1e-20,2) -> 0 <0.0> <NONE>
+round(2.5) -> 0 <3> <NONE>
+round(1e300) -> 0 <1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+sin(1) -> 0 <0.8414709848078965> <NONE>
+sin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sinh(1) -> 0 <1.1752011936438014> <NONE>
+sinh(0) -> 0 <0.0> <NONE>
+sinh(710) -> 0 <1.1169973830808557e+308> <NONE>
+sinh(-710) -> 0 <-1.1169973830808557e+308> <NONE>
+sinh(1000) -> 0 <Inf> <NONE>
+sinh(-1000) -> 0 <-Inf> <NONE>
+sinh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sqrt(4) -> 0 <2.0> <NONE>
+sqrt(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+sqrt(-0.0) -> 0 <-0.0> <NONE>
+sqrt(1e-300*1e-20) -> 0 <9.99994433575849e-161> <NONE>
+tan(1) -> 0 <1.5574077246549023> <NONE>
+tan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+tanh(1) -> 0 <0.7615941559557649> <NONE>
+tanh(1000) -> 0 <1.0> <NONE>
+tanh(-1000) -> 0 <-1.0> <NONE>
+tanh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+wide(2.5) -> 0 <2> <NONE>
+wide(1e300) -> 0 <0> <NONE>
+wide(-1e300) -> 0 <0> <NONE>
+wide(9.3e18) -> 0 <-9146744073709551616> <NONE>
+wide(-9.3e18) -> 0 <9146744073709551616> <NONE>
+int(9.3e18) -> 0 <9300000000000000000> <NONE>
+int(-9.3e18) -> 0 <-9300000000000000000> <NONE>
+int(9.2e18) -> 0 <9200000000000000000> <NONE>
+int(-1e19) -> 0 <-10000000000000000000> <NONE>
+round(9.2e18) -> 0 <9200000000000000000> <NONE>
+round(-9.2e18) -> 0 <-9200000000000000000> <NONE>
+round(9.3e18) -> 0 <9300000000000000000> <NONE>
+round(-1e300) -> 0 <-1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+abs(-2.5) -> 0 <2.5> <NONE>
+abs(-1e-300*1e-20) -> 0 <1e-320> <NONE>
+1e-300*1e-300 -> 0 <0.0> <NONE>
+1e300*1e300 -> 0 <Inf> <NONE>
+1e-320 -> 0 <1e-320> <NONE>
+-1e-320 -> 0 <-1e-320> <NONE>
+sin(1e-320) -> 0 <1e-320> <NONE>
+1e-400 -> 0 <0.0> <NONE>
+0e-400 -> 0 <0.0> <NONE>
+1e400 -> 0 <Inf> <NONE>
+2.5e-308 -> 0 <2.5e-308> <NONE>
+2.2250738585072014e-308 -> 0 <2.2250738585072014e-308> <NONE>
+exp: 0 <0.0> <NONE>
+exp big: 0 <Inf> <NONE>
+pow: 0 <0.0> <NONE>
+atan2: 0 <0.0> <NONE>
+log: 0 <-Inf> <NONE>
+sqrt: 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+exp var: 0 <0.0> <NONE>
+exp sum: 0 <1.0> <NONE>
+pow var: 0 <-0.0> <NONE>
+literal: 0 <1e-320> <NONE>
+0.0
+==== 9.0 stdin ====
+acos(0.5) -> 0 <1.0471975511965979> <NONE>
+acos(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+acos(-2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(0.5) -> 0 <0.5235987755982989> <NONE>
+asin(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan(1) -> 0 <0.7853981633974483> <NONE>
+atan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan2(1,2) -> 0 <0.4636476090008061> <NONE>
+atan2(0,0) -> 0 <0.0> <NONE>
+atan2(0,-1) -> 0 <3.141592653589793> <NONE>
+atan2(1,0) -> 0 <1.5707963267948966> <NONE>
+atan2(1e-300,1e300) -> 0 <0.0> <NONE>
+atan2(-1e-300,1e300) -> 0 <-0.0> <NONE>
+atan2(1e-300,-1e300) -> 0 <3.141592653589793> <NONE>
+atan2(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+ceil(1.5) -> 0 <2.0> <NONE>
+ceil(-0.5) -> 0 <-0.0> <NONE>
+ceil(1e-300*1e-20) -> 0 <1.0> <NONE>
+cos(0) -> 0 <1.0> <NONE>
+cosh(1) -> 0 <1.5430806348152437> <NONE>
+cosh(0) -> 0 <1.0> <NONE>
+cosh(710) -> 0 <1.1169973830808557e+308> <NONE>
+cosh(1000) -> 0 <Inf> <NONE>
+cosh(-1000) -> 0 <Inf> <NONE>
+double(3) -> 0 <3.0> <NONE>
+double(1e-300*1e-20) -> 0 <1e-320> <NONE>
+exp(1) -> 0 <2.718281828459045> <NONE>
+exp(0) -> 0 <1.0> <NONE>
+exp(709) -> 0 <8.218407461554972e+307> <NONE>
+exp(710) -> 0 <Inf> <NONE>
+exp(1000) -> 0 <Inf> <NONE>
+exp(-708) -> 0 <3.307553003638408e-308> <NONE>
+exp(-720) -> 0 <2.0322308024e-313> <NONE>
+exp(-745) -> 0 <5e-324> <NONE>
+exp(-746) -> 0 <0.0> <NONE>
+exp(-1000) -> 0 <0.0> <NONE>
+exp(1e-300*1e-20) -> 0 <1.0> <NONE>
+floor(-1.5) -> 0 <-2.0> <NONE>
+floor(1e-300*1e-20) -> 0 <0.0> <NONE>
+fmod(7,3) -> 0 <1.0> <NONE>
+fmod(1,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,1) -> 0 <0.0> <NONE>
+fmod(5,1e-300*1e-20) -> 0 <9.526e-321> <NONE>
+fmod(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+hypot(3,4) -> 0 <5.0> <NONE>
+hypot(1e308,1e308) -> 0 <1.4142135623730951e+308> <NONE>
+hypot(1e-300*1e-20,0) -> 0 <1e-320> <NONE>
+int(2.5) -> 0 <2> <NONE>
+int(1e300) -> 0 <1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+log(1) -> 0 <0.0> <NONE>
+log(0) -> 0 <-Inf> <NONE>
+log(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+log(-0.0) -> 0 <-Inf> <NONE>
+log(1e-300*1e-20) -> 0 <-736.8272408909739> <NONE>
+log10(100) -> 0 <2.0> <NONE>
+log10(0) -> 0 <-Inf> <NONE>
+log10(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(2,10) -> 0 <1024.0> <NONE>
+pow(0,0) -> 0 <1.0> <NONE>
+pow(0,1) -> 0 <0.0> <NONE>
+pow(-2,3) -> 0 <-8.0> <NONE>
+pow(10,308) -> 0 <1e+308> <NONE>
+pow(10,309) -> 0 <Inf> <NONE>
+pow(-10,309) -> 0 <-Inf> <NONE>
+pow(0,-1) -> 0 <Inf> <NONE>
+pow(0,-0.5) -> 0 <Inf> <NONE>
+pow(-1,0.5) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(-8,1.0/3) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(10,-320) -> 0 <1e-320> <NONE>
+pow(10,-400) -> 0 <0.0> <NONE>
+pow(2,-1074) -> 0 <5e-324> <NONE>
+pow(2,-1075) -> 0 <0.0> <NONE>
+pow(-2,-1074) -> 0 <5e-324> <NONE>
+pow(-2,-1075) -> 0 <-0.0> <NONE>
+pow(0.5,1100) -> 0 <0.0> <NONE>
+pow(-0.5,1101) -> 0 <-0.0> <NONE>
+pow(1e-160,2) -> 0 <1e-320> <NONE>
+pow(1e-200,2) -> 0 <0.0> <NONE>
+pow(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+pow(1e-300*1e-20,2) -> 0 <0.0> <NONE>
+round(2.5) -> 0 <3> <NONE>
+round(1e300) -> 0 <1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+sin(1) -> 0 <0.8414709848078965> <NONE>
+sin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sinh(1) -> 0 <1.1752011936438014> <NONE>
+sinh(0) -> 0 <0.0> <NONE>
+sinh(710) -> 0 <1.1169973830808557e+308> <NONE>
+sinh(-710) -> 0 <-1.1169973830808557e+308> <NONE>
+sinh(1000) -> 0 <Inf> <NONE>
+sinh(-1000) -> 0 <-Inf> <NONE>
+sinh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sqrt(4) -> 0 <2.0> <NONE>
+sqrt(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+sqrt(-0.0) -> 0 <-0.0> <NONE>
+sqrt(1e-300*1e-20) -> 0 <9.99994433575849e-161> <NONE>
+tan(1) -> 0 <1.5574077246549023> <NONE>
+tan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+tanh(1) -> 0 <0.7615941559557649> <NONE>
+tanh(1000) -> 0 <1.0> <NONE>
+tanh(-1000) -> 0 <-1.0> <NONE>
+tanh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+wide(2.5) -> 0 <2> <NONE>
+wide(1e300) -> 0 <0> <NONE>
+wide(-1e300) -> 0 <0> <NONE>
+wide(9.3e18) -> 0 <-9146744073709551616> <NONE>
+wide(-9.3e18) -> 0 <9146744073709551616> <NONE>
+int(9.3e18) -> 0 <9300000000000000000> <NONE>
+int(-9.3e18) -> 0 <-9300000000000000000> <NONE>
+int(9.2e18) -> 0 <9200000000000000000> <NONE>
+int(-1e19) -> 0 <-10000000000000000000> <NONE>
+round(9.2e18) -> 0 <9200000000000000000> <NONE>
+round(-9.2e18) -> 0 <-9200000000000000000> <NONE>
+round(9.3e18) -> 0 <9300000000000000000> <NONE>
+round(-1e300) -> 0 <-1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+abs(-2.5) -> 0 <2.5> <NONE>
+abs(-1e-300*1e-20) -> 0 <1e-320> <NONE>
+1e-300*1e-300 -> 0 <0.0> <NONE>
+1e300*1e300 -> 0 <Inf> <NONE>
+1e-320 -> 0 <1e-320> <NONE>
+-1e-320 -> 0 <-1e-320> <NONE>
+sin(1e-320) -> 0 <1e-320> <NONE>
+1e-400 -> 0 <0.0> <NONE>
+0e-400 -> 0 <0.0> <NONE>
+1e400 -> 0 <Inf> <NONE>
+2.5e-308 -> 0 <2.5e-308> <NONE>
+2.2250738585072014e-308 -> 0 <2.2250738585072014e-308> <NONE>
+exp: 0 <0.0> <NONE>
+exp big: 0 <Inf> <NONE>
+pow: 0 <0.0> <NONE>
+atan2: 0 <0.0> <NONE>
+log: 0 <-Inf> <NONE>
+sqrt: 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+exp var: 0 <0.0> <NONE>
+exp sum: 0 <1.0> <NONE>
+pow var: 0 <-0.0> <NONE>
+literal: 0 <1e-320> <NONE>
+0.0
+==== 9.1 file ====
+acos(0.5) -> 0 <1.0471975511965979> <NONE>
+acos(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+acos(-2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(0.5) -> 0 <0.5235987755982989> <NONE>
+asin(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan(1) -> 0 <0.7853981633974483> <NONE>
+atan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan2(1,2) -> 0 <0.4636476090008061> <NONE>
+atan2(0,0) -> 0 <0.0> <NONE>
+atan2(0,-1) -> 0 <3.141592653589793> <NONE>
+atan2(1,0) -> 0 <1.5707963267948966> <NONE>
+atan2(1e-300,1e300) -> 0 <0.0> <NONE>
+atan2(-1e-300,1e300) -> 0 <-0.0> <NONE>
+atan2(1e-300,-1e300) -> 0 <3.141592653589793> <NONE>
+atan2(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+ceil(1.5) -> 0 <2.0> <NONE>
+ceil(-0.5) -> 0 <-0.0> <NONE>
+ceil(1e-300*1e-20) -> 0 <1.0> <NONE>
+cos(0) -> 0 <1.0> <NONE>
+cosh(1) -> 0 <1.5430806348152437> <NONE>
+cosh(0) -> 0 <1.0> <NONE>
+cosh(710) -> 0 <1.1169973830808557e+308> <NONE>
+cosh(1000) -> 0 <Inf> <NONE>
+cosh(-1000) -> 0 <Inf> <NONE>
+double(3) -> 0 <3.0> <NONE>
+double(1e-300*1e-20) -> 0 <1e-320> <NONE>
+exp(1) -> 0 <2.718281828459045> <NONE>
+exp(0) -> 0 <1.0> <NONE>
+exp(709) -> 0 <8.218407461554972e+307> <NONE>
+exp(710) -> 0 <Inf> <NONE>
+exp(1000) -> 0 <Inf> <NONE>
+exp(-708) -> 0 <3.307553003638408e-308> <NONE>
+exp(-720) -> 0 <2.0322308024e-313> <NONE>
+exp(-745) -> 0 <5e-324> <NONE>
+exp(-746) -> 0 <0.0> <NONE>
+exp(-1000) -> 0 <0.0> <NONE>
+exp(1e-300*1e-20) -> 0 <1.0> <NONE>
+floor(-1.5) -> 0 <-2.0> <NONE>
+floor(1e-300*1e-20) -> 0 <0.0> <NONE>
+fmod(7,3) -> 0 <1.0> <NONE>
+fmod(1,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,1) -> 0 <0.0> <NONE>
+fmod(5,1e-300*1e-20) -> 0 <9.526e-321> <NONE>
+fmod(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+hypot(3,4) -> 0 <5.0> <NONE>
+hypot(1e308,1e308) -> 0 <1.4142135623730951e+308> <NONE>
+hypot(1e-300*1e-20,0) -> 0 <1e-320> <NONE>
+int(2.5) -> 0 <2> <NONE>
+int(1e300) -> 0 <1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+log(1) -> 0 <0.0> <NONE>
+log(0) -> 0 <-Inf> <NONE>
+log(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+log(-0.0) -> 0 <-Inf> <NONE>
+log(1e-300*1e-20) -> 0 <-736.8272408909739> <NONE>
+log10(100) -> 0 <2.0> <NONE>
+log10(0) -> 0 <-Inf> <NONE>
+log10(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(2,10) -> 0 <1024.0> <NONE>
+pow(0,0) -> 0 <1.0> <NONE>
+pow(0,1) -> 0 <0.0> <NONE>
+pow(-2,3) -> 0 <-8.0> <NONE>
+pow(10,308) -> 0 <1e+308> <NONE>
+pow(10,309) -> 0 <Inf> <NONE>
+pow(-10,309) -> 0 <-Inf> <NONE>
+pow(0,-1) -> 0 <Inf> <NONE>
+pow(0,-0.5) -> 0 <Inf> <NONE>
+pow(-1,0.5) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(-8,1.0/3) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(10,-320) -> 0 <1e-320> <NONE>
+pow(10,-400) -> 0 <0.0> <NONE>
+pow(2,-1074) -> 0 <5e-324> <NONE>
+pow(2,-1075) -> 0 <0.0> <NONE>
+pow(-2,-1074) -> 0 <5e-324> <NONE>
+pow(-2,-1075) -> 0 <-0.0> <NONE>
+pow(0.5,1100) -> 0 <0.0> <NONE>
+pow(-0.5,1101) -> 0 <-0.0> <NONE>
+pow(1e-160,2) -> 0 <1e-320> <NONE>
+pow(1e-200,2) -> 0 <0.0> <NONE>
+pow(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+pow(1e-300*1e-20,2) -> 0 <0.0> <NONE>
+round(2.5) -> 0 <3> <NONE>
+round(1e300) -> 0 <1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+sin(1) -> 0 <0.8414709848078965> <NONE>
+sin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sinh(1) -> 0 <1.1752011936438014> <NONE>
+sinh(0) -> 0 <0.0> <NONE>
+sinh(710) -> 0 <1.1169973830808557e+308> <NONE>
+sinh(-710) -> 0 <-1.1169973830808557e+308> <NONE>
+sinh(1000) -> 0 <Inf> <NONE>
+sinh(-1000) -> 0 <-Inf> <NONE>
+sinh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sqrt(4) -> 0 <2.0> <NONE>
+sqrt(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+sqrt(-0.0) -> 0 <-0.0> <NONE>
+sqrt(1e-300*1e-20) -> 0 <9.99994433575849e-161> <NONE>
+tan(1) -> 0 <1.5574077246549023> <NONE>
+tan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+tanh(1) -> 0 <0.7615941559557649> <NONE>
+tanh(1000) -> 0 <1.0> <NONE>
+tanh(-1000) -> 0 <-1.0> <NONE>
+tanh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+wide(2.5) -> 0 <2> <NONE>
+wide(1e300) -> 0 <0> <NONE>
+wide(-1e300) -> 0 <0> <NONE>
+wide(9.3e18) -> 0 <-9146744073709551616> <NONE>
+wide(-9.3e18) -> 0 <9146744073709551616> <NONE>
+int(9.3e18) -> 0 <9300000000000000000> <NONE>
+int(-9.3e18) -> 0 <-9300000000000000000> <NONE>
+int(9.2e18) -> 0 <9200000000000000000> <NONE>
+int(-1e19) -> 0 <-10000000000000000000> <NONE>
+round(9.2e18) -> 0 <9200000000000000000> <NONE>
+round(-9.2e18) -> 0 <-9200000000000000000> <NONE>
+round(9.3e18) -> 0 <9300000000000000000> <NONE>
+round(-1e300) -> 0 <-1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+abs(-2.5) -> 0 <2.5> <NONE>
+abs(-1e-300*1e-20) -> 0 <1e-320> <NONE>
+1e-300*1e-300 -> 0 <0.0> <NONE>
+1e300*1e300 -> 0 <Inf> <NONE>
+1e-320 -> 0 <1e-320> <NONE>
+-1e-320 -> 0 <-1e-320> <NONE>
+sin(1e-320) -> 0 <1e-320> <NONE>
+1e-400 -> 0 <0.0> <NONE>
+0e-400 -> 0 <0.0> <NONE>
+1e400 -> 0 <Inf> <NONE>
+2.5e-308 -> 0 <2.5e-308> <NONE>
+2.2250738585072014e-308 -> 0 <2.2250738585072014e-308> <NONE>
+exp: 0 <0.0> <NONE>
+exp big: 0 <Inf> <NONE>
+pow: 0 <0.0> <NONE>
+atan2: 0 <0.0> <NONE>
+log: 0 <-Inf> <NONE>
+sqrt: 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+exp var: 0 <0.0> <NONE>
+exp sum: 0 <1.0> <NONE>
+pow var: 0 <-0.0> <NONE>
+literal: 0 <1e-320> <NONE>
+0.0
+==== 9.1 stdin ====
+acos(0.5) -> 0 <1.0471975511965979> <NONE>
+acos(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+acos(-2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(0.5) -> 0 <0.5235987755982989> <NONE>
+asin(2) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+asin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan(1) -> 0 <0.7853981633974483> <NONE>
+atan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+atan2(1,2) -> 0 <0.4636476090008061> <NONE>
+atan2(0,0) -> 0 <0.0> <NONE>
+atan2(0,-1) -> 0 <3.141592653589793> <NONE>
+atan2(1,0) -> 0 <1.5707963267948966> <NONE>
+atan2(1e-300,1e300) -> 0 <0.0> <NONE>
+atan2(-1e-300,1e300) -> 0 <-0.0> <NONE>
+atan2(1e-300,-1e300) -> 0 <3.141592653589793> <NONE>
+atan2(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+ceil(1.5) -> 0 <2.0> <NONE>
+ceil(-0.5) -> 0 <-0.0> <NONE>
+ceil(1e-300*1e-20) -> 0 <1.0> <NONE>
+cos(0) -> 0 <1.0> <NONE>
+cosh(1) -> 0 <1.5430806348152437> <NONE>
+cosh(0) -> 0 <1.0> <NONE>
+cosh(710) -> 0 <1.1169973830808557e+308> <NONE>
+cosh(1000) -> 0 <Inf> <NONE>
+cosh(-1000) -> 0 <Inf> <NONE>
+double(3) -> 0 <3.0> <NONE>
+double(1e-300*1e-20) -> 0 <1e-320> <NONE>
+exp(1) -> 0 <2.718281828459045> <NONE>
+exp(0) -> 0 <1.0> <NONE>
+exp(709) -> 0 <8.218407461554972e+307> <NONE>
+exp(710) -> 0 <Inf> <NONE>
+exp(1000) -> 0 <Inf> <NONE>
+exp(-708) -> 0 <3.307553003638408e-308> <NONE>
+exp(-720) -> 0 <2.0322308024e-313> <NONE>
+exp(-745) -> 0 <5e-324> <NONE>
+exp(-746) -> 0 <0.0> <NONE>
+exp(-1000) -> 0 <0.0> <NONE>
+exp(1e-300*1e-20) -> 0 <1.0> <NONE>
+floor(-1.5) -> 0 <-2.0> <NONE>
+floor(1e-300*1e-20) -> 0 <0.0> <NONE>
+fmod(7,3) -> 0 <1.0> <NONE>
+fmod(1,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,0) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+fmod(0,1) -> 0 <0.0> <NONE>
+fmod(5,1e-300*1e-20) -> 0 <9.526e-321> <NONE>
+fmod(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+hypot(3,4) -> 0 <5.0> <NONE>
+hypot(1e308,1e308) -> 0 <1.4142135623730951e+308> <NONE>
+hypot(1e-300*1e-20,0) -> 0 <1e-320> <NONE>
+int(2.5) -> 0 <2> <NONE>
+int(1e300) -> 0 <1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+log(1) -> 0 <0.0> <NONE>
+log(0) -> 0 <-Inf> <NONE>
+log(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+log(-0.0) -> 0 <-Inf> <NONE>
+log(1e-300*1e-20) -> 0 <-736.8272408909739> <NONE>
+log10(100) -> 0 <2.0> <NONE>
+log10(0) -> 0 <-Inf> <NONE>
+log10(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(2,10) -> 0 <1024.0> <NONE>
+pow(0,0) -> 0 <1.0> <NONE>
+pow(0,1) -> 0 <0.0> <NONE>
+pow(-2,3) -> 0 <-8.0> <NONE>
+pow(10,308) -> 0 <1e+308> <NONE>
+pow(10,309) -> 0 <Inf> <NONE>
+pow(-10,309) -> 0 <-Inf> <NONE>
+pow(0,-1) -> 0 <Inf> <NONE>
+pow(0,-0.5) -> 0 <Inf> <NONE>
+pow(-1,0.5) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(-8,1.0/3) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+pow(10,-320) -> 0 <1e-320> <NONE>
+pow(10,-400) -> 0 <0.0> <NONE>
+pow(2,-1074) -> 0 <5e-324> <NONE>
+pow(2,-1075) -> 0 <0.0> <NONE>
+pow(-2,-1074) -> 0 <5e-324> <NONE>
+pow(-2,-1075) -> 0 <-0.0> <NONE>
+pow(0.5,1100) -> 0 <0.0> <NONE>
+pow(-0.5,1101) -> 0 <-0.0> <NONE>
+pow(1e-160,2) -> 0 <1e-320> <NONE>
+pow(1e-200,2) -> 0 <0.0> <NONE>
+pow(1e-300*1e-20,1) -> 0 <1e-320> <NONE>
+pow(1e-300*1e-20,2) -> 0 <0.0> <NONE>
+round(2.5) -> 0 <3> <NONE>
+round(1e300) -> 0 <1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+sin(1) -> 0 <0.8414709848078965> <NONE>
+sin(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sinh(1) -> 0 <1.1752011936438014> <NONE>
+sinh(0) -> 0 <0.0> <NONE>
+sinh(710) -> 0 <1.1169973830808557e+308> <NONE>
+sinh(-710) -> 0 <-1.1169973830808557e+308> <NONE>
+sinh(1000) -> 0 <Inf> <NONE>
+sinh(-1000) -> 0 <-Inf> <NONE>
+sinh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+sqrt(4) -> 0 <2.0> <NONE>
+sqrt(-1) -> 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+sqrt(-0.0) -> 0 <-0.0> <NONE>
+sqrt(1e-300*1e-20) -> 0 <9.99994433575849e-161> <NONE>
+tan(1) -> 0 <1.5574077246549023> <NONE>
+tan(1e-300*1e-20) -> 0 <1e-320> <NONE>
+tanh(1) -> 0 <0.7615941559557649> <NONE>
+tanh(1000) -> 0 <1.0> <NONE>
+tanh(-1000) -> 0 <-1.0> <NONE>
+tanh(1e-300*1e-20) -> 0 <1e-320> <NONE>
+wide(2.5) -> 0 <2> <NONE>
+wide(1e300) -> 0 <0> <NONE>
+wide(-1e300) -> 0 <0> <NONE>
+wide(9.3e18) -> 0 <-9146744073709551616> <NONE>
+wide(-9.3e18) -> 0 <9146744073709551616> <NONE>
+int(9.3e18) -> 0 <9300000000000000000> <NONE>
+int(-9.3e18) -> 0 <-9300000000000000000> <NONE>
+int(9.2e18) -> 0 <9200000000000000000> <NONE>
+int(-1e19) -> 0 <-10000000000000000000> <NONE>
+round(9.2e18) -> 0 <9200000000000000000> <NONE>
+round(-9.2e18) -> 0 <-9200000000000000000> <NONE>
+round(9.3e18) -> 0 <9300000000000000000> <NONE>
+round(-1e300) -> 0 <-1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160> <NONE>
+abs(-2.5) -> 0 <2.5> <NONE>
+abs(-1e-300*1e-20) -> 0 <1e-320> <NONE>
+1e-300*1e-300 -> 0 <0.0> <NONE>
+1e300*1e300 -> 0 <Inf> <NONE>
+1e-320 -> 0 <1e-320> <NONE>
+-1e-320 -> 0 <-1e-320> <NONE>
+sin(1e-320) -> 0 <1e-320> <NONE>
+1e-400 -> 0 <0.0> <NONE>
+0e-400 -> 0 <0.0> <NONE>
+1e400 -> 0 <Inf> <NONE>
+2.5e-308 -> 0 <2.5e-308> <NONE>
+2.2250738585072014e-308 -> 0 <2.2250738585072014e-308> <NONE>
+exp: 0 <0.0> <NONE>
+exp big: 0 <Inf> <NONE>
+pow: 0 <0.0> <NONE>
+atan2: 0 <0.0> <NONE>
+log: 0 <-Inf> <NONE>
+sqrt: 1 <domain error: argument not in valid range> <ARITH DOMAIN {domain error: argument not in valid range}>
+exp var: 0 <0.0> <NONE>
+exp sum: 0 <1.0> <NONE>
+pow var: 0 <-0.0> <NONE>
+literal: 0 <1e-320> <NONE>
+0.0

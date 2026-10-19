@@ -1220,9 +1220,11 @@ fn starts_var_ref(src: &[u8], at: usize, flags: SubstFlags, config: LexerConfig)
 
 /// The index of the `"` closing the quoted word opening at `at`.
 ///
-/// Steps over `\X` pairs and complete `[…]` substitutions. An **incomplete**
-/// nested substitution is the bracket's error, not the quote's: C reports
-/// `missing close-bracket` for `subst {[list "[foo}`.
+/// Steps over `\X` pairs, variable references and complete `[…]`
+/// substitutions, as C parses the word's tokens left to right: an
+/// **incomplete** nested substitution is the bracket's error, not the
+/// quote's (`subst {[list "[foo}` is `missing close-bracket`), and an
+/// unterminated `${` or array index is the variable reference's.
 fn close_quote_offset_bytes(
     src: &[u8],
     at: usize,
@@ -1232,12 +1234,10 @@ fn close_quote_offset_bytes(
     while i < src.len() {
         match src[i] {
             b'\\' => i += 2,
-            b'$' if src.get(i + 1) == Some(&b'{') => {
-                let Some(reference) = scan_var_ref_with_term(src, i, config)? else {
-                    unreachable!("a braced variable starts at this byte");
-                };
-                i = reference.next;
-            }
+            b'$' => match scan_var_ref_with_term(src, i, config)? {
+                Some(reference) => i = reference.next,
+                None => i += 1,
+            },
             b'[' => match crate::ranges::command_substitution_end_bytes_in(src, i, config) {
                 Some(end) => i = end,
                 None => return Err(ComponentParseError::new(ParseIssueKind::MissingBracket, i)),

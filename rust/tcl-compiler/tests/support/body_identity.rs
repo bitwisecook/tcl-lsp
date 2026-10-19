@@ -40,6 +40,8 @@ impl FixtureBody for tcl_compiler::interprocedural::MethodSummary {
 }
 
 // Authored fixtures identify one retained body before accessing its issued ID.
+// Not every test that includes this module asks for a body that must exist.
+#[allow(dead_code)]
 pub fn fixture_id<'a, T: FixtureBody + 'a>(
     inventory: impl IntoIterator<Item = (&'a ProcedureId, &'a T)>,
     display: &str,

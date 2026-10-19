@@ -114,14 +114,41 @@ pub struct ConstSubstCtx<'a> {
 pub struct ResolvedConstSubst {
     /// Raw result value, before any caller-specific word quoting.
     pub value: String,
-    /// Exact source spelling → registry implementation dependencies.
-    pub command_bindings: Vec<CommandBindingIdentity>,
+    /// The invocations the fold consumed: each one's exact source spelling →
+    /// registry implementation dependency, and its shape.
+    pub invocations: Vec<FoldedInvocation>,
     /// The spec-pack facts the fold rests on: one rung-1 claim for each
     /// folding spec a pack supplied ([`crate::site_claims::pack_facts_claim`]),
     /// nested folds included.
     pub site_claims: Vec<tcl_runtime_api::SiteClaim>,
     /// Registry-declared return type of the outer invocation.
     pub return_type: Option<TclType>,
+    /// Registry inline code-generation hook of the outer invocation, which
+    /// says how the release's own compiler pushes it (`list` of literal words
+    /// is a list literal).
+    pub inline_codegen_hook: Option<tcl_registry::hooks::InlineCodegenHookId>,
+}
+
+/// One command invocation a constant fold consumed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FoldedInvocation {
+    /// Exact source spelling → registry implementation dependency.
+    pub binding: CommandBindingIdentity,
+    /// The invocation's literal words after the command.
+    pub shape: tcl_registry::release_compilation::InvocationShape,
+}
+
+/// Whether a folded constant `value`, pushed as the literal it is spelt, can
+/// read apart from the result it stands for when a script evaluation reads it:
+/// a list result runs as one command without being compiled, where the literal
+/// is compiled, and a release that compiles a literal index apart (8.6's
+/// `TclIndexEncode`) reads such a word of it otherwise.
+pub(crate) fn folded_literal_reads_apart(value: &str, release: TclVersion) -> bool {
+    tcl_syntax::list::split_list(value).is_ok_and(|words| {
+        words
+            .iter()
+            .any(|word| tcl_cmd_core::index::encodes_apart(word, release))
+    })
 }
 
 struct OriginalConstSubstSource<'a> {
@@ -391,7 +418,7 @@ impl ConstSubstCtx<'_> {
         dialect: Option<tcl_registry::InvocationDialect>,
     ) -> Option<(
         Vec<String>,
-        Vec<CommandBindingIdentity>,
+        Vec<FoldedInvocation>,
         Vec<tcl_runtime_api::SiteClaim>,
     )> {
         let plan =
@@ -403,7 +430,7 @@ impl ConstSubstCtx<'_> {
             return None;
         }
         let mut words = Vec::new();
-        let mut command_bindings = Vec::new();
+        let mut invocations = Vec::new();
         let mut site_claims = Vec::new();
         for word in &command.words {
             let parts = word.executable_parts();
@@ -413,7 +440,7 @@ impl ConstSubstCtx<'_> {
                 let inner = source.image.try_text().ok()?.get(body.as_range())?;
                 let folded = self.fold_at_depth(inner, depth + 1, dialect, Some((source, body)))?;
                 words.push(folded.value);
-                command_bindings.extend(folded.command_bindings);
+                invocations.extend(folded.invocations);
                 site_claims.extend(folded.site_claims);
             } else {
                 let value = tcl_syntax::word_rules::original_word_unicode_value_with_variables(
@@ -423,7 +450,7 @@ impl ConstSubstCtx<'_> {
                 words.push(String::from_utf8(value).ok()?);
             }
         }
-        Some((words, command_bindings, site_claims))
+        Some((words, invocations, site_claims))
     }
 
     fn fold_at_depth(
@@ -436,7 +463,7 @@ impl ConstSubstCtx<'_> {
         if depth > MAX_CONST_SUBST_DEPTH {
             return None;
         }
-        let (words, mut command_bindings, mut site_claims) =
+        let (words, mut invocations, mut site_claims) =
             self.literal_words_at_depth(inner, depth, dialect, source)?;
         let (head, rest) = words.split_first()?;
         if !(self.trusts)(head) {
@@ -457,20 +484,28 @@ impl ConstSubstCtx<'_> {
         if let Some(class) = self.defining_class
             && let Some(folded) = oo_context_fact_fold(spec, rest, class)
         {
-            command_bindings.push(
-                CommandBindingIdentity::in_rooted_namespace(
+            invocations.push(FoldedInvocation {
+                binding: CommandBindingIdentity::in_rooted_namespace(
                     self.resolution_namespace,
                     head,
                     spec.name,
                 )
                 .with_namespace_context(self.namespace_context.clone()),
-            );
+                shape: tcl_registry::release_compilation::InvocationShape::of(
+                    dialect
+                        .map_or(self.version, |dialect| dialect.tcl_version)
+                        .unwrap_or(TclVersion::V9_0),
+                    rest,
+                    |_| true,
+                ),
+            });
             site_claims.extend(crate::site_claims::pack_facts_claim(self.registry, spec));
             return Some(ResolvedConstSubst {
                 value: folded,
-                command_bindings,
+                invocations,
                 site_claims,
                 return_type: spec.return_type_for_call(&arg_refs),
+                inline_codegen_hook: resolved.inline_codegen_hook,
             });
         }
         let version = dialect.map_or(self.version, |dialect| dialect.tcl_version);
@@ -499,16 +534,28 @@ impl ConstSubstCtx<'_> {
                 }?,
             }
         };
-        command_bindings.push(
-            CommandBindingIdentity::in_rooted_namespace(self.resolution_namespace, head, spec.name)
-                .with_namespace_context(self.namespace_context.clone()),
-        );
+        invocations.push(FoldedInvocation {
+            binding: CommandBindingIdentity::in_rooted_namespace(
+                self.resolution_namespace,
+                head,
+                spec.name,
+            )
+            .with_namespace_context(self.namespace_context.clone()),
+            shape: tcl_registry::release_compilation::InvocationShape::of(
+                version.unwrap_or(TclVersion::V9_0),
+                rest,
+                |_| true,
+            ),
+        });
+        // A pack-supplied spec answered at compile time: the constant rests
+        // on that pack's facts, so the site claims them (rung 1).
         site_claims.extend(crate::site_claims::pack_facts_claim(self.registry, spec));
         Some(ResolvedConstSubst {
             value: folded,
-            command_bindings,
+            invocations,
             site_claims,
             return_type: spec.return_type_for_call(&arg_refs),
+            inline_codegen_hook: resolved.inline_codegen_hook,
         })
     }
 
@@ -537,7 +584,7 @@ impl ConstSubstCtx<'_> {
         source: Option<(&OriginalConstSubstSource<'_>, tcl_lexer::Span)>,
     ) -> Option<(
         Vec<String>,
-        Vec<CommandBindingIdentity>,
+        Vec<FoldedInvocation>,
         Vec<tcl_runtime_api::SiteClaim>,
     )> {
         use tcl_lexer::{Lexer, LexerConfig, SourceMap, TokenType};
@@ -557,7 +604,7 @@ impl ConstSubstCtx<'_> {
         let sm = SourceMap::new(inner);
         let tokens = Lexer::with_config(inner, config).tokenise_all().ok()?;
         let mut words: Vec<String> = Vec::new();
-        let mut command_bindings = Vec::new();
+        let mut invocations = Vec::new();
         let mut site_claims = Vec::new();
         let mut prev_is_sep = true;
         for tok in &tokens {
@@ -624,7 +671,7 @@ impl ConstSubstCtx<'_> {
                     let nested = sm.token_text(*tok);
                     let folded = self.fold_at_depth(nested, depth + 1, dialect, None)?;
                     words.push(folded.value);
-                    command_bindings.extend(folded.command_bindings);
+                    invocations.extend(folded.invocations);
                     site_claims.extend(folded.site_claims);
                     prev_is_sep = false;
                 }
@@ -632,7 +679,7 @@ impl ConstSubstCtx<'_> {
                 TokenType::Expand => return None,
             }
         }
-        Some((words, command_bindings, site_claims))
+        Some((words, invocations, site_claims))
     }
 }
 

@@ -323,6 +323,32 @@ fn explore_json_emits_the_contract_keys() {
     }
 }
 
+/// The SCCP view and the interprocedural view spell one constant the same
+/// way, as the fold spells it (issue #2405).
+#[test]
+fn explore_sccp_and_interprocedural_spell_a_constant_alike() {
+    let source = "proc p {} {set x [expr {1e300 * 10.0}]; return $x}\nputs [p]";
+    let out = run_tcl(&[
+        "explore",
+        "--source",
+        source,
+        "--json",
+        "--show",
+        "sccp,interprocedural",
+    ]);
+    let value: serde_json::Value = serde_json::from_slice(&out).expect("explore JSON");
+    let p_sccp = value["sccp"]
+        .as_array()
+        .and_then(|units| units.iter().find(|u| u["name"] == "::p"))
+        .expect("::p in the SCCP view");
+    let lattice = p_sccp["values"][0]["lattice"].as_str().expect("lattice");
+    let shape = value["interprocedural"][0]["returnShape"]
+        .as_str()
+        .expect("returnShape");
+    assert_eq!(lattice, "const(1e+301)");
+    assert_eq!(lattice, shape);
+}
+
 #[test]
 fn explore_summary_lists_views() {
     let out = run_tcl(&["explore", "--source", "set x 1"]);
@@ -519,6 +545,31 @@ fn diag_shares_call_sites_across_inputs() {
         !together.contains("I230"),
         "issue977Main.tcl calls the helper with \"dev\": {together}"
     );
+}
+
+/// `lset x 3 Z` on a three-element list appends from Tcl 8.6 and raises
+/// `list index out of range` on tclsh 8.4.20 and 8.5.19, so `tcl diag` reports
+/// W231 only under those two dialects (#2428).
+#[test]
+fn diag_reports_an_lset_at_the_length_only_before_8_6() {
+    let source = "set x {a b c}\nlset x 3 Z\nputs $x\n";
+    for (dialect, reported) in [
+        ("tcl8.4", true),
+        ("tcl8.5", true),
+        ("tcl8.6", false),
+        ("tcl9.0", false),
+        ("tcl9.1", false),
+    ] {
+        let output = String::from_utf8(run_tcl_allow_failure(&[
+            "diag",
+            "--dialect",
+            dialect,
+            "--source",
+            source,
+        ]))
+        .expect("utf-8 output");
+        assert_eq!(output.contains("W231"), reported, "{dialect}: {output}");
+    }
 }
 
 /// The transform verbs auto-detect a document's dialect, so an iRule folds
@@ -1923,6 +1974,54 @@ fn opt_writes_a_tab_as_a_tab_under_a_redirected_stdout() {
     );
 }
 
+/// `tcl highlight` writes the source's tabs verbatim when stdout is not a
+/// terminal, under `--no-colour`, and as HTML; only the ANSI rendering
+/// expands them, counting source columns rather than escape-code bytes
+/// (issue #2241).
+#[test]
+fn highlight_writes_a_tab_as_a_tab_under_a_redirected_stdout() {
+    let scratch = Scratch::new("highlight-tab");
+    let source = "proc p {} {\n\tset r \"a\tb\"\n\treturn $r\n}\n";
+    let file = scratch.write("tab.tcl", source);
+    let path = file.to_str().expect("utf-8 path");
+
+    let redirected = String::from_utf8(run_tcl(&["highlight", path])).unwrap();
+    assert_eq!(
+        redirected, source,
+        "a redirected stdout carries the source verbatim"
+    );
+
+    let plain = String::from_utf8(run_tcl(&["highlight", "--no-colour", path])).unwrap();
+    assert_eq!(plain, source, "`--no-colour` carries the source verbatim");
+
+    let html = String::from_utf8(run_tcl(&["highlight", "--format", "html", path])).unwrap();
+    assert!(html.contains("a\tb"), "HTML keeps the tab: {html:?}");
+
+    let ansi = String::from_utf8(run_tcl(&["highlight", "--colour", path])).unwrap();
+    assert!(
+        !ansi.contains('\t'),
+        "the ANSI rendering expands tabs: {ansi:?}"
+    );
+    assert!(
+        ansi.contains("\"a    b\""),
+        "the tab stop counts source columns, not escape codes: {ansi:?}"
+    );
+
+    // `a\<TAB>{b}` is one word in every Tcl from 8.4 to 9.1: expanding the
+    // tab before lexing would split off a braced `{b}` word.
+    let escaped = scratch.write("escaped.tcl", "set x a\\\t{b}\n");
+    let ansi = String::from_utf8(run_tcl(&[
+        "highlight",
+        "--colour",
+        escaped.to_str().expect("utf-8 path"),
+    ]))
+    .unwrap();
+    assert!(
+        ansi.contains("a\\    {b}"),
+        "the escaped tab stays inside the word: {ansi:?}"
+    );
+}
+
 /// `tcl opt` applies only the rewrites the document's policy shows (issue
 /// #2062): a `# noqa` on the command keeps its fold off, a top-of-file
 /// `# tcl-lsp: disable=*` keeps every rewrite off, and two inputs whose
@@ -2580,4 +2679,150 @@ fn diag_lists_exactly_the_selectable_ids_for_an_unknown_dialect() {
     .collect();
     assert_eq!(expected.len(), 21);
     assert_eq!(listed, expected, "{stderr}");
+}
+
+/// Every dialect the constant folder is asked to answer for: the unnamed
+/// default, each core release and Jim.
+const FOLD_DIALECTS: [Option<&str>; 7] = [
+    None,
+    Some("tcl8.4"),
+    Some("tcl8.5"),
+    Some("tcl8.6"),
+    Some("tcl9.0"),
+    Some("tcl9.1"),
+    Some("jim"),
+];
+
+/// Run `tcl VERB --source SOURCE` under `dialect`, tolerating a non-zero exit
+/// (findings) but never an abort: a panic exits 101 with `panicked at` on
+/// stderr. Returns stdout.
+fn run_on_source_without_panic(verb_args: &[&str], dialect: Option<&str>, source: &str) -> String {
+    let mut command = tcl();
+    command.args(verb_args);
+    if let Some(dialect) = dialect {
+        command.args(["--dialect", dialect]);
+    }
+    let output = command
+        .args(["--source", source])
+        .output()
+        .expect("failed to spawn tcl binary");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        output.status.code() != Some(101) && !stderr.contains("panicked"),
+        "tcl {verb_args:?} --dialect {dialect:?} aborted on {source:?}: {stderr}"
+    );
+    String::from_utf8(output.stdout).expect("utf-8 output")
+}
+
+/// #2401: `abs` of the most negative wide is `2^63`, past what the folder's
+/// math-call shape can carry. `tcl opt` and `tcl diag` aborted on it in every
+/// dialect. The call is left to run — tclsh 8.5 to 9.1 print
+/// `9223372036854775808`, 8.4 raises `ARITH IOVERFLOW`, and jimsh 0.84 wraps
+/// to `-9223372036854775808`, so no single folded constant is right — and the
+/// same holds wherever the operand reaches `abs` by another spelling.
+#[test]
+fn opt_and_diag_decline_abs_of_the_most_negative_wide_in_every_dialect() {
+    for expr in [
+        "abs(-9223372036854775808)",
+        "abs(-9223372036854775807-1)",
+        "int(abs(-9223372036854775808)) - 1",
+    ] {
+        let program = format!("set x [expr {{{expr}}}]\nputs $x\n");
+        for dialect in FOLD_DIALECTS {
+            let optimised =
+                run_on_source_without_panic(&["opt", "--profile", "full"], dialect, &program);
+            assert!(
+                optimised.contains(&format!("expr {{{expr}}}")),
+                "`{expr}` must be left to run under {dialect:?}: {optimised}"
+            );
+        }
+    }
+    let program = "set x [expr {abs(-9223372036854775808)}]\nputs $x\n";
+    for dialect in FOLD_DIALECTS {
+        run_on_source_without_panic(&["diag"], dialect, program);
+    }
+}
+
+/// Beside #2401, the remaining wide-edge folds: `-(-9223372036854775808)`
+/// and the quotient of it by `-1` promote to a bignum, which only a target
+/// that widens (8.5 onward) folds; and `i64::MIN % -1` is `0` from 8.5 but a
+/// hardware divide trap that kills tclsh 8.4 and jimsh (`SIGFPE`, measured),
+/// so those never fold it to `0`.
+#[test]
+fn opt_folds_the_wide_edges_only_where_the_release_computes_them() {
+    for (expr, widened) in [
+        ("-(-9223372036854775808)", "9223372036854775808"),
+        ("(-9223372036854775807 - 1) / -1", "9223372036854775808"),
+        ("(-9223372036854775807 - 1) % -1", "0"),
+    ] {
+        let program = format!("puts [expr {{{expr}}}]\n");
+        for dialect in FOLD_DIALECTS {
+            let optimised =
+                run_on_source_without_panic(&["opt", "--profile", "full"], dialect, &program);
+            let folds = matches!(
+                dialect,
+                None | Some("tcl8.5" | "tcl8.6" | "tcl9.0" | "tcl9.1")
+            );
+            assert_eq!(
+                optimised.contains(&format!("puts {widened}\n")),
+                folds,
+                "`{expr}` under {dialect:?}: {optimised}"
+            );
+            if !folds {
+                assert!(optimised.contains(expr), "{dialect:?}: {optimised}");
+            }
+        }
+    }
+}
+
+/// #2435: a decimal spelling outside the double range is a double from 8.5 and
+/// not on 8.4, whose `strtod` reports `ERANGE`. Jim refuses it too, but names
+/// no core release, so the fold declines there. Every row measured on tclsh
+/// 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0 and jimsh 0.84.
+#[test]
+fn opt_folds_string_is_double_range_errors_per_release() {
+    for spelling in ["1e400", "-1e-400", "-strict 1e400", "4.9e-324"] {
+        let program = format!("puts [string is double {spelling}]\n");
+        for dialect in FOLD_DIALECTS {
+            let optimised =
+                run_on_source_without_panic(&["opt", "--profile", "full"], dialect, &program);
+            match dialect {
+                Some("tcl8.4") => assert!(
+                    optimised.contains("puts 0\n"),
+                    "8.4 reads `{spelling}` as no double: {optimised}"
+                ),
+                Some("jim") => assert!(
+                    optimised.contains(&format!("string is double {spelling}")),
+                    "Jim names no release to fold under: {optimised}"
+                ),
+                _ => assert!(
+                    optimised.contains("puts 1\n"),
+                    "{dialect:?} takes `{spelling}` as the rounded double: {optimised}"
+                ),
+            }
+        }
+    }
+}
+
+/// The boundary doubles and a zero mantissa are doubles on every release, and
+/// `expr` on a range-error literal is left to run under 8.4 (it raises
+/// `ARITH OVERFLOW` / `UNDERFLOW` there) while 8.5 onward read the value.
+#[test]
+fn opt_keeps_in_range_doubles_and_declines_an_8_4_range_error_literal() {
+    for spelling in ["1.7976931348623157e308", "0e999", "0.0e-400", "Inf"] {
+        let program = format!("puts [string is double {spelling}]\n");
+        for dialect in [Some("tcl8.4"), Some("tcl9.0")] {
+            let optimised =
+                run_on_source_without_panic(&["opt", "--profile", "full"], dialect, &program);
+            assert!(
+                optimised.contains("puts 1\n"),
+                "`{spelling}` is a double under {dialect:?}: {optimised}"
+            );
+        }
+    }
+    let program = "puts [expr {4.9e-324}]\n";
+    let on_84 = run_on_source_without_panic(&["opt", "--profile", "full"], Some("tcl8.4"), program);
+    assert!(on_84.contains("expr {4.9e-324}"), "{on_84}");
+    let on_85 = run_on_source_without_panic(&["opt", "--profile", "full"], Some("tcl8.5"), program);
+    assert!(on_85.contains("puts 5e-324\n"), "{on_85}");
 }

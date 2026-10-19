@@ -36,12 +36,22 @@ impl CodegenCtx<'_> {
             vec![super::Operand::Imm(1), super::Operand::Imm(0)],
         );
         let source_command = if source_command.is_empty() {
-            self.instructions[instruction]
-                .source_cmd_text
-                .bytes()
-                .to_vec()
+            // The command through the whitespace before its terminator, as
+            // C's `errorInfo` names it (`error_info_source_text`).
+            match self
+                .current_span
+                .filter(|_| !self.instructions[instruction].source_cmd_text.is_empty())
+            {
+                Some(span) => self.error_info_source_text(span).bytes().to_vec(),
+                None => self.instructions[instruction]
+                    .source_cmd_text
+                    .bytes()
+                    .to_vec(),
+            }
         } else {
-            source_command.trim().as_bytes().to_vec()
+            // C logs the command through its terminator: a trailing space
+            // stays in `errorInfo`, only the leading separators go.
+            source_command.trim_start().as_bytes().to_vec()
         };
         self.instructions[instruction].error_stack_context =
             Some(tcl_bytecode::ErrorStackContext::ReturnImmediate {

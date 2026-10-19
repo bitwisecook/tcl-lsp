@@ -7,7 +7,7 @@
 #
 #     <pack file>\t<severity>\t<context>\t<message>
 #
-# tab-separated, sorted, one line per occurrence — 30 of them today, in seven
+# tab-separated, sorted, one line per occurrence — 31 of them today, in seven
 # groups. `tests/spec_corpus.rs`
 # compares the notices of every pack against this file as a multiset and fails
 # on any difference in either direction, so a notice that gets fixed must also
@@ -43,9 +43,10 @@
 #       legitimately carry those hooks; a private pack getting the same
 #       warning is being told something true.
 #
-#   `… refused for …` (6, the `return`, `string` and `upvar` ports) — the
+#   `… refused for …` (7, the `return`, `string` and `upvar` ports) — the
 #       stamp rejection rule, working. The ports copy their shipped specs'
-#       codegen-axis stamps (`inline_codegen_hook`, `codegen_hook`, and
+#       codegen-axis stamps (`inline_codegen_hook`, `codegen_hook`, the
+#       8.6 window of `string is`'s `inline_codegen_hook`, and
 #       `semantic_operation {Intrinsic …}` on `string`'s `length`, `is` and
 #       `range`), and a workspace pack may not stamp at all — only a bundled
 #       pack may, as its `alias_of` target's own. Each stamp is dropped and
@@ -87,6 +88,7 @@ docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subco
 docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand new	`world_effects` row `dynamic_fallback` is not yet loadable; dropped
 docs/design/spec-dsl-examples/return.tclspec	Warning	command return	`inline_codegen_hook Return` refused for `return`: a trusted workspace pack may not name a codegen catalogue member; the stamp would have to sit on `alias_of return`
 docs/design/spec-dsl-examples/return.tclspec	Warning	command return	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
+docs/design/spec-dsl-examples/string.tclspec	Warning	command string	`inline_codegen_hook StringIs` refused for `string is`: a trusted workspace pack may not name a codegen catalogue member; the stamp would have to sit on `alias_of string`
 docs/design/spec-dsl-examples/string.tclspec	Warning	command string	`inline_codegen_hook String` refused for `string`: a trusted workspace pack may not name a codegen catalogue member; the stamp would have to sit on `alias_of string`
 docs/design/spec-dsl-examples/string.tclspec	Warning	command string	`semantic_operation {Intrinsic StringIs}` refused for `string is`: a trusted workspace pack may not name a codegen catalogue member; the stamp would have to sit on `alias_of string`
 docs/design/spec-dsl-examples/string.tclspec	Warning	command string	`semantic_operation {Intrinsic StringLength}` refused for `string length`: a trusted workspace pack may not name a codegen catalogue member; the stamp would have to sit on `alias_of string`

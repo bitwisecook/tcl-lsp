@@ -107,6 +107,24 @@ impl MathOperation {
             }
         })
     }
+    /// The error the release raises for an argument of the math function
+    /// `name` that is no number
+    /// ([`tcl_syntax::expr::mathfunc::non_numeric_argument_error`]): 8.4's one
+    /// message, and from 8.5 the reader's own words with `TCL VALUE NUMBER`.
+    fn non_numeric_argument(&self, name: &str, argument: *mut TclObj) -> ExprError {
+        let release = self
+            .dialect()
+            .tcl_version
+            .unwrap_or_else(tcl_syntax::expr::errors::ambient_release);
+        let unread = crate::obj::bytes_of(argument);
+        let (message, code) = tcl_syntax::expr::mathfunc::non_numeric_argument_error(
+            &name.to_ascii_lowercase(),
+            &String::from_utf8_lossy(&unread),
+            release,
+        );
+        ExprError::from_parts(message.into_bytes(), code.as_bytes().to_vec())
+    }
+
     pub(crate) fn dispatch(&self, name: &str, arguments: &[Owned]) -> Result<Owned, ExprError> {
         let result = (|| {
             let mut numbers = Vec::with_capacity(arguments.len());
@@ -116,9 +134,8 @@ impl MathOperation {
                 } else {
                     self.number(argument.ptr())?
                 };
-                let number = number.ok_or_else(|| {
-                    ExprError::msg(b"argument to math function didn't have numeric value")
-                })?;
+                let number =
+                    number.ok_or_else(|| self.non_numeric_argument(name, argument.ptr()))?;
                 numbers.push(number);
             }
             self.dispatch_numbers(
@@ -139,9 +156,14 @@ impl MathOperation {
     ) -> Result<Owned, ExprError> {
         let result = (|| {
             let mut operands = Vec::with_capacity(numbers.len());
-            for number in numbers {
+            for (index, number) in numbers.into_iter().enumerate() {
                 operands.push(self.mathematical_operand(number)?.ok_or_else(|| {
-                    ExprError::msg(b"argument to math function didn't have numeric value")
+                    match originals.get(index) {
+                        Some(&original) => self.non_numeric_argument(name, original),
+                        None => {
+                            ExprError::msg(b"argument to math function didn't have numeric value")
+                        }
+                    }
                 })?);
             }
             self.check()?;

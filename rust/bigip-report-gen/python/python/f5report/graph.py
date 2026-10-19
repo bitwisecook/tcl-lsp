@@ -91,7 +91,7 @@ def _mask_to_prefix(addr: str, mask: str) -> int | None:
         return int(mask)
     try:
         if ":" in mask:  # IPv6 mask is unusual; fall back to counting bits
-            return sum(bin(int(b, 16)).count("1") for b in mask.split(":") if b)
+            return sum(int(b, 16).bit_count() for b in mask.split(":") if b)
         return ipaddress.IPv4Network(f"0.0.0.0/{mask}").prefixlen
     except (ipaddress.AddressValueError, ValueError):
         return None

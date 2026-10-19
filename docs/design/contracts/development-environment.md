@@ -7,13 +7,15 @@ names are the executable truth.
 ## Prerequisites
 
 - **Rust** — the floating `stable` channel pinned in `rust-toolchain.toml`;
-  `Cargo.toml`'s `rust-version` tracks it (currently 1.99.0, released
-  2026-10-01). CI resolves `stable` at run time, so a fresh release can fail
+  `Cargo.toml`'s `rust-version` tracks it (currently 1.99.1, released
+  2026-10-15). CI resolves `stable` at run time, so a fresh release can fail
   `pr-gate`'s `cargo clippy -D warnings` on untouched code the day it lands:
   `rustup update` before debugging a clippy failure you cannot reproduce.
-- **Node.js 24+** with npm for the VS Code extension. npm is pinned to v12 via
-  `packageManager` in `editors/vscode/package.json`; run
-  `corepack enable npm` once (bare `corepack enable` only shims pnpm/yarn).
+- **Node.js 26+** with npm for the VS Code extension. npm is pinned to v12 via
+  `packageManager` in `editors/vscode/package.json`. Node 25+ no longer
+  bundles Corepack: run `npm install -g corepack` and then `corepack enable
+  npm` once (bare `corepack enable` only shims pnpm/yarn).
+  `ensure-test-deps.sh` does both.
 - **Everything else** — `make install-test-deps` runs
   `scripts/dev/ensure-test-deps.sh` (tclsh 8.4–9.1 built from `tmp/`, node,
   kotlinc, Wasmtime, Binaryen, wasi-sdk, emacs, xvfb, tshark, …) on
@@ -38,10 +40,12 @@ idempotent; a warm container re-runs it in seconds.
 
 | Provided | Version | Where |
 |---|---|---|
-| Wasmtime | 49.0.2 | `/opt/wasmtime-49.0.2/`, on `PATH` as `wasmtime` |
+| Wasmtime | 49.0.3 | `/opt/wasmtime-49.0.3/`, on `PATH` as `wasmtime` |
 | Binaryen | 133 | `/opt/binaryen-133/`, `wasm-opt` / `wasm-merge` on `PATH` |
 | wasi-sdk | 34.0 | `/opt/wasi-sdk` (found by `runtime/rust/build.rs`) |
 | Rust | floating `stable` | `/root/.rustup`, `/root/.cargo` |
+| Node.js | `NODE_MIN_MAJOR` (26), latest release, with Corepack's npm | `/opt/node26/`, linked into `~/.local/bin` ahead of the image's `/opt/node22` |
+| Python | 3.14 (`PYTHON_VERSION`), via `uv python install --default` | `~/.local/bin/python3`, ahead of the image's 3.13 |
 | Tcl + Tk source trees | 8.4.20, 8.5.19, 8.6.18, 9.0.4, 9.1.0 | `tmp/tcl<ver>/`, `tmp/tk<ver>/` |
 | tcllib | 2.0 | `tmp/tcllib-2.0/` |
 | host test tools | distro | via `ensure-test-deps.sh` |
@@ -57,9 +61,10 @@ upstream than `tcl.tk` / SourceForge on every cold session. The hook exports
 |---|---|
 | Rust channel | `rust-toolchain.toml`; `Cargo.toml` `rust-version` |
 | Node.js minimum | `.github/workflows/ci.yml` `node-version`; `NODE_MIN_MAJOR` in `ensure-test-deps.sh` |
+| Corepack | `COREPACK_VERSION` in `ensure-test-deps.sh`; the `npm install -g corepack@…` steps in `.github/workflows/ci.yml` |
 | Current upstream Jim oracle revision | `rust/tcl-test-support/jim-reference.txt`; build with `bash scripts/dev/ensure-jim-oracle.sh` |
 | Tcl / Tk patchlevels and source tags | `rust/tcl-dialect/data/reference-toolchains.tsv` (the fetch skill, host installer, and `tcl docker` source-build layers consume it) |
-| Wasmtime, Binaryen, wasi-sdk, tcllib (remote) | variables at the top of `.claude/hooks/session-start.sh` |
+| Wasmtime, Binaryen, wasi-sdk, tcllib, Python (remote) | variables at the top of `.claude/hooks/session-start.sh` |
 | Wasmtime, wasi-sdk, tcllib (laptop) | variables near the top of `scripts/dev/ensure-test-deps.sh` |
 | Rust dependencies, including standalone WASM/VM/editor/Python crates | every tracked `Cargo.lock`; manifests beside each lockfile |
 | npm dependencies and npm CLI | the three application `package.json` / `package-lock.json` pairs |
@@ -70,8 +75,9 @@ upstream than `tcl.tk` / SourceForge on every cold session. The hook exports
 | CI actions and tool binaries | SHA pins and tool versions in `.github/`; canonical report workflows under `rust/bigip-report-gen/python/deploy/` |
 
 Dependency upgrades preserve host compatibility: `@types/vscode` follows the
-supported VS Code API floor, and TypeScript stays on 6.0.x while the latest
-`typescript-eslint` peer range requires `<6.1`. The WASI transport requires
+supported VS Code API floor, and the extension's `@types/node` stays on the
+newest line that does not pass the Node.js that floor ships (VS Code 1.95 is
+Electron 32 on Node.js 20.18, so `~20.17`). The WASI transport requires
 the Preview 1 `wasi` 0.11 API; the 0.12+ component API is not an in-place
 replacement. Browser crypto requires both the `getrandom` 0.2 `js` and 0.4
 `wasm_js` backends for the dependency generations that consume them. Keep

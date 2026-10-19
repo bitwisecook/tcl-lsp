@@ -1266,11 +1266,6 @@ pub fn zed_config_path(zed: &ZedLanguage) -> String {
 /// Every language the manifest contributes must also have an `onLanguage:`
 /// activation event, and nothing else may — or opening a file of that language
 /// activates nothing.
-#[cfg(test)]
-fn verify_every_language_activates(root: &std::path::Path, langs: &[Language]) -> Result<()> {
-    verify_language_activation_manifest(&fs::read_to_string(root.join(VSCODE_PACKAGE))?, langs)
-}
-
 fn verify_language_activation_manifest(text: &str, langs: &[Language]) -> Result<()> {
     let manifest: Value = serde_json::from_str(text).context("parsing VS Code package.json")?;
     let events: Vec<&str> = manifest["activationEvents"]

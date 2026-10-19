@@ -412,6 +412,22 @@ pub(crate) fn parse_var_ref_parts(
     }
 }
 
+/// The value a pushed word is without substituting anything: a verbatim
+/// word's text, a whole braced word's content, or a word with no `${…}` or
+/// `[…]` left in it; `None` where it substitutes (used by
+/// `compiled::LiteralValues::word`).
+#[expect(
+    dead_code,
+    reason = "upstream literal binding; read once the deferred tclvm PUSH port lands"
+)]
+pub(crate) fn literal_word_value(word: &str, verbatim: bool) -> Option<&str> {
+    if verbatim {
+        return Some(word);
+    }
+    tcl_syntax::word_rules::whole_braced_word(word)
+        .or_else(|| (!word.contains("${") && !word.contains('[')).then_some(word))
+}
+
 /// Substitute the compiler's retained word convention. Bare `$` bytes are data;
 /// `${…}`, complete `[…]` and selected Jim expression substitutions execute.
 /// A single substitution retains its original result object.

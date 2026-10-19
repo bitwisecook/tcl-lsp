@@ -68,7 +68,7 @@ use tcl_engine_api::{
     HostCommand, HostOutcome, PreparedCommandPublication, Value,
 };
 use tcl_registry::CommandRegistry;
-use tcl_vm::{Code, Completion, NativeCommand, Vm};
+use tcl_vm::{Code, Completion, LimitKind, NativeCommand, Vm};
 
 /// A compiled unit: the VM procedure the body was defined as.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -574,7 +574,11 @@ fn unset_variable(vm: &mut Vm, name: &str) -> Result<(), EngineError> {
 /// normal completion, `return`, `break` and `continue` as the code they are, and
 /// an error as the error, a budget one as the budget it outran.
 fn evaluate(vm: &mut Vm, script: &str) -> Result<HostOutcome, EngineError> {
-    let completion = match vm.eval_source(script) {
+    let evaluated = vm.eval_source(script);
+    if let Some(kind) = vm.limit_exceeded() {
+        return Err(EngineError::BudgetExceeded(budget_kind(kind)));
+    }
+    let completion = match evaluated {
         Ok(completion) => completion,
         Err(error) => error.into_completion().map_err(host_failure)?,
     };
@@ -754,12 +758,21 @@ fn with_engine_projection<T>(
     reached
 }
 
-/// The message the VM reports when a body outruns `kind` of budget.
-fn budget_message(kind: BudgetKind) -> &'static str {
+/// The interface's name for a VM limit.
+fn budget_kind(kind: LimitKind) -> BudgetKind {
     match kind {
-        BudgetKind::Commands => "command count limit exceeded",
-        BudgetKind::WallClock => "time limit exceeded",
-        BudgetKind::ValueSize => "value size limit exceeded",
+        LimitKind::Commands => BudgetKind::Commands,
+        LimitKind::WallClock => BudgetKind::WallClock,
+        LimitKind::ValueSize => BudgetKind::ValueSize,
+    }
+}
+
+/// The VM's name for a budget.
+fn limit_kind(kind: BudgetKind) -> LimitKind {
+    match kind {
+        BudgetKind::Commands => LimitKind::Commands,
+        BudgetKind::WallClock => LimitKind::WallClock,
+        BudgetKind::ValueSize => LimitKind::ValueSize,
     }
 }
 
@@ -906,11 +919,9 @@ fn host_error_completion(vm: &mut Vm, error: EngineError) -> Completion<tcl_vm::
             vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::Execution(*first))
         }
         EngineError::ExecutionRefusal(reason) => vm.refuse_host_command(reason),
-        EngineError::BudgetExceeded(kind) => Completion::new(
-            Code::Error,
-            tcl_vm::Value::string(budget_message(kind)),
-            tcl_vm::Value::empty(),
-        ),
+        // A budget the host command outran is recorded as the VM's own
+        // breach, so the invocation reports it even past a `catch`.
+        EngineError::BudgetExceeded(kind) => vm.exceed_limit(limit_kind(kind)),
         error => vm.refuse_host_command(error.to_string()),
     }
 }
@@ -1983,6 +1994,12 @@ impl TclVmEngine {
         completion: &Completion<tcl_vm::Value>,
     ) -> Result<Value, EngineError> {
         check_projection(vm, original)?;
+        // A budget the invocation outran is the failure however the body
+        // completed: a `catch` of the limit error does not turn an exhausted
+        // hook into an answer.
+        if let Some(kind) = vm.limit_exceeded() {
+            return Err(EngineError::BudgetExceeded(budget_kind(kind)));
+        }
         if completion.code.is_ok() || completion.code == Code::Return {
             return from_vm_value_using(vm, original, &completion.result);
         }
@@ -3000,6 +3017,122 @@ mod tests {
             .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
             .expect("well within the cap");
         assert_eq!(value.as_str(), Some("abababababababab"));
+    }
+
+    struct Exhausted;
+
+    impl HostCommand for Exhausted {
+        fn invoke(&self, _arguments: &[Value]) -> Result<HostOutcome, EngineError> {
+            Err(EngineError::BudgetExceeded(BudgetKind::Commands))
+        }
+    }
+
+    /// A `catch` of a limit error does not turn the breach into an answer: a
+    /// host command's own exhausted budget, and the VM's value-size refusal,
+    /// are the invocation's failure whatever the body did with the error. The
+    /// next invocation starts with the breach forgotten.
+    #[test]
+    fn a_caught_budget_failure_is_still_the_invocations_failure() {
+        let mut engine = TclVmEngine::new();
+        engine
+            .set_budget(Budget::of_commands(1_000).with_max_value_bytes(64))
+            .expect("the VM enforces both");
+        engine
+            .define_command("exhausted", std::rc::Rc::new(Exhausted))
+            .expect("registers");
+        let arguments = [Value::list([]), Value::dict_of::<&str>([])];
+        let commands = engine
+            .compile(unit("catch {exhausted}; return exact"))
+            .expect("compiles");
+        assert_eq!(
+            engine.invoke(&commands, &arguments).expect_err("exhausted"),
+            EngineError::BudgetExceeded(BudgetKind::Commands)
+        );
+        let value_size = engine
+            .compile(unit("catch {string repeat abcdefgh 100}; return exact"))
+            .expect("compiles");
+        assert_eq!(
+            engine
+                .invoke(&value_size, &arguments)
+                .expect_err("over the cap"),
+            EngineError::BudgetExceeded(BudgetKind::ValueSize)
+        );
+        let fine = engine.compile(unit("return exact")).expect("compiles");
+        let value = engine
+            .invoke(&fine, &arguments)
+            .expect("a fresh invocation");
+        assert_eq!(value.as_str(), Some("exact"));
+    }
+
+    /// Every value builder answers to the value-size limit, not `string repeat`
+    /// alone: a concatenation, a repeated list, an append loop, a word built
+    /// from substitutions, and a list that holds itself twice — which renders
+    /// to more than any host has while its elements stay small — are each
+    /// refused, inline or dispatched, and a `catch` does not hide it.
+    #[test]
+    fn every_value_builder_answers_to_the_value_size_budget() {
+        let mut engine = TclVmEngine::new();
+        engine
+            .set_budget(
+                Budget::of_commands(1_000_000)
+                    .with_wall_clock(Duration::from_secs(5))
+                    .with_max_value_bytes(64),
+            )
+            .expect("the VM enforces all three");
+        let arguments = [Value::list([]), Value::dict_of::<&str>([])];
+        for body in [
+            "return [string cat abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh \
+             abcdefgh abcdefgh abcdefgh]",
+            "return [lrepeat 100 abcdefgh]",
+            "return [lrepeat 1000000000 abcdefgh]",
+            "set c string; return [$c cat abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh \
+             abcdefgh abcdefgh abcdefgh abcdefgh]",
+            "return [concat abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh abcdefgh \
+             abcdefgh]",
+            "return [join [lrepeat 8 abcdefgh] --]",
+            "return [format %100s x]",
+            "return [lseq 100]",
+            "return [lseq 10000000 10000020]",
+            "return [format %.100d 1]",
+            "return [string map {a abcdefgh} aaaaaaaaaa]",
+            "set s abcdefgh; while 1 {append s $s}",
+            "set s abcdefgh; while 1 {set s $s$s}",
+            "set l x; for {set i 0} {$i < 64} {incr i} {set l [list $l $l]}; string length $l",
+            "set s abcdefgh; catch {while 1 {append s $s}}; return exact",
+        ] {
+            let handle = engine.compile(unit(body)).expect("compiles");
+            assert_eq!(
+                engine.invoke(&handle, &arguments).expect_err(body),
+                EngineError::BudgetExceeded(BudgetKind::ValueSize),
+                "{body}"
+            );
+        }
+        let within = engine
+            .compile(unit(
+                "list [string cat ab cd] [lrepeat 2 x] [concat a b] [format %3s x]",
+            ))
+            .expect("compiles");
+        let value = engine
+            .invoke(&within, &arguments)
+            .expect("well within the cap");
+        assert_eq!(value.as_str(), Some("abcd {x x} {a b} {  x}"));
+    }
+
+    /// An error that merely spells a limit's message is the script's own error,
+    /// not a budget the body outran.
+    #[test]
+    fn a_script_error_spelling_a_limit_message_is_a_script_error() {
+        let mut engine = TclVmEngine::new();
+        engine
+            .set_budget(Budget::of_commands(1_000))
+            .expect("the VM enforces it");
+        let handle = engine
+            .compile(unit("error {command count limit exceeded}"))
+            .expect("compiles");
+        let error = engine
+            .invoke(&handle, &[Value::list([]), Value::dict_of::<&str>([])])
+            .expect_err("the body raises");
+        assert!(matches!(error, EngineError::Script { .. }), "{error:?}");
     }
 
     /// A loop the compiler inlines dispatches nothing, so the command budget

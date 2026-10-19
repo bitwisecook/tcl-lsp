@@ -195,6 +195,7 @@ fn original_list_failed_adoption_retires_the_actual_prepared_member_before_settl
         elems: NativeListStorage::new(vec![member]),
         canonical: Rc::new(Cell::new(false)),
         string_protocol: Cell::new(Some(NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6))),
+        string_typed: false,
     });
     let arguments = OriginalArguments::enter(&interpreter, &[value.as_ptr()]).unwrap();
     MODE.with(|mode| mode.set(1));
@@ -238,6 +239,7 @@ fn original_list_primary_guard_precedes_the_unused_member_host_retirement() {
         elems: NativeListStorage::new(vec![member]),
         canonical: Rc::new(Cell::new(false)),
         string_protocol: Cell::new(Some(NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6))),
+        string_typed: false,
     });
     let arguments = OriginalArguments::enter(&interpreter, &[value.as_ptr()]).unwrap();
     MODE.with(|mode| mode.set(2));

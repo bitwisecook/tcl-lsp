@@ -198,6 +198,16 @@ mod tests {
     }
 
     #[test]
+    fn lseq_words_are_numbers_not_expressions() {
+        // tclsh 9.0.4/9.1.0 evaluate no expression in an `lseq` word.
+        assert_eq!(err(b"lseq 1+2 to 10"), b"expected number but got \"1+2\"");
+        assert_eq!(
+            err(b"set n 3; lseq $n*2"),
+            b"expected number but got \"3*2\""
+        );
+    }
+
+    #[test]
     fn lseq_errors() {
         assert_eq!(
             err(b"lseq"),

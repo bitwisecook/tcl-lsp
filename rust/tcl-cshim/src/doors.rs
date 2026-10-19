@@ -311,6 +311,7 @@ pub(crate) fn unset_variable(
 /// door open, leaves the package to the shim's own record, which is what
 /// [`crate::Interp::provided_packages`] lists. The error is always left in the
 /// interpreter's result, as `Tcl_PkgProvideEx` leaves it.
+#[cfg(test)]
 pub(crate) fn provide_package(state: &InterpState, name: &str, version: &str) -> c_int {
     let attempt = refuse_after_fatal(state)
         .and_then(|()| tell_the_engine(state, name, version))
@@ -349,6 +350,7 @@ pub(crate) fn provide_package_bytes(state: &InterpState, name: &[u8], version: &
 
 /// Say a package to the engine's package database, when a door is open and the
 /// engine has one.
+#[cfg(test)]
 fn tell_the_engine(state: &InterpState, name: &str, version: &str) -> Result<(), TclError> {
     match state.with_door(|door| door.provide_package(name, version)) {
         None | Some(Ok(()) | Err(EngineError::Unsupported(_))) => Ok(()),
@@ -1083,7 +1085,7 @@ mod tests {
     #[test]
     fn a_command_the_c_code_created_is_published_before_the_script_that_calls_it() {
         let state = InterpState::new_shared();
-        state.create_command("late", nothing, std::ptr::null_mut(), None);
+        let _ = state.create_command("late", nothing, std::ptr::null_mut(), None);
         let mut fake = Fake::new();
         {
             let mut door = DoorRef::new(&mut fake);

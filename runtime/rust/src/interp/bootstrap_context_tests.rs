@@ -137,6 +137,7 @@ impl Env for CallbackHost {
         }
     }
     fn set(&self, _: &str, _: &str) {}
+    fn unset(&self, _: &str) {}
     fn vars(&self) -> Vec<(String, String)> {
         self.state.reached(Stage::Vars, "vars");
         vec![("BOOTSTRAP_USER".into(), self.user.into())]

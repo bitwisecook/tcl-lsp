@@ -39,6 +39,11 @@ platform sleep primitive do not turn this host into a real clock. Command
 availability, operation prerequisites and typed unsupported results remain
 separate from whether a module builds or links.
 
+`encoding convertfrom`/`convertto` convert `utf-8`, `unicode`, `ascii` and
+`iso8859-1` per release and Tcl 9 profile through `tcl_cmd_core::encoding` on
+both hosts. No encoding files are loaded on either host, so other codepages are
+unknown rather than approximated.
+
 ## 3. Environment and library ownership
 
 With `wasm_stdlib`, `WasiHost::new` seeds its own `MemFs` with the embedded Tcl

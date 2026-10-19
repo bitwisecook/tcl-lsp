@@ -1288,6 +1288,11 @@ Compiler internals: the named per-command bytecode emitters, mirroring what C Tc
 | `Global` | global |
 | `Upvar` | upvar |
 | `Uplevel` | uplevel |
+| `Set` | set |
+| `ArraySet` | array set |
+| `ArrayUnset` | array unset |
+| `Variable` | variable |
+| `NamespaceUpvar` | namespace upvar |
 
 ### Command-table effects
 
@@ -1415,6 +1420,13 @@ Compiler internals: bytecode emitters for value-position (`set x [cmd …]`) and
 | `Try` | try |
 | `Yield` | yield |
 | `YieldTo` | yieldto |
+| `Set` | set |
+| `StringIs` | string is |
+| `StringMatch` | string match |
+| `StringReplace` | string replace |
+| `StringTrim` | string trim |
+| `StringTrimLeft` | string trimleft |
+| `StringTrimRight` | string trimright |
 
 ### Lowering hooks
 

@@ -284,7 +284,9 @@ fn test_profile(
 
 /// A sandboxed `tclsh` reading `script` from its standard input: no network,
 /// the environment a Tcl shell needs to find its library and its packages,
-/// and read access to the project and the directories `TCLLIBPATH` names.
+/// and read access to the project, the shell's installation, the directories
+/// `TCLLIBPATH` names and `TCL_LIBRARY` — all it reaches where the OS-native
+/// tier confines it.
 ///
 /// The shell is `tclsh` when one is named, else the one `TCL_VENV` holds,
 /// else the newest on `PATH`.
@@ -318,11 +320,13 @@ fn shell_profile(
         profile = profile.pass_env(name);
     }
     profile.fs_read = std::iter::once(dir.to_path_buf())
+        .chain(tcl_pkg::venv::tclsh_installation(&tclsh))
         .chain(
             std::env::var_os("TCLLIBPATH")
                 .iter()
                 .flat_map(std::env::split_paths),
         )
+        .chain(std::env::var_os("TCL_LIBRARY").map(PathBuf::from))
         .collect();
     Ok(profile)
 }
@@ -1313,7 +1317,7 @@ mod tests {
             stderr: Vec::new(),
             timed_out: false,
             isolation: tcl_sandbox::IsolationLevel::Baseline,
-            network_enforced: false,
+            enforced: tcl_sandbox::Enforced::default(),
         }
     }
 

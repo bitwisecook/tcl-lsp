@@ -95,6 +95,8 @@ impl tcl_platform::Env for SyntheticEnv {
 
     fn set(&self, _key: &str, _value: &str) {}
 
+    fn unset(&self, _key: &str) {}
+
     fn vars(&self) -> Vec<(String, String)> {
         self.0
             .iter()
@@ -766,7 +768,9 @@ fn ensemble_subcommand_words_resolve_like_tclsh() {
     );
     // `encoding`: this engine advertises only what it implements (9.0 also has
     // `profiles` and `user`), but the verdicts are tclsh's.
-    assert_eq!(run("encoding s").1, "utf-8");
+    // The default system encoding is locale-dependent; pin it so the prefix
+    // lookup is what is measured.
+    assert_eq!(run("encoding system utf-8; encoding s").1, "utf-8");
     assert_eq!(
         msg("encoding c"),
         format!("unknown or ambiguous subcommand \"c\": {ENC_MUST}")
@@ -1701,6 +1705,31 @@ fn package_loader_must_provide_its_selected_version() {
          catch {package require Wrong} message options\n\
          puts [list $equivalent $message [dict get $options -errorcode]]\n",
         "1.0.0 {attempt to provide package Wrong 1.0 failed: package Wrong 2.0 provided instead} {TCL PACKAGE WRONGPROVIDE}\n",
+    );
+}
+
+/// `SelectPackageFinal` names the loader in `errorInfo` for every failure,
+/// including the two it raises itself, and withdraws a wrong provide
+/// (tclsh 8.5.19 through 9.1.0 agree).
+#[test]
+fn package_loader_generated_failures_name_the_loader_in_error_info() {
+    out_eq(
+        r"package ifneeded Unprovided 1.0 {}
+catch {package require Unprovided} message options
+puts [dict get $options -errorinfo]
+package ifneeded Wrong 1.0 {package provide Wrong 2.0}
+catch {package require Wrong} message options
+puts [list [dict get $options -errorinfo] [package provide Wrong]]
+",
+        r#"attempt to provide package Unprovided 1.0 failed: no version of package Unprovided provided
+    ("package ifneeded Unprovided 1.0" script)
+    invoked from within
+"package require Unprovided"
+{attempt to provide package Wrong 1.0 failed: package Wrong 2.0 provided instead
+    ("package ifneeded Wrong 1.0" script)
+    invoked from within
+"package require Wrong"} {}
+"#,
     );
 }
 
@@ -2668,7 +2697,8 @@ fn dict_inline_return_body_falls_back_cleanly() {
 }
 
 /// TIP 348 metadata is accumulated once at the shared command-unwind seam and
-/// exposed identically by catch and `info errorstack`.
+/// exposed identically by catch and `info errorstack`. A compiled `error`
+/// is C's `returnImm` (tclsh 8.6.18 and 9.0.4).
 #[test]
 fn catch_reports_structured_error_stack() {
     out_eq(
@@ -2678,24 +2708,22 @@ fn catch_reports_structured_error_stack() {
          proc g {x} {error G:$x}\n\
          catch {f 12} m o\n\
          puts [list $m [dict get $o -errorstack] [info errorstack]]\n",
-        "boom {INNER {error boom}} {INNER {error boom}}\n\
-         G:1212 {INNER {error G:1212} CALL {g 1212} CALL {f 12}} {INNER {error G:1212} CALL {g 1212} CALL {f 12}}\n",
+        "boom {INNER {returnImm boom {}}} {INNER {returnImm boom {}}}\n\
+         G:1212 {INNER {returnImm G:1212 {}} CALL {g 1212} CALL {f 12}} {INNER {returnImm G:1212 {}} CALL {g 1212} CALL {f 12}}\n",
     );
 }
 
 /// A specialised catch body still logs the failing command, not the enclosing
-/// catch instruction. Its `errorInfo` must be byte-identical to the dynamic
-/// body that reaches the generic evaluator.
+/// catch instruction. A body the compiled `catch` evaluates as a word logs the
+/// `catch` command after it too, as the error leaves the script (tclsh 8.5.19
+/// through 9.1.0).
 #[test]
-fn inline_and_generic_catch_bodies_report_the_same_errorinfo() {
+fn inline_and_word_catch_bodies_report_the_c_errorinfo() {
     out_eq(
         "proc inline {} {catch {error boom} m o; dict get $o -errorinfo}\n\
          proc generic {} {set body {error boom}; catch $body m o; dict get $o -errorinfo}\n\
-         set inlineInfo [inline]\n\
-         set genericInfo [generic]\n\
-         puts [list [expr {$inlineInfo eq $genericInfo}] \
-                    [string match {*while executing*\\\"error boom\\\"*} $inlineInfo]]\n",
-        "1 1\n",
+         puts [list [inline] [generic]]\n",
+        "{boom\n    while executing\n\"error boom\"} {boom\n    while executing\n\"error boom\"\n    invoked from within\n\"catch $body m o\"}\n",
     );
 }
 
@@ -2748,7 +2776,7 @@ fn error_stack_call_preserves_qualified_invocation() {
         "namespace eval n {proc p {x} {error E:$x}}\n\
          catch {::n::p z} m o\n\
          puts [dict get $o -errorstack]\n",
-        "INNER {error E:z} CALL {::n::p z}\n",
+        "INNER {returnImm E:z {}} CALL {::n::p z}\n",
     );
 }
 
@@ -2767,7 +2795,7 @@ fn variable_trace_errors_retain_error_stack() {
          trace add variable x write storeStk\n\
          catch {set x 1} m o\n\
          puts [list $m [dict get $o -errorstack]]\n",
-        "{can't set \"x\": TRACE} {INNER {error TRACE} CALL {boom x {} write}}\n\
+        "{can't set \"x\": TRACE} {INNER {returnImm TRACE {}} CALL {boom x {} write}}\n\
          {can't set \"x\": } {INNER storeStk}\n",
     );
 }
@@ -2810,6 +2838,6 @@ fn try_handler_receives_error_metadata() {
     out_eq(
         "set t try\n\
          puts [$t {error boom} on error {m o} {list [dict exists $o -errorinfo] [dict get $o -errorstack]}]\n",
-        "1 {INNER {error boom}}\n",
+        "1 {INNER {returnImm boom {}}}\n",
     );
 }

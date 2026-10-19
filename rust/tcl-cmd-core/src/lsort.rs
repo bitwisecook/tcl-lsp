@@ -104,11 +104,31 @@ impl LsortError {
     }
 }
 
+/// A failed integer read keeps the code the shared value seam carries.
+impl From<tcl_syntax::value::ValueError> for LsortError {
+    fn from(error: tcl_syntax::value::ValueError) -> Self {
+        Self::from_command(error.into())
+    }
+}
+
+/// A failed `-index` step keeps the code the shared index owner sets.
+impl From<index::IndexPathError> for LsortError {
+    fn from(error: index::IndexPathError) -> Self {
+        Self::from_command(match error.code {
+            Some(code) => crate::CmdError::with_error_code_bytes(error.message, code.to_vec()),
+            None => crate::CmdError::new_bytes(error.message),
+        })
+    }
+}
+
 fn not_integer(s: &[u8]) -> LsortError {
     let mut m = b"expected integer but got \"".to_vec();
     m.extend_from_slice(s);
     m.push(b'"');
-    LsortError::msg(m)
+    LsortError::from_command(crate::CmdError::with_error_code_bytes(
+        m,
+        b"TCL VALUE NUMBER".to_vec(),
+    ))
 }
 
 /// The outcome of [`prepare`].
@@ -161,6 +181,7 @@ struct OriginalCommand<V, K> {
 pub fn prepare<O: NativeIndexOps>(
     ops: &mut O,
     args: &[O::Value],
+    release: tcl_dialect::TclVersion,
 ) -> Result<Lsort<O::Value, O::IndexKeyOwner>, LsortError> {
     index::run_index_output(
         ops,
@@ -375,7 +396,15 @@ pub fn prepare<O: NativeIndexOps>(
                         match sort::parse_wide(&sb) {
                             Some(w) if w >= 2 => group = w as usize,
                             Some(_) => {
-                                return Err(LsortError::msg("stride length must be at least 2"));
+                                // `-stride` and its code arrive in 8.6.
+                                return Err(if release >= tcl_dialect::TclVersion::V8_6 {
+                                    LsortError::from_command(crate::CmdError::with_error_code(
+                                        "stride length must be at least 2",
+                                        "TCL OPERATION LSORT BADSTRIDE",
+                                    ))
+                                } else {
+                                    LsortError::msg("stride length must be at least 2")
+                                });
                             }
                             None => return Err(not_integer(&sb)),
                         }
@@ -932,13 +961,14 @@ fn finish_jim<O: NativeIndexOps>(
 pub fn run_original<O: NativeIndexOps, E>(
     ops: &mut O,
     args: &[O::Value],
+    release: tcl_dialect::TclVersion,
     mut compare: impl FnMut(&mut O, &O::IndexOperation, &O::Value) -> Result<core::cmp::Ordering, E>,
     mut failure: impl FnMut(&mut O, crate::CmdError) -> E,
 ) -> Result<O::Value, E> {
     let original = ops
         .enter_index_operation()
         .map_err(|error| failure(ops, error))?;
-    let reached = match prepare(ops, args) {
+    let reached = match prepare(ops, args, release) {
         Ok(Lsort::Done(value)) => Ok(index::IndexResult::Created(value)),
         Ok(Lsort::Original(result)) => Ok(result),
         Ok(Lsort::Command(job)) => {

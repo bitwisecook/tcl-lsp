@@ -44,7 +44,7 @@ tcl-registry = { path = "../tcl-registry" }
 tcl-syntax = { path = "../tcl-syntax" }
 tcl-runtime-api = { path = "../tcl-runtime-api" }
 # The same version and features `tcl-fuzz` builds, so the two share one build.
-wasmtime = { version = "49.0.1", default-features = false, features = ["cranelift", "runtime", "gc-drc"] }
+wasmtime = { version = "49.0.3", default-features = false, features = ["cranelift", "runtime", "gc-drc"] }
 
 [lints]
 workspace = true

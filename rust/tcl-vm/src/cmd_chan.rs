@@ -20,14 +20,14 @@
 //! `seek`, `tell`, `fconfigure`, and channel-aware `puts`.
 //!
 //! Channels back onto the real filesystem (the test host). Read channels
-//! preload the file contents (test inputs are small); write/append channels
-//! hold an `std::fs::File`. The predefined `stdin`/`stdout`/`stderr` are not
+//! preload the file contents (test inputs are small); writable channels,
+//! read-write ones included, hold an `std::fs::File`. The predefined `stdin`/`stdout`/`stderr` are not
 //! stored in the channel table — they are handled by name: `stdout` follows the
 //! VM's captured output, `stderr` the process stderr, and `stdin` is always at
 //! end-of-file (non-interactive).
 
 use std::fs::OpenOptions;
-use std::io::{Seek as _, Write as _};
+use std::io::{Read as _, Seek as _, SeekFrom, Write as _};
 
 use tcl_cmd_core::CmdError;
 use tcl_cmd_core::channel::{
@@ -36,7 +36,6 @@ use tcl_cmd_core::channel::{
 };
 use tcl_runtime_api::Completion;
 
-use crate::command::completion_from_cmd_error;
 use crate::error::TclError;
 use crate::expr::{
     OriginalNumericCommandContext, original_numeric_command_ops, with_original_numeric_command,
@@ -56,9 +55,13 @@ pub(crate) enum Channel {
         config: ChannelConfig,
         path: Option<std::rc::Rc<[u8]>>,
     },
-    /// A writable (create/truncate or append) channel.
+    /// A writable channel over the file itself; `readable` for the read-write
+    /// modes (`r+`, `w+`, `a+`, `RDWR`), whose reads and writes share the
+    /// file offset.
     Write {
         file: std::fs::File,
+        readable: bool,
+        eof: bool,
         config: ChannelConfig,
         path: Option<std::rc::Rc<[u8]>>,
     },
@@ -91,7 +94,7 @@ impl Channel {
                 *pos = target;
                 Ok(())
             }
-            Self::Write { file, .. } => {
+            Self::Write { file, eof, .. } => {
                 let target = match origin {
                     1 => std::io::SeekFrom::Current(offset),
                     2 => std::io::SeekFrom::End(offset),
@@ -100,7 +103,7 @@ impl Channel {
                             .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidInput))?,
                     ),
                 };
-                file.seek(target).map(|_| ())
+                file.seek(target).map(|_| *eof = false)
             }
         }
     }
@@ -169,7 +172,7 @@ fn cmd_open_in_original(
     let version = vm.runtime_version();
     let access = match resolve_open_access_mode(version, m) {
         Ok(access) => access,
-        Err(error) => return Ok(completion_from_cmd_error(vm, error)),
+        Err(error) => return Ok(vm.cmd_error(error)),
     };
     let config = ChannelConfig::for_open_access(version, vm.system_encoding(), access);
 
@@ -201,13 +204,22 @@ fn cmd_open_in_original(
             .truncate(access.truncates())
             .create(access.creates())
             .create_new(access.creates() && access.is_exclusive());
-        match opts.open(&name) {
+        // `Tcl_FSOpenFileChannel` starts an appending channel at the end.
+        let opened = opts.open(&name).and_then(|mut file| {
+            if access.appends() {
+                file.seek(SeekFrom::End(0))?;
+            }
+            Ok(file)
+        });
+        match opened {
             Ok(file) => {
                 context
                     .current(vm)
                     .map_err(TclError::from_execution_failure)?;
                 let id = vm.add_channel(Channel::Write {
                     file,
+                    readable: access.is_readable(),
+                    eof: false,
                     config,
                     path: Some(path),
                 });
@@ -244,6 +256,46 @@ fn cmd_close(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
+/// `channel "…" wasn't opened for reading` — C's refusal (no `-errorcode`).
+fn not_readable(id: &str) -> Completion<Value> {
+    err(format!("channel \"{id}\" wasn't opened for reading"))
+}
+
+/// Read up to `limit` bytes (all of them for `None`) from a read-write
+/// channel's file, noting when the read met the end.
+fn read_file(
+    file: &mut std::fs::File,
+    eof: &mut bool,
+    limit: Option<usize>,
+) -> std::io::Result<Vec<u8>> {
+    let mut bytes = Vec::new();
+    if let Some(n) = limit {
+        let read = (&mut *file).take(n as u64).read_to_end(&mut bytes)?;
+        *eof = read < n;
+    } else {
+        file.read_to_end(&mut bytes)?;
+        *eof = true;
+    }
+    Ok(bytes)
+}
+
+/// Read one line (its newline consumed, not returned) from a read-write
+/// channel's file; `None` when the file was already at its end.
+fn read_file_line(file: &mut std::fs::File, eof: &mut bool) -> std::io::Result<Option<Vec<u8>>> {
+    let mut line = Vec::new();
+    let mut byte = [0u8; 1];
+    loop {
+        if file.read(&mut byte)? == 0 {
+            *eof = true;
+            return Ok((!line.is_empty()).then_some(line));
+        }
+        if byte[0] == b'\n' {
+            return Ok(Some(line));
+        }
+        line.push(byte[0]);
+    }
+}
+
 /// `gets channelId ?varName?` — read one line (without the trailing newline).
 /// With `varName`, store the line and return its length (`-1` at end-of-file);
 /// without, return the line.
@@ -258,6 +310,9 @@ fn cmd_gets(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             );
         }
     };
+    if id == "stdout" || id == "stderr" {
+        return not_readable(&id);
+    }
     if is_std(&id) {
         // stdin is non-interactive: immediate EOF.
         return match var {
@@ -280,21 +335,29 @@ fn cmd_gets(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 while end < data.len() && data[end] != b'\n' {
                     end += 1;
                 }
-                let mut line_end = end;
-                // Strip a trailing CR for CRLF inputs.
-                if line_end > start && data[line_end - 1] == b'\r' {
-                    line_end -= 1;
-                }
-                let s = String::from_utf8_lossy(&data[start..line_end]).into_owned();
                 *pos = if end < data.len() { end + 1 } else { end };
-                Some(s)
+                Some(data[start..end].to_vec())
             }
         }
-        Some(Channel::Write { .. }) => {
-            return err(format!("channel \"{id}\" wasn't opened for reading"));
-        }
+        Some(Channel::Write {
+            file,
+            readable: true,
+            eof,
+            ..
+        }) => match read_file_line(file, eof) {
+            Ok(line) => line,
+            Err(e) => return err(format!("error reading \"{id}\": {}", io_reason(&e))),
+        },
+        Some(Channel::Write { .. }) => return not_readable(&id),
         None => return err(format!("can not find channel named \"{id}\"")),
     };
+    // Strip a trailing CR for CRLF inputs.
+    let line = line.map(|mut bytes| {
+        if bytes.last() == Some(&b'\r') {
+            bytes.pop();
+        }
+        String::from_utf8_lossy(&bytes).into_owned()
+    });
     match (var, line) {
         (Some(name), Some(s)) => {
             let n = s.chars().count();
@@ -539,14 +602,15 @@ fn cmd_read_in_original(
         }
     };
     let id = channel_operand(vm, channel, context)?.to_string();
+    // C finds a readable channel before reading the count.
     if !is_std(&id) {
         match vm.channel(&id) {
-            Some(Channel::Read { .. }) => {}
-            Some(Channel::Write { .. }) => {
-                return Ok(err(format!("channel \"{id}\" wasn't opened for reading")));
-            }
+            Some(Channel::Read { .. } | Channel::Write { readable: true, .. }) => {}
+            Some(Channel::Write { .. }) => return Ok(not_readable(&id)),
             None => return Ok(err(format!("can not find channel named \"{id}\""))),
         }
+    } else if id != "stdin" {
+        return Ok(not_readable(&id));
     }
     let count = if let Some(value) = count {
         let (count, suffix) = read_count_operand(vm, value, context)?;
@@ -578,7 +642,20 @@ fn cmd_read_in_original(
             *pos = pos.saturating_add(end - start);
             ok(Value::string(string))
         }
-        Some(Channel::Write { .. }) => err(format!("channel \"{id}\" wasn't opened for reading")),
+        Some(Channel::Write { file, eof, .. }) => {
+            // A read-write channel reads the file at its shared offset.
+            let limit = count.and_then(|count| usize::try_from(count).ok());
+            match read_file(file, eof, limit) {
+                Ok(bytes) => {
+                    let mut bytes = &bytes[..];
+                    if nonewline && bytes.last() == Some(&b'\n') {
+                        bytes = &bytes[..bytes.len() - 1];
+                    }
+                    ok(Value::string(String::from_utf8_lossy(bytes).into_owned()))
+                }
+                Err(e) => err(format!("error reading \"{id}\": {}", io_reason(&e))),
+            }
+        }
         None => err(format!("can not find channel named \"{id}\"")),
     })
 }
@@ -595,7 +672,7 @@ fn cmd_eof(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
     match vm.channel_mut(&id) {
         Some(Channel::Read { data, pos, .. }) => ok(Value::bool(*pos >= data.len())),
-        Some(Channel::Write { .. }) => ok(Value::bool(false)),
+        Some(Channel::Write { eof, .. }) => ok(Value::bool(*eof)),
         None => err(format!("can not find channel named \"{id}\"")),
     }
 }
@@ -631,7 +708,11 @@ fn cmd_tell(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let id = chan.to_str();
     match vm.channel_mut(&id) {
         Some(Channel::Read { pos, .. }) => ok(Value::int(i64::try_from(*pos).unwrap_or(i64::MAX))),
-        _ => ok(Value::int(-1)),
+        Some(Channel::Write { file, .. }) => ok(Value::int(
+            file.stream_position()
+                .map_or(-1, |pos| i64::try_from(pos).unwrap_or(i64::MAX)),
+        )),
+        None => ok(Value::int(-1)),
     }
 }
 
@@ -815,7 +896,7 @@ fn cmd_fconfigure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 &opt.to_str(),
             ) {
                 Ok(option) => option,
-                Err(error) => return completion_from_cmd_error(vm, error),
+                Err(error) => return vm.cmd_error(error),
             };
             ok(Value::string(config_value(option, &id, config)))
         }
@@ -826,14 +907,14 @@ fn cmd_fconfigure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     &pair[0].to_str(),
                 ) {
                     Ok(option) => option,
-                    Err(error) => return completion_from_cmd_error(vm, error),
+                    Err(error) => return vm.cmd_error(error),
                 };
                 let configured = set_config_value(version, &mut config, option, &pair[1].to_str());
                 // Tcl preserves any direction changed before a later
                 // direction of the same translation value reports an error.
                 set_channel_config(vm, &id, config);
                 if let Err(error) = configured {
-                    return completion_from_cmd_error(vm, error);
+                    return vm.cmd_error(error);
                 }
             }
             ok(Value::empty())

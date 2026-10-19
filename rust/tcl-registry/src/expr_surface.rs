@@ -92,6 +92,86 @@ impl ExprSurfaceError {
     }
 }
 
+/// Whether the closed `expr` grammar admits `op`.
+///
+/// An operator with no version floor is part of the base Tcl grammar. A
+/// dialect-only operator is instead gated by the descriptor's dialect set
+/// — **or** by the profile's F5-family core [`ExprGrammar`] word table:
+/// the word-form operators are an `f5-tcl` *trunk* fact, measured valid in
+/// tmsh and iApp `expr` too, not iRules-only
+/// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a), so any
+/// F5Tcl-cored profile accepts them by reading the family table directly
+/// rather than duplicating rows. This contains no
+/// spelling-specific logic: every fact comes from the syntax descriptor or
+/// the family grammar, while the profile contributes the grammar base and
+/// availability point.
+///
+/// [`ExprGrammar`]: tcl_dialect::model::ExprGrammar
+#[must_use]
+pub fn operator_admitted(profile: &DialectProfile, op: BinOp) -> bool {
+    let spec = op.spec();
+    let release_visible = spec
+        .expr_grammar_min_version
+        .is_none_or(|floor| profile.expr_grammar_base.is_none_or(|base| base >= floor));
+    let dialect_visible = spec
+        .surface
+        .is_none_or(|rows| surface_admits(rows, Some(&profile.surface_query())))
+        || profile
+            .f5_core_expr_grammar()
+            .is_some_and(|grammar| grammar.has_word_operator(spec.spelling));
+    release_visible && dialect_visible
+}
+
+/// Validate `node`'s operators against `profile`'s `expr` grammar: the
+/// first operator the release lacks, as C Tcl reports it. Reads the profile
+/// alone, so a consumer that evaluates expressions often (the const-folder)
+/// asks it without building a registry.
+///
+/// # Errors
+///
+/// The first operator `profile`'s grammar does not admit.
+pub fn validate_operators<Text>(
+    profile: &DialectProfile,
+    node: &ExprNode<Text>,
+) -> Result<(), ExprSurfaceError> {
+    match node {
+        ExprNode::Binary { op, left, right } => {
+            validate_operators(profile, left)?;
+            if !operator_admitted(profile, *op) {
+                return Err(ExprSurfaceError::UnsupportedOperator {
+                    spelling: op.spec().spelling,
+                });
+            }
+            validate_operators(profile, right)
+        }
+        ExprNode::Unary { operand, .. } => validate_operators(profile, operand),
+        ExprNode::Ternary {
+            condition,
+            true_branch,
+            false_branch,
+        } => {
+            validate_operators(profile, condition)?;
+            validate_operators(profile, true_branch)?;
+            validate_operators(profile, false_branch)
+        }
+        ExprNode::Call { args, .. } => {
+            for arg in args {
+                validate_operators(profile, arg)?;
+            }
+            Ok(())
+        }
+        ExprNode::Literal { .. }
+        | ExprNode::String { .. }
+        | ExprNode::Var { .. }
+        | ExprNode::Command { .. }
+        // An operand shape the expression *parser* never produces, so this
+        // surface check — which asks whether a release's `expr` grammar
+        // admits the construct — has nothing to reject in one.
+        | ExprNode::CompiledWord { .. }
+        | ExprNode::Raw { .. } => Ok(()),
+    }
+}
+
 /// The expression grammar and builtin-math-function surface for one runtime.
 ///
 /// It binds an emulated Tcl release to the cached command registry built for
@@ -138,40 +218,14 @@ impl RuntimeExprSurface {
         self.profile
     }
 
-    /// Whether the closed `expr` grammar admits `op`.
-    ///
-    /// An operator with no version floor is part of the base Tcl grammar. A
-    /// dialect-only operator is instead gated by the descriptor's dialect set
-    /// — **or** by the profile's F5-family core [`ExprGrammar`] word table:
-    /// the word-form operators are an `f5-tcl` *trunk* fact, measured valid in
-    /// tmsh and iApp `expr` too, not iRules-only
-    /// (`docs/design/f5/bigip-irule-parser-measurements.md` §4a), so any
-    /// F5Tcl-cored profile accepts them by reading the family table directly
-    /// rather than duplicating rows. This contains no
-    /// spelling-specific logic: every fact comes from the syntax descriptor or
-    /// the family grammar, while the profile contributes the grammar base and
-    /// availability point.
-    ///
-    /// [`ExprGrammar`]: tcl_dialect::model::ExprGrammar
+    /// Whether the closed `expr` grammar admits `op` ([`operator_admitted`]).
     #[must_use]
     pub fn supports_operator(self, op: BinOp) -> bool {
-        let spec = op.spec();
-        let release_visible = spec.expr_grammar_min_version.is_none_or(|floor| {
-            self.profile
-                .expr_grammar_base
-                .is_none_or(|base| base >= floor)
-        });
-        let dialect_visible = spec
-            .surface
-            .is_none_or(|rows| surface_admits(rows, Some(&self.profile.surface_query())))
-            || self
-                .profile
-                .f5_core_expr_grammar()
-                .is_some_and(|grammar| grammar.has_word_operator(spec.spelling));
-        release_visible && dialect_visible
+        operator_admitted(self.profile, op)
     }
 
-    /// Validate the parsed expression's operators against this surface.
+    /// Validate the parsed expression's operators against this surface
+    /// ([`validate_operators`]).
     ///
     /// Functions are intentionally not rejected here. Tcl's math-function
     /// namespace is open: a user procedure, alias, or renamed command may
@@ -179,42 +233,7 @@ impl RuntimeExprSurface {
     /// their registry-backed builtin registrations, leaving normal command
     /// resolution to honour those indirections.
     pub fn validate<Text>(self, node: &ExprNode<Text>) -> Result<(), ExprSurfaceError> {
-        match node {
-            ExprNode::Binary { op, left, right } => {
-                self.validate(left)?;
-                if !self.supports_operator(*op) {
-                    return Err(ExprSurfaceError::UnsupportedOperator {
-                        spelling: op.spec().spelling,
-                    });
-                }
-                self.validate(right)
-            }
-            ExprNode::Unary { operand, .. } => self.validate(operand),
-            ExprNode::Ternary {
-                condition,
-                true_branch,
-                false_branch,
-            } => {
-                self.validate(condition)?;
-                self.validate(true_branch)?;
-                self.validate(false_branch)
-            }
-            ExprNode::Call { args, .. } => {
-                for arg in args {
-                    self.validate(arg)?;
-                }
-                Ok(())
-            }
-            ExprNode::Literal { .. }
-            | ExprNode::String { .. }
-            | ExprNode::Var { .. }
-            | ExprNode::Command { .. }
-            // An operand shape the expression *parser* never produces, so this
-            // surface check — which asks whether a release's `expr` grammar
-            // admits the construct — has nothing to reject in one.
-            | ExprNode::CompiledWord { .. }
-            | ExprNode::Raw { .. } => Ok(()),
-        }
+        validate_operators(self.profile, node)
     }
 
     /// The registry command specification for a builtin `expr` math function
@@ -332,6 +351,31 @@ impl RuntimeExprSurface {
 mod tests {
     use super::*;
     use tcl_syntax::expr::parser::parse_expr;
+
+    /// The profile-only operator check the const-folder asks, against what
+    /// each tclsh accepts: 8.4.20 rejects `**`, `in`, `ni` and the TIP 461
+    /// string orderings and has `eq`/`ne`; 8.5.19 and 8.6.18 add `**`/`in`/
+    /// `ni`; 9.0.4 has them all. A rejection nested anywhere is found.
+    #[test]
+    fn validate_operators_names_the_first_operator_the_release_lacks() {
+        let profile = |name| DialectProfile::find(name).unwrap();
+        let rejected = |name, source| {
+            validate_operators(profile(name), &parse_expr(source, None))
+                .err()
+                .map(|ExprSurfaceError::UnsupportedOperator { spelling }| spelling)
+        };
+        for source in ["2**3", "1 in {1 2}", "1 ni {1 2}", "\"a\" lt \"b\""] {
+            assert!(rejected("tcl8.4", source).is_some(), "8.4: {source}");
+        }
+        assert_eq!(rejected("tcl8.4", "1 + (2 ? 3 : 2**4)"), Some("**"));
+        assert_eq!(rejected("tcl8.4", "max(1, 2**3)"), Some("**"));
+        assert_eq!(rejected("tcl8.4", "\"a\" eq \"a\" && \"a\" ne \"b\""), None);
+        for name in ["tcl8.5", "tcl8.6"] {
+            assert_eq!(rejected(name, "2**3 + (1 in {1 2})"), None, "{name}");
+            assert_eq!(rejected(name, "\"a\" ge \"b\""), Some("ge"), "{name}");
+        }
+        assert_eq!(rejected("tcl9.0", "2**3 + (\"a\" lt \"b\")"), None);
+    }
 
     #[test]
     fn tip461_operators_follow_the_profile_grammar_base() {

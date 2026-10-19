@@ -407,7 +407,7 @@ puts "missing=[catch {::A2::outer} message]:$message:$::errorCode"
     Vector {
         name: "upvar validates namespace targets and rejects inverted proc links",
         script: r#"namespace eval x { variable ok READY }
-puts "control=[catch {upvar #0 ::x::ok top} m opts]:[set top]"
+puts "control=[catch {upvar #0 ::x::ok top} m]:[set top]"
 proc p {} {
     set proc_local 1
     puts "inverted=[catch {upvar 0 proc_local ::x::link(k)} m]:$m:$::errorCode"
@@ -565,5 +565,145 @@ fn vectors_match_real_tclsh() {
                 vector.name
             );
         }
+    }
+}
+
+/// A command that stores into a variable it is named reads `a(k)` as an
+/// array element and creates the array (`Tcl_ObjSetVar2` with no element
+/// word): `catch`'s result and options variables at the top level, in a
+/// namespace and a proc, through `upvar` and a computed key, and `foreach`
+/// and `scan` dispatched at run time. A store into an element of a scalar
+/// fails, with 8.4 and 8.5's own `catch` message. Measured on tclsh 8.4.20,
+/// 8.5.19, 8.6.18, 9.0.4 and 9.1.0, each script on stdin.
+const ELEMENT_TARGETS: &str = r#"proc a1 {} { catch {set x 1} a(x); set a(x) }
+proc a2 {b} { catch $b a(x); set a(x) }
+proc a3 {} { set k y; upvar #0 h arr; catch {error boom} arr($k); set ::h(y) }
+proc a4 {} { set a 5; list [catch {catch {set x 1} a(x)} m] $m }
+catch {set x 1} t(x)
+namespace eval ns { catch {set x 2} v(x) }
+set c foreach; $c f(1) {3} {}
+set c scan; $c 4 %d s(1)
+puts "[a1] [a2 {set x 2}] [a3] [list $t(x) $ns::v(x) $f(1) $s(1)]"
+puts [a4]
+if {$tcl_version >= 8.5} {
+    proc o1 {} { catch {error boom} a(r) a(o); list $a(r) [dict get $a(o) -code] }
+    proc o2 {} { set a 5; list [catch {catch {set x 1} r a(o)} m] $m }
+    puts "[o1] [o2]"
+}
+"#;
+
+const ELEMENT_TARGETS_84: &str = "1 2 boom 1 2 3 4\n\
+    1 {couldn't save command result in variable}";
+
+const ELEMENT_TARGETS_85: &str = "1 2 boom 1 2 3 4\n\
+    1 {couldn't save command result in variable}\n\
+    boom 1 1 {couldn't save return options in variable}";
+
+const ELEMENT_TARGETS_86: &str = "1 2 boom 1 2 3 4\n\
+    1 {can't set \"a(x)\": variable isn't array}\n\
+    boom 1 1 {can't set \"a(o)\": variable isn't array}";
+
+const ELEMENT_TARGET_WANTS: &[(TclVersion, &str)] = &[
+    (TclVersion::V8_4, ELEMENT_TARGETS_84),
+    (TclVersion::V8_5, ELEMENT_TARGETS_85),
+    (TclVersion::V8_6, ELEMENT_TARGETS_86),
+    (TclVersion::V9_0, ELEMENT_TARGETS_86),
+    (TclVersion::V9_1, ELEMENT_TARGETS_86),
+];
+
+#[test]
+fn a_named_variable_that_spells_an_element_stores_the_element() {
+    for &(release, want) in ELEMENT_TARGET_WANTS {
+        assert_eq!(vm_output(ELEMENT_TARGETS, release), want, "[{release:?}]");
+    }
+}
+
+#[test]
+fn element_target_vectors_match_each_tclsh() {
+    for &(release, want) in ELEMENT_TARGET_WANTS {
+        let Some(tclsh) = tcl_test_support::witness_tclsh(release) else {
+            continue;
+        };
+        let out = tcl_test_support::run_script(&tclsh.path, ELEMENT_TARGETS.as_bytes())
+            .expect("run tclsh")
+            .stdout;
+        assert_eq!(
+            String::from_utf8_lossy(&out).trim(),
+            want,
+            "[tclsh {release:?}]"
+        );
+    }
+}
+
+/// The variables a `try` handler whose script is `-` falls through with: the
+/// release's compiled `try` (`TclCompileTryCmd`, in a procedure with literal
+/// handlers whose variables are locals) binds the matched clause's and skips
+/// those of the clauses it falls through, where the command (`TryPostBody`)
+/// binds the variables of the clause whose script runs. Measured on tclsh
+/// 8.6.18, 9.0.4 and 9.1.0 on stdin: `on`/`trap` with one and two variables,
+/// chains of `-`, `finally`, and the forms the release leaves to the command
+/// (a qualified variable, a substituted script, `trap {}`, a computed command
+/// name, an `eval` script and the top level). 8.4 and 8.5 have no `try`.
+const TRY_FALLTHROUGH: &str = r#"proc show {args} { set o {}; foreach v $args { upvar 1 $v x; lappend o $v=[expr {[info exists x] ? $x : "-"}] }; return $o }
+proc c1 {} { try {set x 1} on ok {r} - on error {e} {show r e} }
+proc c2 {} { try {error boom {} E} trap E {m o} - on error {e} {list [show m e] [dict get $o -errorcode]} }
+proc c3 {} { try {error boom {} E} trap E {m} - on ok {k} - on error {e f} {show m k e f} }
+proc c4 {} { try {set x 4} on ok {r} - on error {e} {show r e} finally {set ::fin 4} }
+proc c5 {} { try {set x 5} on ok {r} - on error {e} {show r e} finally {} ; show r e}
+proc c6 {} { try {error six} on error {r o} - on ok {} {list [show r] [dict get $o -code]} }
+proc c7 {} { try {set x 7} on ok {r} {show r} }
+proc c9 {} { try {set x 9} on ok {::r9} - on error {e} {list [show e] $::r9} }
+proc d1 {} { set h {show r e}; try {set x 1} on ok {r} - on error {e} $h }
+proc d2 {} { try {set x 2} on ok {r} - trap {} {e} {show r e} }
+proc d3 {} { set t try; $t {set x 3} on ok {r} - on error {e} {show r e} }
+proc d4 {} { eval {try {set x 4} on ok {r} - on error {e} {show r e}} }
+proc a3 {b} { try $b on ok {r} - on error {} {set r} }
+foreach p {c1 c2 c3 c4 c5 c6 c7 c9 d1 d2 d3 d4} { puts "$p [catch {$p} m] <$m>" }
+puts "a3 [catch {a3 {set x 3}} m] <$m>"
+puts "top [catch {try {set x 1} on ok {r1} - on error {e1} {show r1 e1}} m] <$m>"
+"#;
+
+const TRY_FALLTHROUGH_WANT: &str = "c1 0 <r=1 e=->\n\
+    c2 0 <{m=boom e=-} E>\n\
+    c3 0 <m=boom k=- e=- f=->\n\
+    c4 0 <r=4 e=->\n\
+    c5 0 <r=5 e=->\n\
+    c6 0 <r=six 1>\n\
+    c7 0 <r=7>\n\
+    c9 1 <can't read \"::r9\": no such variable>\n\
+    d1 0 <r=- e=1>\n\
+    d2 0 <r=- e=2>\n\
+    d3 0 <r=- e=3>\n\
+    d4 0 <r=- e=4>\n\
+    a3 0 <3>\n\
+    top 0 <r1=- e1=1>";
+
+const TRY_RELEASES: &[TclVersion] = &[TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1];
+
+#[test]
+fn a_fallen_through_try_handler_binds_as_the_release_runs_it() {
+    for &release in TRY_RELEASES {
+        assert_eq!(
+            vm_output(TRY_FALLTHROUGH, release),
+            TRY_FALLTHROUGH_WANT,
+            "[{release:?}]"
+        );
+    }
+}
+
+#[test]
+fn try_fallthrough_vectors_match_each_tclsh() {
+    for &release in TRY_RELEASES {
+        let Some(tclsh) = tcl_test_support::witness_tclsh(release) else {
+            continue;
+        };
+        let out = tcl_test_support::run_script(&tclsh.path, TRY_FALLTHROUGH.as_bytes())
+            .expect("run tclsh")
+            .stdout;
+        assert_eq!(
+            String::from_utf8_lossy(&out).trim(),
+            TRY_FALLTHROUGH_WANT,
+            "[tclsh {release:?}]"
+        );
     }
 }

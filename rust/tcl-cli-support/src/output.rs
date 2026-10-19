@@ -95,11 +95,11 @@ pub fn write_binary_output(target: &OutputTarget, payload: &[u8]) -> Result<(), 
 ///
 /// Tab expansion is part of rendering for a terminal, exactly like ANSI
 /// highlighting, so both are gated on `use_colour` — with `tab_width > 0`,
-/// tabs expand to spaces using tab-stop semantics *before* highlighting (so
-/// escape codes don't shift the tab stops). Without `use_colour` — a
-/// redirected or `--no-colour` run — `text` is written byte for byte: a tab
-/// in a value stays a tab (issue #2232). The `highlight` verb uses the
-/// opposite order; see its handler.
+/// tabs expand to spaces *after* highlighting, so the lexer sees the source's
+/// own tabs (a backslash-tab stays one word) and [`expand_tabs`] skips the
+/// escape codes when it counts columns. Without `use_colour` — a redirected
+/// or `--no-colour` run — `text` is written byte for byte: a tab in a value
+/// stays a tab (issue #2232).
 pub fn write_highlighted_output(
     target: &OutputTarget,
     text: &str,
@@ -109,22 +109,34 @@ pub fn write_highlighted_output(
 ) -> Result<(), CliError> {
     let mut rendered = text.to_owned();
     if use_colour {
+        rendered = crate::highlight::highlight_ansi(&rendered, dialect);
         if tab_width > 0 {
             rendered = expand_tabs(&rendered, tab_width);
         }
-        rendered = crate::highlight::highlight_ansi(&rendered, dialect);
     }
     write_text_output(target, &rendered)
 }
 
 /// Expand tab characters to spaces using tab-stop semantics: a tab advances
-/// to the next multiple of `tabsize`; column resets on `\n`/`\r`.
+/// to the next multiple of `tabsize`; column resets on `\n`/`\r`. An ANSI
+/// CSI escape sequence (`ESC [` … final byte) occupies no column.
 #[must_use]
 pub fn expand_tabs(text: &str, tabsize: usize) -> String {
     let mut out = String::with_capacity(text.len());
     let mut col = 0usize;
-    for ch in text.chars() {
+    let mut chars = text.chars().peekable();
+    while let Some(ch) = chars.next() {
         match ch {
+            '\x1b' if chars.peek() == Some(&'[') => {
+                out.push(ch);
+                out.extend(chars.next());
+                for next in chars.by_ref() {
+                    out.push(next);
+                    if ('\x40'..='\x7e').contains(&next) {
+                        break;
+                    }
+                }
+            }
             '\t' => {
                 if tabsize > 0 {
                     let spaces = tabsize - (col % tabsize);
@@ -190,4 +202,22 @@ pub fn resolve_use_colour(colour: bool, no_colour: bool, target: &OutputTarget) 
         return false;
     }
     target.is_stdout() && std::io::stdout().is_terminal()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::expand_tabs;
+
+    #[test]
+    fn expand_tabs_advances_to_the_next_stop() {
+        assert_eq!(expand_tabs("a\tb\n\tc", 4), "a   b\n    c");
+    }
+
+    #[test]
+    fn expand_tabs_gives_escape_codes_no_width() {
+        assert_eq!(
+            expand_tabs("\x1b[1;34mset\x1b[0m\tx", 4),
+            "\x1b[1;34mset\x1b[0m x"
+        );
+    }
 }

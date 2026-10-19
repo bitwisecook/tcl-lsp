@@ -1432,7 +1432,8 @@ fn spec_test_does_not_pass_a_package_that_exits_the_shell_with_status_0() {
 }
 
 /// With no shell named, the verb runs the one in the active virtual environment
-/// (`TCL_VENV`), which here is a wrapper that records its use.
+/// (`TCL_VENV`), which here is a wrapper around the shell on `PATH`; the audit
+/// log records which program ran.
 #[cfg(unix)]
 #[test]
 fn spec_test_uses_the_shell_of_the_active_venv_when_none_is_named() {
@@ -1454,11 +1455,7 @@ fn spec_test_uses_the_shell_of_the_active_venv_when_none_is_named() {
     let wrapper = bin.join("tclsh");
     std::fs::write(
         &wrapper,
-        format!(
-            "#!/bin/sh\necho used >> '{}'\nexec '{}' \"$@\"\n",
-            venv.join("used").display(),
-            tclsh.display()
-        ),
+        format!("#!/bin/sh\nexec '{}' \"$@\"\n", tclsh.display()),
     )
     .expect("write the wrapper");
     std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755))
@@ -1471,7 +1468,20 @@ fn spec_test_uses_the_shell_of_the_active_venv_when_none_is_named() {
         stdout.contains("2 command(s) tested against 'demo', 0 divergence(s)"),
         "{stdout}"
     );
-    assert!(venv.join("used").is_file(), "the venv's shell ran");
+    let audit = std::fs::read_to_string(
+        described
+            .tree
+            .path()
+            .join("home/state/tcl-lsp/pkg-audit.log"),
+    )
+    .expect("the run was audited");
+    let program = format!("\"program\":\"{}\"", wrapper.display());
+    assert!(
+        audit
+            .lines()
+            .any(|line| line.contains("\"label\":\"spec-test\"") && line.contains(&program)),
+        "the venv's shell ran: {audit}"
+    );
 }
 
 /// `--package` names the package to require, and what it names wins over the

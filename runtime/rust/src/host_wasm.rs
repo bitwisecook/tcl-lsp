@@ -41,7 +41,7 @@ impl BrowserHost {
         Self {
             clock: BrowserClock,
             stdio: BrowserStdIo,
-            env: BrowserEnv,
+            env: BrowserEnv::default(),
         }
     }
 }
@@ -202,16 +202,27 @@ impl StdIo for WasiStdIo {
     }
 }
 
-/// No environment and a fixed root working directory.
-struct BrowserEnv;
+/// An in-memory environment, empty at start, and a fixed root working
+/// directory.
+#[derive(Default)]
+struct BrowserEnv(core::cell::RefCell<std::collections::BTreeMap<String, String>>);
 
 impl Env for BrowserEnv {
-    fn get(&self, _key: &str) -> Option<String> {
-        None
+    fn get(&self, key: &str) -> Option<String> {
+        self.0.borrow().get(key).cloned()
     }
-    fn set(&self, _key: &str, _val: &str) {}
+    fn set(&self, key: &str, val: &str) {
+        self.0.borrow_mut().insert(key.to_owned(), val.to_owned());
+    }
+    fn unset(&self, key: &str) {
+        self.0.borrow_mut().remove(key);
+    }
     fn vars(&self) -> Vec<(String, String)> {
-        Vec::new()
+        self.0
+            .borrow()
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect()
     }
     fn cwd(&self) -> Result<String, HostError> {
         Ok("/".to_string())
@@ -257,6 +268,9 @@ impl Env for WasiEnv {
         self.vars
             .borrow_mut()
             .insert(key.to_string(), val.to_string());
+    }
+    fn unset(&self, key: &str) {
+        self.vars.borrow_mut().remove(key);
     }
     fn vars(&self) -> Vec<(String, String)> {
         self.vars

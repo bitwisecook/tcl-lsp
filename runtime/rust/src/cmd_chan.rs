@@ -48,6 +48,7 @@ pub trait ReadSeek: BufRead + Seek {}
 impl<T: BufRead + Seek> ReadSeek for T {}
 
 /// One open channel: a buffered reader (read modes) and/or a writable handle.
+/// A read-write file channel holds both over one shared file offset.
 pub struct ChanState {
     reader: Option<Box<dyn ReadSeek>>,
     writer: Option<File>,
@@ -156,23 +157,29 @@ impl ChannelTable {
             .truncate(access.truncates())
             .create(access.creates())
             .create_new(access.creates() && access.is_exclusive());
-        let file = opts.open(path)?;
-        let state = if access.is_writable() {
-            ChanState {
-                reader: None,
-                writer: Some(file),
-                eof: false,
-                config,
+        let mut file = opts.open(path)?;
+        // `Tcl_FSOpenFileChannel` starts an appending channel at the end.
+        if access.appends() {
+            file.seek(std::io::SeekFrom::End(0))?;
+        }
+        let reader: Option<Box<dyn ReadSeek>> = match (access.is_readable(), access.is_writable()) {
+            (true, true) => Some(Box::new(BufReader::new(file.try_clone()?))),
+            (true, false) => {
+                return Ok(self.insert(ChanState {
+                    reader: Some(Box::new(BufReader::new(file))),
+                    writer: None,
+                    eof: false,
+                    config,
+                }));
             }
-        } else {
-            ChanState {
-                reader: Some(Box::new(BufReader::new(file))),
-                writer: None,
-                eof: false,
-                config,
-            }
+            _ => None,
         };
-        Ok(self.insert(state))
+        Ok(self.insert(ChanState {
+            reader,
+            writer: Some(file),
+            eof: false,
+            config,
+        }))
     }
 
     /// Register an already-built channel state, returning its `fileN` id.
@@ -317,8 +324,26 @@ fn finish_chan(interp: &mut Interp, id: &[u8], op: ChanOp) -> Code {
             Code::Ok
         }
         ChanOp::NoChannel => no_channel(interp, id),
-        ChanOp::WriteOnly => interp.set_error(b"channel is write only"),
+        ChanOp::WriteOnly => not_readable(interp, id),
         ChanOp::Io(e) => io_error(interp, &e),
+    }
+}
+
+/// `channel "…" wasn't opened for reading` — C's refusal (no `-errorcode`) to
+/// read a channel without `TCL_READABLE`.
+fn not_readable(interp: &mut Interp, id: &[u8]) -> Code {
+    let mut m = b"channel \"".to_vec();
+    m.extend_from_slice(id);
+    m.extend_from_slice(b"\" wasn't opened for reading");
+    interp.set_error(&m)
+}
+
+/// Whether `id` names a channel opened only for writing (a write-only file or
+/// `stdout`/`stderr`).
+fn is_write_only(channels: &ChannelTable, id: &[u8]) -> bool {
+    match channels.map.get(id) {
+        Some(state) => state.reader.is_none(),
+        None => matches!(id, b"stdout" | b"stderr"),
     }
 }
 
@@ -420,11 +445,24 @@ fn read_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"read ?-nonewline? channelId");
     };
     let id = obj_bytes(id_obj);
-    let nchars = argv.get(id_idx + 1).and_then(|&a| {
-        core::str::from_utf8(&obj_bytes(a))
-            .ok()
-            .and_then(|s| s.trim().parse::<usize>().ok())
-    });
+    // C finds a readable channel before reading the count; a missing or
+    // write-only one is reported below.
+    if is_write_only(&interp.channels.borrow(), &id) {
+        return not_readable(interp, &id);
+    }
+    let readable = interp.channels.borrow().map.contains_key(&id);
+    let nchars = match argv.get(id_idx + 1).filter(|_| readable) {
+        None => None,
+        Some(&a) => match crate::typed_value::wide_int(a).map(usize::try_from) {
+            Ok(Ok(n)) => Some(n),
+            _ => {
+                let mut m = b"expected non-negative integer but got \"".to_vec();
+                m.extend_from_slice(&obj_bytes(a));
+                m.push(b'"');
+                return interp.error_with_code(&m, b"TCL VALUE NUMBER");
+            }
+        },
+    };
     let op = {
         let mut channels = interp.channels.borrow_mut();
         match channels.map.get_mut(&id) {
@@ -459,6 +497,9 @@ fn gets_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"gets channelId ?varName?");
     }
     let id = obj_bytes(argv[1]);
+    if is_write_only(&interp.channels.borrow(), &id) {
+        return not_readable(interp, &id);
+    }
     // Read the line inside the borrow scope; `n == usize::MAX` flags EOF/no-line.
     enum Gets {
         Line(Vec<u8>, usize),
@@ -477,7 +518,8 @@ fn gets_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     match reader.read_until(b'\n', &mut line) {
                         Err(e) => Gets::Io(e),
                         Ok(n) => {
-                            if n == 0 {
+                            // A last line with no newline also meets the end.
+                            if line.last() != Some(&b'\n') {
                                 st.eof = true;
                             }
                             if line.last() == Some(&b'\n') {
@@ -495,7 +537,7 @@ fn gets_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
     let (line, n) = match g {
         Gets::NoChannel => return no_channel(interp, &id),
-        Gets::WriteOnly => return interp.set_error(b"channel is write only"),
+        Gets::WriteOnly => return not_readable(interp, &id),
         Gets::Io(e) => return io_error(interp, &e),
         Gets::Line(line, n) => (line, n),
     };
@@ -575,7 +617,16 @@ pub(crate) fn puts_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             let mut channels = interp.channels.borrow_mut();
             match channels.map.get_mut(&chan) {
                 Some(state) => match state.writer.as_mut() {
-                    Some(writer) => RawWrite::Done(writer.write_all(&encoded.bytes)),
+                    Some(writer) => {
+                        // A read-write channel's reader may have buffered past
+                        // the logical offset; seeking it there drops the
+                        // read-ahead, so the write lands where Tcl's would.
+                        let synced = state.reader.as_mut().map_or(Ok(0), |reader| {
+                            let at = reader.stream_position()?;
+                            reader.seek(std::io::SeekFrom::Start(at))
+                        });
+                        RawWrite::Done(synced.and_then(|_| writer.write_all(&encoded.bytes)))
+                    }
                     None => RawWrite::NotWritable,
                 },
                 None => RawWrite::NoChannel,
@@ -745,10 +796,16 @@ fn seek_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"seek channelId offset ?origin?");
     }
     let id = obj_bytes(argv[1]);
-    let offset: i64 = core::str::from_utf8(&obj_bytes(argv[2]))
-        .ok()
-        .and_then(|s| s.trim().parse().ok())
-        .unwrap_or(0);
+    // C finds the channel before reading the offset as a wide integer; a
+    // missing channel is reported below.
+    let offset = if interp.channels.borrow().map.contains_key(&id) {
+        match crate::typed_value::wide_int(argv[2]) {
+            Ok(offset) => offset,
+            Err(error) => return interp.report_typed_error(&error),
+        }
+    } else {
+        0
+    };
     let origin = match argv.get(3) {
         None => 0,
         Some(&a) => match interp.native_index_operand(
@@ -941,6 +998,88 @@ mod tests {
         assert_eq!(ok(&mut i, b"gets $f line"), b"7"); // "partial"
         assert_eq!(ok(&mut i, b"gets $f line"), b"-1"); // eof
         ok(&mut i, b"close $f");
+        std::fs::remove_file(&path).ok();
+    }
+
+    /// `r+`, `w+`, `a+` and the `RDWR` access lists both read and write one
+    /// shared offset (tclsh 8.6.18/9.0.4/9.1.0 agree on every result here).
+    #[test]
+    fn read_write_modes_read_and_write() {
+        let mut i = Interp::new();
+        let path = std::env::temp_dir().join(format!("tclrt_chan_rw_{}.txt", std::process::id()));
+        let p = path.display();
+        let cases: &[(&str, &str, &[u8])] = &[
+            ("w", "puts -nonewline $f hello; set r {}", b""),
+            (
+                "r+",
+                "set r [read $f 2]; puts -nonewline $f XY; seek $f 0; append r | [read $f]",
+                b"he|heXYo",
+            ),
+            (
+                "r+",
+                "puts -nonewline $f AB; seek $f 0; set r [read $f]",
+                b"ABXYo",
+            ),
+            (
+                "w+",
+                "puts -nonewline $f new; seek $f 0; set r [read $f]",
+                b"new",
+            ),
+            (
+                "a+",
+                "puts -nonewline $f +tail; seek $f 0; set r [read $f]",
+                b"new+tail",
+            ),
+            ("a+", "set r [list [tell $f] [read $f]]", b"8 {}"),
+            (
+                "RDWR",
+                "set r [read $f 3]; puts -nonewline $f Q; seek $f 0; append r | [read $f]",
+                b"new|newQtail",
+            ),
+            (
+                "{RDWR TRUNC}",
+                "puts -nonewline $f zz; seek $f 0; set r [read $f]",
+                b"zz",
+            ),
+            (
+                "{RDWR APPEND}",
+                "puts -nonewline $f +a; seek $f 0; set r [read $f]",
+                b"zz+a",
+            ),
+            (
+                "r+",
+                "set r [list [gets $f] [eof $f]]; puts $f more; seek $f 0; lappend r [read $f]",
+                b"zz+a 1 {zz+amore\n}",
+            ),
+            (
+                "w+",
+                "puts $f line1; puts $f line2; seek $f 0; set r [list [gets $f] [gets $f] [gets $f] [eof $f]]",
+                b"line1 line2 {} 1",
+            ),
+            (
+                "r+",
+                "set r [gets $f]; puts -nonewline $f X; seek $f 0; append r | [read $f]",
+                b"line1|line1\nXine2\n",
+            ),
+        ];
+        for &(mode, body, expected) in cases {
+            let script = format!("set f [open {p} {mode}]; {body}; close $f; set r");
+            assert_eq!(ok(&mut i, script.as_bytes()), expected, "{mode}: {body}");
+        }
+        let script = format!(
+            "set f [open {p} WRONLY]; set r [catch {{gets $f}} m]; close $f; list $r $m $f"
+        );
+        let got = String::from_utf8(ok(&mut i, script.as_bytes())).unwrap();
+        let id = got.rsplit(' ').next().unwrap();
+        assert_eq!(
+            got,
+            format!("1 {{channel \"{id}\" wasn't opened for reading}} {id}")
+        );
+        assert_eq!(i.eval_str(b"read stdout"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            b"channel \"stdout\" wasn't opened for reading"
+        );
         std::fs::remove_file(&path).ok();
     }
 

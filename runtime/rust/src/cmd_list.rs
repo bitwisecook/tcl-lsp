@@ -24,6 +24,7 @@
 //! See `list.rs` for the module-level `not_unsafe_ptr_arg_deref` rationale.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
+use tcl_cmd_core::index::IndexCompiler;
 use tcl_cmd_core::list as list_core;
 
 use crate::interp::{obj_bytes, Code, Interp};
@@ -102,10 +103,16 @@ fn lindex(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             interp
                 .native_invocation_dialect()
                 .list_index_usage()
-                .unwrap_or("lindex list ?index ...?")
+                .unwrap_or_else(|| list_core::lindex_usage(interp.runtime_version()))
                 .as_bytes(),
         );
     }
+    // A one-index `lindex` the release compiles reads its literal index as
+    // compiled (`IndexCompiler::Lindex`).
+    let compiled = (argv.len() == 3)
+        .then(|| interp.compiled_index_argv(IndexCompiler::Lindex, argv, &[2]))
+        .flatten();
+    let argv = compiled.as_ref().map_or(argv, |c| c.argv.as_slice());
     match interp.original_list_index(argv[1], &argv[2..], true) {
         Ok(result) => {
             interp.set_result(result.as_ptr());
@@ -206,6 +213,8 @@ fn lrange(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
         return interp.wrong_args(b"lrange list first last");
     }
+    let compiled = interp.compiled_index_argv(IndexCompiler::Lrange, argv, &[2, 3]);
+    let argv = compiled.as_ref().map_or(argv, |c| c.argv.as_slice());
     match interp.original_list_range(argv[1], argv[2], argv[3]) {
         Ok(result) => {
             // SAFETY: the owned original result remains live; the result slot retains it.
@@ -360,6 +369,8 @@ fn linsert(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return interp.wrong_args(b"linsert list index ?element ...?");
     }
+    let compiled = interp.compiled_index_argv(IndexCompiler::Linsert, argv, &[2]);
+    let argv = compiled.as_ref().map_or(argv, |c| c.argv.as_slice());
     let r = list_core::linsert(interp, &argv[1], &argv[2], &argv[3..]);
     adapt(interp, r)
 }
@@ -369,6 +380,8 @@ fn lreplace(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 4 {
         return interp.wrong_args(b"lreplace list first last ?element ...?");
     }
+    let compiled = interp.compiled_index_argv(IndexCompiler::Lreplace, argv, &[2, 3]);
+    let argv = compiled.as_ref().map_or(argv, |c| c.argv.as_slice());
     let r = list_core::lreplace(interp, &argv[1], &argv[2], &argv[3], &argv[4..]);
     adapt(interp, r)
 }
@@ -720,13 +733,6 @@ impl tcl_cmd_core::native_jim_lsearch::NativeJimLsearchObjects for Interp {
     }
 }
 
-/// Parse a Tcl integer (decimal, or `0x`/`0o`/`0b` radix, optional sign) into an
-/// `i128` for `-integer` sort keys. `None` if not an integer.
-/// Parse a Tcl integer for `-integer` sort/search keys (shared core).
-fn parse_wide(b: &[u8]) -> Option<i128> {
-    tcl_cmd_core::sort::parse_wide(b)
-}
-
 /// `lsort ?-option value ...? list` — sort the list (`Tcl_LsortObjCmd`).
 /// `lsort ?-option value ...? list` — a thin adapter over the shared
 /// [`tcl_cmd_core::lsort`] core. Non-command modes are sorted+built entirely in
@@ -735,9 +741,11 @@ fn parse_wide(b: &[u8]) -> Option<i128> {
 fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     use tcl_cmd_core::index::NativeIndexOps;
     if interp.index_c_version().is_some() || interp.index_jim_sort_selected() {
+        let release = interp.runtime_version();
         return match tcl_cmd_core::lsort::run_original(
             interp,
             &argv[1..],
+            release,
             lsort_compare_original,
             Interp::report_cmd_error,
         ) {
@@ -749,7 +757,8 @@ fn lsort(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         };
     }
     use tcl_cmd_core::lsort::{build_command, prepare, sort_command, Lsort};
-    let job = match prepare(interp, &argv[1..]) {
+    let release = interp.runtime_version();
+    let job = match prepare(interp, &argv[1..], release) {
         Ok(Lsort::Done(v)) => {
             interp.set_result(v);
             return Code::Ok;
@@ -889,20 +898,19 @@ fn lsort_cmd_compare(
         unsafe { obj::incr_ref_count(o) };
     }
     let code = interp.dispatch(&call);
-    let result = interp.result_bytes();
     for &o in &call {
         unsafe { obj::decr_ref_count(o) };
     }
     if code != Code::Ok {
         return Err(code);
     }
-    match parse_wide(&result) {
-        Some(v) => Ok(v.signum() as i32),
-        None => {
-            let mut m = b"-command comparison script returned non-integer result: ".to_vec();
-            m.extend_from_slice(&result);
-            Err(interp.set_error(&m))
-        }
+    // C reads the comparator's result as a C `int`.
+    match crate::typed_value::int(interp.result_obj()) {
+        Ok(order) => Ok(order.signum()),
+        Err(_) => Err(interp.error_with_code(
+            b"-compare command returned non-integer result",
+            b"TCL OPERATION LSORT COMPARISONFAILED",
+        )),
     }
 }
 
@@ -1260,6 +1268,50 @@ mod tests {
             ok(b"set l {a b c}; set m $l; lset l 0 X; list $l $m"),
             b"{X b c} {a b c}"
         );
+    }
+
+    /// An index equal to a level's length appends from 8.6 and raises before
+    /// it, as tclsh 8.4.20 to 9.1.0 do (the empty list's first slot, `end+1`
+    /// and a nested level included).
+    #[test]
+    fn lset_appends_at_the_length_only_from_8_6() {
+        use tcl_dialect::TclVersion;
+
+        let at = |release: TclVersion, src: &[u8]| {
+            counters::reset();
+            let (code, bytes);
+            {
+                let mut i = Interp::new();
+                i.set_runtime_version(release);
+                code = i.eval_str(src);
+                bytes = i.result_bytes();
+            }
+            assert_eq!(counters::finalize(), 0);
+            (code, bytes)
+        };
+        for release in TclVersion::ALL {
+            for (src, appended) in [
+                (&b"set x {a b c}; lset x 3 Z"[..], &b"a b c Z"[..]),
+                (b"set x {a b c}; lset x {3} Z", b"a b c Z"),
+                (b"set x {}; lset x 0 Z", b"Z"),
+                (b"set x {{a b c}}; lset x 0 3 Z", b"{a b c Z}"),
+                (b"set x {a b c}; lset x end+1 Z", b"a b c Z"),
+            ] {
+                let (code, bytes) = at(release, src);
+                let label = String::from_utf8_lossy(src);
+                if release.lset_appends_at_length() {
+                    assert_eq!(code, Code::Ok, "{release:?} {label}");
+                    assert_eq!(bytes, appended, "{release:?} {label}");
+                } else {
+                    assert_eq!(code, Code::Error, "{release:?} {label}");
+                    assert!(
+                        bytes == b"list index out of range" || bytes.starts_with(b"bad index"),
+                        "{release:?} {label}: {:?}",
+                        String::from_utf8_lossy(&bytes)
+                    );
+                }
+            }
+        }
     }
 
     #[test]

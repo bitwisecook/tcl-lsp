@@ -167,14 +167,19 @@ default it was not asked for.
   tier into a `BigInt`, the WASM runtime into its bignum — as C Tcl does
   from 8.5. Through explicit arguments: `format_cmd_with_syntax(…, NumberSyntax)`,
   `string_is::class_check(…, NumberSyntax)`, `index::read_with` and `read_under`,
+  `index::resolve_with`, every index-reading `string` core (`index`, `range`,
+  `wordstart`/`wordend`, `first`, `last`, `replace`, `insert`, the ranged case
+  converters, and `dispatch_canon` over them, each taking a `NumberSyntax`),
   `binary::signedness_available(profile)`, `binary::specifier_min_version`,
   `format::is_available`, `list::lset` / `ledit` / `lpop` (a `TclVersion`).
-  And in one place not at all:
-  `index::resolve` reads an index numeral under the ambient grammar
-  `tcl_syntax::number::runtime_syntax()` installed by `set_runtime_syntax`,
-  and `string::range`, `string::index`, and `string::word_bound` call it,
-  so both runtimes read `string range $s 010 end` under whatever release
-  the process was pinned to. Both engines are release-pinnable
+  And through the thread's ambient grammar
+  `tcl_syntax::number::runtime_syntax()`, installed by `set_runtime_syntax`:
+  `index::resolve` and `resolve_opt` read it and are runtime-only, the entry
+  the list, `lsearch`, `lsort` and `regexp -start` cores still use. Both
+  runtimes pass their pinned release's grammar to the `string` cores
+  (`runtime_version().number_syntax()`), so `string range $s 010 end` is
+  `ijkl` under an 8.x pin and `kl` under a 9.x one whatever the thread last
+  installed. Both engines are release-pinnable
   (`Vm::set_runtime_version` / `set_dialect_profile`, `Interp::set_runtime_version`).
 - **Some of the registry's folders are a second implementation.**
   `fold_range` in `rust/tcl-registry/src/commands/tcl/string_.rs` runs the
@@ -254,12 +259,13 @@ its release:
   — `StringCharacterModel` unanimity for a profile that names no release —
   runs in a thin explicit adapter before the core is called, or in the
   semantic owner; it is not smuggled into an override of `char_len`.
-- `string::range` and `string::index` use Unicode scalar vectors and call
-  `index::resolve` directly; overriding `char_len` changes neither their
-  indexing model nor their numeral grammar. The numeral-grammar
-  precondition is likewise an adapter obligation, and the adapter
-  discharges it by *resolving the index itself* rather than by wishing for
-  a `*_with` variant of every core that reads one.
+- `string::range` and `string::index` use Unicode scalar vectors and read
+  their index words under the `NumberSyntax` the caller hands them;
+  overriding `char_len` changes neither their indexing model nor their
+  numeral grammar. A grammar is one release's answer, so the release-less
+  precondition — decline where the releases read the word apart — stays an
+  adapter obligation, and the adapter discharges it by *resolving the index
+  itself* (step 4 below).
 - The runtime adapters still own coercions, byte access, and result
   construction. Calling the same generic function does not prove that
   different adapters produce the same observable result; adapter-level
@@ -363,7 +369,7 @@ override, and why the default is wrong for a compile-time model:
 | `list_elements` / `list_len` / `list_index` / `list_append` | `tcl_syntax::list::split_list`; `ValueError::BadList` is a decline carrying the canonical message |
 | `dict_pairs` / `new_dict` | the seam's own canonical ordering, first-occurrence position with the last value winning |
 | `dict_hash_bucket_count` | `None`, the string-model answer; `dict::info` therefore declines rather than inventing a bucket history |
-| `new_int` / `new_double` / `new_bool` / `new_list` / `new_str` | the canonical spellings, with every construction charged to the budget before it allocates; a double's spelling is not always Tcl's: `expr {1e15 + 0.3}` folds to `1000000000000000.3` where tclsh prints `1000000000000000.2` (#2432), and 8.4's 12-digit `tcl_precision` spelling is not modelled (#2395) |
+| `new_int` / `new_double` / `new_bool` / `new_list` / `new_str` | the canonical spellings, with every construction charged to the budget before it allocates; a number is spelled as the target release spells it (`TargetSemantics::spell_double` / `spell_wide`: `%.12g` for 8.4 and Jim, the shortest digits with C Tcl's power-of-two misprint from 8.5), and one whose spelling would not read back as it — `2^64` from 8.5, `1.0/3` under 8.4, an `INT64_MIN` 8.4 and 8.5 print as `-8`, any double where the module may set `tcl_precision` — poisons with `Unspellable` ([the number spelling](../contracts/numeric-tower-and-expr-semantics.md#a-computed-number-is-spelled-as-its-release-spells-it)) |
 | `pin_value` / `unpin_value` | the owning-model defaults; there is no refcounted runtime object to hold |
 | `try_append_bytes_in_place` / `try_list_append_in_place` | `true` when the `Rc` is unshared, so a building loop stays amortised rather than quadratic |
 
@@ -440,8 +446,7 @@ impl<'ctx> ConstOps<'ctx> {
     ) -> Result<Self, DeclineReason>;
 
     /// Resolve an index operand under the admitted grammar, returning the
-    /// canonical decimal spelling the cores' own `index::resolve` reads
-    /// identically in every release.
+    /// canonical decimal spelling every release's grammar reads identically.
     fn index(&mut self, spec: &ConstValue, len: usize) -> Result<ConstValue, DeclineReason>;
 
     /// Charge `bytes` before the allocation that would produce them.
@@ -493,11 +498,16 @@ The protocol, in order, and every step is mandatory:
    `string range abcdefghijkl 010 end` to `ijkl` under `tcl8.4` to
    `tcl8.6` and to `kl` under `tcl9.0` and `tcl9.1`, leaves it under the
    release-less `tcl` profile, and folds `string range abcdefghijkl 3 6`
-   to `defg` under every one. Calling `string::range` directly would
-   *lose* that decline, because the core's `index::resolve` reads the
-   ambient grammar. The
-   adapter's `index` step is the whole of the fix, and `index::bad_index`
-   supplies the canonical message when the spec is malformed.
+   to `defg` under every one. The cores take the grammar they read an
+   index under (`string::range(…, NumberSyntax)`), so a named release is
+   never read through the thread's ambient grammar; the adapter hands them
+   `ConstOps::index_numbers`, which reads the canonical spelling alike in
+   every release. Calling `string::range` on the raw word would still
+   *lose* the release-less decline, the 8.6 literal reading
+   (`compiles_apart`) and the host-`long` decline, because one grammar
+   answers for one release; the adapter's `index` step is what keeps them,
+   and `index::bad_index` supplies the canonical message when the spec is
+   malformed.
 5. **Charge before allocating.** Every core whose output size is a
    function of its input charges the bound first.
 6. **Read the cancellation token** at each `CancelPoint` (§ *Budgets and
@@ -547,7 +557,7 @@ need `LIST_RENDERING`.
 | `string::first`, `string::last` | `INDEX_GRAMMAR`, `CHAR_INDEXING` | the optional start index | a malformed index | 1 per compared byte |
 | `string::trim`, whose `left` and `right` flags are `trimleft` and `trimright` | none | none | — | 1 per trimmed byte |
 | `string::cat` | none | none | an output past the charge | 1 per output byte, charged first |
-| `index::resolve`, `resolve_opt`, `resolve_opt_with`, `read_with`, `read_under`, `compiles_apart`, `encodable`, `bad_index` | `INDEX_GRAMMAR` | measured on a 12-element list `a`…`l`: `lindex $l 010` is `i` up to 8.6 and `k` from 9.0, `lindex $l end-010` is `d` up to 8.6 and `b` from 9.0, `lindex $l 1_0` and `lindex $l 0d1` are `bad index` up to 8.6 and `k` and `b` from 9.0, while `lindex $l 0x2` is `c` on every release. Each integer is read in its release's range: 8.4 to 8.6 wrap a value within ±4294967295 to the 32-bit `int` on every platform — `string range abcdefghijkl 0 2147483648` is empty, `lset x -4294967295 Z` writes element 1 — the sums and `end` offsets wrapping alike, and raise `bad index` past it, but for a magnitude from 2^64 − 2^32 + 1 to 2^64 − 1, which 8.4 and 8.5 read where `long` is 64 bits and raise on where it is 32 (8.6 raises everywhere); 9.0 and 9.1 read a wide, a bignum alone as the nearest wide, and a sum that reaches the widest wide or a bignum offset after `end` as `end+1` (`lset` appends there). This is the 64-bit `Tcl_Size` build every oracle is: a 32-bit one bounds an index at 2^31 − 1. 8.6 also compiles a literal `end` offset whose 32-bit sum with `end` passes `INT_MAX` as after the end, where the same word read at run time wraps before the first element (`compiles_apart`) | disagreement with no named release; a reading the host's `long` decides (`ReleaseAmbiguous(Platform)`; the runtimes take their host's); an `end` offset 8.6 reads apart as a literal and as a value, under a target that may be 8.6 | 1 |
+| `index::resolve`, `resolve_opt`, `resolve_opt_with`, `read_with`, `read_under`, `compiles_apart`, `encode`, `encodes_apart`, `compiles_literals_apart`, `compiled_index_words`, `lreplace_compiles_encoded`, `string_replace_compiles_encoded`, `settle_string_replace`, `encodable`, `bad_index`, `bad_index_under`, `bad_index_with`, `bad_index_parts` | `INDEX_GRAMMAR` | measured on a 12-element list `a`…`l`: `lindex $l 010` is `i` up to 8.6 and `k` from 9.0, `lindex $l end-010` is `d` up to 8.6 and `b` from 9.0, `lindex $l 1_0` and `lindex $l 0d1` are `bad index` up to 8.6 and `k` and `b` from 9.0, while `lindex $l 0x2` is `c` on every release. Each integer is read in its release's range: 8.4 to 8.6 wrap a value within ±4294967295 to the 32-bit `int` on every platform — `string range abcdefghijkl 0 2147483648` is empty, `lset x -4294967295 Z` writes element 1 — the sums and `end` offsets wrapping alike, and raise `bad index` past it, but for a magnitude from 2^64 − 2^32 + 1 to 2^64 − 1, which 8.4 and 8.5 read where `long` is 64 bits and raise on where it is 32 (8.6 raises everywhere); 9.0 and 9.1 read a wide, a bignum alone as the nearest wide, and a sum that reaches the widest wide or a bignum offset after `end` as `end+1` (`lset` appends there). A malformed index is worded by the release: 8.4 `must be integer or end?-integer?`, 8.5 on `must be integer?[+-]integer? or end?[+-]integer?`, with `TCL VALUE INDEX` from 8.6 (`bad_index_under`); a core that reads a word under a numeral grammar alone words it by that grammar (`bad_index_with`, `bad_index_parts` under the thread's), which tells 8.4 apart but not 8.5 from 8.6, so an 8.5 runtime drops the code. This is the 64-bit `Tcl_Size` build every oracle is: a 32-bit one bounds an index at 2^31 − 1. 8.6 also compiles a literal `end` offset whose 32-bit sum with `end` passes `INT_MAX` as after the end, where the same word read at run time wraps before the first element (`compiles_apart`); `encode` fixes a literal word as a release compiles it, or reads it as its command runs, whatever the length, which is how the bytecode compiler chooses an index immediate, and `compiled_index_words` respells the index words of `lindex`, `lrange`, `linsert`, `lreplace`, `string range` and `string replace` by each compile procedure's own rule (both indices literal, `string range`'s first index after the end alone, and the settling conditions of `TclCompileLreplaceCmd` and `TclCompileStringReplaceCmd`), so a literal beside a word read at run time reads as the command runs where its compile procedure leaves both to it; `compiled_index_words` respells the literal index words of a command 8.6 compiles by the rule of its compile procedure (`IndexCompiler`: `lindex` of one index, `lrange` and `string range` of two literals, the first of `string range` after the end alone, `lreplace` and `string replace` where `lreplace_compiles_encoded` and `string_replace_compiles_encoded` say), which the WASM runtime applies to every command it evaluates compiled (a body, an `eval` or `uplevel` script, an `apply` lambda, a `source`d file, stdin) whose selecting words are literal (`IndexCompiler::selecting_words`: the command word, and `string`'s subcommand word, a literal `{*}` of literal elements counting as the literal words the parser expands it to), and not to those of the script file, a canonical list or a command reached through a substituted word; the VM reads the commands of the script file `tclsh` is given, and a script that is a canonical list (`TclEvalObjEx` runs one without compiling it, the body of every command that evaluates one at run time among them), as run, each of its commands given the very values the list holds (`eval [list catch $b r]` hands `catch` the list `$b` is, so it too runs directly), and every other command as compiled, a canonical list `catch`, `try` or a `for` start compiles with its command (`INST_EVAL_STK`) included, which stays compiled for a later evaluation of the same value, where a script compiled in a procedure frame (`eval`, `uplevel`, `apply`) compiles a `catch` with variables only when each is already a compiled local of that procedure (`TclFindCompiledLocal`, which the VM checks against the frame's compiled body as the `catch` runs), that body's local table holding every variable a compile procedure of the release makes a compiled local, among them those of a command the compiler leaves to run (a one-word `set`, `array set`, `variable`, `namespace upvar`, a `catch` or `try`) and of the literal scripts C compiles with one, though not those of a `for` whose constant-false test the O112 rewrite deletes; a character-indexed string command (`string length`, `index`, `range`, `first`, `last`, `replace`, a non-empty `map`, `reverse`, the compiled `string is`) and `regsub` leave a canonical list a string, as do `regexp` (its pattern a regexp, its string by character) where it runs as a command or as `INST_REGEXP`, though not where `TclCompileRegexpCmd` turns a literal pattern into a glob (`tcl_syntax::glob::re_to_glob`, `TclReToGlob`), `string match` where the string has no type or is a string (`TclStringMatchObj`) or, compiled, where either operand already is one (`INST_STR_MATCH`; a value tracks C's string type, and compiled code pushes one object per literal text as C's interp literal table does, so that history carries), the compiled `string replace`'s replacement, and `string map`'s keys and values (a lone pair's value only where its key could match); the compiled `string trim`, a `string replace` that changes nothing, an empty `string map`, `string cat` of one word and `string repeat` once return the value itself, a command the release evaluates directly runs every one of these as its command, and `append` onto an unset variable, or of an empty string, keeps the value it stores; a folded `[list …]` of literal words is the list `TclCompileListCmd` pushes, and a fold or an `eval [list …]` inlining whose literal 8.6 would read apart (`encodes_apart`) is left to its command (#2429), as is, in every release, an `eval` of a variable whose text constant propagation knows, which `eval` compiles (8.4: runs directly) at run time as a script of the procedure's frame rather than as code of the body; the WASM runtime keeps the same model as it evaluates: a `catch`, `try` or `for` start it evaluates compiled whose script word substitutes compiles that value in place (`list::read_as_other_type`), a `catch` with variables in a script compiled in a procedure's frame finds the procedure body's compiled locals (`compiled_locals::ProcUnit`, scanning the body by `tcl_registry::release_compilation::compile_procedure`, 8.6's compile procedures, and each command's registry roles), its string commands, `regexp` and `regsub` read and return their words as the compiled form or the command does (`ValueOps::as_chars`, `ValueOps::is_untyped_or_string`, `tcl_cmd_core::index::settle_string_replace`, `tcl_cmd_core::string_is::is_character_class`), and a `switch` body that is an element of a list value runs as that element | disagreement with no named release; a reading the host's `long` decides (`ReleaseAmbiguous(Platform)`; the runtimes take their host's); an `end` offset 8.6 reads apart as a literal and as a value, under a target that may be 8.6 | 1 |
 | `index::drill` | `INDEX_GRAMMAR`, `LIST_RENDERING` | as above | a non-list step, an out-of-range step | 1 per path step |
 | `binary::format` (`BinaryFormatSemantics` in `value_transfer/builtins.rs`, the result `Constructed(ByteArray)`) | `BINARY_FIELDS`, `BYTE_STRINGS`, `SOURCE_ENCODING` | `t n m r R q Q` arrive in 8.5 (`specifier_min_version`); the `u` suffix is 8.5+ (`signedness_available`); `c 010` packs 8 up to 8.6 and 10 from 9.0, `0b`, `0o` and `1_0` spellings arrive in 8.5 and 9.0, and past 64 bits 8.x raises where 9.x wraps; `d 010` is 10.0 on 8.4 and 9.x and 8.0 on 8.5 and 8.6, `d -0` is -0.0 on 8.4 and 0.0 after, 8.4 raises past the double range and below its normal range, and a single-precision value past `FLT_MAX` is clamped by 8.x and packed as an infinity by 9.x | a field the target lacks; a numeral other than a plain decimal, or a value past those ranges; a character above `U+00FF`; `x*` and a countless `@`, which C Tcl refuses; an output past the charge | `binary::format_size_bound`, charged first as allocation, then 1 per output byte |
 | `binary::scan` (`BinaryScanSemantics` in `value_transfer/destructure.rs`) | `BINARY_FIELDS`, `BYTE_STRINGS`, `SOURCE_ENCODING` | as above; a float field's value is spelt `%.12g` on 8.4 | a field the target lacks; a float field under 8.4; a character above `U+00FF`; a format with more value fields than variables (the command raises once it reaches one with data left, and the route does not follow where the data runs out) | 1 per scanned byte, plus 1 per published byte |
@@ -1691,8 +1701,10 @@ and declines the rest.
   `tclsh` differential and the fuzzer's `tclsh` pair are the oracle, and a
   shared bug is invisible to a two-way native pair, so agreement between
   our compiler and our runtimes can mean both share a defect. Three kinds
-  of divergence are known. `index::resolve` reads index numerals
-  under the ambient grammar for every release. Three `-nocase` folds are
+  of divergence are known. The list, `lsearch`, `lsort` and
+  `regexp -start` cores read index numerals through the runtime-only
+  `index::resolve`, under the thread's ambient grammar rather than one
+  they are handed (the `string` cores take theirs explicitly). Three `-nocase` folds are
   ASCII-only — `switch::select`'s exact mode, `lsearch`'s sorted-list
   comparison, and `sort`'s `-nocase` and `-dictionary` orders — while C
   Tcl folds the full range on every release: `string equal -nocase` of

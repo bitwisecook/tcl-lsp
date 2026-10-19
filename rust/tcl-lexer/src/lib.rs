@@ -127,7 +127,7 @@ pub use source_purpose::SourceSegmentationPurpose;
 pub use span::Span;
 pub use structural_index::{
     BraceIndex, BracketIndex, ExprParenIndex, ParenBalance, command_boundaries, reparse_window,
-    script_is_complete,
+    script_is_complete, stdin_chunk_ends,
 };
 pub use substitution::{
     BackslashFragment, BackslashFragmentValue, EscapeSegment, EscapedInputUnit, EscapedInputValue,

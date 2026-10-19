@@ -2006,9 +2006,13 @@ fn set_inline_cmd_subst_expand() {
 /// unimplemented on both sides.)
 #[test]
 fn encoding_command() {
-    assert_eq!(run("encoding system").1, "utf-8");
+    // The unset default follows the host locale (`iso8859-1` under C/POSIX), so
+    // the fixture pins the system encoding itself.
+    assert_eq!(run("encoding system utf-8; encoding system").1, "utf-8");
     assert_eq!(
-        run("list [encoding system] [encoding system iso8859-1] [encoding system]").1,
+        run("encoding system utf-8; \
+             list [encoding system] [encoding system iso8859-1] [encoding system]")
+        .1,
         "utf-8 {} iso8859-1"
     );
     assert_eq!(

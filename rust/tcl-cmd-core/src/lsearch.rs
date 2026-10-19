@@ -156,18 +156,42 @@ impl LsearchError {
     }
 }
 
+/// A failed integer read keeps the code the shared value seam carries.
+impl From<tcl_syntax::value::ValueError> for LsearchError {
+    fn from(error: tcl_syntax::value::ValueError) -> Self {
+        Self::from_command(error.into())
+    }
+}
+
+/// A failed `-index` step keeps the code the shared index owner sets.
+impl From<index::IndexPathError> for LsearchError {
+    fn from(error: index::IndexPathError) -> Self {
+        Self {
+            message: error.message,
+            command_error: None,
+            native_access_refusal: None,
+            code: error.code,
+        }
+    }
+}
+
+const BADSTRIDE: &[u8] = b"TCL OPERATION LSEARCH BADSTRIDE";
+
 fn bad_index(spec: &[u8]) -> LsearchError {
-    let mut m = b"bad index \"".to_vec();
-    m.extend_from_slice(spec);
-    m.extend_from_slice(b"\": must be integer?[+-]integer? or end?[+-]integer?");
-    LsearchError::msg(m)
+    let (message, code) = index::bad_index_parts(spec);
+    LsearchError {
+        message,
+        command_error: None,
+        native_access_refusal: None,
+        code,
+    }
 }
 
 fn not_integer(s: &[u8]) -> LsearchError {
     let mut m = b"expected integer but got \"".to_vec();
     m.extend_from_slice(s);
     m.push(b'"');
-    LsearchError::msg(m)
+    LsearchError::coded(m, b"TCL VALUE NUMBER")
 }
 
 /// The parsed `lsearch` options.
@@ -472,7 +496,10 @@ fn parse_stride<O: NativeIndexOps>(ops: &mut O, arg: &O::Value) -> Result<usize,
     let sb = ops.as_bytes(arg);
     match sort::parse_wide(&sb) {
         Some(w) if w >= 1 => Ok(usize::try_from(w).unwrap_or(usize::MAX)),
-        Some(_) => Err(LsearchError::msg("stride length must be at least 1")),
+        Some(_) => Err(LsearchError::coded(
+            "stride length must be at least 1",
+            BADSTRIDE,
+        )),
         None => Err(not_integer(&sb)),
     }
 }
@@ -586,8 +613,9 @@ fn stride_key_path<'o, O: NativeIndexOps>(
         Err(error) if error.native_execution_refusal().is_some() => {
             Err(LsearchError::from_command(error))
         }
-        _ => Err(LsearchError::msg(
+        _ => Err(LsearchError::coded(
             "when used with \"-stride\", the leading \"-index\" value must be within the group",
+            b"TCL OPERATION LSEARCH BADINDEX",
         )),
     }
 }
@@ -648,8 +676,9 @@ fn lsearch_with<O: NativeIndexOps, R>(
             .map_err(LsearchError::from_command)?;
         let listc = elems.len();
         if o.group > 1 && listc % o.group != 0 {
-            return Err(LsearchError::msg(
+            return Err(LsearchError::coded(
                 "list size must be a multiple of the stride length",
+                BADSTRIDE,
             ));
         }
 

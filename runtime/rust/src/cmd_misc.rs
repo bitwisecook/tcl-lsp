@@ -243,24 +243,24 @@ fn encoding_in_scope(
                         Err(error) => return interp.report_cmd_error(error.into()),
                     };
                     if encoding.as_ref() != b"utf-8" {
-                        return interp.report_cmd_error(
-                            tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                                "external encoding target",
-                            )
-                            .into(),
+                        // Another target converts through the shared owner.
+                        return encoding_convert(
+                            interp,
+                            tcl_cmd_core::encoding::Direction::To,
+                            &argv[2..],
                         );
                     }
                     *data
                 }
-                [_, _, _] => {
-                    return interp.report_cmd_error(
-                        tcl_syntax::value::ValueError::CommandProtocolUnavailable(
-                            "external system encoding target",
-                        )
-                        .into(),
+                // The system target, `-profile`/`-failindex` and the usage
+                // error follow the shared grammar and conversions.
+                _ => {
+                    return encoding_convert(
+                        interp,
+                        tcl_cmd_core::encoding::Direction::To,
+                        &argv[2..],
                     );
                 }
-                _ => return interp.wrong_args(b"encoding convertto ?encoding? data"),
             };
             match tcl_cmd_core::encoding::convert_to_utf8(interp, &data) {
                 Ok(result) => {
@@ -270,13 +270,8 @@ fn encoding_in_scope(
                 Err(error) => interp.report_cmd_error(error),
             }
         }
-        // External decoding is a separate, currently unmodelled conversion.
         b"convertfrom" => {
-            let Some(&data) = argv.last() else {
-                return interp.wrong_args(b"encoding convertfrom ?encoding? data");
-            };
-            interp.set_result(data);
-            Code::Ok
+            encoding_convert(interp, tcl_cmd_core::encoding::Direction::From, &argv[2..])
         }
         other => interp.set_error(&tcl_cmd_core::ensemble::unknown_subcommand_message(
             subs,
@@ -284,6 +279,73 @@ fn encoding_in_scope(
             true,
             b"::tcl::encoding",
         )),
+    }
+}
+
+/// `encoding convertfrom|convertto ?options? ?encoding? data`, converted by
+/// `tcl_cmd_core::encoding`.
+fn encoding_convert(
+    interp: &mut Interp,
+    direction: tcl_cmd_core::encoding::Direction,
+    args: &[*mut TclObj],
+) -> Code {
+    use tcl_cmd_core::encoding;
+    let version = interp.runtime_version();
+    let words: Vec<String> = args
+        .iter()
+        .map(|&arg| String::from_utf8_lossy(&obj_bytes(arg)).into_owned())
+        .collect();
+    let words: Vec<&str> = words.iter().map(String::as_str).collect();
+    let parsed = match encoding::parse_convert_args(version, direction, &words) {
+        Ok(parsed) => parsed,
+        Err(error) => return interp.report_cmd_error(error),
+    };
+    let name = parsed.encoding.unwrap_or_else(|| interp.system_encoding());
+    // The result is set only after `-failindex` is written, as C does.
+    enum Output {
+        Text(String),
+        Bytes(Vec<u8>),
+    }
+    let (result, failure) = match direction {
+        encoding::Direction::From => {
+            let data = match interp.binary_bytes(args[parsed.data]) {
+                Ok(data) => data,
+                Err(code) => return code,
+            };
+            let converted = encoding::convert_from(&data, name, version, parsed.profile);
+            (Output::Text(converted.value), converted.failure)
+        }
+        encoding::Direction::To => {
+            let converted = encoding::convert_to(words[parsed.data], name, version, parsed.profile);
+            (Output::Bytes(converted.value), converted.failure)
+        }
+    };
+    match (parsed.fail_var, failure) {
+        (None, Some(failure)) => return interp.report_cmd_error(failure.error),
+        (None, None) => {}
+        (Some(var), failure) => {
+            let index = failure.map_or(-1, |failure| {
+                i64::try_from(failure.index).unwrap_or(i64::MAX)
+            });
+            let var = obj_bytes(args[var]);
+            let (base, elem) = crate::frame::split_array_ref(&var);
+            let o = crate::obj::new_wide_int_obj(index);
+            let stored = match &elem {
+                Some(key) => interp.var_set_elem(&base, key, o),
+                None => interp.var_set(&base, o),
+            };
+            if let Err(e) = stored {
+                crate::interp::drop_fresh(o);
+                return crate::builtins::var_error(interp, &var, e);
+            }
+        }
+    }
+    match result {
+        Output::Text(text) => {
+            interp.set_result_bytes(text.as_bytes());
+            Code::Ok
+        }
+        Output::Bytes(bytes) => interp.set_result_byte_array(&bytes),
     }
 }
 
@@ -306,6 +368,9 @@ mod tests {
     fn encoding_ensemble_resolves_like_tclsh() {
         const MUST: &str = "must be convertfrom, convertto, dirs, names, or system";
         let mut i = Interp::new();
+        // The default system encoding is locale-dependent; pin it so the prefix
+        // lookup is what is measured.
+        assert_eq!(i.eval_str(b"encoding system utf-8"), Code::Ok);
         assert_eq!(i.eval_str(b"encoding s"), Code::Ok);
         assert_eq!(i.result_bytes(), b"utf-8");
         assert_eq!(i.eval_str(b"encoding c"), Code::Error);
@@ -321,6 +386,50 @@ mod tests {
         // A unique prefix resolves.
         assert_eq!(i.eval_str(b"encoding na"), Code::Ok);
         assert_eq!(i.result_bytes(), b"utf-8 unicode ascii iso8859-1");
+    }
+
+    /// `encoding convertfrom` decodes: a byte array's raw bytes, and a string
+    /// as the bytes its characters stand for. The second script is the
+    /// report's (tclsh 8.4.20 / 8.6.18 / 9.0.4: `4 240` / `2` / `1 119070`).
+    #[test]
+    fn encoding_convertfrom_decodes_per_release() {
+        use tcl_dialect::TclVersion;
+        let decode = b"set h [encoding convertfrom utf-8 \"\\xf0\\x9d\\x84\\x9e\"]";
+        for (version, expected) in [
+            (TclVersion::V8_4, "4 240"),
+            (TclVersion::V8_6, "2"),
+            (TclVersion::V9_0, "1 119070"),
+        ] {
+            let mut i = Interp::new();
+            i.set_runtime_version(version);
+            assert_eq!(
+                i.eval_str(b"scan [encoding convertfrom utf-8 [binary format H* e282ac]] %c"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"8364");
+            assert_eq!(i.eval_str(decode), Code::Ok);
+            let probe: &[u8] = if version == TclVersion::V8_6 {
+                b"string length $h"
+            } else {
+                b"list [string length $h] [scan [string index $h 0] %c]"
+            };
+            assert_eq!(i.eval_str(probe), Code::Ok);
+            assert_eq!(i.result_bytes(), expected.as_bytes(), "Tcl {version:?}");
+        }
+        let mut i = Interp::new();
+        i.set_runtime_version(TclVersion::V9_0);
+        assert_eq!(
+            i.eval_str(b"encoding convertfrom -failindex at utf-8 [binary format H* 41ff]"),
+            Code::Ok
+        );
+        assert_eq!(i.result_bytes(), b"A");
+        assert_eq!(i.eval_str(b"set at"), Code::Ok);
+        assert_eq!(i.result_bytes(), b"1");
+        assert_eq!(i.eval_str(b"encoding convertfrom utf-8 \\xff"), Code::Error);
+        assert_eq!(
+            i.result_bytes(),
+            b"unexpected byte sequence starting at index 0: '\\xFF'"
+        );
     }
 
     /// `clock` is an ensemble too, resolved by unambiguous prefix, so

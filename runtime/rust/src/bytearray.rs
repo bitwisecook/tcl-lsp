@@ -26,6 +26,8 @@
 //! into a code point that cannot be converted back to a byte under Tcl 9.
 
 #[cfg(test)]
+use tcl_cmd_core::encoding::ByteConversionError;
+#[cfg(test)]
 use tcl_dialect::ByteStringEncoding;
 
 use crate::obj::{self, TclObj, TclObjType};
@@ -46,16 +48,6 @@ pub static TCL_BYTE_ARRAY_TYPE: TclObjType = TclObjType {
     update_string_proc: Some(byte_array_update_string),
     set_from_any_proc: None,
 };
-
-/// An error converting a Unicode string representation to binary bytes.
-#[cfg(test)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct ByteConversionError {
-    /// Byte offset in the UTF-8 string representation where conversion fails.
-    pub(crate) byte_offset: usize,
-    /// Unicode code point which does not fit in Tcl 9's byte string domain.
-    pub(crate) code_point: u32,
-}
 
 unsafe fn byte_array_ref<'a>(obj: *mut TclObj) -> &'a TclByteArray {
     // SAFETY: callers establish `obj` has `TCL_BYTE_ARRAY_TYPE`, whose
@@ -424,24 +416,7 @@ pub(crate) fn binary_bytes(
         // runtime-created binary results use the typed branch above.
         return Ok(string);
     };
-    let mut out = Vec::with_capacity(text.len());
-    for (byte_offset, ch) in text.char_indices() {
-        let code_point = u32::from(ch);
-        if code_point <= u32::from(u8::MAX) {
-            out.push(u8::try_from(code_point).expect("checked byte code point"));
-            continue;
-        }
-        match policy {
-            ByteStringEncoding::LegacyTruncate => out.push(code_point.to_le_bytes()[0]),
-            ByteStringEncoding::CheckedLatin1 => {
-                return Err(ByteConversionError {
-                    byte_offset,
-                    code_point,
-                });
-            }
-        }
-    }
-    Ok(out)
+    tcl_cmd_core::encoding::text_bytes(text, policy)
 }
 
 #[cfg(test)]

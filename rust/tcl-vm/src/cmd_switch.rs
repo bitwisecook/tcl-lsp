@@ -106,7 +106,7 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         .unwrap_or_else(|| vm.runtime_version());
     let opts = match core_switch::parse_options(vm, args, version) {
         Ok(o) => o,
-        Err(e) => return crate::command::completion_from_cmd_error(vm, e),
+        Err(e) => return vm.cmd_error(e),
     };
     let value = args[opts.value_index].clone();
     let rest = &args[opts.value_index + 1..];

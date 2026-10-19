@@ -3353,13 +3353,15 @@ is renamed or deleted in this file."
             };
         let context = self.analysis_context();
         let registry = context.commands();
-        let findings = crate::interval_bounds::find_interval_bounds_resolved(
+        let findings = crate::interval_bounds::find_interval_bounds_in_release(
             &fu.cfg,
             &fu.ssa,
             (fu.diagnostic_value_facts().values(), (&fu.sccp, &fu.types)),
             &executable,
-            self.profile.character_model(),
-            crate::intervals::numbers_for_dialect(Some(self.profile)),
+            // The document's own character model, numeral grammar and `lset`
+            // append boundary — dialect-derived facts, threaded rather than
+            // ambient.
+            self.bounds_release(),
             crate::interval_bounds::BoundsSemantics {
                 registry,
                 context: Some(context.as_ref().into()),

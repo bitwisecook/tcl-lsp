@@ -609,6 +609,48 @@ fn the_ambiguous_prefix_and_nan_are_refused_in_every_boolean_context() {
     );
 }
 
+/// tclsh 8.4.20–9.1.0: C's `ParseBoolean` matches a boolean word untrimmed,
+/// so surrounding whitespace makes it no boolean in any boolean context;
+/// only the numeric fallback skips whitespace.
+#[test]
+fn whitespace_around_a_boolean_word_is_refused() {
+    for (script, word) in [
+        ("if {\"yes \"} {}", "\"yes \""),
+        ("expr {bool(\" true\")}", "\" true\""),
+        ("set x \"on\\t\"; if {$x} {}", "\"on\t\""),
+        ("set x { off}; while {$x} {}", "\" off\""),
+        ("expr {\"yes \" ? 1 : 0}", "\"yes \""),
+    ] {
+        let (code, result, error_code) = run(script);
+        assert_eq!(code, Code::Error, "{script}");
+        assert_eq!(
+            result,
+            format!("expected boolean value but got {word}"),
+            "{script}"
+        );
+        assert_eq!(error_code, "TCL VALUE NUMBER", "{script}");
+    }
+    let (code, result, error_code) =
+        run("namespace ensemble create -command ::q -map {} -prefixes {yes }");
+    assert_eq!(
+        (code, result.as_str(), error_code.as_str()),
+        (
+            Code::Error,
+            "expected boolean value but got \"yes \"",
+            "TCL VALUE NUMBER"
+        )
+    );
+    for (script, value) in [
+        ("if {\" 1 \"} {set y 1} else {set y 0}", "1"),
+        ("expr {bool(\"yes\")}", "1"),
+        ("expr {bool(\" 0 \")}", "0"),
+        ("expr {bool(2.5)}", "1"),
+    ] {
+        let (code, result, _) = run(script);
+        assert_eq!((code, result.as_str()), (Code::Ok, value), "{script}");
+    }
+}
+
 /// A boolean word is coerced only where a boolean is actually needed: as a
 /// whole expression it keeps its own spelling (tclsh: `expr {tru}` is `tru`,
 /// not `1`), while `!` and `&&` — which do want a boolean — read it through

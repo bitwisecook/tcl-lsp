@@ -437,6 +437,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }),
         synopsis: "array set arrayName list",
         return_type: Some(TclType::String),
+        // `TclCompileArraySetCmd` arrives in 8.6.
+        codegen_hook_windows: &[crate::stamp_window::StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("8.6"),
+            value: CodegenHookId::ArraySet,
+        }],
         arg_roles: &[(0, ArgRole::VarWrite)],
         mutator: true,
         side_effects: &[SideEffect {
@@ -512,6 +517,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         detail: "Unsets all of the elements in the array that match pattern.",
         synopsis: "array unset arrayName ?pattern?",
         return_type: Some(TclType::String),
+        // `TclCompileArrayUnsetCmd` arrives in 8.6.
+        codegen_hook_windows: &[crate::stamp_window::StampWindow {
+            lifecycle: crate::lifecycle::Lifecycle::introduced_in("8.6"),
+            value: CodegenHookId::ArrayUnset,
+        }],
         arg_roles: &[(0, ArgRole::VarWrite)],
         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::unbind::ARRAY_UNSET),
         mutator: true,

@@ -608,9 +608,13 @@ trace add variable y write W
 catch {set y 2} wm wo
 puts [list $rm [dict get $ro -errorcode] $wm [dict get $wo -errorcode] $y]
 ";
+    let expected =
+        "{can't read \"x\": nope} {TCL READ VARNAME} {can't set \"y\": bad} {TCL WRITE VARNAME} 2";
+    assert_eq!(vm_output(script), expected);
     assert_eq!(
-        vm_output(script),
-        "{can't read \"x\": nope} {TCL READ VARNAME x} {can't set \"y\": bad} {TCL WRITE VARNAME y} 2"
+        tclsh_output(script),
+        expected,
+        "Tcl 9.0 trace wrapper oracle"
     );
 }
 

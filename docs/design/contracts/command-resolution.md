@@ -152,7 +152,7 @@ source/table receipts before deriving identity or mutation effects.
 - **`uplevel`** selects the *frame* whose namespace is current: the
   script resolves in the target frame's namespace (`#0` → global) —
   pinned; both execution backends switch namespace with the frame
-  (`tcl-vm::eval_at_level`, `runtime`'s `eval_uplevel`).
+  (`tcl-vm::Vm::enter_level`, `runtime`'s `eval_uplevel`).
 - **`interp alias`** names are ordinary table entries (any namespace);
   the **target** is re-resolved **by name, from the GLOBAL namespace, at
   every call** — late-bound (a target defined later works; a deleted

@@ -38,12 +38,21 @@ const OPTIONS: OptionTable<'static> =
 pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     const WRONG: &str =
         "wrong # args: should be \"string is class ?-strict? ?-failindex var? str\"";
-    if rest.len() < 2 {
-        return err(WRONG);
+    let release = vm.runtime_version();
+    if let Some(error) = tcl_cmd_core::string_is::arity_error(rest.len()) {
+        return vm.cmd_error(error);
     }
+    let classes = tcl_cmd_core::string_is::classes(release);
     let class = match vm.native_static_option_index_checked(&rest[0], CLASSES, false, "class") {
-        Ok(index) => CLASSES[index],
-        Err(e) => return crate::command::completion_from_cmd_error(vm, e),
+        Ok(index) if classes.contains(&CLASSES[index]) => CLASSES[index],
+        Err(e) if classes.len() == CLASSES.len() => return vm.cmd_error(e),
+        // A release without every class (`list` and `wideinteger` arrive in
+        // 8.5, `entier` in 8.6, `dict` in 9.0) reads the word among its own
+        // classes, as its `StringIsCmd` does: `string is l` is `lower` in 8.4.
+        _ => match tcl_cmd_core::string_is::resolve_class(&rest[0].to_str(), release) {
+            Ok(class) => class,
+            Err(e) => return vm.cmd_error(e),
+        },
     };
     let mut strict = false;
     let mut fail_var: Option<Value> = None;
@@ -70,7 +79,7 @@ pub(crate) fn string_is(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                 i += 2;
             }
             Ok(_) => unreachable!("the option table is closed"),
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            Err(error) => return vm.cmd_error(error),
         }
     }
     if rest.len() - i > 1 {

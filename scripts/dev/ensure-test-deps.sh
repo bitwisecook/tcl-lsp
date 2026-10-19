@@ -104,7 +104,7 @@ requested_tcl_releases() {
         | awk 'NF && !seen[$0]++ { print }'
 }
 
-WASMTIME_VERSION="49.0.2"
+WASMTIME_VERSION="49.0.3"
 WASI_SDK_VERSION="34.0"
 TCLLIB_TAG="tcllib-2-0"
 TCLLIB_VERSION="2.0"
@@ -112,7 +112,9 @@ TCLLIB_VERSION="2.0"
 # docs/design/contracts/development-environment.md,
 # and the CI `node-version`. Distro apt/dnf packages (Ubuntu 24.04 ships Node
 # 18) fall below this, so install from NodeSource when they would.
-NODE_MIN_MAJOR="24"
+NODE_MIN_MAJOR="26"
+# Node 25+ no longer bundles Corepack, which pins npm via `packageManager`.
+COREPACK_VERSION="0.36.0"
 
 CHECK_ONLY=0
 TCLLIB_ONLY=0
@@ -652,6 +654,23 @@ node_current_major() {
     node --version 2>/dev/null | sed -n 's/^v\([0-9]\{1,\}\)\..*/\1/p'
 }
 
+# The first node that meets the minimum: the one on PATH, then the package
+# manager's, which an older install earlier on PATH can shadow.
+node_meeting_min() {
+    local candidate major brew_node=""
+    if command -v brew >/dev/null 2>&1; then
+        brew_node="$(brew --prefix 2>/dev/null)/bin/node"
+    fi
+    for candidate in "$(command -v node 2>/dev/null || true)" /usr/bin/node "$brew_node"; do
+        [ -n "$candidate" ] && [ -x "$candidate" ] || continue
+        major="$("$candidate" --version 2>/dev/null | sed -n 's/^v\([0-9]\{1,\}\)\..*/\1/p')"
+        if [ -n "$major" ] && [ "$major" -ge "$NODE_MIN_MAJOR" ]; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+}
+
 # Install Node from NodeSource (apt/dnf), which ships the current major, rather
 # than the distro package (Ubuntu 24.04 apt = Node 18). The NodeSource `nodejs`
 # package bundles npm.
@@ -679,8 +698,12 @@ install_node_from_nodesource() {
 ensure_node() {
     if [ "${SKIP_NODE:-}" = "1" ]; then info "SKIP_NODE=1 — skipping node"; return 0; fi
     local cur; cur="$(node_current_major)"
-    if [ -n "$cur" ] && [ "$cur" -ge "$NODE_MIN_MAJOR" ] && command -v npm >/dev/null 2>&1; then
-        info "node + npm already on PATH ($(node --version)); >= v${NODE_MIN_MAJOR}"
+    local node_bin; node_bin="$(node_meeting_min)"
+    if [ -n "$node_bin" ] && [ -x "$(dirname "$node_bin")/npm" ]; then
+        info "node + npm already installed ($node_bin, $("$node_bin" --version)); >= v${NODE_MIN_MAJOR}"
+        if [ "$node_bin" != "$(command -v node)" ]; then
+            warn "node v${cur} at $(command -v node) comes before $node_bin on PATH"
+        fi
     elif [ "$CHECK_ONLY" -eq 1 ]; then
         if [ -n "$cur" ]; then
             note_missing "Node.js >= ${NODE_MIN_MAJOR} (found v${cur})"
@@ -694,9 +717,32 @@ ensure_node() {
         case "$PKG" in
             apt-get) install_node_from_nodesource deb || run_install "Node.js (apt)" nodejs npm ;;
             dnf|yum) install_node_from_nodesource rpm || run_install "Node.js (dnf)" nodejs npm ;;
-            # Homebrew's `node` formula tracks the current major (>= 24).
+            # Homebrew's `node` formula tracks the current major (>= 26).
             brew)    run_install "Node.js (Homebrew)" node ;;
         esac
+        hash -r
+        node_bin="$(node_meeting_min)"
+    fi
+
+    # Corepack must sit beside the node that meets the minimum, or its npm
+    # shim lands next to some other install and never takes effect. Its
+    # scripts run `env node`, so that node leads PATH for every call below.
+    if [ -z "$node_bin" ]; then
+        [ "$CHECK_ONLY" -eq 1 ] || warn "no node >= v${NODE_MIN_MAJOR} found — skipping corepack and npm ci"
+        return 0
+    fi
+    local node_dir; node_dir="$(dirname "$node_bin")"
+    local node_path="$node_dir:$PATH"
+    if [ ! -x "$node_dir/corepack" ]; then
+        if [ "$CHECK_ONLY" -eq 1 ]; then
+            note_missing "corepack ${COREPACK_VERSION}"
+        else
+            info "Installing corepack ${COREPACK_VERSION}"
+            $SUDO env PATH="$node_path" "$node_dir/npm" install -g --no-audit --no-fund "corepack@${COREPACK_VERSION}" >/dev/null
+        fi
+    fi
+    if [ "$CHECK_ONLY" -eq 0 ] && [ -x "$node_dir/corepack" ]; then
+        $SUDO env PATH="$node_path" "$node_dir/corepack" enable npm
     fi
 
     # Project-local tsc lives in editors/vscode/node_modules/.bin/tsc and
@@ -708,7 +754,7 @@ ensure_node() {
             note_missing "editors/vscode/node_modules (would run npm ci)"
         else
             info "Running npm ci in editors/vscode (project tsc)"
-            (cd "$ext_dir" && npm ci --no-audit --no-fund >/dev/null)
+            (cd "$ext_dir" && PATH="$node_path" COREPACK_ENABLE_DOWNLOAD_PROMPT=0 npm ci --no-audit --no-fund >/dev/null)
         fi
     fi
 }
@@ -925,8 +971,8 @@ ensure_wasmtime() {
 
     local wasm_arch expected_sha
     case "$ARCH" in
-        x86_64)  wasm_arch="x86_64-linux"; expected_sha="a4d6e9e3a5a60f527cf7793d674c48930c80c2e8977995b8a275cad3254b9322" ;;
-        aarch64) wasm_arch="aarch64-linux"; expected_sha="ca14988c6da3d92512bd9c3bad6cbd06b1f5743b6911a9e709f1a6fa30637d7f" ;;
+        x86_64)  wasm_arch="x86_64-linux"; expected_sha="4001225413f208345b980525f31c4080e1873808b38d0ddc7918497340667fbb" ;;
+        aarch64) wasm_arch="aarch64-linux"; expected_sha="880fcb026da88ad7fc1713d572b0d03d139758b7da96cd3cb8c9cbf847a521df" ;;
         *) echo "ERROR: unsupported architecture for Wasmtime: $ARCH" >&2; return 1 ;;
     esac
 
@@ -1193,8 +1239,8 @@ ensure_rgxg() {
 # and checked against its digest before it runs, so a dev box and a CI runner
 # install the same uv from the same script.  Re-pin both together:
 #   curl -fsSL https://astral.sh/uv/<version>/install.sh | sha256sum
-UV_VERSION="0.12.23"
-UV_INSTALLER_SHA256="b8e6c43099ee9f9a550984d3ad56948457c689e7a99c090b35377234ac241491"
+UV_VERSION="0.13.1"
+UV_INSTALLER_SHA256="7c482d409673a53f4d9bd34ae95c9166be3b8d89ca82f27dd7bca3cab457afff"
 
 ensure_uv() {
     if [ "${SKIP_UV:-}" = "1" ]; then info "SKIP_UV=1 — skipping uv"; return 0; fi

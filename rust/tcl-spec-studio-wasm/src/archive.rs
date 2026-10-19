@@ -127,7 +127,12 @@ pub fn extract(bytes: &[u8]) -> Result<Extraction, String> {
         if member.is_dir() {
             continue;
         }
-        let name = member.name().to_owned();
+        // Since zip 9 a member name can fail to decode; record it like any
+        // other unreadable entry rather than aborting the whole archive.
+        let Ok(name) = member.name().map(|n| n.into_owned()) else {
+            out.skipped.push(format!("entry {index}: unreadable name"));
+            continue;
+        };
         if !is_tcl_source(&name) {
             continue;
         }
@@ -179,7 +184,7 @@ mod tests {
     /// Build a zip in memory from `(name, contents)` pairs.
     fn zip_of(members: &[(&str, &[u8])]) -> Vec<u8> {
         let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-        let options: zip::write::FileOptions<'_, ()> =
+        let options: zip::write::FileOptions<'_, '_, ()> =
             zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
         for (name, body) in members {
             writer.start_file(*name, options).expect("start entry");
@@ -251,7 +256,7 @@ mod tests {
     #[test]
     fn a_directory_member_is_not_an_entry() {
         let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));
-        let options: zip::write::FileOptions<'_, ()> = zip::write::FileOptions::default();
+        let options: zip::write::FileOptions<'_, '_, ()> = zip::write::FileOptions::default();
         writer.add_directory("pkg/", options).expect("dir");
         writer.start_file("pkg/a.tcl", options).expect("file");
         writer.write_all(b"proc a {} {}").expect("write");

@@ -185,6 +185,7 @@ fn apply_native_list_range_using<E>(
                 elems: NativeListStorage::new(Vec::new()),
                 canonical: Rc::new(Cell::new(false)),
                 string_protocol: Cell::new(Some(protocol)),
+                string_typed: false,
             };
             if shared {
                 Ok(obj::Owned::fresh(obj::alloc_typed(
@@ -242,6 +243,7 @@ fn apply_native_list_range_using<E>(
                     elems: list.elems.range_header(range),
                     canonical: Rc::clone(&list.canonical),
                     string_protocol: Cell::new(Some(protocol)),
+                    string_typed: list.string_typed,
                 });
                 Ok(obj::Owned::fresh(obj::alloc_typed(
                     &TCL_LIST_TYPE,

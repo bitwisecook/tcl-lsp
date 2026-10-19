@@ -2264,6 +2264,18 @@ impl CommandRegistry {
         self.profile
     }
 
+    /// `spec`'s signature shape at this registry's release
+    /// ([`CommandSpec::arity_at`]); the unversioned shape where the profile
+    /// names no release.
+    #[must_use]
+    pub fn release_arity(&self, spec: &CommandSpec) -> Arity {
+        let release = self
+            .profile
+            .and_then(tcl_dialect::TclVersion::from_profile)
+            .map(tcl_dialect::TclVersion::version_string);
+        spec.arity_at(release)
+    }
+
     /// The point a consumer resolves hooks and calls at when honouring
     /// **this registry's own** dialect: the attached profile's, or `None`
     /// — surface-blind — for a profile-less registry.
@@ -15057,11 +15069,8 @@ mod tests {
             "lrepeat",
             "lassign",
             // Tcl 9.0+: a flat native dispatch over `tcl-cmd-core::lseq`
-            // (`tcl-vm/src/cmd_lseq.rs::cmd_lseq`) with no script-body eval
-            // fallback of its own — its only recursive edge is evaluating
-            // one argument word as an *expression* via `Vm::eval_expr`,
-            // the same evaluator `expr` (also on this list) runs on, not a
-            // general eval-a-script fallback — see `commands/tcl/lseq.rs`.
+            // (`tcl-vm/src/cmd_lseq.rs::cmd_lseq`) that evaluates nothing —
+            // see `commands/tcl/lseq.rs`.
             "lseq",
             "concat",
             "split",
@@ -15099,6 +15108,11 @@ mod tests {
             // `commands/tcl/tcl_unsupported_corotype.rs`.
             "::tcl::unsupported::corotype",
             "tcl::unsupported::corotype",
+            // `::tcl::unsupported::representation value` — describes the
+            // value it was handed and runs nothing. See
+            // `commands/tcl/tcl_unsupported_representation.rs`.
+            "::tcl::unsupported::representation",
+            "tcl::unsupported::representation",
         ]
         .into_iter()
         .collect();

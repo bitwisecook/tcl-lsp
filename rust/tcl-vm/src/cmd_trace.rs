@@ -63,7 +63,7 @@ fn cmd_trace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             .native_string_protocol();
         let option = match core_trace::resolve_option_original(vm, sub, protocol) {
             Ok(o) => o,
-            Err(e) => return crate::command::completion_from_cmd_error(vm, e),
+            Err(e) => return vm.cmd_error(e),
         };
         if let Err(error) = original_names.check(vm) {
             return crate::command::completion_from_cmd_error(vm, error);
@@ -108,7 +108,7 @@ fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Comple
         // unambiguous prefix (`var` → `variable`) is accepted (set-2.4 / set-4.4).
         let kind = match core_trace::resolve_type_original(vm, kindw) {
             Ok(k) => k,
-            Err(e) => return crate::command::completion_from_cmd_error(vm, e),
+            Err(e) => return vm.cmd_error(e),
         };
         if let Err(error) = original_names.check(vm) {
             return crate::command::completion_from_cmd_error(vm, error);
@@ -125,7 +125,7 @@ fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Comple
         // Validate the op list against the type's table (`bad operation …`).
         let ops: Vec<String> = match core_trace::parse_ops_original(vm, ops, kind) {
             Ok(o) => o.iter().map(|s| (*s).to_string()).collect(),
-            Err(e) => return crate::command::completion_from_cmd_error(vm, e),
+            Err(e) => return vm.cmd_error(e),
         };
         if let Err(error) = original_names.check(vm) {
             return crate::command::completion_from_cmd_error(vm, error);
@@ -229,7 +229,7 @@ fn trace_info(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         };
         let kind = match core_trace::resolve_type_original(vm, kindw) {
             Ok(k) => k,
-            Err(e) => return crate::command::completion_from_cmd_error(vm, e),
+            Err(e) => return vm.cmd_error(e),
         };
         if let Err(error) = original_names.check(vm) {
             return crate::command::completion_from_cmd_error(vm, error);
@@ -349,7 +349,7 @@ fn legacy_variable(vm: &mut Vm, args: &[Value], add: bool) -> Completion<Value> 
         };
         let ops: Vec<String> = match core_trace::parse_legacy_variable_ops_original(vm, ops) {
             Ok(o) => o.iter().map(|s| (*s).to_string()).collect(),
-            Err(e) => return crate::command::completion_from_cmd_error(vm, e),
+            Err(e) => return vm.cmd_error(e),
         };
         let name = match original_names.read(vm, name) {
             Ok(bytes) => bytes,

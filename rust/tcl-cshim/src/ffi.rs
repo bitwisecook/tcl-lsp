@@ -382,10 +382,10 @@ fn wrap_to_i32(wide: i64) -> i32 {
 }
 
 /// Whether Tcl 9's `Tcl_GetIntFromObj` accepts `wide` for a 32-bit target
-/// type: anything within the *unsigned* range is truncated rather than
-/// refused.
+/// type: `INT_MIN` through `UINT_MAX`, the top half truncated rather than
+/// refused. (8.5 and 8.6 accepted down to `-UINT_MAX`; 9.0 does not.)
 fn fits_32(wide: i64) -> bool {
-    (-i64::from(u32::MAX)..=i64::from(u32::MAX)).contains(&wide)
+    (i64::from(i32::MIN)..=i64::from(u32::MAX)).contains(&wide)
 }
 
 /// `Tcl_GetIntFromObj`.
@@ -1167,8 +1167,9 @@ pub unsafe extern "C" fn tcl_eval_obj_ex(
     })
 }
 
-/// `Tcl_NumUtfChars`: the number of UTF-8 characters in `length` bytes (or
-/// up to the terminator for a negative `length`).
+/// `Tcl_NumUtfChars`: the number of characters in `length` bytes (or up to
+/// the terminator for a negative `length`), each read as C Tcl reads it, so a
+/// malformed byte is a character of its own.
 ///
 /// # Safety
 ///
@@ -1228,11 +1229,12 @@ pub unsafe extern "C" fn tcl_utf_ncmp(s1: *const c_char, s2: *const c_char, n: u
 #[cfg(test)]
 mod tests {
     use super::{
-        TCL_OK, take_panic, tcl_get_string, tcl_new_string_obj, tcl_num_utf_chars, tcl_utf_ncmp,
-        tclshim_set_result_string, wrap_to_i32,
+        TCL_OK, fits_32, take_panic, tcl_get_string, tcl_new_string_obj, tcl_num_utf_chars,
+        tcl_utf_ncmp, tclshim_set_result_string, wrap_to_i32,
     };
     use crate::obj::ObjRef;
     use crate::state::InterpState;
+    use tcl_syntax::utf;
 
     #[test]
     fn a_panic_at_the_boundary_is_parked_not_propagated() {
@@ -1246,6 +1248,21 @@ mod tests {
                 .contains("NULL Tcl_Obj")
         );
         assert!(take_panic().is_none(), "taking clears it");
+    }
+
+    #[test]
+    fn int_range_is_int_min_through_uint_max() {
+        for accepted in [-2_147_483_648, 0, 2_147_483_648, 4_294_967_295] {
+            assert!(fits_32(accepted), "{accepted}");
+        }
+        for refused in [
+            -2_147_483_649,
+            -3_000_000_000,
+            -4_294_967_295,
+            4_294_967_296,
+        ] {
+            assert!(!fits_32(refused), "{refused}");
+        }
     }
 
     #[test]
@@ -1273,7 +1290,7 @@ mod tests {
         // SAFETY: both literals are terminated.
         unsafe {
             assert_eq!(tcl_utf_ncmp(bytes.as_ptr(), c"a\xC0\x80b".as_ptr(), 3), 0);
-            assert_eq!(tcl_utf_ncmp(bytes.as_ptr(), c"a\xC0\x80c".as_ptr(), 3), -1);
+            assert!(tcl_utf_ncmp(bytes.as_ptr(), c"a\xC0\x80c".as_ptr(), 3) < 0);
             assert_eq!(tcl_num_utf_chars(bytes.as_ptr(), -1), 3);
         }
     }
@@ -1299,6 +1316,37 @@ mod tests {
             );
             assert_eq!(tcl_num_utf_chars(left.as_ptr().cast(), 3), 3);
             assert_eq!(tcl_num_utf_chars(left.as_ptr().cast(), -1), 1);
+        }
+    }
+
+    /// `bytes` with C's terminator after them.
+    fn terminated(bytes: &[u8]) -> Vec<u8> {
+        let mut text = bytes.to_vec();
+        text.push(0);
+        text
+    }
+
+    #[test]
+    fn malformed_bytes_are_counted_as_c_tcl_counts_them() {
+        for &(bytes, length, expected) in utf::NUM_UTF_CHARS_VECTORS {
+            let text = terminated(bytes);
+            // SAFETY: the buffer holds `length` bytes and is terminated.
+            let count = unsafe { tcl_num_utf_chars(text.as_ptr().cast(), length) };
+            assert_eq!(count, expected, "Tcl_NumUtfChars({bytes:x?}, {length})");
+        }
+    }
+
+    #[test]
+    fn malformed_bytes_are_compared_as_c_tcl_compares_them() {
+        for &(left, right, characters, expected) in utf::UTF_NCMP_VECTORS {
+            let (one, two) = (terminated(left), terminated(right));
+            // SAFETY: each buffer holds the characters compared and is terminated.
+            let answer =
+                unsafe { tcl_utf_ncmp(one.as_ptr().cast(), two.as_ptr().cast(), characters) };
+            assert_eq!(
+                answer, expected,
+                "Tcl_UtfNcmp({left:x?}, {right:x?}, {characters})"
+            );
         }
     }
 }

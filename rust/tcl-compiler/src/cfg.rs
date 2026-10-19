@@ -217,17 +217,75 @@ pub struct LoopNode {
     pub statement: Statement,
 }
 
+/// The command a branch condition belongs to ([`Function::condition_owners`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConditionOwner {
+    /// The command's source span.
+    pub command: Span,
+    /// Whether the command's compile procedure leaves uncompiled the script a
+    /// condition that is one literal constant never runs (`TclCompileIfCmd`,
+    /// `TclCompileWhileCmd`); `TclCompileForCmd` compiles every clause.
+    pub skips_constant_dead_script: bool,
+}
+
 /// Source site and Tcl error context for a command body flattened into a CFG.
 ///
-/// The semantic context comes from registry resolution during lowering.  It is
-/// retained separately from source text so code generators never need to
-/// recover command identity by parsing the original script.
+/// The semantic context comes from registry resolution or the structured
+/// command lowered.  It is retained separately from source text so code
+/// generators never need to recover command identity by parsing the original
+/// script.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct InlineBodyErrorSite {
     /// Source span of the enclosing command whose body was inlined.
     pub span: Span,
-    /// Target-neutral Tcl error context contributed by the inlined body.
-    pub context: tcl_registry::InlineBodyErrorContext,
+    /// The frame an error leaving the body adds before the command is logged.
+    pub context: BodyErrorContext,
+    /// The body or clause the frame covers.
+    pub region: Span,
+    /// Where the release compiles the command, its bodies then code of the
+    /// script holding it with no frame of their own.
+    pub compiled: CompiledAt,
+}
+
+/// The `errorInfo` frame an error leaving an inlined body adds as the command
+/// holding the body runs it ([`InlineBodyErrorSite`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BodyErrorContext {
+    /// A registry-described body ([`tcl_registry::InlineBodyErrorContext`]).
+    Registry(tcl_registry::InlineBodyErrorContext),
+    /// A loop body: `("LABEL" body line N)`.
+    LoopBody(&'static str),
+    /// A clause of a command that names it with no line:
+    /// `("for" initial command)`.
+    Clause(&'static str),
+    /// A `switch` arm body: `("PATTERN" arm line N)`, the pattern the source
+    /// text at the span.
+    Arm(Span),
+    /// A script the command runs with no frame of its own (`if`).
+    Script,
+}
+
+/// Where the release compiles a command with its compile procedure
+/// ([`tcl_registry::release_compilation::compiles_control`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CompiledAt {
+    /// In a procedure body.
+    pub in_procedure: bool,
+    /// In any other script.
+    pub outside_procedure: bool,
+}
+
+impl CompiledAt {
+    /// Compiled nowhere: the command always runs.
+    pub const NEVER: Self = Self {
+        in_procedure: false,
+        outside_procedure: false,
+    };
+    /// Compiled everywhere.
+    pub const ALWAYS: Self = Self {
+        in_procedure: true,
+        outside_procedure: true,
+    };
 }
 
 /// The exception edge from the block before a flattened `catch` or `try`
@@ -257,6 +315,25 @@ pub struct CatchEnd {
     /// variables it defines: the form the same statement takes when it is not
     /// flattened.
     pub call: Statement,
+}
+
+/// A script body a structured command evaluates.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BodyScript {
+    /// The command that owns the body.
+    pub owner: CommandBindingSite,
+    /// The block the body starts in.
+    pub entry: BlockId,
+    /// The blocks created while lowering the body, which run nothing else.
+    pub nested: std::ops::Range<u32>,
+}
+
+impl BodyScript {
+    /// Whether `block` runs part of this body.
+    #[must_use]
+    pub fn contains(&self, block: BlockId) -> bool {
+        block == self.entry || self.nested.contains(&block.0)
+    }
 }
 
 /// A complete control-flow graph for a single procedure or top-level script.
@@ -350,10 +427,23 @@ pub struct Function {
     /// Original invocation proof owning a native expression at a Branch.
     /// This analysis carrier never creates a runtime command replay boundary.
     pub condition_binding_sites: HashMap<BlockId, CommandBindingSite>,
+    /// The `if`, `while` or `for` command each branch condition, keyed by its
+    /// span, belongs to: an error its evaluation raises logs that command.
+    pub condition_owners: HashMap<Span, ConditionOwner>,
     /// Continuation block for a structured command whose inline CFG occupies a
     /// region rather than one statement or a recognised loop shape. Codegen
     /// wraps that region in one replayable `START_CMD` boundary.
     pub command_boundary_continuations: HashMap<BlockId, BlockId>,
+    /// Head dispatch block to join block for a structured `if` or exact
+    /// `switch` lowered into branch terminators. Codegen opens the command's
+    /// replayable `START_CMD` before the head's first test and ends it at the
+    /// join's result pop, as Tcl's bytecode does.
+    pub branch_command_joins: HashMap<BlockId, BlockId>,
+    /// The script bodies structured commands evaluate (a loop body or `for`
+    /// step, an `if`/`switch` arm, a `catch` body), each with the command that
+    /// owns it and the blocks that run it. A release that does not compile the
+    /// owner into the enclosing unit compiles the body as a unit of its own.
+    pub body_scripts: Vec<BodyScript>,
     /// Caller-frame injection this function is *subject to*: a callee whose
     /// [frame-effect summary](crate::cfg_builder::upvar_info::UpvarInfo)
     /// says it writes or reads names in **this** frame that no static
@@ -506,7 +596,10 @@ impl Function {
             procedure_binding_requirements: Vec::new(),
             command_boundary_sites: HashMap::new(),
             condition_binding_sites: HashMap::new(),
+            condition_owners: HashMap::new(),
             command_boundary_continuations: HashMap::new(),
+            branch_command_joins: HashMap::new(),
+            body_scripts: Vec::new(),
             caller_frame_barrier: crate::dynamic_names::DynamicNameBarrier::default(),
             declared_frame_effects: std::sync::Arc::default(),
             alias_observed_vars: std::collections::BTreeSet::new(),

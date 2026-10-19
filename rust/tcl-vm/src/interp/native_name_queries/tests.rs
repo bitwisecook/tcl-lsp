@@ -112,6 +112,7 @@ fn declaration(body: Value, defaults: &[Value]) -> NativeProcedureCommand {
         body_src: body,
         usage_name: None,
         call_identity: None,
+        lambda_term: None,
     })
 }
 fn arm(vm: &mut Vm, formatter: &Formatter, body: &Value, defaults: &[Value]) -> Rc<ProcDef> {

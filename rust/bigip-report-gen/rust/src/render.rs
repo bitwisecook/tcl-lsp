@@ -31,7 +31,7 @@
 //! embedded at compile time so the two generators stay byte-identical.
 
 use base64::Engine as _;
-use minijinja::{AutoEscape, Environment};
+use minijinja::{AutoEscape, Environment, value::Serde};
 use serde_json::{Map, Value as J, json};
 
 use crate::model::collect_model_full;
@@ -265,7 +265,7 @@ pub fn render_report(model: J, opts: &RenderOptions) -> Result<String, ReportErr
     env.add_template("report", REPORT_TEMPLATE)
         .map_err(|e| ReportError(format!("template compile error: {e}")))?;
     let tmpl = env.get_template("report").expect("template just added");
-    tmpl.render(J::Object(ctx))
+    tmpl.render(Serde(J::Object(ctx)))
         .map_err(|e| ReportError(format!("template render error: {e}")))
 }
 

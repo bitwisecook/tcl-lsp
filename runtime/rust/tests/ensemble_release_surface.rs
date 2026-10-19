@@ -101,7 +101,9 @@ fn string_index_prefix_is_unique_before_tcl9() {
     let (code, message) = run(&mut old, "string insert abc 1 X");
     assert_eq!(code, Code::Error);
     assert!(
-        message.starts_with("unknown or ambiguous subcommand \"insert\": must be cat, compare"),
+        message.starts_with(
+            "unknown or ambiguous subcommand \"insert\": must be bytelength, cat, compare"
+        ),
         "{message}"
     );
 
@@ -286,4 +288,93 @@ fn binary_and_encoding_tables_follow_the_emulated_release() {
         message,
         "unknown or ambiguous subcommand \"d\": must be convertfrom, convertto, names, or system"
     );
+}
+
+/// `tcl::unsupported::representation` (format-20.1's probe) with addresses
+/// and counts masked. tclsh 8.4.20 and 8.5.19 have no such command; from 8.6
+/// a constant `dict create` stays a dict through `format %s`, and a double's
+/// internal rep is its `%g` from 9.0 and its bits in 8.6. This engine's values
+/// often carry a string rep where C's have none, so the string clause is
+/// checked only where tclsh has one.
+// The probe branches with `if`, which the no-libtommath build lacks.
+#[cfg(have_tommath)]
+#[test]
+fn representation_reports_the_value_as_each_release_does() {
+    const SCRIPT: &str = r#"if {[catch {tcl::unsupported::representation x} m]} {
+    puts $m
+} else {
+    proc rep {v} {
+        set d [tcl::unsupported::representation $v]
+        regsub -all {0x[0-9a-f]+|\(nil\)} [regsub {refcount of [0-9]+} $d {refcount of N}] P
+    }
+    set x [dict create a b c d]
+    format %s $x
+    puts [string match {value is a dict *} [tcl::unsupported::representation $x]]
+    puts [rep [expr {1.5 * 2}]]
+    puts [rep [list a b]]
+    set i 42
+    incr i
+    puts [rep $i]
+    puts [rep abcdefghijklmnopq]
+    catch {tcl::unsupported::representation} m
+    puts $m
+    catch {::tcl::unsupported::representation a b} m
+    puts $m
+}
+"#;
+    let lines = |version| {
+        let mut interp = at(version);
+        let src = format!(
+            "set ::__out {{}}\nproc puts {{s}} {{append ::__out $s \\n}}\n{SCRIPT}\nset ::__out"
+        );
+        let (code, out) = run(&mut interp, &src);
+        assert_eq!(code, Code::Ok, "{version:?}: {out}");
+        out.lines().map(str::to_owned).collect::<Vec<_>>()
+    };
+    for version in [TclVersion::V8_4, TclVersion::V8_5] {
+        assert_eq!(
+            lines(version),
+            ["invalid command name \"tcl::unsupported::representation\""],
+            "{version:?}"
+        );
+    }
+    for (version, double_rep) in [
+        (TclVersion::V8_6, "P:P"),
+        (TclVersion::V9_0, "3"),
+        (TclVersion::V9_1, "3"),
+    ] {
+        let out = lines(version);
+        assert_eq!(out.len(), 7, "{version:?}: {out:?}");
+        assert_eq!(out[0], "1", "{version:?}: format-20.1");
+        let head = |kind: &str| {
+            format!("value is a {kind} with a refcount of N, object pointer at P, internal representation ")
+        };
+        assert!(
+            out[1].starts_with(&format!("{}{double_rep},", head("double"))),
+            "{version:?}: {}",
+            out[1]
+        );
+        assert!(
+            out[2].starts_with(&format!("{}P:P,", head("list"))),
+            "{version:?}: {}",
+            out[2]
+        );
+        assert!(
+            out[3].starts_with(&format!("{}P:P,", head("int"))),
+            "{version:?}: {}",
+            out[3]
+        );
+        assert_eq!(
+            out[4],
+            "value is a pure string with a refcount of N, object pointer at P, string representation \"abcdefghijklm...\""
+        );
+        assert_eq!(
+            out[5],
+            "wrong # args: should be \"tcl::unsupported::representation value\""
+        );
+        assert_eq!(
+            out[6],
+            "wrong # args: should be \"::tcl::unsupported::representation value\""
+        );
+    }
 }

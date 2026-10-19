@@ -70,6 +70,7 @@ impl CodegenCtx<'_> {
             vec![Operand::Imm(super::bytecode_imm(index))],
         );
         self.instructions[instruction].push_verbatim = true;
+        self.instructions[instruction].literal_rep = tcl_bytecode::LiteralRep::Verbatim;
     }
 
     /// Register an unchanged original C command head through its actual owner.
@@ -284,10 +285,20 @@ impl CodegenCtx<'_> {
                     lookup_var: &lookup,
                 }
                 .fold_cmd_subst_resolved(inner)
+            })
+            .filter(|fold| {
+                // Only a list literal keeps a list result's reading as a
+                // script; any other literal leaves such a result to its
+                // command.
+                fold.inline_codegen_hook == Some(tcl_registry::hooks::InlineCodegenHookId::List)
+                    || !crate::const_subst::folded_literal_reads_apart(
+                        &fold.value,
+                        self.vm_release(),
+                    )
             });
         if let Some(fold) = fold {
-            for binding in &fold.command_bindings {
-                self.require_command_binding(binding);
+            for invocation in &fold.invocations {
+                self.require_invocation_binding(&invocation.binding, &invocation.shape);
             }
             for claim in &fold.site_claims {
                 self.require_site_claim(claim);
@@ -306,6 +317,18 @@ impl CodegenCtx<'_> {
                 self.push_lit_no_dedup_verbatim(&fold.value);
                 self.emit(Op::DUP, vec![]);
                 self.emit(Op::VERIFY_DICT, vec![]);
+            } else if fold.inline_codegen_hook
+                == Some(tcl_registry::hooks::InlineCodegenHookId::List)
+                && !fold.value.is_empty()
+            {
+                // `TclCompileListCmd` pushes the list it builds from literal
+                // words as its list object (and `[list]` as an empty string):
+                // a canonical list, which a script evaluation reads without
+                // compiling.
+                self.push_lit_no_dedup_verbatim(&fold.value);
+                if let Some(push) = self.instructions.last_mut() {
+                    push.literal_rep = tcl_bytecode::LiteralRep::List;
+                }
             } else {
                 // A command result is already a final Tcl value. It must not
                 // be parsed as another word: `$`, `[…]`, braces, and backslash
@@ -357,6 +380,18 @@ impl CodegenCtx<'_> {
     }
     /// Push a literal onto the stack with deduplication.
     pub fn push_lit(&mut self, value: &str) {
+        // The command substitutions of a word substituted at run time are
+        // scripts C compiles with the command, their locals the procedure's.
+        if self.compiles_locals()
+            && value.contains('[')
+            && let Some(parts) = super::helpers::parse_subst_template(value, self.lexer_config())
+        {
+            for part in parts {
+                if let super::helpers::SubstPart::Cmd(script) = part {
+                    self.intern_script_locals(&script);
+                }
+            }
+        }
         let idx = self.literals.intern(value);
         let op = if idx < 256 { Op::PUSH1 } else { Op::PUSH4 };
         self.emit_comment(
@@ -388,6 +423,7 @@ impl CodegenCtx<'_> {
             &format!("\"{}\"", esc(&value, 40)),
         );
         self.instructions[pos].push_verbatim = true;
+        self.instructions[pos].literal_rep = tcl_bytecode::LiteralRep::Verbatim;
     }
 
     /// Push a *verbatim* literal **byte for byte** — a value that is already
@@ -417,6 +453,7 @@ impl CodegenCtx<'_> {
             &format!("\"{}\"", esc(value, 40)),
         );
         self.instructions[pos].push_verbatim = true;
+        self.instructions[pos].literal_rep = tcl_bytecode::LiteralRep::Verbatim;
     }
 
     /// Push an already decoded native byte string without substitution.
@@ -429,6 +466,7 @@ impl CodegenCtx<'_> {
             &format!("\"{}\"", tcl_bytecode::format::esc_bytes(value, 40)),
         );
         self.instructions[pos].push_verbatim = true;
+        self.instructions[pos].literal_rep = tcl_bytecode::LiteralRep::Verbatim;
     }
 
     /// Decode an authored literal fragment with the actual native escape policy.
@@ -482,6 +520,7 @@ impl CodegenCtx<'_> {
             &format!("\"{}\" #nodedup", esc(value, 40)),
         );
         self.instructions[pos].push_verbatim = true;
+        self.instructions[pos].literal_rep = tcl_bytecode::LiteralRep::Verbatim;
     }
 
     /// Emit `startCommand` for non-first specialised commands.
@@ -685,6 +724,72 @@ impl CodegenCtx<'_> {
     pub(super) fn target_needs_stack(&mut self, name: &str) -> bool {
         let (base, index) = split_array_ref(name).map_or((name, false), |(base, _)| (base, true));
         self.command_variable_slot(base.as_bytes()).is_none() || index
+    }
+
+    /// Make the variable `name` a compiled local of the procedure, as a C
+    /// compile procedure does for each variable word it compiles
+    /// (`TclFindCompiledLocal`) even where it emits no access to it: the
+    /// array an element names, nothing for a qualified name. A name whose
+    /// word still holds a substitution or escape has no static local.
+    pub(crate) fn intern_compiled_local(&mut self, name: &str) {
+        if !self.compiles_locals() || is_qualified(name) || name.contains(['$', '[', '\\']) {
+            return;
+        }
+        let base = split_array_ref(name).map_or(name, |(base, _)| base);
+        self.lvt.intern(base);
+    }
+
+    /// Make the compiled locals of `script` locals of this procedure: the
+    /// literal script of a command C compiles with its command, which this
+    /// compiler leaves the command to run.
+    pub(crate) fn intern_script_locals(&mut self, script: &str) {
+        if !self.compiles_locals() {
+            return;
+        }
+        let config = self.lexer_config();
+        let ir = crate::lowering::lower_proc_body_module_for_bytecode(
+            script,
+            "",
+            self.registry,
+            config,
+            self.dialect,
+            false,
+        );
+        let cfg = crate::cfg_builder::build_cfg_codegen_with_registry_and_config(
+            &ir,
+            false,
+            self.registry,
+            config,
+        );
+        let asm = super::emitter::codegen_function(&cfg.top_level, &[], true, self.registry);
+        for name in asm.lvt.entries() {
+            // Native local names need not be Unicode; such a local has no
+            // text spelling to intern here.
+            if asm.lvt.is_source_local_bytes(name.as_bytes())
+                && let Ok(name) = std::str::from_utf8(name.as_bytes())
+            {
+                self.intern_compiled_local(name);
+            }
+        }
+    }
+
+    /// Make the compiled locals of the command C compiles in place of a
+    /// generic surrogate ([`super::emitter::bytecoded::codegen_hook_locals`])
+    /// locals of this procedure, as C's compile of that command does.
+    pub(crate) fn intern_entered_command_locals(&mut self, command: &str, args: &[String]) {
+        let Some(locals) = super::emitter::bytecoded::codegen_hook_locals(self, command, args)
+        else {
+            return;
+        };
+        for name in locals.entries() {
+            // Native local names need not be Unicode; such a local has no
+            // text spelling to intern here.
+            if locals.is_source_local_bytes(name.as_bytes())
+                && let Ok(name) = std::str::from_utf8(name.as_bytes())
+            {
+                self.intern_compiled_local(name);
+            }
+        }
     }
 
     /// Read a resolved name whose element key retains the legacy source policy.
@@ -1067,7 +1172,16 @@ impl CodegenCtx<'_> {
     /// `key_is_literal` its element-key half — the same contract
     /// [`push_var_ref`](CodegenCtx::push_var_ref) documents, so a name the
     /// compiler already resolved is never word-substituted again by the VM.
-    pub fn emit_incr(&mut self, name: &str, key_is_literal: bool, amount: Option<&str>) {
+    ///
+    /// `amount_braced` says the amount word was braced: its text is then its
+    /// value (`incr x {$n}` raises `expected integer but got "$n"`).
+    pub fn emit_incr(
+        &mut self,
+        name: &str,
+        key_is_literal: bool,
+        amount: Option<&str>,
+        amount_braced: bool,
+    ) {
         if self.try_emit_original_increment() {
             return;
         }
@@ -1099,20 +1213,24 @@ impl CodegenCtx<'_> {
             Some(_) => None,
         };
         if immediate.is_none() {
-            self.emit_increment_amount(amount.expect("non-immediate amount is present"));
+            self.emit_increment_amount(
+                amount.expect("non-immediate amount is present"),
+                amount_braced,
+            );
         }
         self.finish_increment(slot, key.is_some(), immediate);
     }
 
     /// Evaluate the original amount word once, retaining its brace semantics.
-    fn emit_increment_amount(&mut self, amount: &str) {
+    /// A braced amount ([`Self::emit_incr`]'s `amount_braced`) is its text.
+    fn emit_increment_amount(&mut self, amount: &str, amount_braced: bool) {
         let word = self
             .invocation_tokens
             .as_deref()
             .and_then(|tokens| tokens.words().get(2))
             .cloned();
         if let Some(word) = word {
-            let braced = matches!(word, crate::ir::WordExpr::BracedLiteral { .. });
+            let braced = amount_braced || matches!(word, crate::ir::WordExpr::BracedLiteral { .. });
             self.emit_word_from_source(amount, braced, Some(&word));
         } else {
             // Unlocated IR amounts have already been evaluated. Their bytes
@@ -1346,7 +1464,8 @@ mod tests {
                 .iter()
                 .find(|instruction| matches!(instruction.op, Op::PUSH1 | Op::PUSH4))
                 .expect("folded literal push")
-                .push_verbatim,
+                .literal_rep
+                != tcl_bytecode::LiteralRep::Word,
             "a folded command result is already a final Tcl value",
         );
     }
@@ -1362,7 +1481,7 @@ mod tests {
             .iter()
             .find(|instruction| matches!(instruction.op, Op::PUSH1 | Op::PUSH4))
             .expect("dict payload push");
-        assert!(push.push_verbatim);
+        assert_eq!(push.literal_rep, tcl_bytecode::LiteralRep::Verbatim);
         assert!(
             ctx.instructions
                 .iter()
@@ -2198,7 +2317,7 @@ mod tests {
                 ctx.compiled_variable_protocol = entry.compiled_variable_protocol;
                 ctx.set_source_image(image);
                 ctx.with_invocation_tokens(Some(&tokens), |ctx| {
-                    ctx.emit_incr("arr($key)", false, Some("ignored"));
+                    ctx.emit_incr("arr($key)", false, Some("ignored"), false);
                 });
                 assert_eq!(
                     ctx.instructions.last().unwrap().op,
@@ -2279,7 +2398,7 @@ mod tests {
     fn unlocated_increment_amount_is_an_evaluated_value() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &["x"], &registry);
-        ctx.emit_incr("x", true, Some("${amount}"));
+        ctx.emit_incr("x", true, Some("${amount}"), false);
         assert_eq!(ctx.instructions.last().unwrap().op, Op::INCR_SCALAR1);
         assert!(ctx.instructions.iter().all(|instruction| !matches!(
             instruction.op,
@@ -2306,7 +2425,9 @@ mod tests {
         ctx.source_string_protocol = entry.source_string_protocol;
         ctx.ingress_lexer_config = Some(config);
         ctx.set_source_image(image);
-        ctx.with_invocation_tokens(Some(&tokens), |ctx| ctx.emit_incr("x", true, Some("5")));
+        ctx.with_invocation_tokens(Some(&tokens), |ctx| {
+            ctx.emit_incr("x", true, Some("5"), false);
+        });
         assert!(ctx.native_dependency_refusal);
         assert_eq!(ctx.instructions.last().unwrap().op, Op::INCR_SCALAR1);
     }
@@ -2315,7 +2436,7 @@ mod tests {
     fn emit_incr_default_proc() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &["x"], &registry);
-        ctx.emit_incr("x", true, None);
+        ctx.emit_incr("x", true, None, false);
         assert_eq!(ctx.instructions[0].op, Op::INCR_SCALAR1_IMM);
         // operands: slot 0, imm 1
         assert_eq!(
@@ -2328,7 +2449,7 @@ mod tests {
     fn emit_incr_literal_amount_proc() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &["x"], &registry);
-        ctx.emit_incr("x", true, Some("5"));
+        ctx.emit_incr("x", true, Some("5"), false);
         assert_eq!(ctx.instructions[0].op, Op::INCR_SCALAR1_IMM);
         assert_eq!(
             ctx.instructions[0].operands[1],
@@ -2340,7 +2461,7 @@ mod tests {
     fn emit_incr_large_amount_proc() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(true, &["x"], &registry);
-        ctx.emit_incr("x", true, Some("999"));
+        ctx.emit_incr("x", true, Some("999"), false);
         // Large amount → push_lit + INCR_SCALAR1
         assert_eq!(ctx.instructions[0].op, Op::PUSH1); // push "999"
         assert_eq!(ctx.instructions[1].op, Op::INCR_SCALAR1);
@@ -2350,7 +2471,7 @@ mod tests {
     fn emit_incr_default_toplevel() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        ctx.emit_incr("x", true, None);
+        ctx.emit_incr("x", true, None, false);
         // push "x" then INCR_STK_IMM
         assert_eq!(ctx.instructions[0].op, Op::PUSH1);
         assert_eq!(ctx.instructions[1].op, Op::INCR_STK_IMM);
@@ -2360,7 +2481,7 @@ mod tests {
     fn emit_incr_large_amount_toplevel() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
-        ctx.emit_incr("x", true, Some("999"));
+        ctx.emit_incr("x", true, Some("999"), false);
         assert_eq!(
             ctx.instructions
                 .iter()
@@ -2532,5 +2653,37 @@ mod tests {
             }
             assert_eq!(context.lvt.len(), 2);
         }
+    }
+
+    /// `[list …]` of literal words is the list object C's `TclCompileListCmd`
+    /// pushes (and `[list]` its empty string), while another fold whose
+    /// literal a release would compile apart from its list result is left to
+    /// the command: on 8.6 `end-2147483649` is such a word.
+    #[test]
+    fn a_folded_list_pushes_a_list_and_a_word_read_apart_stays_unfolded() {
+        let registry = CommandRegistry::build_default();
+        let pushed = |value: &str| {
+            let mut ctx = CodegenCtx::new(false, &[], &registry);
+            assert!(ctx.try_emit_constant_fold(value), "{value}");
+            ctx.instructions
+                .iter()
+                .find(|i| matches!(i.op, Op::PUSH1 | Op::PUSH4))
+                .map(|i| i.literal_rep == tcl_bytecode::LiteralRep::List)
+        };
+        assert_eq!(pushed("[list a {b c}]"), Some(true));
+        assert_eq!(pushed("[list]"), Some(false));
+        assert_eq!(pushed("[llength [list a b]]"), Some(false));
+
+        let profile = |name: &str| {
+            Some(tcl_registry::model::ingress::resolve_environment(name).analyser_profile())
+        };
+        let lrange = "[lrange {string range abc 0 end-2147483649} 0 end]";
+        let mut v86 = CodegenCtx::new(false, &[], &registry);
+        v86.dialect = profile("tcl8.6");
+        assert!(!v86.try_emit_constant_fold(lrange));
+        assert!(v86.try_emit_constant_fold("[list string range abc 0 end-2147483649]"));
+        let mut v90 = CodegenCtx::new(false, &[], &registry);
+        v90.dialect = profile("tcl9.0");
+        assert!(v90.try_emit_constant_fold(lrange));
     }
 }

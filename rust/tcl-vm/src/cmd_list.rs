@@ -21,7 +21,7 @@
 use tcl_cmd_core::list as list_core;
 use tcl_runtime_api::Completion;
 
-use crate::command::completion_from_cmd_error;
+use crate::command::err_with_code;
 use crate::interp::{Vm, err, err_wrong_args, ok};
 use crate::value::Value;
 
@@ -32,7 +32,7 @@ fn adapt(
 ) -> Completion<Value> {
     match command(vm) {
         Ok(v) => ok(v),
-        Err(e) => completion_from_cmd_error(vm, e),
+        Err(e) => vm.cmd_error(e),
     }
 }
 
@@ -226,7 +226,7 @@ fn cmd_ledit(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let release = vm.runtime_version();
     let result = match list_core::ledit(vm, &cur, from, to, rest, release) {
         Ok(v) => v,
-        Err(e) => return completion_from_cmd_error(vm, e),
+        Err(e) => return vm.cmd_error(e),
     };
     match vm.store_var_result(&n, result) {
         Ok(stored) => ok(stored),
@@ -253,7 +253,7 @@ fn cmd_lset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let release = vm.runtime_version();
     let new = match list_core::lset(vm, &cur, indices, value.clone(), release) {
         Ok(r) => r,
-        Err(e) => return completion_from_cmd_error(vm, e),
+        Err(e) => return vm.cmd_error(e),
     };
     match vm.store_var_result(&n, new) {
         Ok(stored) => ok(stored),
@@ -277,7 +277,7 @@ fn cmd_lpop(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let release = vm.runtime_version();
     let (removed, rest) = match list_core::lpop(vm, &cur, indices, release) {
         Ok(r) => r,
-        Err(e) => return completion_from_cmd_error(vm, e),
+        Err(e) => return vm.cmd_error(e),
     };
     if let Err(e) = vm.var_set(&n, rest) {
         return e;
@@ -467,9 +467,11 @@ impl tcl_cmd_core::native_jim_lsearch::NativeJimLsearchObjects for Vm {
 fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     use tcl_cmd_core::index::NativeIndexOps;
     if vm.index_c_version().is_some() || vm.index_jim_sort_selected() {
+        let release = vm.runtime_version();
         return match tcl_cmd_core::lsort::run_original(
             vm,
             args,
+            release,
             vm_compare_original,
             crate::command::completion_from_cmd_error,
         ) {
@@ -478,7 +480,8 @@ fn cmd_lsort(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         };
     }
     use tcl_cmd_core::lsort::{Lsort, build_command, prepare, sort_command};
-    let mut job = match prepare(vm, args) {
+    let release = vm.runtime_version();
+    let mut job = match prepare(vm, args, release) {
         Ok(Lsort::Done(v)) => return ok(v),
         Ok(Lsort::Original(result)) => {
             let (tcl_cmd_core::index::IndexResult::Borrowed(value)
@@ -666,14 +669,27 @@ fn vm_compare(
         }
     };
     if !comp.code.is_ok() {
+        if comp.code == tcl_runtime_api::Code::Error {
+            let mut words = vec![name.clone()];
+            words.extend(argv);
+            let message = comp.result.to_str();
+            // C's `Tcl_EvalObjv` logs the comparator command it ran.
+            vm.log_command_info(
+                Value::list(words).to_str().as_bytes(),
+                message.as_bytes(),
+                0,
+            );
+            vm.seed_error_info_frame(message.as_bytes(), "\n    (-compare command)");
+        }
         return Err(comp);
     }
-    let r = comp.result.to_str();
-    match tcl_cmd_core::sort::parse_wide(r.as_bytes()) {
-        Some(v) => Ok(i32::try_from(v.signum()).unwrap_or(0)),
-        None => Err(err(format!(
-            "-command comparison script returned non-integer result: {r}"
-        ))),
+    // C reads the comparator's result as a C `int`.
+    match comp.result.as_c_int() {
+        Ok(order) => Ok(order.signum()),
+        Err(_) => Err(err_with_code(
+            "-compare command returned non-integer result",
+            "TCL OPERATION LSORT COMPARISONFAILED",
+        )),
     }
 }
 

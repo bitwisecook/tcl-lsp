@@ -38,15 +38,6 @@ const FORMS: &[FormSpec] = &[
     },
 ];
 
-// Mirrors `expr`'s own `SIDE_EFFECTS` (`commands/tcl/expr_.rs`): the
-// expression-valued-argument fallback (see the module comment) can invoke
-// an arbitrary nested command, so the conservative, sound declaration is
-// "reads some unknown state" rather than no side effects at all.
-const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
-    reads: true,
-    ..SideEffect::DEFAULT
-}];
-
 /// Keyword tokens that can appear at argument index 1 — the branch point
 /// where each of the three documented forms diverges: the `..`/`to` range
 /// operator or a plain numeric `end` value (`lseq start ?(..|to)? end
@@ -110,7 +101,6 @@ pub fn spec() -> CommandSpec {
         ),
         return_type: Some(TclType::List),
         inferred_storage_type: Some(StorageType::List),
-        side_effects: SIDE_EFFECTS,
         hover: Some(HoverSnippet {
             summary: "Build a numeric sequence returned as a list.",
             synopsis: &[

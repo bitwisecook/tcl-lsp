@@ -4197,7 +4197,8 @@ mod tests {
             tcl_runtime_set_current_interp(interp);
 
             // `tclsh9.0`: `string repeat a [expr {2**200}]` →
-            // "integer value too large to represent" / ARITH IOVERFLOW.
+            // "integer value too large to represent" /
+            // ARITH IOVERFLOW {integer value too large to represent}.
             let huge = owned_word(b"99999999999999999999999");
             let (status, untouched) = get_wide(huge);
             assert_eq!(status, TCL_VALUE_GET_ERROR);

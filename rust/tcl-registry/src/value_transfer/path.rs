@@ -28,6 +28,7 @@
 //! since no profile fixes the platform. `file normalize`, whose answer
 //! is the host's working directory and its links, has no route.
 
+use tcl_cmd_core::path::{self, PathReading};
 use tcl_syntax::value::ValueOps;
 
 use crate::types::TclType;
@@ -177,16 +178,18 @@ impl PathSemantics {
         }
         let parts: Vec<&[u8]> = names.iter().map(|name| name.as_bytes()).collect();
         let name = || parts[0];
+        // With no `~` and no leading `//`, every release's reading agrees.
+        let reading = PathReading::Tcl9;
         let value = match self.operation {
-            PathOperation::Join => text(&tcl_cmd_core::path::join(&parts)),
-            PathOperation::Dirname => text(&tcl_cmd_core::path::dirname(name())),
-            PathOperation::Tail => text(tcl_cmd_core::path::tail(name())),
-            PathOperation::Extension => text(tcl_cmd_core::path::extension(name())),
-            PathOperation::Rootname => text(tcl_cmd_core::path::rootname(name())),
+            PathOperation::Join => text(&path::join(&parts, reading)),
+            PathOperation::Dirname => text(&path::dirname(name(), reading)),
+            PathOperation::Tail => text(&path::tail(name(), reading)),
+            PathOperation::Extension => text(path::extension(name())),
+            PathOperation::Rootname => text(path::rootname(name())),
             PathOperation::Split => {
-                let elements = tcl_cmd_core::path::split(name())
-                    .into_iter()
-                    .map(text)
+                let elements = path::split(name(), reading)
+                    .iter()
+                    .map(|element| text(element))
                     .collect();
                 ops.new_list(elements)
             }

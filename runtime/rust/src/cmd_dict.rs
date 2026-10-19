@@ -865,9 +865,27 @@ fn incr(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(Some(v)) => Some(v),
         _ => None,
     };
+    // Coercion order matches C: an existing value goes through `TclIncrObj`
+    // (current value, then increment); a new key only checks the increment is
+    // an integer of any size.
+    let checked = match cur {
+        Some(cur) => [Some(cur), argv.get(4).copied()]
+            .into_iter()
+            .flatten()
+            .try_for_each(crate::typed_value::incr_operand),
+        None => argv
+            .get(4)
+            .copied()
+            .map_or(Ok(()), crate::typed_value::integer),
+    };
+    if let Err(error) = checked {
+        if is_new {
+            drop_fresh(target);
+        }
+        return interp.report_typed_error(&error);
+    }
     let one = obj::new_wide_int_obj(1);
     let amount = if argv.len() == 5 { argv[4] } else { one };
-    // Coercion order matches C: the current value first, then the increment.
     let sum = tcl_syntax::value::ValueOps::int_add(interp, cur.as_ref(), &amount);
     drop_fresh(one); // the transient `1` (used or not) is no longer needed
     let sum = match sum {
@@ -1134,6 +1152,7 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.set_error(b"must have exactly two variable names");
     }
     let (kvar, vvar) = (vars[0].clone(), vars[1].clone());
+    let compiled = interp.release_compiles_control(argv);
     let pairs = match dict::dict_pairs(argv[3]) {
         Ok(p) => p,
         Err(e) => return bad_dict(interp, e),
@@ -1153,11 +1172,11 @@ fn for_(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         if interp.var_set(&vvar, v).is_err() {
             return cant_set(interp, &vvar);
         }
-        match interp.eval_control_body(argv[4]) {
+        match interp.eval_compiled_control_body(argv[4], compiled) {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
             Code::Error => {
-                if !interp.in_proc() {
+                if !compiled {
                     interp.append_body_frame(b"dict for");
                 }
                 return Code::Error;
@@ -1196,6 +1215,7 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         Ok(p) => p,
         Err(e) => return bad_dict(interp, e),
     };
+    let compiled = interp.release_compiles_control(argv);
     let acc = dict::new_dict_obj(&[]);
     unsafe { obj::incr_ref_count(acc) };
     let policy = ControlOptionPolicy::FRESH_FORWARDED;
@@ -1216,7 +1236,7 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             unsafe { obj::decr_ref_count(acc) };
             return cant_set(interp, &vars[0]);
         }
-        match interp.eval_control_body(argv[4]) {
+        match interp.eval_compiled_control_body(argv[4], compiled) {
             Code::Ok => {
                 let _ = dict::dict_set(acc, k, interp.get_obj_result());
             }
@@ -1224,7 +1244,7 @@ fn map(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Code::Break => break,
             Code::Error => {
                 unsafe { obj::decr_ref_count(acc) };
-                if !interp.in_proc() {
+                if !compiled {
                     interp.append_body_frame(b"dict map");
                 }
                 return Code::Error;
@@ -1611,27 +1631,16 @@ fn finish_with_writeback(
 /// Present a typed dictionary conversion failure with its exact byte message
 /// and dictionary-specific native error code.
 fn bad_dict(interp: &mut Interp, e: crate::dict::DictError) -> Code {
-    use crate::dict::DictError as E;
-    let parsed_code;
-    let code: &[u8] = match &e {
-        E::Parse { error, .. } => {
-            parsed_code = error.error_code().replace(" LIST", " DICTIONARY");
-            parsed_code.as_bytes()
-        }
-        E::MissingValue => b"TCL VALUE DICTIONARY",
-        E::BraceJunk(_) | E::QuoteJunk(_) => b"TCL VALUE DICTIONARY JUNK",
-        E::UnmatchedBrace => b"TCL VALUE DICTIONARY BRACE",
-        E::UnmatchedQuote => b"TCL VALUE DICTIONARY QUOTE",
-    };
-    let msg = e.message_bytes();
-    interp.error_with_code(&msg, code)
+    interp.error_with_code(&e.message_bytes(), &e.error_code())
 }
 
+/// `key "…" not known in dictionary` with `TCL LOOKUP DICT <key>`.
 fn key_not_known(interp: &mut Interp, key: &[u8]) -> Code {
     let mut m = b"key \"".to_vec();
     m.extend_from_slice(key);
     m.extend_from_slice(b"\" not known in dictionary");
-    interp.set_error(&m)
+    let code = crate::interp::error_code_list(&[b"TCL", b"LOOKUP", b"DICT", key]);
+    interp.error_with_code(&m, &code)
 }
 
 fn cant_set(interp: &mut Interp, name: &[u8]) -> Code {

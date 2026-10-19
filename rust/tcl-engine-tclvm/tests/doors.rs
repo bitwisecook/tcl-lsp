@@ -70,6 +70,11 @@ impl HostCommand for Stray {
     }
 }
 
+thread_local! {
+    /// What the last `hevalerr` was told, readable after its invocation failed.
+    static LAST_REPORT: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+}
+
 /// What a door command does with the door it is given.
 #[derive(Clone, Copy)]
 enum Door {
@@ -104,11 +109,14 @@ impl HostCommand for Door {
                 Ok(Value::Empty.into())
             }
             Self::Eval => registrar.eval_in_invocation(word(0)),
-            Self::EvalReport => Ok(Value::string(match registrar.eval_in_invocation(word(0)) {
-                Ok(_) => "ok".to_owned(),
-                Err(error) => format!("{error:?}"),
-            })
-            .into()),
+            Self::EvalReport => {
+                let report = match registrar.eval_in_invocation(word(0)) {
+                    Ok(_) => "ok".to_owned(),
+                    Err(error) => format!("{error:?}"),
+                };
+                LAST_REPORT.with_borrow_mut(|last| last.clone_from(&report));
+                Ok(Value::string(report).into())
+            }
             Self::Provide => {
                 registrar.provide_package(word(0), word(1))?;
                 Ok(Value::Empty.into())
@@ -479,9 +487,14 @@ fn a_command_whose_script_outruns_the_budget_is_told_it_was_the_budget() {
     assert_eq!(
         run(
             &mut engine,
-            "hevalerr {foreach i {1 2 3 4 5 6 7 8 9 10 11 12} {tick}}"
+            "hevalerr {foreach i {1 2 3 4 5 6 7 8 9 10 11 12} {tick}}; return answered"
         ),
-        Ok("BudgetExceeded(Commands)".to_owned()),
+        Err(EngineError::BudgetExceeded(BudgetKind::Commands)),
+        "a command that swallows the budget does not let the invocation answer"
+    );
+    assert_eq!(
+        LAST_REPORT.with_borrow(Clone::clone),
+        "BudgetExceeded(Commands)",
         "the door reports a budget as one, not as a script's error"
     );
 }
@@ -512,7 +525,10 @@ fn a_host_command_provides_a_package_a_later_require_finds() {
     let mut engine = engine();
     assert_eq!(
         run(&mut engine, "package require pkgq"),
-        Err(script_error("can't find package pkgq")),
+        Err(EngineError::Script {
+            message: "can't find package pkgq".to_owned(),
+            code: Some("TCL PACKAGE UNFOUND".to_owned()),
+        }),
         "nothing provides it yet"
     );
     assert_eq!(

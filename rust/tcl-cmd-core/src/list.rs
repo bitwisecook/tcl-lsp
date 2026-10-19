@@ -37,6 +37,7 @@ use tcl_syntax::value::ValueOps;
 
 use crate::error::CmdError;
 use crate::index::{self, IndexReading};
+use crate::value_size;
 
 fn ilen(n: usize) -> i64 {
     i64::try_from(n).unwrap_or(i64::MAX)
@@ -51,6 +52,17 @@ pub fn list<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> O::Value {
 pub fn llength<O: ValueOps>(ops: &mut O, value: &O::Value) -> Result<O::Value, CmdError> {
     let n = ops.list_len(value)?;
     Ok(ops.new_int(ilen(n)))
+}
+
+/// The usage `lindex` gives under `release`: 8.4 and 8.5 spell its indices
+/// `?index...?`.
+#[must_use]
+pub fn lindex_usage(release: TclVersion) -> &'static str {
+    if release < TclVersion::V8_6 {
+        "lindex list ?index...?"
+    } else {
+        "lindex list ?index ...?"
+    }
 }
 
 /// `lindex list ?index ...?` — descend through each index; an out-of-range index
@@ -234,11 +246,22 @@ pub fn lrepeat<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let n = ops.as_int(count)?;
     if n < 0 {
-        return Err(CmdError::new(format!(
-            "bad count \"{n}\": must be integer >= 0"
-        )));
+        return Err(CmdError::with_error_code(
+            format!("bad count \"{n}\": must be integer >= 0"),
+            "TCL OPERATION LREPEAT NEGARG",
+        ));
     }
     let n = usize::try_from(n).unwrap_or(0);
+    value_size::charge(ops, |ops, cap| {
+        let once = value_size::joined(ops, values, 1, cap);
+        if values.is_empty() {
+            0
+        } else {
+            (once.saturating_add(1))
+                .saturating_mul(n as u64)
+                .saturating_sub(1)
+        }
+    })?;
     let mut out = Vec::with_capacity(n.saturating_mul(values.len()));
     for _ in 0..n {
         out.extend(values.iter().cloned());
@@ -309,23 +332,6 @@ pub fn lreplace<O: NativeIndexOps>(
     })
 }
 
-/// The `bad index` error `release` raises for `spec`: 8.4 words the grammar
-/// it reads (`integer or end?-integer?`), 8.5 on the sums too, and from 8.6
-/// the error carries `TCL VALUE INDEX` (measured, 8.4.20 to 9.1.0).
-fn bad_index_under(spec: &str, release: TclVersion) -> CmdError {
-    if release < TclVersion::V8_5 {
-        return CmdError::new(format!(
-            "bad index \"{spec}\": must be integer or end?-integer?"
-        ));
-    }
-    let message = format!("bad index \"{spec}\": must be integer?[+-]integer? or end?[+-]integer?");
-    if release < TclVersion::V8_6 {
-        CmdError::new(message)
-    } else {
-        CmdError::with_error_code(message, "TCL VALUE INDEX")
-    }
-}
-
 /// `spec` read as one index of a level of `len` elements under `release`; a
 /// reading the host's `long` decides takes `ops`'s answer.
 fn index_under<O: NativeIndexOps>(
@@ -344,7 +350,7 @@ fn index_under<O: NativeIndexOps>(
         IndexReading::At(index) => Ok(index),
         IndexReading::HostLong(index) if ops.reads_a_wide_long() => Ok(index),
         IndexReading::HostLong(_) | IndexReading::Bad | IndexReading::Unsure => {
-            Err(bad_index_under(spec, release))
+            Err(index::bad_index_under(spec, release))
         }
     }
 }
@@ -382,7 +388,7 @@ fn lset_level<O: NativeIndexOps>(
         (UpdateIndex::Original(original), None) => index::resolve_value(ops, original, len)?,
         (UpdateIndex::Text(text), None) => index_under(ops, text, len, release)?,
     };
-    let limit = if !jim && release >= TclVersion::V8_6 {
+    let limit = if !jim && release.lset_appends_at_length() {
         len + 1
     } else {
         len
@@ -657,6 +663,25 @@ pub fn concat_selected<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O:
     native_concat::concatenate(ops, args)
 }
 
+/// `parts` joined as `Tcl_ConcatObj` joins strings: each trimmed
+/// ([`trim_concat_element`]), the empty ones dropped, the rest separated by
+/// single spaces.
+#[must_use]
+pub fn concat_strings<'p>(parts: impl IntoIterator<Item = &'p str>) -> String {
+    let mut joined = String::new();
+    for part in parts {
+        let part = trim_concat_element(part);
+        if part.is_empty() {
+            continue;
+        }
+        if !joined.is_empty() {
+            joined.push(' ');
+        }
+        joined.push_str(part);
+    }
+    joined
+}
+
 /// Trim leading/trailing whitespace from one `concat` element, matching C's
 /// `Tcl_ConcatObj` (`TclTrimLeft`/`TclTrimRight`). The right trim is
 /// backslash-aware: a trailing whitespace byte escaped by an odd run of
@@ -677,6 +702,9 @@ pub fn join<O: ValueOps>(
 ) -> Result<O::Value, CmdError> {
     let sep = sep.map_or_else(|| std::rc::Rc::<[u8]>::from(&b" "[..]), |s| ops.as_bytes(s));
     let elems = ops.list_elements(value)?;
+    value_size::charge(ops, |ops, cap| {
+        value_size::joined(ops, &elems, sep.len() as u64, cap)
+    })?;
     let mut output = Vec::new();
     for (position, element) in elems.iter().enumerate() {
         if position > 0 {
@@ -944,6 +972,39 @@ mod tests {
             tcl_syntax::list::split_list(v)
                 .map(|elements| elements.iter().map(ToString::to_string).collect())
                 .map_err(|error| tcl_syntax::value::ValueError::BadList(error.message().to_owned()))
+        }
+    }
+
+    /// An index equal to a level's length appends from 8.6 and raises before
+    /// it, at every level of the path (tclsh 8.4.20 to 9.1.0).
+    #[test]
+    fn lset_appends_at_a_levels_length_only_from_8_6() {
+        let cases: &[(&str, &[&str], &str)] = &[
+            ("a b c", &["3"], "a b c Z"),
+            ("{a b c}", &["0", "3"], "{a b c Z}"),
+            ("{a b c}", &["1", "0"], "{a b c} Z"),
+            ("", &["0"], "Z"),
+        ];
+        for &(list, path, appended) in cases {
+            let path: Vec<String> = path.iter().map(|&spec| spec.to_owned()).collect();
+            for release in TclVersion::ALL {
+                let set = lset(
+                    &mut TextOps,
+                    &list.to_owned(),
+                    &path,
+                    "Z".to_owned(),
+                    release,
+                );
+                if release.lset_appends_at_length() {
+                    assert_eq!(set.expect("appended"), appended, "{release:?} {list:?}");
+                } else {
+                    assert_eq!(
+                        set.expect_err("raises").message().unwrap(),
+                        "list index out of range",
+                        "{release:?} {list:?}"
+                    );
+                }
+            }
         }
     }
 

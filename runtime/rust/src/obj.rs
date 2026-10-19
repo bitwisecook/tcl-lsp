@@ -614,9 +614,9 @@ pub(crate) fn set_double_precision(policy: tcl_dialect::DoubleStringPolicy, prec
 }
 
 extern "C" fn double_update_string(obj: *mut TclObj) {
-    // SAFETY: `obj` is a live double object. The canonical Tcl double→string is
-    // the shared `tcl_syntax::number::format_double` (also used by the compiler's
-    // const-folder) — integer-valued doubles get `.0`, plus `Inf`/`NaN`.
+    // SAFETY: `obj` is a live double object. The release's Tcl double→string is
+    // the shared `tcl_syntax::number::print_double` — integer-valued
+    // doubles get `.0`, plus `Inf`/`NaN`.
     unsafe {
         let policy = DOUBLE_STRING_POLICY.get();
         let format = policy

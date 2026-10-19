@@ -675,6 +675,23 @@ impl NumberSyntax {
         }
     }
 
+    /// Whether `string is double` refuses a decimal spelling that overflows or
+    /// underflows the double range (`1e400`, `1e-400`, `4.9e-324`).
+    ///
+    /// Tcl 8.4 reads a double with C `strtod` and treats `ERANGE` as "not a
+    /// double"; `JimTcl` does the same in its `string is double`. From 8.5
+    /// `TclParseNumber` takes the value `strtod` would have set `ERANGE` for
+    /// (`Inf`, `0.0`, a subnormal), so those spellings are doubles. A
+    /// spelling whose mantissa is zero (`0e999`) never underflows, and the
+    /// alphabetic `Inf`/`NaN` forms are not range errors in any release.
+    #[must_use]
+    pub fn string_is_double_rejects_range_error(self) -> bool {
+        match self {
+            Self::Tcl84 | Self::Jim | Self::Jim080 => true,
+            Self::Tcl85 | Self::Tcl90 => false,
+        }
+    }
+
     /// Whether `_` may separate digits (`1__000`, `0xff__ff`) — 9.0 onward.
     #[must_use]
     #[allow(clippy::match_same_arms)]
@@ -687,6 +704,237 @@ impl NumberSyntax {
             // what keeps `Jim080` distinct from `Tcl90`.
             Self::Jim | Self::Jim080 => false,
         }
+    }
+
+    /// How this release spells a double it computed, while the script leaves
+    /// the precision alone.
+    ///
+    /// Tcl 8.4's `Tcl_PrintDouble` (`tclUtil.c`) is `sprintf` under
+    /// `"%.<tcl_precision>g"`, and `tcl_precision` starts at 12; Jim's
+    /// `UpdateStringOfDouble` (`jim.c`) is a fixed `"%.12g"`. 8.5 onward print
+    /// the shortest digits through `TclDoubleDigits` (`tclStrToD.c`).
+    /// Measured, tclsh 8.4.20 and jimsh 0.84 alike: `expr {1.0/3}` is
+    /// `0.333333333333`, `expr {1e15 + 0.3}` is `1e+15`, `expr {1e-5}` is
+    /// `1e-05`; tclsh 8.5.19 to 9.1.0 print `0.3333333333333333`,
+    /// `1000000000000000.2` and `1e-5`.
+    #[must_use]
+    pub fn double_spelling(self) -> DoubleSpelling {
+        match self {
+            Self::Tcl84 | Self::Jim | Self::Jim080 => DoubleSpelling::Precision12,
+            Self::Tcl85 | Self::Tcl90 => DoubleSpelling::Shortest,
+        }
+    }
+
+    /// The variable whose value changes [`Self::double_spelling`] at run
+    /// time, where the release has one.
+    ///
+    /// `tcl_precision` through 8.6, linked by a write trace
+    /// (`TclPrecTraceProc`, `tclUtil.c`; 8.4 accepts 1 to 17, 8.5 and 8.6
+    /// 0 to 17). Tcl 9.0 removed the link (9.0.4's `generic/` never names
+    /// it), and Jim never had one. Measured: after `set tcl_precision 6`,
+    /// `expr {$a/3}` with `a` 1.0 is `0.333333` on tclsh 8.4.20, 8.5.19 and
+    /// 8.6.18, and `0.3333333333333333` on 9.0.4 and 9.1.0; jimsh 0.84 prints
+    /// `0.333333333333` whatever the variable holds.
+    #[must_use]
+    pub fn precision_variable(self) -> Option<&'static str> {
+        match self {
+            Self::Tcl84 | Self::Tcl85 => Some("tcl_precision"),
+            Self::Tcl90 | Self::Jim | Self::Jim080 => None,
+        }
+    }
+
+    /// Whether an integer past 64 bits wraps modulo 2^64 as long as its
+    /// magnitude fits `u64`, as 8.4's `strtoull`-based reads do on an LP64
+    /// host, rather than becoming a bignum. Measured: `expr
+    /// {18446744073709551615 + 0}` is -1 and `incr x` from
+    /// 9223372036854775807 gives -9223372036854775808 on tclsh 8.4.20 (64-bit).
+    /// The width is the host's, so only a running interpreter applies it.
+    #[must_use]
+    pub fn wraps_wide_integers(self) -> bool {
+        matches!(self, Self::Tcl84)
+    }
+
+    /// How `Tcl_PrintDouble` lays a double out while the precision is
+    /// `precision`.
+    ///
+    /// 8.4 formats with `sprintf("%.<precision>g")`; 8.5 onward take the
+    /// shortest digits at precision 0 and otherwise `precision` correctly
+    /// rounded significant digits from `TclDoubleDigits`, laid out with the
+    /// shortest form's cutover (`tclUtil.c`). Jim is always `%.12g`.
+    /// Measured: at precision 17 `expr {1e-7}` is `9.9999999999999995e-08`
+    /// on tclsh 8.4.20 to 8.6.18; at 12 `expr {1e15}` is `1e+15` on 8.4.20
+    /// and `1000000000000000.0` on 8.5.19 and 8.6.18.
+    ///
+    /// The answer is the shared [`crate::DoubleFormat`] the native lazy
+    /// double-string owner selects (`crate::DoubleStringPolicy::format`):
+    /// `General` is the `%g` layout, `TclSignificant` 8.5/8.6's.
+    #[must_use]
+    pub fn double_format(self, precision: u8) -> crate::DoubleFormat {
+        match self {
+            Self::Tcl84 => crate::DoubleFormat::General(precision),
+            Self::Jim | Self::Jim080 => crate::DoubleFormat::General(12),
+            Self::Tcl85 | Self::Tcl90 if precision == 0 => crate::DoubleFormat::Shortest,
+            Self::Tcl85 | Self::Tcl90 => crate::DoubleFormat::TclSignificant(precision),
+        }
+    }
+
+    /// The precision a fresh interpreter prints doubles at: 12 on 8.4 and
+    /// Jim, 0 (shortest) from 8.5.
+    #[must_use]
+    pub fn default_precision(self) -> u8 {
+        match self {
+            Self::Tcl84 | Self::Jim | Self::Jim080 => 12,
+            Self::Tcl85 | Self::Tcl90 => 0,
+        }
+    }
+
+    /// The values [`Self::precision_variable`] accepts. `TclPrecTraceProc`
+    /// (`tclUtil.c`) rejects anything outside 1 to 17 on 8.4 and 0 to 17
+    /// from 8.5 with `improper value for precision`.
+    #[must_use]
+    pub fn precision_range(self) -> core::ops::RangeInclusive<u8> {
+        match self {
+            Self::Tcl84 | Self::Jim | Self::Jim080 => 1..=17,
+            Self::Tcl85 | Self::Tcl90 => 0..=17,
+        }
+    }
+
+    /// Whether [`Self::precision_variable`] is read with `strtoul` in base
+    /// 10, as 8.4's `TclPrecTraceProc` reads it, rather than as a Tcl
+    /// integer (`Tcl_GetIntFromObj`, 8.5 and 8.6). Measured: `set
+    /// tcl_precision 0x10` is refused by tclsh 8.4.20 and sets 16 on 8.5.19.
+    #[must_use]
+    pub fn precision_reads_decimal(self) -> bool {
+        matches!(self, Self::Tcl84 | Self::Jim | Self::Jim080)
+    }
+
+    /// Whether reading a decimal spelling outside the double range as a
+    /// number fails, as Tcl 8.4's `Tcl_GetDouble` does on `strtod`'s
+    /// `ERANGE` — unlike [`Self::string_is_double_rejects_range_error`], in
+    /// every operand position, not only `string is double`.
+    ///
+    /// Measured: `set x 1e-310; expr {$x * 1}` raises `can't use
+    /// floating-point value as operand of "*"` on tclsh 8.4.20 and is
+    /// `1e-310` on 8.5.19 to 9.1.0 and on jimsh 0.84, though 8.4 computes
+    /// and prints that same subnormal (`expr {1e-300 * 1e-10}` is `1e-310`).
+    #[must_use]
+    pub fn double_read_rejects_range_error(self) -> bool {
+        matches!(self, Self::Tcl84)
+    }
+
+    /// Whether the `pow()` math function of two integers is an integer power
+    /// rather than a double: Jim implements `pow` as its `**` operator
+    /// (`JimExprOpBin` in `jim.c`), while every Tcl release calls C `pow`.
+    /// Measured: `expr {pow(2,3)}` is `8` and `expr {pow(2,-1)}` is `0` on
+    /// jimsh 0.84, `8.0` and `0.5` on tclsh 8.4.20 to 9.1.0.
+    #[must_use]
+    pub fn pow_of_integers_is_integer(self) -> bool {
+        matches!(self, Self::Jim | Self::Jim080)
+    }
+}
+
+/// The spelling a release gives a double it computed — its string rep —
+/// while the script leaves the precision alone
+/// ([`NumberSyntax::double_spelling`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DoubleSpelling {
+    /// The shortest digits that re-read as the double, laid out `%g`-style
+    /// with a `.0` on an integral value: `Tcl_PrintDouble` at `tcl_precision`
+    /// 0, the 8.5+ default. Tcl's digit loop misprints a power of two
+    /// (`tcl_syntax::number::format_double`).
+    Shortest,
+    /// `%.12g`, with `.0` appended when that has neither a point nor an
+    /// exponent: Tcl 8.4 at its default `tcl_precision` of 12, and Jim.
+    Precision12,
+}
+
+/// How a target spells the numbers it computes, read back under the grammar
+/// it parses them with: the release facts a constant folder needs before it
+/// writes a computed value as source text.
+///
+/// A folded literal is re-read by the program, so it is sound only when it
+/// is the target's own spelling of the value **and** that spelling reads
+/// back as the value — `tcl_syntax::number::spell_double` and `spell_wide`
+/// answer both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NumberSpelling {
+    numbers: NumberSyntax,
+    doubles: Option<DoubleSpelling>,
+    garbles_wide_min: bool,
+}
+
+impl Default for NumberSpelling {
+    fn default() -> Self {
+        Self::of(NumberSyntax::default(), None)
+    }
+}
+
+impl NumberSpelling {
+    /// The spelling of a target reading numerals under `numbers`, running
+    /// `release` when it names one.
+    ///
+    /// With no release named, a computed `INT64_MIN` is taken to be garbled
+    /// wherever the grammar leaves 8.4 or 8.5 possible
+    /// ([`crate::TclVersion::garbles_wide_min`]), so a consumer declines
+    /// rather than guess.
+    #[must_use]
+    pub fn of(numbers: NumberSyntax, release: Option<crate::TclVersion>) -> Self {
+        let garbles_wide_min = match numbers {
+            NumberSyntax::Tcl90 | NumberSyntax::Jim | NumberSyntax::Jim080 => false,
+            NumberSyntax::Tcl84 | NumberSyntax::Tcl85 => {
+                release.is_none_or(crate::TclVersion::garbles_wide_min)
+            }
+        };
+        Self {
+            numbers,
+            doubles: Some(numbers.double_spelling()),
+            garbles_wide_min,
+        }
+    }
+
+    /// The spelling of `profile`'s runtime, or of the 9.x default when no
+    /// profile is loaded.
+    #[must_use]
+    pub fn of_profile(profile: Option<&crate::DialectProfile>) -> Self {
+        Self::of(
+            NumberSyntax::of_profile(profile),
+            profile.and_then(crate::DialectProfile::runtime_version),
+        )
+    }
+
+    /// `self` for a program that may set [`NumberSyntax::precision_variable`]:
+    /// a computed double then has no spelling known at compile time. A
+    /// release with no such variable is unaffected.
+    #[must_use]
+    pub fn with_precision_written(self, written: bool) -> Self {
+        if written && self.numbers.precision_variable().is_some() {
+            Self {
+                doubles: None,
+                ..self
+            }
+        } else {
+            self
+        }
+    }
+
+    /// The grammar a spelled number is read back under.
+    #[must_use]
+    pub const fn numbers(self) -> NumberSyntax {
+        self.numbers
+    }
+
+    /// How a computed double is spelled, or `None` when the program may
+    /// have changed the precision.
+    #[must_use]
+    pub const fn doubles(self) -> Option<DoubleSpelling> {
+        self.doubles
+    }
+
+    /// Whether a computed `INT64_MIN` is spelled `-8` rather than its digits
+    /// ([`crate::TclVersion::garbles_wide_min`]).
+    #[must_use]
+    pub const fn garbles_wide_min(self) -> bool {
+        self.garbles_wide_min
     }
 }
 
@@ -930,9 +1178,45 @@ impl Default for LexerGrammar {
 #[cfg(test)]
 mod tests {
     use super::{
-        ArrayIndexSyntax, BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar,
-        NumberSyntax,
+        ArrayIndexSyntax, BracedVarStyle, DoubleSpelling, EscapeSyntax, ExprCommentStyle,
+        LexerGrammar, NumberSpelling, NumberSyntax,
     };
+
+    /// Each Tcl profile's number spelling, measured on its reference shell:
+    /// the `%.12g` double of 8.4, the shortest one from 8.5, `tcl_precision`
+    /// through 8.6, and the `-8` that 8.4 and 8.5 print for a computed
+    /// `INT64_MIN`. iRules has no shell here and follows its 8.4 base.
+    #[test]
+    fn number_spelling_follows_the_release() {
+        for (dialect, doubles, precision, garbles) in [
+            ("tcl8.4", DoubleSpelling::Precision12, true, true),
+            ("f5-irules", DoubleSpelling::Precision12, true, true),
+            ("tcl8.5", DoubleSpelling::Shortest, true, true),
+            ("tcl8.6", DoubleSpelling::Shortest, true, false),
+            ("tcl9.0", DoubleSpelling::Shortest, false, false),
+            ("tcl9.1", DoubleSpelling::Shortest, false, false),
+        ] {
+            let spelling = NumberSpelling::of_profile(crate::DialectProfile::find(dialect));
+            assert_eq!(spelling.doubles(), Some(doubles), "{dialect}");
+            assert_eq!(spelling.garbles_wide_min(), garbles, "{dialect}");
+            assert_eq!(
+                spelling.with_precision_written(true).doubles().is_none(),
+                precision,
+                "{dialect}"
+            );
+        }
+        for jim in [NumberSyntax::Jim, NumberSyntax::Jim080] {
+            let spelling = NumberSpelling::of(jim, None);
+            assert_eq!(spelling.doubles(), Some(DoubleSpelling::Precision12));
+            assert!(!spelling.garbles_wide_min());
+            assert_eq!(jim.precision_variable(), None);
+        }
+        // With no release named, 8.4 or 8.5 may be running.
+        assert!(NumberSpelling::of(NumberSyntax::Tcl85, None).garbles_wide_min());
+        assert!(!NumberSpelling::default().garbles_wide_min());
+        assert!(NumberSyntax::Tcl84.double_read_rejects_range_error());
+        assert!(!NumberSyntax::Jim080.double_read_rejects_range_error());
+    }
 
     #[test]
     fn nesting_rule_is_tcl9_only() {
@@ -971,6 +1255,24 @@ mod tests {
         assert!(g.script_skips_leading_bom);
         assert_eq!(g.expr_comments, ExprCommentStyle::Hash);
         assert_eq!(g.escapes, EscapeSyntax::Tcl90);
+    }
+
+    #[test]
+    fn only_strtod_readers_reject_a_double_range_error() {
+        for (syntax, rejects) in [
+            (NumberSyntax::Tcl84, true),
+            (NumberSyntax::Tcl85, false),
+            (NumberSyntax::Tcl90, false),
+            (NumberSyntax::Jim, true),
+            (NumberSyntax::Jim080, true),
+        ] {
+            assert_eq!(syntax.string_is_double_rejects_range_error(), rejects);
+        }
+        assert_eq!(
+            NumberSyntax::ALL.len(),
+            5,
+            "a new grammar needs a row above"
+        );
     }
 
     #[test]
