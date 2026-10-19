@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-19T14:20Z",
+  "source": "AskUserQuestion answers in chat",
+  "decisions": {
+    "document_entry_without_explicit_execution_entry": {
+      "choice": "Fresh interpreter",
+      "meaning": "A document analysed with no explicitly supplied execution entry is analysed as if a fresh tclsh/dialect interpreter runs it: builtins are original unless the file itself (or a proven source-order predecessor) redefines them. Unknown runtime history remains only when a caller explicitly supplies an unknown entry.",
+      "contract_change": "docs/design/contracts/naming-consumer-matrix.md row 'Supplied source entry correspondence' changes from 'Native or unsupported axes retain unknown runtime history' accordingly.",
+      "evidence": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/luna-37-compiler-lib-clusters.md (cluster C1, ~440-560 of ~750 compiler-lib failures)"
+    },
+    "ci_dispatch": {
+      "choice": "Yes, hosted runner",
+      "meaning": "Dispatch ci.yml (workflow_dispatch) on work with rust_tests_runner=hosted to obtain the exact full failure inventory; the local inventory is stopped."
+    }
+  }
+}
