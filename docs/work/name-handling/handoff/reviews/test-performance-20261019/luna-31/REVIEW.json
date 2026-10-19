@@ -1,0 +1,1756 @@
+{
+ "reviewer": "luna-31",
+ "target": "tcl_explorer",
+ "input": "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/slow/slow-tests.json",
+ "evidence_runs": [
+  "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/sol-26/head/run/explorer",
+  "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/agents/sol-26/patched/run/explorer"
+ ],
+ "systemic_cause": {
+  "summary": "Each slow test pays a fixed cost of about 17 s per process the first time the tcl_spectcl bundled pack set loads. run_pipeline (lib.rs:213-224) calls registry_for_dialect = tcl_spectcl::bundled::active_registry_for_dialect (bundled.rs:471). That calls registry_for_dialect -> registry_with_packs(profile, packs()) (bundled.rs:495-504). packs() (bundled.rs:404-411) is a per-process OnceLock that loads and evaluates all 8 EDA .tclspec packs (35,136 lines, 2.0 MB; eda_xilinx is 20,902 lines) from specs/ (discovery.rs:306-311, debug only) in an opt-level-0 build. nextest runs each test in its own process (CI ci.yml:1415, make test-rust, and the sol-26 harness), so the OnceLock never amortises and all 105 tests pay it.",
+  "fixed_s": 16.9,
+  "input_dependent_s": "0.05-3 (median about 1)",
+  "evidence": [
+   "tests::supplied_analysis_input_controls_the_document_pipeline runs the same run_pipeline_with_inputs (declared surface, interprocedural, memory SSA, deep semantic) on \"set value 1\" but with an ingress registry, not packs: 0.29-0.31 s for the whole process.",
+   "retained_explorer_source_tests::fixture() builds the unit with the pack-free default_context_registry: retained_explorer_source_keeps_actual_profiles... builds 6 dialect pipelines in 1.94-2.0 s, and the other fixture tests take 0.34-0.56 s.",
+   "bounds_withdraws_if_a_function_loses_its_actual_module_metadata = fixture() (cheap) plus one crate::run_pipeline call: 18.2 s.",
+   "original_document_pipeline_keeps_root_and_later_bom_roles calls run_pipeline for 9 dialects (9 registry overlays) in 17.6 s, about the same as single-call tests (16.9-18). So the per-profile overlay (tcl-registry cache.rs:244-271) is cheap and the once-per-process packs() load dominates.",
+   "Tests that never call run_pipeline (meta, segments, cst, formatters, view_tree unavailable-* tests) take 0.01-0.02 s, so harness and process start-up cost is negligible.",
+   "Regression lead: frozen091/explorer-event091 (docs/design/analysis/name-resolution-proofs/rust-validation/frozen091/explorer-event091/tests.log:69) ran original_event_semantic_view_preserves_conditional_descriptor_without_worker_grant, which calls run_pipeline twice, in 2.21 s in its own debug process. Today that test takes 17.4-17.7 s."
+  ]
+ },
+ "proposals": [
+  {
+   "id": "P1",
+   "class": "FIX FIXTURE SETUP",
+   "needs_signoff": true,
+   "change": "Factor run_pipeline into run_pipeline_with_registry(source, dialect, registry). run_pipeline then just passes &registry_for_dialect(dialect). Add a #[cfg(test)] pub(crate) fn run_pipeline_core(source, dialect) that passes tcl_registry::model::ingress::static_context_for_profile(profile).commands(), which is exactly what tcl_spectcl::install::registry_with_packs returns for an empty pack set (install.rs:76-79). In the test modules (serialise.rs, render.rs, view_tree.rs, wasm_explorer.rs, asm.rs and the lib.rs tests not listed under P2), change `use crate::run_pipeline` to `use crate::run_pipeline_core as run_pipeline`. Assertion text, inputs and dialects stay the same. Every test input is a non-EDA dialect (tcl8.6 x54, f5-irules x8, tcl9.0/9.1 x3 each, jim, tk, unknown), and every EDA pack command is behind required_package. wasm_explorer::tests::wasm_entries already compiles WASM against static_context_for(...).commands(), so this also makes the unit and codegen use the same registry.",
+   "saves_s": "about 1,690 summed over 102 tests"
+  },
+  {
+   "id": "P2",
+   "class": "KEEP on the real entry point (deep tier)",
+   "change": "Keep 3 tests on the real run_pipeline/pack path so the shipped entry-point wiring stays covered: tests::run_pipeline_top_level_only, tests::unparseable_dialect_does_not_panic and tests::original_document_pipeline_keeps_root_and_later_bom_roles (the 9-dialect sweep). Optional, with sign-off: put them in `mod bundled_pack_path` so a local light run can exclude them with a nextest filter."
+  },
+  {
+   "id": "P3",
+   "class": "FIX PRODUCT COST",
+   "needs_signoff": true,
+   "change": "Measure tcl_spectcl::bundled::packs() alone in a debug binary and split the time into read/disk cache, evaluate_pack_cached and merge. Then choose between: (a) [profile.dev.package.<hot crate>] opt-level, following the precedent at Cargo.toml:233-242; (b) a lazy per-pack or per-profile load, so a non-EDA dialect does not evaluate 35k lines of vendor specs (this needs a product owner decision because the bundled tier deliberately carries all 8 packs for every dialect); (c) bisect against frozen091 (2.2 s) to see whether this is a regression. This also speeds up tcl explore, tcl-cli explorer_gui and tcl-mcp in debug."
+  },
+  {
+   "id": "P4",
+   "class": "perf guard",
+   "needs_signoff": true,
+   "change": "Add a .config/nextest.toml override: [[profile.default.overrides]] filter = \"package(tcl-explorer)\", slow-timeout = { period = \"20s\", terminate-after = 3 }. This uses the existing mechanism; a test that becomes slower than today's pack-path cost is then marked SLOW in CI and killed at 60 s, with no wall-clock assertions in the tests."
+  },
+  {
+   "id": "P5",
+   "class": "smoke (light tier)",
+   "needs_signoff": true,
+   "change": "tcl-explorer has no smoke test today. Add one smoke_ test that uses run_pipeline_core on a small proc + if script and checks that serialise_result has non-null ir, cfgPreSsa, sccp and stats with a ::p procedure row. Add its row to scripts/dev/smoke-targets.tsv (the cargo xtask smoke-targets check drift gate requires it). It runs under make smoke / make smoke-p P=tcl-explorer."
+  }
+ ],
+ "tiers": {
+  "smoke": "P5 smoke_ test (<1 s), selected by the nextest smoke profile filter test(/(::|^)smoke/) and smoke-targets.tsv.",
+  "deep": "All 140 tcl_explorer lib tests, unchanged in number: rust-tests-shard 3 (scripts/dev/rust-test-binary-shards.tsv:142) and make test-rust / make test before a PR. 137 run sub-second to about 3 s on run_pipeline_core; the 3 P2 tests stay on the real pack path (about 17 s each until P3).",
+  "exhaustive": "none. Do not #[ignore] the pack-path tests: the exhaustive tier never runs before a PR.",
+  "local_light_iteration": "`cargo nextest run -p tcl-explorer -E \"package(tcl-explorer) - test(/bundled_pack_path/)\"` after P2, or plain `cargo test -p tcl-explorer --lib`, which uses a single process, so packs() loads once (about 17 s plus the remainder) even today."
+ },
+ "totals": {
+  "before_s_105_slow": 1903.5,
+  "after_s_estimate": 180.8,
+  "whole_target_before_s": 1908.2,
+  "whole_target_wall_before": "10m39s at P=3",
+  "whole_target_after_s_estimate": 185.5,
+  "after_if_P3_brings_packs_to_2s": 134.3
+ },
+ "tests": [
+  {
+   "selector": "asm::tests::instructions_carry_per_op_source_range",
+   "s_before": 17.5,
+   "status": "FAIL",
+   "property": "asm view rows carry per-op sourceLine/range for top-level statements",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.6,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/asm.rs:389:14 asm view is an array"
+  },
+  {
+   "selector": "asm::tests::synthetic_ops_have_null_range",
+   "s_before": 18.4,
+   "status": "FAIL",
+   "property": "synthetic (compiler-inserted) ops carry a null range",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.5,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/asm.rs:451:14 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "render::tests::a_mapped_line_points_at_the_span_its_row_shows",
+   "s_before": 17.5,
+   "status": "PASS",
+   "property": "render line map: a mapped text line points at the source span its row shows",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.6,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "render::tests::aot_text_follows_the_pass_selection",
+   "s_before": 19.3,
+   "status": "FAIL",
+   "property": "AOT text output follows the semantic-optimisation pass selection",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.4,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/render.rs:358:14 the native addition's node"
+  },
+  {
+   "selector": "render::tests::aot_text_lists_every_rejected_native_premise",
+   "s_before": 19.0,
+   "status": "FAIL",
+   "property": "AOT text lists every rejected native premise",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.1,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/render.rs:370:9 === aot ==="
+  },
+  {
+   "selector": "render::tests::colour_emits_ansi",
+   "s_before": 17.7,
+   "status": "PASS",
+   "property": "colour mode emits ANSI escapes",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.8,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "render::tests::render_all_includes_headers_and_asm",
+   "s_before": 18.0,
+   "status": "PASS",
+   "property": "render_all emits ir/worldSsa/asm/wasm section headers",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.1,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "render::tests::render_view_draws_a_tree",
+   "s_before": 17.8,
+   "status": "PASS",
+   "property": "render_view draws box-tree glyphs, no ANSI when colour off",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.9,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "render::tests::sccp_text_prints_each_edge_refinement",
+   "s_before": 18.5,
+   "status": "FAIL",
+   "property": "SCCP text prints each edge refinement (value/type/range/unbound)",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.6,
+   "fail_bucket": "F1/F2",
+   "head_panic_site": "rust/tcl-explorer/src/render.rs:311:9 === sccp ==="
+  },
+  {
+   "selector": "render::tests::sccp_text_prints_each_enumerated_loop",
+   "s_before": 17.6,
+   "status": "FAIL",
+   "property": "SCCP text prints each enumerated loop (exit block, final value)",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.7,
+   "fail_bucket": "F1/F2",
+   "head_panic_site": "rust/tcl-explorer/src/render.rs:341:9 === sccp ==="
+  },
+  {
+   "selector": "render::tests::sccp_text_prints_the_route_of_each_cell_update",
+   "s_before": 18.4,
+   "status": "FAIL",
+   "property": "SCCP text prints the route/answer of each cell update",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.5,
+   "fail_bucket": "F1/F2",
+   "head_panic_site": "rust/tcl-explorer/src/render.rs:271:9 === sccp ==="
+  },
+  {
+   "selector": "render::tests::show_filter_limits_views",
+   "s_before": 17.5,
+   "status": "PASS",
+   "property": "--show filter limits which views render",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.6,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "render::tests::the_line_map_is_aligned_with_the_rendered_text",
+   "s_before": 18.6,
+   "status": "PASS",
+   "property": "line map has one entry per rendered text line",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.7,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "render::tests::wasm_renders_wat_module",
+   "s_before": 18.0,
+   "status": "FAIL",
+   "property": "wasm view renders a WAT module naming $::top",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.1,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/render.rs:462:9   unavailable"
+  },
+  {
+   "selector": "serialise::original_configured_index_tests::original_structural_completeness_keeps_module_input_and_unknown_null",
+   "s_before": 18.5,
+   "status": "PASS",
+   "property": "structural index keeps module input; unknown completeness is null, not false (tcl9.1 + jim)",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.6,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::retained_explorer_source_tests::bounds_withdraws_if_a_function_loses_its_actual_module_metadata",
+   "s_before": 18.2,
+   "status": "PASS",
+   "property": "bounds view withdraws (null) when a function unit is swapped for a foreign one",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.3,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::retained_explorer_source_tests::remaining_source_range_consumers_refuse_foreign_source_arguments",
+   "s_before": 18.1,
+   "status": "PASS",
+   "property": "asm/shimmer/gvn/taint/cfgPostSsa/irulesFlow return null for a foreign source argument",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.2,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::retained_explorer_source_tests::retained_irules_warning_view_and_statistics_share_the_actual_count",
+   "s_before": 17.8,
+   "status": "FAIL",
+   "property": "iRules warning view and stats share one count, independent of display dialect label",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.9,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5961:14 available warning inventory"
+  },
+  {
+   "selector": "serialise::tests::annotations_collect_callouts_and_group_by_line",
+   "s_before": 19.3,
+   "status": "FAIL",
+   "property": "annotations collect callouts grouped by line",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.4,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5255:48 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::aot_view_carries_the_plan_and_every_rejected_native_premise",
+   "s_before": 19.1,
+   "status": "FAIL",
+   "property": "AOT view carries the plan and every rejected native premise",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.2,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4315:14 the native record"
+  },
+  {
+   "selector": "serialise::tests::asm_emits_structured_instructions_for_top_level",
+   "s_before": 17.6,
+   "status": "FAIL",
+   "property": "asm view emits structured top-level instructions",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.7,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5272:35 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::asm_resolves_jump_targets",
+   "s_before": 18.5,
+   "status": "FAIL",
+   "property": "asm view resolves jump targets",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.6,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5306:35 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::bounds_emits_per_function_shape",
+   "s_before": 18.3,
+   "status": "FAIL",
+   "property": "bounds view emits per-function shape",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.4,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4980:38 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::cfg_post_ssa_has_phis_uses_defs_and_analysis",
+   "s_before": 18.1,
+   "status": "FAIL",
+   "property": "cfgPostSsa carries phis, uses/defs and analysis",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.2,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5215:36 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::cfg_post_ssa_optimised_present_when_source_changes",
+   "s_before": 18.9,
+   "status": "FAIL",
+   "property": "cfgPostSsaOptimised present when optimiser rewrites source",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.0,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5233:9 assertion failed: v[\"cfgPostSsaOptimised\"].is_array()"
+  },
+  {
+   "selector": "serialise::tests::cfg_pre_ssa_has_entry_block_and_branch_terminator",
+   "s_before": 18.6,
+   "status": "PASS",
+   "property": "cfgPreSsa has entry block and branch terminator",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.7,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::tests::completion_terminator_preserves_pending_native_return",
+   "s_before": 19.3,
+   "status": "PASS",
+   "property": "completion terminator preserves pending native return route",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.4,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::tests::dataflow_emits_nodes_and_summary",
+   "s_before": 18.1,
+   "status": "PASS",
+   "property": "dataflow view emits nodes and def/use summary",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.2,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::tests::dead_stores_surface_from_o109",
+   "s_before": 18.5,
+   "status": "FAIL",
+   "property": "O109 dead store surfaces in cfgPostSsa analysis, stats and callouts",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.6,
+   "fail_bucket": "F1/F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4722:14 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::durable_compiler_views_are_present_and_cover_extra_units",
+   "s_before": 17.8,
+   "status": "FAIL",
+   "property": "durable views (dominators/sccp/liveness/semantic) present and cover methods/apply bodies; memory SSA for procs",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.9,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4623:9 assertion failed: semantic.iter().any(|f| f[\"name\"] == \"::C::m\")"
+  },
+  {
+   "selector": "serialise::tests::event_order_applies_outer_priority_until_it_changes",
+   "s_before": 18.9,
+   "status": "FAIL",
+   "property": "iRules eventOrder applies outer priority until it changes",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.0,
+   "fail_bucket": "F1/F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4883:51 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::event_order_empty_for_plain_tcl",
+   "s_before": 19.4,
+   "status": "FAIL",
+   "property": "eventOrder is [] (not null) for plain Tcl",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.5,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4830:9 assertion `left == right` failed"
+  },
+  {
+   "selector": "serialise::tests::event_order_ignores_non_braced_event_bodies",
+   "s_before": 18.9,
+   "status": "FAIL",
+   "property": "eventOrder ignores non-braced event bodies",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.0,
+   "fail_bucket": "F1/F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4914:51 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::event_order_orders_when_handlers_by_firing_order",
+   "s_before": 18.7,
+   "status": "FAIL",
+   "property": "eventOrder orders when-handlers by firing order",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.8,
+   "fail_bucket": "F1/F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4843:37 eventOrder is an array"
+  },
+  {
+   "selector": "serialise::tests::event_order_tie_break_increments_offset",
+   "s_before": 18.9,
+   "status": "FAIL",
+   "property": "eventOrder tie-break by source offset",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.0,
+   "fail_bucket": "F1/F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4868:37 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::event_order_uses_rooted_normalised_top_level_handlers_only",
+   "s_before": 18.6,
+   "status": "FAIL",
+   "property": "eventOrder uses only rooted, normalised top-level handlers",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.7,
+   "fail_bucket": "F1/F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4900:51 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::gvn_abstains_without_exact_common_invocation_provenance",
+   "s_before": 19.5,
+   "status": "FAIL",
+   "property": "GVN abstains without exact common invocation provenance",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.6,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4813:34 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::interproc_summarises_procs_with_arity_and_return_shape",
+   "s_before": 18.9,
+   "status": "FAIL",
+   "property": "interproc summarises procs with arity and return shape",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.0,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5474:9 assertion `left == right` failed"
+  },
+  {
+   "selector": "serialise::tests::interproc_view_shows_the_param_constant_seed_and_its_withdrawal",
+   "s_before": 21.2,
+   "status": "FAIL",
+   "property": "interproc view shows param-constant seed and its withdrawal",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 4.3,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4524:9 assertion `left == right` failed"
+  },
+  {
+   "selector": "serialise::tests::intervals_reports_bounded_loop_counter",
+   "s_before": 18.3,
+   "status": "FAIL",
+   "property": "intervals view reports bounded loop counter",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.4,
+   "fail_bucket": "F1/F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5412:9 assertion failed: entries.iter().any(|e| e[\"variable\"] == \"i\" && e[\"lo\"].is_number())"
+  },
+  {
+   "selector": "serialise::tests::ir_expands_if_clauses_and_collects_procs",
+   "s_before": 19.0,
+   "status": "FAIL",
+   "property": "IR view expands if clauses and collects procs",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.1,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4666:14 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::ir_rows_keep_equal_names_and_distinct_source_bodies",
+   "s_before": 18.8,
+   "status": "FAIL",
+   "property": "IR rows keep duplicate proc names with distinct bodies/ranges",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.9,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4048:9 assertion `left == right` failed: {\"topLevel\":[{\"kind\":\"IRCall\",\"summary\":\"call proc p  return FIRST\",\"colorClass\":\"ir-c"
+  },
+  {
+   "selector": "serialise::tests::ir_widens_braced_condition_range_to_closer",
+   "s_before": 18.3,
+   "status": "PASS",
+   "property": "IR braced condition range widened to the closing brace",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.4,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::tests::irules_flow_empty_for_plain_tcl",
+   "s_before": 17.6,
+   "status": "FAIL",
+   "property": "irulesFlow is [] (not null) for plain Tcl",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.7,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4824:9 assertion `left == right` failed"
+  },
+  {
+   "selector": "serialise::tests::loops_detects_for_loop_with_depth",
+   "s_before": 19.2,
+   "status": "PASS",
+   "property": "loops view detects a for loop with depth",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.3,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::tests::loops_empty_for_straightline_code",
+   "s_before": 18.3,
+   "status": "PASS",
+   "property": "loops view empty for straight-line code",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.4,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::tests::no_dead_stores_when_value_is_read",
+   "s_before": 17.9,
+   "status": "FAIL",
+   "property": "no dead store reported when the value is read",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.0,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4745:9 assertion `left == right` failed"
+  },
+  {
+   "selector": "serialise::tests::optimisations_reports_constant_fold_with_range",
+   "s_before": 18.8,
+   "status": "FAIL",
+   "property": "optimisations view reports constant fold with range",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.9,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5368:35 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::optimised_ir_and_cfg_present_when_source_changes",
+   "s_before": 18.1,
+   "status": "FAIL",
+   "property": "irOptimised/cfgPreSsaOptimised present when source changes",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.2,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4707:9 assertion failed: v[\"irOptimised\"][\"topLevel\"].is_array()"
+  },
+  {
+   "selector": "serialise::tests::optimised_source_null_when_unchanged",
+   "s_before": 18.7,
+   "status": "PASS",
+   "property": "optimisedSource and double-pipeline keys null when unchanged",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.8,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::tests::optimised_source_reflects_constant_fold",
+   "s_before": 18.2,
+   "status": "FAIL",
+   "property": "optimisedSource reflects constant fold (puts 3)",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.3,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4686:30 optimised source string"
+  },
+  {
+   "selector": "serialise::tests::optimiser_passes_lists_every_pass_in_order",
+   "s_before": 18.0,
+   "status": "FAIL",
+   "property": "optimiserPasses lists every pass in order",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.1,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4790:37 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::optimiser_passes_preserve_set_only_tk_profile",
+   "s_before": 18.0,
+   "status": "FAIL",
+   "property": "optimiserPasses preserved under set-only tk profile",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.1,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4214:14 optimiser passes"
+  },
+  {
+   "selector": "serialise::tests::original_event_semantic_view_preserves_conditional_descriptor_without_worker_grant",
+   "s_before": 17.7,
+   "status": "PASS",
+   "property": "semantic view keeps conditional event descriptor; ordinary ::when proc has none (f5-irules x2)",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.8,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::tests::rendered_properties_flags_slash_and_dash",
+   "s_before": 17.5,
+   "status": "FAIL",
+   "property": "rendered-properties flags STARTS_WITH_SLASH/DASH",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.6,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5395:9 assertion failed: u[\"must\"].as_array().unwrap().iter().any(|f| f == \"STARTS_WITH_DASH\")"
+  },
+  {
+   "selector": "serialise::tests::sccp_reports_each_statements_completion_paths",
+   "s_before": 18.7,
+   "status": "FAIL",
+   "property": "SCCP view reports each statement completion paths",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.8,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5038:18 the procedure's view"
+  },
+  {
+   "selector": "serialise::tests::sccp_reports_each_statements_route_and_answer",
+   "s_before": 18.0,
+   "status": "FAIL",
+   "property": "SCCP view reports each statement route and answer",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.1,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5001:14 the procedure's view"
+  },
+  {
+   "selector": "serialise::tests::sccp_reports_folded_types",
+   "s_before": 19.6,
+   "status": "FAIL",
+   "property": "SCCP view reports folded types",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 2.7,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5188:14 the procedure's view"
+  },
+  {
+   "selector": "serialise::tests::sccp_reports_the_route_tally",
+   "s_before": 19.9,
+   "status": "FAIL",
+   "property": "SCCP view reports the per-function route tally",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 3.0,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5105:14 the procedure's view"
+  },
+  {
+   "selector": "serialise::tests::sccp_reports_the_selection",
+   "s_before": 18.4,
+   "status": "FAIL",
+   "property": "SCCP view reports the switch selection",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.5,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5128:14 the procedure's view"
+  },
+  {
+   "selector": "serialise::tests::sccp_reports_the_unreached_arms",
+   "s_before": 18.2,
+   "status": "FAIL",
+   "property": "SCCP view reports unreached arms",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.3,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5157:14 the procedure's view"
+  },
+  {
+   "selector": "serialise::tests::semantic_optimisations_view_carries_every_pass_and_its_state",
+   "s_before": 17.8,
+   "status": "FAIL",
+   "property": "semantic-optimisations view carries every pass and its state",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.9,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4402:35 WASM entries"
+  },
+  {
+   "selector": "serialise::tests::serialise_result_includes_meta_and_ir",
+   "s_before": 17.6,
+   "status": "PASS",
+   "property": "serialise_result includes meta and ir",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.7,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::tests::shimmer_reports_intrep_conversion",
+   "s_before": 17.3,
+   "status": "FAIL",
+   "property": "shimmer view reports intrep conversion",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.4,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5349:38 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::source_map_maps_lines_to_byte_ranges",
+   "s_before": 17.9,
+   "status": "PASS",
+   "property": "sourceMap maps lines to byte ranges",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.0,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::tests::stats_reports_function_and_block_counts",
+   "s_before": 18.2,
+   "status": "FAIL",
+   "property": "stats reports function and block counts",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.3,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5240:9 assertion `left == right` failed"
+  },
+  {
+   "selector": "serialise::tests::structural_index_flags_incomplete_script",
+   "s_before": 17.8,
+   "status": "PASS",
+   "property": "structural index flags an incomplete script",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.9,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::tests::structural_index_reports_boundaries_and_balance",
+   "s_before": 17.4,
+   "status": "PASS",
+   "property": "structural index reports boundaries and brace balance",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.5,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::tests::taint_replay_availability_is_separate_from_empty_warning_arrays",
+   "s_before": 17.5,
+   "status": "FAIL",
+   "property": "taint replay availability distinct from empty warning arrays",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.6,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:3986:9 assertion failed: retained_explorer_source(&result, &source).is_some()"
+  },
+  {
+   "selector": "serialise::tests::taint_reports_eval_sink",
+   "s_before": 18.1,
+   "status": "FAIL",
+   "property": "taint view reports eval sink",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.2,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5335:36 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::taint_tracking_marks_exec_tainted_vars",
+   "s_before": 17.6,
+   "status": "PASS",
+   "property": "taint tracking marks exec-tainted vars",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.7,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::tests::types_reports_known_int_for_constant_assignments",
+   "s_before": 18.1,
+   "status": "FAIL",
+   "property": "types view reports known int for constant assignments",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.2,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5458:14 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "serialise::tests::unit_scope_reports_a_registry_declared_boundary",
+   "s_before": 17.9,
+   "status": "PASS",
+   "property": "unitScope reports PROVIDES_PACKAGE boundary; seeding declined",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.0,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "serialise::tests::unit_scope_reports_uniform_literals_and_no_boundary",
+   "s_before": 18.2,
+   "status": "FAIL",
+   "property": "unitScope reports uniform literal seeds and no boundary",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.3,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:5500:14 ::helper evidence present"
+  },
+  {
+   "selector": "serialise::tests::wasm_view_exposes_canonical_semantic_plan_and_serialised_output",
+   "s_before": 17.6,
+   "status": "FAIL",
+   "property": "wasm view exposes canonical semantic plan and serialised output",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.7,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4228:39 WASM entries"
+  },
+  {
+   "selector": "serialise::tests::wasm_view_exposes_common_native_i64_selection_evidence",
+   "s_before": 18.2,
+   "status": "FAIL",
+   "property": "wasm view exposes native i64 selection evidence",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.3,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4279:37 WASM entries"
+  },
+  {
+   "selector": "serialise::tests::wasm_view_exposes_the_native_tier_lowering_record",
+   "s_before": 17.2,
+   "status": "FAIL",
+   "property": "wasm view exposes native-tier lowering record",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.3,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4431:40 WASM entries"
+  },
+  {
+   "selector": "serialise::tests::wasm_view_exposes_typed_semantic_decline",
+   "s_before": 17.3,
+   "status": "FAIL",
+   "property": "wasm view exposes typed semantic decline",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.4,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4458:37 WASM entries"
+  },
+  {
+   "selector": "serialise::tests::wasm_view_serialises_multiple_mixed_regions_in_node_order",
+   "s_before": 17.7,
+   "status": "FAIL",
+   "property": "wasm view serialises mixed regions in node order",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.8,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4481:37 WASM entries"
+  },
+  {
+   "selector": "serialise::tests::world_ssa_decline_preserves_transition_policy_evidence",
+   "s_before": 17.9,
+   "status": "FAIL",
+   "property": "worldSsa decline preserves transition-policy evidence",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.0,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4585:9 assertion `left == right` failed"
+  },
+  {
+   "selector": "serialise::tests::world_ssa_view_keeps_versions_transitions_and_typed_availability",
+   "s_before": 17.7,
+   "status": "FAIL",
+   "property": "worldSsa view keeps versions, transitions, typed availability",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.8,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/serialise.rs:4550:9 the availability payload must distinguish an absent graph from absent executable IR"
+  },
+  {
+   "selector": "tests::deep_pipeline_preserves_the_actual_source_metadata_owner",
+   "s_before": 17.8,
+   "status": "FAIL",
+   "property": "every snapshot (top/proc/body unit) keeps the source metadata owner; proc has world-state SSA",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.9,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/lib.rs:445:9 assertion failed: snapshots.iter().any(|snapshot|"
+  },
+  {
+   "selector": "tests::original_document_pipeline_keeps_config_withdrawal_terminal",
+   "s_before": 17.5,
+   "status": "FAIL",
+   "property": "retained source withdraws once lexer config or source text is altered",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.6,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/lib.rs:403:9 assertion failed: crate::serialise::retained_explorer_source(&result, source).is_some()"
+  },
+  {
+   "selector": "tests::original_document_pipeline_keeps_root_and_later_bom_roles",
+   "s_before": 17.6,
+   "status": "FAIL",
+   "property": "9-dialect sweep: root vs later BOM handling per grammar via run_pipeline",
+   "class": "KEEP (real pack path, deep only)",
+   "tier": "deep",
+   "expected_new_s": 17.5,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/lib.rs:369:22 called `Option::unwrap()` on a `None` value"
+  },
+  {
+   "selector": "tests::run_pipeline_collects_procedures_in_order",
+   "s_before": 17.7,
+   "status": "FAIL",
+   "property": "run_pipeline snapshots: ::top first then procs sorted",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.8,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/lib.rs:429:9 assertion failed: procs.contains(&\"::alpha\")"
+  },
+  {
+   "selector": "tests::run_pipeline_top_level_only",
+   "s_before": 17.2,
+   "status": "PASS",
+   "property": "run_pipeline on a proc-free script yields only ::top",
+   "class": "KEEP (real pack path, deep only)",
+   "tier": "deep",
+   "expected_new_s": 17.5,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "tests::snapshots_retain_duplicate_procedures_and_named_top_separately",
+   "s_before": 18.0,
+   "status": "FAIL",
+   "property": "snapshots keep duplicate procs and a named ::top proc separately",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.1,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/lib.rs:489:9 assertion `left == right` failed"
+  },
+  {
+   "selector": "tests::unparseable_dialect_does_not_panic",
+   "s_before": 16.9,
+   "status": "PASS",
+   "property": "run_pipeline on an unknown dialect does not panic",
+   "class": "KEEP (real pack path, deep only)",
+   "tier": "deep",
+   "expected_new_s": 17.5,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "view_tree::original_configured_completeness_tests::original_structural_view_keeps_unknown_completeness_distinct_from_false",
+   "s_before": 17.9,
+   "status": "PASS",
+   "property": "structural tree view keeps unknown completeness distinct from false",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.0,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "view_tree::tests::a_hint_only_optimisation_is_not_rendered_as_a_rewrite",
+   "s_before": 17.6,
+   "status": "FAIL",
+   "property": "hint-only optimisation not rendered as a rewrite",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.7,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/view_tree.rs:2092:14 the opt payload is a list"
+  },
+  {
+   "selector": "view_tree::tests::cfg_view_lists_blocks_with_entry_tag",
+   "s_before": 17.5,
+   "status": "PASS",
+   "property": "cfg tree view lists blocks with entry tag",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.6,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "view_tree::tests::empty_analysis_views_have_a_dim_note",
+   "s_before": 17.0,
+   "status": "PASS",
+   "property": "empty analysis views carry a dim note",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.3,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "view_tree::tests::every_tree_descriptor_has_a_shared_builder",
+   "s_before": 17.4,
+   "status": "FAIL",
+   "property": "every Tree descriptor renders non-empty for set x 1",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.5,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/view_tree.rs:2220:13 tree descriptor aot has no shared renderer"
+  },
+  {
+   "selector": "view_tree::tests::ir_view_has_top_level_and_proc_nodes",
+   "s_before": 17.4,
+   "status": "FAIL",
+   "property": "IR tree view has top-level and ::f nodes",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.5,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/view_tree.rs:2233:9 assertion failed: nodes.iter().any(|n| n.label.starts_with(\"::f\"))"
+  },
+  {
+   "selector": "view_tree::tests::loops_view_reports_a_loop",
+   "s_before": 18.2,
+   "status": "PASS",
+   "property": "loops tree view reports a loop",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.3,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "view_tree::tests::rows_that_display_a_range_also_carry_the_structured_one",
+   "s_before": 17.8,
+   "status": "FAIL",
+   "property": "rows that display a range carry the structured range",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.9,
+   "fail_bucket": "F1",
+   "head_panic_site": "rust/tcl-explorer/src/view_tree.rs:2174:13 ssa showed no range rows at all"
+  },
+  {
+   "selector": "view_tree::tests::the_structured_range_matches_the_payload",
+   "s_before": 17.5,
+   "status": "PASS",
+   "property": "structured range matches payload",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.6,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "view_tree::tests::unknown_view_is_empty",
+   "s_before": 17.1,
+   "status": "PASS",
+   "property": "unknown view id builds an empty tree",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.3,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "view_tree::tests::world_ssa_view_explains_availability_and_transition_policy",
+   "s_before": 17.4,
+   "status": "PASS",
+   "property": "worldSsa tree explains availability/transition policy",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.5,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "wasm_explorer::tests::branches_and_blocks_pair_up",
+   "s_before": 18.1,
+   "status": "PASS",
+   "property": "wasm explorer: br/block pairs match",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.2,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "wasm_explorer::tests::calls_resolve_a_target",
+   "s_before": 17.2,
+   "status": "PASS",
+   "property": "wasm explorer: calls resolve a target",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.3,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "wasm_explorer::tests::module_header_carries_every_contract_field",
+   "s_before": 17.7,
+   "status": "PASS",
+   "property": "wasm explorer: module header carries every contract field",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.8,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "wasm_explorer::tests::module_header_then_functions",
+   "s_before": 17.7,
+   "status": "PASS",
+   "property": "wasm explorer: module header row precedes function rows",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.8,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "wasm_explorer::tests::module_types_cover_imports_and_defined_functions",
+   "s_before": 17.4,
+   "status": "PASS",
+   "property": "wasm explorer: module types cover imports and defined functions",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 0.5,
+   "fail_bucket": null,
+   "head_panic_site": null
+  },
+  {
+   "selector": "wasm_explorer::tests::source_function_rows_preserve_duplicate_names_and_named_top",
+   "s_before": 18.2,
+   "status": "FAIL",
+   "property": "wasm explorer: duplicate proc names and named ::top kept as separate rows",
+   "class": "FIX FIXTURE SETUP",
+   "tier": "deep (fast; part of local light run)",
+   "expected_new_s": 1.3,
+   "fail_bucket": "F2",
+   "head_panic_site": "rust/tcl-explorer/src/wasm_explorer.rs:585:9 assertion `left == right` failed: [Object {\"name\": String(\"(module)\"), \"kind\": String(\"module\"), \"funcIdx\": Null, \"param"
+  }
+ ],
+ "failing_at_head": {
+  "count": 73,
+  "buckets": {
+   "F1": "Retained-source withdrawal: run_pipeline output has no ir_module.source_metadata_input, so retained_explorer_source() (serialise.rs:102-130, the `?` at :117) returns None and every retained view serialises null/unavailable.",
+   "F2": "Definitions not lowered: proc / oo::class method / iRules when bodies are lowered as plain IRCall (e.g. \"call proc p  return FIRST\"), so procedure/method/handler rows are missing. Also seen on the fast fixture-built path (retained_event_order_* returns 0 rows), so the cause is in tcl-compiler lowering rather than in run_pipeline alone.",
+   "F1/F2": "Symptom fits both F1 and F2; which one fails first depends on the input.",
+   "F3": "A supplied ResolvedAnalysisInput is still not kept on the module (lib.rs:320: source_metadata_input is None). This is the run_pipeline_with_analysis_input path that the LSP uses, so it is a likely product bug and probably the same root as F1.",
+   "F4": "Inventory or contract drift that does not depend on the pipeline: ARTIFACT_COVERAGE lacks CompilationUnit::source_class_facts and related fields (luna-25 already flagged this), and remaining_actual_cu_views expects every view to be an array while taintReplays is now an object {scope,status,complete,...}."
+  },
+  "by_bucket": {
+   "F1": 41,
+   "F4": 2,
+   "F1/F2": 10,
+   "F2": 19,
+   "F3": 1
+  },
+  "tests": [
+   {
+    "selector": "asm::tests::instructions_carry_per_op_source_range",
+    "seconds_head": 18.357,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/asm.rs:389:14",
+    "message": "asm view is an array"
+   },
+   {
+    "selector": "asm::tests::synthetic_ops_have_null_range",
+    "seconds_head": 18.43,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/asm.rs:451:14",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "coverage::tests::every_durable_field_is_reviewed_in_the_coverage_table",
+    "seconds_head": 0.101,
+    "bucket": "F4",
+    "site": "rust/tcl-explorer/src/coverage.rs:264:13",
+    "message": "assertion `left == right` failed: CompilationUnit::source_class_facts must have exactly one ARTIFACT_COVERAGE destination or exclusion"
+   },
+   {
+    "selector": "render::tests::aot_text_follows_the_pass_selection",
+    "seconds_head": 18.538,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/render.rs:358:14",
+    "message": "the native addition's node"
+   },
+   {
+    "selector": "render::tests::aot_text_lists_every_rejected_native_premise",
+    "seconds_head": 18.631,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/render.rs:370:9",
+    "message": "=== aot ==="
+   },
+   {
+    "selector": "render::tests::sccp_text_prints_each_edge_refinement",
+    "seconds_head": 18.02,
+    "bucket": "F1/F2",
+    "site": "rust/tcl-explorer/src/render.rs:311:9",
+    "message": "=== sccp ==="
+   },
+   {
+    "selector": "render::tests::sccp_text_prints_each_enumerated_loop",
+    "seconds_head": 17.74,
+    "bucket": "F1/F2",
+    "site": "rust/tcl-explorer/src/render.rs:341:9",
+    "message": "=== sccp ==="
+   },
+   {
+    "selector": "render::tests::sccp_text_prints_the_route_of_each_cell_update",
+    "seconds_head": 18.488,
+    "bucket": "F1/F2",
+    "site": "rust/tcl-explorer/src/render.rs:271:9",
+    "message": "=== sccp ==="
+   },
+   {
+    "selector": "render::tests::wasm_renders_wat_module",
+    "seconds_head": 18.12,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/render.rs:462:9",
+    "message": "  unavailable"
+   },
+   {
+    "selector": "serialise::retained_explorer_source_tests::remaining_actual_cu_views_retain_profiles_and_ignore_display_labels",
+    "seconds_head": 0.543,
+    "bucket": "F4",
+    "site": "rust/tcl-explorer/src/serialise.rs:5926:17",
+    "message": "tcl8.4/taintReplays: {\"scope\":\"command-heads-and-stored-callbacks\",\"status\":\"analysed\",\"complete\":true,\"unavailableReplays\":[]}"
+   },
+   {
+    "selector": "serialise::retained_explorer_source_tests::retained_event_order_uses_the_custom_full_config_and_actual_command_store",
+    "seconds_head": 0.389,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:5691:9",
+    "message": "assertion `left == right` failed"
+   },
+   {
+    "selector": "serialise::retained_explorer_source_tests::retained_explorer_views_refuse_missing_changed_and_foreign_source_owners",
+    "seconds_head": 0.404,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:5780:9",
+    "message": "assertion `left == right` failed"
+   },
+   {
+    "selector": "serialise::retained_explorer_source_tests::retained_irules_warning_view_and_statistics_share_the_actual_count",
+    "seconds_head": 17.514,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:5961:14",
+    "message": "available warning inventory"
+   },
+   {
+    "selector": "serialise::tests::annotations_collect_callouts_and_group_by_line",
+    "seconds_head": 19.063,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:5255:48",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::aot_view_carries_the_plan_and_every_rejected_native_premise",
+    "seconds_head": 18.523,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4315:14",
+    "message": "the native record"
+   },
+   {
+    "selector": "serialise::tests::asm_emits_structured_instructions_for_top_level",
+    "seconds_head": 18.012,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:5272:35",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::asm_resolves_jump_targets",
+    "seconds_head": 17.34,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:5306:35",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::bounds_emits_per_function_shape",
+    "seconds_head": 18.315,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4980:38",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::cfg_post_ssa_has_phis_uses_defs_and_analysis",
+    "seconds_head": 18.811,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:5215:36",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::cfg_post_ssa_optimised_present_when_source_changes",
+    "seconds_head": 18.029,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:5233:9",
+    "message": "assertion failed: v[\"cfgPostSsaOptimised\"].is_array()"
+   },
+   {
+    "selector": "serialise::tests::dead_stores_surface_from_o109",
+    "seconds_head": 18.752,
+    "bucket": "F1/F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:4722:14",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::durable_compiler_views_are_present_and_cover_extra_units",
+    "seconds_head": 19.031,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:4623:9",
+    "message": "assertion failed: semantic.iter().any(|f| f[\"name\"] == \"::C::m\")"
+   },
+   {
+    "selector": "serialise::tests::event_order_applies_outer_priority_until_it_changes",
+    "seconds_head": 18.444,
+    "bucket": "F1/F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:4883:51",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::event_order_empty_for_plain_tcl",
+    "seconds_head": 18.407,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4830:9",
+    "message": "assertion `left == right` failed"
+   },
+   {
+    "selector": "serialise::tests::event_order_ignores_non_braced_event_bodies",
+    "seconds_head": 18.514,
+    "bucket": "F1/F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:4914:51",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::event_order_orders_when_handlers_by_firing_order",
+    "seconds_head": 17.438,
+    "bucket": "F1/F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:4843:37",
+    "message": "eventOrder is an array"
+   },
+   {
+    "selector": "serialise::tests::event_order_tie_break_increments_offset",
+    "seconds_head": 17.26,
+    "bucket": "F1/F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:4868:37",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::event_order_uses_rooted_normalised_top_level_handlers_only",
+    "seconds_head": 17.718,
+    "bucket": "F1/F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:4900:51",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::gvn_abstains_without_exact_common_invocation_provenance",
+    "seconds_head": 18.418,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4813:34",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::interproc_summarises_procs_with_arity_and_return_shape",
+    "seconds_head": 18.04,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:5474:9",
+    "message": "assertion `left == right` failed"
+   },
+   {
+    "selector": "serialise::tests::interproc_view_shows_the_param_constant_seed_and_its_withdrawal",
+    "seconds_head": 18.467,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:4524:9",
+    "message": "assertion `left == right` failed"
+   },
+   {
+    "selector": "serialise::tests::intervals_reports_bounded_loop_counter",
+    "seconds_head": 17.844,
+    "bucket": "F1/F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:5412:9",
+    "message": "assertion failed: entries.iter().any(|e| e[\"variable\"] == \"i\" && e[\"lo\"].is_number())"
+   },
+   {
+    "selector": "serialise::tests::ir_expands_if_clauses_and_collects_procs",
+    "seconds_head": 17.614,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:4666:14",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::ir_rows_keep_equal_names_and_distinct_source_bodies",
+    "seconds_head": 18.533,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:4048:9",
+    "message": "assertion `left == right` failed: {\"topLevel\":[{\"kind\":\"IRCall\",\"summary\":\"call proc p  return FIRST\",\"colorClass\":\"ir-call\",\"range\":{\"start"
+   },
+   {
+    "selector": "serialise::tests::irules_flow_empty_for_plain_tcl",
+    "seconds_head": 17.464,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4824:9",
+    "message": "assertion `left == right` failed"
+   },
+   {
+    "selector": "serialise::tests::no_dead_stores_when_value_is_read",
+    "seconds_head": 17.7,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4745:9",
+    "message": "assertion `left == right` failed"
+   },
+   {
+    "selector": "serialise::tests::optimisations_reports_constant_fold_with_range",
+    "seconds_head": 18.794,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:5368:35",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::optimised_ir_and_cfg_present_when_source_changes",
+    "seconds_head": 18.045,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4707:9",
+    "message": "assertion failed: v[\"irOptimised\"][\"topLevel\"].is_array()"
+   },
+   {
+    "selector": "serialise::tests::optimised_source_reflects_constant_fold",
+    "seconds_head": 18.021,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4686:30",
+    "message": "optimised source string"
+   },
+   {
+    "selector": "serialise::tests::optimiser_passes_lists_every_pass_in_order",
+    "seconds_head": 18.724,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4790:37",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::optimiser_passes_preserve_set_only_tk_profile",
+    "seconds_head": 18.497,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4214:14",
+    "message": "optimiser passes"
+   },
+   {
+    "selector": "serialise::tests::rendered_properties_flags_slash_and_dash",
+    "seconds_head": 17.857,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:5395:9",
+    "message": "assertion failed: u[\"must\"].as_array().unwrap().iter().any(|f| f == \"STARTS_WITH_DASH\")"
+   },
+   {
+    "selector": "serialise::tests::sccp_reports_each_statements_completion_paths",
+    "seconds_head": 18.49,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:5038:18",
+    "message": "the procedure's view"
+   },
+   {
+    "selector": "serialise::tests::sccp_reports_each_statements_route_and_answer",
+    "seconds_head": 17.897,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:5001:14",
+    "message": "the procedure's view"
+   },
+   {
+    "selector": "serialise::tests::sccp_reports_folded_types",
+    "seconds_head": 18.887,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:5188:14",
+    "message": "the procedure's view"
+   },
+   {
+    "selector": "serialise::tests::sccp_reports_the_route_tally",
+    "seconds_head": 19.446,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:5105:14",
+    "message": "the procedure's view"
+   },
+   {
+    "selector": "serialise::tests::sccp_reports_the_selection",
+    "seconds_head": 18.019,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:5128:14",
+    "message": "the procedure's view"
+   },
+   {
+    "selector": "serialise::tests::sccp_reports_the_unreached_arms",
+    "seconds_head": 17.859,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:5157:14",
+    "message": "the procedure's view"
+   },
+   {
+    "selector": "serialise::tests::semantic_optimisations_view_carries_every_pass_and_its_state",
+    "seconds_head": 17.478,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4402:35",
+    "message": "WASM entries"
+   },
+   {
+    "selector": "serialise::tests::shimmer_reports_intrep_conversion",
+    "seconds_head": 17.453,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:5349:38",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::stats_reports_function_and_block_counts",
+    "seconds_head": 17.723,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:5240:9",
+    "message": "assertion `left == right` failed"
+   },
+   {
+    "selector": "serialise::tests::taint_replay_availability_is_separate_from_empty_warning_arrays",
+    "seconds_head": 17.518,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:3986:9",
+    "message": "assertion failed: retained_explorer_source(&result, &source).is_some()"
+   },
+   {
+    "selector": "serialise::tests::taint_reports_eval_sink",
+    "seconds_head": 17.656,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:5335:36",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::types_reports_known_int_for_constant_assignments",
+    "seconds_head": 17.28,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:5458:14",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "serialise::tests::unit_scope_reports_uniform_literals_and_no_boundary",
+    "seconds_head": 17.949,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/serialise.rs:5500:14",
+    "message": "::helper evidence present"
+   },
+   {
+    "selector": "serialise::tests::wasm_view_exposes_canonical_semantic_plan_and_serialised_output",
+    "seconds_head": 17.883,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4228:39",
+    "message": "WASM entries"
+   },
+   {
+    "selector": "serialise::tests::wasm_view_exposes_common_native_i64_selection_evidence",
+    "seconds_head": 18.285,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4279:37",
+    "message": "WASM entries"
+   },
+   {
+    "selector": "serialise::tests::wasm_view_exposes_the_native_tier_lowering_record",
+    "seconds_head": 17.661,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4431:40",
+    "message": "WASM entries"
+   },
+   {
+    "selector": "serialise::tests::wasm_view_exposes_typed_semantic_decline",
+    "seconds_head": 17.283,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4458:37",
+    "message": "WASM entries"
+   },
+   {
+    "selector": "serialise::tests::wasm_view_serialises_multiple_mixed_regions_in_node_order",
+    "seconds_head": 18.541,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4481:37",
+    "message": "WASM entries"
+   },
+   {
+    "selector": "serialise::tests::world_ssa_decline_preserves_transition_policy_evidence",
+    "seconds_head": 17.943,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4585:9",
+    "message": "assertion `left == right` failed"
+   },
+   {
+    "selector": "serialise::tests::world_ssa_view_keeps_versions_transitions_and_typed_availability",
+    "seconds_head": 18.173,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/serialise.rs:4550:9",
+    "message": "the availability payload must distinguish an absent graph from absent executable IR"
+   },
+   {
+    "selector": "tests::deep_pipeline_preserves_the_actual_source_metadata_owner",
+    "seconds_head": 18.0,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/lib.rs:445:9",
+    "message": "assertion failed: snapshots.iter().any(|snapshot|"
+   },
+   {
+    "selector": "tests::original_document_pipeline_keeps_config_withdrawal_terminal",
+    "seconds_head": 17.82,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/lib.rs:403:9",
+    "message": "assertion failed: crate::serialise::retained_explorer_source(&result, source).is_some()"
+   },
+   {
+    "selector": "tests::original_document_pipeline_keeps_root_and_later_bom_roles",
+    "seconds_head": 17.955,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/lib.rs:369:22",
+    "message": "called `Option::unwrap()` on a `None` value"
+   },
+   {
+    "selector": "tests::run_pipeline_collects_procedures_in_order",
+    "seconds_head": 18.134,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/lib.rs:429:9",
+    "message": "assertion failed: procs.contains(&\"::alpha\")"
+   },
+   {
+    "selector": "tests::snapshots_retain_duplicate_procedures_and_named_top_separately",
+    "seconds_head": 18.067,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/lib.rs:489:9",
+    "message": "assertion `left == right` failed"
+   },
+   {
+    "selector": "tests::supplied_analysis_input_controls_the_document_pipeline",
+    "seconds_head": 0.29,
+    "bucket": "F3",
+    "site": "rust/tcl-explorer/src/lib.rs:321:9",
+    "message": "assertion `left == right` failed"
+   },
+   {
+    "selector": "view_tree::tests::a_hint_only_optimisation_is_not_rendered_as_a_rewrite",
+    "seconds_head": 17.624,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/view_tree.rs:2092:14",
+    "message": "the opt payload is a list"
+   },
+   {
+    "selector": "view_tree::tests::every_tree_descriptor_has_a_shared_builder",
+    "seconds_head": 17.824,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/view_tree.rs:2220:13",
+    "message": "tree descriptor aot has no shared renderer"
+   },
+   {
+    "selector": "view_tree::tests::ir_view_has_top_level_and_proc_nodes",
+    "seconds_head": 18.732,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/view_tree.rs:2233:9",
+    "message": "assertion failed: nodes.iter().any(|n| n.label.starts_with(\"::f\"))"
+   },
+   {
+    "selector": "view_tree::tests::rows_that_display_a_range_also_carry_the_structured_one",
+    "seconds_head": 17.986,
+    "bucket": "F1",
+    "site": "rust/tcl-explorer/src/view_tree.rs:2174:13",
+    "message": "ssa showed no range rows at all"
+   },
+   {
+    "selector": "wasm_explorer::tests::source_function_rows_preserve_duplicate_names_and_named_top",
+    "seconds_head": 19.598,
+    "bucket": "F2",
+    "site": "rust/tcl-explorer/src/wasm_explorer.rs:585:9",
+    "message": "assertion `left == right` failed: [Object {\"name\": String(\"(module)\"), \"kind\": String(\"module\"), \"funcIdx\": Null, \"params\": Array [], \"resul"
+   }
+  ],
+  "note": "HEAD and the patched run both fail the same 73 tests. The 68 slow failures give no signal until F1/F2 are fixed. After P1 they fail in under 1 s each instead of about 18 s, which makes fixing them cheaper."
+ }
+}

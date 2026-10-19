@@ -1,0 +1,1444 @@
+[
+ {
+  "target": "tcl_compiler",
+  "selector": "depth_guard::tests::the_analyser_stops_at_the_shared_cap",
+  "s": 180.1,
+  "status": "TIMEOUT",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_compiler",
+  "selector": "optimiser::propagation::tests::depth_exhaustion_blocks_dynamic_name_load_forwarding",
+  "s": 180.1,
+  "status": "TIMEOUT",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::workspace_symbol_caps_its_answer",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "package_resolver::tests::parse_pkg_index_survives_deeply_nested_source_wrapper",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_compiler",
+  "selector": "interprocedural::completion::tests::a_body_that_may_raise_does_not_complete",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_db",
+  "selector": "tests::compiler_check_incremental_matches_fresh_under_edits",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "original_document_metadata_tests::source_rehoming_keeps_workspace_roles_in_the_actual_seed_namespace",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::a_cross_file_metaclass_resolves_after_the_workspace_scan",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::a_dynamic_metaclass_head_abstains_even_with_the_scan_index",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::a_relative_auto_path_entry_anchors_on_the_document_not_the_server_cwd",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::a_three_level_factory_scan_withdraws_descendants_when_the_source_root_disappears",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::a_triple_nested_dirname_auto_path_feeds_the_package_database",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::a_versioned_require_indexes_the_release_it_asks_for",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::a_workspace_with_no_metaclass_never_sets_the_factory_oracle",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::apply_global_config_applies_every_knob",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::autoload_merge_is_dropped_when_the_package_database_rebuilds",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::concurrent_snapshots_share_one_text_and_index_allocation",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::declared_package_provides_makes_tk_available_to_diagnostics",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::declared_package_provides_resolve_per_folder",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::declared_package_provides_survive_an_incomplete_buffer",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::default_dialect_change_retries_after_concurrent_edit_1854",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::definition_lands_in_the_package_release_tcl_would_load",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::definition_resolves_through_a_document_auto_path_package",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::document_auto_path_mutation_feeds_the_package_database",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::dropping_one_factory_reindexes_its_consumers_while_retaining_others",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::initialized_reschedules_open_documents_after_workspace_scan",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::removing_the_last_factory_reindexes_unopened_consumers_with_an_empty_oracle",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::resource_scoped_analyser_inputs_resolve_per_folder",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::scan_workspace_folders_builds_resolver_with_no_roots",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::scan_workspace_folders_does_not_build_deep_tier_for_unopened_files",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::scan_workspace_folders_indexes_unopened_files",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::scan_workspace_folders_skips_open_documents",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::set_auto_path_puts_every_list_element_on_the_search_path",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::workspace_folder_add_reschedules_non_xc_document_too",
+  "s": 180.0,
+  "status": "TIMEOUT",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_compiler",
+  "selector": "interprocedural::tests::deeply_nested_if_survives_interprocedural_scan",
+  "s": 155.5,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "document_symbols::tests::deeply_nested_namespaces_produce_a_symbol_tree",
+  "s": 123.5,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_compiler",
+  "selector": "interprocedural::transfer::tests::a_name_argument_naming_an_outer_place_is_a_global_write",
+  "s": 116.8,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "studio_source::retirement_publication_tests::retire_and_shutdown_cannot_acknowledge_failed_withdrawal_and_can_retry",
+  "s": 109.6,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "studio_source::tests::active_saved_source_retires_without_deleting_and_restart_stays_closed",
+  "s": 96.0,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::workspace_trust_comes_from_the_client_and_never_from_a_setting",
+  "s": 91.2,
+  "status": "PASS",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "studio_source::tests::original_provider_mapping_cannot_rebind_across_equal_byte_aba",
+  "s": 91.1,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::the_last_generation_of_a_burst_still_runs_to_completion",
+  "s": 71.6,
+  "status": "PASS",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_db",
+  "selector": "tests::project_diagnostics_incremental_matches_fresh_both_files_edited",
+  "s": 59.8,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "minify::original::tests::logical_formal_alpha_requires_isolation_and_closed_binding_observability",
+  "s": 58.6,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "studio_source::tests::acquire_before_creation_and_shutdown_retire_without_filesystem_cleanup",
+  "s": 58.4,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "studio_source::tests::retirement_invalidates_captured_reload_before_waiting_for_reload_lock",
+  "s": 58.3,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "studio_source::tests::cross_backend_same_uri_token_cannot_publish_or_retire_new_owner",
+  "s": 56.8,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "studio_source::tests::replaced_or_stale_revision_and_missing_entropy_never_donate_a_live_lease",
+  "s": 55.9,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_compiler",
+  "selector": "interprocedural::completion::tests::a_callee_counts_as_defined_only_where_its_definition_surely_ran",
+  "s": 55.6,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_db",
+  "selector": "tests::project_diagnostics_incremental_matches_fresh_under_edits",
+  "s": 53.8,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "refactor::inline_variable::tests::deeply_nested_namespaces_survive_scope_walk",
+  "s": 53.0,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "executable_regions::checked_potential_source_tests::checked_potential_source_retains_depth_exhaustion_as_incomplete",
+  "s": 44.2,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_compiler",
+  "selector": "interprocedural::transfer::tests::summaries_compose_through_two_callees",
+  "s": 42.5,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_db",
+  "selector": "tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads",
+  "s": 42.0,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "studio_source::tests::saved_image_changed_after_load_before_publication_is_unavailable",
+  "s": 40.1,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "studio_source::tests::saved_image_changed_while_reload_is_queued_cannot_acknowledge_publication",
+  "s": 38.1,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "diagnostic_report::tests::supplied_policy_rewrites_refuse_missing_unavailable_stale_and_foreign_input",
+  "s": 35.1,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_compiler",
+  "selector": "interprocedural::completion::tests::a_body_of_commands_that_complete_completes",
+  "s": 31.7,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "package_resolver::tests::exact_require_selects_that_release_or_nothing",
+  "s": 27.9,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "policy_truth_table::every_row_publishes_its_shown_set",
+  "s": 27.7,
+  "status": "FAIL",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_compiler",
+  "selector": "analyser::diagnostics::tests::emit_cfg_ssa_diagnostics_w220_suppressed_for_substitution_hidden_reads",
+  "s": 27.3,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "package_resolver::original_names::tests::original_package_requirement_closure_keeps_versions_and_preference",
+  "s": 26.9,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "diagnostic_report::tests::supplied_policy_rewrites_keep_actual_source_config_and_refresh_directives",
+  "s": 26.8,
+  "status": "FAIL",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_db",
+  "selector": "original_tracked_metadata_tests::tracked_source_units_share_checked_input_and_memoized_procedure_grammar",
+  "s": 25.1,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "declaration::tests::original_logical_declarations_join_global_aliases_without_local_root_stripping",
+  "s": 23.8,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "definition::logical_variable_scope_owner_tests::logical_qualified_workspace_coordinate_uses_the_same_source_scope_owner",
+  "s": 23.2,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_db",
+  "selector": "project_token_inputs::tests::project_source_roles_select_current_call_declaration_and_formals",
+  "s": 22.4,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::a_configuration_burst_coalesces_into_one_reload",
+  "s": 22.3,
+  "status": "PASS",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::interproc_view_shows_the_param_constant_seed_and_its_withdrawal",
+  "s": 21.2,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::sccp_reports_the_route_tally",
+  "s": 19.9,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::sccp_reports_folded_types",
+  "s": 19.6,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::gvn_abstains_without_exact_common_invocation_provenance",
+  "s": 19.5,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::event_order_empty_for_plain_tcl",
+  "s": 19.4,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "render::tests::aot_text_follows_the_pass_selection",
+  "s": 19.3,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::annotations_collect_callouts_and_group_by_line",
+  "s": 19.3,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::completion_terminator_preserves_pending_native_return",
+  "s": 19.3,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::loops_detects_for_loop_with_depth",
+  "s": 19.2,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::aot_view_carries_the_plan_and_every_rejected_native_premise",
+  "s": 19.1,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "render::tests::aot_text_lists_every_rejected_native_premise",
+  "s": 19.0,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::ir_expands_if_clauses_and_collects_procs",
+  "s": 19.0,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::cfg_post_ssa_optimised_present_when_source_changes",
+  "s": 18.9,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::event_order_applies_outer_priority_until_it_changes",
+  "s": 18.9,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::event_order_ignores_non_braced_event_bodies",
+  "s": 18.9,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::event_order_tie_break_increments_offset",
+  "s": 18.9,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::interproc_summarises_procs_with_arity_and_return_shape",
+  "s": 18.9,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::ir_rows_keep_equal_names_and_distinct_source_bodies",
+  "s": 18.8,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::optimisations_reports_constant_fold_with_range",
+  "s": 18.8,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "definition::logical_variable_scope_owner_tests::logical_scope_selector_current_image_and_domain_do_not_grant_edits",
+  "s": 18.7,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::event_order_orders_when_handlers_by_firing_order",
+  "s": 18.7,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::optimised_source_null_when_unchanged",
+  "s": 18.7,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::sccp_reports_each_statements_completion_paths",
+  "s": 18.7,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "render::tests::the_line_map_is_aligned_with_the_rendered_text",
+  "s": 18.6,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::cfg_pre_ssa_has_entry_block_and_branch_terminator",
+  "s": 18.6,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::event_order_uses_rooted_normalised_top_level_handlers_only",
+  "s": 18.6,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "render::tests::sccp_text_prints_each_edge_refinement",
+  "s": 18.5,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::original_configured_index_tests::original_structural_completeness_keeps_module_input_and_unknown_null",
+  "s": 18.5,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::asm_resolves_jump_targets",
+  "s": 18.5,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::dead_stores_surface_from_o109",
+  "s": 18.5,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "asm::tests::synthetic_ops_have_null_range",
+  "s": 18.4,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "render::tests::sccp_text_prints_the_route_of_each_cell_update",
+  "s": 18.4,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::sccp_reports_the_selection",
+  "s": 18.4,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "readonly_reference_reports::logical_call_backend_session_tests::fresh_backend_rejects_prior_session_call_on_both_real_endpoints",
+  "s": 18.3,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::bounds_emits_per_function_shape",
+  "s": 18.3,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::intervals_reports_bounded_loop_counter",
+  "s": 18.3,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::ir_widens_braced_condition_range_to_closer",
+  "s": 18.3,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::loops_empty_for_straightline_code",
+  "s": 18.3,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::retained_explorer_source_tests::bounds_withdraws_if_a_function_loses_its_actual_module_metadata",
+  "s": 18.2,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::optimised_source_reflects_constant_fold",
+  "s": 18.2,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::sccp_reports_the_unreached_arms",
+  "s": 18.2,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::stats_reports_function_and_block_counts",
+  "s": 18.2,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::unit_scope_reports_uniform_literals_and_no_boundary",
+  "s": 18.2,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::wasm_view_exposes_common_native_i64_selection_evidence",
+  "s": 18.2,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "view_tree::tests::loops_view_reports_a_loop",
+  "s": 18.2,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "wasm_explorer::tests::source_function_rows_preserve_duplicate_names_and_named_top",
+  "s": 18.2,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::retained_explorer_source_tests::remaining_source_range_consumers_refuse_foreign_source_arguments",
+  "s": 18.1,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::cfg_post_ssa_has_phis_uses_defs_and_analysis",
+  "s": 18.1,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::dataflow_emits_nodes_and_summary",
+  "s": 18.1,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::optimised_ir_and_cfg_present_when_source_changes",
+  "s": 18.1,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::taint_reports_eval_sink",
+  "s": 18.1,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::types_reports_known_int_for_constant_assignments",
+  "s": 18.1,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "wasm_explorer::tests::branches_and_blocks_pair_up",
+  "s": 18.1,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "render::tests::render_all_includes_headers_and_asm",
+  "s": 18.0,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "render::tests::wasm_renders_wat_module",
+  "s": 18.0,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::optimiser_passes_lists_every_pass_in_order",
+  "s": 18.0,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::optimiser_passes_preserve_set_only_tk_profile",
+  "s": 18.0,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::sccp_reports_each_statements_route_and_answer",
+  "s": 18.0,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "tests::snapshots_retain_duplicate_procedures_and_named_top_separately",
+  "s": 18.0,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::no_dead_stores_when_value_is_read",
+  "s": 17.9,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::source_map_maps_lines_to_byte_ranges",
+  "s": 17.9,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::unit_scope_reports_a_registry_declared_boundary",
+  "s": 17.9,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::world_ssa_decline_preserves_transition_policy_evidence",
+  "s": 17.9,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "view_tree::original_configured_completeness_tests::original_structural_view_keeps_unknown_completeness_distinct_from_false",
+  "s": 17.9,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "render::tests::render_view_draws_a_tree",
+  "s": 17.8,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::retained_explorer_source_tests::retained_irules_warning_view_and_statistics_share_the_actual_count",
+  "s": 17.8,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::durable_compiler_views_are_present_and_cover_extra_units",
+  "s": 17.8,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::semantic_optimisations_view_carries_every_pass_and_its_state",
+  "s": 17.8,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::structural_index_flags_incomplete_script",
+  "s": 17.8,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "tests::deep_pipeline_preserves_the_actual_source_metadata_owner",
+  "s": 17.8,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "view_tree::tests::rows_that_display_a_range_also_carry_the_structured_one",
+  "s": 17.8,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "render::tests::colour_emits_ansi",
+  "s": 17.7,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::original_event_semantic_view_preserves_conditional_descriptor_without_worker_grant",
+  "s": 17.7,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::wasm_view_serialises_multiple_mixed_regions_in_node_order",
+  "s": 17.7,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::world_ssa_view_keeps_versions_transitions_and_typed_availability",
+  "s": 17.7,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "tests::run_pipeline_collects_procedures_in_order",
+  "s": 17.7,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "wasm_explorer::tests::module_header_carries_every_contract_field",
+  "s": 17.7,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "wasm_explorer::tests::module_header_then_functions",
+  "s": 17.7,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::did_change_configuration_applies_inline_settings",
+  "s": 17.7,
+  "status": "FAIL",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_db",
+  "selector": "tests::callback_arity_foreign_library_source_contexts_do_not_select_local_headers",
+  "s": 17.6,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "render::tests::sccp_text_prints_each_enumerated_loop",
+  "s": 17.6,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::asm_emits_structured_instructions_for_top_level",
+  "s": 17.6,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::irules_flow_empty_for_plain_tcl",
+  "s": 17.6,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::serialise_result_includes_meta_and_ir",
+  "s": 17.6,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::taint_tracking_marks_exec_tainted_vars",
+  "s": 17.6,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::wasm_view_exposes_canonical_semantic_plan_and_serialised_output",
+  "s": 17.6,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "tests::original_document_pipeline_keeps_root_and_later_bom_roles",
+  "s": 17.6,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "view_tree::tests::a_hint_only_optimisation_is_not_rendered_as_a_rewrite",
+  "s": 17.6,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "asm::tests::instructions_carry_per_op_source_range",
+  "s": 17.5,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "render::tests::a_mapped_line_points_at_the_span_its_row_shows",
+  "s": 17.5,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "render::tests::show_filter_limits_views",
+  "s": 17.5,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::rendered_properties_flags_slash_and_dash",
+  "s": 17.5,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::taint_replay_availability_is_separate_from_empty_warning_arrays",
+  "s": 17.5,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "tests::original_document_pipeline_keeps_config_withdrawal_terminal",
+  "s": 17.5,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "view_tree::tests::cfg_view_lists_blocks_with_entry_tag",
+  "s": 17.5,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "view_tree::tests::the_structured_range_matches_the_payload",
+  "s": 17.5,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::structural_index_reports_boundaries_and_balance",
+  "s": 17.4,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "view_tree::tests::every_tree_descriptor_has_a_shared_builder",
+  "s": 17.4,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "view_tree::tests::ir_view_has_top_level_and_proc_nodes",
+  "s": 17.4,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "view_tree::tests::world_ssa_view_explains_availability_and_transition_policy",
+  "s": 17.4,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "wasm_explorer::tests::module_types_cover_imports_and_defined_functions",
+  "s": 17.4,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::shimmer_reports_intrep_conversion",
+  "s": 17.3,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::wasm_view_exposes_typed_semantic_decline",
+  "s": 17.3,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "serialise::tests::wasm_view_exposes_the_native_tier_lowering_record",
+  "s": 17.2,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "tests::run_pipeline_top_level_only",
+  "s": 17.2,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "wasm_explorer::tests::calls_resolve_a_target",
+  "s": 17.2,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "view_tree::tests::unknown_view_is_empty",
+  "s": 17.1,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "view_tree::tests::empty_analysis_views_have_a_dim_note",
+  "s": 17.0,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_explorer",
+  "selector": "tests::unparseable_dialect_does_not_panic",
+  "s": 16.9,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "original_document_metadata_tests::pull_compiler_and_code_actions_keep_supplied_diagnostic_context",
+  "s": 16.6,
+  "status": "FAIL",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "original_document_metadata_tests::unindexed_deep_compiler_checks_borrow_the_shared_base_input",
+  "s": 16.4,
+  "status": "FAIL",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_db",
+  "selector": "original_uncached_metadata_tests::uncached_compiler_advice_preserves_original_diagnostic_context",
+  "s": 15.9,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "expr_context::logical_math_source_target_tests::logical_math_targets_keep_authentic_expression_and_header_allocations",
+  "s": 15.4,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "definition::logical_variable_scope_owner_tests::logical_scope_selector_preserves_root_current_and_unknown_caller_source_tables",
+  "s": 15.3,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_compiler",
+  "selector": "interprocedural::completion::tests::original_completion_keeps_selected_scalar_reference_and_element_obligations",
+  "s": 15.2,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::library_publication_checks_closed_saved_source_and_commits_whole_batch",
+  "s": 14.8,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "workspace_symbols::tests::the_result_cap_holds_and_truncates_by_document",
+  "s": 14.8,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::pull_path_applies_w120_package_refinement",
+  "s": 14.6,
+  "status": "PASS",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "definition::logical_variable_scope_owner_tests::logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables",
+  "s": 14.5,
+  "status": "FAIL",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_compiler",
+  "selector": "interprocedural::transfer::tests::a_barrier_has_no_summary",
+  "s": 14.1,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::logical_incoming_target_keeps_procedure_member_side_and_colon_name_separate",
+  "s": 13.9,
+  "status": "PASS",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "definition::logical_variable_scope_owner_tests::native_conditional_publication_navigation_preserves_source_table_refusals",
+  "s": 13.3,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "package_resolver::tests::prefer_latest_selects_the_prerelease",
+  "s": 12.9,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "signature_help::tests::signature_subcommands_use_original_values_and_shared_prefix_rules",
+  "s": 12.7,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "package_resolver::tests::transitive_closure_pulls_in_tk_through_a_wrapper_package",
+  "s": 12.7,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "minify::original::tests::isolated_logical_formal_alpha_uses_general_bindings_and_preserves_defaults",
+  "s": 12.4,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "package_resolver::tests::unconstrained_require_prefers_the_highest_stable_release",
+  "s": 12.2,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "readonly_reference_reports::logical_call_wire_tests::actual_call_handlers_use_opaque_current_source_selection_not_client_fields",
+  "s": 11.9,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "package_resolver::tests::equal_comparing_providers_all_contribute_their_files",
+  "s": 11.8,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "readonly_reference_reports::logical_lens_wire_tests::logical_lens_equal_counter_from_another_backend_cannot_select_this_session",
+  "s": 11.2,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "package_resolver::original_names::original_index_filename_data_tests::original_index_source_operand_grammar_and_real_producers_refuse_guessed_filenames",
+  "s": 10.7,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "tests::no_code_lens_ever_carries_an_inert_empty_command",
+  "s": 10.7,
+  "status": "FAIL",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "inlay_hints::retained_hint_context_tests::logical_parameter_hints_keep_nested_and_prefix_ordinals_without_captured_anchors",
+  "s": 10.6,
+  "status": "PASS",
+  "src": "capture47 (1 process/test, serial)"
+ },
+ {
+  "target": "tcl_lsp_server",
+  "selector": "recovery_source::tests::malformed_recovery_keeps_exact_preference_and_unknown_provider_barriers",
+  "s": 10.6,
+  "status": "FAIL",
+  "src": "sol-26 server lib run (3-way parallel)"
+ },
+ {
+  "target": "tcl_compiler",
+  "selector": "interprocedural::completion::tests::a_rebound_or_declared_head_states_no_completion",
+  "s": 10.5,
+  "status": "FAIL",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_db",
+  "selector": "original_project_callback_projection_tests::legacy_project_advice_requires_positive_retained_logical_input",
+  "s": 10.5,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ },
+ {
+  "target": "tcl_lsp_core",
+  "selector": "package_resolver::original_names::file_candidates::tests::original_package_files_keep_source_ordinals_data_and_directory_hints_distinct",
+  "s": 10.4,
+  "status": "PASS",
+  "src": "sol-26 integration45 run (3-way parallel)"
+ }
+]
