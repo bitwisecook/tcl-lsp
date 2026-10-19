@@ -2,9 +2,20 @@
  "recorded_utc": "2026-10-19T11:00Z",
  "source": "User answers in chat (AskUserQuestion) on the slow-test review (docs/work/name-handling/handoff/reviews/test-performance-20261019/SUMMARY.md)",
  "decisions": {
-  "product_fixes": ["bundled EDA pack-load memo (plus measurement and dev-profile opt-level trial)", "nested-body parse-cut memo (Sol-28)", "host Tcl install rescan cache plus test backend not scanning the host install", "analysis reuse in read-only requests and the interprocedural quadratic and unversioned 'tcl' path costs (design first)"],
+  "product_fixes": [
+   "bundled EDA pack-load memo (plus measurement and dev-profile opt-level trial)",
+   "nested-body parse-cut memo (Sol-28)",
+   "host Tcl install rescan cache plus test backend not scanning the host install",
+   "analysis reuse in read-only requests and the interprocedural quadratic and unversioned 'tcl' path costs (design first)"
+  ],
   "quick_tier": "Add a local, non-gating quick tier (nextest profile, make test-quick) excluding a deep-only manifest; amend test-tiers-and-ci-gates.md; an xtask drift gate keeps the manifest in sync and forbids it removing tests from CI.",
   "performance_budgets": "Deterministic work counters (analyses per request, pack parses per reload, linear scaling between two small inputs); nextest slow-timeout only as non-failing warnings.",
-  "test_changes_approved": ["explorer unit tests use the pack-free registry; 3 tests keep the real pack path in deep", "light versions and splits alongside unchanged deep originals", "memoise db storm fresh baselines, keep them in deep, record a tier rule-1 exception", "bound the hanging default_dialect test with the existing 5 s timeout and fix its lock order; align lsp-core 256 depth caps with the compiler's 64"]
+  "test_changes_approved": [
+   "explorer unit tests use the pack-free registry; 3 tests keep the real pack path in deep",
+   "light versions and splits alongside unchanged deep originals",
+   "memoise db storm fresh baselines, keep them in deep, record a tier rule-1 exception",
+   "bound the hanging default_dialect test with the existing 5 s timeout and fix its lock order; align lsp-core 256 depth caps with the compiler's 64"
+  ],
+  "closed_document_analysis_cache": "Recorded 12:00Z: read-only request analysis reuse also caches closed documents in a size-bounded LRU (contract change to the open-document-only deep-state rule), in addition to open documents."
  }
 }
