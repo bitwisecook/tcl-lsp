@@ -145,43 +145,6 @@ fn object_class() -> CommandSpec {
     }
 }
 
-#[cfg(test)]
-mod object_class_role_tests {
-    use super::{OBJECT_CLASS_OPTIONS, object_class_arg_roles};
-    use crate::arg_role::ArgRole;
-
-    fn roles(args: &[&str]) -> Option<Vec<(u8, ArgRole)>> {
-        object_class_arg_roles(
-            crate::InvocationArguments::literals(args),
-            crate::resolved_invocation::InvocationOptions {
-                availability: crate::resolved_invocation::InvocationAvailability::default(),
-                parent_surface: None,
-                form_surface: None,
-                prefix_matching: crate::abbrev::PrefixMatching::Enabled,
-                positional_prefix_words: 1,
-                reserved_trailing_words: 0,
-                case_list: None,
-                base: OBJECT_CLASS_OPTIONS,
-                form: &[],
-            },
-        )
-    }
-
-    #[test]
-    fn body_role_follows_selected_option_values() {
-        assert_eq!(
-            roles(&["C", "-superclass", "{A B}"]),
-            Some(vec![(0, ArgRole::Name)])
-        );
-        assert_eq!(
-            roles(&["C", "-superclass", "{A B}", "{method m {} {}}"]),
-            Some(vec![(0, ArgRole::Name), (3, ArgRole::Body)])
-        );
-        assert_eq!(roles(&["C", "-mystery", "x"]), None);
-        assert_eq!(roles(&["C", "-superclass"]), None);
-    }
-}
-
 /// `descriptor KEY NAME { … }` — the schema key first, then the name the
 /// descriptor is declared under.
 ///
@@ -463,4 +426,41 @@ pub(super) fn specs() -> Vec<CommandSpec> {
         ),
         object_class(),
     ]
+}
+
+#[cfg(test)]
+mod object_class_role_tests {
+    use super::{OBJECT_CLASS_OPTIONS, object_class_arg_roles};
+    use crate::arg_role::ArgRole;
+
+    fn roles(args: &[&str]) -> Option<Vec<(u8, ArgRole)>> {
+        object_class_arg_roles(
+            crate::InvocationArguments::literals(args),
+            crate::resolved_invocation::InvocationOptions {
+                availability: crate::resolved_invocation::InvocationAvailability::default(),
+                parent_surface: None,
+                form_surface: None,
+                prefix_matching: crate::abbrev::PrefixMatching::Enabled,
+                positional_prefix_words: 1,
+                reserved_trailing_words: 0,
+                case_list: None,
+                base: OBJECT_CLASS_OPTIONS,
+                form: &[],
+            },
+        )
+    }
+
+    #[test]
+    fn body_role_follows_selected_option_values() {
+        assert_eq!(
+            roles(&["C", "-superclass", "{A B}"]),
+            Some(vec![(0, ArgRole::Name)])
+        );
+        assert_eq!(
+            roles(&["C", "-superclass", "{A B}", "{method m {} {}}"]),
+            Some(vec![(0, ArgRole::Name), (3, ArgRole::Body)])
+        );
+        assert_eq!(roles(&["C", "-mystery", "x"]), None);
+        assert_eq!(roles(&["C", "-superclass"]), None);
+    }
 }

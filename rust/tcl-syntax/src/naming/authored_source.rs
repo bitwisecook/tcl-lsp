@@ -218,9 +218,12 @@ mod tests {
         let composed = authored_source_command_slot(&current, "é".as_bytes()).unwrap();
         let decomposed = authored_source_command_slot(&current, "e\u{301}".as_bytes()).unwrap();
         assert_ne!(composed.simple, decomposed.simple);
-        let candidates =
-            authored_source_command_candidates(&current, &[namespace.clone()], "λ".as_bytes())
-                .unwrap();
+        let candidates = authored_source_command_candidates(
+            &current,
+            std::slice::from_ref(&namespace),
+            "λ".as_bytes(),
+        )
+        .unwrap();
         assert_eq!(candidates.len(), 3);
         assert_eq!(candidates[0].namespace, current);
         assert_eq!(candidates[1].namespace, namespace);

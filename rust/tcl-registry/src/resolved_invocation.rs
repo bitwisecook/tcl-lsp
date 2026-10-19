@@ -7091,6 +7091,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::single_range_in_vec_init)] // vectors of argument ranges
     fn original_frame_script_advice_keeps_selected_and_logical_layouts_separate() {
         // naming.diagnostic.registry-source-ownership
         // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
@@ -7424,6 +7425,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn authored_proc_hook_declaration_requires_exact_source_roles_and_transition() {
         const ROLES: &[(u8, ArgRole)] = &[
             (0, ArgRole::Name),
@@ -8480,6 +8482,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn structured_option_boundary_shares_alias_abbreviation_and_value_span_rules() {
         // Implementation contract: naming.studio.source-word-role-projection
         // docs/design/analysis/name-resolution-proofs/studio-source-word-role-projection.md
@@ -10752,6 +10755,7 @@ fn authored_receiver_form_does_not_require_native_procedure_acceptance() {
 #[test]
 // Implementation contract: naming.variable.trace-source-receiver-purpose
 // docs/design/analysis/name-resolution-proofs/trace-source-receiver-purpose.md
+#[allow(clippy::too_many_lines)]
 fn original_trace_receiver_forms_select_variable_grammar_ordinals_and_release() {
     use VariableReceiverOperandForm::TraceSubject;
     let registry = crate::CommandRegistry::build_default();
@@ -12101,6 +12105,11 @@ mod logical_source_alias_projection_tests {
 
     #[test]
     fn dictionary_source_phase_keeps_generic_unknown_and_additional_effects() {
+        fn extra(
+            _arguments: crate::InvocationArguments<'_>,
+        ) -> crate::world_effect::EffectFootprint {
+            crate::world_effect::EffectFootprint::conservative_unknown_invocation()
+        }
         let profile = tcl_dialect::DialectProfile::plain_tcl();
         let context = crate::model::ingress::context_for_profile(profile);
         let arguments = [
@@ -12132,11 +12141,6 @@ mod logical_source_alias_projection_tests {
             crate::world_effect::CallbackKinds::TRACE
         );
         assert!(schema.facts().effects.callback().kinds.is_unknown());
-        fn extra(
-            _arguments: crate::InvocationArguments<'_>,
-        ) -> crate::world_effect::EffectFootprint {
-            crate::world_effect::EffectFootprint::conservative_unknown_invocation()
-        }
         schema.semantics.world_effects.form = Some(crate::world_effect::WorldEffectDescriptor {
             resolver: Some(extra),
             ..crate::world_effect::WorldEffectDescriptor::EMPTY

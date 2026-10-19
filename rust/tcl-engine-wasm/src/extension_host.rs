@@ -162,7 +162,9 @@ fn command_inventory(
     ),
     DeclineReason,
 > {
-    let (interpreter, inventory) = session.command_inventory().map_err(decline_engine)?;
+    let (interpreter, inventory) = session
+        .command_inventory()
+        .map_err(|error| decline_engine(&error))?;
     let protocol = tcl_syntax::naming::NativeNameProtocol::for_tcl_version(inventory.version);
     let mut rows = Vec::with_capacity(inventory.rows.len());
     for row in inventory.rows {
@@ -204,12 +206,12 @@ fn narrowed(host: Budget, declared: ImplementationBudget) -> Budget {
 /// extension that cannot be linked, an entry point or a command that failed,
 /// a fault — which the same words meet again.
 fn decline(failure: Failure) -> DeclineReason {
-    decline_engine(failure.into_engine_error())
+    decline_engine(&failure.into_engine_error())
 }
 
-fn decline_engine(error: EngineError) -> DeclineReason {
+fn decline_engine(error: &EngineError) -> DeclineReason {
     match error {
-        EngineError::BudgetExceeded(kind) => DeclineReason::Budget(limit_of(kind)),
+        EngineError::BudgetExceeded(kind) => DeclineReason::Budget(limit_of(*kind)),
         _ => DeclineReason::Unsupported,
     }
 }

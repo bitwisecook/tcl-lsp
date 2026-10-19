@@ -834,7 +834,7 @@ fn inline_variable(args: &Value) -> Value {
     let Some(context) = analysis
         .resolved_input
         .as_ref()
-        .map(|input| input.context_registry())
+        .map(tcl_compiler::analyser::ResolvedAnalysisInput::context_registry)
     else {
         return Value::Null;
     };
@@ -1194,7 +1194,7 @@ fn hover(args: &Value) -> Value {
     let context = analysis
         .resolved_input
         .as_ref()
-        .map(|input| input.context_registry());
+        .map(tcl_compiler::analyser::ResolvedAnalysisInput::context_registry);
     let commands = context.as_ref().map(|context| context.commands().as_ref());
     match tcl_lsp_core::hover::hover(
         source,
@@ -1215,7 +1215,7 @@ fn complete(args: &Value) -> Value {
     let context = analysis
         .resolved_input
         .as_ref()
-        .map(|input| input.context_registry());
+        .map(tcl_compiler::analyser::ResolvedAnalysisInput::context_registry);
     let commands = context.as_ref().map(|context| context.commands().as_ref());
     let items = tcl_lsp_core::completion::completions(
         source,
@@ -1299,7 +1299,7 @@ fn rename(args: &Value) -> Value {
     let context = analysis
         .resolved_input
         .as_ref()
-        .map(|input| input.context_registry());
+        .map(tcl_compiler::analyser::ResolvedAnalysisInput::context_registry);
     let commands = context.as_ref().map(|context| context.commands().as_ref());
     let edits = tcl_lsp_core::rename::rename(
         source,
@@ -1488,7 +1488,7 @@ fn refactor(args: &Value) -> Value {
     let context = analysis
         .resolved_input
         .as_ref()
-        .map(|input| input.context_registry());
+        .map(tcl_compiler::analyser::ResolvedAnalysisInput::context_registry);
     let commands = context.as_ref().map(|context| context.commands());
     let mut available: Vec<Value> = Vec::new();
     let mut push = |tool: &str, r: Option<tcl_lsp_core::refactor::Refactoring>| {
@@ -3298,6 +3298,7 @@ mod policy_tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn original_code_action_candidates_retain_the_supplied_unit_and_refuse_changed_owners() {
         // naming.consumer.original-mcp-refactor-context
         // docs/design/analysis/name-resolution-proofs/original-mcp-refactor-context.md
@@ -3331,7 +3332,7 @@ mod policy_tests {
             input.borrowed_context_registry().commands().snapshot(),
             registry("tcl9.0").snapshot()
         );
-        assert!(input.lexer_config() == original.body_lexer_config.unwrap());
+        assert_eq!(input.lexer_config(), original.body_lexer_config.unwrap());
         analysed.findings.analysis.resolved_input = None;
         assert!(!fold(&code_actions_from_analysis(&args, &analysed)));
         analysed.findings.analysis = original.clone();
@@ -3855,8 +3856,8 @@ choose {puts SAME} elseif {$x eq two} {puts SAME}";
             environment: "tcl9.0".into(),
             overlay: u64::MAX - 405,
         });
-        for refused in [missing, stale, foreign, unavailable] {
-            assert!(datagroup_advice(source, 0, "answers", &refused, &index).is_none());
+        for refused in [&missing, &stale, &foreign, &unavailable] {
+            assert!(datagroup_advice(source, 0, "answers", refused, &index).is_none());
         }
         assert!(datagroup_advice("# changed", 0, "answers", &analysis, &index).is_none());
         assert!(datagroup_advice(source, 0, "answers", &analysis, &index).is_some());

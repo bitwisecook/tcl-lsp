@@ -56,8 +56,7 @@ fn original_pure_callback_refuses_first_utf8_word_before_later_string_getter() {
     assert!(values[1].resident_string_bytes().is_none());
     let error = vm
         .try_invoke_command("originalPure", &values)
-        .err()
-        .expect("strict callback input refuses before Core dispatch");
+        .expect_err("strict callback input refuses before Core dispatch");
     assert!(matches!(
         error,
         tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(

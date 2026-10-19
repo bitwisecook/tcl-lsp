@@ -75,6 +75,7 @@ pub struct IrulesObjectReference {
 
 /// Literal source-reference candidates from an independently retained context.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn extract_original_irules_source_object_references(
     source: &str,
     context: &crate::OriginalIrulesSourceContext,

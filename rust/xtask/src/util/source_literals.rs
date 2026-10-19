@@ -109,7 +109,7 @@ pub(crate) fn toml_array(values: &[String]) -> Result<String> {
     Ok(output)
 }
 
-/// XML 1.0 attribute data for the JetBrains semicolon extension-list target.
+/// XML 1.0 attribute data for the `JetBrains` semicolon extension-list target.
 /// A value containing the target's delimiter cannot denote one extension.
 pub(crate) fn xml_extension_list(values: &[String]) -> Result<String> {
     let mut out = String::new();
@@ -129,7 +129,7 @@ pub(crate) fn xml_extension_list(values: &[String]) -> Result<String> {
                 '\n' => out.push_str("&#10;"),
                 '\r' => out.push_str("&#13;"),
                 '\u{20}'..='\u{d7ff}' | '\u{e000}'..='\u{fffd}' | '\u{10000}'..='\u{10ffff}' => {
-                    out.push(ch)
+                    out.push(ch);
                 }
                 _ => bail!("an editor extension is not XML 1.0 attribute data"),
             }

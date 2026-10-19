@@ -369,8 +369,7 @@ pub fn is_workspace_studio_source(path: &Path, roots: &[PathBuf]) -> bool {
     is_pack_file(path)
         && roots.iter().any(|root| {
             path.strip_prefix(root.join(WORKSPACE_PACK_DIR).join(STUDIO_OVERRIDE_DIR))
-                .ok()
-                .is_some_and(|relative| {
+                .is_ok_and(|relative| {
                     relative.components().next().is_some()
                         && relative
                             .components()
@@ -437,6 +436,7 @@ pub fn discover_configuration_with_active_studio_in(
     discover_selected_in(store, options, Some(active))
 }
 
+#[allow(clippy::too_many_lines)]
 fn discover_selected_in(
     store: &dyn SourceStore,
     options: &DiscoveryOptions,
@@ -714,8 +714,8 @@ fn collect_beside_manifests_observed(
     let observed: HashMap<&Path, ManifestDirectiveObservation> = dirs
         .iter()
         .map(|dir| {
-            let observation = match list_package_files(store, dir).manifest {
-                Some(path) => match store.read_to_string(&path) {
+            let observation = if let Some(path) = list_package_files(store, dir).manifest {
+                match store.read_to_string(&path) {
                     Ok(source) => {
                         selection.record(&path, source.clone());
                         match tcl_pkg_model::manifest::original_manifest_spec_selection(
@@ -740,14 +740,13 @@ fn collect_beside_manifests_observed(
                             .push((path, format!("cannot read selected manifest: {error}")));
                         ManifestDirectiveObservation::Unavailable
                     }
-                },
-                None => {
-                    selection.issues.push((
-                        dir.clone(),
-                        "selected manifest has no represented original path".into(),
-                    ));
-                    ManifestDirectiveObservation::Unavailable
                 }
+            } else {
+                selection.issues.push((
+                    dir.clone(),
+                    "selected manifest has no represented original path".into(),
+                ));
+                ManifestDirectiveObservation::Unavailable
             };
             (dir.as_path(), observation)
         })

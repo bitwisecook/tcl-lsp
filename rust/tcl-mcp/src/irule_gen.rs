@@ -1809,11 +1809,8 @@ mod original_request_source_tests {
         let config = syntax.0;
         for (condition, expected) in [
             (r#"[HTTP::uri] eq {"/literal"}"#, "\"/literal\""),
-            (
-                r#"[HTTP::uri] eq {host[set ::hint 1]}"#,
-                "host[set ::hint 1]",
-            ),
-            (r#"[HTTP::uri] eq {$literal}"#, "$literal"),
+            (r"[HTTP::uri] eq {host[set ::hint 1]}", "host[set ::hint 1]"),
+            (r"[HTTP::uri] eq {$literal}", "$literal"),
             (r#"[HTTP::uri] eq "one||two""#, "one||two"),
         ] {
             let condition = json!({"kind":"if", "condition":condition});

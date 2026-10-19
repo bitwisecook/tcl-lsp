@@ -3868,6 +3868,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn retired_namespace_write_sites_match_retained_original_c_rows() {
         use NativeVariableDiagnosticOperation::Write;
         use NativeVariableDiagnosticReason::RetiredNamespace;
@@ -3963,7 +3964,7 @@ mod tests {
                         crate::list::split_native_list_bytes(&expected[4], protocol)
                             .unwrap()
                             .into_iter()
-                            .map(|word| word.into_owned())
+                            .map(std::borrow::Cow::into_owned)
                             .collect::<Vec<_>>(),
                     )
                 };
@@ -5684,7 +5685,9 @@ mod command_visibility_diagnostic_tests {
 
     fn hex(text: &str) -> Vec<u8> {
         text.as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
     }

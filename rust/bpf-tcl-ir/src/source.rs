@@ -131,11 +131,10 @@ impl OriginalBpfSource {
         missing: crate::diag::BpfDiag,
     ) -> Result<Option<String>, crate::diag::BpfError> {
         self.check_registry(registry, missing, statement.span())?;
-        let (args, tokens) = match statement {
-            Statement::Call { args, tokens, .. } | Statement::Barrier { args, tokens, .. } => {
-                (args, tokens)
-            }
-            _ => return Ok(None),
+        let (Statement::Call { args, tokens, .. } | Statement::Barrier { args, tokens, .. }) =
+            statement
+        else {
+            return Ok(None);
         };
         let words = self.command_words(tokens.as_ref(), args).ok_or_else(|| {
             crate::diag::BpfError::new(
@@ -432,14 +431,14 @@ fn missing_selection(span: Span) -> crate::diag::BpfError {
 /// Rejection-only compatibility display for unowned CFG diagnostics. This
 /// projection cannot issue an executable BPF program or a source binding.
 pub(crate) fn source_command_head(statement: &Statement) -> Option<&str> {
-    let (command, tokens) = match statement {
-        Statement::Call {
-            command, tokens, ..
-        }
-        | Statement::Barrier {
-            command, tokens, ..
-        } => (command, tokens),
-        _ => return None,
+    let (Statement::Call {
+        command, tokens, ..
+    }
+    | Statement::Barrier {
+        command, tokens, ..
+    }) = statement
+    else {
+        return None;
     };
     let Some(tokens) = tokens else {
         return Some(command);
@@ -569,20 +568,20 @@ fn conditional_statement(
     registry: &CommandRegistry,
     config: LexerConfig,
 ) -> Option<Statement> {
-    let (args, span, tokens) = match statement {
-        Statement::Call {
-            args,
-            span,
-            tokens: Some(tokens),
-            ..
-        }
-        | Statement::Barrier {
-            args,
-            span,
-            tokens: Some(tokens),
-            ..
-        } => (args, span, tokens),
-        _ => return None,
+    let (Statement::Call {
+        args,
+        span,
+        tokens: Some(tokens),
+        ..
+    }
+    | Statement::Barrier {
+        args,
+        span,
+        tokens: Some(tokens),
+        ..
+    }) = statement
+    else {
+        return None;
     };
     let WordExpr::Literal { text: head, .. } = tokens.word_exprs.first()? else {
         return None;
@@ -667,8 +666,9 @@ fn discard_execution_proofs(script: &mut Script) {
         script.executed_source = None;
         script.implicit_math_invocations.clear();
         script.expression_preparations.clear();
-        script.command_binding_sites = Default::default();
-        script.procedure_binding_requirements = Default::default();
+        script.command_binding_sites = tcl_compiler::ir::CommandBindingSites::default();
+        script.procedure_binding_requirements =
+            tcl_compiler::ir::ProcedureBindingRequirements::default();
         script.native_compilation_failure = None;
         script.native_compilation_admission = None;
         for statement in &mut script.statements {

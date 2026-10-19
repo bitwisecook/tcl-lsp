@@ -13552,6 +13552,7 @@ impl Interp {
     }
 
     /// Preserve the reached expression failure record until script propagation.
+    #[cfg_attr(not(have_tommath), allow(dead_code))]
     pub(crate) fn retain_expression_error_stage(
         &self,
         stage: Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>,

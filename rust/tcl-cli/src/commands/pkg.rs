@@ -301,19 +301,18 @@ fn run_init(
         );
         return Ok(1);
     }
-    let name = match name {
-        Some(name) => name.to_owned(),
-        None => {
-            let Some(name) = path
-                .parent()
-                .and_then(|p| p.file_name())
-                .and_then(|name| name.to_str())
-            else {
-                eprintln!("error: project directory has no Unicode package name; supply --name");
-                return Ok(1);
-            };
-            name.to_owned()
-        }
+    let name = if let Some(name) = name {
+        name.to_owned()
+    } else {
+        let Some(name) = path
+            .parent()
+            .and_then(|p| p.file_name())
+            .and_then(|name| name.to_str())
+        else {
+            eprintln!("error: project directory has no Unicode package name; supply --name");
+            return Ok(1);
+        };
+        name.to_owned()
     };
     let version = init_version.unwrap_or("0.1.0");
     let license = init_license.unwrap_or("MIT");

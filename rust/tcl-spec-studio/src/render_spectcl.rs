@@ -3287,6 +3287,7 @@ fn semantic_operation_window_rows(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
 /// one `member` row per member — each with its `-effect`, and a wrapper's
 /// `-shift` — one `member_option` row per accepted optional word, and the
 /// object-model rows a class family declares.
+#[allow(clippy::too_many_lines)]
 fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     let Some(value) = draft
         .get("definition_body")
@@ -3389,12 +3390,11 @@ fn definition_body_block(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
                     .iter()
                     .map(|value| value.as_str().and_then(word))
                     .collect();
-                match rendered {
-                    Some(values) => row.push(format!("{{{}}}", values.join(" "))),
-                    None => {
-                        lost = true;
-                        row.push("{}".to_owned());
-                    }
+                if let Some(values) = rendered {
+                    row.push(format!("{{{}}}", values.join(" ")));
+                } else {
+                    lost = true;
+                    row.push("{}".to_owned());
                 }
             }
         }
@@ -5711,6 +5711,7 @@ mod tests {
         );
     }
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn authored_source_configuration_reference_survives_render_load_and_draft() {
         use tcl_registry::InvocationWord::{Dynamic, Literal};
         use tcl_registry::{

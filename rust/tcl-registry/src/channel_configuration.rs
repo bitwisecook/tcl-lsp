@@ -68,6 +68,7 @@ mod tests {
     use crate::InvocationWord::{Dynamic, Literal};
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn original_channel_configuration_requires_its_descriptor_and_admitted_option_topology() {
         // naming.diagnostic.registry-source-ownership
         // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md

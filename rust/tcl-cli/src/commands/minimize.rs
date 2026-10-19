@@ -185,6 +185,8 @@ fn collect_rename_edits(
         .iter()
         .collect::<Vec<_>>();
     occurrences.sort_by_key(|occurrence| (occurrence.span().start(), occurrence.span().end()));
+    // Keys are borrowed from the finished analysis and are never mutated.
+    #[allow(clippy::mutable_key_type)]
     let mut selected = HashSet::new();
     let mut edits: Vec<(usize, usize, String)> = Vec::new();
     for occurrence in occurrences {

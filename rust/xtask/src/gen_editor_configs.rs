@@ -411,11 +411,7 @@ fn lua_tokens(text: &str) -> Result<Vec<LuaToken<'_>>> {
         } else if bytes[cursor].is_ascii() {
             cursor += 1;
         } else {
-            let width = text[cursor..]
-                .chars()
-                .next()
-                .map(char::len_utf8)
-                .unwrap_or(1);
+            let width = text[cursor..].chars().next().map_or(1, char::len_utf8);
             cursor += width;
         }
         tokens.push(LuaToken {
@@ -1669,7 +1665,7 @@ mod tests {
             "safe",
             "dialect\"name",
             Some("lang\n-id"),
-            &[extension.clone()],
+            std::slice::from_ref(&extension),
             &[],
         )
         .unwrap();
@@ -1680,7 +1676,7 @@ mod tests {
         assert_eq!(row["language-id"].as_str(), Some("lang\n-id"));
         assert_eq!(row["file-types"][0].as_str(), Some(extension.as_str()));
 
-        let lua = set_lua_list("return {\n  cmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },\n\n  filetypes = { 'old' },\n  root_markers = { '.git' },\n}", LuaFiletypesOwner::ReturnedRootTable, "  ", "cmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },", "root_markers = { '.git' },", &[extension.clone()]).unwrap();
+        let lua = set_lua_list("return {\n  cmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },\n\n  filetypes = { 'old' },\n  root_markers = { '.git' },\n}", LuaFiletypesOwner::ReturnedRootTable, "  ", "cmd = { '/path/to/tcl-lsp/target/release/tcl-lsp-server' },", "root_markers = { '.git' },", std::slice::from_ref(&extension)).unwrap();
         assert!(lua.contains(&lua_string(&extension).unwrap()));
         assert!(!lua.contains("odd\"\n"));
         assert!(
@@ -1736,7 +1732,7 @@ mod tests {
         );
         assert!(!lua_key(key).unwrap().contains("'] ="));
 
-        let elisp = elisp_extension_regexp(&[extension.clone()]).unwrap();
+        let elisp = elisp_extension_regexp(std::slice::from_ref(&extension)).unwrap();
         let expected_pattern =
             elisp_string(&format!(r"\.{}\'", elisp_regex_literal(&extension))).unwrap();
         assert_eq!(elisp, expected_pattern);
@@ -1846,7 +1842,7 @@ mod markdown_and_lua_key_v5_tests {
             format!("<script>\n## nvim-lspconfig (Neovim 0.8+)\n```lua\n{source}```\n</script>\n"),
             "## nvim-lspconfig (Neovim 0.8+)\n```lua\nreturn {}\n```\n"
                 .lines()
-                .map(|line| format!("> {line}\n"))
+                .map(|line| ["> ", line, "\n"].concat())
                 .collect(),
         ] {
             assert!(neovim_lspconfig_fence(&wrapper).is_err());

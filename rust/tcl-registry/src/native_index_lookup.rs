@@ -282,6 +282,44 @@ impl NativeIndexLookupProtocol {
     }
 }
 
+impl crate::InvocationDialect {
+    /// C8.4 info dispatches its original selector through `GetIndexFromObj`'s
+    /// option table. C8.5+ dispatches through the actual namespace ensemble;
+    /// Jim has its separately selected command-inventory and helper protocol.
+    /// This selection grants no table/header object or lookup result.
+    #[must_use]
+    pub fn native_info_original_option_protocol(self) -> Option<NativeIndexLookupProtocol> {
+        self.native_index_lookup_protocol()
+            .filter(|protocol| protocol.version() == TclVersion::V8_4)
+    }
+
+    /// Missing-selector usage of the selected original C info dispatcher.
+    /// C8.4's option command and C8.5's ensemble retain their own wording;
+    /// Jim's independent dispatch protocol owns its own arity rendering.
+    #[must_use]
+    pub fn native_info_original_missing_selector_usage(self) -> Option<&'static [u8]> {
+        if self.native_index_lookup_protocol()?.version() == TclVersion::V8_4 {
+            Some(b"option ?arg arg ...?")
+        } else {
+            Some(
+                self.native_ensemble_configuration_protocol()?
+                    .missing_selector_usage(),
+            )
+        }
+    }
+
+    /// `GetIndex` is a C native object operation; Jim uses its distinct Enum owner.
+    #[must_use]
+    pub fn native_index_lookup_protocol(self) -> Option<NativeIndexLookupProtocol> {
+        match self.native_string_protocol()? {
+            tcl_syntax::native_string::NativeStringProtocol::C(version) => {
+                Some(NativeIndexLookupProtocol(version))
+            }
+            tcl_syntax::native_string::NativeStringProtocol::Jim084 => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -367,43 +405,5 @@ mod tests {
             .native_index_lookup_protocol()
             .is_none()
         );
-    }
-}
-
-impl crate::InvocationDialect {
-    /// C8.4 info dispatches its original selector through `GetIndexFromObj`'s
-    /// option table. C8.5+ dispatches through the actual namespace ensemble;
-    /// Jim has its separately selected command-inventory and helper protocol.
-    /// This selection grants no table/header object or lookup result.
-    #[must_use]
-    pub fn native_info_original_option_protocol(self) -> Option<NativeIndexLookupProtocol> {
-        self.native_index_lookup_protocol()
-            .filter(|protocol| protocol.version() == TclVersion::V8_4)
-    }
-
-    /// Missing-selector usage of the selected original C info dispatcher.
-    /// C8.4's option command and C8.5's ensemble retain their own wording;
-    /// Jim's independent dispatch protocol owns its own arity rendering.
-    #[must_use]
-    pub fn native_info_original_missing_selector_usage(self) -> Option<&'static [u8]> {
-        if self.native_index_lookup_protocol()?.version() == TclVersion::V8_4 {
-            Some(b"option ?arg arg ...?")
-        } else {
-            Some(
-                self.native_ensemble_configuration_protocol()?
-                    .missing_selector_usage(),
-            )
-        }
-    }
-
-    /// `GetIndex` is a C native object operation; Jim uses its distinct Enum owner.
-    #[must_use]
-    pub fn native_index_lookup_protocol(self) -> Option<NativeIndexLookupProtocol> {
-        match self.native_string_protocol()? {
-            tcl_syntax::native_string::NativeStringProtocol::C(version) => {
-                Some(NativeIndexLookupProtocol(version))
-            }
-            tcl_syntax::native_string::NativeStringProtocol::Jim084 => None,
-        }
     }
 }

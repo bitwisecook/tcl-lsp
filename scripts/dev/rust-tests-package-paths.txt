@@ -28,6 +28,7 @@ rust/tcl-engine-wasm
 rust/tcl-explorer
 rust/tcl-f5mku
 rust/tcl-fuzz
+rust/tcl-host-c-abi
 rust/tcl-host-native
 rust/tcl-irule-test
 rust/tcl-irules

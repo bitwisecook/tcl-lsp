@@ -693,7 +693,7 @@ mod tests {
         fn enter_index_operation(&mut self) -> Result<(), tcl_cmd_core::CmdError> {
             Ok(())
         }
-        fn check_index_operation(&mut self, _: &()) -> Result<(), tcl_cmd_core::CmdError> {
+        fn check_index_operation(&mut self, (): &()) -> Result<(), tcl_cmd_core::CmdError> {
             Ok(())
         }
         fn retain_index_failure(&mut self, _error: &tcl_cmd_core::CmdError) {

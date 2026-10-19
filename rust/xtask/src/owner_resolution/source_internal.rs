@@ -539,6 +539,7 @@ impl CrateModules {
         references.matched && !references.invalid
     }
 
+    #[allow(clippy::too_many_lines)]
     fn check_row(&self, row: &Row) -> bool {
         if !matches!(
             row.route.as_str(),
@@ -1200,23 +1201,6 @@ struct ConsumerReferences<'a> {
 
 impl ConsumerReferences<'_> {
     fn parameter_origin_is_shadowed(&self, value: &TypedReference) -> bool {
-        let name = value.origin.strip_prefix("parameter:").or_else(|| {
-            value
-                .origin
-                .strip_prefix("parameter-field:")?
-                .split_once(':')
-                .map(|(name, _)| name)
-        });
-        let Some(name) = name else {
-            return false;
-        };
-        let Some(signature) = self.consumer.signature else {
-            return true;
-        };
-        let Some(parameter) = signature.inputs.iter().find_map(|argument| match argument {
-            syn::FnArg::Typed(parameter) if matches!(parameter.pat.as_ref(), syn::Pat::Ident(binding) if binding.ident == name) => Some(parameter),
-            _ => None,
-        }) else { return true; };
         struct ShadowedType<'a> {
             names: &'a BTreeSet<String>,
             found: bool,
@@ -1235,6 +1219,23 @@ impl ConsumerReferences<'_> {
                 visit::visit_type_path(self, ty);
             }
         }
+        let name = value.origin.strip_prefix("parameter:").or_else(|| {
+            value
+                .origin
+                .strip_prefix("parameter-field:")?
+                .split_once(':')
+                .map(|(name, _)| name)
+        });
+        let Some(name) = name else {
+            return false;
+        };
+        let Some(signature) = self.consumer.signature else {
+            return true;
+        };
+        let Some(parameter) = signature.inputs.iter().find_map(|argument| match argument {
+            syn::FnArg::Typed(parameter) if matches!(parameter.pat.as_ref(), syn::Pat::Ident(binding) if binding.ident == name) => Some(parameter),
+            _ => None,
+        }) else { return true; };
         // A body import cannot donate a nominal type spelling to the bounded
         // parameter proof. Qualified declaration paths retain their own origin.
         let mut query = ShadowedType {
@@ -1376,7 +1377,7 @@ impl ConsumerReferences<'_> {
         );
     }
 
-    fn bind_enum_pattern(&mut self, pattern: &syn::Pat, value: TypedReference) {
+    fn bind_enum_pattern(&mut self, pattern: &syn::Pat, value: &TypedReference) {
         let syn::Pat::TupleStruct(pattern) = pattern else {
             return;
         };
@@ -1556,6 +1557,8 @@ impl ConsumerReferences<'_> {
         };
         self.type_identity_in(module, result, declaration.owner_type)
     }
+    // Outer `None`: no declared owner; inner `None`: the field is not declared.
+    #[allow(clippy::option_option)]
     fn declared_field_identity(
         &self,
         identity: &str,
@@ -1591,6 +1594,7 @@ impl ConsumerReferences<'_> {
         Some(Some(self.type_identity_in(module, &selected.ty, None)?))
     }
 
+    #[allow(clippy::too_many_lines)]
     fn transparent_state_target(&self, identity: &str) -> Option<String> {
         let (module, _) = identity.rsplit_once("::")?;
         let file = &self.modules.modules.get(module)?.file;
@@ -1654,7 +1658,7 @@ impl ConsumerReferences<'_> {
                     target = Some(self.type_identity_in(module, &item.ty, None)?);
                 }
                 syn::ImplItem::Fn(method) if immutable_method.is_none() => {
-                    immutable_method = Some(method)
+                    immutable_method = Some(method);
                 }
                 _ => return None,
             }
@@ -1744,7 +1748,7 @@ impl ConsumerReferences<'_> {
         (field_type == format!("Box<{target}>")).then_some(target)
     }
 
-    fn field(&self, value: TypedReference, field: &syn::Member) -> Option<TypedReference> {
+    fn field(&self, value: &TypedReference, field: &syn::Member) -> Option<TypedReference> {
         let syn::Member::Named(field) = field else {
             return None;
         };
@@ -1773,13 +1777,13 @@ impl ConsumerReferences<'_> {
             format!("parameter-field:{parameter}:{fields}.{field}")
         } else if let Some(producer) = value.origin.strip_prefix("self-producer:") {
             format!("producer-field:{producer}:{field}")
-        } else if let Some(producer) = value.origin.strip_prefix("producer:") {
-            format!("producer-field:{producer}:{field}")
         } else {
-            return None;
+            let producer = value.origin.strip_prefix("producer:")?;
+            format!("producer-field:{producer}:{field}")
         };
         Some(TypedReference { identity, origin })
     }
+    #[allow(clippy::too_many_lines)]
     fn expression_identity(&self, expression: &syn::Expr) -> Option<TypedReference> {
         match expression {
             syn::Expr::Path(path) if path.path.is_ident("self") => Some(TypedReference {
@@ -1805,7 +1809,7 @@ impl ConsumerReferences<'_> {
                 Some(value)
             }
             syn::Expr::Field(field) => {
-                self.field(self.expression_identity(&field.base)?, &field.member)
+                self.field(&self.expression_identity(&field.base)?, &field.member)
             }
             syn::Expr::Call(call) => {
                 let syn::Expr::Path(path) = call.func.as_ref() else {
@@ -2060,14 +2064,13 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
         if let Some(value) = initialized.clone() {
             self.bind_option_pattern(&local.pat, value);
         }
-        if let Some(name) = name {
-            if let Some(value) = local
+        if let Some(name) = name
+            && let Some(value) = local
                 .init
                 .as_ref()
                 .and_then(|init| self.expression_identity(&init.expr))
-            {
-                self.locals.insert(name, value);
-            }
+        {
+            self.locals.insert(name, value);
         }
     }
     fn visit_expr_closure(&mut self, closure: &'ast syn::ExprClosure) {
@@ -2130,7 +2133,7 @@ impl<'ast> Visit<'ast> for ConsumerReferences<'_> {
                 self.invalid = true;
             }
             self.clear_pattern(&arm.pat);
-            if let Some(value) = selected.clone() {
+            if let Some(value) = &selected {
                 self.bind_enum_pattern(&arm.pat, value);
             }
             self.visit_pat(&arm.pat);
@@ -3510,7 +3513,9 @@ mod file_route_tests {
         let mut library = String::from("mod shared;\n");
         for index in 0..2050 {
             let module = format!("unrelated{index}");
-            library.push_str(&format!("mod {module};\n"));
+            library.push_str("mod ");
+            library.push_str(&module);
+            library.push_str(";\n");
             std::fs::write(fixture.0.join(format!("rust/a/src/{module}.rs")), "").unwrap();
         }
         std::fs::write(fixture.0.join("rust/a/src/lib.rs"), library).unwrap();
@@ -3542,7 +3547,9 @@ mod file_route_tests {
         let mut library = String::from("mod shared;\n");
         for index in 0..2050 {
             let module = format!("unrelated{index}");
-            library.push_str(&format!("mod {module};\n"));
+            library.push_str("mod ");
+            library.push_str(&module);
+            library.push_str(";\n");
             std::fs::write(fixture.0.join(format!("rust/a/src/{module}.rs")), "").unwrap();
         }
         std::fs::write(fixture.0.join("rust/a/src/lib.rs"), library).unwrap();
@@ -3631,7 +3638,9 @@ mod file_route_tests {
         let mut library = String::from("mod shared;\n");
         for index in 0..2050 {
             let module = format!("unrelated{index}");
-            library.push_str(&format!("mod {module};\n"));
+            library.push_str("mod ");
+            library.push_str(&module);
+            library.push_str(";\n");
             std::fs::write(fixture.0.join(format!("rust/a/src/{module}.rs")), "").unwrap();
         }
         std::fs::write(fixture.0.join("rust/a/src/lib.rs"), library).unwrap();

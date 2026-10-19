@@ -465,6 +465,7 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
 /// shipped shell badge consumers and the shared renderers must accept it.
 /// This drives the shipped JavaScript in Node's DOM stand-in, not a browser.
 #[test]
+#[allow(clippy::too_many_lines)]
 fn retained_source_unavailable_payload_renders_without_empty_success_claims() {
     // naming.source.retained-explorer-consumers
     // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
@@ -600,6 +601,7 @@ fn retained_source_unavailable_payload_renders_without_empty_success_claims() {
 /// Shared actual-CU consumers preserve structural unavailable output through
 /// shipped core renderers and both shell hooks/counts. The DOM is a stand-in.
 #[test]
+#[allow(clippy::too_many_lines)]
 fn remaining_actual_cu_unavailable_payload_renders_all_retained_views() {
     // naming.source.retained-explorer-consumers
     // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md

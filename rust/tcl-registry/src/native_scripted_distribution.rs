@@ -184,7 +184,9 @@ mod tests {
         assert_eq!(fields[1], "0");
         let bytes: Vec<_> = fields[2]
             .as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect();
         let observed = tcl_syntax::list::split_native_list_bytes(
@@ -229,7 +231,9 @@ mod tests {
         assert_eq!(fields[1], "0");
         let tuple: Vec<_> = fields[2]
             .as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect();
         let observed = tcl_syntax::list::split_native_list_bytes(

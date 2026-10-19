@@ -62,6 +62,9 @@
 //! ordinary `workspace/didChangeWatchedFiles`, exactly as an editor would for a
 //! file that changed outside it.
 
+// Retained analysis receipts require deeper auto-trait evaluation.
+#![recursion_limit = "256"]
+
 use std::sync::Arc;
 
 use futures::StreamExt as _;

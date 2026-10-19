@@ -186,7 +186,7 @@ pub fn resolve_credentials(opts: &ResolveOptions) -> Result<Credentials, String>
         && let Some(real) = entry.get("host")
     {
         alias_entry = entry.clone();
-        resolved_host = real.clone();
+        resolved_host.clone_from(real);
     }
 
     let configured_user = if let Some(user) = opts.user {

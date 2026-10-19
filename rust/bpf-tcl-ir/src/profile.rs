@@ -463,7 +463,7 @@ mod original_scalar_tests {
             else {
                 panic!("actual scalar declaration carrier");
             };
-            let index = if changed_head { 0 } else { 1 };
+            let index = usize::from(!changed_head);
             let replacement = if changed_head { "profile" } else { "tcp" };
             let WordExpr::Literal { text, .. } = &mut tokens.word_exprs[index] else {
                 panic!("literal original word");

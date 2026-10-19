@@ -886,11 +886,11 @@ fn ctx_reads(body: &str, config: tcl_lexer::LexerConfig) -> CtxScan {
         if reference.name != b"ctx" {
             continue;
         }
-        if reference.index.is_none() {
-            if let Some(key) = dict_get_key(body, at, reference.next) {
-                scan.keys.insert(key);
-                continue;
-            }
+        if reference.index.is_none()
+            && let Some(key) = dict_get_key(body, at, reference.next)
+        {
+            scan.keys.insert(key);
+            continue;
         }
         scan.unattributed = true;
     }

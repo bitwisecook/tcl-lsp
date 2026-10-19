@@ -470,6 +470,7 @@ pub(crate) fn jim_string_count(value: *mut TclObj) -> Option<usize> {
 
 /// Jim's actual string count conversion. Reuse the object's current cache;
 /// otherwise install the count of the original native byte units.
+#[cfg_attr(not(have_tommath), allow(dead_code))]
 pub(crate) fn jim_character_count(value: *mut TclObj) -> usize {
     if let Some(count) = jim_string_count(value) {
         return count;

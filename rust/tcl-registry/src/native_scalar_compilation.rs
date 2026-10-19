@@ -220,6 +220,7 @@ mod tests {
     // Native proof: naming.variable.scalar-original-argv-compiler-and-result-windows
     // docs/design/analysis/name-resolution-proofs/variable.scalar-original-argv-compiler-and-result-windows.md
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn original_scalar_recipes_match_seventy_five_native_compiler_windows() {
         let registry = crate::CommandRegistry::build_default();
         let mut windows = 0;

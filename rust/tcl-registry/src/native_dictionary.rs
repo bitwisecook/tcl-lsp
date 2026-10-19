@@ -838,6 +838,7 @@ mod compiler_tests {
                         NativeStringProtocol::Jim084,
                     )
                     .unwrap();
+                    #[allow(clippy::format_collect)]
                     let hex = elements[ordinal.expect("native successful member")]
                         .iter()
                         .map(|byte| format!("{byte:02x}"))

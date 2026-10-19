@@ -9,7 +9,7 @@
   "scripts": {
     "build": "node build.mjs",
     "install:chromium": "playwright install --with-deps chromium",
-    "test": "node build.mjs --tests && node --test dist/tests/units.test.mjs",
+    "test": "node build.mjs --tests && node --conditions=browser --test dist/tests/units.test.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.test.json",
     "lint": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\""

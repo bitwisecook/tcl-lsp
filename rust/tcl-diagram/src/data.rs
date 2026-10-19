@@ -151,7 +151,7 @@ fn command_completion(
         let Some(realm) = tokens
             .source_binding
             .as_ref()
-            .and_then(|binding| binding.invocation_realm())
+            .and_then(tcl_compiler::command_binding::SourceInvocationBinding::invocation_realm)
         else {
             return DiagramCompletion::Normal;
         };
@@ -2136,8 +2136,8 @@ mod original_source_tests {
             let data = diagram_data_for_analysis(source, &analysis, &unit.ir_module, &availability);
             let action = data.pointer("/events/0/flow/0").unwrap();
             assert_eq!(action["source_schema"]["command"], "pool");
-            let start = action["source_span"][0].as_u64().unwrap() as usize;
-            let end = action["source_span"][1].as_u64().unwrap() as usize;
+            let start = usize::try_from(action["source_span"][0].as_u64().unwrap()).unwrap();
+            let end = usize::try_from(action["source_span"][1].as_u64().unwrap()).unwrap();
             assert_eq!(&source[start..end], "pool /Common/first");
             assert_eq!(
                 action["source_schema"]["applicability"],

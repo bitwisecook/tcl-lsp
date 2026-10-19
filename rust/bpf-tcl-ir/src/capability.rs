@@ -64,13 +64,13 @@ impl CapabilityPolicy {
     /// Permit the selected descriptor under its Registry effect classification.
     #[must_use]
     pub fn permits(&self, key: CanonicalCommandDescriptorKey<'_>, gated: bool) -> bool {
-        if self.deny.iter().any(|descriptor| *descriptor == key) {
+        if self.deny.contains(&key) {
             return false;
         }
         if let Some(allow) = &self.allow
             && gated
         {
-            return allow.iter().any(|descriptor| *descriptor == key);
+            return allow.contains(&key);
         }
         true
     }
@@ -250,7 +250,7 @@ mod original_operand_tests {
             else {
                 panic!("original capability command");
             };
-            let index = if changed_head { 0 } else { 1 };
+            let index = usize::from(!changed_head);
             let replacement = if changed_head { "deny" } else { "pass" };
             let WordExpr::Literal { text, .. } = &mut tokens.word_exprs[index] else {
                 panic!("original literal operand");

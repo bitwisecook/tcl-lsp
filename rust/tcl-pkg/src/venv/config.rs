@@ -125,7 +125,7 @@ pub(super) fn replace_selected(
     ] {
         let first = pairs.iter().position(|(key, _)| key == selected);
         if let Some(index) = first {
-            pairs[index].1 = value.to_owned();
+            value.clone_into(&mut pairs[index].1);
         } else {
             pairs.push((selected.to_owned(), value.to_owned()));
         }

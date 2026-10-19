@@ -181,6 +181,7 @@ fn validate_f5_string_predicate_consumers(root: &Path) -> Result<Vec<String>> {
     Ok(problems)
 }
 
+#[allow(clippy::too_many_lines)]
 fn validate_manifest(root: &Path, contract: &str, makefile: &str, xtask_main: &str) -> Vec<String> {
     let (source_routes, mut problems) = source_internal::validate(root, contract);
     let rows = match parse_manifest(contract) {
@@ -386,6 +387,7 @@ fn validate_variable_table_consumers(root: &Path) -> Result<Vec<String>> {
 }
 
 /// Jim lookup receipts retain native lifetimes separately from byte-name lookup.
+#[allow(clippy::too_many_lines)]
 fn validate_jim_original_lookup_consumers(root: &Path) -> Result<Vec<String>> {
     let mut problems = Vec::new();
     for (path, doors) in [
@@ -2528,7 +2530,7 @@ mod tests {
             "#![cfg_attr(test, cfg(test))]",
             "#![cfg_attr(test, rewrite_route)]",
             "#![cfg_attr(test, allow(dead_code), cfg(test))]",
-            r#"#![recursion_limit(rewrite_route)]"#,
+            r"#![recursion_limit(rewrite_route)]",
             r#"#![recursion_limit = include_str!("limit")]"#,
             r#"#![recursion_limit = "unknown"]"#,
             r#"#![cfg_attr(test, recursion_limit = "256", cfg(test))]"#,
@@ -2923,9 +2925,9 @@ mod tests {
         for source in [
             r#"fn helper(name:&str) { name.rsplit_once("::"); }"#,
             r#"fn helper(name:&str) { name.split(r"::"); }"#,
-            r#"fn helper(name:&[u8]) { name.split(|byte| *byte == 0); }"#,
-            r#"fn helper(name:&[u8]) { name.iter().position(|byte| *byte == b'\0'); }"#,
-            r#"fn helper(name:&[u8]) { String::from_utf8_lossy(name); }"#,
+            r"fn helper(name:&[u8]) { name.split(|byte| *byte == 0); }",
+            r"fn helper(name:&[u8]) { name.iter().position(|byte| *byte == b'\0'); }",
+            r"fn helper(name:&[u8]) { String::from_utf8_lossy(name); }",
             r#"#[cfg(test)] mod tests { fn fixture(){ s.split("::"); } }
                fn later(name:&str){ name.split_once("::"); }"#,
         ] {

@@ -1940,6 +1940,7 @@ fn subcommand_execution_fields(d: &mut Draft, sub: &SubCommand, lost: &mut Unrec
     );
 }
 
+#[allow(clippy::too_many_lines)]
 fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     subcommand_option_surface(d, sub, lost);
     d.insert("min_abbrev".into(), opt_index(sub.min_abbrev));
@@ -2254,6 +2255,7 @@ fn command_docs(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
 }
 
 /// Constant folders, compiler / analyser hooks, and effects.
+#[allow(clippy::too_many_lines)]
 fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert(
         "const_fold".into(),

@@ -289,6 +289,7 @@ pub fn load_discovered_with_studio_sources_and_inputs_in(
 /// the existing provider/source publication receipt. Invalid manifest selection
 /// is reported and cannot issue complete input correspondence.
 #[must_use]
+#[allow(clippy::needless_pass_by_value)] // the shared store handle is cloned into the load
 pub fn load_discovered_configuration_with_studio_sources_and_inputs_in(
     store: std::sync::Arc<dyn tcl_lsp_core::vfs::SourceStore>,
     discovery: &crate::discovery::ConfiguredDiscovery,

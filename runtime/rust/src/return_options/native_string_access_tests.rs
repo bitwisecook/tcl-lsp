@@ -6,10 +6,9 @@
 //! Native processes, scalar primitive conversion and expression truth are separate.
 
 use super::{NativeReturnOps, ReturnOptionsOps};
-use crate::{
-    interp::{Code, Interp},
-    obj,
-};
+#[cfg(have_tommath)]
+use crate::interp::Code;
+use crate::{interp::Interp, obj};
 
 fn native(profile: &str) -> Interp {
     Interp::with_native_core(

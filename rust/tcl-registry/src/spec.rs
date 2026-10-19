@@ -5828,6 +5828,6 @@ mod command_closed_value_prefix_controls {
                 .iter()
                 .any(|value| value.value == "script")
         );
-        assert!(!CommandSpec::DEFAULT.arg_values_accept_prefix);
+        const { assert!(!CommandSpec::DEFAULT.arg_values_accept_prefix) };
     }
 }

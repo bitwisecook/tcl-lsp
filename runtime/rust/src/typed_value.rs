@@ -27,9 +27,10 @@
 //! points. Their conversion purposes cannot borrow primitive getter behaviour.
 
 mod native_boolean_truth;
+pub(crate) use native_boolean_truth::{expression_boolean_for_interp, native_boolean_for_interp};
+#[cfg(have_tommath)]
 pub(crate) use native_boolean_truth::{
-    expression_boolean_for_interp, native_boolean_for_interp, native_boolean_in,
-    native_logical_right_for_interp, normalize_boolean_result_for_interp,
+    native_boolean_in, native_logical_right_for_interp, normalize_boolean_result_for_interp,
     normalize_boolean_result_in, normalize_numeric_instruction_for_interp,
     normalize_numeric_instruction_in,
 };

@@ -3183,6 +3183,8 @@ mod snapshot_identity_tests {
 
     #[test]
     fn snapshot_keys_distinguish_release_build_and_policies_under_one_name() {
+        const EXAMPLE: &[PackageFloor<'static>] = &[PackageFloor::named("Example")];
+        const EXAMPLE_2: &[PackageFloor<'static>] = &[PackageFloor::at("Example", "2.0")];
         let profile = DialectProfile::projected_from_point(
             "jim",
             &[],
@@ -3205,13 +3207,11 @@ mod snapshot_identity_tests {
         changed.leading_zero_is_octal = Ternary::Yes;
         assert_ne!(profile.cache_key(), changed.cache_key());
         changed = profile.clone();
-        const EXAMPLE: &[PackageFloor<'static>] = &[PackageFloor::named("Example")];
         changed.surface_packages = EXAMPLE;
         assert_ne!(profile.cache_key(), changed.cache_key());
         assert!(std::ptr::eq(profile.intern(), profile.clone().intern()));
         assert!(!std::ptr::eq(profile.intern(), changed.intern()));
         let without_floor = changed.cache_key();
-        const EXAMPLE_2: &[PackageFloor<'static>] = &[PackageFloor::at("Example", "2.0")];
         changed.surface_packages = EXAMPLE_2;
         assert_ne!(without_floor, changed.cache_key());
         changed = profile.clone();

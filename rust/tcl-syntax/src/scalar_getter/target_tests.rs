@@ -298,15 +298,15 @@ fn original_long64_public_value_cache_and_live_failure_fields_match_captures() {
                 assert_eq!(actual_kind, expected_kind, "{row}");
                 // A fresh Long result can wrap while retaining its full Big
                 // cache; a subsequent cached Long preserves that same primary.
-                if let Some(cache) = cache {
-                    if version != TclVersion::V8_4 {
-                        let again = protocol
-                            .cached_conversion(NativeScalarGetterKind::Long, cache, Some(target))
-                            .unwrap()
-                            .unwrap();
-                        assert_eq!(again.outcome(), conversion.outcome(), "{row}");
-                        assert!(again.cache().is_none());
-                    }
+                if let Some(cache) = cache
+                    && version != TclVersion::V8_4
+                {
+                    let again = protocol
+                        .cached_conversion(NativeScalarGetterKind::Long, cache, Some(target))
+                        .unwrap()
+                        .unwrap();
+                    assert_eq!(again.outcome(), conversion.outcome(), "{row}");
+                    assert!(again.cache().is_none());
                 }
                 compared += 1;
             }
@@ -586,6 +586,8 @@ fn primitive_failure_string_obligation_refuses_operand_free_rendering_for_quoted
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
+#[allow(clippy::needless_range_loop)] // `case` also selects the cache shape
 fn original_c84_fresh_boolean_narrows_signed_long_before_truth_and_cached_wide_does_not() {
     // naming.numeric.original-capi-scalar-publication-width
     // docs/design/analysis/name-resolution-proofs/numeric-original-capi-scalar-publication-width.md

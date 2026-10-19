@@ -154,6 +154,7 @@ impl OriginalIrulesWhenInventory {
 
 /// A missing complete owner differs from an owned, possibly partial inventory.
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)] // one inventory per document, moved rarely
 pub enum IrulesWhenSourceInventory {
     /// No genuine complete source/configuration/context inventory is available.
     Unavailable,
@@ -584,10 +585,10 @@ impl OriginalIrulesSourceContext {
         let retained = analysis.resolved_input.as_ref()?;
         if !retained.unit_profile().is_irules()
             || (!analysis.has_original_vendor_source_names()
-                && !(tcl_lexer::Lexer::with_config(source, config)
+                && (tcl_lexer::Lexer::with_config(source, config)
                     .tokenise_all()
-                    .is_ok()
-                    && tcl_syntax::event_handler::script_commands(source, config).is_empty()))
+                    .is_err()
+                    || !tcl_syntax::event_handler::script_commands(source, config).is_empty()))
             || !retained.has_hosted_source_name_context()
             || retained.context_registry().context() != context.context()
             || retained
@@ -1044,6 +1045,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn configured_event_roots_preserve_literal_body_values_and_event_availability() {
         let source = concat!(
             "when HTTP_REQUEST {pool \"a\\\"b\"; pool {茶}; pool $dynamic}\n",

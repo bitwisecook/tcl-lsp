@@ -35,7 +35,7 @@
 
 use core::ptr;
 
-#[cfg(test)]
+#[cfg(all(test, have_tommath, not(target_arch = "wasm32")))]
 use crate::codegen_abi::current_interp;
 use crate::codegen_abi::{CodegenOperation, TclCompletionAbi, TCL_INVOKE_ABI_HOST_REFUSED};
 use crate::interp::native_operation_currency::{NativeOperationCurrency, NativeOperationScope};

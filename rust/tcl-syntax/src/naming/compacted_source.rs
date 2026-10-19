@@ -147,11 +147,13 @@ mod tests {
 
     #[test]
     fn authored_compact_names_retain_custom_whole_grammar_without_lookup() {
-        let mut config = tcl_lexer::LexerConfig::default();
-        config.leading_bom = tcl_lexer::LeadingBom::Content;
-        config.base_offset = 41;
-        config.base_line = 3;
-        config.base_col = 7;
+        let config = tcl_lexer::LexerConfig {
+            leading_bom: tcl_lexer::LeadingBom::Content,
+            base_offset: 41,
+            base_line: 3,
+            base_col: 7,
+            ..tcl_lexer::LexerConfig::default()
+        };
         let mut sequence = AuthoredCompactNameSequence::new(config);
         let name = sequence
             .next_avoiding_observed(

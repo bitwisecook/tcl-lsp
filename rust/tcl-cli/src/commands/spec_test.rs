@@ -767,7 +767,7 @@ mod tests {
             "two packages are none: the author names one"
         );
     }
-    const MUTATING_FIXTURE: &str = r#"namespace eval ::demo {}
+    const MUTATING_FIXTURE: &str = r"namespace eval ::demo {}
 namespace eval {::N[0]} {variable x BEFORE; variable a; array set a {:key BEFORE}}
 namespace eval ::N0 {variable y SIBLING}
 set {:errorInfo} BEFORE
@@ -780,16 +780,16 @@ proc ::demo::mutate {} {
     ::return OK
 }
 package provide demo 1.0
-"#;
+";
 
-    const REFUSAL_FIXTURE: &str = r#"namespace eval ::demo {}
+    const REFUSAL_FIXTURE: &str = r"namespace eval ::demo {}
 namespace eval {:N} {variable x COLON_NAMESPACE}
 namespace eval ::N {variable x ORDINARY_NAMESPACE}
 proc ::demo::quiet {} {return OK}
 package provide demo 1.0
-"#;
+";
 
-    const SHADOW_FIXTURE: &str = r#"namespace eval ::demo {}
+    const SHADOW_FIXTURE: &str = r"namespace eval ::demo {}
 namespace eval ::shadow {
     variable x BEFORE
     proc namespace args {error {SHADOW namespace}}
@@ -800,7 +800,7 @@ namespace eval ::shadow {
 }
 proc ::demo::mutate {} {::set ::shadow::x AFTER; ::return OK}
 package provide demo 1.0
-"#;
+";
 
     fn original_purity_report(
         interpreter: &std::path::Path,
@@ -890,13 +890,13 @@ package provide demo 1.0
         );
     }
 
-    const PRESENCE_FIXTURE: &str = r#"
+    const PRESENCE_FIXTURE: &str = r"
 foreach ns {::N[0] ::N0 ::Nmissing ::W* ::WZ ::Q? ::Qa {::B\slash}} {::namespace eval $ns {}}
 foreach name {::N[0]::p ::N0::p ::Nmissing::absent ::W*::p ::WZ::p ::Q?::p ::Qa::p {::B\slash::p} ::N[0]::p* ::N[0]::pZ ::N[0]::p? ::N[0]::pA ::N[0]::p[0] ::N[0]::p0 {::N[0]::p\tail} ::N[0]:: ::N[0]::absentZ :p p* pZ absentZ} {
     ::proc $name {} {::return EXACT}
 }
 package provide demo 1.0
-"#;
+";
 
     fn original_presence_report(interpreter: &std::path::Path) {
         let names = [

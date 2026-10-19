@@ -393,7 +393,7 @@ impl LiveSession {
     }
 
     /// Select an independently measured event naming issuer. Only the exact
-    /// supported build/TMM/HTTP_REQUEST context enters counted frame storage.
+    /// supported `build/TMM/HTTP_REQUEST` context enters counted frame storage.
     /// An unsupported selection clears the previous issuer and returns false.
     pub fn set_measured_event_name_build(&mut self, build: Option<BigIpBuild>) -> bool {
         let selected = build.filter(|build| {

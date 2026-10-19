@@ -123,7 +123,7 @@ fn without_inventory_export(module: &[u8]) -> Vec<u8> {
     }
     fn append_number(output: &mut Vec<u8>, mut value: usize) {
         loop {
-            let byte = (value & 127) as u8;
+            let byte = u8::try_from(value & 127).unwrap();
             value >>= 7;
             output.push(byte | if value == 0 { 0 } else { 128 });
             if value == 0 {
@@ -149,16 +149,16 @@ fn without_inventory_export(module: &[u8]) -> Vec<u8> {
                 take(&mut exports, 1);
                 number(&mut exports);
                 if name == b"tcl_engine_visible_command_inventory" {
-                    removed = true
+                    removed = true;
                 } else {
-                    kept.push(before[..before.len() - exports.len()].to_vec())
+                    kept.push(before[..before.len() - exports.len()].to_vec());
                 }
             }
             assert!(exports.is_empty());
             let mut result = Vec::new();
             append_number(&mut result, kept.len());
             for export in kept {
-                result.extend_from_slice(&export)
+                result.extend_from_slice(&export);
             }
             result
         } else {

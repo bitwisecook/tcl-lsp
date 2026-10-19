@@ -96,6 +96,7 @@ fn source_object_attachment(
 /// retain exact ordinary slots; unknown expansion cardinality withdraws advice.
 /// This metadata grants no object identity, traffic effect or execution.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn original_source_object_operands(
     selected: &ResolvedInvocation<'_, '_>,
     rule_module: Option<&str>,

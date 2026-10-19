@@ -7435,6 +7435,11 @@ mod implicit_receiver_variable_tests {
 
     #[test]
     fn receiver_variables_require_the_explicit_role_and_implicit_binding() {
+        const CUSTOM: DefinitionBodyGrammar = DefinitionBodyGrammar {
+            implicit_vars: &["receiver", "options"],
+            implicit_receiver_vars: &["receiver", "hidden"],
+            ..ITCL_GRAMMAR
+        };
         for grammar in [&SNIT_GRAMMAR, &SNIT_WIDGET_GRAMMAR] {
             assert!(grammar.is_implicit_receiver_variable("self"));
             for name in ["selfns", "type", "options", "win", "hull", "this"] {
@@ -7444,11 +7449,6 @@ mod implicit_receiver_variable_tests {
         assert!(ITCL_GRAMMAR.is_implicit_receiver_variable("this"));
         assert!(!ITCL_GRAMMAR.is_implicit_receiver_variable("self"));
         assert!(!TCLOO_GRAMMAR.is_implicit_receiver_variable("self"));
-        const CUSTOM: DefinitionBodyGrammar = DefinitionBodyGrammar {
-            implicit_vars: &["receiver", "options"],
-            implicit_receiver_vars: &["receiver", "hidden"],
-            ..ITCL_GRAMMAR
-        };
         assert!(CUSTOM.is_implicit_receiver_variable("receiver"));
         for name in ["options", "hidden", "this", "self"] {
             assert!(!CUSTOM.is_implicit_receiver_variable(name));

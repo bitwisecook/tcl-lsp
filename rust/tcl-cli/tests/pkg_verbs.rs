@@ -1000,6 +1000,7 @@ fn pkg_search_offline_without_cache_errors() {
 
 #[cfg(unix)]
 #[test]
+#[allow(clippy::too_many_lines)]
 fn direct_tcllibpath_producers_preserve_selected_original_c_tcl_lists_and_paths() {
     use std::os::unix::fs::symlink;
     let repo = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -1110,8 +1111,7 @@ close $receipt
                 let output = command.output().unwrap();
                 assert!(
                     output.status.success(),
-                    "{version:?}/{surface}/{suffix:?}: {:?}",
-                    output
+                    "{version:?}/{surface}/{suffix:?}: {output:?}"
                 );
                 assert!(
                     output.stderr.is_empty(),
@@ -1198,6 +1198,7 @@ fn direct_tcllibpath_producers_refuse_invalid_or_opaque_source_before_entry() {
 
 #[cfg(unix)]
 #[test]
+#[allow(clippy::too_many_lines)]
 fn generated_posix_venv_source_preserves_executable_arguments_and_activation_values() {
     use std::os::unix::fs::PermissionsExt;
     let base = temp_dir("venv-posix-source");

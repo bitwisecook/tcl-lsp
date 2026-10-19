@@ -102,8 +102,7 @@ fn original_event_enrolment_refuses_utf8_before_domain_or_later_operand() {
             .collect::<Vec<_>>();
         let error = vm
             .try_invoke_command("originalEnrol", &values)
-            .err()
-            .expect("strict enrolment input refuses");
+            .expect_err("strict enrolment input refuses");
         assert!(matches!(
             error,
             NativeExecutionError::ValueAccessRefusal(

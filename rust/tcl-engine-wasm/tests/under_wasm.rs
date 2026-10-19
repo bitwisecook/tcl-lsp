@@ -1430,7 +1430,7 @@ int OriginalInventory_Init(Tcl_Interp *interp) {
     };
     for operand in &loaded.commands {
         assert_eq!(
-            host.evaluate(loaded.hash, &[operand.clone()], &budget),
+            host.evaluate(loaded.hash, std::slice::from_ref(operand), &budget),
             Ok("EXACT".to_owned())
         );
     }

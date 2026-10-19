@@ -91,7 +91,7 @@ fn verify_line(index: usize, line: &str, seeded: bool) {
         // is sampled after the callback returns through actual Tcl_Eval.
         let update = match error.eval_error_code_update() {
             NativeScalarGetterErrorCode::Unchanged => error.error_code_update(),
-            update => update,
+            update @ NativeScalarGetterErrorCode::Set(_) => update,
         };
         let code = match update {
             NativeScalarGetterErrorCode::Unchanged => {

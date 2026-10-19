@@ -276,12 +276,12 @@ mod tests {
         report
     }
 
-    const ORIGINAL_PACKAGE: &str = r#"
+    const ORIGINAL_PACKAGE: &str = r"
 proc :lost {} {return COLON}
 namespace eval {N[0]} {proc {p*} {} {return BRACKET}}
 namespace eval N0 {proc pZ {} {return SIBLING}}
 proc __spec_probeOther {} {return OTHER}
-"#;
+";
 
     #[test]
     fn original_c_package_inventory_keeps_root_colons_and_literal_namespace_words() {

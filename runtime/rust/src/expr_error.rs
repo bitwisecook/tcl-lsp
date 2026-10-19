@@ -41,6 +41,7 @@ pub struct ExprError {
         Option<Box<tcl_registry::native_expression_error::NativeExpressionErrorStage>>,
 }
 
+#[cfg_attr(not(have_tommath), allow(dead_code))]
 impl ExprError {
     pub(crate) fn msg(s: &[u8]) -> ExprError {
         ExprError {
@@ -190,6 +191,7 @@ impl ExprError {
     }
 }
 
+#[cfg_attr(not(have_tommath), allow(dead_code))]
 impl crate::interp::Interp {
     /// Inspect host-only failure before publishing a guest completion.
     pub(crate) fn report_expr_error(&mut self, error: ExprError) -> crate::interp::Code {

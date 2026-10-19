@@ -698,6 +698,25 @@ pub fn surfaces_overlap(left: &[SpecSurface], right: &[SpecSurface]) -> bool {
     })
 }
 
+/// Canonical environment surfaces offered by source descriptor authoring.
+/// EDA package libraries are carried as packages rather than independent surfaces.
+pub const SOURCE_AUTHORING_ENVIRONMENT_SURFACES: &[(&str, &[SpecSurface])] = &[
+    ("tcl8.4", SpecSurface::TCL84),
+    ("tcl8.5", SpecSurface::TCL85),
+    ("tcl8.6", SpecSurface::TCL86),
+    ("tcl9.0", SpecSurface::TCL90),
+    ("tcl9.1", SpecSurface::TCL91),
+    ("f5-irules", SpecSurface::IRULES),
+    ("f5-iapps", SpecSurface::IAPPS),
+    ("tk", SpecSurface::TK),
+    ("expect", SpecSurface::EXPECT),
+    ("bpf", SpecSurface::BPF),
+    ("f5-tmsh", SpecSurface::TMSH),
+    ("f5-bigip", SpecSurface::BIGIP),
+    ("spectcl", SpecSurface::SPECTCL),
+    ("sslictcl", SpecSurface::SSLICTCL),
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -929,22 +948,3 @@ mod tests {
         assert_eq!(CorePoints::one(Family::Tcl, None).len(), 1);
     }
 }
-
-/// Canonical environment surfaces offered by source descriptor authoring.
-/// EDA package libraries are carried as packages rather than independent surfaces.
-pub const SOURCE_AUTHORING_ENVIRONMENT_SURFACES: &[(&str, &[SpecSurface])] = &[
-    ("tcl8.4", SpecSurface::TCL84),
-    ("tcl8.5", SpecSurface::TCL85),
-    ("tcl8.6", SpecSurface::TCL86),
-    ("tcl9.0", SpecSurface::TCL90),
-    ("tcl9.1", SpecSurface::TCL91),
-    ("f5-irules", SpecSurface::IRULES),
-    ("f5-iapps", SpecSurface::IAPPS),
-    ("tk", SpecSurface::TK),
-    ("expect", SpecSurface::EXPECT),
-    ("bpf", SpecSurface::BPF),
-    ("f5-tmsh", SpecSurface::TMSH),
-    ("f5-bigip", SpecSurface::BIGIP),
-    ("spectcl", SpecSurface::SPECTCL),
-    ("sslictcl", SpecSurface::SSLICTCL),
-];

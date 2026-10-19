@@ -476,8 +476,7 @@ fn transformations_refuse_lossy_source_before_writing_artifacts() {
         assert!(!output.status.success(), "{verb} accepted altered source");
         assert!(
             String::from_utf8_lossy(&output.stderr).contains("decoding errors"),
-            "{verb}: {:?}",
-            output
+            "{verb}: {output:?}"
         );
         assert!(!output_path.exists(), "{verb} published an output");
         assert!(!sidecar.exists(), "{verb} published a sidecar");
@@ -492,7 +491,7 @@ fn literal_replacement_characters_remain_faithful_transform_input() {
         .args(["format", input.to_str().unwrap()])
         .output()
         .expect("spawn tcl");
-    assert!(output.status.success(), "{:?}", output);
+    assert!(output.status.success(), "{output:?}");
     assert!(
         String::from_utf8(output.stdout)
             .unwrap()

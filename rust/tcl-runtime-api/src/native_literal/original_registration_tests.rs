@@ -56,15 +56,15 @@ fn original_registration_episode_refuses_getter_and_factory_mutation_before_acqu
             |value, current| {
                 calls.set(calls.get() + 1);
                 assert!(world.try_borrow_mut().is_ok());
-                if !factory {
+                if factory {
+                    Ok(b"changed resident spelling".to_vec())
+                } else {
                     let extra = world.borrow_mut().acquire_registration(index).unwrap();
                     let retired = world.borrow_mut().release(index);
                     drop(retired);
                     drop(extra);
                     current()?;
                     Ok(value.as_ref().clone())
-                } else {
-                    Ok(b"changed resident spelling".to_vec())
                 }
             },
             || {

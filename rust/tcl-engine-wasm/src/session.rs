@@ -141,6 +141,7 @@ pub(crate) struct Exports {
     pub(crate) create_command: TypedFunc<(i32, i32, i32, i32, i32, i32), i32>,
     pub(crate) delete_command: TypedFunc<(i32, i32, i32, i32), i32>,
     pub(crate) replay_context: TypedFunc<(i32, i32), i32>,
+    #[allow(clippy::type_complexity)] // the export's own eight-argument signature
     pub(crate) replay_create_command: TypedFunc<(i32, i32, i32, i32, i32, i32, i32, i32), i32>,
     pub(crate) replay_delete_command: TypedFunc<(i32, i32, i32, i32, i32, i32), i32>,
     set_limits: TypedFunc<(i32, i64, i64), ()>,
@@ -930,6 +931,7 @@ pub(crate) enum Failure {
         options: Option<Vec<u8>>,
     },
     ExecutionRefusal(String),
+    #[allow(clippy::enum_variant_names)] // mirrors `EngineError::ExecutionFailure`
     ExecutionFailure(tcl_engine_api::NativeExecutionError),
 }
 
@@ -1011,6 +1013,7 @@ mod tests {
     use tcl_engine_api::HostOutcome;
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn original_typed_wasm_host_failure_preserves_prior_runtime_pending_cause() {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
@@ -1066,8 +1069,10 @@ mod tests {
             .data()
             .host_procedure
             .expect("published host procedure");
-        let Some(Ref::Func(Some(function))) =
-            session.exports.table.get(&mut session.store, slot as u64)
+        let Some(Ref::Func(Some(function))) = session
+            .exports
+            .table
+            .get(&mut session.store, u64::try_from(slot).unwrap())
         else {
             panic!("the actual published host procedure is unavailable");
         };

@@ -594,6 +594,7 @@ impl<'a> Bench<'a> {
 
     /// Present only this exact producer's source view; unavailable evidence
     /// preserves diagnostics and plain sample text without invented counts.
+    #[allow(clippy::too_many_lines)]
     fn analyse_result_view(
         &self,
         sample: &str,

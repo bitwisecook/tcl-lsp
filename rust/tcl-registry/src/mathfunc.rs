@@ -683,17 +683,7 @@ mod tests {
                     .is_some(),
                 "{name}"
             );
-            if name != "jim" {
-                assert!(
-                    registry
-                        .selected_math_function_spec(
-                            "::tcl::mathfunc::abs",
-                            super::NativeMathFunctionDispatch::CommandTable,
-                        )
-                        .is_none(),
-                    "{name}"
-                );
-            } else {
+            if name == "jim" {
                 // A missing inherited-source roster fails open by its own
                 // contract; that metadata is independent of actual dispatch.
                 let unmeasured = crate::InvocationDialect::of_point(
@@ -707,6 +697,16 @@ mod tests {
                         .effective_semantics_for_dialect(unmeasured)
                         .binding_names()
                         .is_empty()
+                );
+            } else {
+                assert!(
+                    registry
+                        .selected_math_function_spec(
+                            "::tcl::mathfunc::abs",
+                            super::NativeMathFunctionDispatch::CommandTable,
+                        )
+                        .is_none(),
+                    "{name}"
                 );
             }
             assert!(

@@ -90,10 +90,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "borrow-or-share"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc0b364ead1874514c8c2855ab558056ebfeb775653e7ae45ff72f28f8f3166c"
+
+[[package]]
 name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
+
+[[package]]
+name = "bytecount"
+version = "0.6.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "175812e0be2bccb6abe50bb8d566126198344f707e304f45c648fd8f2cc0365e"
 
 [[package]]
 name = "cc"
@@ -325,6 +337,17 @@ name = "find-msvc-tools"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
+
+[[package]]
+name = "fluent-uri"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc74ac4d8359ae70623506d512209619e5cf8f347124910440dbc221714b328e"
+dependencies = [
+ "borrow-or-share",
+ "ref-cast",
+ "serde",
+]
 
 [[package]]
 name = "foldhash"
@@ -700,6 +723,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
+name = "ref-cast"
+version = "1.0.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e440fb4e4b4147295338efb76001ab9e4efc0e5839df2c47fc5ac2381d365c3"
+dependencies = [
+ "ref-cast-impl",
+]
+
+[[package]]
+name = "ref-cast-impl"
+version = "1.0.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92ecd8964f8453721699a1ed72037b0db49ce2f5a5138486ee89bed6f67cdf3a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+]
+
+[[package]]
 name = "regex"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -996,6 +1039,7 @@ dependencies = [
  "md-5",
  "sha1",
  "sha2",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-platform",
  "tcl-runtime-api",
@@ -1033,19 +1077,26 @@ name = "tcl-dialect"
 version = "0.1.0"
 dependencies = [
  "bitflags",
+ "tcl-core-types",
 ]
 
 [[package]]
 name = "tcl-engine-api"
 version = "0.1.0"
+dependencies = [
+ "tcl-core-types",
+ "tcl-runtime-api",
+]
 
 [[package]]
 name = "tcl-engine-tclvm"
 version = "0.1.0"
 dependencies = [
  "tcl-compiler",
+ "tcl-dialect",
  "tcl-engine-api",
  "tcl-registry",
+ "tcl-runtime-api",
  "tcl-syntax",
  "tcl-vm",
 ]
@@ -1075,10 +1126,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "tcl-host-c-abi"
+version = "0.1.0"
+dependencies = [
+ "cc",
+ "libc",
+ "sha2",
+ "tcl-platform",
+]
+
+[[package]]
 name = "tcl-host-native"
 version = "0.1.0"
 dependencies = [
  "nix",
+ "tcl-host-c-abi",
  "tcl-platform",
 ]
 
@@ -1100,6 +1162,7 @@ dependencies = [
 name = "tcl-lexer"
 version = "0.1.0"
 dependencies = [
+ "bytecount",
  "tcl-core-types",
  "tcl-dialect",
  "thiserror",
@@ -1109,6 +1172,8 @@ dependencies = [
 name = "tcl-lsp-core"
 version = "0.1.0"
 dependencies = [
+ "fluent-uri",
+ "getrandom 0.2.17",
  "regex",
  "rustc-hash",
  "serde",
@@ -1146,6 +1211,7 @@ version = "0.1.0"
 dependencies = [
  "tcl-cmd-core",
  "tcl-core-types",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -1171,6 +1237,8 @@ version = "0.1.0"
 dependencies = [
  "tcl-core-types",
  "tcl-dialect",
+ "tcl-lexer",
+ "tcl-syntax",
 ]
 
 [[package]]
@@ -1181,6 +1249,7 @@ dependencies = [
  "tcl-engine-api",
  "tcl-engine-tclvm",
  "tcl-registry",
+ "tcl-syntax",
  "tcl-vm",
 ]
 
@@ -1232,6 +1301,7 @@ dependencies = [
  "num-bigint 0.5.1",
  "num-integer",
  "num-traits",
+ "tcl-core-types",
  "tcl-dialect",
  "tcl-lexer",
 ]

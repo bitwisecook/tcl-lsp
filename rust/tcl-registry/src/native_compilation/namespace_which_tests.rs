@@ -57,7 +57,12 @@ fn original_which_shapes_match_retained_compiler_choice_boundaries() {
             version >= TclVersion::V8_6
         );
         let mut compared = 0;
-        for (case, row) in cases.chunks_exact(2).zip(classification.lines().skip(1)) {
+        for (case, row) in cases
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .zip(classification.lines().skip(1))
+        {
             let columns: Vec<_> = row.split_whitespace().collect();
             assert_eq!(columns[0], case[0]);
             let source = case[1].as_bytes();

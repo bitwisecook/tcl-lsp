@@ -655,7 +655,7 @@ pub fn verbs_for_with_metadata_reader(
     family: HookFamily,
     sink: &Rc<Sink>,
     reading: &Rc<Reading>,
-    metadata_list_reader: Option<tcl_engine_api::HostMetadataListReader>,
+    metadata_list_reader: Option<&tcl_engine_api::HostMetadataListReader>,
 ) -> Vec<(&'static str, Rc<dyn HostCommand>)> {
     family
         .verbs()
@@ -666,7 +666,7 @@ pub fn verbs_for_with_metadata_reader(
                 family,
                 sink: Rc::clone(sink),
                 reading: Rc::clone(reading),
-                metadata_list_reader: metadata_list_reader.clone(),
+                metadata_list_reader: metadata_list_reader.cloned(),
             });
             (*verb, command)
         })
@@ -931,7 +931,7 @@ mod actual_metadata_receiver_controls {
             HookFamily::LiteralArgumentValidator,
             &sink,
             &reading,
-            Some(Rc::clone(&original_reader)),
+            Some(&original_reader),
         );
         let (_, verb) = verbs.iter().find(|(name, _)| *name == "invalid").unwrap();
         verb.invoke(&[

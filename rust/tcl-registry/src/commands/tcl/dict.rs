@@ -1349,6 +1349,6 @@ mod selected_dictionary_layout_tests {
         assert!(update.traits.contains(Traits::CREATES_SCOPE_ALIAS));
         assert!(!update.repeated_args.is_empty());
         assert!(update.repeated_args[0].conditional_binding);
-        assert!(update.repeated_args[0].exclude_trailing == 1);
+        assert_eq!(update.repeated_args[0].exclude_trailing, 1);
     }
 }

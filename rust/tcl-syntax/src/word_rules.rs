@@ -663,8 +663,8 @@ mod original_word_cursor_value_tests {
             let image = tcl_lexer::SourceImage::document(&source);
             let prefix = tcl_lexer::word_parts::word_cursor_prefix_in(
                 &image,
-                tcl_lexer::Span::new(0, image.len() as u32),
-                cursor as u32,
+                tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap()),
+                u32::try_from(cursor).unwrap(),
                 tcl_lexer::LexerConfig::default(),
             )
             .unwrap()
@@ -675,13 +675,13 @@ mod original_word_cursor_value_tests {
             );
             assert_eq!(
                 prefix.container_span(),
-                tcl_lexer::Span::new(0, image.len() as u32)
+                tcl_lexer::Span::new(0, u32::try_from(image.len()).unwrap())
             );
             let native = tcl_lexer::SourceImage::native(image.shared_bytes());
             let prefix = tcl_lexer::word_parts::word_cursor_prefix_in(
                 &native,
-                tcl_lexer::Span::new(0, native.len() as u32),
-                cursor as u32,
+                tcl_lexer::Span::new(0, u32::try_from(native.len()).unwrap()),
+                u32::try_from(cursor).unwrap(),
                 tcl_lexer::LexerConfig::default(),
             )
             .unwrap()
@@ -715,7 +715,7 @@ mod lexical_unicode_source_word_tests {
                 let image = tcl_lexer::SourceImage::document(&spelling);
                 let plan = tcl_lexer::native_script_words_in(
                     image,
-                    tcl_lexer::Span::new(0, spelling.len() as u32),
+                    tcl_lexer::Span::new(0, u32::try_from(spelling.len()).unwrap()),
                     config,
                 )
                 .unwrap();
@@ -1153,7 +1153,7 @@ mod original_metadata_tests {
     fn complete_component_correspondence_keeps_substitutions_and_full_word_boundaries() {
         let config = LexerConfig::for_dialect("tcl9.0");
         for (source, proposal, expected) in [
-            (r#""${x}-[puts {a b}]""#, r#"$x-[puts {a b}]"#, true),
+            (r#""${x}-[puts {a b}]""#, r"$x-[puts {a b}]", true),
             (r#""${x}tail""#, "$xtail", false),
             (r#""${x}(key)""#, "$x(key)", false),
             (r#""$arr($key)""#, "$arr($other)", false),

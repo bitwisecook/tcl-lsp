@@ -72,6 +72,7 @@ impl CompilationState {
 }
 
 struct NativeBuiltinActivation {
+    #[cfg_attr(not(have_tommath), allow(dead_code))]
     identity: Option<Vec<u8>>,
     // Actual dispatch selection only; a direct compiled helper has no token.
     generation: Option<u64>,
@@ -1492,6 +1493,7 @@ impl Interp {
 
     /// Stock handler identity retained through rename and alias dispatch.
     /// Absence is explicit for host handlers and direct unbound calls.
+    #[cfg_attr(not(have_tommath), allow(dead_code))]
     pub(crate) fn active_native_builtin_identity(&self) -> Option<Vec<u8>> {
         self.native_compilation
             .borrow()

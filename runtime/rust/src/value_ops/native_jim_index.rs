@@ -1037,6 +1037,7 @@ pub(crate) fn list_length_using<E: From<ValueError>>(
 mod tests {
     use super::*;
     use std::cell::{Cell, RefCell};
+    #[cfg(have_tommath)]
     use tcl_cmd_core::regex::NativeRegexSource;
     thread_local! {
         static EVENTS: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };

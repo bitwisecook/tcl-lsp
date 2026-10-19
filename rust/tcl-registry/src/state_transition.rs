@@ -3205,6 +3205,7 @@ mod tests {
     /// each widening the variable-cell domains for the word it could not
     /// read.
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn derived_alias_pairs_abstain_on_computed_words_and_widen() {
         use crate::frame_effect::FrameLevelWord;
         let resolve = |level_word, words: &[InvocationWord<'_>]| {
@@ -3447,6 +3448,7 @@ mod tests {
     /// none. Unknown identities remain in positioned alias operands or widen
     /// their declared domain; a consumer never binds a name it cannot read.
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn alias_and_binding_resolvers_abstain_on_a_dynamic_word() {
         // Implementation contract: naming.invocation.effective-transition-operands
         // docs/design/analysis/name-resolution-proofs/effective-transition-operands.md

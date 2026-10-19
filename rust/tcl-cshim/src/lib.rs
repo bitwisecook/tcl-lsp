@@ -534,14 +534,14 @@ pub(crate) unsafe fn run_init(
     registrar: &mut dyn CommandRegistrar,
     init: InitProc,
 ) -> Result<Loaded, LoadError> {
-    let service = registrar.command_publication_service()?;
-    let previous = state.replace_publication_service(Some(service));
     struct Restore<'a>(&'a InterpState, Option<Rc<dyn CommandPublicationService>>);
     impl Drop for Restore<'_> {
         fn drop(&mut self) {
             self.0.replace_publication_service(self.1.take());
         }
     }
+    let service = registrar.command_publication_service()?;
+    let previous = state.replace_publication_service(Some(service));
     let _restore = Restore(state, previous);
     let extension = Rc::new(state::StaticExtensionLifetime::new(init));
     let state_ptr = Rc::as_ptr(state).cast_mut();

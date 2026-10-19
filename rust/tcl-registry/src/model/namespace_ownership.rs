@@ -102,7 +102,7 @@ mod tests {
     fn namespace_package_consensus_keeps_unknown_nested_case_and_literal_colons() {
         // naming.analysis.constructed-key-consumer-projections
         // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
-        let specs = [
+        let specs = vec![
             row("tools::fetch", Some("tools-runtime")),
             row("::tools::send", Some("tools-runtime")),
             row("tools::private::hidden", None),

@@ -10,6 +10,7 @@ use tcl_registry::native_expression_program::{NativeExpressionProgram, NativeExp
 use tcl_syntax::expr::ExprNode;
 
 pub(super) struct PreparedNativeExpression {
+    #[cfg_attr(not(have_tommath), allow(dead_code))]
     program: NativeExpressionProgram,
     literals: HashMap<(u32, u32), usize>,
     arenas: HashMap<u32, ArenaInstruction>,
@@ -17,6 +18,7 @@ pub(super) struct PreparedNativeExpression {
     function_heads: HashMap<u32, usize>,
     fixed_functions: HashMap<u32, tcl_runtime_api::native_compilation::NativeMathFunctionBinding>,
     rejected: Option<(usize, usize)>,
+    #[cfg_attr(not(have_tommath), allow(dead_code))]
     folded: HashMap<tcl_syntax::expr::NativeExprNode, Result<usize, (usize, usize)>>,
     logical_left84: HashMap<tcl_syntax::expr::NativeExprNode, [usize; 2]>,
 }

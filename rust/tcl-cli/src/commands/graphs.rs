@@ -66,10 +66,6 @@ struct SymbolsPayload {
 /// Project only current source cards; labels never select a declaration.
 fn original_symbol_entries(source: &str, analysis: &AnalysisResult) -> Vec<SymbolEntry> {
     use tcl_lsp_core::document_symbols::{DocumentSymbol, SymbolKind};
-    let index = LineIndex::new(source);
-    let Some(procedures) = tcl_lsp_core::procedure_symbol::declarations(source, analysis) else {
-        return Vec::new();
-    };
     fn collect(
         source: &str,
         index: &LineIndex,
@@ -137,6 +133,10 @@ fn original_symbol_entries(source: &str, analysis: &AnalysisResult) -> Vec<Symbo
             );
         }
     }
+    let index = LineIndex::new(source);
+    let Some(procedures) = tcl_lsp_core::procedure_symbol::declarations(source, analysis) else {
+        return Vec::new();
+    };
     let cards = tcl_lsp_core::document_symbols::document_symbols_from_analysis(source, analysis);
     let mut entries = Vec::new();
     collect(source, &index, &procedures, &cards, 0, false, &mut entries);

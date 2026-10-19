@@ -249,6 +249,7 @@ mod tests {
 
     #[test]
     fn jim_try_handlers_share_the_actual_declaration_without_donating_foreign_caches() {
+        static FOREIGN: [&str; 3] = ["on", "trap", "finally"];
         let jim = InvocationDialect::of_point(tcl_dialect::model::DialectPoint::canonical(
             tcl_dialect::model::Release::JIM_0_84,
         ));
@@ -268,7 +269,6 @@ mod tests {
             jim.native_jim_try_handler(1),
             Some(NativeTryClauseArgument::Trap)
         );
-        static FOREIGN: [&str; 3] = ["on", "trap", "finally"];
         let foreign =
             crate::native_index_lookup::NativeStaticIndexTable::supported_backend(&FOREIGN);
         assert_ne!(first.declaration_identity(), foreign.declaration_identity());

@@ -543,6 +543,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn selected_lookup_scopes_require_executable_positions_and_reference_timing() {
         // Implementation contract: naming.callback.lookup-scope-owner (docs/design/analysis/name-resolution-proofs/callback-lookup-scope-owner.md).
         use crate::ScriptLookupScope::{GlobalFrame, InvokingFrame, TriggerFrame};

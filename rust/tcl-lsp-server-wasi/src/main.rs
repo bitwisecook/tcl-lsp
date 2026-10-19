@@ -65,6 +65,8 @@
 //! on [`tcl_lsp_server::rt`]'s wasi arm; they are the reason the analysis
 //! offload runs inline rather than concurrently.
 
+// Retained analysis receipts require deeper auto-trait evaluation.
+#![recursion_limit = "256"]
 #![deny(unsafe_op_in_unsafe_fn)]
 
 use std::sync::Arc;

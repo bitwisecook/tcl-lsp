@@ -521,14 +521,14 @@ mod tests {
         state.set_result_text("BEFORE");
         let mut fake = Fake::new();
         let mut door = DoorRef::new(&mut fake);
-        let _scope = state.open_door(&mut door);
+        let scope = state.open_door(&mut door);
         assert!(get_variable(&state, "x\0tail", None, TCL_GLOBAL_ONLY).is_null());
         assert!(matches!(
             state.take_host_refusal(),
             Some(EngineError::ExecutionRefusal(_))
         ));
         assert_eq!(state.result().get().bytes(), b"BEFORE");
-        drop(_scope);
+        drop(scope);
         assert!(fake.log.is_empty());
     }
 

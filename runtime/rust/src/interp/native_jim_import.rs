@@ -79,6 +79,7 @@ enum EachRole {
     Commands(Rc<Inner>),
 }
 
+#[cfg_attr(not(have_tommath), allow(dead_code))]
 pub(crate) struct OriginalJimImportWhile {
     traversal: Rc<OriginalJimImportTraversal>,
     invocation: Rc<OriginalSourceInvocation>,
@@ -336,6 +337,7 @@ impl OriginalJimImportEachLoop {
     }
 }
 
+#[cfg_attr(not(have_tommath), allow(dead_code))]
 impl OriginalJimImportWhile {
     pub(crate) fn condition_start(&self, actual: &Interp) -> Result<(), ValueError> {
         self.traversal.check(actual)?;
@@ -444,6 +446,7 @@ impl Interp {
         }))
     }
 
+    #[cfg_attr(not(have_tommath), allow(dead_code))]
     pub(crate) fn original_import_while(
         &self,
         argv: &[*mut TclObj],

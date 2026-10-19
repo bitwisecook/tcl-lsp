@@ -2899,6 +2899,8 @@ impl DslDisplayContext {
     }
 }
 
+// Outer `None`: the source text is unavailable; inner `None`: no vocabulary.
+#[allow(clippy::option_option)]
 fn dsl_source_vocabulary(image: &tcl_lexer::SourceImage) -> Option<Option<String>> {
     let source = image.try_text().ok()?;
     let Some((range, _)) = tcl_spectcl::speclib_version_span(source) else {
@@ -2950,7 +2952,7 @@ pub struct DslStatementDisplay {
 }
 
 impl DslDisplayContext {
-    /// Project body roles from the actual SpecTcl registry, without a second
+    /// Project body roles from the actual `SpecTcl` registry, without a second
     /// keyword/alias list or a Native command-selection claim.
     #[must_use]
     pub fn statement(

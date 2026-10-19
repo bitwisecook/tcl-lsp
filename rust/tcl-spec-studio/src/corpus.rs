@@ -328,7 +328,9 @@ fn arms(body: &str, config: LexerConfig) -> Vec<Arm> {
         return Vec::new();
     }
     let mut out = elements
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| Arm {
             pattern: pair[0].to_string(),
             script: pair[1].to_string(),

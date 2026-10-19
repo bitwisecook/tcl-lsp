@@ -50,7 +50,7 @@ impl NativeCommand for PureFunction {
                     Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation),
                 ) {
                     Ok(value) => value,
-                    Err(error) => return Ok(refuse_value_access(vm, error)),
+                    Err(error) => return Ok(refuse_value_access(vm, &error)),
                 },
                 Err(irules::Unmodelled) => return self.stub_using(vm, args, original),
             };
@@ -70,7 +70,7 @@ fn original_completion(vm: &mut Vm, error: tcl_vm::TclError) -> Completion<Value
 
 /// The reference core is a Unicode API. Its input and binary-producer failures
 /// are operational host refusals, independently of guest Tcl completion.
-fn refuse_value_access(vm: &mut Vm, error: tcl_syntax::value::ValueError) -> Completion<Value> {
+fn refuse_value_access(vm: &mut Vm, error: &tcl_syntax::value::ValueError) -> Completion<Value> {
     match error.native_access_refusal() {
         Some(refusal) => vm.refuse_tcl_host_failure(tcl_vm::TclHostFailure::ValueAccess(refusal)),
         None => vm.refuse_host_command(error.to_string()),

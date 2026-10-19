@@ -366,7 +366,7 @@ mod tests {
         assert_eq!(
             classify_private_tcl_namespace_call(
                 "::tcl::dict::create",
-                &registry,
+                registry,
                 Some(SurfaceQuery::core(Family::Jim, "0.84")),
             ),
             None,

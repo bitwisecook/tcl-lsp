@@ -95,7 +95,7 @@ pub fn prepare_tcllibpath(
                 )
             })?;
             if combined.len() != original.len() + 1
-                || combined.first().map(|value| value.as_ref()) != Some(directory.as_bytes())
+                || combined.first().map(std::convert::AsRef::as_ref) != Some(directory.as_bytes())
                 || combined.iter().skip(1).ne(original.iter())
             {
                 return Err(venv_error(

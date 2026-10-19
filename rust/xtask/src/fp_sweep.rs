@@ -309,7 +309,10 @@ fn walk_corpus(
                 .file_name()
                 .context("corpus directory entry has no basename")?;
             let name = name.to_str().with_context(|| {
-                format!("corpus directory basename is not representable as Unicode: {path:?}")
+                format!(
+                    "corpus directory basename is not representable as Unicode: {}",
+                    path.display()
+                )
             })?;
             let keep = !name.starts_with('.') && !SKIP_DIRECTORY_NAMES.contains(&name);
             if keep {
@@ -465,6 +468,7 @@ fn shape_key(message: &str) -> String {
 ///
 /// Both compilation units use the document's resolved dialect grammar and
 /// stub declarations. The checks and optimiser share an interprocedural summary.
+#[allow(clippy::too_many_lines)]
 fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing>) {
     // The override is a dialect *name*, so it resolves through the one
     // ingress seam, in the `find`-shaped validator form: an override that

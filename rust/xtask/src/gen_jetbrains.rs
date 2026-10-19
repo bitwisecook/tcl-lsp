@@ -359,7 +359,7 @@ fn settings(current: &str) -> Result<String> {
     for (code, _) in &opts {
         let _ = writeln!(opt_map, "                \"{code}\" to optimiser{code},");
     }
-    Ok(replace_block(&out, "optimiser-map", &opt_map)?)
+    replace_block(&out, "optimiser-map", &opt_map)
 }
 
 /// The note under the optimiser grid. A tri-state checkbox is unusual enough
@@ -445,7 +445,7 @@ fn optimiser_blocks(current: String, opts: &[(&'static str, &'static str)]) -> R
     }
     out = replace_block(&out, "opt-dirty", &opt_dirty)?;
     out = replace_block(&out, "opt-apply", &opt_apply)?;
-    Ok(replace_block(&out, "opt-reset", &opt_reset)?)
+    replace_block(&out, "opt-reset", &opt_reset)
 }
 
 /// Join checkbox field refs six-per-line at `indent` spaces.
@@ -519,7 +519,7 @@ fn panel(current: &str) -> Result<String> {
     out = replace_block(&out, "diag-apply", &apply)?;
     out = replace_block(&out, "diag-reset", &reset)?;
 
-    Ok(optimiser_blocks(out, &opts)?)
+    optimiser_blocks(out, &opts)
 }
 
 /// One generated `JetBrains` file: `(relative-path, regenerated-content)`.

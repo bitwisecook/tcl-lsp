@@ -86,7 +86,7 @@ mod tests {
             inventory
                 .declarations()
                 .iter()
-                .map(|event| event.event())
+                .map(super::super::source_context::OriginalIrulesWhenDeclaration::event)
                 .collect::<Vec<_>>(),
             ["HTTP_REQUEST", "CLIENT_ACCEPTED"]
         );

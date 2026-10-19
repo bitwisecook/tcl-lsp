@@ -119,7 +119,7 @@ fn the_loaded_report_bridges_to_the_default_fact() {
         loaded
             .commands
             .iter()
-            .map(|name| name.as_bytes())
+            .map(tcl_core_types::NameBytes::as_bytes)
             .collect::<Vec<_>>()
     );
     assert!(!declared.is_empty(), "pkga registers commands");

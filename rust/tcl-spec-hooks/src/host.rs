@@ -234,7 +234,7 @@ impl<E: Engine> HookHost<E> {
                 family,
                 sink,
                 reading,
-                engine.host_metadata_list_reader(),
+                engine.host_metadata_list_reader().as_ref(),
             ) {
                 if let Err(error) = engine.define_command(name, command) {
                     failures.push(format!("{name}: {error}"));

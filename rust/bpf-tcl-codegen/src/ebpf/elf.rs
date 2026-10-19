@@ -342,7 +342,7 @@ fn write_with_maps(obj: &EbpfObject, prog_name: &str, section: &str) -> Result<V
     let btf = build_btf(&obj.maps)?;
 
     let mut shstr = ArtifactStringTable::new();
-    let rel_name = format!(".rel{}", section);
+    let rel_name = format!(".rel{section}");
     let names = MapNames {
         prog: shstr.add(section)?,
         maps: shstr.add(".maps")?,

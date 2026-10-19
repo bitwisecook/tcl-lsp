@@ -598,6 +598,8 @@ pub(crate) fn load_sources_unpublished_with_inputs(
     load_sources_unpublished_inner(sources, notices, trust, store, Some(inputs), owned_store)
 }
 
+// `owned_store` is cloned once per pack file, so the caller's handle is shared.
+#[allow(clippy::too_many_lines, clippy::needless_pass_by_value)]
 fn load_sources_unpublished_inner(
     sources: Vec<(PackFile, String)>,
     mut notices: Vec<PackNotice>,
@@ -626,34 +628,33 @@ fn load_sources_unpublished_inner(
         let pack = {
             let reader = owned_store
                 .clone()
-                .or_else(|| store.and_then(|store| store.retained_source_reader()));
+                .or_else(|| store.and_then(tcl_lsp_core::vfs::SourceStore::retained_source_reader));
             let observations = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
-            let context = match reader {
-                Some(reader) => crate::loader::IncludeContext::for_source_store(
+            let context = if let Some(reader) = reader {
+                crate::loader::IncludeContext::for_source_store(
                     &file.path,
                     reader,
                     std::rc::Rc::clone(&observations),
-                ),
-                None => {
-                    let observations = std::rc::Rc::clone(&observations);
-                    let including_file = file.path.clone();
-                    crate::loader::IncludeContext::new(move |name| {
-                        let path = tcl_compiler::parsing::spectcl_source::include_file_path(
-                            &including_file,
-                            name,
-                        )
-                        .unwrap_or_else(|| including_file.clone());
-                        let error = "include requires an owned source-provider reader".to_owned();
-                        observations
-                            .borrow_mut()
-                            .push(crate::loader::IncludeSourceObservation {
-                                path,
-                                origin: None,
-                                image: Err(error.clone()),
-                            });
-                        Err(error)
-                    })
-                }
+                )
+            } else {
+                let observations = std::rc::Rc::clone(&observations);
+                let including_file = file.path.clone();
+                crate::loader::IncludeContext::new(move |name| {
+                    let path = tcl_compiler::parsing::spectcl_source::include_file_path(
+                        &including_file,
+                        name,
+                    )
+                    .unwrap_or_else(|| including_file.clone());
+                    let error = "include requires an owned source-provider reader".to_owned();
+                    observations
+                        .borrow_mut()
+                        .push(crate::loader::IncludeSourceObservation {
+                            path,
+                            origin: None,
+                            image: Err(error.clone()),
+                        });
+                    Err(error)
+                })
             };
             let pack = crate::cache::evaluate_pack_including(
                 &source,
@@ -784,13 +785,13 @@ fn load_sources_unpublished_inner(
             folded => folded,
         };
     }
-    let set = PackSet {
+
+    PackSet {
         packs,
         notices,
         load_errors,
         key,
-    };
-    set
+    }
 }
 
 /// What the load reads beside a pack, through the store that read the packs:
@@ -1567,7 +1568,7 @@ mod loaded_source_input_tests {
         };
         let read = read_sources_with_inputs(&store, &[file]);
         assert_eq!(read.sources[0].1, source);
-        let selected = read.inputs.selected(&[path.clone()]).unwrap();
+        let selected = read.inputs.selected(std::slice::from_ref(&path)).unwrap();
         let mut published = false;
         store
             .with_current_saved_source_inputs(&[], &selected, &mut || published = true)

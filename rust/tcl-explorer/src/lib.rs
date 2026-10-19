@@ -168,8 +168,8 @@ impl ExplorerResult {
         let mut extra: Vec<FunctionSnapshot<'_>> = self
             .unit
             .methods
-            .iter()
-            .map(|(_, unit)| FunctionSnapshot {
+            .values()
+            .map(|unit| FunctionSnapshot {
                 name: &unit.name,
                 kind: FunctionSnapshotKind::Method,
                 unit,

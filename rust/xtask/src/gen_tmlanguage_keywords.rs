@@ -451,7 +451,9 @@ fn splice_source_rule(
     )
 }
 
+#[allow(clippy::too_many_lines)]
 fn static_source_roles(original: &str, b: &Buckets) -> Result<String> {
+    use source_json::PathPart::{Index, Key};
     let display = b
         .source_display
         .as_ref()
@@ -536,7 +538,6 @@ fn static_source_roles(original: &str, b: &Buckets) -> Result<String> {
         .collect::<Result<Vec<_>>>()?
         .join("|");
     let option_regex = format!(r"-(?:{options})\b");
-    use source_json::PathPart::{Index, Key};
     for index in 0..2 {
         text = source_json::replace_string(
             &text,

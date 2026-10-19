@@ -305,7 +305,7 @@ fn source_event_summary(inventory: tcl_irules::IrulesWhenSourceInventory) -> Str
     let events: BTreeSet<&str> = inventory
         .declarations()
         .iter()
-        .map(|event| event.event())
+        .map(tcl_irules::OriginalIrulesWhenDeclaration::event)
         .collect();
     if events.is_empty() {
         return if inventory.is_complete() {

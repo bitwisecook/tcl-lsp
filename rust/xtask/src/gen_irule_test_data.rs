@@ -168,7 +168,7 @@ fn simulation_command_labels(source: &str) -> Result<BTreeSet<String>> {
                 tcl_syntax::list::split_list_in(&variable.args()[1], config.escapes)
                     .map_err(|error| anyhow::anyhow!("invalid simulation command list: {error:?}"))?
                     .into_iter()
-                    .map(|label| label.into_owned()),
+                    .map(std::borrow::Cow::into_owned),
             );
         }
     }
@@ -438,10 +438,10 @@ mod tests {
 
     #[test]
     fn mock_table_keeps_authored_roster_labels_and_refuses_dynamic_lists() {
-        let source = r#"namespace eval ::itest::cmd {
+        let source = r"namespace eval ::itest::cmd {
             variable _gen_namespaced_commands {HTTP::header ::NS::inner::cmd :literal}
             variable _gen_toplevel_commands {traffic-group}
-        }"#;
+        }";
         let labels = simulation_command_labels(source).unwrap();
         assert_eq!(
             labels,

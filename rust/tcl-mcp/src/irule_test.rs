@@ -197,6 +197,7 @@ impl PathSourceKind {
     }
 }
 
+#[derive(Clone, Copy)]
 struct PathSource<'a> {
     kind: PathSourceKind,
     label: &'a str,

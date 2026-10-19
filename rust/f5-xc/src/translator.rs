@@ -1158,7 +1158,7 @@ impl<'a> SourceExpressionAdvice<'a> {
                     }
                 }
                 ExprNode::Binary { left, right, .. } => {
-                    nodes.extend([left.as_ref(), right.as_ref()])
+                    nodes.extend([left.as_ref(), right.as_ref()]);
                 }
                 ExprNode::Unary { operand, .. } => nodes.push(operand),
                 ExprNode::Ternary {

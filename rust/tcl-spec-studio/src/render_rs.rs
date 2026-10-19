@@ -260,6 +260,7 @@ fn shipped_grammar_constant(name: &str) -> String {
 /// whole grammar as an inline literal — every member row, built-in method,
 /// member-body command and manufacturer a struct literal — promoted to
 /// `'static` exactly as the shipped grammars' constants are.
+#[allow(clippy::too_many_lines)]
 fn definition_body_expr(value: &Value, indent: &str) -> Option<String> {
     if let Some(name) = value.as_str() {
         tcl_spectcl::SHIPPED_DEFINITION_BODIES
@@ -2711,8 +2712,8 @@ mod tests {
         let mut checked = 0_usize;
         for pack in tcl_registry::commands::SPEC_PACKS {
             for spec in (pack.specs)() {
-                if !tcl_syntax::naming::unroot_rooted_key(&spec.name)
-                    .unwrap_or(&spec.name)
+                if !tcl_syntax::naming::unroot_rooted_key(spec.name)
+                    .unwrap_or(spec.name)
                     .contains("::")
                 {
                     continue;
@@ -2747,8 +2748,8 @@ mod tests {
         for spec in (pack.specs)() {
             // One command may ship under both its bare and its fully-qualified
             // spelling, and the registry files those in one module.
-            let command = tcl_syntax::naming::unroot_rooted_key(&spec.name)
-                .unwrap_or(&spec.name)
+            let command = tcl_syntax::naming::unroot_rooted_key(spec.name)
+                .unwrap_or(spec.name)
                 .to_owned();
             let path = suggested_path(spec.name, pack.id);
             if let Some(other) = seen.insert(path.clone(), command.clone())

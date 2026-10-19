@@ -12553,7 +12553,17 @@ mod tests {
     /// can introduce the same option-dependent pattern/replacement grammar
     /// and all generic consumers receive the new answer unchanged.
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn source_aware_pattern_and_format_queries_follow_mutated_descriptors() {
+        const SPEC: CommandSpec = CommandSpec {
+            name: "mutated-pattern-format-owner",
+            options: OPTIONS,
+            prefix_matching: PrefixMatching::Strict,
+            arg_role_layout_resolver: Some(layout_roles),
+            pattern_type: Some(PatternType::Regex),
+            format_string_type: Some(FormatType::Regsub),
+            ..CommandSpec::DEFAULT
+        };
         use crate::invocation_words::{InvocationArguments, InvocationWord};
         use crate::patterns::{FormatType, PatternArg, PatternType};
 
@@ -12606,15 +12616,6 @@ mod tests {
             literal_roles(&["-skip", "1", "a", "s", "replacement"]),
             vec![(2, ArgRole::Pattern), (4, ArgRole::FormatString)]
         );
-        const SPEC: CommandSpec = CommandSpec {
-            name: "mutated-pattern-format-owner",
-            options: OPTIONS,
-            prefix_matching: PrefixMatching::Strict,
-            arg_role_layout_resolver: Some(layout_roles),
-            pattern_type: Some(PatternType::Regex),
-            format_string_type: Some(FormatType::Regsub),
-            ..CommandSpec::DEFAULT
-        };
 
         let mut registry = CommandRegistry::build_default();
         registry.insert(SPEC);
@@ -17611,7 +17612,8 @@ mod tests {
             reg.invocation_completion("return", &["-level", "$dynamic", "$w"], None),
             InvocationCompletion::Unknown,
         );
-        for invalid in [&["-level", "-1", "value"][..]] {
+        {
+            let invalid = &["-level", "-1", "value"][..];
             assert_eq!(
                 reg.invocation_completion("return", invalid, None),
                 InvocationCompletion::Terminates,
@@ -19346,7 +19348,7 @@ mod native_return_effect_ingress_tests {
         // naming.minifier.logical-formal-binding-alpha
         // docs/design/analysis/name-resolution-proofs/logical-formal-binding-alpha.md
         let arguments = [InvocationWord::Dynamic];
-        let logical = InvocationDialect::of_profile(&tcl_dialect::DialectProfile::plain_tcl());
+        let logical = InvocationDialect::of_profile(tcl_dialect::DialectProfile::plain_tcl());
         assert!(logical.authored_name_policy().is_some());
         assert!(logical.native_name_protocol().is_none());
         for dialect in [None, Some(logical)] {

@@ -783,9 +783,10 @@ fn snapshot_body_key(
     snapshot
         .unit
         .body_id
-        .map(|id| id.reporting_key())
+        .map(tcl_compiler::ir::ProcedureId::reporting_key)
         .or_else(|| {
-            std::ptr::eq(snapshot.unit, &result.unit.top_level).then(|| root_body_key(result))
+            std::ptr::eq(snapshot.unit, &raw const result.unit.top_level)
+                .then(|| root_body_key(result))
         })
 }
 
@@ -957,7 +958,7 @@ pub fn serialise_cfg_pre_ssa(result: &ExplorerResult, li: &LineIndex, source: &s
                 })
                 .collect();
             json!({
-                "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap),
+                "name": snap.name, "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap),
                 "kind": snap.kind.as_str(),
                 "entry": entry_name,
                 "blockCount": cfg.blocks.len(),
@@ -1004,7 +1005,7 @@ pub fn serialise_rendered_properties(result: &ExplorerResult) -> Value {
                     Some(json!({ "variable": ssa.var_name(key.0), "version": key.1, "may": may, "must": must }))
                 })
                 .collect();
-            (!entries.is_empty()).then(|| json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "entries": entries }))
+            (!entries.is_empty()).then(|| json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "entries": entries }))
         })
         .collect();
     Value::Array(funcs)
@@ -1681,7 +1682,7 @@ pub fn serialise_intervals(result: &ExplorerResult) -> Value {
                     Some(json!({ "variable": ssa.var_name(key.0), "version": key.1, "lo": iv.lo, "hi": iv.hi }))
                 })
                 .collect();
-            json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "entries": entries })
+            json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "entries": entries })
         })
         .collect();
     Value::Array(funcs)
@@ -1706,7 +1707,7 @@ pub fn serialise_taint_tracking(result: &ExplorerResult) -> Value {
                     json!({ "variable": ssa.var_name(key.0), "version": key.1, "taint": format_taint(tl) })
                 })
                 .collect();
-            (!entries.is_empty()).then(|| json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "entries": entries }))
+            (!entries.is_empty()).then(|| json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap), "entries": entries }))
         })
         .collect();
     Value::Array(funcs)
@@ -1851,7 +1852,7 @@ pub fn serialise_cfg_post_ssa(result: &ExplorerResult, li: &LineIndex, source: &
                 .collect();
 
             json!({
-                "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap),
+                "name": snap.name, "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap),
                 "kind": snap.kind.as_str(),
                 "entry": entry_name,
                 "blockCount": cfg.blocks.len(),
@@ -1906,7 +1907,7 @@ pub fn serialise_dominators(result: &ExplorerResult) -> Value {
                         })
                     })
                     .collect();
-                json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "entry": ssa.block_name(ssa.entry), "blocks": rows })
+                json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "entry": ssa.block_name(ssa.entry), "blocks": rows })
             })
             .collect(),
     )
@@ -2157,7 +2158,7 @@ pub fn serialise_sccp(result: &ExplorerResult, li: &LineIndex, source: &str) -> 
                     .collect();
                 let tally = &snap.unit.sccp.route_tally;
                 json!({
-                    "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap),
+                    "name": snap.name, "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap),
                     "kind": snap.kind.as_str(),
                     "values": values,
                     "executableBlocks": executable_blocks,
@@ -2236,7 +2237,7 @@ pub fn serialise_liveness(result: &ExplorerResult) -> Value {
                             })
                         })
                         .collect();
-                json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "chains": chains, "deadStores": dead_stores })
+                json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "chains": chains, "deadStores": dead_stores })
             })
             .collect(),
     )
@@ -2465,7 +2466,7 @@ pub fn serialise_semantic(result: &ExplorerResult, li: &LineIndex, source: &str)
                     })
                     .collect::<Vec<_>>();
                 json!({
-                    "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap),
+                    "name": snap.name, "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap),
                     "kind": snap.kind.as_str(),
                     "status": semantic_status(availability),
                     "decline": semantic_decline_value(availability),
@@ -2581,6 +2582,7 @@ fn post_ssa_analysis(
 /// Each graph stays paired with its stable function-owner kind, and alias
 /// information comes from the retained Memory SSA when available.
 #[must_use]
+#[allow(clippy::too_many_lines)]
 pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
     let snaps = result.all_snapshots();
     let mut total_defs = 0u32;
@@ -2662,7 +2664,7 @@ pub fn serialise_dataflow(result: &ExplorerResult) -> Value {
                 .collect();
             json!({
                 "name": f.function_name,
-                "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap),
+                "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap),
                 "kind": snap.kind.as_str(),
                 "nodes": nodes,
                 "edges": edges,
@@ -2918,7 +2920,7 @@ pub fn serialise_loops(result: &ExplorerResult) -> Value {
                     })
                 })
                 .collect();
-            json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "loops": loops })
+            json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "loops": loops })
         })
         .collect();
     Value::Array(funcs)
@@ -2989,7 +2991,7 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
             .iter()
             .map(|d| json!({ "code": "W233", "op": d.op }))
             .collect();
-            Some(json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "findings": findings, "divzero": divzero }))
+            Some(json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "findings": findings, "divzero": divzero }))
         })
         .collect();
     funcs.map_or(Value::Null, Value::Array)
@@ -3169,7 +3171,7 @@ pub fn serialise_types(result: &ExplorerResult) -> Value {
                 }));
             }
             (!entries.is_empty()).then(
-                || json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "entries": entries }),
+                || json!({ "name": snap.name, "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap), "kind": snap.kind.as_str(), "entries": entries }),
             )
         })
         .collect();
@@ -3436,7 +3438,7 @@ fn serialise_source_map_units(result: &ExplorerResult) -> Value {
         .iter()
         .map(|snap| {
             json!({
-                "name": snap.name, "bodyId": snap.unit.body_id.map(|id| id.ordinal()), "bodyKey": snapshot_body_key(result, snap),
+                "name": snap.name, "bodyId": snap.unit.body_id.map(tcl_compiler::ir::ProcedureId::ordinal), "bodyKey": snapshot_body_key(result, snap),
                 "kind": snap.kind.as_str(),
                 "baseOffset": snap.unit.base_offset,
             })
@@ -4021,8 +4023,8 @@ mod tests {
                     base,
                     class_name: "::C".to_owned(),
                     method_kind: MethodKind::Method,
-                    reads_instance_vars: Default::default(),
-                    writes_instance_vars: Default::default(),
+                    reads_instance_vars: std::collections::HashSet::default(),
+                    writes_instance_vars: std::collections::HashSet::default(),
                     calls_my: Vec::new(),
                     calls_next: false,
                 },
@@ -5775,6 +5777,7 @@ mod retained_explorer_source_tests {
 
     #[test]
     fn retained_explorer_views_refuse_missing_changed_and_foreign_source_owners() {
+        type Control = (&'static str, fn(&mut ExplorerResult));
         // naming.source.retained-explorer-consumers
         // docs/design/analysis/name-resolution-proofs/retained-explorer-consumers.md
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
@@ -5790,40 +5793,40 @@ mod retained_explorer_source_tests {
                 .len(),
             1
         );
-        let controls: [(&str, fn(&mut ExplorerResult)); 13] = [
+        let controls: [Control; 13] = [
             ("missing retained interpretation", |r| {
-                r.unit.ir_module.retained_source_bindings = None
+                r.unit.ir_module.retained_source_bindings = None;
             }),
             ("missing registry snapshot", |r| {
-                r.unit.ir_module.registry_snapshot = None
+                r.unit.ir_module.registry_snapshot = None;
             }),
             ("missing full input", |r| {
-                r.unit.ir_module.source_metadata_input = None
+                r.unit.ir_module.source_metadata_input = None;
             }),
             ("changed Module image", |r| {
-                r.unit.ir_module.source = tcl_lexer::SourceImage::document("when HTTP_RESPONSE {}")
+                r.unit.ir_module.source = tcl_lexer::SourceImage::document("when HTTP_RESPONSE {}");
             }),
             ("changed source channel", |r| {
-                r.unit.ir_module.source = tcl_lexer::SourceImage::native(r.source.as_bytes())
+                r.unit.ir_module.source = tcl_lexer::SourceImage::native(r.source.as_bytes());
             }),
             ("changed CU image", |r| {
-                r.unit.source.push_str("; set changed VALUE")
+                r.unit.source.push_str("; set changed VALUE");
             }),
             ("changed presentation image", |r| {
-                r.source.push_str("; set changed VALUE")
+                r.source.push_str("; set changed VALUE");
             }),
             ("changed full BOM config", |r| {
-                r.unit.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Skip
+                r.unit.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Skip;
             }),
             ("changed source coordinates", |r| {
-                r.unit.ir_module.lexer_config.base_line += 1
+                r.unit.ir_module.lexer_config.base_line += 1;
             }),
             ("changed profile", |r| {
-                r.unit.ir_module.dialect_profile = Some(tcl_dialect::DialectProfile::plain_tcl())
+                r.unit.ir_module.dialect_profile = Some(tcl_dialect::DialectProfile::plain_tcl());
             }),
             ("changed entry", |r| {
                 r.unit.ir_module.source_entry.unknown_entry =
-                    !r.unit.ir_module.source_entry.unknown_entry
+                    !r.unit.ir_module.source_entry.unknown_entry;
             }),
             ("same-store foreign availability", |r| {
                 let input = r.unit.ir_module.source_metadata_input.as_ref().unwrap();
@@ -5850,7 +5853,7 @@ mod retained_explorer_source_tests {
                     tcl_registry::model::ingress::static_context_for("tcl8.4")
                         .commands()
                         .snapshot(),
-                )
+                );
             }),
         ];
         for (label, mutate) in controls {

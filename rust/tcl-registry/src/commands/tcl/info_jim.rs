@@ -786,11 +786,11 @@ mod tests {
         // Native proof: naming.info.original-root-and-explicit-nons-command-inventory
         // docs/design/analysis/name-resolution-proofs/info-original-root-and-explicit-nons-command-inventory.md
         // Pure selection is separate from actual table-key ownership and helper execution.
+        use NativeJimCommandInventory::{Flat, NamespaceHelper, WrongArguments};
+        use NativeJimInfoScope::{DirectCore, NamespaceAware};
         let selected = |scope: NativeJimInfoScope, words: &[&[u8]], namespace: &[u8]| {
             scope.command_inventory(words.len(), words.first().copied(), namespace)
         };
-        use NativeJimCommandInventory::{Flat, NamespaceHelper, WrongArguments};
-        use NativeJimInfoScope::{DirectCore, NamespaceAware};
         assert_eq!(
             selected(NamespaceAware, &[b"-all", b"r2286*"], b""),
             Flat {
@@ -956,6 +956,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn original_jim_info_inventory_and_arities_match_native_rows() {
         // Native proof: naming.info.jim-original-selector-table
         // docs/design/analysis/name-resolution-proofs/info-jim-original-selector-table.md
@@ -972,7 +973,9 @@ mod tests {
         let encoded = row.split('|').nth(3).unwrap();
         let bytes: Vec<_> = encoded
             .as_bytes()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect();
         let names: Vec<_> = selected
@@ -1005,7 +1008,9 @@ mod tests {
             let encoded = row.split('|').nth(3).unwrap();
             let bytes: Vec<_> = encoded
                 .as_bytes()
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
                 .collect();
             assert_eq!(

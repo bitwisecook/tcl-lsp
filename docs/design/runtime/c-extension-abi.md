@@ -312,7 +312,7 @@ the two UTF-8 helpers and `TclFreeObj`, with the `Tcl_Obj` layout of § 4.2 and
 the reference-count macros over it. The WASM leg adds `Tcl_NewObj`; the native
 leg adds the calls that read, write and unset a variable of the caller's frame
 and evaluate a script there (`Tcl_GetVar2Ex`, `Tcl_ObjSetVar2`, `Tcl_UnsetVar2`,
-`Tcl_EvalObjEx`). A source built with `-DTCL_MAJOR_VERSION=8` sees `Tcl_Size` as
+`Tcl_EvalObjEx`), and `Tcl_GetReturnOptions`. A source built with `-DTCL_MAJOR_VERSION=8` sees `Tcl_Size` as
 `int`, as an 8.x source does, with inline wrappers for the functions that write a
 size through a pointer.
 

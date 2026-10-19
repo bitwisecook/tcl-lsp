@@ -367,7 +367,7 @@ fn run() -> i32 {
 
 /// Interactive REPL loop over an arbitrary reader/writer (so it is testable
 /// without a real terminal). Accumulates input lines until they form a complete
-/// original Document under Vm::source_is_complete,
+/// original Document under `Vm::source_is_complete`,
 /// evaluates it in the persistent global frame, and writes a non-empty result.
 /// Variables and procs persist across evaluations because each line runs in the
 /// same VM, with no command active, as `Tcl_Main` evaluates them. When

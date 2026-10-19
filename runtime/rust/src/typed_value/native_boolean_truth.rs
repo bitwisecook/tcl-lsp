@@ -64,6 +64,7 @@ impl<'a> OriginalOps<'a> {
             abi: Cell::new(None),
         })
     }
+    #[cfg_attr(not(have_tommath), allow(dead_code))]
     fn neutral(
         dialect: InvocationDialect,
         environment: Option<&'a dyn tcl_platform::NumericEnvironment>,
@@ -474,6 +475,7 @@ pub(crate) fn native_boolean_for_interp(
 }
 
 /// Explicit neutral C instruction adapter; Jim's interpreter effects refuse.
+#[cfg_attr(not(have_tommath), allow(dead_code))]
 pub(crate) fn native_boolean_in(
     value: *mut TclObj,
     dialect: InvocationDialect,
@@ -514,6 +516,7 @@ pub(crate) fn expression_boolean_for_interp(
 }
 
 /// Neutral physical result producer for an independently selected C context.
+#[cfg_attr(not(have_tommath), allow(dead_code))]
 pub(crate) fn normalize_boolean_result_in(
     value: *mut TclObj,
     dialect: InvocationDialect,
@@ -531,6 +534,7 @@ pub(crate) fn normalize_boolean_result_in(
 }
 
 /// Preserve original lhs then rhs conversion order at the selected final site.
+#[cfg_attr(not(have_tommath), allow(dead_code))]
 pub(crate) fn native_logical_right_for_interp(
     interp: &mut Interp,
     left: *mut TclObj,
@@ -566,6 +570,7 @@ pub(crate) fn native_logical_right_for_interp(
 }
 
 /// Perform the selected genuine result production inside its active interpreter.
+#[cfg_attr(not(have_tommath), allow(dead_code))]
 pub(crate) fn normalize_boolean_result_for_interp(
     interp: &mut Interp,
     value: *mut TclObj,
@@ -582,6 +587,7 @@ pub(crate) fn normalize_boolean_result_for_interp(
 
 /// Execute an actually reached C numeric-result instruction. Its conversion
 /// obligation is independent of the following Boolean peephole and API copy.
+#[cfg_attr(not(have_tommath), allow(dead_code))]
 pub(crate) fn normalize_numeric_instruction_for_interp(
     interp: &mut Interp,
     value: *mut TclObj,
@@ -599,6 +605,7 @@ pub(crate) fn normalize_numeric_instruction_for_interp(
 
 /// Explicit neutral physical instruction context; this supplies no interpreter
 /// reporting owner or already-normalised receipt.
+#[cfg_attr(not(have_tommath), allow(dead_code))]
 pub(crate) fn normalize_numeric_instruction_in(
     value: *mut TclObj,
     dialect: InvocationDialect,

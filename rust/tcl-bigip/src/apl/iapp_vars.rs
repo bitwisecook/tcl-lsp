@@ -187,11 +187,11 @@ set c "$::basic__addr"
 
     #[test]
     fn original_root_geometry_preserves_literal_colons_and_array_forms() {
-        let source = r#"set a $:::basic__addr
+        let source = r"set a $:::basic__addr
 set b ${:basic__addr}
 set c $::ns::basic__addr
 set d $::pool__members(0)
-set e ${::pool__members(0)}"#;
+set e ${::pool__members(0)}";
         let refs = configured(source);
         assert_eq!(
             refs.references()

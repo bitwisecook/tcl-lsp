@@ -114,6 +114,7 @@ pub struct DiscoverOptions<'a> {
 }
 
 /// Run `tcl pkg discover`.
+#[allow(clippy::too_many_lines)]
 pub fn run(options: &DiscoverOptions<'_>) -> anyhow::Result<u8> {
     let DiscoverOptions {
         inputs,
@@ -830,10 +831,10 @@ mod tests {
             environment: "tcl8.6".into(),
             overlay: u64::MAX - 406,
         });
-        for refused in [missing, stale, foreign, unavailable] {
-            assert!(refine_document_analysis(source, "main.tcl", &registry, &refused).is_none());
+        for refused in [&missing, &stale, &foreign, &unavailable] {
+            assert!(refine_document_analysis(source, "main.tcl", &registry, refused).is_none());
             assert!(
-                document_requirements_from_analysis(source, "main.tcl", &registry, &refused)
+                document_requirements_from_analysis(source, "main.tcl", &registry, refused)
                     .0
                     .is_empty()
             );

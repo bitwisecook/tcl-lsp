@@ -3004,6 +3004,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::single_range_in_vec_init)] // vectors of component ranges
     fn written_component_extents_share_segmentation_and_preserve_original_byte_geometry() {
         // naming.editor.logical-written-component-geometry
         // docs/design/analysis/name-resolution-proofs/logical-written-component-geometry.md

@@ -1597,9 +1597,9 @@ pub(crate) fn native_jim_wide_expression(
 ) -> Result<i64, tcl_cmd_core::CmdError> {
     let arguments = OriginalArguments::enter(interp, &[original])?;
     let reached = (|| {
-        use tcl_syntax::scalar_getter::{
-            NativeScalarCache, NativeScalarGetterKind, NativeScalarGetterValue,
-        };
+        #[cfg(have_tommath)]
+        use tcl_syntax::scalar_getter::NativeScalarGetterValue;
+        use tcl_syntax::scalar_getter::{NativeScalarCache, NativeScalarGetterKind};
         let dialect = interp.native_invocation_dialect();
         let context = interp.native_jim_object_context()?;
         let bound = crate::native_source::bind_context(original, &context);

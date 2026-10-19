@@ -691,7 +691,10 @@ pub(crate) fn pack_statements(source: &str) -> Vec<Stmt> {
     let mut rows = statements(source, 1, FileBom::Skip);
     for row in &mut rows {
         for word in &mut row.words {
-            word.original_source = word.local_source.as_ref().map(|word| word.in_document());
+            word.original_source = word
+                .local_source
+                .as_ref()
+                .map(tcl_compiler::parsing::spectcl_source::LocalPackSourceWord::in_document);
         }
     }
     rows
@@ -2077,13 +2080,15 @@ pub(crate) fn uses_include(source: &str) -> bool {
 /// The one rule for what a valid include row is, whichever route captured
 /// it: exactly two words, a non-empty literal name, and no path structure —
 /// the resolver decides what a name means, but a name is never a path.
-pub(crate) fn include_name(words: &[&str], line: u32) -> Result<String, Notice> {
-    let reject = |message: String| Notice {
-        subject: None,
-        context: "pack".to_owned(),
-        line,
-        message,
-        class: VocabularyClass::Semantic,
+pub(crate) fn include_name(words: &[&str], line: u32) -> Result<String, Box<Notice>> {
+    let reject = |message: String| {
+        Box::new(Notice {
+            subject: None,
+            context: "pack".to_owned(),
+            line,
+            message,
+            class: VocabularyClass::Semantic,
+        })
     };
     match include_file_name(words) {
         Ok(name) => Ok(name.to_owned()),
@@ -6846,7 +6851,7 @@ fn apply_command_stmt(
         "defines_command_at" => spec.defines_command_at = value.parse().ok(),
         "body_arg_implicit_args" => spec.body_arg_implicit_args = value.parse().unwrap_or(0),
         "variable_receivers" => {
-            spec.variable_receivers = variable_receivers_value(&value, stmt.line, log)
+            spec.variable_receivers = variable_receivers_value(&value, stmt.line, log);
         }
         "successful_handler" => {
             log.say_classified(stmt.line, VocabularyClass::Semantic,
@@ -8410,6 +8415,7 @@ fn variable_receivers_value(
         tcl_registry::resolved_invocation::VariableReceiverOperandForm,
     )],
 > {
+    use tcl_registry::resolved_invocation::VariableReceiverOperandForm;
     if value == "inherit" {
         return None;
     }
@@ -8418,7 +8424,6 @@ fn variable_receivers_value(
             "variable_receivers requires a complete Tcl list; invalid naming metadata is excluded from strong analysis");
         return Some(&[]);
     };
-    use tcl_registry::resolved_invocation::VariableReceiverOperandForm;
     let mut receivers = Vec::new();
     for word in positions {
         let Ok(fields) = tcl_syntax::list::split_list(&word) else {
@@ -8460,6 +8465,7 @@ fn variable_receivers_value(
 /// instead of all of them. Only the fields a [`CommandForm`] carries are legal
 /// here; anything else is an unknown property, so a fact that belongs on the
 /// parent cannot be quietly lost inside a form.
+#[allow(clippy::too_many_lines)]
 fn apply_refine_stmt(
     form: &mut CommandForm,
     acc: &mut RefineAcc,
@@ -8479,7 +8485,7 @@ fn apply_refine_stmt(
     };
     match key.as_str() {
         "variable_receivers" => {
-            form.variable_receivers = variable_receivers_value(&value, stmt.line, log)
+            form.variable_receivers = variable_receivers_value(&value, stmt.line, log);
         }
         "successful_handler" => {
             log.say_classified(stmt.line, VocabularyClass::Semantic,
@@ -8903,7 +8909,7 @@ fn apply_subcommand_stmt(
             sub.taint_double_encode_colour = Some(parse_taint(&value, stmt.line, log));
         }
         "variable_receivers" => {
-            sub.variable_receivers = variable_receivers_value(&value, stmt.line, log)
+            sub.variable_receivers = variable_receivers_value(&value, stmt.line, log);
         }
         "successful_handler" => {
             log.say_classified(stmt.line, VocabularyClass::Semantic,
@@ -9270,7 +9276,7 @@ fn sub_subcommand_row(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> SubSub
                     "nested native compilation contracts require selected interpreter and actual worker identity proofs; this pack cannot supply them and is excluded from strong analysis");
             }
             "-option_prefix_words" => {
-                row.option_prefix_words = next_text(words, &mut i).parse().unwrap_or(0)
+                row.option_prefix_words = next_text(words, &mut i).parse().unwrap_or(0);
             }
             "-detail" => row.detail = leak_str(&next_text(words, &mut i)),
             "-synopsis" => row.synopsis = leak_str(&next_text(words, &mut i)),

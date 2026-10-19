@@ -62,9 +62,9 @@ mod original_name_birth_tests;
 
 use std::rc::Rc;
 
+use tcl_syntax::number::Number;
 #[cfg(have_tommath)]
-use tcl_syntax::number::Radix;
-use tcl_syntax::number::{self, Number};
+use tcl_syntax::number::{self, Radix};
 #[cfg(have_tommath)]
 use tcl_syntax::value::IntegerMagnitude;
 use tcl_syntax::value::{ValueError, ValueOps};
@@ -646,7 +646,10 @@ impl tcl_cmd_core::native_increment::NativeIncrementObjects for RuntimeIncrement
                     }
                 }
                 #[cfg(not(have_tommath))]
-                Err(ValueError::ScalarNumericInputUnavailable.into())
+                {
+                    let _ = (current, amount);
+                    Err(ValueError::ScalarNumericInputUnavailable.into())
+                }
             },
         );
         self.context.check()?;

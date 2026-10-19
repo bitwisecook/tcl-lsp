@@ -178,6 +178,7 @@ impl SelectedWhenDeclaration<'_> {
     }
 }
 
+#[allow(clippy::too_many_lines)]
 pub(crate) fn select_when_declaration<'a>(
     statement: &'a Statement,
     phase: &'a BpfSourceScript,

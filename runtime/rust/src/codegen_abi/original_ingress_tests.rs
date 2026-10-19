@@ -52,6 +52,7 @@ fn changed_command(interpreter: &mut Interp, _: &[*mut TclObj]) -> crate::interp
     crate::interp::Code::Ok
 }
 
+#[cfg(have_tommath)]
 fn later_command(interpreter: &mut Interp, _: &[*mut TclObj]) -> crate::interp::Code {
     COMMANDS.with(|calls| calls.set(calls.get() + 1));
     interpreter.set_result_bytes(b"LATER");

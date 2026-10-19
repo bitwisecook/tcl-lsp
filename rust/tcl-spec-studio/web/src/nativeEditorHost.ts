@@ -78,11 +78,16 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
     rust: { text: texts.rust, sourceBasis: options.rust.sourceBasis },
     stub: { text: texts.stub, sourceBasis: options.stub.sourceBasis },
   };
-  const publishedOutputs: Partial<Record<"rust" | "stub", {
-    revision: number;
-    text: string;
-    sourceBasis: string | null;
-  }>> = {};
+  const publishedOutputs: Partial<
+    Record<
+      "rust" | "stub",
+      {
+        revision: number;
+        text: string;
+        sourceBasis: string | null;
+      }
+    >
+  > = {};
 
   const postDsl = (text: string, generation: number, bootstrap = false): void => {
     pendingDsl = { generation, text };
@@ -117,21 +122,36 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
       acknowledgedDslSource === undefined ||
       output.sourceBasis === null ||
       output.sourceBasis !== acknowledgedDslSource
-    ) return;
+    )
+      return;
     const previouslyPosted = publishedOutputs[surface];
-    if (previouslyPosted?.revision === sourceRevision && previouslyPosted.text === output.text &&
-        previouslyPosted.sourceBasis === output.sourceBasis) return;
+    if (
+      previouslyPosted?.revision === sourceRevision &&
+      previouslyPosted.text === output.text &&
+      previouslyPosted.sourceBasis === output.sourceBasis
+    )
+      return;
     bridge.postMessage({
       type: "surfaceUpdate",
       surface,
       text: output.text,
       basedOnDslRevision: sourceRevision,
     });
-    publishedOutputs[surface] = { revision: sourceRevision, text: output.text, sourceBasis: output.sourceBasis };
+    publishedOutputs[surface] = {
+      revision: sourceRevision,
+      text: output.text,
+      sourceBasis: output.sourceBasis,
+    };
   };
 
   const publishDeferredOutputs = (): void => {
-    if (pendingDsl || pendingDslPublication || dslSourceRevision === undefined || acknowledgedDslSource === undefined) return;
+    if (
+      pendingDsl ||
+      pendingDslPublication ||
+      dslSourceRevision === undefined ||
+      acknowledgedDslSource === undefined
+    )
+      return;
     for (const surface of ["rust", "stub"] as const) {
       const output = deferredOutputs[surface];
       if (output === undefined) continue;
@@ -139,11 +159,7 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
     }
   };
 
-  const publish = (
-    surface: Surface,
-    text: string,
-    sourceBasis: string | null = null,
-  ): void => {
+  const publish = (surface: Surface, text: string, sourceBasis: string | null = null): void => {
     const unchanged = texts[surface] === text;
     if (unchanged && (surface === "dsl" || surface === "sample")) return;
     texts[surface] = text;
@@ -154,7 +170,12 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
     } else {
       const output = { text, sourceBasis };
       deferredOutputs[surface] = output;
-      if (pendingDsl || pendingDslPublication || dslSourceRevision === undefined || acknowledgedDslSource === undefined) {
+      if (
+        pendingDsl ||
+        pendingDslPublication ||
+        dslSourceRevision === undefined ||
+        acknowledgedDslSource === undefined
+      ) {
         return;
       }
       if (sourceBasis !== acknowledgedDslSource) return;
@@ -170,8 +191,11 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
   ): void => {
     const currentRevision = surface === "dsl" ? dslSourceRevision : sampleSourceRevision;
     if (currentRevision !== undefined && update.sourceRevision < currentRevision) return;
-    if (surface === "dsl" && typeof update.publicationAttempt === "number" &&
-        Number.isSafeInteger(update.publicationAttempt)) {
+    if (
+      surface === "dsl" &&
+      typeof update.publicationAttempt === "number" &&
+      Number.isSafeInteger(update.publicationAttempt)
+    ) {
       if (update.publicationAttempt < latestDslPublicationAttempt) return;
       latestDslPublicationAttempt = update.publicationAttempt;
     }
@@ -180,20 +204,28 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
       const previousSource = acknowledgedDslSource;
       dslSourceRevision = update.sourceRevision;
       acknowledgedDslSource = text;
-      const attempt = typeof update.publicationAttempt === "number" && Number.isSafeInteger(update.publicationAttempt)
-        ? update.publicationAttempt
-        : -1;
+      const attempt =
+        typeof update.publicationAttempt === "number" &&
+        Number.isSafeInteger(update.publicationAttempt)
+          ? update.publicationAttempt
+          : -1;
       if (update.publicationPending === true) {
         pendingDslPublication = { revision: update.sourceRevision, text, attempt };
         delete publishedOutputs.rust;
         delete publishedOutputs.stub;
       } else if (update.publicationPending === false) {
         const pending = pendingDslPublication;
-        const sameAttemptReady = pending !== undefined && attempt === pending.attempt &&
-          pending.revision === update.sourceRevision && pending.text === text;
-        const newerImageReady = pending !== undefined && attempt > pending.attempt &&
+        const sameAttemptReady =
+          pending !== undefined &&
+          attempt === pending.attempt &&
+          pending.revision === update.sourceRevision &&
+          pending.text === text;
+        const newerImageReady =
+          pending !== undefined &&
+          attempt > pending.attempt &&
           update.sourceRevision > pending.revision;
-        if (pending === undefined || sameAttemptReady || newerImageReady) pendingDslPublication = undefined;
+        if (pending === undefined || sameAttemptReady || newerImageReady)
+          pendingDslPublication = undefined;
       } else if (previousRevision !== update.sourceRevision || previousSource !== text) {
         // Older bridge hosts have no publication handshake. Preserve their
         // accepted-write behavior only when no newer pending lease exists.
@@ -293,15 +325,21 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
       typeof update.sourceRevision !== "number" ||
       !Number.isSafeInteger(update.sourceRevision) ||
       update.sourceRevision < 0 ||
-      (update.publicationAttempt !== undefined && update.publicationAttempt !== null &&
-        (typeof update.publicationAttempt !== "number" || !Number.isSafeInteger(update.publicationAttempt) ||
+      (update.publicationAttempt !== undefined &&
+        update.publicationAttempt !== null &&
+        (typeof update.publicationAttempt !== "number" ||
+          !Number.isSafeInteger(update.publicationAttempt) ||
           update.publicationAttempt < 0)) ||
-      (update.surface === "dsl" && update.publicationPending === true &&
-        (typeof update.publicationAttempt !== "number" || !Number.isSafeInteger(update.publicationAttempt) ||
+      (update.surface === "dsl" &&
+        update.publicationPending === true &&
+        (typeof update.publicationAttempt !== "number" ||
+          !Number.isSafeInteger(update.publicationAttempt) ||
           update.publicationAttempt < 0))
-    ) return;
+    )
+      return;
     if (update.surface === "dsl") acceptEdit(options.dsl, "dsl", update.text, update as HostUpdate);
-    if (update.surface === "sample") acceptEdit(options.sample, "sample", update.text, update as HostUpdate);
+    if (update.surface === "sample")
+      acceptEdit(options.sample, "sample", update.text, update as HostUpdate);
   });
 
   for (const surface of Object.keys(texts) as Surface[]) {

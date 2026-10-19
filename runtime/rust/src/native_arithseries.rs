@@ -105,6 +105,7 @@ fn validate(value: *mut TclObj, protocol: NativeStringProtocol) -> Result<(), Va
     }
     Ok(())
 }
+#[cfg_attr(not(have_tommath), allow(dead_code))]
 pub(crate) fn new_series(
     series: Series,
     protocol: NativeStringProtocol,

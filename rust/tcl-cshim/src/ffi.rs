@@ -1058,7 +1058,7 @@ pub unsafe extern "C" fn tcl_get_var2_ex(
                 return Default::default();
             }
         };
-        doors::get_variable(state, &part1, part2.as_deref(), flags)
+        doors::get_variable(state, part1, part2, flags)
     })
 }
 
@@ -1140,7 +1140,7 @@ pub unsafe extern "C" fn tcl_unset_var2(
                 return TCL_ERROR;
             }
         };
-        doors::unset_variable(state, &part1, part2.as_deref(), flags)
+        doors::unset_variable(state, part1, part2, flags)
     })
 }
 

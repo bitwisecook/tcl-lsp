@@ -728,6 +728,7 @@ struct SpeclibDecl {
 
 /// Everything the evaluation stages before replay.
 #[derive(Default)]
+#[allow(clippy::struct_excessive_bools)] // independent staging flags, not a state machine
 struct State {
     pack_nodes: Vec<PackNode>,
     /// Open capture scopes, innermost last, each with its collected nodes.
@@ -1135,15 +1136,15 @@ impl BodyText {
         value: String,
         line: u32,
     ) -> Self {
-        if let Some(candidate) = candidate {
-            if let Some(original) = candidate.original_for_capture(head, args, &value) {
-                return Self {
-                    original: Some(original),
-                    text: candidate.text,
-                    base: candidate.body_line,
-                    verbatim: true,
-                };
-            }
+        if let Some(candidate) = candidate
+            && let Some(original) = candidate.original_for_capture(head, args, &value)
+        {
+            return Self {
+                original: Some(original),
+                text: candidate.text,
+                base: candidate.body_line,
+                verbatim: true,
+            };
         }
         Self {
             original: None,
@@ -1386,6 +1387,7 @@ fn include_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
 
 /// Resolve and evaluate one `include` row. Shared by the host command and
 /// the static driver, so the two evaluation paths cannot drift.
+#[allow(clippy::too_many_lines)]
 fn stage_include(
     drive: Drive<'_, '_>,
     state: &Rc<RefCell<State>>,
@@ -1410,7 +1412,7 @@ fn stage_include(
     let name = match super::include_name(words, line) {
         Ok(name) => name,
         Err(notice) => {
-            state.borrow_mut().eval_notices.push(notice);
+            state.borrow_mut().eval_notices.push(*notice);
             return Ok(());
         }
     };
@@ -2125,6 +2127,7 @@ fn provenance_violation_in(
 
 /// Turn a completed evaluation's staging into a [`Pack`] through the
 /// vocabulary's row readers.
+#[allow(clippy::too_many_lines)]
 fn replay(state: State, options: &EvalOptions) -> Pack {
     let mut log = Log {
         context: "pack".to_owned(),

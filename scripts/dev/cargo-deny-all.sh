@@ -7,9 +7,12 @@ repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
 lockfiles=()
+# Match lockfiles named exactly `Cargo.lock`: a plain `'*Cargo.lock'` glob also
+# picks up archived evidence such as `docs/**/original-Cargo.lock`, which has no
+# workspace manifest beside it.
 while IFS= read -r -d '' lockfile; do
     lockfiles+=("$lockfile")
-done < <(git ls-files -z -- '*Cargo.lock')
+done < <(git ls-files -z -- ':(glob)**/Cargo.lock')
 
 if ((${#lockfiles[@]} == 0)); then
     echo "ERROR: no tracked Cargo.lock files found" >&2

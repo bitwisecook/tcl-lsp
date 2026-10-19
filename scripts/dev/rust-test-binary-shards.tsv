@@ -113,6 +113,9 @@
 2	tcl-vm::switch_integer_e2e	test	tcl-vm	switch_integer_e2e
 2	tcl-vm::wasm_coro_e2e	test	tcl-vm	wasm_coro_e2e
 2	tcl-vm::word_parts_owner_e2e	test	tcl-vm	word_parts_owner_e2e
+2	tcl-compiler::static_name_consumers	test	tcl-compiler	static_name_consumers
+2	tcl-registry::name_lookup_issue_witnesses	test	tcl-registry	name_lookup_issue_witnesses
+2	tcl-spec-studio::name_lookup_issue_witnesses	test	tcl-spec-studio	name_lookup_issue_witnesses
 3	bigip-report-gen-rust::apm	test	bigip-report-gen-rust	apm
 3	bigip-report-gen-rust::gtm	test	bigip-report-gen-rust	gtm
 3	bpf-tcl	lib	bpf-tcl	bpf_tcl
@@ -208,6 +211,8 @@
 3	tcl-vm::variable_name_resolution_e2e	test	tcl-vm	variable_name_resolution_e2e
 3	tcl-vm::variable_trace_semantics_e2e	test	tcl-vm	variable_trace_semantics_e2e
 3	tcl-vm::word_value_resolution_e2e	test	tcl-vm	word_value_resolution_e2e
+3	tcl-host-c-abi	lib	tcl-host-c-abi	tcl_host_c_abi
+3	tcl-registry::package_protocol_oracle	test	tcl-registry	package_protocol_oracle
 4	bigip-report-gen-rust::bin/bigip-report-gen	bin	bigip-report-gen-rust	bigip-report-gen
 4	bigip-report-gen-rust::certs	test	bigip-report-gen-rust	certs
 4	bigip-report-gen-rust::render_arch	test	bigip-report-gen-rust	render_arch
@@ -301,6 +306,10 @@
 4	tcl-vm::selected_frame_coroutines	test	tcl-vm	selected_frame_coroutines
 4	tcl-vm::tcltest_load	test	tcl-vm	tcltest_load
 4	xtask::bin/xtask	bin	xtask	xtask
+4	tcl-compiler::name_lookup_issue_witnesses	test	tcl-compiler	name_lookup_issue_witnesses
+4	tcl-vm::formal_slot_identity	test	tcl-vm	formal_slot_identity
+4	tcl-vm::name_lookup_issue_witnesses	test	tcl-vm	name_lookup_issue_witnesses
+4	tcl-vm::native_mathfunc_bootstrap	test	tcl-vm	native_mathfunc_bootstrap
 5	bigip-report-gen-rust::architecture	test	bigip-report-gen-rust	architecture
 5	bigip-report-gen-rust::firewall	test	bigip-report-gen-rust	firewall
 5	bigip-report-gen-rust::report	test	bigip-report-gen-rust	report
@@ -388,3 +397,8 @@
 5	tcl-vm::step_trace_inline_e2e	test	tcl-vm	step_trace_inline_e2e
 5	tcl-vm::variable_container_models	test	tcl-vm	variable_container_models
 5	tcl-vm::tailcall_uplevel_e2e	test	tcl-vm	tailcall_uplevel_e2e
+5	tcl-lsp-db::memory_alias_graph	test	tcl-lsp-db	memory_alias_graph
+5	tcl-syntax::jim_name_resolution_conformance	test	tcl-syntax	jim_name_resolution_conformance
+5	tcl-vm::library_bootstrap_presence	test	tcl-vm	library_bootstrap_presence
+5	tcl-vm::native_byte_literals	test	tcl-vm	native_byte_literals
+5	tcl-vm::native_variable_declaration	test	tcl-vm	native_variable_declaration

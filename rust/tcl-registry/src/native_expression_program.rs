@@ -1163,7 +1163,7 @@ mod tests {
             let program = prepare("Pi(abs(1))", version);
             assert!(!expression_tree_is_call_free(match &program.tree {
                 NativeExpressionTree::Parsed(tree) => tree,
-                _ => panic!("original checked function nodes"),
+                NativeExpressionTree::Rejected { .. } => panic!("original checked function nodes"),
             }));
             assert_eq!(
                 program.compiler_name_effects(dialect),

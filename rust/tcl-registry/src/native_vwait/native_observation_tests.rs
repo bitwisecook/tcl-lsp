@@ -27,6 +27,7 @@ fn providers() -> Vec<(&'static str, &'static str, InvocationDialect)> {
         .collect()
 }
 
+#[allow(clippy::format_collect)]
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
@@ -113,12 +114,14 @@ fn original_vwait_basic_boundaries_match_twenty_four_native_source_rows() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn original_vwait_extended_boundaries_match_sixty_native_source_rows() {
     // naming.event.vwait-native-extended-argv-boundaries
     // docs/design/analysis/name-resolution-proofs/event-vwait-native-extended-argv-boundaries.md
     // naming.event.original-vwait-operand-boundaries
     // docs/design/analysis/name-resolution-proofs/event-original-vwait-operand-boundaries.md
     use ArgRole::{Body, VarWrite};
+    #[allow(clippy::type_complexity)]
     let cases: &[(
         &str,
         &[&str],

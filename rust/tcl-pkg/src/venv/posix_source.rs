@@ -75,6 +75,7 @@ pub(super) fn wrapper(tclsh: &Path) -> Result<String, TclPkgError> {
 }
 
 /// Retain shell variable values and presence; export attributes remain separate.
+#[allow(clippy::too_many_lines)]
 pub(super) fn activation(venv: &Path, prompt: &str) -> Result<String, TclPkgError> {
     let root = PosixLiteral::path(venv)?;
     let bin = PosixLiteral::path_component(&venv.join("bin"))?;
@@ -248,7 +249,7 @@ mod presence_tests {
             .split(|byte| *byte == 0)
             .collect::<Vec<_>>();
         assert_eq!(values.len(), 4 * 4 * 8);
-        for lifecycle in values.chunks_exact(32) {
+        for lifecycle in values.as_chunks::<32>().0 {
             assert_eq!(&lifecycle[..8], &lifecycle[24..]);
             assert_eq!(&lifecycle[8..16], &lifecycle[16..24]);
             assert_eq!(lifecycle[14], b"x");
