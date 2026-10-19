@@ -1,0 +1,249 @@
+diff --git a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -1108,6 +1108,22 @@
+     }
+ }
+ 
++#[cfg(test)]
++std::thread_local! {
++    /// [`Backend::analysis_for`] calls on this thread: a test-only work counter.
++    static ANALYSIS_FOR_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
++}
++
++#[cfg(test)]
++fn reset_analysis_for_calls() {
++    ANALYSIS_FOR_CALLS.with(|calls| calls.set(0));
++}
++
++#[cfg(test)]
++fn analysis_for_calls() -> usize {
++    ANALYSIS_FOR_CALLS.with(std::cell::Cell::get)
++}
++
+ struct LibraryPublicationSource {
+     uri: Uri,
+     document: DocumentState,
+@@ -13617,6 +13633,8 @@
+         text: Arc<str>,
+         dialect: String,
+     ) -> DocumentSourceResult<Arc<tcl_compiler::analyser::AnalysisResult>> {
++        #[cfg(test)]
++        ANALYSIS_FOR_CALLS.with(|calls| calls.set(calls.get() + 1));
+         let admission = self.document_path_admission(uri).await?;
+         if let Some(cached) = self.cached_analysis(uri).await {
+             let published = self
+@@ -14666,33 +14684,8 @@
+             Arc<tcl_compiler::analyser::AnalysisResult>,
+         )>,
+     > {
+-        let mut uris = {
+-            let index = self.workspace_index.read().await;
+-            let mut owners = index.document_uris();
+-            owners.extend(
+-                index
+-                    .original_class_declarations()
+-                    .map(|(uri, _)| uri.to_owned()),
+-            );
+-            owners.extend(
+-                index
+-                    .original_procedure_declarations()
+-                    .map(|(uri, _)| uri.to_owned()),
+-            );
+-            owners
+-        };
+-        uris.extend(
+-            self.documents
+-                .lock("original_declaration_documents")
+-                .await
+-                .keys()
+-                .map(|uri| uri.as_str().to_owned()),
+-        );
+-        uris.push(selected.as_str().to_owned());
+-        uris.sort();
+-        uris.dedup();
+         let mut documents = Vec::new();
+-        for owner in uris {
++        for owner in self.original_declaration_uris(selected).await {
+             let Ok(uri) = owner.parse::<Uri>() else {
+                 return Ok(Vec::new());
+             };
+@@ -14721,6 +14714,37 @@
+         Ok(documents)
+     }
+ 
++    /// Every URI a declaration request reads, sorted and unique: the indexed
++    /// documents and declaration owners, the open documents and `selected`.
++    async fn original_declaration_uris(&self, selected: &Uri) -> Vec<String> {
++        let mut uris = {
++            let index = self.workspace_index.read().await;
++            let mut owners = index.document_uris();
++            owners.extend(
++                index
++                    .original_class_declarations()
++                    .map(|(uri, _)| uri.to_owned()),
++            );
++            owners.extend(
++                index
++                    .original_procedure_declarations()
++                    .map(|(uri, _)| uri.to_owned()),
++            );
++            owners
++        };
++        uris.extend(
++            self.documents
++                .lock("original_declaration_documents")
++                .await
++                .keys()
++                .map(|uri| uri.as_str().to_owned()),
++        );
++        uris.push(selected.as_str().to_owned());
++        uris.sort();
++        uris.dedup();
++        uris
++    }
++
+     async fn lift_original_call_item(
+         &self,
+         item: core_call_hierarchy::CallHierarchyItem,
+diff --git a/rust/tcl-lsp-server/src/readonly_reference_reports.rs b/rust/tcl-lsp-server/src/readonly_reference_reports.rs
+--- a/rust/tcl-lsp-server/src/readonly_reference_reports.rs
++++ b/rust/tcl-lsp-server/src/readonly_reference_reports.rs
+@@ -1124,21 +1124,49 @@
+         })
+     }
+ 
+-    async fn logical_call_documents(
++    /// The declaration documents a readonly request reads, each captured once
++    /// through its readonly owner: the same URI set and participation gates
++    /// as `original_declaration_documents`, without its database analysis.
++    /// The capture's own analysis is the one the report reads, and it already
++    /// requires the database text and a source image matching that text.
++    /// `None` when any document is unreadable, of unknown participation or
++    /// not current.
++    async fn readonly_declaration_documents(
+         &self,
+         selected: &Uri,
+     ) -> DocumentSourceResult<Option<Vec<OriginalReadonlyReferenceDocument>>> {
+-        let documents = self.original_declaration_documents(selected).await?;
+-        let mut retained = Vec::with_capacity(documents.len());
+-        for (uri, source, _) in documents {
++        let owners = self.original_declaration_uris(selected).await;
++        let mut retained = Vec::with_capacity(owners.len());
++        for owner in owners {
++            let Ok(uri) = owner.parse::<Uri>() else {
++                return Ok(None);
++            };
++            let Some(source) = self.read_document(&uri).await? else {
++                return Ok(None);
++            };
++            match Self::original_declaration_document_participates(&uri, &source) {
++                Some(true) => {}
++                Some(false) => continue,
++                None => return Ok(None),
++            }
+             let Some(document) = self
+-                .capture_readonly_reference_document(&uri, source)
++                .capture_readonly_reference_document(&owner, source.text)
+                 .await?
+             else {
+                 return Ok(None);
+             };
+             retained.push(document);
+         }
++        Ok(Some(retained))
++    }
++
++    async fn logical_call_documents(
++        &self,
++        selected: &Uri,
++    ) -> DocumentSourceResult<Option<Vec<OriginalReadonlyReferenceDocument>>> {
++        let Some(retained) = self.readonly_declaration_documents(selected).await? else {
++            return Ok(None);
++        };
+         if !retained.iter().any(|document| document.uri == *selected) {
+             return Ok(None);
+         }
+@@ -1567,17 +1595,9 @@
+         };
+         let epoch = self.diag_inputs_epoch();
+         let generation = *self.class_factory_generation.read().await;
+-        let documents = self.original_declaration_documents(&item.uri).await?;
+-        let mut retained = Vec::with_capacity(documents.len());
+-        for (uri, source, _) in documents {
+-            let Some(document) = self
+-                .capture_readonly_reference_document(&uri, source)
+-                .await?
+-            else {
+-                return Ok(Vec::new());
+-            };
+-            retained.push(document);
+-        }
++        let Some(retained) = self.readonly_declaration_documents(&item.uri).await? else {
++            return Ok(Vec::new());
++        };
+         let Some(owner) = retained.iter().find(|document| document.uri == item.uri) else {
+             return Ok(Vec::new());
+         };
+@@ -1692,17 +1712,9 @@
+     ) -> DocumentSourceResult<Option<OriginalReadonlyReferenceReport>> {
+         let inputs_epoch = self.diag_inputs_epoch();
+         let factory_generation = *self.class_factory_generation.read().await;
+-        let documents = self.original_declaration_documents(selected).await?;
+-        let mut retained = Vec::with_capacity(documents.len());
+-        for (owner, source, _) in documents {
+-            let Some(document) = self
+-                .capture_readonly_reference_document(&owner, source)
+-                .await?
+-            else {
+-                return Ok(None);
+-            };
+-            retained.push(document);
+-        }
++        let Some(retained) = self.readonly_declaration_documents(selected).await? else {
++            return Ok(None);
++        };
+         let Some(owner) = retained
+             .iter()
+             .find(|document| document.uri.as_str() == identity.uri())
+@@ -2797,6 +2809,40 @@
+         items.remove(0)
+     }
+ 
++    /// Work budget: a logical call request captures each declaration
++    /// document through its readonly owner and reads no database analysis.
++    #[tokio::test]
++    async fn logical_call_documents_read_no_database_analysis() {
++        let backend = crate::tests::test_backend();
++        let caller: Uri = "file:///tmp/selection-caller.tcl".parse().unwrap();
++        let target: Uri = "file:///tmp/selection-target.tcl".parse().unwrap();
++        register(&backend, &caller, "proc caller {} { helper }\n").await;
++        register(&backend, &target, "proc helper {} {}\n").await;
++        crate::reset_analysis_for_calls();
++        let documents = backend
++            .logical_call_documents(&caller)
++            .await
++            .unwrap()
++            .expect("both declaration documents are current");
++        assert_eq!(crate::analysis_for_calls(), 0);
++        let captured = documents
++            .iter()
++            .map(|document| document.uri.as_str().to_owned())
++            .collect::<Vec<_>>();
++        let declared = backend
++            .original_declaration_documents(&caller)
++            .await
++            .unwrap()
++            .into_iter()
++            .map(|(uri, _, _)| uri)
++            .collect::<Vec<_>>();
++        assert_eq!(captured, declared);
++        assert_eq!(
++            captured,
++            [caller.as_str().to_owned(), target.as_str().to_owned()]
++        );
++    }
++
+     #[tokio::test]
+     async fn actual_call_handlers_use_opaque_current_source_selection_not_client_fields() {
+         let backend = crate::tests::test_backend();

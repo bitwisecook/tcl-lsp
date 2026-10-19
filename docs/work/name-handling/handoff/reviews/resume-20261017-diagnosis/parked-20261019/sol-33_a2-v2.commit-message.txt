@@ -1,0 +1,26 @@
+Capture readonly declaration documents without a discarded database analysis
+
+Logical call and lens requests, the logical type-hierarchy walk and the
+original-declaration reference report each read every declaration document
+through `original_declaration_documents`, which ran `analysis_for` on each
+document and then threw the analysis away: every consumer re-captured the
+document through `capture_readonly_reference_document` and read only that
+capture's own analysis. For a cold closed document the discarded read could
+compute the Salsa memo under a database snapshot.
+
+The three consumers now share `readonly_declaration_documents`, which keeps
+the same URI set (`original_declaration_uris`, factored out of
+`original_declaration_documents`) and the same read and participation gates,
+and captures each document once. The dropped check (the database analysis
+matching the source image) is implied by a successful capture, which requires
+the database text to equal the source and its own analysis to match it.
+
+Behaviour difference: refusals are classified differently in one case.
+`analysis_for` could return `Err` (an unavailable path admission or published
+path) where the capture now returns `Ok(None)`, and documents are captured in
+order instead of all being analysed first, so when several documents fail the
+first failure reported can differ. Both outcomes refuse the request; no
+request that refused before now answers.
+
+Work budget: `logical_call_documents_read_no_database_analysis` counts
+`analysis_for` calls (0) during a logical call document capture.

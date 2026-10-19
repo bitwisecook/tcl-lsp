@@ -1,0 +1,1183 @@
+diff --git a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -62,6 +62,7 @@
+ mod original_workspace_diagnostics_tests;
+ pub mod path_glob;
+ mod provider_source;
++mod readonly_analysis_memo;
+ mod readonly_reference_reports;
+ mod recovery_source;
+ #[cfg(test)]
+@@ -1150,20 +1151,122 @@
+     class_factory_generation: u64,
+ }
+ 
++/// The values a [`FreshAnalysisDriver`]'s analyser is built from. With the
++/// source text, dialect, sidecar stubs and input epochs they are the driver's
++/// whole input, which is what lets [`readonly_analysis_memo`] reuse a run.
++#[derive(Clone, Default)]
++struct FreshDriverInputs {
++    disabled: HashSet<String>,
++    non_ascii: NonAsciiMode,
++    extra_commands: HashSet<String>,
++    pack_key: u64,
++    resource: ResourceAnalyserInputs,
++    workspace_class_factories: Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
++    file_path: Option<String>,
++    supplied_input: Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
++    structure_only: bool,
++}
++
++impl PartialEq for FreshDriverInputs {
++    fn eq(&self, other: &Self) -> bool {
++        // The published factory index is compared by allocation: an equal
++        // allocation is the same index, and a republished one is a miss.
++        let factories = match (
++            &self.workspace_class_factories,
++            &other.workspace_class_factories,
++        ) {
++            (Some(left), Some(right)) => Arc::ptr_eq(left, right),
++            (None, None) => true,
++            _ => false,
++        };
++        factories
++            && self.disabled == other.disabled
++            && self.non_ascii == other.non_ascii
++            && self.extra_commands == other.extra_commands
++            && self.pack_key == other.pack_key
++            && self.resource == other.resource
++            && self.file_path == other.file_path
++            && self.supplied_input == other.supplied_input
++            && self.structure_only == other.structure_only
++    }
++}
++
+ struct FreshAnalysisDriver {
+     path_admission: Arc<DocumentPathAdmission>,
+     source_store: Arc<dyn vfs::SourceStore>,
+     analyser: Analyser,
+     analyser_inputs_epoch: u64,
+     class_factory_generation: u64,
++    inputs: FreshDriverInputs,
+ }
+ 
+ impl FreshAnalysisDriver {
+     fn into_structure_only(mut self) -> Self {
+         self.analyser = self.analyser.structure_only();
++        self.inputs.structure_only = true;
++        self
++    }
++
++    /// Analyse under a supplied checked document input instead of resolving
++    /// one.
++    fn with_resolved_input(mut self, input: tcl_compiler::analyser::ResolvedAnalysisInput) -> Self {
++        self.analyser = self.analyser.with_resolved_input(input.clone());
++        self.inputs.supplied_input = Some(input);
+         self
+     }
+ 
++    fn file_path(&self) -> Option<&str> {
++        self.inputs.file_path.as_deref()
++    }
++
++    fn readonly_kind(&self) -> readonly_analysis_memo::ReadonlyAnalysisKind {
++        if self.inputs.structure_only {
++            readonly_analysis_memo::ReadonlyAnalysisKind::Structure
++        } else if self.inputs.supplied_input.is_some() {
++            readonly_analysis_memo::ReadonlyAnalysisKind::Database
++        } else {
++            readonly_analysis_memo::ReadonlyAnalysisKind::Fresh
++        }
++    }
++
++    /// Every input a whole-document run of this driver reads.
++    fn readonly_key(
++        &self,
++        text: &Arc<str>,
++        dialect: &str,
++        uri_generation: u64,
++    ) -> readonly_analysis_memo::FreshAnalysisKey {
++        let stub_names = readonly_analysis_memo::sidecar_stub_names(
++            dialect,
++            self.inputs.supplied_input.as_ref(),
++        );
++        let sidecars =
++            readonly_analysis_memo::SidecarStubFingerprint::capture(self.file_path(), &stub_names);
++        readonly_analysis_memo::FreshAnalysisKey {
++            text: Arc::clone(text),
++            dialect: dialect.to_owned(),
++            inputs: self.inputs.clone(),
++            analyser_inputs_epoch: self.analyser_inputs_epoch,
++            class_factory_generation: self.class_factory_generation,
++            uri_generation,
++            stub_names,
++            sidecars,
++        }
++    }
++
++    /// The seed this driver's own run on the same input produced earlier,
++    /// issued under this driver's current path receipt.
++    fn reuse(self, analysis: Arc<AnalysisResult>) -> DocumentSourceResult<FreshAnalysisSeed> {
++        self.path_admission
++            .check_current(self.source_store.as_ref())?;
++        Ok(FreshAnalysisSeed {
++            path_admission: self.path_admission,
++            analysis,
++            analyser_inputs_epoch: self.analyser_inputs_epoch,
++            class_factory_generation: self.class_factory_generation,
++        })
++    }
++
+     fn analyse(
+         mut self,
+         text: &str,
+@@ -9643,6 +9746,10 @@
+     /// however the document or the index changed; the URI key just keeps the
+     /// map small and evictable on `did_close`.
+     workspace_class_analyses: Arc<Mutex<HashMap<Uri, WorkspaceClassAnalysis>>>,
++    /// Read-only requests' fresh analyses, reused while every driver input is
++    /// unchanged: one entry per open URI and purpose, plus a closed-document
++    /// tier bounded by [`readonly_analysis_memo::ReadonlyAnalysisMemoLimits`].
++    readonly_analysis_memo: Arc<readonly_analysis_memo::ReadonlyAnalysisMemo>,
+     /// Oracle currency shared with every project-wide class-factory publisher.
+     /// A standalone analysis carries this generation and holds a read guard
+     /// through its index commit, so an older oracle can never overwrite facts
+@@ -9756,6 +9863,8 @@
+     semantic_tokens_refresh_asked: &'a EnrichedRefreshAsked,
+     /// [`Backend::workspace_class_analyses`].
+     workspace_class_analyses: &'a Arc<Mutex<HashMap<Uri, WorkspaceClassAnalysis>>>,
++    /// [`Backend::readonly_analysis_memo`].
++    readonly_analysis_memo: &'a Arc<readonly_analysis_memo::ReadonlyAnalysisMemo>,
+ }
+ 
+ impl PerUriCaches<'_> {
+@@ -9782,6 +9891,7 @@
+             last_semantic_tokens,
+             semantic_tokens_refresh_asked,
+             workspace_class_analyses,
++            readonly_analysis_memo,
+         } = self;
+         {
+             let mut autoloaded = autoloaded_library_uris.lock().await;
+@@ -9823,6 +9933,9 @@
+                 }
+             })?;
+         }
++        DocumentPathAdmission::with_current(admissions, store, || {
++            readonly_analysis_memo.forget(uris);
++        })?;
+         Ok(())
+     }
+ }
+@@ -11013,6 +11126,9 @@
+             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
+             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
+             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
++            readonly_analysis_memo: Arc::new(readonly_analysis_memo::ReadonlyAnalysisMemo::new(
++                readonly_analysis_memo::ReadonlyAnalysisMemoLimits::default(),
++            )),
+             class_factory_generation: Arc::new(tokio::sync::RwLock::new(0)),
+             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicU8::new(0)),
+             semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
+@@ -13720,15 +13836,32 @@
+                 );
+             }
+         };
+-        let file_path = path_admission.analyser_path().map(str::to_owned);
++        let inputs = FreshDriverInputs {
++            disabled,
++            non_ascii: na_mode,
++            extra_commands: extra,
++            pack_key,
++            resource,
++            workspace_class_factories,
++            file_path: path_admission.analyser_path().map(str::to_owned),
++            supplied_input: None,
++            structure_only: false,
++        };
+         FreshAnalysisDriver {
+             path_admission,
+             source_store: Arc::clone(&self.store),
+-            analyser: Self::configured_analyser(disabled, na_mode, extra, pack_key, resource)
+-                .with_workspace_class_factories(workspace_class_factories)
+-                .with_file_path(file_path),
++            analyser: Self::configured_analyser(
++                inputs.disabled.clone(),
++                inputs.non_ascii,
++                inputs.extra_commands.clone(),
++                inputs.pack_key,
++                inputs.resource.clone(),
++            )
++            .with_workspace_class_factories(inputs.workspace_class_factories.clone())
++            .with_file_path(inputs.file_path.clone()),
+             analyser_inputs_epoch,
+             class_factory_generation,
++            inputs,
+         }
+     }
+ 
+@@ -15764,7 +15897,8 @@
+     /// - **Per-URI caches** (returned here, forgotten wholesale by
+     ///   [`Self::forget_uri_states`]): `autoloaded_library_uris`,
+     ///   `rehomed_source_seeds`, `last_semantic_tokens`,
+-    ///   `semantic_tokens_refresh_asked`, `workspace_class_analyses`.
++    ///   `semantic_tokens_refresh_asked`, `workspace_class_analyses`,
++    ///   `readonly_analysis_memo`.
+     /// - **Per-URI, but owned by a dedicated path** — each needs more than a map
+     ///   removal, so retirement paths call that path explicitly: `documents`
+     ///   (the live buffer set; `did_open` / `did_close` own it, and a folder
+@@ -15791,6 +15925,7 @@
+             last_semantic_tokens,
+             semantic_tokens_refresh_asked,
+             workspace_class_analyses,
++            readonly_analysis_memo,
+             // Per-URI, owned by a dedicated path (see the doc comment).
+             documents: _,
+             diag_slots: _,
+@@ -15887,6 +16022,7 @@
+             last_semantic_tokens,
+             semantic_tokens_refresh_asked,
+             workspace_class_analyses,
++            readonly_analysis_memo,
+         }
+     }
+ 
+@@ -26816,8 +26952,12 @@
+     /// arrives *during* it, so the only thing that can be right is what the
+     /// edit itself reads.
+     fn invalidate_diag_inputs(&self) {
+-        self.diag_inputs_epoch
++        let previous = self
++            .diag_inputs_epoch
+             .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
++        // No retained read-only run can match the new epoch; release the
++        // registry and factory generations they hold.
++        self.readonly_analysis_memo.clear(previous.wrapping_add(1));
+     }
+ 
+     /// The current [`Self::diag_inputs_epoch`].
+@@ -29312,7 +29452,10 @@
+     /// after `initialized`, or a big multi-root reload) is a cache hit instead
+     /// of a cold `file_analysis_incremental` walk; an unopened file pays its
+     /// deep-tier cost only if a request actually needs it, exactly like a
+-    /// document opened after the scan already does.
++    /// document opened after the scan already does. The read-only fresh
++    /// analyses of [`readonly_analysis_memo`] are the one closed-document
++    /// exception: they never enter salsa, and their closed tier is bounded by
++    /// entry count and estimated bytes.
+     ///
+     /// Purely an optimisation, and safe by construction:
+     /// - **Correctness**: it only primes the salsa cache; a concurrent real read
+@@ -30301,6 +30444,8 @@
+             return;
+         }
+         self.invalidate_live_publication(std::iter::once(&uri));
++        // Later read-only runs for this document join the memo's open tier.
++        self.readonly_analysis_memo.promote(&uri);
+ 
+         // Poll the index writer once while the edit turn still excludes new
+         // requests. If the lock is busy this registers our writer in Tokio's
+@@ -30721,6 +30866,8 @@
+         self.invalidate_live_publication(std::iter::once(uri));
+         drop(turn);
+         self.live_publication_advanced.notify_waiters();
++        // The closed document's read-only analyses join the bounded tier.
++        self.readonly_analysis_memo.demote(uri);
+ 
+         // Optimistically acquire the index and then currency-check the closed
+         // state without ever waiting while holding either lock. A racing open
+@@ -46677,6 +46824,9 @@
+             last_semantic_tokens: Arc::new(Mutex::new(HashMap::new())),
+             semantic_tokens_refresh_asked: Arc::new(Mutex::new(HashMap::new())),
+             workspace_class_analyses: Arc::new(Mutex::new(HashMap::new())),
++            readonly_analysis_memo: Arc::new(readonly_analysis_memo::ReadonlyAnalysisMemo::new(
++                readonly_analysis_memo::ReadonlyAnalysisMemoLimits::default(),
++            )),
+             class_factory_generation: Arc::new(tokio::sync::RwLock::new(0)),
+             semantic_tokens_refresh_pending: Arc::new(std::sync::atomic::AtomicU8::new(0)),
+             semantic_tokens_convergence: Arc::new(std::sync::Mutex::new(HashMap::new())),
+diff --git a/rust/tcl-lsp-server/src/readonly_reference_reports.rs b/rust/tcl-lsp-server/src/readonly_reference_reports.rs
+--- a/rust/tcl-lsp-server/src/readonly_reference_reports.rs
++++ b/rust/tcl-lsp-server/src/readonly_reference_reports.rs
+@@ -451,15 +451,18 @@
+         } = retained;
+         // Reissue this report's metadata from the genuine retained provider;
+         // a later equal-path publication cannot relabel an old analysis.
+-        let mut driver = self.fresh_analysis_driver(admission.clone()).await;
+-        driver.analyser = driver.analyser.with_resolved_input(input.as_ref().clone());
+-        let producer_source = source.clone();
+-        let dialect = publication.document.dialect.clone();
+-        let original_uri = uri.clone();
+-        let seed =
+-            crate::rt::spawn_blocking(move || driver.analyse(&producer_source, &dialect, None))
+-                .await
+-                .map_err(|_| super::DocumentSourceUnavailable::Worker { uri: original_uri })??;
++        let driver = self
++            .fresh_analysis_driver(admission.clone())
++            .await
++            .with_resolved_input(input.as_ref().clone());
++        let seed = self
++            .readonly_analysis_seed(
++                &uri,
++                driver,
++                source.clone(),
++                publication.document.dialect.clone(),
++            )
++            .await?;
+         if seed.path_admission.as_ref() != admission.as_ref() {
+             return Ok(None);
+         }
+@@ -551,8 +554,18 @@
+         let uri_generation = self.live_publication_uri_generation(uri);
+         let seed = match purpose {
+             FreshSourceAnalysisPurpose::ReadonlyComplete => {
+-                self.fresh_analysis_seed(uri, Arc::clone(&snapshot.text), snapshot.dialect.clone())
+-                    .await?
++                let admission = self.document_path_admission(uri).await?;
++                let driver = self.fresh_analysis_driver(admission).await;
++                let seed = self
++                    .readonly_analysis_seed(
++                        uri,
++                        driver,
++                        Arc::clone(&snapshot.text),
++                        snapshot.dialect.clone(),
++                    )
++                    .await?;
++                seed.path_admission.check_for(uri, self.store.as_ref())?;
++                seed
+             }
+             FreshSourceAnalysisPurpose::SemanticStructure => {
+                 let Some(admission) = snapshot.path_admission.as_ref().cloned() else {
+@@ -563,12 +576,13 @@
+                     .fresh_analysis_driver(admission)
+                     .await
+                     .into_structure_only();
+-                let text = Arc::clone(&snapshot.text);
+-                let dialect = snapshot.dialect.clone();
+-                let original_uri = uri.clone();
+-                crate::rt::spawn_blocking(move || driver.analyse(&text, &dialect, None))
+-                    .await
+-                    .map_err(|_| super::DocumentSourceUnavailable::Worker { uri: original_uri })??
++                self.readonly_analysis_seed(
++                    uri,
++                    driver,
++                    Arc::clone(&snapshot.text),
++                    snapshot.dialect.clone(),
++                )
++                .await?
+             }
+         };
+         let Some(input) = seed.analysis.resolved_input.as_ref().cloned().map(Arc::new) else {
+diff --git a/rust/tcl-lsp-server/src/readonly_analysis_memo.rs b/rust/tcl-lsp-server/src/readonly_analysis_memo.rs
+new file mode 100644
+--- /dev/null
++++ b/rust/tcl-lsp-server/src/readonly_analysis_memo.rs
+@@ -0,0 +1,713 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook)
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Reuse of the read-only fresh analysis driver's own output.
++//!
++//! Read-only requests (workspace symbols, readonly reference reports, call
++//! hierarchy, logical lenses, coarse semantic tokens) analyse through
++//! [`FreshAnalysisDriver`] rather than the Salsa memo: the driver holds no
++//! database snapshot, so it never delays a live edit's publication, and it
++//! never enters `file_analysis_incremental`'s LRU. Its product differs from
++//! the Salsa memo's (no subclass-method, per-file factory or cross-file call
++//! site inputs), so the Salsa memo cannot stand in for it.
++//!
++//! This memo keeps the driver's own product under a key holding every input
++//! the driver reads, so a hit returns exactly what a fresh run would. Open
++//! documents keep one entry per URI and purpose; closed documents share a
++//! least-recently-used tier bounded by entry count and estimated bytes. Only
++//! entries of the current analyser-input epoch and factory generation are
++//! retained, so no superseded registry or factory generation outlives its
++//! epoch here. The memo takes no database snapshot, spawns no work of its own
++//! and only replaces the producer call: every currency check the request makes
++//! still runs on the request's own captured state.
++
++use super::{Backend, DocumentSourceResult, FreshAnalysisDriver, FreshAnalysisSeed};
++use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
++use std::path::{Path, PathBuf};
++use std::sync::Arc;
++use tcl_compiler::analyser::{AnalysisResult, ResolvedAnalysisInput};
++use tower_lsp_server::ls_types::Uri;
++
++/// Which read-only producer an entry belongs to. Each keeps its own slot, so a
++/// document read through more than one purpose does not evict itself.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
++pub(super) enum ReadonlyAnalysisKind {
++    /// The driver over the document's supplied database analysis input.
++    Database,
++    /// The driver resolving its own input.
++    Fresh,
++    /// The structure-only driver of coarse semantic tokens.
++    Structure,
++}
++
++const KINDS: [ReadonlyAnalysisKind; 3] = [
++    ReadonlyAnalysisKind::Database,
++    ReadonlyAnalysisKind::Fresh,
++    ReadonlyAnalysisKind::Structure,
++];
++
++/// Bounds of the closed-document tier. Open documents are bounded by the open
++/// set: one entry per URI and [`ReadonlyAnalysisKind`].
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub(super) struct ReadonlyAnalysisMemoLimits {
++    /// Most closed-document analyses retained.
++    pub(super) closed_entries: usize,
++    /// Most estimated bytes the closed-document analyses retain.
++    pub(super) closed_bytes: usize,
++}
++
++impl Default for ReadonlyAnalysisMemoLimits {
++    fn default() -> Self {
++        Self {
++            closed_entries: 256,
++            closed_bytes: 512 * 1024 * 1024,
++        }
++    }
++}
++
++/// Estimated retained bytes of one analysis per source byte. This is an
++/// unmeasured estimate, not a measurement: analyses carry scope, symbol,
++/// invocation and diagnostic tables that grow with the source, and the byte
++/// bound applies to this estimate only.
++const ESTIMATED_ANALYSIS_BYTES_PER_SOURCE_BYTE: usize = 64;
++/// Estimated fixed cost of one retained analysis; unmeasured, like the factor.
++const ESTIMATED_ANALYSIS_ENTRY_OVERHEAD_BYTES: usize = 16 * 1024;
++
++fn estimated_bytes(text: &str) -> usize {
++    text.len()
++        .saturating_mul(ESTIMATED_ANALYSIS_BYTES_PER_SOURCE_BYTE + 1)
++        .saturating_add(ESTIMATED_ANALYSIS_ENTRY_OVERHEAD_BYTES)
++}
++
++/// Every sidecar name the analyser can look up for one run: the dialect it is
++/// given (`scan_sidecar_stubs`), the analyser and unit profile names of that
++/// dialect's environment (`has_sidecar_stubs`), and those of any supplied
++/// input (the declared-command contracts).
++pub(super) fn sidecar_stub_names(
++    dialect: &str,
++    supplied: Option<&ResolvedAnalysisInput>,
++) -> BTreeSet<String> {
++    let environment = tcl_registry::model::ingress::resolve_environment(dialect);
++    let mut names: BTreeSet<String> = [
++        dialect,
++        environment.analyser_profile().name,
++        environment.unit_profile().name,
++    ]
++    .into_iter()
++    .map(str::to_owned)
++    .collect();
++    if let Some(input) = supplied {
++        names.insert(input.analyser_profile().name.to_owned());
++        names.insert(input.unit_profile().name.to_owned());
++    }
++    names
++}
++
++/// The sidecar names a finished run's own retained input can have read. A run
++/// whose names fall outside the probed set is never reused.
++fn analysis_stub_names(analysis: &AnalysisResult) -> Vec<&'static str> {
++    analysis
++        .resolved_input
++        .as_ref()
++        .map(|input| vec![input.analyser_profile().name, input.unit_profile().name])
++        .unwrap_or_default()
++}
++
++/// What the analyser observes of each candidate sidecar `<name>.tcl.stubs` in
++/// each ancestor directory of a document: whether it is a file
++/// (`has_sidecar_stubs`) and its UTF-8 content (`scan_sidecar_stubs`). A
++/// missing, unreadable or non-UTF-8 file has no content, exactly as the
++/// analyser skips it. Each candidate is probed by name, never by listing a
++/// directory, so the probe sees what the analyser's own lookups see on a
++/// case-insensitive file system or under an unlistable ancestor.
++#[derive(Debug, Clone, PartialEq, Eq)]
++pub(super) struct SidecarStubFingerprint(Vec<(PathBuf, bool, Option<String>)>);
++
++impl SidecarStubFingerprint {
++    pub(super) fn capture(file_path: Option<&str>, names: &BTreeSet<String>) -> Self {
++        let mut probes = Vec::new();
++        let mut directory = file_path.and_then(|path| Path::new(path).parent());
++        while let Some(current) = directory {
++            for name in names {
++                let path = current.join(format!("{name}.tcl.stubs"));
++                let is_file = path.is_file();
++                let content = std::fs::read_to_string(&path).ok();
++                probes.push((path, is_file, content));
++            }
++            directory = current.parent();
++        }
++        Self(probes)
++    }
++}
++
++/// Every input of one fresh driver run on a whole document.
++#[derive(Clone, PartialEq)]
++pub(super) struct FreshAnalysisKey {
++    pub(super) text: Arc<str>,
++    pub(super) dialect: String,
++    pub(super) inputs: super::FreshDriverInputs,
++    pub(super) analyser_inputs_epoch: u64,
++    pub(super) class_factory_generation: u64,
++    pub(super) uri_generation: u64,
++    pub(super) stub_names: BTreeSet<String>,
++    pub(super) sidecars: SidecarStubFingerprint,
++}
++
++impl FreshAnalysisKey {
++    const fn generation(&self) -> (u64, u64) {
++        (self.analyser_inputs_epoch, self.class_factory_generation)
++    }
++}
++
++type Slot = (Uri, ReadonlyAnalysisKind);
++
++struct Entry {
++    key: FreshAnalysisKey,
++    analysis: Arc<AnalysisResult>,
++    bytes: usize,
++}
++
++#[derive(Default)]
++struct MemoState {
++    /// Documents open now, maintained by `didOpen` and `didClose`. The tier
++    /// an insertion joins is read here, never from the request's snapshot.
++    open_uris: HashSet<Uri>,
++    open: HashMap<Slot, Entry>,
++    closed: HashMap<Slot, (Entry, u64)>,
++    recency: BTreeMap<u64, Slot>,
++    next_use: u64,
++    closed_bytes: usize,
++    /// The analyser-input epoch and factory generation of every entry.
++    generation: Option<(u64, u64)>,
++    /// The current analyser-input epoch at the last clear; a run from an
++    /// earlier epoch is never retained.
++    epoch_floor: u64,
++}
++
++impl MemoState {
++    fn clear_entries(&mut self) {
++        self.open.clear();
++        self.closed.clear();
++        self.recency.clear();
++        self.closed_bytes = 0;
++        self.generation = None;
++    }
++
++    fn remove(&mut self, slot: &Slot) {
++        self.open.remove(slot);
++        if let Some((entry, used)) = self.closed.remove(slot) {
++            self.recency.remove(&used);
++            self.closed_bytes -= entry.bytes;
++        }
++    }
++
++    fn touch(&mut self, slot: &Slot) {
++        self.next_use += 1;
++        let next = self.next_use;
++        if let Some((_, used)) = self.closed.get_mut(slot) {
++            self.recency.remove(used);
++            *used = next;
++            self.recency.insert(next, slot.clone());
++        }
++    }
++
++    fn insert_closed(&mut self, slot: Slot, entry: Entry, limits: ReadonlyAnalysisMemoLimits) {
++        if limits.closed_entries == 0 || entry.bytes > limits.closed_bytes {
++            return;
++        }
++        while self.closed.len() >= limits.closed_entries
++            || self.closed_bytes + entry.bytes > limits.closed_bytes
++        {
++            let Some((_, evicted)) = self.recency.pop_first() else {
++                break;
++            };
++            if let Some((old, _)) = self.closed.remove(&evicted) {
++                self.closed_bytes -= old.bytes;
++            }
++        }
++        self.next_use += 1;
++        self.closed_bytes += entry.bytes;
++        self.recency.insert(self.next_use, slot.clone());
++        self.closed.insert(slot, (entry, self.next_use));
++    }
++}
++
++/// Backend-owned memo of read-only fresh analyses. Its lock is a leaf: it is
++/// never held across an `.await` or while another lock is taken.
++pub(super) struct ReadonlyAnalysisMemo {
++    limits: ReadonlyAnalysisMemoLimits,
++    state: std::sync::Mutex<MemoState>,
++    #[cfg(test)]
++    runs: std::sync::atomic::AtomicUsize,
++    #[cfg(test)]
++    hits: std::sync::atomic::AtomicUsize,
++}
++
++impl ReadonlyAnalysisMemo {
++    pub(super) fn new(limits: ReadonlyAnalysisMemoLimits) -> Self {
++        Self {
++            limits,
++            state: std::sync::Mutex::default(),
++            #[cfg(test)]
++            runs: std::sync::atomic::AtomicUsize::new(0),
++            #[cfg(test)]
++            hits: std::sync::atomic::AtomicUsize::new(0),
++        }
++    }
++
++    fn state(&self) -> std::sync::MutexGuard<'_, MemoState> {
++        self.state
++            .lock()
++            .unwrap_or_else(std::sync::PoisonError::into_inner)
++    }
++
++    fn lookup(&self, slot: &Slot, key: &FreshAnalysisKey) -> Option<Arc<AnalysisResult>> {
++        let mut state = self.state();
++        if let Some(entry) = state.open.get(slot).filter(|entry| entry.key == *key) {
++            return Some(Arc::clone(&entry.analysis));
++        }
++        let analysis = state
++            .closed
++            .get(slot)
++            .filter(|(entry, _)| entry.key == *key)
++            .map(|(entry, _)| Arc::clone(&entry.analysis))?;
++        state.touch(slot);
++        Some(analysis)
++    }
++
++    /// Retain a run. A run from an older epoch or factory generation than the
++    /// retained entries is dropped; a run from a newer one first drops every
++    /// retained entry, so superseded generations never outlive the bound.
++    fn insert(&self, slot: Slot, key: FreshAnalysisKey, analysis: Arc<AnalysisResult>) {
++        let generation = key.generation();
++        let bytes = estimated_bytes(&key.text);
++        let entry = Entry {
++            key,
++            analysis,
++            bytes,
++        };
++        let mut state = self.state();
++        if generation.0 < state.epoch_floor {
++            return;
++        }
++        let retained = state.generation;
++        match retained {
++            Some(current) if current == generation => {}
++            Some(current) if generation.0 < current.0 || generation.1 < current.1 => return,
++            _ => {
++                state.clear_entries();
++                state.generation = Some(generation);
++            }
++        }
++        state.remove(&slot);
++        if state.open_uris.contains(&slot.0) {
++            state.open.insert(slot, entry);
++        } else {
++            state.insert_closed(slot, entry, self.limits);
++        }
++    }
++
++    /// Drop every entry: the analyser-input epoch moved to `epoch`, so none
++    /// can hit, and a run still finishing under an earlier epoch is refused.
++    pub(super) fn clear(&self, epoch: u64) {
++        let mut state = self.state();
++        state.clear_entries();
++        state.epoch_floor = state.epoch_floor.max(epoch);
++    }
++
++    /// An opened document's entries leave the bounded tier.
++    pub(super) fn promote(&self, uri: &Uri) {
++        let mut state = self.state();
++        state.open_uris.insert(uri.clone());
++        for kind in KINDS {
++            let slot = (uri.clone(), kind);
++            if let Some((entry, used)) = state.closed.remove(&slot) {
++                state.recency.remove(&used);
++                state.closed_bytes -= entry.bytes;
++                state.open.insert(slot, entry);
++            }
++        }
++    }
++
++    /// A closed document's entries join the bounded tier, and later runs for
++    /// it insert there.
++    pub(super) fn demote(&self, uri: &Uri) {
++        let mut state = self.state();
++        state.open_uris.remove(uri);
++        for kind in KINDS {
++            let slot = (uri.clone(), kind);
++            if let Some(entry) = state.open.remove(&slot) {
++                state.insert_closed(slot, entry, self.limits);
++            }
++        }
++    }
++
++    /// Drop every entry of retired URIs.
++    pub(super) fn forget(&self, uris: &[Uri]) {
++        let mut state = self.state();
++        for uri in uris {
++            for kind in KINDS {
++                state.remove(&(uri.clone(), kind));
++            }
++        }
++    }
++
++    #[cfg(test)]
++    pub(super) fn runs(&self) -> usize {
++        self.runs.load(std::sync::atomic::Ordering::SeqCst)
++    }
++
++    #[cfg(test)]
++    pub(super) fn hits(&self) -> usize {
++        self.hits.load(std::sync::atomic::Ordering::SeqCst)
++    }
++
++    #[cfg(test)]
++    fn retained(&self) -> (usize, usize, usize) {
++        let state = self.state();
++        (state.open.len(), state.closed.len(), state.closed_bytes)
++    }
++}
++
++impl Backend {
++    /// The read-only driver's analysis of `text`, reused when every input the
++    /// driver reads is unchanged. The lookup, any run and the insertion happen
++    /// on the request's own blocking worker, exactly where the uncached run
++    /// happened.
++    pub(super) async fn readonly_analysis_seed(
++        &self,
++        uri: &Uri,
++        driver: FreshAnalysisDriver,
++        text: Arc<str>,
++        dialect: String,
++    ) -> DocumentSourceResult<FreshAnalysisSeed> {
++        let slot = (uri.clone(), driver.readonly_kind());
++        let uri_generation = self.live_publication_uri_generation(uri);
++        let memo = Arc::clone(&self.readonly_analysis_memo);
++        let original_uri = uri.clone();
++        crate::rt::spawn_blocking(move || {
++            let key = driver.readonly_key(&text, &dialect, uri_generation);
++            if let Some(analysis) = memo.lookup(&slot, &key) {
++                #[cfg(test)]
++                memo.hits.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
++                return driver.reuse(analysis);
++            }
++            #[cfg(test)]
++            memo.runs.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
++            let file_path = driver.file_path().map(str::to_owned);
++            let seed = driver.analyse(&text, &dialect, None)?;
++            // The run's own input names must be probed ones, and the probed
++            // sidecars must be unchanged across the run.
++            if analysis_stub_names(&seed.analysis)
++                .into_iter()
++                .all(|name| key.stub_names.contains(name))
++                && SidecarStubFingerprint::capture(file_path.as_deref(), &key.stub_names)
++                    == key.sidecars
++            {
++                memo.insert(slot, key, Arc::clone(&seed.analysis));
++            }
++            Ok(seed)
++        })
++        .await
++        .map_err(|_| super::DocumentSourceUnavailable::Worker { uri: original_uri })?
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::DocumentState;
++    use tower_lsp_server::LanguageServer;
++    use tower_lsp_server::ls_types::{
++        PartialResultParams, WorkDoneProgressParams, WorkspaceSymbolParams,
++    };
++
++    fn key(text: &str) -> FreshAnalysisKey {
++        FreshAnalysisKey {
++            text: Arc::from(text),
++            dialect: "tcl8.6".to_owned(),
++            inputs: super::super::FreshDriverInputs::default(),
++            analyser_inputs_epoch: 0,
++            class_factory_generation: 0,
++            uri_generation: 0,
++            stub_names: BTreeSet::new(),
++            sidecars: SidecarStubFingerprint(Vec::new()),
++        }
++    }
++
++    fn slot(name: &str) -> Slot {
++        (
++            format!("file:///memo/{name}.tcl").parse().unwrap(),
++            ReadonlyAnalysisKind::Fresh,
++        )
++    }
++
++    fn analysis() -> Arc<AnalysisResult> {
++        Arc::new(AnalysisResult::default())
++    }
++
++    #[test]
++    fn closed_entries_are_evicted_least_recently_used_first() {
++        let memo = ReadonlyAnalysisMemo::new(ReadonlyAnalysisMemoLimits {
++            closed_entries: 2,
++            closed_bytes: usize::MAX,
++        });
++        memo.insert(slot("a"), key("a"), analysis());
++        memo.insert(slot("b"), key("b"), analysis());
++        assert!(memo.lookup(&slot("a"), &key("a")).is_some());
++        memo.insert(slot("c"), key("c"), analysis());
++        assert!(memo.lookup(&slot("a"), &key("a")).is_some());
++        assert!(memo.lookup(&slot("b"), &key("b")).is_none());
++        assert!(memo.lookup(&slot("c"), &key("c")).is_some());
++        assert_eq!(memo.retained().1, 2);
++    }
++
++    #[test]
++    fn closed_entries_are_bounded_by_estimated_bytes() {
++        let one = estimated_bytes("a");
++        let memo = ReadonlyAnalysisMemo::new(ReadonlyAnalysisMemoLimits {
++            closed_entries: usize::MAX,
++            closed_bytes: one * 2,
++        });
++        for name in ["a", "b", "c"] {
++            memo.insert(slot(name), key(name), analysis());
++        }
++        let (_, closed, bytes) = memo.retained();
++        assert_eq!(closed, 2);
++        assert!(bytes <= one * 2);
++        let large = "x".repeat(one * 2);
++        memo.insert(slot("large"), key(&large), analysis());
++        assert!(memo.lookup(&slot("large"), &key(&large)).is_none());
++    }
++
++    #[test]
++    fn the_open_set_selects_the_tier_and_close_demotes() {
++        let memo = ReadonlyAnalysisMemo::new(ReadonlyAnalysisMemoLimits {
++            closed_entries: 1,
++            closed_bytes: usize::MAX,
++        });
++        for name in ["a", "b", "c"] {
++            memo.promote(&slot(name).0);
++            memo.insert(slot(name), key(name), analysis());
++        }
++        assert_eq!(memo.retained().0, 3);
++        for name in ["a", "b"] {
++            memo.demote(&slot(name).0);
++        }
++        assert_eq!(memo.retained(), (1, 1, estimated_bytes("b")));
++        assert!(memo.lookup(&slot("a"), &key("a")).is_none());
++        assert!(memo.lookup(&slot("b"), &key("b")).is_some());
++        // A run that started while `a` was open and finishes after its close
++        // joins the bounded tier.
++        memo.insert(slot("a"), key("a"), analysis());
++        assert_eq!(memo.retained(), (1, 1, estimated_bytes("a")));
++        memo.promote(&slot("a").0);
++        assert_eq!(memo.retained(), (2, 0, 0));
++        memo.forget(&[slot("a").0, slot("c").0]);
++        assert_eq!(memo.retained(), (0, 0, 0));
++    }
++
++    #[test]
++    fn any_changed_input_is_a_miss_and_replaces_the_slot() {
++        let memo = ReadonlyAnalysisMemo::new(ReadonlyAnalysisMemoLimits::default());
++        memo.promote(&slot("a").0);
++        memo.insert(slot("a"), key("a"), analysis());
++        let mut epoch = key("a");
++        epoch.analyser_inputs_epoch = 1;
++        let mut uri_generation = key("a");
++        uri_generation.uri_generation = 1;
++        let mut stubs = key("a");
++        stubs.sidecars = SidecarStubFingerprint(vec![(PathBuf::from("/s.tcl.stubs"), false, None)]);
++        let mut structure = key("a");
++        structure.inputs.structure_only = true;
++        for changed in [key("b"), epoch, uri_generation, stubs, structure] {
++            assert!(memo.lookup(&slot("a"), &changed).is_none());
++        }
++        memo.insert(slot("a"), key("b"), analysis());
++        assert!(memo.lookup(&slot("a"), &key("a")).is_none());
++        assert_eq!(memo.retained().0, 1);
++    }
++
++    #[test]
++    fn superseded_generations_are_never_retained() {
++        let memo = ReadonlyAnalysisMemo::new(ReadonlyAnalysisMemoLimits::default());
++        memo.promote(&slot("open").0);
++        memo.insert(slot("open"), key("open"), analysis());
++        memo.insert(slot("closed"), key("closed"), analysis());
++        assert_eq!(memo.retained(), (1, 1, estimated_bytes("closed")));
++        let mut newer = key("new");
++        newer.class_factory_generation = 1;
++        memo.insert(slot("new"), newer.clone(), analysis());
++        assert_eq!(memo.retained(), (0, 1, estimated_bytes("new")));
++        // A run that read the older generation arrives late and is dropped.
++        memo.insert(slot("open"), key("open"), analysis());
++        assert!(memo.lookup(&slot("open"), &key("open")).is_none());
++        assert!(memo.lookup(&slot("new"), &newer).is_some());
++        memo.clear(1);
++        assert_eq!(memo.retained(), (0, 0, 0));
++        // A run from before the epoch moved is refused.
++        memo.insert(slot("new"), newer, analysis());
++        assert_eq!(memo.retained(), (0, 0, 0));
++    }
++
++    fn scratch_dir(tag: &str) -> PathBuf {
++        let nanos = std::time::SystemTime::now()
++            .duration_since(std::time::UNIX_EPOCH)
++            .unwrap()
++            .as_nanos();
++        let dir = std::env::temp_dir().join(format!(
++            "tcl-lsp-readonly-memo-{tag}-{}-{nanos}",
++            std::process::id()
++        ));
++        std::fs::create_dir_all(&dir).unwrap();
++        dir
++    }
++
++    #[test]
++    fn sidecar_fingerprint_probes_exactly_the_candidate_names() {
++        let root = scratch_dir("sidecars");
++        let nested = root.join("nested");
++        std::fs::create_dir_all(&nested).unwrap();
++        let document = nested.join("main.tcl");
++        let path = document.to_str().unwrap();
++        let names = sidecar_stub_names("tcl8.6", None);
++        assert!(names.contains("tcl8.6"));
++        let empty = SidecarStubFingerprint::capture(Some(path), &names);
++        std::fs::write(root.join("unrelated.tcl.stubs"), "proc other {}\n").unwrap();
++        assert_eq!(empty, SidecarStubFingerprint::capture(Some(path), &names));
++        std::fs::write(root.join("tcl8.6.tcl.stubs"), "proc stubbed {}\n").unwrap();
++        let outer = SidecarStubFingerprint::capture(Some(path), &names);
++        assert_ne!(empty, outer);
++        std::fs::write(root.join("tcl8.6.tcl.stubs"), "proc changed {}\n").unwrap();
++        let changed = SidecarStubFingerprint::capture(Some(path), &names);
++        assert_ne!(outer, changed);
++        assert_eq!(changed, SidecarStubFingerprint::capture(Some(path), &names));
++        // A candidate that is not a readable file has no content, as the
++        // analyser's lookup skips it, but is still observed.
++        std::fs::create_dir_all(nested.join("tcl8.6.tcl.stubs")).unwrap();
++        let directory = SidecarStubFingerprint::capture(Some(path), &names);
++        assert_eq!(directory, changed);
++        assert_eq!(
++            SidecarStubFingerprint::capture(None, &names),
++            SidecarStubFingerprint(Vec::new())
++        );
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    async fn register_open(backend: &Backend, uri: &Uri, source: &str) {
++        backend.documents.lock("readonly memo test").await.insert(
++            uri.clone(),
++            DocumentState::new(source.to_owned(), "tcl8.6".to_owned()),
++        );
++        // `did_open` records the open document for the memo.
++        backend.readonly_analysis_memo.promote(uri);
++        backend
++            .db_set_source(uri, source, "tcl8.6".to_owned())
++            .await
++            .unwrap();
++        let analysis = backend
++            .analysis_for(uri, Arc::from(source), "tcl8.6".to_owned())
++            .await
++            .unwrap();
++        backend
++            .workspace_index
++            .write()
++            .await
++            .replace_document(uri.as_str(), &analysis);
++    }
++
++    async fn symbols(
++        backend: &Backend,
++    ) -> Option<tower_lsp_server::ls_types::WorkspaceSymbolResponse> {
++        backend
++            .symbol(WorkspaceSymbolParams {
++                query: "memo_helper".to_owned(),
++                work_done_progress_params: WorkDoneProgressParams::default(),
++                partial_result_params: PartialResultParams::default(),
++            })
++            .await
++            .unwrap()
++    }
++
++    async fn index_closed(backend: &Backend, root: &Path) {
++        let on_disk = root.join("closed.tcl");
++        let closed_source = "proc memo_helper_closed {} {}\n";
++        std::fs::write(&on_disk, closed_source).unwrap();
++        let closed = Uri::from_file_path(&on_disk).unwrap();
++        let indexed = tcl_compiler::analyser::Analyser::new().analyse(closed_source, "tcl8.6");
++        backend
++            .workspace_index
++            .write()
++            .await
++            .add_document(closed.as_str(), &indexed);
++    }
++
++    /// Work budget: a repeated workspace-symbol request analyses no warm
++    /// document again, open or closed.
++    #[tokio::test]
++    async fn repeated_workspace_symbol_requests_analyse_nothing_again() {
++        let backend = crate::tests::test_backend();
++        let open: Uri = "file:///memo/open.tcl".parse().unwrap();
++        register_open(&backend, &open, "proc memo_helper_open {} {}\n").await;
++        let root = scratch_dir("closed");
++        index_closed(&backend, &root).await;
++
++        let first = symbols(&backend).await;
++        let Some(tower_lsp_server::ls_types::WorkspaceSymbolResponse::Flat(found)) = &first else {
++            panic!("expected a flat symbol list, got {first:?}");
++        };
++        assert_eq!(found.len(), 2, "{found:?}");
++        let warmed = backend.readonly_analysis_memo.runs();
++        assert_eq!(warmed, 2);
++        assert_eq!(symbols(&backend).await, first);
++        assert_eq!(backend.readonly_analysis_memo.runs(), warmed);
++        assert_eq!(backend.readonly_analysis_memo.hits(), 2);
++
++        // A configuration change clears every entry.
++        backend.invalidate_diag_inputs();
++        assert_eq!(backend.readonly_analysis_memo.retained(), (0, 0, 0));
++        assert_eq!(symbols(&backend).await, first);
++        assert_eq!(backend.readonly_analysis_memo.runs(), warmed + 2);
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    /// Work budget for the closed-tier bound: with no closed tier a closed
++    /// document is analysed on every request, while the open document stays
++    /// warm.
++    #[tokio::test]
++    async fn closed_documents_follow_the_closed_tier_bound() {
++        let mut backend = crate::tests::test_backend();
++        backend.readonly_analysis_memo =
++            Arc::new(ReadonlyAnalysisMemo::new(ReadonlyAnalysisMemoLimits {
++                closed_entries: 0,
++                closed_bytes: 0,
++            }));
++        let open: Uri = "file:///memo/bounded-open.tcl".parse().unwrap();
++        register_open(&backend, &open, "proc memo_helper_open {} {}\n").await;
++        let root = scratch_dir("bounded");
++        index_closed(&backend, &root).await;
++
++        let first = symbols(&backend).await;
++        assert!(first.is_some());
++        assert_eq!(backend.readonly_analysis_memo.runs(), 2);
++        assert_eq!(symbols(&backend).await, first);
++        assert_eq!(backend.readonly_analysis_memo.runs(), 3);
++        std::fs::remove_dir_all(&root).ok();
++    }
++
++    /// An edit to an open document is a miss for that document only.
++    #[tokio::test]
++    async fn an_edited_open_document_is_analysed_once_more() {
++        let backend = crate::tests::test_backend();
++        let edited: Uri = "file:///memo/edited.tcl".parse().unwrap();
++        let steady: Uri = "file:///memo/steady.tcl".parse().unwrap();
++        register_open(&backend, &edited, "proc memo_helper_a {} {}\n").await;
++        register_open(&backend, &steady, "proc memo_helper_b {} {}\n").await;
++        assert!(symbols(&backend).await.is_some());
++        assert_eq!(backend.readonly_analysis_memo.runs(), 2);
++        register_open(&backend, &edited, "proc memo_helper_c {} {}\n").await;
++        assert!(symbols(&backend).await.is_some());
++        assert_eq!(backend.readonly_analysis_memo.runs(), 3);
++    }
++}
+diff --git a/docs/design/contracts/name-handling.md b/docs/design/contracts/name-handling.md
+--- a/docs/design/contracts/name-handling.md
++++ b/docs/design/contracts/name-handling.md
+@@ -2115,6 +2115,44 @@
+ contract does not invent a physical Native file-content lock. No runtime table,
+ lookup, body/frame entry, Native, Normal or edit permission follows.
+ 
++Read-only analysis reuse. Each readonly producer above (the database-input
++driver of the OriginalReadonlyReferenceDocument owner, the Fresh seed of
++Pending, Salsa and no-handle sources, and the structure-only coarse-token
++driver) is the configured FreshAnalysisDriver, a pure function of its complete
++input: the source text, dialect, the configuration values the driver was built
++from (disabled codes, non-ASCII mode, extra commands, pack key and resource
++inputs), the published class-factory allocation, the analyser path, any
++supplied document analysis input, the structure-only selection, the candidate
++sidecar stubs in the document's ancestor directories, the analyser-input
++epoch, the factory generation and the URI publication generation. The
++backend's ReadonlyAnalysisMemo returns a stored run only when that whole input
++is equal, and otherwise runs the driver exactly as before; a run whose own
++input names a sidecar outside the probed candidates is not retained. A hit
++replaces only
++the producer call: the request's path receipt is checked as a run would check
++it, and every capture, snapshot and final-transaction predicate in this
++section still runs on the request's own captured state. The memo holds no
++database snapshot, never enters the Salsa memo or its LRU, and does its
++lookup, run and insertion on the request's own blocking worker. Open documents
++keep one entry per URI and purpose. Closed documents, and an open document's
++entries once it closes, share a least-recently-used tier bounded by entry
++count and estimated bytes (`ReadonlyAnalysisMemoLimits`, by default 256
++entries and 512 MiB, applied to an estimate of each analysis's size). This
++closed tier is the one exception to deep analysis state being an open-document
++cost: it holds read-only fresh analyses only and never warms the Salsa deep
++tier. The tier an entry joins comes from the memo's own open set, which
++`didOpen` and `didClose` maintain, not from the request's earlier snapshot.
++Process-global registry state the driver reads (pack and spec reloads and the
++core surface generation behind the context-registry cache) changes only under
++the analyser-input gate, which advances the analyser-input epoch; the epoch is
++part of the key, and advancing it clears the memo and refuses runs from
++earlier epochs, so no superseded registry or factory generation is retained.
++Sidecar stubs are probed by exact name (the dialect and the analyser and unit
++profile names of its environment and of any supplied input) in every ancestor
++directory, recording what the analyser's lookups observe: whether the
++candidate is a file and its UTF-8 content. Retired URIs leave the memo through
++`forget_uri_states`.
++
+ This is a bounded successor for existing workspace-symbol source-snapshot
+ purpose and validation row724. It advances no baseline counts and preserves
+ all original selectors, fixtures, assertions, cap and budgets. The timeout log
+diff --git a/docs/design/contracts/shared-utility-contracts-rust.md b/docs/design/contracts/shared-utility-contracts-rust.md
+--- a/docs/design/contracts/shared-utility-contracts-rust.md
++++ b/docs/design/contracts/shared-utility-contracts-rust.md
+@@ -634,7 +634,7 @@
+ | Logical source lens identity and publication | `rust/tcl-lsp-core/src/code_lens.rs`; `rust/tcl-lsp-core/src/code_lens/logical_source.rs`; `rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs`; `rust/tcl-lsp-core/src/original_declaration.rs`; `rust/tcl-lsp-server/src/readonly_reference_reports.rs`; `rust/tcl-lsp-server/src/lib.rs` | `LogicalLensIdentity`; `LogicalLensIdentity::is_current_in`; `LogicalSourceLens`; `logical_source_lenses`; `LogicalLensReferenceAdvice`; `LogicalLensReferenceAdvice::is_current`; `logical_lens_reference_advice`; `OriginalDeclarationRegistry::issue_logical_lens`; `OriginalDeclarationRegistry::resolve_logical_lens` | actual original procedure headers, completed class snapshots and member Name/body/side vectors own positive readonly declaration selections; the private declaration-only CALL issuer is reused without a fabricated cursor/item, while class-command positives retain whole original argv/factory/input; schema4 remains separate from Native1/TYPE2/CALL3 and retains the actual Server prepare-time source/provider/DB/config/publication/index-generation stamp through the unchanged final readonly lease; unknown/stale/evicted/foreign handles and legacy labels/ranges are terminal; possible calls are only a partial reference subset, unrepresented property/lifecycle/captured/noncall and foreign class providers remain debt, partial counts never prove zero/absence/census/edit/dispatch/Normal, and original Native reference guards stay independent | `xtask-owner-resolution` |
+ | Opaque editor wire session allocations | `rust/tcl-lsp-core/src/wire_session.rs`; `rust/tcl-lsp-core/src/original_declaration.rs`; `rust/tcl-lsp-core/Cargo.toml` | `EditorWireSession`; `EditorWireSession::allocate` | actual OS/WASI or browser Web Crypto randomness allocates a sealed16-byte transport discriminator once per host registry/ledger; serde transparent byte arrays retain exact JSON values without large-number rounding, and decoding supplies equality data only; unavailable randomness grants no fallback allocation, source hash/time/counter never substitutes, and callers retain separate purpose/schema/token/source/provider publication guards; CALLschema3 and companion lensschema4 require their issuing allocation before row reborrow, while Native1/TYPE2 keep their original wire and selection purpose; no name, Native, execution, Normal, source currency, cryptographic message-authentication or completeness authority follows | `xtask-owner-resolution` |
+ | Positioned Logical procedure signatures and original argument cursor | `rust/tcl-lexer/src/word_parts/cursor.rs`; `rust/tcl-lexer/src/word_parts.rs`; `rust/tcl-compiler/src/command_binding/source_transition_advice.rs`; `rust/tcl-compiler/src/command_binding/source_transition_advice/logical_procedure_invocation.rs`; `rust/tcl-compiler/src/command_binding/source_transition_advice/logical_navigation.rs`; `rust/tcl-compiler/src/analyser/types/logical_procedures.rs`; `rust/tcl-compiler/src/realm/source_transition_advice.rs`; `rust/tcl-compiler/src/registry_invocation/source_structure.rs`; `rust/tcl-lsp-core/src/signature_help.rs` | `ArgumentCursor`; `argument_cursor_in`; `ArgumentCursor::parse_cut`; `ArgumentCursor::head_word`; `OriginalLogicalProcedureCall`; `OriginalLogicalProcedureCall::declaration`; `OriginalLogicalProcedureCall::active_parameter_for_cursor`; `OriginalLogicalProcedureCall::has_unresolved_applicability`; `OriginalLogicalProcedureCall::source_slot`; `OriginalLogicalProcedureCall::lineage`; `source_logical_procedure_call_at`; `LogicalSourceProcedureDeclaration::original_source_formals`; `OriginalLogicalAbsoluteCommandCandidate::original_words` | strict current UTF16 source position and actual selected script region precede complete configured lexical grouping, original head/whole command extent/written argv boundary and honest shared parse cut; no prefix reparsing, repaired active word or fabricated closer; dynamic/expanded geometry remains separate from evaluated argc and the existing independently admitted Native alias/expanded-child ordinal mapping; distinct Logical Definition transition cells share the exact existing source lookup/alias/captured-prefix/move/delete kernel and never enter Native SourceProcedure/Descriptor selection; exact call image/input/source recipe/definition/lineage/prefix reissues a genuine Logical header at its original selected factory parent, then original coordinate/formals render signature labels without final report-map or terminal-name inverses; earlier unknown/current operand effects remain explicit source-signature applicability, missing/foreign/conflicting/deleted/future/unrepresented targets refuse and built-in schemas keep their actual complete Registry/context availability; common source-word/frame geometry grants no variable occurrence/read, no entered frame/formal binding/Native execution/Normal/absence/edit permission, and false debt supplies no complete source/call census | `xtask-owner-resolution` |
+-| Workspace-symbol request source and input currency | `rust/tcl-lsp-server/src/readonly_reference_reports.rs`; `rust/tcl-lsp-server/src/lib.rs` | `WorkspaceSymbolSourceAnalysis`; `Backend::capture_workspace_symbol_analysis`; `Backend::finish_workspace_symbol_response`; `Backend::with_current_readonly_source_state`; `FreshAnalysisSeed`; `Backend::capture_coarse_semantic_source`; `Backend::with_current_coarse_semantic_source` | actual workspace/symbol retains one checked complete-source analysis/full-input owner per URI and reuses fallback seeds; original indexed-location URI/validated_span and Logical source/index owners remain independently required; published DB documents reuse the existing readonly SourceFile/input/publication owner while genuine Pending/Salsa/no-handle source retains its real fresh seed, exact configuration/input/factory/publication/path receipts without a fabricated file or missing-source inference; DB documents also retain the configuration values read under their input's database lock; the factored existing final transaction holds input/factory/open/DB/publication owners from once-per-URI full-input checks through the joint original source-read and current-analysis SourceStore provider leases; supplied source admissions must own the same row URI and missing original HostReported file receipts refuse, so equal-byte/path alias replacement cannot renew an old source issuer and nonblocking per-document index revision validation in documents-to-index order; one request answers from its captured snapshot (#1854): the global DB revision is not compared, an open buffer whose client version rose after capture without its revision going backwards (including a reopen of a revision-0 capture) keeps its captured row unless deleted or closed, and every other row, closed files included, must remain the exact captured revision and index revision, so a closed file changed on disk is withdrawn deliberately; code-action, coarse-token and reference consumers keep strict live currency; original reference predicates, orphan exclusion, cap and source/unknown/Native boundaries remain, and unavailable/busy ownership supplies neither empty-workspace nor absence/lookup/execution/Normal/edit authority; source-only analysis reuse makes no measured performance claim; the distinct semantic-token coarse purpose reuses the actual configured FreshAnalysisDriver with structure_only and the same fresh-source matcher/final transaction, retaining original URI/raw source/version/publication/path, full input/configuration/DB/factory/epoch state through full and delta cache mutation plus wire projection; this source-presentation purpose may retain an unchanged orphan open buffer without contributing workspace facts, while existing readonly workspace/reference orphan exclusion remains exact; unsupported or busy current ownership errors rather than producing a fake empty token stream, and a syntax stream/settled marker supplies no enriched completion, Native execution or diagnostic absence; the ordinary code-action adapter reuses this same DB/Fresh currency kernel, retaining actual open document/version/raw source, full input/factory epochs and the original export generation through versioned edit publication; Core action subjects and edit admissibility remain independently required, and version-less/closed ordinary edit publication is unavailable; the Node/browser adapter retains the actual provider TextDocument and original session/full resource settings across awaits, replaces the converter's version-less autoedit with the existing checked source writer and derives rename intent only from that writer's actual post-edit snapshot; absent/malformed wire intent, changed source/version/session/settings/provider or unavailable original ownership cannot mint an action; the separately identified BIG-IP adapter keeps its existing routing and has no new acceptance claim | `xtask-owner-resolution` |
++| Workspace-symbol request source and input currency | `rust/tcl-lsp-server/src/readonly_reference_reports.rs`; `rust/tcl-lsp-server/src/lib.rs`; `rust/tcl-lsp-server/src/readonly_analysis_memo.rs` | `WorkspaceSymbolSourceAnalysis`; `Backend::capture_workspace_symbol_analysis`; `Backend::finish_workspace_symbol_response`; `Backend::with_current_readonly_source_state`; `FreshAnalysisSeed`; `Backend::capture_coarse_semantic_source`; `Backend::with_current_coarse_semantic_source`; `ReadonlyAnalysisMemo`; `Backend::readonly_analysis_seed` | actual workspace/symbol retains one checked complete-source analysis/full-input owner per URI and reuses fallback seeds; original indexed-location URI/validated_span and Logical source/index owners remain independently required; published DB documents reuse the existing readonly SourceFile/input/publication owner while genuine Pending/Salsa/no-handle source retains its real fresh seed, exact configuration/input/factory/publication/path receipts without a fabricated file or missing-source inference; DB documents also retain the configuration values read under their input's database lock; the factored existing final transaction holds input/factory/open/DB/publication owners from once-per-URI full-input checks through the joint original source-read and current-analysis SourceStore provider leases; supplied source admissions must own the same row URI and missing original HostReported file receipts refuse, so equal-byte/path alias replacement cannot renew an old source issuer and nonblocking per-document index revision validation in documents-to-index order; one request answers from its captured snapshot (#1854): the global DB revision is not compared, an open buffer whose client version rose after capture without its revision going backwards (including a reopen of a revision-0 capture) keeps its captured row unless deleted or closed, and every other row, closed files included, must remain the exact captured revision and index revision, so a closed file changed on disk is withdrawn deliberately; code-action, coarse-token and reference consumers keep strict live currency; original reference predicates, orphan exclusion, cap and source/unknown/Native boundaries remain, and unavailable/busy ownership supplies neither empty-workspace nor absence/lookup/execution/Normal/edit authority; source-only analysis reuse makes no measured performance claim; every readonly producer (database-input, Fresh and structure-only drivers) reuses the configured FreshAnalysisDriver's own run through ReadonlyAnalysisMemo only under an equal complete driver input (source text, dialect, built configuration values, published factory allocation, analyser path, supplied input, structure-only selection, candidate sidecar stubs probed by exact name in every ancestor directory, input/factory epochs and URI publication generation), keeps the path-receipt check and every capture/snapshot/final-transaction predicate, holds no database snapshot and starts no work beyond the request's blocking worker; open documents (the memo's own didOpen/didClose set) keep one entry per URI and purpose, closed documents share an entry- and estimated-byte-bounded LRU, the one exception to deep analysis state being an open-document cost; only current-epoch and current-factory-generation entries are retained, and an analyser-input epoch advance, which covers process-global registry reloads, clears the memo and refuses earlier-epoch runs; the distinct semantic-token coarse purpose reuses the actual configured FreshAnalysisDriver with structure_only and the same fresh-source matcher/final transaction, retaining original URI/raw source/version/publication/path, full input/configuration/DB/factory/epoch state through full and delta cache mutation plus wire projection; this source-presentation purpose may retain an unchanged orphan open buffer without contributing workspace facts, while existing readonly workspace/reference orphan exclusion remains exact; unsupported or busy current ownership errors rather than producing a fake empty token stream, and a syntax stream/settled marker supplies no enriched completion, Native execution or diagnostic absence; the ordinary code-action adapter reuses this same DB/Fresh currency kernel, retaining actual open document/version/raw source, full input/factory epochs and the original export generation through versioned edit publication; Core action subjects and edit admissibility remain independently required, and version-less/closed ordinary edit publication is unavailable; the Node/browser adapter retains the actual provider TextDocument and original session/full resource settings across awaits, replaces the converter's version-less autoedit with the existing checked source writer and derives rename intent only from that writer's actual post-edit snapshot; absent/malformed wire intent, changed source/version/session/settings/provider or unavailable original ownership cannot mint an action; the separately identified BIG-IP adapter keeps its existing routing and has no new acceptance claim | `xtask-owner-resolution` |
+ | Original current definition grammar cursor | `rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-lsp-core/src/source_structure.rs`; `rust/tcl-lsp-core/src/oo_body.rs`; `rust/tcl-lsp-core/src/completion.rs`; `rust/tcl-lsp-core/src/code_actions.rs` | `OriginalSourceScriptBody::definition_member_region`; `OriginalSourceScriptBody::definition_parent_for`; `OriginalSourceScriptBody::source_words`; `OriginalSourceDefinitionMemberRegion`; `CommandRegistry::authored_document_member_grammar` | exact current Document image, complete resolved input/configuration and actual Registry/context precede the existing original body walk; each selected nested vocabulary retains its actual script issuer, full original argv and definition member region; closed authored document blocks additionally require the genuine written head, actual selected child schema and current Registry parent/member vocabulary relation to agree; missing, malformed, ambiguous, dynamic/cooked/unrepresented interior and depth-cutoff traversal are typed unavailable, never the previous selected grammar; known ordinary member scripts remain distinct; standalone root authoring retains its own explicit configured document grammar and any unavailable-child debt, may supply root authoring suggestions but cannot donate nested selection or candidate edits; actual completion keeps the typed receipt through its purpose-limited rendering, while SpecPack property-word candidate edits require an independently selected vocabulary and retain every original typed notice/currentness/Native/edit guard; compatibility standalone vocabulary is separate and grants no current source command/body selection; no runtime frame, execution, Native, absence, effect or Normal authority | `xtask-owner-resolution` |
+ | Original optimiser rewrite issuance | `rust/tcl-compiler/src/compilation_unit.rs`; `rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs`; `rust/tcl-compiler/src/lowering/mod.rs`; `rust/tcl-compiler/src/optimiser/mod.rs`; `rust/tcl-compiler/src/optimiser/original_report.rs`; `rust/tcl-compiler/src/optimiser/manager.rs`; `rust/tcl-compiler/src/body_analysis_capsule.rs`; `rust/tcl-compiler/src/analyser/types.rs`; `rust/tcl-lsp-db/src/lib.rs`; `rust/tcl-lsp-core/src/diagnostic_policy.rs`; `rust/tcl-lsp-core/src/code_actions/diagnostic_currency.rs`; `rust/tcl-lsp-core/src/code_actions.rs`; `rust/tcl-lsp-server/src/lib.rs` | `OriginalRawOptimiserReport::members`; `OriginalBodyOptimiserReport::members`; `OriginalOptimiserAssembly::for_body_partition`; `OriginalOptimiserAssembly::top_level_unit`; `OriginalOptimiserAssembly::append_body`; `OriginalOptimiserAssembly::append_top_level`; `OriginalOptimiserAssembly::finish_report`; `OriginalOptimiserRewriteBatch::image`; `OriginalOptimiserRewriteBatch::analysis_input`; `OriginalOptimiserRewriteBatch::registry`; `OriginalOptimiserRewriteBatch::matches_source_realm`; `OriginalOptimiserRewriteBatch::source_origin`; `Optimisation::original_rewrite_batch`; `Optimisation::is_original_rewrite_group`; `Optimisation::same_original_rewrite_provenance`; `optimise_unit_raw_report`; `finalise_original_optimiser_report`; `BodyAnalysisCapsule::original_optimiser_analysis_context`; `BodyAnalysisCapsule::original_body_optimiser_report`; `BodyAnalysisCapsule::original_interproc_taint_report`; `OriginalInterproceduralTaintReport::taints`; `OriginalInterproceduralTaintRequest::body_capsule`; `CompilationUnit::original_optimiser_top_level_view`; `CompilationUnit::build_memoized_with_original_body_lowering`; `CompilationUnit::with_original_interprocedural_memoized`; `OriginalBodyLoweringTemplate::lower`; `OriginalBodyLoweringTemplate::body`; `AnalysisResult::matches_optimiser_source_origin`; `AnalysisResult::original_optimiser_source_unit`; `Finding::rewrite_payload`; `Finding::original_optimiser_rewrite`; `DiagnosticEditSource::matches_optimiser_rewrite_group` ; `original_lower_proc_body`; `original_taint_cascade`; `function_optimisations`; `compiler_check_diagnostics_if_available`; `compilation_unit_uncached_from_analysis` | original private source, callback and effective-dialect producer receipts authenticate actual whole pass inputs; complete raw/body/top collections retain empty and omitted-roster distinctions; existing neutral capsule correspondence owns narrow memo rebind, never current-root donation; arbitrary vectors/manual rewrites remain reporting-only; actual final worker group plus independent current source-origin/Realm/input/Registry and policy eligibility authorize only the existing LSP edit projection; no Native/Normal/absence/execution or new FixSafety grant ; actual DB keys independently rejoin the source-issued lattice recipe; typed lowering/taint/body memos retain unavailable versus complete-empty and exact optional dialect; CheckSolve and CompilerDiagnostics preserve old payload comparison plus authenticated final provenance for Salsa currency | `xtask-owner-resolution` |
+ | Live Studio source publication | `rust/tcl-lsp-server/src/lib.rs`; `rust/tcl-lsp-server/src/studio_source.rs`; `rust/tcl-spectcl/src/discovery.rs`; `rust/tcl-spectcl/src/bundled.rs`; `rust/tcl-spectcl/src/pack.rs`; `rust/tcl-spectcl/src/registration.rs`; `rust/tcl-lsp-core/src/wire_session.rs`; `rust/tcl-lsp-core/src/vfs.rs` | `Backend`; `SourceStore`; `discover_with_active_studio_in`; `is_workspace_studio_source`; `load_discovered_with_studio_sources_in`; `publish_pack_extension_routes`; `EditorWireSession::allocate` | Backend-local random allocation and original provider/path admission select explicit saved Studio source images; default/restarted Backend has no active rows, inactive acquisition grants no pack, strict increasing revisions and terminal retirement reject stale/foreign sessions, and retained-image loading never substitutes later path text; actual reload joins the ledger generation, original provider mappings and exact saved images under the existing analyser-input/pack publication locks (Memory mappings/bytes held, Native/WASI last actual observations without external-writer exclusion), rechecks source acknowledgements after awaits, and confirms actual retired-owner withdrawal before acknowledging disposal, then republishes hook/environment/Registry/Salsa inputs and refreshes; retiring/disposal needs no file deletion, standalone filesystem discovery grants no live-session receipt, and missed disposal on a live connection is not automatically detected; no Native/name/execution/Normal/absence/file-cleanup authority follows | `xtask-owner-resolution` |
+@@ -1440,6 +1440,8 @@
+ | Workspace-symbol request source and input currency | `rust/tcl-lsp-server/src/readonly_reference_reports.rs` | `tcl-lsp-server` | `crate::readonly_reference_reports` | `ReadonlySourceState` | private | `rust/tcl-lsp-server/src/readonly_reference_reports.rs` | `crate::readonly_reference_reports` | `WorkspaceSymbolSourceAnalysis::matches_current_state` | `type` |
+ | Workspace-symbol request source and input currency | `rust/tcl-lsp-server/src/lib.rs` | `tcl-lsp-server` | `crate` | `FreshAnalysisSeed` | private | `rust/tcl-lsp-server/src/readonly_reference_reports.rs` | `crate::readonly_reference_reports` | `WorkspaceSymbolFreshInput` | `type` |
+ | Workspace-symbol request source and input currency | `rust/tcl-lsp-server/src/lib.rs` | `tcl-lsp-server` | `crate` | `Backend::fresh_analysis_seed` | private | `rust/tcl-lsp-server/src/readonly_reference_reports.rs` | `crate::readonly_reference_reports` | `Backend::capture_workspace_symbol_analysis` | `self` |
++| Workspace-symbol request source and input currency | `rust/tcl-lsp-server/src/readonly_analysis_memo.rs` | `tcl-lsp-server` | `crate::readonly_analysis_memo` | `ReadonlyAnalysisMemo` | pub(super) | `rust/tcl-lsp-server/src/lib.rs` | `crate` | `PerUriCaches` | `type` |
++| Workspace-symbol request source and input currency | `rust/tcl-lsp-server/src/readonly_analysis_memo.rs` | `tcl-lsp-server` | `crate::readonly_analysis_memo` | `Backend::readonly_analysis_seed` | pub(super) | `rust/tcl-lsp-server/src/readonly_reference_reports.rs` | `crate::readonly_reference_reports` | `Backend::capture_readonly_reference_document` | `self` |
+ | Original class member source association | `rust/tcl-lsp-server/src/readonly_reference_reports.rs` | `tcl-lsp-server` | `crate::readonly_reference_reports` | `OriginalReadonlyReferenceDocument` | private | `rust/tcl-lsp-server/src/readonly_reference_reports.rs` | `crate::readonly_reference_reports` | `WorkspaceSymbolAnalysisKind` | `type` |
+ | Original current definition grammar cursor | `rust/tcl-lsp-core/src/source_structure.rs` | `tcl-lsp-core` | `crate::source_structure` | `SourceStructure::definition_grammar_at` | pub(crate) | `rust/tcl-lsp-core/src/oo_body.rs` | `crate::oo_body` | `definition_grammar_from_analysis` | `static` |
+ | Original current definition grammar cursor | `rust/tcl-lsp-core/src/source_structure.rs` | `tcl-lsp-core` | `crate::source_structure` | `SourceDefinitionGrammar` | pub(crate) | `rust/tcl-lsp-core/src/oo_body.rs` | `crate::oo_body` | `definition_grammar_from_analysis` | `signature-type` |
+diff --git a/docs/design/rust/lsp-performance.md b/docs/design/rust/lsp-performance.md
+--- a/docs/design/rust/lsp-performance.md
++++ b/docs/design/rust/lsp-performance.md
+@@ -197,6 +197,21 @@
+ fresh snapshot per read and does **not** install it in the open-document store,
+ so a cross-file read cannot retain every file it ever touched.
+ 
++The one bounded exception is the read-only analysis memo
++(`readonly_analysis_memo.rs`). Read-only requests (workspace symbols, reference
++reports, call hierarchy, logical lenses, coarse semantic tokens) reuse their
++fresh-driver analysis, together with the source text it was keyed on. Open
++documents keep one entry per URI and purpose. Closed documents share a
++least-recently-used tier bounded by entry count and estimated bytes
++(`ReadonlyAnalysisMemoLimits`, by default 256 entries and 512 MiB). The byte
++bound applies to an estimate (64 bytes per source byte plus 16 KiB per
++entry), not to measured allocations. Only entries of the current
++analyser-input epoch and class-factory generation are kept, so a superseded
++registry or factory generation is released when the epoch moves rather than
++outliving the bound. The memo never enters the Salsa deep tier, and a
++workspace-symbol request touching more closed files than the entry bound gets
++no reuse across requests.
++
+ Pinned by `concurrent_snapshots_share_one_text_and_index_allocation` (32
+ overlapping readers share one allocation),
+ `an_edit_never_mutates_a_snapshot_an_in_flight_request_holds`,

@@ -1,0 +1,240 @@
+diff --git a/rust/tcl-compiler/src/interprocedural.rs b/rust/tcl-compiler/src/interprocedural.rs
+--- a/rust/tcl-compiler/src/interprocedural.rs
++++ b/rust/tcl-compiler/src/interprocedural.rs
+@@ -1024,9 +1024,62 @@
+     source_bodies: &HashMap<ProcedureId, &crate::ir::Procedure>,
+ ) -> HashMap<ProcedureId, crate::taint::InstanceClassState> {
+     let source = crate::taint::TaintSourceContext::for_module(registry, ir_module);
+-    // Each statement retains its own original words and lookup horizon.
+-    // Nested source effects only withdraw candidates; they do not prove that
+-    // a conditional factory, mutation or teardown actually ran.
++    let sites = instance_class_sites(ir_module);
++    // Callable bodies keep their actual eager horizon. A readonly
++    // declaration can only borrow setup preceding its own source site.
++    let horizons: Vec<(ProcedureId, Option<u32>)> = source_bodies
++        .iter()
++        .map(|(id, procedure)| {
++            let eager = if ir_module.procedures.contains_key(id) {
++                invocations.named(id)
++            } else {
++                Some(procedure.span.start())
++            };
++            (*id, eager)
++        })
++        .collect();
++    // Sites are in source order and a horizon admits exactly the sites that
++    // start before it, so every procedure's state is a prefix of one fold.
++    // The fold reads no procedure, so one pass with a snapshot at each
++    // distinct horizon equals a separate fold per procedure.
++    let mut cuts: Vec<u32> = horizons.iter().filter_map(|(_, eager)| *eager).collect();
++    cuts.sort_unstable();
++    cuts.dedup();
++    let mut pending = cuts.into_iter().peekable();
++    let mut before: HashMap<u32, crate::taint::InstanceClassState> = HashMap::new();
++    let mut classes = crate::taint::InstanceClassState::new();
++    for &(statement, tokens, direct) in &sites {
++        while let Some(cut) = pending.next_if(|cut| statement.span().start() >= *cut) {
++            before.insert(cut, classes.clone());
++        }
++        transfer_instance_class_site(&mut classes, registry, source, tokens, direct);
++    }
++    for cut in pending {
++        before.insert(cut, classes.clone());
++    }
++    horizons
++        .into_iter()
++        .map(|(id, eager)| {
++            let state = eager
++                .and_then(|cut| before.get(&cut).cloned())
++                .unwrap_or_else(|| classes.clone());
++            (id, state)
++        })
++        .collect()
++}
++
++/// A statement the instance-class fold reads, its retained original words and
++/// whether it runs directly at the top level.
++type InstanceClassSite<'m> = (
++    &'m crate::ir::Statement,
++    Option<&'m crate::ir::CommandTokens>,
++    bool,
++);
++
++/// The statements whose original words the instance-class fold reads, in
++/// source order, each with whether it runs directly at the top level.
++/// Each statement retains its own original words and lookup horizon.
++fn instance_class_sites(ir_module: &crate::ir::Module) -> Vec<InstanceClassSite<'_>> {
+     let mut sites = Vec::new();
+     let mut scripts = vec![(&ir_module.top_level, true)];
+     while let Some((script, direct)) = scripts.pop() {
+@@ -1050,37 +1103,43 @@
+         }
+     }
+     sites.sort_by_key(|(statement, _, _)| statement.span().start());
+-    source_bodies
+-        .iter()
+-        .map(|(id, procedure)| {
+-            // Callable bodies keep their actual eager horizon. A readonly
+-            // declaration can only borrow setup preceding its own source site.
+-            let eager = if ir_module.procedures.contains_key(id) {
+-                invocations.named(id)
+-            } else {
+-                Some(procedure.span.start())
+-            };
+-            let mut classes = crate::taint::InstanceClassState::new();
+-            for &(statement, tokens, direct) in &sites {
+-                if eager.is_some_and(|call| statement.span().start() >= call) {
+-                    continue;
+-                }
+-                if direct {
+-                    crate::taint::transfer_instance_command(&mut classes, registry, source, tokens);
+-                } else {
+-                    let mut candidate = classes.clone();
+-                    crate::taint::transfer_instance_command(
+-                        &mut candidate,
+-                        registry,
+-                        source,
+-                        tokens,
+-                    );
+-                    classes.retain(|name, class| candidate.get(name) == Some(class));
+-                }
+-            }
+-            (*id, classes)
+-        })
+-        .collect()
++    sites
++}
++
++/// One site of the fold. Nested source effects only withdraw candidates; they
++/// do not prove that a conditional factory, mutation or teardown actually ran.
++fn transfer_instance_class_site(
++    classes: &mut crate::taint::InstanceClassState,
++    registry: &tcl_registry::CommandRegistry,
++    source: crate::taint::TaintSourceContext<'_>,
++    tokens: Option<&crate::ir::CommandTokens>,
++    direct: bool,
++) {
++    #[cfg(test)]
++    INSTANCE_CLASS_SITE_TRANSFERS.with(|count| count.set(count.get() + 1));
++    if direct {
++        crate::taint::transfer_instance_command(classes, registry, source, tokens);
++    } else {
++        let mut candidate = classes.clone();
++        crate::taint::transfer_instance_command(&mut candidate, registry, source, tokens);
++        classes.retain(|name, class| candidate.get(name) == Some(class));
++    }
++}
++
++#[cfg(test)]
++std::thread_local! {
++    static INSTANCE_CLASS_SITE_TRANSFERS: std::cell::Cell<usize> =
++        const { std::cell::Cell::new(0) };
++}
++
++#[cfg(test)]
++fn reset_instance_class_site_transfers() {
++    INSTANCE_CLASS_SITE_TRANSFERS.with(|count| count.set(0));
++}
++
++#[cfg(test)]
++fn instance_class_site_transfers() -> usize {
++    INSTANCE_CLASS_SITE_TRANSFERS.with(std::cell::Cell::get)
+ }
+ 
+ /// Global variables tainted by registry-declared instance configuration in a
+@@ -8337,7 +8396,7 @@
+ mod selected_global_option_taint_tests {
+     use super::*;
+ 
+-    fn build_tk_module(
++    pub(super) fn build_tk_module(
+         source: &str,
+     ) -> (
+         std::sync::Arc<tcl_registry::model::ContextRegistry>,
+@@ -8397,3 +8456,86 @@
+         );
+     }
+ }
++
++#[cfg(test)]
++mod instance_class_fold_tests {
++    use super::selected_global_option_taint_tests::build_tk_module;
++    use super::*;
++
++    /// The per-procedure fold the prefix fold replaces, kept as the oracle.
++    fn per_procedure_fold(
++        module: &crate::ir::Module,
++        registry: &tcl_registry::CommandRegistry,
++    ) -> HashMap<ProcedureId, crate::taint::InstanceClassState> {
++        let invocations = EagerInvocations::of(module, registry);
++        let source = crate::taint::TaintSourceContext::for_module(registry, module);
++        let sites = instance_class_sites(module);
++        summary_procedure_bodies(module, registry)
++            .iter()
++            .map(|(id, procedure)| {
++                let eager = if module.procedures.contains_key(id) {
++                    invocations.named(id)
++                } else {
++                    Some(procedure.span.start())
++                };
++                let mut classes = crate::taint::InstanceClassState::new();
++                for &(statement, tokens, direct) in &sites {
++                    if eager.is_some_and(|cut| statement.span().start() >= cut) {
++                        continue;
++                    }
++                    transfer_instance_class_site(&mut classes, registry, source, tokens, direct);
++                }
++                (*id, classes)
++            })
++            .collect()
++    }
++
++    fn procedure_named(module: &crate::ir::Module, qualified_name: &str) -> ProcedureId {
++        *module
++            .procedures
++            .iter()
++            .find(|(_, procedure)| procedure.qualified_name == qualified_name)
++            .map(|(id, _)| id)
++            .expect(qualified_name)
++    }
++
++    /// `callable` runs at the top level between the two constructors, so its
++    /// cut keeps `.before` and drops `.after`; nothing runs `idle`, so it reads
++    /// the whole fold.
++    const SOURCE: &str = "proc callable {} {return OK}; proc idle {} {return OK}; \
++                          entry .before; callable; entry .after";
++
++    #[test]
++    fn one_prefix_fold_equals_a_fold_per_procedure() {
++        let (context, module) = build_tk_module(SOURCE);
++        let registry = context.commands();
++        let classes = global_instance_classes(&module, registry);
++        assert_eq!(classes, per_procedure_fold(&module, registry));
++        let invocations = EagerInvocations::of(&module, registry);
++        let callable = procedure_named(&module, "::callable");
++        let idle = procedure_named(&module, "::idle");
++        assert!(invocations.named(&callable).is_some());
++        assert!(invocations.named(&idle).is_none());
++        assert!(classes[&callable].contains_key(".before"));
++        assert!(!classes[&callable].contains_key(".after"));
++        assert!(classes[&idle].contains_key(".after"));
++    }
++
++    /// Work budget: each site is transferred once per module, however many
++    /// procedures read the fold.
++    #[test]
++    fn the_instance_class_fold_transfers_each_site_once() {
++        for source in ["entry .a; proc p {} {return OK}; entry .b", SOURCE] {
++            let (context, module) = build_tk_module(source);
++            let registry = context.commands();
++            reset_instance_class_site_transfers();
++            let classes = global_instance_classes(&module, registry);
++            assert!(!classes.is_empty(), "{source}");
++            assert_eq!(
++                instance_class_site_transfers(),
++                instance_class_sites(&module).len(),
++                "{source}"
++            );
++        }
++    }
++}
