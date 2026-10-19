@@ -1,0 +1,9 @@
+{
+ "recorded_utc": "2026-10-19T12:30Z",
+ "source": "User in chat",
+ "goal": "Get the LSP and the parts of the compiler and tooling that support it onto the centralised naming system and merged to the rust branch; VM/runtime and other unmigrated parts continue afterwards.",
+ "decisions": {
+  "focus": "Pause side work that does not unblock the merge; keep integration admissions, partial-row closure, and performance fixes for tests that time out in CI; then rebase on origin/rust, make rust-check, prep-pr and a PR. Park the rest as tracked follow-ups.",
+  "jim_dialect": "Jim Tcl is a separate core dialect from C Tcl. The registry fix lives in tcl-registry (Rust), not tcl-spectcl: Jim builds its own core store there; the .tclspec own-surface stays for now."
+ }
+}

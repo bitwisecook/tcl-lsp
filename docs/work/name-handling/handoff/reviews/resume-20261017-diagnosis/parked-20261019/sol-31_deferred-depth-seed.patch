@@ -1,0 +1,519 @@
+diff -ruN a/docs/design/compiler/recursive-descent-depth-limits.md b/docs/design/compiler/recursive-descent-depth-limits.md
+--- a/docs/design/compiler/recursive-descent-depth-limits.md	2026-10-19 11:29:34.809581041 +0000
++++ b/docs/design/compiler/recursive-descent-depth-limits.md	2026-10-19 11:32:01.903190269 +0000
+@@ -178,11 +178,13 @@
+ The per-item path (`Analyser::analyse_per_item_with`, which the LSP's
+ incremental analysis uses) grafts each proc / method body's subtree from a
+ separate isolated walk (`per_item::analyse_proc_body_isolated`). It stays
+-within the same bound only while that walk starts from the body depth the shell
+-pass found the body at; a walk restarting at depth 0 could graft a tree up to
+-about twice the cap deep, and miss the `E207` the whole-file walk reports. Past
+-the cap these walkers stop descending (fail-closed: the deeper scopes are left
+-out), and `definition::scope_body_spans_at` declines the whole document.
++within the same bound because that walk starts from the body depth the shell
++pass found the body at (`DeferredBody::body_depth`, also part of the
++`tcl-lsp-db` body memo key), so the cap and its `E207` trip at the same
++document depth on both paths. A walk restarting at depth 0 could graft a tree
++up to about twice the cap deep and miss that `E207`. Past the cap these walkers
++stop descending (fail-closed: the deeper scopes are left out), and
++`definition::scope_body_spans_at` declines the whole document.
+ 
+ | Walker | Cap | Notes |
+ |---|---|---|
+diff -ruN a/docs/design/rust/incremental-analysis.md b/docs/design/rust/incremental-analysis.md
+--- a/docs/design/rust/incremental-analysis.md	2026-10-19 11:23:43.000000000 +0000
++++ b/docs/design/rust/incremental-analysis.md	2026-10-19 11:32:01.903324116 +0000
+@@ -122,6 +122,16 @@
+ graft. That keeps the memoised fragment offset-invariant while still matching
+ the names a whole-file walk would produce.
+ 
++Nesting depth is the one position fact that does *not* normalise away. The
++braced-body cap (`E207`) counts nesting from the top of the document, so each
++deferred body records the depth the shell found it at
++(`DeferredBody::body_depth`), the isolated walk starts from it, and it is part
++of `ItemBodyKey` (packed into `body_env`). A body moved to another nesting depth
++is a cache miss, which is rare. A body that passes the cap reports the same
++`E207` as the whole-file walk, which sends the document down the
++`ErrorDiagnostic` fallback, so a grafted scope tree is never deeper than the
++whole-file one.
++
+ ## Cross-item facts live in the aggregate, not the body
+ 
+ An isolated body cannot see the file. Rather than falling back whenever a body
+diff -ruN a/rust/tcl-compiler/src/analyser/handlers.rs b/rust/tcl-compiler/src/analyser/handlers.rs
+--- a/rust/tcl-compiler/src/analyser/handlers.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/analyser/handlers.rs	2026-10-19 11:32:01.900067860 +0000
+@@ -2966,6 +2966,7 @@
+                 body_text,
+                 body_tok,
+                 scope_path: child_path.clone(),
++                body_depth: self.body_depth,
+                 is_method: false,
+                 oo_global_resolution: false,
+                 namespace: ns_prefix.to_string(),
+@@ -3110,6 +3111,7 @@
+                     body_text,
+                     body_tok,
+                     scope_path: child_path.clone(),
++                    body_depth: self.body_depth,
+                     is_method: false,
+                     oo_global_resolution: false,
+                     namespace: ns_prefix.clone(),
+@@ -3541,6 +3543,7 @@
+                 body_text,
+                 body_tok,
+                 scope_path: child_path.clone(),
++                body_depth: self.body_depth,
+                 is_method: false,
+                 oo_global_resolution: false,
+                 namespace: body_ns,
+diff -ruN a/rust/tcl-compiler/src/analyser/oo.rs b/rust/tcl-compiler/src/analyser/oo.rs
+--- a/rust/tcl-compiler/src/analyser/oo.rs	2026-10-19 11:29:34.803622838 +0000
++++ b/rust/tcl-compiler/src/analyser/oo.rs	2026-10-19 11:32:01.900586494 +0000
+@@ -2040,6 +2040,7 @@
+                 body_text: std::sync::Arc::from(mb.body_text.as_str()),
+                 body_tok: mb.body_tok,
+                 scope_path: method_path,
++                body_depth: self.body_depth,
+                 is_method: true,
+                 oo_global_resolution,
+                 namespace,
+diff -ruN a/rust/tcl-compiler/src/analyser/per_item.rs b/rust/tcl-compiler/src/analyser/per_item.rs
+--- a/rust/tcl-compiler/src/analyser/per_item.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/analyser/per_item.rs	2026-10-19 11:34:22.776594868 +0000
+@@ -36,7 +36,10 @@
+ //! 2. **Body pass** — for each deferred body (proc *and* method),
+ //!    `analyse_proc_body_isolated` analyses it as an offset-0 isolated unit and
+ //!    `graft_proc_body` rebases + merges the result into the shell.  Both are
+-//!    memoisable, so a body edit re-analyses only that body.
++//!    memoisable, so a body edit re-analyses only that body.  The isolated
++//!    walk starts from the body depth the shell found the body at
++//!    ([`DeferredBody::body_depth`]), so the nesting cap and its `E207` trip
++//!    at the same document depth as in `analyse`.
+ //!
+ //! Splitting top-level vs body work reorders the walk-populated collections
+ //! (`command_invocations`, `VarDef.references`, …) relative to `analyse`'s DFS,
+@@ -188,6 +191,16 @@
+     pub body_tok: Token,
+     /// Path to the already-created (empty) proc / method scope to fill.
+     pub scope_path: Vec<usize>,
++    /// The shell walk's body depth at the definer — the depth a whole-file
++    /// walk is at when it enters this body. [`analyse_proc_body_isolated`]
++    /// starts its walk from it rather than from 0, so the braced-body cap
++    /// (`analyser::commands::MAX_BODY_DEPTH`) trips at the same document depth
++    /// on both paths: a body the whole-file walk refuses reports the same
++    /// `E207` here (which sends the document down
++    /// [`PerItemFallback::ErrorDiagnostic`]), and the grafted scope tree is
++    /// never deeper than the whole-file one. The isolated result depends on
++    /// it, so it is part of `tcl-lsp-db`'s `ItemBodyKey`.
++    pub body_depth: u32,
+     /// `true` for an OO method/constructor/destructor body (analysed in an
+     /// isolated `Method` scope with instance variables pre-bound); `false` for a
+     /// `proc` body.
+@@ -1525,7 +1538,7 @@
+ 
+ /// Analyse one `proc` **or method** body as an isolated unit at **offset 0** — a
+ /// pure function of `(body_text, namespace, scope_name, params, is_method,
+-/// seeded_variables)`, so a shifted-but-unedited body is a cache hit
++/// seeded_variables, body_depth)`, so a shifted-but-unedited body is a cache hit
+ /// (offset-invariant).  The enclosing namespace + params are reconstructed
+ /// (a `Method` scope with instance variables pre-bound for methods, a `Proc`
+ /// scope otherwise); params / instance vars get a placeholder definition span
+@@ -1605,6 +1618,10 @@
+         kind,
+     );
+     seed_isolated_frame_state(&mut a, db, &proc_path);
++    // Enter the body at the depth the shell found it, not at the top level,
++    // so the braced-body cap counts from the top of the document exactly as
++    // the whole-file walk does (`DeferredBody::body_depth`).
++    a.body_depth = db.body_depth;
+     a.analyse_body(&db.body_text, body_tok, &proc_path);
+     let proc_scope = super::scope::scope_at_mut(&mut a.result.global_scope, &proc_path)
+         .expect("reconstructed proc scope")
+@@ -2632,6 +2649,45 @@
+         assert_eq!(got, want, "per_item != analyse for:\n{src}");
+     }
+ 
++    /// The isolated body walk starts from the body depth the shell found the
++    /// body at (`DeferredBody::body_depth`), so the braced-body cap counts from
++    /// the top of the document. A proc nested part-way down the cap, whose
++    /// body nests the rest of the way past it, reports the whole-file walk's
++    /// `E207` and hands off; the same proc at the top level stays on the fast
++    /// path, so nothing else in the fixture forces the hand-off. Restarting at
++    /// depth 0 analysed the wrapped body in full and stayed on the fast path,
++    /// without the `E207`.
++    ///
++    /// Runs on a 64 MiB thread like the production entry points: the subject
++    /// is the hand-off, not the stack budget, which `depth_guard` owns.
++    #[test]
++    fn a_proc_body_past_the_nesting_cap_reports_e207_and_hands_off() {
++        std::thread::Builder::new()
++            .stack_size(64 * 1024 * 1024)
++            .spawn(|| {
++                let cap = usize::try_from(crate::depth_guard::MAX_SOURCE_NEST_DEPTH.0)
++                    .expect("the cap fits a usize");
++                // Each half stays below the cap; together they pass it.
++                let half = cap / 2 + 4;
++                let body = format!(
++                    "{}set x 1\n{}",
++                    "if {1} {\n".repeat(half),
++                    "}\n".repeat(half)
++                );
++                let proc_def = format!("proc p {{}} {{\n{body}}}\n");
++                fast_path(&proc_def);
++                let wrapped = format!(
++                    "{}{proc_def}{}",
++                    "if {1} {\n".repeat(half),
++                    "}\n".repeat(half)
++                );
++                falls_back(&wrapped, "tcl8.6", PerItemFallback::ErrorDiagnostic);
++            })
++            .expect("spawn the test thread")
++            .join()
++            .expect("the test thread panicked");
++    }
++
+     // Body-defined global cells.
+ 
+     /// The Tk `SetFocusGrab` / `RestoreFocusGrab` shape: one proc names a
+diff -ruN a/rust/tcl-compiler/src/analyser/scope.rs b/rust/tcl-compiler/src/analyser/scope.rs
+--- a/rust/tcl-compiler/src/analyser/scope.rs	2026-10-19 11:29:34.805809428 +0000
++++ b/rust/tcl-compiler/src/analyser/scope.rs	2026-10-19 11:32:01.902800233 +0000
+@@ -3920,10 +3920,11 @@
+ /// [`crate::depth_guard::MAX_SOURCE_NEST_DEPTH`]; it opens a body's scope
+ /// before checking that body against the cap, so the tree one whole-file walk
+ /// builds is at most one level deeper than the cap. A per-item graft
+-/// ([`super::per_item::analyse_proc_body_isolated`]) keeps that bound only
+-/// while its isolated walk starts from the body depth the shell found the body
+-/// at. Capped here independently for defence-in-depth and consistency with
+-/// every other full-tree walker in this crate.
++/// ([`super::per_item::analyse_proc_body_isolated`]) keeps that bound because
++/// its isolated walk starts from the body depth the shell found the body at
++/// ([`super::per_item::DeferredBody::body_depth`]). Capped here independently
++/// for defence-in-depth and consistency with every other full-tree walker in
++/// this crate.
+ const MAX_SCOPE_WALK_DEPTH: tcl_core_types::RecursionLimit =
+     tcl_core_types::RecursionLimit(crate::depth_guard::MAX_SOURCE_NEST_DEPTH.0 + 1);
+ 
+diff -ruN a/rust/tcl-compiler/tests/per_item_corpus.rs b/rust/tcl-compiler/tests/per_item_corpus.rs
+--- a/rust/tcl-compiler/tests/per_item_corpus.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/tests/per_item_corpus.rs	2026-10-19 11:32:01.922271442 +0000
+@@ -27,6 +27,7 @@
+ 
+ use rayon::prelude::*;
+ use tcl_compiler::analyser::Analyser;
++use tcl_core_types::DiagCode;
+ 
+ mod common;
+ use common::{Progress, describe_analysis_divergence};
+@@ -178,6 +179,122 @@
+     );
+ }
+ 
++/// `wrappers` levels of `outer`, then `proc p {} {…}` whose body nests
++/// `depth` levels of `inner` around `set x 1`.
++fn nested_proc_source(outer: &str, wrappers: usize, inner: &str, depth: usize) -> String {
++    let mut source = String::new();
++    for _ in 0..wrappers {
++        source.push_str(outer);
++        source.push('\n');
++    }
++    source.push_str("proc p {} {\n");
++    for _ in 0..depth {
++        source.push_str(inner);
++        source.push('\n');
++    }
++    source.push_str("set x 1\n");
++    // The inner levels, the proc body, then the wrappers.
++    for _ in 0..depth + 1 + wrappers {
++        source.push_str("}\n");
++    }
++    source
++}
++
++/// Depth of the deepest scope below `scope` (0 for a leaf).
++fn scope_depth(scope: &tcl_compiler::analyser::types::Scope) -> usize {
++    scope
++        .children
++        .iter()
++        .map(|child| 1 + scope_depth(child))
++        .max()
++        .unwrap_or(0)
++}
++
++/// The braced-body cap must trip at the same *document* depth on both paths.
++/// The per-item shell defers every proc body and analyses it in a separate
++/// walk, which therefore starts from the depth the shell found the body at
++/// (`DeferredBody::body_depth`). Restarting at 0 let a proc nested part-way
++/// down the cap analyse its body in full, without the `E207` the whole-file
++/// walk reports, and graft a scope tree deeper than one whole-file walk can
++/// build.
++///
++/// Each case nests a `proc` part-way down the cap and its body the rest of
++/// the way past it, so neither half reaches the cap alone. The shapes cover
++/// plain control flow and the two scope-opening body walks a proc body can
++/// chain (`uplevel`, `namespace eval`), under `if` and `namespace eval`
++/// wrappers. Runs on a 64 MiB thread like the production entry points: the
++/// subject is per-item ≡ whole-file, not the stack budget, which
++/// `depth_guard` owns.
++#[test]
++fn per_item_matches_analyse_past_the_nesting_cap_inside_a_proc() {
++    std::thread::Builder::new()
++        .stack_size(64 * 1024 * 1024)
++        .spawn(|| {
++            let dialect = "tcl8.6";
++            let cap = usize::try_from(tcl_compiler::MAX_SOURCE_NEST_DEPTH.0)
++                .expect("the cap fits a usize");
++            let half = cap / 2 + 4;
++
++            // Control: the same body with the proc at the top level stays
++            // under the cap and on the per-item fast path, so the deep cases
++            // below are decided by the depth seed and not by another
++            // fallback.
++            let shallow = nested_proc_source("if {1} {", 0, "if {1} {", half);
++            let mut analyser = Analyser::new();
++            let got = analyser.analyse_per_item(&shallow, dialect);
++            assert!(
++                analyser.per_item_fallback.is_none(),
++                "the control fixture must stay on the per-item fast path, or this test \
++                 cannot see the depth seed: {:?}",
++                analyser.per_item_fallback
++            );
++            assert!(!got.diagnostics.iter().any(|d| d.code == DiagCode::E207));
++
++            for (name, outer, inner) in [
++                ("if inside a proc inside if", "if {1} {", "if {1} {"),
++                (
++                    "uplevel inside a proc inside namespace eval",
++                    "namespace eval n {",
++                    "uplevel 1 {",
++                ),
++                (
++                    "namespace eval inside a proc inside if",
++                    "if {1} {",
++                    "namespace eval m {",
++                ),
++            ] {
++                let source = nested_proc_source(outer, half, inner, half);
++                let want = Analyser::new().analyse(&source, dialect);
++                let got = Analyser::new().analyse_per_item(&source, dialect);
++                assert!(
++                    want.diagnostics.iter().any(|d| d.code == DiagCode::E207),
++                    "{name}: the whole-file walk must pass the cap"
++                );
++                assert!(
++                    got.diagnostics.iter().any(|d| d.code == DiagCode::E207),
++                    "{name}: the per-item walk must report the same E207"
++                );
++                assert_eq!(
++                    scope_depth(&got.global_scope),
++                    scope_depth(&want.global_scope),
++                    "{name}: scope tree depth"
++                );
++                assert!(
++                    scope_depth(&want.global_scope) <= cap + 1,
++                    "{name}: one whole-file walk stops one scope past the cap"
++                );
++                assert!(
++                    got == want,
++                    "{}",
++                    describe_analysis_divergence(name, &got, &want)
++                );
++            }
++        })
++        .expect("spawn the test thread")
++        .join()
++        .expect("the test thread panicked");
++}
++
+ // Tiny deterministic xorshift PRNG so failures reproduce from the seed.
+ struct Rng(u64);
+ impl Rng {
+diff -ruN a/rust/tcl-lsp-core/src/lib.rs b/rust/tcl-lsp-core/src/lib.rs
+--- a/rust/tcl-lsp-core/src/lib.rs	2026-10-19 11:29:34.807736860 +0000
++++ b/rust/tcl-lsp-core/src/lib.rs	2026-10-19 11:32:01.903017062 +0000
+@@ -41,12 +41,13 @@
+ ///
+ /// The per-item path (`Analyser::analyse_per_item_with`, which the LSP uses)
+ /// builds each deferred proc / method body's subtree in a separate isolated
+-/// walk (`per_item::analyse_proc_body_isolated`) and grafts it in. Its tree
+-/// stays within this bound only while that walk starts from the body depth
+-/// the shell found the body at; a walk restarting at depth 0 could graft a
+-/// tree up to about twice the cap. Past this cap the walkers stop descending
+-/// (fail-closed: the deeper scopes are left out), and
+-/// `definition::scope_body_spans_at` declines the whole document.
++/// walk (`per_item::analyse_proc_body_isolated`) and grafts it in. That walk
++/// starts from the body depth the shell found the body at
++/// (`per_item::DeferredBody::body_depth`), so the grafted tree stays within
++/// this bound too; a walk restarting at depth 0 could graft one up to about
++/// twice the cap. Past this cap the walkers stop descending (fail-closed: the
++/// deeper scopes are left out), and `definition::scope_body_spans_at`
++/// declines the whole document.
+ ///
+ /// It is defence-in-depth against a scope tree built or received some other
+ /// way, and keeps every consumer from needing its own copy of the same
+diff -ruN a/rust/tcl-lsp-db/src/lib.rs b/rust/tcl-lsp-db/src/lib.rs
+--- a/rust/tcl-lsp-db/src/lib.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-lsp-db/src/lib.rs	2026-10-19 11:32:01.921707326 +0000
+@@ -2408,9 +2408,9 @@
+ /// Interned identity of a single `proc` body's isolated analysis — the per-item
+ /// firewall's memoisation key.  **Offset-invariant**: it holds only what the
+ /// offset-0 analysis consumes (body text + enclosing namespace / name / params +
+-/// config), *not* the body's position — so a shifted-but-unedited proc has the
+-/// same key and reuses the cached [`item_body_analysis`] (the aggregator rebases
+-/// the offset-0 facts by the body's real span).
++/// nesting depth + config), *not* the body's position — so a shifted-but-unedited
++/// proc has the same key and reuses the cached [`item_body_analysis`] (the
++/// aggregator rebases the offset-0 facts by the body's real span).
+ ///
+ /// **Per-revision key — reclaimed by salsa's interned garbage collector.**
+ /// `body_text` changes on every keystroke inside the body, so each edit mints a
+@@ -2509,6 +2509,13 @@
+     ///   Part of the key for the usual reason: a metaclass appearing or
+     ///   changing shape elsewhere in the workspace must re-analyse the
+     ///   bodies whose creation calls it decides.
++    /// - `.3` — the actual parent input, mirroring
++    ///   [`tcl_compiler::analyser::per_item::DeferredBody::resolved_input`].
++    /// - `.4` — the shell's body depth at the definer, mirroring
++    ///   [`tcl_compiler::analyser::per_item::DeferredBody::body_depth`]. The
++    ///   isolated walk starts from it, so where the braced-body cap (and its
++    ///   `E207`) trips depends on it: the same body text at another nesting
++    ///   depth is a different analysis and must not reuse this one.
+     #[returns(ref)]
+     pub body_env: (
+         (
+@@ -2524,6 +2531,7 @@
+         Option<tcl_compiler::analyser::SourceInterpreterVisibilitySnapshot>,
+         Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
+         Option<tcl_compiler::analyser::ResolvedAnalysisInput>,
++        u32,
+     ),
+     #[returns(ref)]
+     pub dialect: String,
+@@ -2551,6 +2559,7 @@
+         body_text: Arc::clone(key.body_text(db)),
+         body_tok: tcl_lexer::Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, 0)),
+         scope_path: Vec::new(),
++        body_depth: key.body_env(db).4,
+         is_method: key.is_method(db),
+         oo_global_resolution: key.oo_global_resolution(db),
+         namespace: key.namespace(db).clone(),
+@@ -4262,6 +4271,7 @@
+                 body.safe_interp_ctx.clone(),
+                 workspace_class_factories.clone(),
+                 body.resolved_input.clone(),
++                body.body_depth,
+             ),
+             dialect.clone(),
+             disabled_vec.clone(),
+@@ -6625,7 +6635,7 @@
+                 false,
+                 Vec::new(),
+                 None,
+-                ((Vec::new(), Vec::new()), None, None, None),
++                ((Vec::new(), Vec::new()), None, None, None, 0),
+                 "tcl8.6".to_owned(),
+                 Vec::new(),
+                 NonAsciiMode::Default,
+@@ -6648,7 +6658,7 @@
+             false,
+             Vec::new(),
+             None,
+-            ((Vec::new(), Vec::new()), None, None, None),
++            ((Vec::new(), Vec::new()), None, None, None, 0),
+             "tcl8.6".to_owned(),
+             Vec::new(),
+             NonAsciiMode::Default,
+@@ -6657,6 +6667,27 @@
+             make() != other_key,
+             "distinct bodies must intern distinctly"
+         );
++        // The same body at another nesting depth must not collide with it
++        // either: the isolated walk starts from that depth.
++        let deeper_key = ItemBodyKey::new(
++            &db,
++            Arc::clone(&body),
++            "::".to_owned(),
++            "alpha".to_owned(),
++            Vec::new(),
++            false,
++            false,
++            Vec::new(),
++            None,
++            ((Vec::new(), Vec::new()), None, None, None, 1),
++            "tcl8.6".to_owned(),
++            Vec::new(),
++            NonAsciiMode::Default,
++        );
++        assert!(
++            make() != deeper_key,
++            "the same body at another depth must intern distinctly"
++        );
+     }
+ 
+     #[test]
+@@ -7519,6 +7550,64 @@
+         }
+     }
+ 
++    /// The per-item body memo must not hand back a body analysed at another
++    /// nesting depth. The isolated walk starts from the body depth the shell
++    /// found the body at (`DeferredBody::body_depth`) and the braced-body cap
++    /// counts from there, so the same proc wrapped deeper is a different
++    /// analysis: here the wrapped copy passes the cap, and reusing the shallow
++    /// copy's memoised fragment would drop the `E207` the whole-file walk
++    /// reports. Neither half of the nesting reaches the cap on its own.
++    ///
++    /// Runs on a 64 MiB thread like the production entry points: the subject
++    /// is the memo key, not the stack budget, which `tcl_compiler`'s
++    /// `depth_guard` owns.
++    #[test]
++    fn item_body_memo_keys_on_the_body_depth() {
++        use salsa::Setter as _;
++
++        std::thread::Builder::new()
++            .stack_size(64 * 1024 * 1024)
++            .spawn(|| {
++                let cap = usize::try_from(tcl_compiler::MAX_SOURCE_NEST_DEPTH.0)
++                    .expect("the cap fits a usize");
++                let half = cap / 2 + 4;
++                let body = format!(
++                    "{}set x 1\n{}",
++                    "if {1} {\n".repeat(half),
++                    "}\n".repeat(half)
++                );
++                let shallow = format!("proc p {{}} {{\n{body}}}\n");
++                let deep = format!(
++                    "{}{shallow}{}",
++                    "if {1} {\n".repeat(half),
++                    "}\n".repeat(half)
++                );
++                let mut db = TclDatabase::default();
++                let config = cfg(&db);
++                let file = SourceFile::new(&db, shallow, "tcl8.6".to_owned(), None);
++
++                let first = file_analysis_incremental(&db, file, config);
++                assert!(
++                    !first.diagnostics.iter().any(|d| d.code == DiagCode::E207),
++                    "the shallow copy must stay under the cap: {:?}",
++                    first.diagnostics
++                );
++                assert_eq!(*first, *file_analysis(&db, file, config));
++
++                file.set_text(&mut db).to(deep);
++                let second = file_analysis_incremental(&db, file, config);
++                assert!(
++                    second.diagnostics.iter().any(|d| d.code == DiagCode::E207),
++                    "the wrapped copy must not reuse the shallow body's analysis: {:?}",
++                    second.diagnostics
++                );
++                assert_eq!(*second, *file_analysis(&db, file, config));
++            })
++            .expect("spawn the test thread")
++            .join()
++            .expect("the test thread panicked");
++    }
++
+     #[test]
+     fn sidecar_stubs_reach_incremental_proc_bodies_and_invalidate() {
+         use salsa::Setter as _;

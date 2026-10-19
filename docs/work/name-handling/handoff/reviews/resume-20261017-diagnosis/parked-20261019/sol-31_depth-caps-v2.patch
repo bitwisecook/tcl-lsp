@@ -1,0 +1,469 @@
+diff -ruN a/docs/design/compiler/recursive-descent-depth-limits.md b/docs/design/compiler/recursive-descent-depth-limits.md
+--- a/docs/design/compiler/recursive-descent-depth-limits.md	2026-10-19 11:23:43.000000000 +0000
++++ b/docs/design/compiler/recursive-descent-depth-limits.md	2026-10-19 11:28:43.257564795 +0000
+@@ -139,7 +139,7 @@
+ | `cfg_builder::CfgBuilder::lower_script` | `MAX_LOWER_DEPTH` = `MAX_SOURCE_NEST_DEPTH` | stops descending; truncated but valid CFG |
+ | `lowering::Lowerer::lower_script` / `lower_body` | `MAX_LOWER_NEST_DEPTH` = `MAX_SOURCE_NEST_DEPTH` | `Statement::Barrier`; the fattest of the three walks, so it sets the budget |
+ | `analyser::param_traits::scan_deep` / `infer_param_traits_deep_at_depth` | `MAX_DEPTH` = 8 | threads its own depth through `apply` bodies rather than re-entering at 0 |
+-| `analyser::scope` walkers | `MAX_SCOPE_WALK_DEPTH` = 256 | defence in depth |
++| `analyser::scope` walkers | `MAX_SCOPE_WALK_DEPTH` = `MAX_SOURCE_NEST_DEPTH` + 1 | defence in depth: the analyser opens a body's scope before refusing that body at the cap, so one whole-file walk's tree is at most one level deeper |
+ | `optimiser::{propagation, expr_simplify, pattern_recognition, structure_elimination, code_sinking, tail_call, end_offset, chain_fold}` | `MAX_OPTIMISER_WALK_DEPTH` = 256 (`optimiser/mod.rs`) | defence in depth: lowering's cap already bounds the IR these passes see; `code_sinking`'s query families answer conservatively past the cap |
+ | `codegen::structured::{walk_stmt, emit_if, emit_loop}` | `MAX_STRUCTURED_DEPTH` = 256 | covers nested-body depth *and* `emit_if`'s `elseif`-chain self-recursion |
+ | every `ExprNode` operator-tree walker (`type_infer`, `codegen/expressions`, `taint`, `interprocedural`, `optimiser/helpers/expr_simplify`, `optimiser/elimination`, `optimiser/code_sinking`, `uri_split`, `shimmer/{expr,commit}`, `ir_helpers`, `intervals`, `interval_bounds`, `inlining/rename`, `analyser/diagnostics/{usage,dataflow}`, `connection_scope`) | `depth_guard::MAX_EXPR_NODE_DEPTH` = 256 | a single `expr {((((…))))}` or a long `1+1+…` chain controls this axis directly, independent of statement nesting |
+@@ -164,20 +164,32 @@
+ 
+ ### `tcl-lsp-core`
+ 
+-`crate::MAX_SCOPE_WALK_DEPTH` = 256 (`lib.rs`) guards every Scope-tree
++`crate::MAX_SCOPE_WALK_DEPTH` = `tcl_compiler::MAX_SOURCE_NEST_DEPTH` + 1
++(`lib.rs`) guards every Scope-tree
+ walker — `document_symbols`, `definition` (`innermost`, `collect_alias_spans`,
+ `collect_shared_span_refs`, `cross_namespace_qualified_vars`), `graphs`
+ (`scope_to_value`, `count_namespaces`, `count_variables`), `inlay_hints`,
+ `refactor::inline_variable::walk_scopes_at_depth`. A `Scope` node only exists
+-for a `namespace`/`proc`/`method` body the analyser already caps, so this is
+-defence in depth against a scope tree built some other way.
++for a `namespace`/`proc`/`method` body the analyser already caps, and the
++analyser opens that scope before refusing the body, so the tree one whole-file
++walk builds is at most one level deeper than the cap. This is defence in depth
++against a scope tree built some other way.
++
++The per-item path (`Analyser::analyse_per_item_with`, which the LSP's
++incremental analysis uses) grafts each proc / method body's subtree from a
++separate isolated walk (`per_item::analyse_proc_body_isolated`). It stays
++within the same bound only while that walk starts from the body depth the shell
++pass found the body at; a walk restarting at depth 0 could graft a tree up to
++about twice the cap deep, and miss the `E207` the whole-file walk reports. Past
++the cap these walkers stop descending (fail-closed: the deeper scopes are left
++out), and `definition::scope_body_spans_at` declines the whole document.
+ 
+ | Walker | Cap | Notes |
+ |---|---|---|
+-| `references` (`scan_my_method_region`, `scan_obj_method_region`, `scan_next_dispatch_region_with_target`) | `MAX_DISPATCH_SCAN_DEPTH` = 256 | |
++| `references` (`scan_my_method_region`, `scan_obj_method_region`, `scan_next_dispatch_region_with_target`) | `MAX_DISPATCH_SCAN_DEPTH` = 256 | lexical scans over bodies and command substitutions, shared with `caller_frame`, `expr_context`, the rename and invocation scans and `refactor`; independent of the compiler's cap |
+ | `folding` | `MAX_FOLD_DEPTH` = 256 | |
+-| `declaration` | `MAX_BODY_DEPTH` = 256 (local) | not tied to the compiler's derived cap; defence in depth |
+-| `refactor` | `MAX_COMMAND_SEARCH_DEPTH` = 256 | |
++| `declaration` | `MAX_BODY_DEPTH` = `tcl_compiler::MAX_SOURCE_NEST_DEPTH` | the analyser's own cap; a scan starts at the top level or in a scope body, so it reaches at least as deep as one whole-file walk |
++| `refactor` | `MAX_COMMAND_SEARCH_DEPTH` = 256 | lexical body walk; independent of the compiler's cap, so it still reaches into an `E207`-refused body |
+ | `semantic_tokens` (`collect_lambda_literal` family) | `MAX_TOKEN_RECURSION` = 32 | |
+ | `formatting::engine::format_body` / `format_case_list_body` | `MAX_FORMAT_DEPTH` = 128 | **conservative cap** — reachable from the `bigip-query-wasm` host; 2 MiB crash floor measured at depth 800–1200 |
+ | `minify::minify_body` and siblings | `MAX_MINIFY_DEPTH` = 128 | same reasoning |
+diff -ruN a/rust/f5-cli/tests/irule.rs b/rust/f5-cli/tests/irule.rs
+--- a/rust/f5-cli/tests/irule.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/f5-cli/tests/irule.rs	2026-10-19 11:27:50.773280307 +0000
+@@ -291,8 +291,9 @@
+ // uncatchable SIGABRT.
+ 
+ /// `irule minify --aggressive` on a deeply nested iRule (well past the
+-/// analyser's `MAX_BODY_DEPTH` of 256) must exit cleanly — with a real
+-/// result or a reported error — not crash the process.
++/// analyser's body-nesting cap, `tcl_compiler::MAX_SOURCE_NEST_DEPTH`) must
++/// exit cleanly — with a real result or a reported error — not crash the
++/// process.
+ #[test]
+ fn minify_aggressive_survives_deeply_nested_irule() {
+     const DEPTH: usize = 500;
+diff -ruN a/rust/tcl-cli/src/lib.rs b/rust/tcl-cli/src/lib.rs
+--- a/rust/tcl-cli/src/lib.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-cli/src/lib.rs	2026-10-19 11:27:50.773366753 +0000
+@@ -74,8 +74,9 @@
+ /// see the doc comment there for the full rationale. Short version: the
+ /// analyser's and CFG builder's depth-capped recursions
+ /// (`tcl_compiler::analyser::commands::MAX_BODY_DEPTH` /
+-/// `tcl_compiler::cfg_builder::MAX_LOWER_DEPTH`, both 256) bound the number
+-/// of stack frames but not how much stack those frames need, and the
++/// `tcl_compiler::cfg_builder::MAX_LOWER_DEPTH`, both
++/// `tcl_compiler::MAX_SOURCE_NEST_DEPTH`) bound the number of stack frames
++/// but not how much stack those frames need, and the
+ /// OS-provided main-thread stack this binary would otherwise inherit is
+ /// outside this crate's control — 8 MiB by default on Linux, but as little
+ /// as 1 MiB on Windows, or whatever a container's `ulimit -s` happens to
+diff -ruN a/rust/tcl-compiler/src/analyser/oo.rs b/rust/tcl-compiler/src/analyser/oo.rs
+--- a/rust/tcl-compiler/src/analyser/oo.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/analyser/oo.rs	2026-10-19 11:28:43.206325131 +0000
+@@ -6124,7 +6124,7 @@
+     /// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/`Block`/`UpFrame`
+     /// body, with no depth cap of its own. Transitively bounded to
+     /// `MAX_LOWER_NEST_DEPTH`
+-    /// (256) by the lowering pass today, so this is defence-in-depth /
++    /// by the lowering pass today, so this is defence-in-depth /
+     /// consistency with every other full-tree walker in this crate, not a
+     /// currently-reproducible crash. 1000 levels of *source* nesting is
+     /// comfortably past this new cap; the assertion is that
+diff -ruN a/rust/tcl-compiler/src/analyser/scope.rs b/rust/tcl-compiler/src/analyser/scope.rs
+--- a/rust/tcl-compiler/src/analyser/scope.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/analyser/scope.rs	2026-10-19 11:28:43.173538437 +0000
+@@ -3916,12 +3916,16 @@
+ 
+ /// Depth cap for [`walk_scopes_helper`]'s recursion over nested
+ /// (namespace / proc / method) [`Scope`] children.
+-/// Transitively bounded today via `analyser::commands::MAX_BODY_DEPTH`
+-/// (the analyser's own recursive descent, which builds this `Scope` tree
+-/// in the first place, already caps its own nesting at 256), capped here
+-/// independently for defence-in-depth and consistency with every other
+-/// full-tree walker in this crate.
+-const MAX_SCOPE_WALK_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
++/// The analyser's body walk, which builds this `Scope` tree, stops at
++/// [`crate::depth_guard::MAX_SOURCE_NEST_DEPTH`]; it opens a body's scope
++/// before checking that body against the cap, so the tree one whole-file walk
++/// builds is at most one level deeper than the cap. A per-item graft
++/// ([`super::per_item::analyse_proc_body_isolated`]) keeps that bound only
++/// while its isolated walk starts from the body depth the shell found the body
++/// at. Capped here independently for defence-in-depth and consistency with
++/// every other full-tree walker in this crate.
++const MAX_SCOPE_WALK_DEPTH: tcl_core_types::RecursionLimit =
++    tcl_core_types::RecursionLimit(crate::depth_guard::MAX_SOURCE_NEST_DEPTH.0 + 1);
+ 
+ fn walk_scopes_helper(scope: &Scope, path: &[usize], out: &mut Vec<Vec<usize>>, depth: u32) {
+     if MAX_SCOPE_WALK_DEPTH.exceeded(depth) {
+@@ -5065,13 +5069,13 @@
+     }
+ 
+     /// Depth coverage: `walk_scopes_helper` recurses once per nested
+-    /// [`Scope`] child, with no depth cap of its own. Transitively bounded to
+-    /// `analyser::commands::MAX_BODY_DEPTH` (256) by the analyser pass
+-    /// that builds the `Scope` tree today, so this is defence-in-depth /
+-    /// consistency with every other full-tree walker in this crate, not a
+-    /// currently-reproducible crash. 2000 levels is comfortably past this
+-    /// new cap; the assertion is that `walk_scopes_from` returns at all,
+-    /// not what it returns.
++    /// [`Scope`] child, capped by `MAX_SCOPE_WALK_DEPTH`. The analyser pass
++    /// that builds the `Scope` tree already bounds it (one whole-file walk
++    /// stops at `analyser::commands::MAX_BODY_DEPTH`), so this is
++    /// defence-in-depth / consistency with every other full-tree walker in
++    /// this crate, not a currently-reproducible crash. The tree here is built
++    /// by hand, 2000 levels deep, comfortably past the cap; the assertion is
++    /// that `walk_scopes_from` returns at all, not what it returns.
+     #[test]
+     fn deeply_nested_scopes_survive_walk_scopes_from() {
+         const DEPTH: usize = 2000;
+diff -ruN a/rust/tcl-compiler/src/cfg_builder/mod.rs b/rust/tcl-compiler/src/cfg_builder/mod.rs
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs	2026-10-19 11:28:43.198121541 +0000
+@@ -6407,7 +6407,7 @@
+     /// mutually-recursive `switch_escaping_jumps` recurse once per nested
+     /// `if`/`switch`/`Block`/`UpFrame`/`try` body, with no depth cap of
+     /// their own before this fix. Transitively bounded to
+-    /// `MAX_LOWER_DEPTH` (256) by the lowering pass today, so this is
++    /// `MAX_LOWER_DEPTH` by the lowering pass today, so this is
+     /// defence-in-depth / consistency with every other full-tree walker in
+     /// this crate, not a currently-reproducible crash. 1000 levels of
+     /// source nesting is comfortably past this new cap; the assertion is
+diff -ruN a/rust/tcl-compiler/src/codegen/structured.rs b/rust/tcl-compiler/src/codegen/structured.rs
+--- a/rust/tcl-compiler/src/codegen/structured.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/codegen/structured.rs	2026-10-19 11:28:43.237581684 +0000
+@@ -47,11 +47,12 @@
+ /// backend drives it for the top level and for every proc body
+ /// (`codegen::wasm::backend::codegen`, `backend.rs:1919` and `:1961`) — and it
+ /// is guarded the same way as every other recursive-descent walker in this
+-/// crate. 256 matches the convention used elsewhere in
+-/// this crate (`analyser::commands::MAX_BODY_DEPTH`,
+-/// `lowering::MAX_LOWER_NEST_DEPTH`, `optimiser::MAX_OPTIMISER_WALK_DEPTH`):
+-/// this runs on the native compiler's side (emitting WASM, not executing
+-/// inside it), so the same big-stack entry points apply.
++/// crate. 256 matches `optimiser::MAX_OPTIMISER_WALK_DEPTH` and sits above the
++/// braced-body caps that bound the `Script` this walk sees
++/// (`analyser::commands::MAX_BODY_DEPTH`, `lowering::MAX_LOWER_NEST_DEPTH`,
++/// both `depth_guard::MAX_SOURCE_NEST_DEPTH`), so for lowered input it never
++/// trips first: this runs on the native compiler's side (emitting WASM, not
++/// executing inside it), so the same big-stack entry points apply.
+ const MAX_STRUCTURED_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
+ 
+ /// Whether straight-line control falls through to the next statement, or the
+@@ -747,7 +748,7 @@
+     /// recursion over nested `if`/`while`/`for` (and `emit_if`'s own
+     /// self-recursive `elseif`-chain walk) is capped at
+     /// `MAX_STRUCTURED_DEPTH` (256). `lower_to_ir` (called by `events`) has
+-    /// its own matching cap and barriers past it first in this end-to-end
++    /// its own, lower cap and barriers past it first in this end-to-end
+     /// path, so this proves the *whole* pipeline survives deep nesting
+     /// rather than isolating this module's cap specifically — same caveat
+     /// as the optimiser passes' equivalent test
+diff -ruN a/rust/tcl-compiler/src/interprocedural.rs b/rust/tcl-compiler/src/interprocedural.rs
+--- a/rust/tcl-compiler/src/interprocedural.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/interprocedural.rs	2026-10-19 11:27:50.773692082 +0000
+@@ -8080,7 +8080,7 @@
+     /// `scan_control_flow_statement` trio recurse once per nested
+     /// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch` body, with no
+     /// depth cap of their own before this fix. Transitively bounded to
+-    /// `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass today, so this is
++    /// `MAX_LOWER_NEST_DEPTH` by the lowering pass today, so this is
+     /// defence-in-depth / consistency with every other full-tree walker in
+     /// this crate, not a currently-reproducible crash. 1000 levels of
+     /// *source* nesting is comfortably past this new cap; the assertion is
+diff -ruN a/rust/tcl-compiler/src/ir.rs b/rust/tcl-compiler/src/ir.rs
+--- a/rust/tcl-compiler/src/ir.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/ir.rs	2026-10-19 11:28:43.176524509 +0000
+@@ -4073,7 +4073,7 @@
+     /// `for_each_statement` recurses
+     /// once per nested `If`/`For`/`While`/`Foreach`/`Catch`/`Try`/`Switch`/
+     /// `UpFrame` body, so it needs a depth cap of its own.
+-    /// Transitively bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering
++    /// Transitively bounded to `MAX_LOWER_NEST_DEPTH` by the lowering
+     /// pass today (every `Script` this crate hands to `for_each_statement`
+     /// is built by `crate::lowering`), so this is defence-in-depth /
+     /// consistency with every other full-tree walker in this crate, not a
+diff -ruN a/rust/tcl-compiler/src/ir_helpers.rs b/rust/tcl-compiler/src/ir_helpers.rs
+--- a/rust/tcl-compiler/src/ir_helpers.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/ir_helpers.rs	2026-10-19 11:28:43.181731252 +0000
+@@ -2501,7 +2501,7 @@
+     /// `collect_defs_from_script`
+     /// recurses once per nested `If`/`For`/`While`/`Foreach`/`Catch`/`Try`/
+     /// `Switch` body, so it needs a depth cap of its own.
+-    /// Transitively bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering
++    /// Transitively bounded to `MAX_LOWER_NEST_DEPTH` by the lowering
+     /// pass today, so this is defence-in-depth / consistency with every
+     /// other full-tree walker in this crate, not a currently-reproducible
+     /// crash. 2000 levels is comfortably past this new cap; the assertion
+diff -ruN a/rust/tcl-compiler/src/lib.rs b/rust/tcl-compiler/src/lib.rs
+--- a/rust/tcl-compiler/src/lib.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/lib.rs	2026-10-19 11:27:50.773884928 +0000
+@@ -221,6 +221,13 @@
+ pub use ir::{Module, Procedure, Script, Statement};
+ pub use tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr, format_tcl_value};
+ 
++/// The braced-body nesting depth at which this crate's source walks stop:
++/// past it, lowering retains a barrier and the analyser reports `E207`.
++/// Walkers outside the crate over trees the analyser builds derive their own
++/// caps from this one.
++pub const MAX_SOURCE_NEST_DEPTH: tcl_core_types::RecursionLimit =
++    depth_guard::MAX_SOURCE_NEST_DEPTH;
++
+ /// Crate version string.
+ ///
+ /// ```
+diff -ruN a/rust/tcl-compiler/src/lowering/mod.rs b/rust/tcl-compiler/src/lowering/mod.rs
+--- a/rust/tcl-compiler/src/lowering/mod.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/lowering/mod.rs	2026-10-19 11:28:43.218176214 +0000
+@@ -10343,7 +10343,7 @@
+     /// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/`Block`/`UpFrame`
+     /// body, with no depth cap of its own. Transitively bounded to
+     /// `MAX_LOWER_NEST_DEPTH`
+-    /// (256) by `lower_script`/`lower_body` (this same `lower_to_ir` call
++    /// by `lower_script`/`lower_body` (this same `lower_to_ir` call
+     /// builds the `Script` `walk_for_trace` then scans), so this is
+     /// defence-in-depth / consistency with every other full-tree walker in
+     /// this crate, not a currently-reproducible crash. 1000 levels of
+diff -ruN a/rust/tcl-compiler/src/optimiser/end_offset.rs b/rust/tcl-compiler/src/optimiser/end_offset.rs
+--- a/rust/tcl-compiler/src/optimiser/end_offset.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/optimiser/end_offset.rs	2026-10-19 11:28:43.210451536 +0000
+@@ -766,7 +766,7 @@
+     /// `collect_statement_spans` recurses once per nested
+     /// `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch` body, so it needs a
+     /// depth cap of its own. Transitively bounded to `MAX_LOWER_NEST_DEPTH`
+-    /// (256) by the lowering pass, so this is defence-in-depth / consistency
++    /// by the lowering pass, so this is defence-in-depth / consistency
+     /// with every other full-tree walker in this crate, not a
+     /// currently-reproducible crash. 1000 levels of source nesting is
+     /// comfortably past that cap; the assertion is that `run_pass`
+diff -ruN a/rust/tcl-compiler/src/optimiser/tail_call.rs b/rust/tcl-compiler/src/optimiser/tail_call.rs
+--- a/rust/tcl-compiler/src/optimiser/tail_call.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/optimiser/tail_call.rs	2026-10-19 11:28:43.209665150 +0000
+@@ -702,7 +702,7 @@
+     /// `non_tail_in_stmt` pair recurse once per nested `if`/`for`/`while`/
+     /// `foreach`/`catch`/`try`/`switch` body, and carry their own depth
+     /// cap. Transitively bounded to `MAX_LOWER_NEST_DEPTH`
+-    /// (256) by the lowering pass today, so this is defence-in-depth /
++    /// by the lowering pass today, so this is defence-in-depth /
+     /// consistency with every other full-tree walker in this crate, not a
+     /// currently-reproducible crash. 1000 levels of source nesting is
+     /// comfortably past that cap; the assertion is that `run_pass`
+diff -ruN a/rust/tcl-compiler/src/ssa.rs b/rust/tcl-compiler/src/ssa.rs
+--- a/rust/tcl-compiler/src/ssa.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/ssa.rs	2026-10-19 11:28:43.190823420 +0000
+@@ -13091,7 +13091,7 @@
+     /// `collapsed_extra_defs` recurses once per nested
+     /// `If`/`While`/`For`/`Foreach`/`Catch`/`Try`/`Switch` body, with no
+     /// depth cap of its own. Transitively
+-    /// bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass,
++    /// bounded to `MAX_LOWER_NEST_DEPTH` by the lowering pass,
+     /// so this is defence-in-depth / consistency with every other
+     /// full-tree walker in this crate, not a currently-reproducible crash.
+     /// 2000 levels is comfortably past this new cap; the assertion is that
+diff -ruN a/rust/tcl-compiler/src/var_escape/slot_resolution.rs b/rust/tcl-compiler/src/var_escape/slot_resolution.rs
+--- a/rust/tcl-compiler/src/var_escape/slot_resolution.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/var_escape/slot_resolution.rs	2026-10-19 11:28:43.221556026 +0000
+@@ -517,7 +517,7 @@
+     /// `walk_statements` recurses once
+     /// per nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/
+     /// `Block`/`UpFrame` body, with no depth cap of its own before this
+-    /// fix. Transitively bounded to `MAX_LOWER_NEST_DEPTH` (256) by the
++    /// fix. Transitively bounded to `MAX_LOWER_NEST_DEPTH` by the
+     /// lowering pass today, so this is defence-in-depth / consistency with
+     /// every other full-tree walker in this crate, not a
+     /// currently-reproducible crash. 2000 levels is comfortably past this
+diff -ruN a/rust/tcl-compiler/src/var_escape/walker.rs b/rust/tcl-compiler/src/var_escape/walker.rs
+--- a/rust/tcl-compiler/src/var_escape/walker.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-compiler/src/var_escape/walker.rs	2026-10-19 11:28:43.225561495 +0000
+@@ -869,7 +869,7 @@
+     /// `walk` recurses once per
+     /// nested `if`/`for`/`while`/`foreach`/`catch`/`try`/`switch`/`Block`
+     /// body, with no depth cap of its own before this fix. Transitively
+-    /// bounded to `MAX_LOWER_NEST_DEPTH` (256) by the lowering pass today,
++    /// bounded to `MAX_LOWER_NEST_DEPTH` by the lowering pass today,
+     /// so this is defence-in-depth / consistency with every other
+     /// full-tree walker in this crate, not a currently-reproducible
+     /// crash. 1000 levels of source nesting is comfortably past this new
+diff -ruN a/rust/tcl-debugger/src/backend.rs b/rust/tcl-debugger/src/backend.rs
+--- a/rust/tcl-debugger/src/backend.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-debugger/src/backend.rs	2026-10-19 11:28:43.229541946 +0000
+@@ -412,7 +412,7 @@
+     /// default stack.
+     ///
+     /// Asserts only that `launch` returns rather than aborting the process:
+-    /// 400 levels is also past `MAX_LOWER_DEPTH` (256), so lowering's own
++    /// 400 levels is also past `MAX_LOWER_DEPTH`, so lowering's own
+     /// depth-cap barrier legitimately empties the debug trace past that
+     /// point (a separate, already-tested concern in `tcl_compiler::lowering`)
+     /// — this test is specifically about surviving, not about what gets
+diff -ruN a/rust/tcl-lsp-core/src/declaration.rs b/rust/tcl-lsp-core/src/declaration.rs
+--- a/rust/tcl-lsp-core/src/declaration.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-lsp-core/src/declaration.rs	2026-10-19 11:28:43.164492038 +0000
+@@ -38,16 +38,15 @@
+ use tcl_registry::CommandRegistry;
+ 
+ /// Recursion depth guard for nested body walks — a defensive stack-overflow
+-/// bound, kept at or above the compiler analyser's own `MAX_BODY_DEPTH` so
+-/// deeply (but validly) nested code keeps full go-to-declaration support.
+-/// Real source never nests anywhere near this.
+-///
+-/// The compiler derives its own number from a stack budget and lands well
+-/// below this one, so a body tree this walk receives from the analyser
+-/// cannot reach here at all. The bound is defence-in-depth against a tree
+-/// built or received some other way — the same role
+-/// `document_symbols`' `MAX_SCOPE_WALK_DEPTH` plays.
+-const MAX_BODY_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
++/// bound, equal to the compiler's body-nesting cap,
++/// [`tcl_compiler::MAX_SOURCE_NEST_DEPTH`], which one whole-file analyser
++/// walk stops at. A scan starts at depth 0 at the top level or inside a scope
++/// body, so it reaches at least as deep as that walk and deeply (but validly)
++/// nested code keeps full go-to-declaration support. The scope regions it
++/// starts from come from `scope_body_spans_at`, which declines a scope tree
++/// deeper than `crate::MAX_SCOPE_WALK_DEPTH` (see there for how a per-item
++/// graft could build one). Real source never nests anywhere near this.
++const MAX_BODY_DEPTH: tcl_core_types::RecursionLimit = tcl_compiler::MAX_SOURCE_NEST_DEPTH;
+ 
+ use crate::definition::{
+     LspRange, SourceScopeBodySpans, definition, scope_body_spans_at, span_to_range,
+diff -ruN a/rust/tcl-lsp-core/src/document_symbols.rs b/rust/tcl-lsp-core/src/document_symbols.rs
+--- a/rust/tcl-lsp-core/src/document_symbols.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-lsp-core/src/document_symbols.rs	2026-10-19 11:28:43.164574681 +0000
+@@ -1392,11 +1392,12 @@
+     }
+ 
+     /// `scope_symbols`/`proc_symbol` recurse once per nested namespace/proc
+-    /// scope, capped by `MAX_SCOPE_WALK_DEPTH` (`crate::lib`). A `Scope`
+-    /// tree built by the real analyser can never exceed its own
+-    /// `MAX_BODY_DEPTH` (256 when this was written; derived from a stack
+-    /// budget), so this exercises deep-but-valid
+-    /// nesting rather than this crate's own cap tripping — that cap is
++    /// scope, capped by `MAX_SCOPE_WALK_DEPTH` (`crate::lib`). The `Scope`
++    /// tree one whole-file analyser walk builds stops one level past the
++    /// compiler's `MAX_SOURCE_NEST_DEPTH`, which that cap allows for, so this
++    /// exercises deep-but-valid nesting (top-level `namespace eval`s, which
++    /// the per-item path walks in its shell exactly as the whole-file walk
++    /// does) rather than this crate's own cap tripping — that cap is
+     /// defence-in-depth against a scope tree built/received some other way.
+     ///
+     /// `namespace eval` nesting costs meaningfully more native stack per
+diff -ruN a/rust/tcl-lsp-core/src/lib.rs b/rust/tcl-lsp-core/src/lib.rs
+--- a/rust/tcl-lsp-core/src/lib.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-lsp-core/src/lib.rs	2026-10-19 11:28:43.163761756 +0000
+@@ -32,16 +32,27 @@
+ /// Cap on [`tcl_compiler::analyser::Scope`]-tree walking depth shared by
+ /// every LSP feature provider that recurses over `scope.children`
+ /// (document symbols, go-to-definition, the symbol graph, inlay hints,
+-/// the inline-variable refactor). Mirrors the compiler analyser's own
+-/// `MAX_BODY_DEPTH`: since a `Scope` node is created only for a
+-/// `namespace`/`proc`/`method` body, and the analyser already caps body
+-/// nesting at that same value, the tree these walkers see can never
+-/// exceed it in practice — this cap is defence-in-depth against a scope
+-/// tree built or received some other way, and keeps every consumer from
+-/// needing its own copy of the same constant. See
+-/// `docs/design/compiler/recursive-descent-depth-limits.md`.
++/// the inline-variable refactor). Derived from the compiler's body-nesting
++/// cap, [`tcl_compiler::MAX_SOURCE_NEST_DEPTH`]: a `Scope` node is created
++/// only for a `namespace`/`proc`/`method` body, and the analyser opens that
++/// scope before checking the body against the cap, so the tree one whole-file
++/// walk builds is at most one level deeper than the cap and never trips this
++/// one.
++///
++/// The per-item path (`Analyser::analyse_per_item_with`, which the LSP uses)
++/// builds each deferred proc / method body's subtree in a separate isolated
++/// walk (`per_item::analyse_proc_body_isolated`) and grafts it in. Its tree
++/// stays within this bound only while that walk starts from the body depth
++/// the shell found the body at; a walk restarting at depth 0 could graft a
++/// tree up to about twice the cap. Past this cap the walkers stop descending
++/// (fail-closed: the deeper scopes are left out), and
++/// `definition::scope_body_spans_at` declines the whole document.
++///
++/// It is defence-in-depth against a scope tree built or received some other
++/// way, and keeps every consumer from needing its own copy of the same
++/// constant. See `docs/design/compiler/recursive-descent-depth-limits.md`.
+ pub(crate) const MAX_SCOPE_WALK_DEPTH: tcl_core_types::RecursionLimit =
+-    tcl_core_types::RecursionLimit(256);
++    tcl_core_types::RecursionLimit(tcl_compiler::MAX_SOURCE_NEST_DEPTH.0 + 1);
+ 
+ pub mod bigip;
+ pub mod call_hierarchy;
+diff -ruN a/rust/tcl-lsp-core/src/refactor/mod.rs b/rust/tcl-lsp-core/src/refactor/mod.rs
+--- a/rust/tcl-lsp-core/src/refactor/mod.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-lsp-core/src/refactor/mod.rs	2026-10-19 11:28:43.169954692 +0000
+@@ -1030,10 +1030,12 @@
+     }
+ }
+ 
+-/// Defensive recursion bound for the nested-command search, set to match the
+-/// compiler analyser's `MAX_BODY_DEPTH` so deeply (but validly) nested code
+-/// still resolves the command under the cursor. Real source never nests
+-/// anywhere near this.
++/// Defensive recursion bound for the nested-command search over body words.
++/// The search is a lexical walk of its own and does not consult the analyser,
++/// so this bound is independent of the compiler's body-nesting cap
++/// ([`tcl_compiler::MAX_SOURCE_NEST_DEPTH`], which is lower): a cursor inside
++/// a body the analyser refused with `E207` still resolves the command under
++/// it. Real source never nests anywhere near this.
+ pub(super) const MAX_COMMAND_SEARCH_DEPTH: tcl_core_types::RecursionLimit =
+     tcl_core_types::RecursionLimit(256);
+ 
+diff -ruN a/rust/tcl-lsp-core/src/references.rs b/rust/tcl-lsp-core/src/references.rs
+--- a/rust/tcl-lsp-core/src/references.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-lsp-core/src/references.rs	2026-10-19 11:28:43.168689463 +0000
+@@ -4239,10 +4239,18 @@
+     (start, end)
+ }
+ 
+-/// Recursion bound for [`nested_dispatch_regions`] — mirrors the analyser's
+-/// own `MAX_BODY_DEPTH` (`tcl_compiler::analyser::commands`): a guard against
+-/// a stack overflow on pathologically nested / generated / minified Tcl, not
+-/// a limit any hand-written script should ever approach.
++/// Shared recursion bound for this crate's lexical dispatch and region scans
++/// — [`nested_dispatch_regions`] and the `scan_*_region` family here, plus
++/// the caller-frame, rename, invocation, expression-context and refactor
++/// scans that reuse it — which descend through body words and `[…]` command
++/// substitutions alike. A guard against a stack overflow on pathologically
++/// nested / generated / minified Tcl, not a limit any hand-written script
++/// should ever approach.
++///
++/// Independent of the analyser: these scans read source text, not the
++/// analyser's scope tree, and this bound does not mirror the compiler's
++/// body-nesting cap ([`tcl_compiler::MAX_SOURCE_NEST_DEPTH`], which is
++/// lower), so they still reach into a body the analyser refused with `E207`.
+ pub(crate) const MAX_DISPATCH_SCAN_DEPTH: tcl_core_types::RecursionLimit =
+     tcl_core_types::RecursionLimit(256);
+ 
+diff -ruN a/rust/tcl-lsp-server/tests/e2e/issue996_stack_overflow.rs b/rust/tcl-lsp-server/tests/e2e/issue996_stack_overflow.rs
+--- a/rust/tcl-lsp-server/tests/e2e/issue996_stack_overflow.rs	2026-10-19 11:23:43.000000000 +0000
++++ b/rust/tcl-lsp-server/tests/e2e/issue996_stack_overflow.rs	2026-10-19 11:27:50.774198117 +0000
+@@ -21,8 +21,8 @@
+ //! nested 100-150 levels deep.
+ //!
+ //! The analyser's `analyse_body` recursion is correctly bounded by
+-//! `MAX_BODY_DEPTH` (256), but 256 real Rust stack frames of that recursive
+-//! chain need more stack than Tokio's default 2 MiB worker-thread stack
++//! `MAX_BODY_DEPTH`, but at its former 256 levels that recursive chain
++//! needed more stack than Tokio's default 2 MiB worker-thread stack
+ //! provides — the thread the native LSP server actually runs analysis on via
+ //! `tokio::spawn`. `ulimit -s 2048` reproduces a crash at nesting depth
+ //! 130-140 without the fix; `tcl-lsp-server/src/main.rs` builds its Tokio

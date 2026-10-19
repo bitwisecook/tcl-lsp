@@ -1,0 +1,82 @@
+--- a/rust/tcl-lsp-core/src/definition.rs
++++ b/rust/tcl-lsp-core/src/definition.rs
+@@ -9449,6 +9449,49 @@
+         }
+     }
+ 
++    /// Work budget for cursor queries: definition and references over one
++    /// retained Logical analysis reuse that analysis's source structure, so
++    /// four more queries capture the whole document no more often than the
++    /// first one did. Counting starts before the analysis, so the budget fails
++    /// when no capture is counted at all, whether the structure is captured
++    /// with the analysis or by the first query.
++    #[test]
++    fn logical_cursor_queries_share_one_source_structure_capture() {
++        let start = crate::source_structure::capture_count();
++        let analysis = Analyser::new().analyse(SCOPED, "tcl");
++        let (_, line, character) = cursor(SCOPED, "uplevel 0 {puts $x");
++        let query = || {
++            assert!(!definition(SCOPED, line, character, &analysis).is_empty());
++            assert!(
++                !crate::references::references(
++                    SCOPED,
++                    analysis.resolved_profile().unwrap(),
++                    line,
++                    character,
++                    &analysis,
++                    true,
++                )
++                .is_empty()
++            );
++        };
++        let before = crate::source_structure::capture_count();
++        query();
++        let first = crate::source_structure::capture_count() - before;
++        let before = crate::source_structure::capture_count();
++        for _ in 0..4 {
++            query();
++        }
++        let more = crate::source_structure::capture_count() - before;
++        assert!(
++            crate::source_structure::capture_count() > start,
++            "no source-structure capture was counted"
++        );
++        assert!(
++            more <= first,
++            "each query recaptured the document: first query {first}, four more {more}"
++        );
++    }
++
+     const SCOPED: &str = "set x ROOT\nnamespace eval N {\n variable x NAMESPACE\n proc p {} {\n  set x PROCEDURE\n  uplevel #0 {puts $x}\n  uplevel 0 {puts $x}\n  uplevel 1 {puts $x}\n }\n}\n";
+ 
+     fn cursor(source: &str, needle: &str) -> (u32, u32, u32) {
+--- a/rust/tcl-lsp-core/src/source_structure.rs
++++ b/rust/tcl-lsp-core/src/source_structure.rs
+@@ -1062,6 +1062,18 @@
+     image: SourceImage,
+ }
+ 
++#[cfg(test)]
++std::thread_local! {
++    static CAPTURES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
++}
++
++/// Whole-document source-structure captures on this thread: a work counter
++/// for per-query budgets.
++#[cfg(test)]
++pub(crate) fn capture_count() -> usize {
++    CAPTURES.with(std::cell::Cell::get)
++}
++
+ impl SourceStructure {
+     pub(crate) fn capture(
+         source: &str,
+@@ -1095,6 +1107,8 @@
+     ) -> Option<Self> {
+         // Implementation contract: naming.source.original-editor-body-structure
+         // docs/design/analysis/name-resolution-proofs/original-editor-body-structure.md
++        #[cfg(test)]
++        CAPTURES.with(|captures| captures.set(captures.get() + 1));
+ 
+         let image = SourceImage::document(source);
+         let end = u32::try_from(source.len()).ok()?;

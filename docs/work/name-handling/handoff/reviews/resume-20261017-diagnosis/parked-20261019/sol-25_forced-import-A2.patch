@@ -1,0 +1,1775 @@
+--- a/docs/design/analysis/name-resolution-proofs/manifest.json
++++ b/docs/design/analysis/name-resolution-proofs/manifest.json
+@@ -1046231,7 +1046231,7 @@
+       "document": "docs/design/analysis/name-resolution-proofs/namespace-original-quiet-pattern-completion.md",
+       "problem_statement": "A publication or OnOk table transition cannot establish completion when import can call a preload helper or remove an occupied destination whose cleanup has not been retained.",
+       "question": "Can a fresh quiet source-only pattern operation issue completion only after its independently closed handler and exact actual transfer are verified?",
+-      "conclusion": "The private completion envelope retains the actual initial handler, full original static argv, selected namespace and independently expected canonical table transfer. Import requires a proved absent global preload helper, known exports and fresh destinations; forget requires surviving direct token origins. Post-state correspondence, observer absence and current handler identity are checked before the existing common completion receipt is retained. Geometry and publication alone issue no completion. Private stock namespace workers retain their original selected parent descriptor through the canonical Registry registration lookup; an explicit authored descriptor keeps its own provenance and cannot borrow that parent pack.",
++      "conclusion": "The private completion envelope retains the actual initial handler, full original static argv, selected namespace and independently expected canonical table transfer. Import requires a proved absent global preload helper, an export decision for every matched command and destinations that are fresh or, for a forced import, hold one terminal procedure that no import references; forget requires surviving direct token origins. The decision reads the document's positioned export records first and then whole-program verdicts supplied as an analysis input; without that input a namespace with no export record yet is undecided, and an undecided export keeps both destination bindings. Post-state correspondence, observer absence and current handler identity are checked before the existing common completion receipt is retained. Geometry and publication alone issue no completion. Private stock namespace workers retain their original selected parent descriptor through the canonical Registry registration lookup; an explicit authored descriptor keeps its own provenance and cannot borrow that parent pack.",
+       "scope": "C Tcl source-model naming under Tcl 8.4, 8.5, 8.6, 9.0 and 9.1 selected policies, genuine original operands and independently retained ASCII namespace geometry. Opaque command/pattern units remain counted data under the shared selected native purposes. Jim export is a selected no-op; its source-name import helper and unimplemented forget do not receive C token or completion authority. Supplied native entries, generated opaque namespace allocation, arbitrary preload helpers, replacement cleanup, unknown callbacks and physical compiler/cache/namespace authority are excluded. The original registration source descriptor is metadata only. Modern private workers independently retain their actual same-site initial handler, current allocation, complete operand vector, exact policy and expected transfer before completion; descriptor projection supplies no token, compiler or Normal authority.",
+       "providers": [
+         {
+@@ -1046671,7 +1046671,13 @@
+         {
+           "path": "rust/tcl-compiler/src/command_binding/original_namespace_binding.rs",
+           "selector": "command_binding::original_namespace_binding::tests::original_namespace_import_completion_requires_closed_prelude_and_destinations",
+-          "assertion": "Present preload, occupied forced destination, self import and qualified export provide no complete root world.",
++          "assertion": "Present preload, a forced destination that another namespace imports, self import and qualified export provide no complete root world; a forced import onto an unreferenced procedure completes with the source declaration as its origin, as tclsh 8.4.20-9.1.0 replace it.",
++          "status": "linked"
++        },
++        {
++          "path": "rust/tcl-compiler/src/command_binding/original_namespace_binding.rs",
++          "selector": "command_binding::original_namespace_binding::tests::original_import_export_facts_decide_what_the_document_leaves_open",
++          "assertion": "Supplied Exported, NotExported and Unknown verdicts give an imported, an unimported and an unavailable world; without them a documented namespace decides and an undocumented one leaves the world unavailable.",
+           "status": "linked"
+         },
+         {
+@@ -1046700,7 +1046706,17 @@
+         {
+           "path": "rust/tcl-compiler/src/command_binding/original_namespace_binding.rs",
+           "symbol": "import_is_fresh_and_closed",
+-          "purpose": "Current absent preload, closed source/export roster and fresh destinations without replacement cleanup."
++          "purpose": "Current absent preload, closed source/export roster and destinations that are fresh or a closed forced replacement, without replacement cleanup."
++        },
++        {
++          "path": "rust/tcl-compiler/src/command_binding/original_namespace_binding.rs",
++          "symbol": "replacement_is_closed",
++          "purpose": "Admit a forced replacement only of one terminal procedure that no import references, in a quiet table, so the C deletion of the occupant runs no trace, destructor or import-reference transfer."
++        },
++        {
++          "path": "rust/tcl-compiler/src/command_binding/original_namespace_binding.rs",
++          "symbol": "SourceExportEvidence::decide",
++          "purpose": "Decide each matched command from the positioned export alternatives, then the supplied whole-program verdicts; an undocumented namespace without them is undecided, never empty."
+         },
+         {
+           "path": "rust/tcl-compiler/src/command_binding/original_namespace_binding.rs",
+--- a/docs/design/analysis/name-resolution-proofs/namespace-original-quiet-pattern-completion.md
++++ b/docs/design/analysis/name-resolution-proofs/namespace-original-quiet-pattern-completion.md
+@@ -12,7 +12,7 @@
+ 
+ ## Conclusion
+ 
+-The private completion envelope retains the actual initial handler, full original static argv, selected namespace and independently expected canonical table transfer. Import requires a proved absent global preload helper, known exports and fresh destinations; forget requires surviving direct token origins. Post-state correspondence, observer absence and current handler identity are checked before the existing common completion receipt is retained. Geometry and publication alone issue no completion. Private stock namespace workers retain their original selected parent descriptor through the canonical Registry registration lookup; an explicit authored descriptor keeps its own provenance and cannot borrow that parent pack.
++The private completion envelope retains the actual initial handler, full original static argv, selected namespace and independently expected canonical table transfer. Import requires a proved absent global preload helper, an export decision for every matched command and destinations that are fresh or, for a forced import, hold one terminal procedure that no import references; forget requires surviving direct token origins. The decision reads the document's positioned export records first and then whole-program verdicts supplied as an analysis input; without that input a namespace with no export record yet is undecided, and an undecided export keeps both destination bindings. Post-state correspondence, observer absence and current handler identity are checked before the existing common completion receipt is retained. Geometry and publication alone issue no completion. Private stock namespace workers retain their original selected parent descriptor through the canonical Registry registration lookup; an explicit authored descriptor keeps its own provenance and cannot borrow that parent pack.
+ 
+ ## Scope
+ 
+@@ -1854,11 +1854,14 @@
+ - [rust/tcl-registry/src/state_transition.rs](../../../../rust/tcl-registry/src/state_transition.rs), `NamespaceTransition::import_preload_command`: Explicit selected metadata proposal for the global C helper; actual absence is separately resolved.
+ - [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `OriginalNamespaceBinding::capture`: Independent initial-handler, argv, quiet-state and transfer closure before the real operation.
+ - [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `OriginalNamespaceBinding::completed`: Exact actual current transfer and original handler/site/config correspondence.
+-- [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `import_is_fresh_and_closed`: Current absent preload, closed source/export roster and fresh destinations without replacement cleanup.
++- [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `import_is_fresh_and_closed`: Current absent preload, closed source/export roster and destinations that are fresh or a closed forced replacement, without replacement cleanup.
++- [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `replacement_is_closed`: Admit a forced replacement only of one terminal procedure that no import references, in a quiet table, so the C deletion of the occupant runs no trace, destructor or import-reference transfer.
++- [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `SourceExportEvidence::decide`: Decide each matched command from the positioned export alternatives, then the supplied whole-program verdicts; an undocumented namespace without them is undecided, never empty.
+ - [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `import_origins_are_live`: Retain a surviving direct owner before forgetting an import, without last-reference cleanup inference.
+ - [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs), `CommandRegistry::native_registration_source_descriptor`: Select only a canonical stock private registration parent or independently authored direct descriptor under the actual dialect and realm; preserve descriptor provenance without a live handler or completion grant.
+ - [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `command_binding::original_namespace_binding::tests::original_namespace_import_and_forget_keep_actual_origin_with_closed_prelude` (linked): With the preload independently removed, two distinct opaque imports retain actual origins and qualified forget removes only the moved first token.
+-- [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `command_binding::original_namespace_binding::tests::original_namespace_import_completion_requires_closed_prelude_and_destinations` (linked): Present preload, occupied forced destination, self import and qualified export provide no complete root world.
++- [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `command_binding::original_namespace_binding::tests::original_namespace_import_completion_requires_closed_prelude_and_destinations` (linked): Present preload, a forced destination that another namespace imports, self import and qualified export provide no complete root world; a forced import onto an unreferenced procedure completes with the source declaration as its origin, as tclsh 8.4.20-9.1.0 replace it.
++- [rust/tcl-compiler/src/command_binding/original_namespace_binding.rs](../../../../rust/tcl-compiler/src/command_binding/original_namespace_binding.rs), `command_binding::original_namespace_binding::tests::original_import_export_facts_decide_what_the_document_leaves_open` (linked): Supplied Exported, NotExported and Unknown verdicts give an imported, an unimported and an unavailable world; without them a documented namespace decides and an undocumented one leaves the world unavailable.
+ - [rust/tcl-registry/src/registry.rs](../../../../rust/tcl-registry/src/registry.rs), `registry::tests::original_registration_source_descriptor_retains_parent_and_override_provenance` (linked): Original public namespace metadata and modern private export registration retain the same stock parent descriptor, while older/unregistered/unknown mappings and explicit authored override provenance remain separate.
+ 
+ A named test is a coverage binding, not a claim that it executed.
+--- a/docs/design/contracts/command-resolution.md
++++ b/docs/design/contracts/command-resolution.md
+@@ -264,6 +264,52 @@
+     document holds some export record for the namespace. It is carried as one
+     context (`tcl_lsp_core::definition::CallResolution`) through
+     `resolve_called_proc` and every provider that calls it, never as a global.
++
++    On the original (native naming) route the compiler's own command table
++    decides the import, and `resolve_called_proc` returns its selection
++    unchanged. The table reads the document's `namespace export` statements
++    in order. Where they leave a command's export open, it reads the
++    whole-program verdicts a host supplies as an analysis input
++    (`OriginalImportExportFacts`, through `Analyser::with_import_exports`;
++    the server fills it per file from `WorkspaceIndex::import_export_facts`,
++    and stores it on the `SourceFile` input `import_export_facts`). Those
++    verdicts come from the oracle's proof-grade query
++    (`NamespaceExportOracle::proven_export_at_original`): an export counts
++    only when another document writes it, the run order proves it ran
++    before the import, and no `-clear` of that namespace may have run in
++    between. The importing document's own rows only make the export list
++    visible, so they can say "not exported" but never "exported".
++    Cross-document `source` order is navigation advice rather than proof,
++    so today an export written in another file leaves the import undecided.
++    Without that input, a source namespace with no export statement yet is
++    undecided rather than empty. An undecided export keeps both the prior
++    binding and the import at the destination, so a call that reaches it
++    abstains, and the source command ledger becomes unavailable. An
++    undecided unforced import onto an occupied name marks the importing
++    namespace's lookup unknown, because C skips an unexported name and
++    imports the rest. A closed
++    `-force` import may replace an existing command only when that command
++    is one procedure that nothing imports, so deleting it runs no trace,
++    destructor or import transfer
++    (`original_namespace_binding::replacement_is_closed`; tclsh 8.4–9.1 pin
++    the replacement and that a later `namespace forget` does not restore the
++    procedure). Lookup order, existence and identity at the import, renames,
++    execution order and conditional branches are therefore the table's own.
++    Pinned counterexamples (tclsh 8.4–9.1, each answered or abstained, never
++    with the source procedure the call does not reach): a global or
++    `namespace path` import does not outrank the caller's own command; a
++    source defined after the import, deleted or renamed away before it,
++    declared only in a body nobody calls or a dead branch, lost with its
++    deleted and recreated namespace, or replaced by a class, was not
++    imported as that procedure; a command renamed into the source's name is
++    what the import takes; the caller's own command renamed to a later
++    candidate leaves the import to decide the call; a destination renamed
++    away after the import falls through to the global command; an import
++    that has not run (an uncalled body, a body called later, a branch not
++    taken) decides nothing; an undecided forced import is not hidden by a
++    later caught re-import that conflicts with it; the document's own export
++    written after a body-local import proves nothing for it; and an export
++    in an unordered other file leaves the call undecided.
+   - **Redefining the imported name ends the alias.** A `proc ::dst::p` written
+     after the import silently recreates `::dst::p` as an ordinary command:
+     no error, `::dst::p` runs the new body, `namespace origin ::dst::p`
+--- a/rust/tcl-compiler/src/analyser/state.rs
++++ b/rust/tcl-compiler/src/analyser/state.rs
+@@ -1070,6 +1070,13 @@
+     /// single-file analysis — changes nothing: the warning keeps firing
+     /// exactly as the per-file evidence dictates.
+     pub workspace_subclass_methods: Option<std::sync::Arc<super::types::SubclassProvidedMethods>>,
++    /// Whole-program export verdicts for this document's imports, from a
++    /// host with a workspace view. The command table reads them where the
++    /// document's own `namespace export` statements leave an import open.
++    /// `None` — the default, and every single-file analysis — leaves a source
++    /// namespace with no export statement undecided, so a call the import may
++    /// bind abstains.
++    pub import_exports: Option<std::sync::Arc<crate::command_binding::OriginalImportExportFacts>>,
+     /// When `true` (the per-item shell walk), `handle_proc_command` / OO method
+     /// walks record their body for separate analysis (`deferred_bodies`) instead
+     /// of recursing into it immediately.  Set only for the shell pass; the
+@@ -1624,6 +1631,7 @@
+             workspace_bare_word_classes: std::collections::HashSet::new(),
+             workspace_class_factories: None,
+             workspace_subclass_methods: None,
++            import_exports: None,
+             defer_proc_bodies: false,
+             pack_definer_seen: false,
+             structural_rebind: false,
+@@ -1978,6 +1986,17 @@
+         self
+     }
+ 
++    /// Supply whole-program export verdicts for this document's imports.
++    /// See [`Self::import_exports`].
++    #[must_use]
++    pub fn with_import_exports(
++        mut self,
++        facts: Option<std::sync::Arc<crate::command_binding::OriginalImportExportFacts>>,
++    ) -> Self {
++        self.import_exports = facts;
++        self
++    }
++
+     /// Set the source-file path, returning `self` for builder-style
+     /// configuration.  Path-keyed behaviour: `pkgIndex.tcl` suppresses
+     /// dead-store / unused hints for the loader-supplied `$dir`, and a
+@@ -2079,6 +2098,7 @@
+             &input,
+             self.source_analysis_entry.as_deref(),
+             &declarations,
++            self.import_exports.as_deref(),
+         )
+     }
+ 
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -253,6 +253,7 @@
+ pub use generated_procedures::{
+     OriginalNativeProcedureBody, SourceInstalledProcedureBody, SourceProcedureImplementationBody,
+ };
++pub use original_namespace_binding::{OriginalExportVerdict, OriginalImportExportFacts};
+ mod compiled_preflight;
+ mod compiler_inventory;
+ mod variable_observers;
+@@ -894,6 +895,9 @@
+     /// Derived descriptor geometry keyed by the actual immutable map and policy.
+     advice_slots: Arc<original_command_table::RegistryAdviceSlotMemo>,
+     import_binding: Option<tcl_dialect::NamespaceImportBinding>,
++    /// Whole-program export verdicts for this source's imports, when a host
++    /// supplied them; `None` leaves undocumented export lists undecided.
++    import_exports: Option<Arc<OriginalImportExportFacts>>,
+     trusted_loaders: BTreeMap<String, TrustedPackageLoader>,
+     trusted_source_modules: Vec<TrustedSourceModuleLoader>,
+     release: Option<tcl_dialect::TclVersion>,
+@@ -930,6 +934,7 @@
+             && self.release == other.release
+             && self.dialect == other.dialect
+             && self.import_binding == other.import_binding
++            && self.import_exports == other.import_exports
+             && self.semantics.binding_names() == other.semantics.binding_names()
+             && self.semantics.unresolved_command_handlers()
+                 == other.semantics.unresolved_command_handlers()
+@@ -992,6 +997,7 @@
+             import_binding: registry
+                 .profile()
+                 .and_then(tcl_dialect::DialectProfile::namespace_import_binding),
++            import_exports: None,
+             trusted_loaders: BTreeMap::new(),
+             trusted_source_modules: Vec::new(),
+             release: registry.runtime_version(),
+@@ -1027,6 +1033,7 @@
+         self.catalogue_commands.hash(&mut state);
+         self.semantics.binding_fingerprint().hash(&mut state);
+         self.import_binding.hash(&mut state);
++        self.import_exports.hash(&mut state);
+         self.trusted_loaders.hash(&mut state);
+         self.trusted_source_modules.hash(&mut state);
+         self.release.hash(&mut state);
+@@ -7770,6 +7777,7 @@
+             logical_source_input: self.final_state.baseline.logical_source_input.as_ref(),
+             vendor_source_input: self.final_state.baseline.vendor_source_input.as_ref(),
+             compiled_variable_provider: self.final_state.baseline.compiled_variable_provider,
++            import_exports: self.final_state.baseline.import_exports.as_deref(),
+         };
+         let fallback = crate::var_resolve::VariableExecutionFrame::Namespace(namespace.to_owned());
+         let frame = self
+@@ -14028,6 +14036,7 @@
+         baseline.invocation_realm = options.invocation_realm;
+         baseline.unknown_entry = options.unknown_entry;
+         baseline.native_entry = options.native_entry.cloned().map(Arc::new);
++        baseline.import_exports = options.import_exports.cloned().map(Arc::new);
+         baseline.declared_surface = options.retained_declared_command_contracts();
+         baseline.declared_commands = Arc::new(
+             tcl_registry::unique_command_descriptor_coordinates(
+--- a/rust/tcl-compiler/src/command_binding/original_namespace_binding.rs
++++ b/rust/tcl-compiler/src/command_binding/original_namespace_binding.rs
+@@ -14,6 +14,128 @@
+     native_glob::{NativeGlobProtocol, NativeNameGlobPurpose},
+ };
+ 
++/// Whole-program verdict on whether one source command is exported when an
++/// import of this document runs.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
++pub enum OriginalExportVerdict {
++    /// An export covers the command when the import runs.
++    Exported,
++    /// The program's export lists are known and none covers the command.
++    NotExported,
++    /// Nothing available decides it.
++    Unknown,
++}
++
++/// Export verdicts for the source commands this document's imports can bind,
++/// keyed by each command's exact slot. A host with a whole-program view
++/// supplies them as an analysis input; a slot it does not list is
++/// [`OriginalExportVerdict::Unknown`].
++///
++/// The document's own `namespace export` statements stay positioned in the
++/// command table and are read first. These verdicts decide only what those
++/// statements leave open.
++#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
++pub struct OriginalImportExportFacts {
++    verdicts: std::collections::BTreeMap<tcl_core_types::ByteCommandSlot, OriginalExportVerdict>,
++}
++
++impl OriginalImportExportFacts {
++    /// Record one import site's verdict for `slot`. The table carries no
++    /// import position, so two import sites that judge the same slot
++    /// differently leave it [`OriginalExportVerdict::Unknown`].
++    pub fn record(
++        &mut self,
++        slot: tcl_core_types::ByteCommandSlot,
++        verdict: OriginalExportVerdict,
++    ) {
++        self.verdicts
++            .entry(slot)
++            .and_modify(|previous| {
++                if *previous != verdict {
++                    *previous = OriginalExportVerdict::Unknown;
++                }
++            })
++            .or_insert(verdict);
++    }
++
++    /// The verdict for `slot`; an unlisted slot is unknown.
++    #[must_use]
++    pub fn verdict(&self, slot: &tcl_core_types::ByteCommandSlot) -> OriginalExportVerdict {
++        self.verdicts
++            .get(slot)
++            .copied()
++            .unwrap_or(OriginalExportVerdict::Unknown)
++    }
++
++    /// Whether no slot is listed.
++    #[must_use]
++    pub fn is_empty(&self) -> bool {
++        self.verdicts.is_empty()
++    }
++}
++
++/// What one import does with one matched source command.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++enum ImportExport {
++    Exported,
++    NotExported,
++    /// The command may or may not be exported, so the destination keeps both
++    /// its prior binding and the imported one.
++    Undecided,
++}
++
++/// Export evidence for one import's source namespace beyond the positioned
++/// export alternatives in the command table.
++struct SourceExportEvidence {
++    facts: Option<Arc<OriginalImportExportFacts>>,
++    path: Option<tcl_core_types::ByteNamespacePath>,
++    documented: bool,
++}
++
++impl SourceExportEvidence {
++    fn of(
++        state: &ModuleCommandBindings,
++        source: &SourceNamespaceKey,
++        policy: NamePolicyProtocol,
++    ) -> Self {
++        Self {
++            facts: state.baseline.import_exports.clone(),
++            path: match state.original_namespace_geometry(source, policy) {
++                Some(SignatureNamespaceScope::C(path)) => Some(path),
++                _ => None,
++            },
++            documented: state.namespace_exports.get(source).is_some(),
++        }
++    }
++
++    /// Decide one command from how many of the table's `alternatives` export
++    /// it. Without a whole-program view, a namespace with no export statement
++    /// yet is undecided rather than empty: its export list may be written in
++    /// another file.
++    fn decide(&self, simple: &NameBytes, exported: usize, alternatives: usize) -> ImportExport {
++        if exported == alternatives {
++            return ImportExport::Exported;
++        }
++        if exported > 0 {
++            return ImportExport::Undecided;
++        }
++        let verdict = match (&self.facts, &self.path) {
++            (Some(facts), Some(path)) => facts.verdict(&tcl_core_types::ByteCommandSlot::new(
++                path.clone(),
++                simple.clone(),
++            )),
++            (Some(_), None) => OriginalExportVerdict::Unknown,
++            (None, _) if self.documented => OriginalExportVerdict::NotExported,
++            (None, _) => OriginalExportVerdict::Unknown,
++        };
++        match verdict {
++            OriginalExportVerdict::Exported => ImportExport::Exported,
++            OriginalExportVerdict::NotExported => ImportExport::NotExported,
++            OriginalExportVerdict::Unknown => ImportExport::Undecided,
++        }
++    }
++}
++
+ fn policy(state: &ModuleCommandBindings) -> Option<NamePolicyProtocol> {
+     if state.has_opaque_domain() || state.baseline.unknown_entry {
+         return None;
+@@ -192,6 +314,7 @@
+         .get(&source)
+         .cloned()
+         .unwrap_or_else(|| BTreeSet::from([Vec::new()]));
++    let evidence = SourceExportEvidence::of(state, &source, policy);
+     let scope = state.original_namespace_geometry(destination, policy)?;
+     for key in keys(state, policy)? {
+         if key.holder().as_ref() != &source {
+@@ -228,7 +351,8 @@
+                 exported += 1;
+             }
+         }
+-        if exported == 0 {
++        let decision = evidence.decide(simple, exported, exports.len());
++        if decision == ImportExport::NotExported {
+             continue;
+         }
+         let implementations = state.original_bindings_for_key(&key)?;
+@@ -242,12 +366,20 @@
+         let imported = state.original_command_key_for_slot(&destination_slot, policy)?;
+         let prior = state.original_bindings_for_key(&imported)?;
+         if force == Some(false) && !prior.contains(&MayBinding::Missing) {
++            // C raises `already exists` only when the name is exported, and
++            // otherwise skips it and imports the rest. An undecided export
++            // leaves the remaining destinations unknown, never missing.
++            if decision == ImportExport::Undecided {
++                Arc::make_mut(&mut state.unknown_lookup_namespaces).insert(destination.clone());
++            }
+             return None;
+         }
+         let (mut links, source_bindings) =
+             super::imported_binding_links(state, &key, implementations, name_binding);
+         state.replace(key, source_bindings);
+-        if exported != exports.len() || force.is_none() || (force == Some(false) && prior.len() > 1)
++        if decision == ImportExport::Undecided
++            || force.is_none()
++            || (force == Some(false) && prior.len() > 1)
+         {
+             links.extend(prior);
+         }
+@@ -406,8 +538,9 @@
+ 
+ /// The closed pattern transfer of one export, import or forget statement and
+ /// every premise under which it runs nothing else: a quiet table before and
+-/// after, retained target geometry with closed lookup, fresh import
+-/// destinations with a missing preload hook, and live forget origins.
++/// after, retained target geometry with closed lookup, import destinations
++/// that are fresh or a `-force` replacement that runs no cleanup, a missing
++/// preload hook, and live forget origins.
+ /// The seal and the compiled named-invocation selection share this owner.
+ fn closed_pattern_transfer(
+     facts: &tcl_registry::InvocationFacts,
+@@ -486,9 +619,9 @@
+             ) => {
+                 for subject in patterns {
+                     let input = operand(subject)?;
+-                    // The narrow fresh-destination envelope invokes no
+-                    // replacement cleanup or imported-alias loop callback.
+-                    import_is_fresh_and_closed(&expected, namespace, &input, policy)?;
++                    // The narrow destination envelope invokes no replacement
++                    // cleanup script or imported-alias loop callback.
++                    import_is_fresh_and_closed(&expected, namespace, &input, policy, *force)?;
+                     apply_import(&mut expected, namespace, &input, Some(*force))?;
+                 }
+             }
+@@ -693,11 +826,42 @@
+     Some(())
+ }
+ 
++/// Whether a `-force` import may replace the destination's current command
++/// without leaving the closed envelope.
++///
++/// With `allowOverwrite`, C Tcl creates the imported command over the
++/// occupied name (`DoImport` in 8.5–9.1, inline in `Tcl_Import` in 8.4.20),
++/// and that creation deletes the occupant first. A later `namespace forget` deletes only
++/// that imported command, so the occupant does not come back. Deleting one
++/// terminal procedure in a quiet table runs no script: it has no delete trace
++/// and no destructor. The occupant must also have no imported command of its
++/// own, because C Tcl would move those onto the new command.
++fn replacement_is_closed(state: &ModuleCommandBindings, prior: &BTreeSet<MayBinding>) -> bool {
++    let alternatives = prior.iter().collect::<Vec<_>>();
++    let [MayBinding::Target(target)] = alternatives.as_slice() else {
++        return false;
++    };
++    let Some(token) = target.token.as_ref() else {
++        return false;
++    };
++    let imports_occupant = |binding: &MayBinding| {
++        matches!(binding, MayBinding::Imported(imported)
++            if &imported.origin == token || imported.compiler.as_ref() == Some(token))
++    };
++    target.kind == super::BindingKind::Proc
++        && target.terminal
++        && target.prepended.is_empty()
++        && !target.registry_backed
++        && !state.bindings.values().flatten().any(imports_occupant)
++        && !state.objects.values().flatten().any(imports_occupant)
++}
++
+ fn import_is_fresh_and_closed(
+     state: &ModuleCommandBindings,
+     destination: &SourceNamespaceKey,
+     original: &[u8],
+     policy: NamePolicyProtocol,
++    force: bool,
+ ) -> Option<()> {
+     let preload = tcl_registry::NamespaceTransition::import_preload_command(policy)?;
+     let root = state.source_root_namespace_key()?;
+@@ -730,6 +894,7 @@
+     if exports.len() != 1 {
+         return None;
+     }
++    let evidence = SourceExportEvidence::of(state, &source, policy);
+     let scope = state.original_namespace_geometry(destination, policy)?;
+     for key in keys(state, policy)? {
+         if key.holder().as_ref() != &source {
+@@ -760,7 +925,9 @@
+             .collect::<Option<Vec<_>>>()?
+             .into_iter()
+             .any(|matched| matched);
+-        if !exported {
++        // An undecided export still needs a closed destination: the
++        // transfer then keeps both the prior binding and the import.
++        if evidence.decide(simple, usize::from(exported), 1) == ImportExport::NotExported {
+             continue;
+         }
+         let bindings = state.original_bindings_for_key(&key)?;
+@@ -786,7 +953,10 @@
+             .command_publication_slot(scope.context()?, simple.as_bytes())
+             .ok()?;
+         let key = state.original_command_key_for_slot(&slot, policy)?;
+-        if state.original_bindings_for_key(&key)? != BTreeSet::from([MayBinding::Missing]) {
++        let prior = state.original_bindings_for_key(&key)?;
++        if prior != BTreeSet::from([MayBinding::Missing])
++            && !(force && replacement_is_closed(state, &prior))
++        {
+             return None;
+         }
+     }
+@@ -799,6 +969,14 @@
+         source: &str,
+         version: tcl_dialect::TclVersion,
+     ) -> super::super::SourceCommandBindings {
++        analyse_with_facts(source, version, None)
++    }
++
++    fn analyse_with_facts(
++        source: &str,
++        version: tcl_dialect::TclVersion,
++        import_exports: Option<&super::OriginalImportExportFacts>,
++    ) -> super::super::SourceCommandBindings {
+         let registry =
+             tcl_registry::model::ingress::static_context_for(version.dialect_name()).commands();
+         let dialect = tcl_registry::InvocationDialect::for_version(version);
+@@ -812,12 +990,69 @@
+                     mode: tcl_registry::native_compilation::NativeCompilationMode::Direct,
+                     ..Default::default()
+                 },
++                import_exports,
+                 ..Default::default()
+             },
+         )
+     }
+ 
+     #[test]
++    fn original_import_export_facts_decide_what_the_document_leaves_open() {
++        // Implementation contract: naming.namespace.original-quiet-pattern-completion
++        // docs/design/analysis/name-resolution-proofs/namespace-original-quiet-pattern-completion.md
++        // tclsh 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0: with `::src`
++        // exporting `helper` in another file, the forced import replaces
++        // `::app::helper`; with nothing exporting it, only `other` arrives.
++        let documented = "rename auto_import savedPrelude; namespace eval src {proc helper {} {}; proc other {} {}; namespace export other}; namespace eval app {proc helper {} {}}; namespace eval app {namespace import -force ::src::*}";
++        let undocumented = "rename auto_import savedPrelude; namespace eval src {proc helper {} {}}; namespace eval app {proc helper {} {}}; namespace eval app {namespace import -force ::src::*}";
++        let slot = tcl_core_types::ByteCommandSlot::new(
++            tcl_core_types::ByteNamespacePath::from_segments([b"src".as_slice()]),
++            tcl_core_types::NameBytes::from(b"helper".as_slice()),
++        );
++        let helper_imported =
++            |source: &str, version, facts: Option<&super::OriginalImportExportFacts>| {
++                analyse_with_facts(source, version, facts)
++                    .original_completed_command_world()
++                    .map(|world| {
++                        world.declarations().any(|publication| {
++                            publication.kind()
++                                == super::super::OriginalCommandPublicationKind::Imported
++                                && publication.slot().simple.as_bytes() == b"helper"
++                        })
++                    })
++            };
++        for version in tcl_dialect::TclVersion::ALL {
++            for (verdict, imported) in [
++                (super::OriginalExportVerdict::Exported, Some(true)),
++                (super::OriginalExportVerdict::NotExported, Some(false)),
++                // A possible import has no single ledger.
++                (super::OriginalExportVerdict::Unknown, None),
++            ] {
++                let mut facts = super::OriginalImportExportFacts::default();
++                facts.record(slot.clone(), verdict);
++                assert_eq!(
++                    helper_imported(documented, version, Some(&facts)),
++                    imported,
++                    "{version:?}: {verdict:?}"
++                );
++            }
++            // Without a whole-program view the document's own export list
++            // decides where it exists, and nothing is decided where it does
++            // not.
++            assert_eq!(
++                helper_imported(documented, version, None),
++                Some(false),
++                "{version:?}"
++            );
++            assert_eq!(
++                helper_imported(undocumented, version, None),
++                None,
++                "{version:?}"
++            );
++        }
++    }
++
++    #[test]
+     fn original_namespace_export_storage_keeps_exact_opaque_units() {
+         // Implementation contract: naming.namespace.original-byte-pattern-transfers
+         // docs/design/analysis/name-resolution-proofs/namespace-original-byte-pattern-transfers.md
+@@ -888,7 +1123,10 @@
+         for version in tcl_dialect::TclVersion::ALL {
+             for source in [
+                 "namespace eval A {proc p {} {}; namespace export p}; namespace eval B {namespace import ::A::p}",
+-                "rename auto_import savedPrelude; namespace eval A {proc p {} {}; namespace export p}; namespace eval B {proc p {} {}; namespace import -force ::A::p}",
++                // tclsh 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0 move the
++                // import `::C::p` onto the new `::B::p` (`namespace origin
++                // ::C::p` is `::A::p`); that transfer is not modelled.
++                "rename auto_import savedPrelude; namespace eval A {proc p {} {}; namespace export p}; namespace eval B {proc p {} {}; namespace export p}; namespace eval C {namespace import ::B::p}; namespace eval B {namespace import -force ::A::p}",
+                 "rename auto_import savedPrelude; namespace eval A {namespace import ::A::p}",
+                 "namespace export ::A::p",
+             ] {
+@@ -899,6 +1137,43 @@
+                     "{version:?}: {source}"
+                 );
+             }
++            // tclsh 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0: the forced
++            // import deletes the unreferenced procedure `::B::p`, `namespace
++            // origin ::B::p` is `::A::p`, and `::B::p` runs `::A::p`. Nothing
++            // runs during that deletion, so the transfer completes.
++            let source = "rename auto_import savedPrelude; namespace eval A {proc p {} {}; namespace export p}; namespace eval B {proc p {} {}; namespace import -force ::A::p}";
++            let world = analyse(source, version)
++                .original_completed_command_world()
++                .unwrap_or_else(|| panic!("{version:?}: {source}"));
++            let publications = world.declarations().collect::<Vec<_>>();
++            let imports = publications
++                .iter()
++                .filter(|publication| {
++                    publication.kind() == super::super::OriginalCommandPublicationKind::Imported
++                })
++                .collect::<Vec<_>>();
++            let [imported] = imports.as_slice() else {
++                panic!("{version:?}: one forced import")
++            };
++            assert_eq!(imported.slot().simple.as_bytes(), b"p");
++            assert!(
++                matches!(imported.slot().namespace.as_segments(), [segment] if segment.as_bytes() == b"B")
++            );
++            let origin = imported.imported_origin().unwrap();
++            assert!(publications.iter().any(|source| {
++                source.kind() != super::super::OriginalCommandPublicationKind::Imported
++                    && source.declaration_site() == origin
++                    && matches!(source.slot().namespace.as_segments(), [segment] if segment.as_bytes() == b"A")
++            }));
++            // The replaced procedure `::B::p` survives under no publication.
++            assert!(
++                publications
++                    .iter()
++                    .filter(|publication| publication.slot() == imported.slot())
++                    .all(|publication| {
++                        publication.kind() == super::super::OriginalCommandPublicationKind::Imported
++                    })
++            );
+         }
+     }
+ }
+--- a/rust/tcl-compiler/src/command_binding/source_analysis_cache.rs
++++ b/rust/tcl-compiler/src/command_binding/source_analysis_cache.rs
+@@ -62,6 +62,7 @@
+                 invocation_dialect: options.invocation_dialect,
+                 compiled_variable_provider: options.compiled_variable_provider,
+                 native_compilation: options.native_compilation,
++                import_exports: options.import_exports.cloned().map(Arc::new),
+             },
+         })
+     }
+--- a/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs
++++ b/rust/tcl-compiler/src/command_binding/source_analysis_entry.rs
+@@ -119,6 +119,9 @@
+         Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
+     /// Native script evaluation protocol and compiler frame supplied by the entry owner.
+     pub native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
++    /// Whole-program export verdicts for this source's imports, supplied by a
++    /// host with a workspace view. `None` is the document-only view.
++    pub import_exports: Option<&'a super::OriginalImportExportFacts>,
+ }
+ 
+ pub(super) fn native_compilation_dialect(
+@@ -393,6 +396,8 @@
+         Option<tcl_registry::native_compiled_variables::LogicalCompiledVariableProvider>,
+     /// Native script evaluation protocol and compiler frame supplied by the entry owner.
+     pub native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
++    /// Retained whole-program export verdicts for this source's imports.
++    pub import_exports: Option<Arc<super::OriginalImportExportFacts>>,
+ }
+ 
+ impl SourceAnalysisEntry {
+@@ -470,6 +475,7 @@
+             invocation_dialect: self.invocation_dialect,
+             compiled_variable_provider: self.compiled_variable_provider,
+             native_compilation: self.native_compilation,
++            import_exports: self.import_exports.as_deref(),
+         }
+     }
+ }
+--- a/rust/tcl-compiler/src/command_binding/source_command_world.rs
++++ b/rust/tcl-compiler/src/command_binding/source_command_world.rs
+@@ -1909,6 +1909,7 @@
+         if state.original_command_world.unavailable {
+             self.world.withdraw();
+         }
++        let import_exports = state.baseline.import_exports.clone();
+         for operation in std::mem::take(&mut self.operations) {
+             match operation {
+                 Operation::Withdraw => self.world.withdraw(),
+@@ -1969,7 +1970,11 @@
+                     }
+                 }
+                 Operation::Import(scope, force, inputs) => {
+-                    if self.world.import(&scope, force, &inputs).is_none() {
++                    if self
++                        .world
++                        .import(&scope, force, &inputs, import_exports.as_deref())
++                        .is_none()
++                    {
+                         self.world.withdraw();
+                     }
+                 }
+@@ -2186,11 +2191,15 @@
+ }
+ 
+ impl OriginalSourceCommandWorld {
++    /// A command whose export neither the document's own export statements
++    /// nor `import_exports` decide makes the ledger unavailable: it records
++    /// one world, and that import has two.
+     fn import(
+         &mut self,
+         destination: &SignatureNamespaceScope,
+         force: bool,
+         inputs: &[SignatureSourceNameInput],
++        import_exports: Option<&super::OriginalImportExportFacts>,
+     ) -> Option<()> {
+         let policy = self.policy?;
+         for input in inputs {
+@@ -2219,6 +2228,10 @@
+             if !self.namespaces.iter().any(|entry| entry.scope == source) {
+                 return None;
+             }
++            let documented = self
++                .exports
++                .iter()
++                .any(|(namespace, _)| namespace == &source);
+             let exports = self
+                 .exports
+                 .iter()
+@@ -2250,7 +2263,16 @@
+                         ) == Some(true)
+                     })
+                 {
+-                    continue;
++                    let verdict = match import_exports {
++                        Some(facts) => facts.verdict(&publication.slot),
++                        None if documented => super::OriginalExportVerdict::NotExported,
++                        None => super::OriginalExportVerdict::Unknown,
++                    };
++                    match verdict {
++                        super::OriginalExportVerdict::Exported => {}
++                        super::OriginalExportVerdict::NotExported => continue,
++                        super::OriginalExportVerdict::Unknown => return None,
++                    }
+                 }
+                 let slot = policy
+                     .recipe()
+@@ -2499,7 +2521,7 @@
+         let before = transfer.clone();
+         assert!(
+             transfer
+-                .import(&root_scope, false, std::slice::from_ref(&root))
++                .import(&root_scope, false, std::slice::from_ref(&root), None)
+                 .is_none()
+         );
+         assert_eq!(transfer, before);
+--- a/rust/tcl-compiler/src/lowering/mod.rs
++++ b/rust/tcl-compiler/src/lowering/mod.rs
+@@ -1829,6 +1829,7 @@
+             native_compilation: self.native_compilation,
+             native_entry: self.native_entry.clone(),
+             incoming_formals: self.incoming_formals.clone(),
++            import_exports: None,
+         };
+     }
+ 
+@@ -2363,6 +2364,7 @@
+                     },
+                     ..self.native_compilation
+                 },
++                import_exports: None,
+             },
+             purpose,
+         ) else {
+--- a/rust/tcl-compiler/src/realm.rs
++++ b/rust/tcl-compiler/src/realm.rs
+@@ -836,6 +836,17 @@
+     input: &crate::analyser::ResolvedAnalysisInput,
+     declared: Option<&crate::command_binding::SourceDeclaredCommandContracts>,
+ ) -> CommandBindingRealm {
++    document_realm_bindings_with_import_exports(source, input, declared, None)
++}
++
++/// [`document_realm_bindings_with_resolved_input`] with the whole-program
++/// export verdicts a host supplied for this source's imports.
++pub(crate) fn document_realm_bindings_with_import_exports(
++    source: &str,
++    input: &crate::analyser::ResolvedAnalysisInput,
++    declared: Option<&crate::command_binding::SourceDeclaredCommandContracts>,
++    import_exports: Option<&crate::command_binding::OriginalImportExportFacts>,
++) -> CommandBindingRealm {
+     // naming.diagnostic.original-math-function-subject
+     // docs/design/analysis/name-resolution-proofs/diagnostic-original-math-function-subject.md
+     let context = input.context_registry();
+@@ -851,6 +862,7 @@
+         ),
+         invocation_dialect: Some(dialect),
+         native_compilation: crate::environment_ingress::authoring_native_compilation(),
++        import_exports,
+         ..crate::command_binding::SourceAnalysisOptions::default()
+     };
+     let bindings = SourceCommandBindings::analyse_with_options(
+--- a/rust/tcl-compiler/src/realm/declared_source.rs
++++ b/rust/tcl-compiler/src/realm/declared_source.rs
+@@ -14,12 +14,14 @@
+     input: &ResolvedAnalysisInput,
+     entry: Option<&SourceAnalysisEntry>,
+     declarations: &SourceDeclaredCommandContracts,
++    import_exports: Option<&crate::command_binding::OriginalImportExportFacts>,
+ ) -> super::CommandBindingRealm {
+     // naming.source.original-declared-command-word-contract
+     // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
+     let context = input.context_registry();
+     let realm = if let Some(entry) = entry {
+-        let options = declarations.with_options(entry.options());
++        let mut options = declarations.with_options(entry.options());
++        options.import_exports = import_exports.or(options.import_exports);
+         let bindings = SourceCommandBindings::analyse_with_options(
+             source,
+             input.lexer_config(),
+@@ -32,7 +34,12 @@
+     } else if input.has_logical_source_name_context() {
+         super::document_lexical_realm_with_resolved_input(source, input, Some(declarations))
+     } else {
+-        super::document_realm_bindings_with_resolved_input(source, input, Some(declarations))
++        super::document_realm_bindings_with_import_exports(
++            source,
++            input,
++            Some(declarations),
++            import_exports,
++        )
+     };
+     realm.with_resolved_analysis_input(input.clone())
+ }
+--- a/rust/tcl-lsp-core/src/definition.rs
++++ b/rust/tcl-lsp-core/src/definition.rs
+@@ -37,6 +37,11 @@
+ //!   allocation. Alias and renamed routes can lead to that allocation without
+ //!   becoming direct declaration spellings or editable references.
+ //!
++//! * A called procedure's original selection is the compiler's own. Export
++//!   verdicts from the rest of the program reach it as an analysis input
++//!   (`Analyser::with_import_exports`); an export nothing decides leaves the
++//!   import undecided in the command table, so the call abstains.
++//!
+ //! Source-declaration advice requires a unique current original candidate.
+ //! Repeated publications, earlier occupied non-class slots and unresolved
+ //! operands are preserved as selection boundaries. Exact expression function
+@@ -6029,6 +6034,13 @@
+         u32::try_from(src.find(needle).expect("needle present")).expect("tiny test source")
+     }
+ 
++    /// Byte offset of the head word of the last occurrence of the command line
++    /// `line`, past its indentation: where a cursor on that call sits.
++    fn last_call_head(src: &str, line: &str) -> u32 {
++        let indent = line.len() - line.trim_start().len();
++        u32::try_from(src.rfind(line).expect("call present") + indent).expect("tiny test source")
++    }
++
+     // Behaviour 1 — `namespace forget`.
+ 
+     #[test]
+@@ -6355,9 +6367,10 @@
+         //   namespace eval ::dst { namespace import -force ::src::* }
+         //   ::dst::p                                   → SRC
+         //   namespace origin ::dst::p                  → ::src::p
+-        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    p\n}\n";
++        // The `auto_import` rename changes none of these results.
++        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    p\n}\n";
+         let analysis = analyse(src);
+-        let call = after_last(src, "    p\n");
++        let call = last_call_head(src, "    p\n");
+         let hit = resolve_called_proc(&analysis, src, "::dst", "p", call, DOC);
+         assert!(
+             hit.is_some_and(|p| p.qualified_name == "::src::p"),
+@@ -6571,9 +6584,11 @@
+         // forget leaves no `::dst::p`, and the call raises
+         // `invalid command name "p"`. The query sits on the call's own head
+         // word, which is what the original declaration selection reads.
+-        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\nnamespace eval dst {\n    p\n}\n";
++        // Renaming `auto_import` away first changes none of those results
++        // and lets the import and the forget close.
++        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\nnamespace eval dst {\n    p\n}\n";
+         let analysis = analyse(src);
+-        let call = after_last(src, "    p\n") - 2;
++        let call = last_call_head(src, "    p\n");
+         let hit = resolve_called_proc(&analysis, src, "::dst", "p", call, DOC);
+         assert!(
+             hit.is_none(),
+@@ -6592,9 +6607,9 @@
+         // local `::app::helper`. Oracle (8.6.14 / 9.0.4) with the export
+         // present anywhere in the program: `::app::helper` → SRC and
+         // `namespace origin ::app::helper` → `::src::helper`.
+-        let src = "namespace eval src {\n    proc helper {} { return SRC }\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
++        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
+         let analysis = analyse(src);
+-        let call = after_last(src, "    helper\n");
++        let call = last_call_head(src, "    helper\n");
+         assert!(
+             forced_import_shadows(&analysis, DOC, "::app", "helper", call),
+             "a `-force` import of a namespace whose exports this file cannot \
+@@ -6613,9 +6628,9 @@
+         // exports, so the forced import installs nothing and the local
+         // definition is still what the call reaches (oracle: with only
+         // `namespace export other`, `::app::helper` → LOCAL).
+-        let src = "namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
++        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
+         let analysis = analyse(src);
+-        let call = after_last(src, "    helper\n");
++        let call = last_call_head(src, "    helper\n");
+         assert!(!forced_import_shadows(
+             &analysis, DOC, "::app", "helper", call
+         ));
+@@ -6638,12 +6653,16 @@
+     //   with exports.tcl:      call -> SRC     origin -> ::src::helper
+     //   without exports.tcl:   call -> LOCAL   origin -> ::app::helper
+ 
+-    /// The pinned two-file shape's single document, byte-for-byte.
++    /// The pinned two-file shape's single document, with
++    /// `rename auto_import savedPrelude; ` in front. The rename changes none of
++    /// the results above on tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 or 9.1.0; it
++    /// removes the import preload, so the original selection can close the
++    /// import.
+     ///
+     /// `::src` is *partly* observable here: its procs and one of its exports
+     /// (`other`) are in this file. Whether it also exports `helper` is decided
+     /// somewhere this document cannot see.
+-    const PARTLY_OBSERVABLE: &str = "namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
++    const PARTLY_OBSERVABLE: &str = "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
+ 
+     /// A stand-in [`NamespaceExportOracle`] over an explicit table: a
+     /// namespace absent from it is [`ExportVerdict::Unknown`], one present
+@@ -6671,12 +6690,38 @@
+                 Some(_) => ExportVerdict::NotExported,
+             }
+         }
++
++        /// The table is an explicit whole-program model, so its answers are
++        /// the proof the compiler's import seal reads.
++        fn proven_export_at_original(
++            &self,
++            slot: &tcl_core_types::ByteCommandSlot,
++            policy: tcl_syntax::naming::NamePolicyProtocol,
++            import_site: RunPoint<'_>,
++        ) -> ExportVerdict {
++            self.exported_at_original(slot, policy, import_site)
++        }
++    }
++
++    /// `src` analysed as a host with a workspace view analyses it: the export
++    /// verdicts `oracle` gives for this document's imports enter the analysis
++    /// input, so the compiler's own import seal and selection decide.
++    fn analyse_in_program(src: &str, oracle: &dyn NamespaceExportOracle) -> AnalysisResult {
++        let document = analyse(src);
++        let facts = crate::namespace_import::original_import_export_facts(
++            &document,
++            "file:///main.tcl",
++            oracle,
++        );
++        Analyser::new()
++            .with_import_exports(Some(std::sync::Arc::new(facts)))
++            .analyse(src, "tcl8.6")
+     }
+ 
+     /// [`PARTLY_OBSERVABLE`] resolved against `oracle`.
+     fn partly_observable_target(oracle: &dyn NamespaceExportOracle) -> Option<String> {
+-        let analysis = analyse(PARTLY_OBSERVABLE);
+-        let call = after_last(PARTLY_OBSERVABLE, "    helper\n");
++        let analysis = analyse_in_program(PARTLY_OBSERVABLE, oracle);
++        let call = last_call_head(PARTLY_OBSERVABLE, "    helper\n");
+         let ctx = DOC.in_program(ProgramExports {
+             uri: "file:///main.tcl",
+             oracle,
+@@ -6740,7 +6785,7 @@
+         // CLI, a buffer the workspace has not indexed — must get exactly the
+         // document-only answer rather than a panic or the abstention above.
+         let analysis = analyse(PARTLY_OBSERVABLE);
+-        let call = after_last(PARTLY_OBSERVABLE, "    helper\n");
++        let call = last_call_head(PARTLY_OBSERVABLE, "    helper\n");
+         assert!(!forced_import_shadows(
+             &analysis, DOC, "::app", "helper", call
+         ));
+@@ -6751,6 +6796,211 @@
+         );
+     }
+ 
++    // Behaviour 2d — a whole-program export never outranks C Tcl's lookup.
++    //
++    // tclsh 8.4.20 / 8.5.19 / 8.6.18 / 9.0.4 / 9.1.0 (8.5+ for `namespace
++    // path`) give each fixture below the same answer with and without
++    // `namespace eval ::src {namespace export helper}` loaded first. The call
++    // answers that or abstains; it never answers `::src::helper`.
++
++    /// The `helper` call at the end of `src`, resolved in `::app`, alone or
++    /// in a program where `::src` exports `helper`.
++    fn helper_call_target(src: &str, program: bool) -> Option<String> {
++        let exports = FakeExports(&[("src", &["helper"])]);
++        let analysis = if program {
++            analyse_in_program(src, &exports)
++        } else {
++            analyse(src)
++        };
++        let call = last_call_head(src, "    helper\n");
++        let ctx = if program {
++            DOC.in_program(ProgramExports {
++                uri: "file:///main.tcl",
++                oracle: &exports,
++            })
++        } else {
++            DOC
++        };
++        resolve_called_proc(&analysis, src, "::app", "helper", call, ctx)
++            .map(|p| p.qualified_name.clone())
++    }
++
++    #[test]
++    fn a_global_import_does_not_outrank_the_callers_own_command() {
++        // tclsh: LOCAL, `namespace origin ::app::helper` → `::app::helper`,
++        // for an unforced exact import and a forced glob import alike. The
++        // lookup in `::app` finds the local command before the global one.
++        for src in [
++            "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace import ::src::helper\nnamespace eval app {\n    helper\n}\n",
++            "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace import -force ::src::*\nnamespace eval app {\n    helper\n}\n",
++        ] {
++            for program in [false, true] {
++                assert_eq!(
++                    helper_call_target(src, program).as_deref(),
++                    Some("::app::helper"),
++                    "program view {program}: {src}",
++                );
++            }
++        }
++    }
++
++    #[test]
++    fn an_import_on_the_namespace_path_does_not_outrank_the_callers_own_command() {
++        // tclsh 8.5+: LOCAL, origin `::app::helper`.
++        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n}\nnamespace eval lib {\n    namespace import ::src::helper\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n    namespace path ::lib\n}\nnamespace eval app {\n    helper\n}\n";
++        for program in [false, true] {
++            let hit = helper_call_target(src, program);
++            assert!(
++                matches!(hit.as_deref(), None | Some("::app::helper")),
++                "program view {program}: {hit:?}",
++            );
++        }
++    }
++
++    #[test]
++    fn a_source_defined_after_the_forced_import_was_not_imported() {
++        // tclsh: LOCAL, origin `::app::helper`. `::src` was empty when the
++        // import ran, so it imported nothing, whatever `::src` exports later.
++        let src = "rename auto_import savedPrelude; namespace eval src {}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval src {\n    proc helper {} { return SRC }\n}\nnamespace eval app {\n    helper\n}\n";
++        for program in [false, true] {
++            let hit = helper_call_target(src, program);
++            assert!(
++                matches!(hit.as_deref(), None | Some("::app::helper")),
++                "program view {program}: {hit:?}",
++            );
++        }
++    }
++
++    #[test]
++    fn a_destination_renamed_after_the_forced_import_falls_through_to_global() {
++        // tclsh: GLOBAL, and no `::app::helper` is left. The rename moves
++        // whatever the forced import left at `::app::helper` to
++        // `::app::moved`, so the lookup reaches `::helper`.
++        let src = "rename auto_import savedPrelude; proc ::helper {} { return GLOBAL }\nnamespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nrename ::app::helper ::app::moved\nnamespace eval app {\n    helper\n}\n";
++        for program in [false, true] {
++            let hit = helper_call_target(src, program);
++            assert!(
++                matches!(hit.as_deref(), None | Some("::helper")),
++                "program view {program}: {hit:?}",
++            );
++        }
++    }
++
++    #[test]
++    fn a_selected_command_renamed_to_a_later_candidate_keeps_every_candidate() {
++        // tclsh: LOCAL with the file alone and SRC, origin `::src::helper`,
++        // when `::src` exports `helper`. The rename empties `::app::helper`
++        // before the forced import, so the import decides the call.
++        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nrename ::app::helper ::helper\nnamespace import -force ::src::*\nnamespace eval app {\n    helper\n}\n";
++        let hit = helper_call_target(src, true);
++        assert!(
++            matches!(hit.as_deref(), None | Some("::src::helper")),
++            "program view: {hit:?}",
++        );
++        // This document holds no export record for `::src`.
++        assert_eq!(helper_call_target(src, false), None);
++    }
++
++    #[test]
++    fn a_source_moved_before_the_forced_import_is_not_its_answer() {
++        // tclsh, with and without the export: LOCAL for a deleted or renamed
++        // `::src::helper`. With `::x` renamed into `::src::helper` first, the
++        // call runs `::x`'s body (X) when `::src` exports `helper`, and LOCAL
++        // otherwise.
++        for (src, reached) in [
++            (
++                "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nrename ::src::helper {}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n",
++                "::app::helper",
++            ),
++            (
++                "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nrename ::src::helper ::src::gone\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n",
++                "::app::helper",
++            ),
++            (
++                "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nproc ::x {} { return X }\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nrename ::src::helper {}\nrename ::x ::src::helper\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n",
++                "::x",
++            ),
++        ] {
++            let hit = helper_call_target(src, true);
++            assert!(
++                hit.is_none() || hit.as_deref() == Some(reached),
++                "program view: {hit:?}: {src}",
++            );
++            let hit = helper_call_target(src, false);
++            assert!(
++                matches!(hit.as_deref(), None | Some("::app::helper")),
++                "document only: {hit:?}: {src}",
++            );
++        }
++    }
++
++    #[test]
++    fn an_undecided_forced_import_is_not_hidden_by_a_later_conflict() {
++        // tclsh: A with the file alone; B, origin `::B::helper`, when `::B`
++        // exports `helper`, and the caught re-import of `::A::*` then fails
++        // with `already exists`. This document cannot tell which, so it
++        // abstains.
++        let src = "rename auto_import savedPrelude; namespace eval A {\n    proc helper {} { return A }\n    namespace export helper\n}\nnamespace eval B {\n    proc helper {} { return B }\n}\nnamespace eval app {\n    namespace import ::A::*\n}\nnamespace eval app {\n    namespace import -force ::B::*\n}\nnamespace eval app {\n    namespace forget ::A::*\n}\ncatch {namespace eval app {\n    namespace import ::A::*\n}} ::caught\nnamespace eval app {\n    helper\n}\n";
++        assert_eq!(helper_call_target(src, false), None);
++    }
++
++    #[test]
++    fn a_source_absent_when_the_forced_import_ran_is_not_its_answer() {
++        // tclsh, with and without the export: LOCAL. `::src::helper` is not
++        // there when the import runs: its namespace was deleted and
++        // recreated without it, its `proc` sits in a body nobody calls or in
++        // a dead branch, or a body called first deleted it.
++        for src in [
++            "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace delete src\nnamespace eval src {\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n",
++            "rename auto_import savedPrelude; namespace eval src {\n    proc other {} { return O }\n    namespace export other\n}\nproc ::init {} {\n    proc ::src::helper {} { return SRC }\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n",
++            "rename auto_import savedPrelude; namespace eval src {\n    proc other {} { return O }\n    namespace export other\n}\nif {0} {\n    proc ::src::helper {} { return SRC }\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n",
++            "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nproc ::drop {} {\n    rename ::src::helper {}\n}\n::drop\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n",
++        ] {
++            for program in [false, true] {
++                let hit = helper_call_target(src, program);
++                assert!(
++                    matches!(hit.as_deref(), None | Some("::app::helper")),
++                    "program view {program}: {hit:?}: {src}",
++                );
++            }
++        }
++    }
++
++    #[test]
++    fn a_class_at_the_source_name_is_not_a_procedure_answer() {
++        // tclsh 8.6.18 / 9.0.4 / 9.1.0: with `::src` exporting `helper`, the
++        // call reaches the class `::src::helper` (`wrong # args`), not the
++        // procedure declared in a body nobody calls; alone, LOCAL. 8.4 and
++        // 8.5 have no TclOO.
++        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc other {} { return O }\n    namespace export other\n}\nproc ::init {} {\n    proc ::src::helper {} { return SRC }\n}\noo::class create ::src::helper\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
++        assert_eq!(helper_call_target(src, true), None);
++        let hit = helper_call_target(src, false);
++        assert!(
++            matches!(hit.as_deref(), None | Some("::app::helper")),
++            "document only: {hit:?}",
++        );
++    }
++
++    #[test]
++    fn a_forced_import_that_has_not_run_does_not_decide_the_call() {
++        // tclsh, with and without the export: LOCAL. The forced import sits
++        // in a body nobody calls, in a body called only after the call, or
++        // in a branch not taken.
++        for src in [
++            "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nproc ::setup {} {\n    namespace eval ::app {\n        namespace import -force ::src::*\n    }\n}\nnamespace eval app {\n    helper\n}\n",
++            "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nproc ::setup {} {\n    namespace eval ::app {\n        namespace import -force ::src::*\n    }\n}\nnamespace eval app {\n    helper\n}\n::setup\n",
++            "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nif {[llength $argv] > 99} {\n    namespace eval app {\n        namespace import -force ::src::*\n    }\n}\nnamespace eval app {\n    helper\n}\n",
++        ] {
++            for program in [false, true] {
++                let hit = helper_call_target(src, program);
++                assert!(
++                    matches!(hit.as_deref(), None | Some("::app::helper")),
++                    "program view {program}: {hit:?}: {src}",
++                );
++            }
++        }
++    }
++
+     #[test]
+     fn the_real_oracle_does_not_resurrect_an_export_written_after_the_import() {
+         // FP guard, an export written after its import under the oracle, and the reason
+--- a/rust/tcl-lsp-core/src/namespace_import.rs
++++ b/rust/tcl-lsp-core/src/namespace_import.rs
+@@ -323,6 +323,26 @@
+         };
+         self.exported_at(&namespace, name, import_site)
+     }
++
++    /// Proof-grade verdict for the compiler's import seal
++    /// ([`original_import_export_facts`]). The seal completes an import on
++    /// `Exported`, so this may answer `Exported` only when an export by
++    /// another document provably ran before the import and nothing may have
++    /// cleared it since. The importing document's own export rows never
++    /// prove an export here: the compiler reads them itself, in execution
++    /// order. The default withholds every `Exported` the navigation verdict
++    /// gives.
++    fn proven_export_at_original(
++        &self,
++        slot: &tcl_core_types::ByteCommandSlot,
++        policy: tcl_syntax::naming::NamePolicyProtocol,
++        import_site: RunPoint<'_>,
++    ) -> ExportVerdict {
++        match self.exported_at_original(slot, policy, import_site) {
++            ExportVerdict::Exported => ExportVerdict::Unknown,
++            verdict => verdict,
++        }
++    }
+ }
+ 
+ /// One `namespace export` event as either tier sees it.
+@@ -498,6 +518,80 @@
+         .collect()
+ }
+ 
++/// Whole-program export verdicts for the imports `analysis` makes, for the
++/// compiler's own import seal ([`tcl_compiler::analyser::Analyser::with_import_exports`]).
++///
++/// Each import pattern is judged by `oracle` at its own position in `uri`,
++/// for every procedure or class this document declares in the pattern's
++/// source namespace that the pattern can import. A slot no declaration here
++/// names is not listed, which the compiler reads as unknown.
++#[must_use]
++pub fn original_import_export_facts(
++    analysis: &tcl_compiler::analyser::AnalysisResult,
++    uri: &str,
++    oracle: &dyn NamespaceExportOracle,
++) -> tcl_compiler::command_binding::OriginalImportExportFacts {
++    import_export_facts_for(
++        analysis.original_namespace_patterns().map(|pattern| {
++            let at = pattern.span().start();
++            (
++                pattern,
++                RunPoint {
++                    uri,
++                    at,
++                    enclosing_body: analysis.original_definition_body_span(at),
++                },
++            )
++        }),
++        analysis
++            .original_procedure_declarations()
++            .map(|row| row.name())
++            .chain(analysis.original_class_declarations().map(|row| row.name())),
++        oracle,
++    )
++}
++
++/// The shared fold behind [`original_import_export_facts`] and
++/// `WorkspaceIndex::import_export_facts`: one verdict per import site and
++/// importable declaration, combined per slot.
++pub(crate) fn import_export_facts_for<'a>(
++    imports: impl Iterator<
++        Item = (
++            &'a tcl_compiler::signature_scan::original_name::SourceNamespacePattern,
++            RunPoint<'a>,
++        ),
++    >,
++    declarations: impl Iterator<Item = &'a tcl_compiler::signature_scan::scope::SignatureSourceCommand>,
++    oracle: &dyn NamespaceExportOracle,
++) -> tcl_compiler::command_binding::OriginalImportExportFacts {
++    use tcl_compiler::command_binding::OriginalExportVerdict;
++    let declarations = declarations.collect::<Vec<_>>();
++    let mut facts = tcl_compiler::command_binding::OriginalImportExportFacts::default();
++    for (pattern, site) in imports {
++        if pattern.purpose() != tcl_syntax::naming::NativeNamePurpose::NamespaceImportPattern {
++            continue;
++        }
++        for name in &declarations {
++            let Some(slot) = pattern.source_slot_for_command_slot(name.slot(), name.policy())
++            else {
++                continue;
++            };
++            if &slot != name.slot()
++                || pattern.matches_imported_command(&slot, name.policy()) != Some(true)
++            {
++                continue;
++            }
++            let verdict = match oracle.proven_export_at_original(&slot, name.policy(), site) {
++                ExportVerdict::Exported => OriginalExportVerdict::Exported,
++                ExportVerdict::NotExported => OriginalExportVerdict::NotExported,
++                ExportVerdict::Unknown => OriginalExportVerdict::Unknown,
++            };
++            facts.record(slot, verdict);
++        }
++    }
++    facts
++}
++
+ /// The source advice verdict for an authentic counted command slot and original
+ /// export events. Unknown policy, namespace or native glob semantics decline.
+ #[must_use]
+--- a/rust/tcl-lsp-core/src/references.rs
++++ b/rust/tcl-lsp-core/src/references.rs
+@@ -5460,7 +5460,8 @@
+         // TP, the other half of the row above — with `-force` the import
+         // replaces the local `p`, so the bare call *is* a reference to
+         // `::src::p` (oracle: `namespace origin ::dst::p` → `::src::p`).
+-        let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n    namespace import -force ::src::*\n    p\n}\n";
++        // Renaming `auto_import` away changes no tclsh 8.4–9.1 result here.
++        let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n    namespace import -force ::src::*\n    p\n}\n";
+         let analysis = analyse(src);
+         let refs = references(
+             src,
+--- a/rust/tcl-lsp-core/src/workspace_index.rs
++++ b/rust/tcl-lsp-core/src/workspace_index.rs
+@@ -3116,6 +3116,44 @@
+         })
+     }
+ 
++    /// Whole-program export verdicts for the imports `uri` makes, judged by
++    /// [`Self::export_snapshot`] at each import's own position, for that
++    /// document's compiler import seal
++    /// ([`tcl_compiler::analyser::Analyser::with_import_exports`]).
++    ///
++    /// The snapshot includes `uri`'s own indexed export rows, ranked by
++    /// offset as before; the compiler still reads the current text's exports
++    /// first. `None` when `uri` is not indexed or makes no import of a command
++    /// it declares. Every input is a lexical or original record that the
++    /// verdicts cannot change, so publishing them converges in one round.
++    #[must_use]
++    pub fn import_export_facts(
++        &self,
++        uri: &str,
++    ) -> Option<tcl_compiler::command_binding::OriginalImportExportFacts> {
++        let document = self.docs.get(*self.slots.get(uri)?)?;
++        let exports = self.export_snapshot();
++        let facts = crate::namespace_import::import_export_facts_for(
++            document.glob_imports.iter().filter_map(|import| {
++                Some((
++                    import.original_pattern.as_ref()?,
++                    crate::source_graph::RunPoint {
++                        uri: &import.uri,
++                        at: import.at,
++                        enclosing_body: import.enclosing_body,
++                    },
++                ))
++            }),
++            document
++                .original_procs
++                .iter()
++                .map(|row| row.name())
++                .chain(document.original_classes.iter().map(|row| row.name())),
++            exports.as_ref(),
++        );
++        (!facts.is_empty()).then_some(facts)
++    }
++
+     /// The whole-program export oracle the *single-document* tier consults
+     /// when deciding whether a `namespace import -force` really deleted the
+     /// importing namespace's own command.
+@@ -9035,6 +9073,93 @@
+             import_site,
+         )
+     }
++
++    /// The navigation verdict above counts an export it cannot place as in
++    /// effect and lets a body observe its whole file. Neither is proof, so
++    /// here an export counts only when it is written in another document,
++    /// the run order proves it ran before the import, and every `-clear` of
++    /// that namespace provably ran before it or after the import. The
++    /// importing document's own rows only make the namespace's export list
++    /// visible, which can give `NotExported` but never `Exported`.
++    fn proven_export_at_original(
++        &self,
++        slot: &tcl_core_types::ByteCommandSlot,
++        policy: tcl_syntax::naming::NamePolicyProtocol,
++        import_site: RunPoint<'_>,
++    ) -> ExportVerdict {
++        if !tcl_syntax::native_glob::NativeGlobProtocol::from_name_policy(policy)
++            .export_filter_applies()
++        {
++            return ExportVerdict::Exported;
++        }
++        let ran_before = |event: RunPoint<'_>, query: RunPoint<'_>| {
++            self.order
++                .navigation_precedence(event, query)
++                .and_then(crate::source_graph::SourceNavigationOrder::modeled_source_exclusion)
++        };
++        if self
++            .original_exports
++            .iter()
++            .any(|row| row.unknown && ran_before(export_row_point(row), import_site) != Some(false))
++        {
++            return ExportVerdict::Unknown;
++        }
++        let rows = self
++            .original_exports
++            .iter()
++            .filter_map(|row| {
++                let original = row.original.as_ref()?;
++                (original.policy() == policy
++                    && matches!(
++                        original.context(),
++                        tcl_compiler::signature_scan::scope::SignatureNamespaceScope::C(path)
++                            if *path == slot.namespace
++                    ))
++                .then_some((row, original))
++            })
++            .collect::<Vec<_>>();
++        if rows.is_empty() {
++            return ExportVerdict::Unknown;
++        }
++        let mut exported = false;
++        for &(row, original) in &rows {
++            if row.uri == import_site.uri || original.clears() {
++                continue;
++            }
++            let covers = original.matches_command(slot, policy);
++            if covers == Some(false) {
++                continue;
++            }
++            match ran_before(export_row_point(row), import_site) {
++                Some(false) => continue,
++                None => return ExportVerdict::Unknown,
++                Some(true) => {}
++            }
++            let maybe_cleared = rows.iter().any(|&(clear_row, clear)| {
++                clear.clears()
++                    && ran_before(export_row_point(clear_row), export_row_point(row)) != Some(true)
++                    && ran_before(export_row_point(clear_row), import_site) != Some(false)
++            });
++            if covers.is_none() || maybe_cleared {
++                return ExportVerdict::Unknown;
++            }
++            exported = true;
++        }
++        if exported {
++            ExportVerdict::Exported
++        } else {
++            ExportVerdict::NotExported
++        }
++    }
++}
++
++/// Where one export row sits on its document's run timeline.
++fn export_row_point(row: &WorkspaceNamespaceExport) -> RunPoint<'_> {
++    RunPoint {
++        uri: &row.uri,
++        at: row.at,
++        enclosing_body: row.enclosing_body,
++    }
+ }
+ 
+ /// The namespace an imported name is installed *into*, read off the link's
+@@ -9446,7 +9571,9 @@
+ 
+     #[test]
+     fn positioned_definition_precedes_later_forced_import_assistance() {
+-        let source = "namespace eval origin {proc helper {} {return ORIGIN}; namespace export helper}\nnamespace eval app {proc helper {} {return LOCAL}; helper; namespace import -force ::origin::helper; helper}\n";
++        // tclsh 8.4–9.1, with or without the `auto_import` rename: the first
++        // call returns LOCAL and the second ORIGIN.
++        let source = "rename auto_import savedPrelude; namespace eval origin {proc helper {} {return ORIGIN}; namespace export helper}\nnamespace eval app {proc helper {} {return LOCAL}; helper; namespace import -force ::origin::helper; helper}\n";
+         let analysis = analyse(source);
+         let index = WorkspaceIndex::from_documents([("file:///timeline.tcl", &analysis)]);
+         assert_eq!(index.invocations_of("::app::helper", "").len(), 1);
+@@ -14357,8 +14484,10 @@
+     //   with the export sourced first: call -> SRC    origin -> ::src::helper
+     //   with nothing exporting it:     call -> LOCAL  origin -> ::app::helper
+ 
+-    /// The pinned two-file shape's main document.
+-    const MAIN: &str = "namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
++    /// The pinned two-file shape's main document. The leading
++    /// `rename auto_import savedPrelude; ` changes no tclsh 8.4–9.1 result
++    /// above; it lets the compiler close the import.
++    const MAIN: &str = "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
+ 
+     /// What each tier says about the `helper` call at the end of [`MAIN`],
+     /// given the rest of the program.
+@@ -14374,6 +14503,7 @@
+     fn both_tiers_on_main(others: &[(&str, &AnalysisResult)]) -> (Option<String>, Option<String>) {
+         let main = analyse(MAIN);
+         let mut index = WorkspaceIndex::new();
++        index.set_source_resolver(test_resolve, test_fold);
+         index.add_document("file:///main.tcl", &main);
+         for (uri, analysis) in others {
+             index.add_document(uri, analysis);
+@@ -14384,6 +14514,7 @@
+             tcl_syntax::naming::command_resolution_candidates("::app", &[] as &[String], "helper");
+ 
+         let exports = index.export_snapshot();
++        let main = analyse_with_index_facts(&index, "file:///main.tcl", MAIN);
+         let in_document = crate::definition::resolve_called_proc(
+             &main,
+             MAIN,
+@@ -14421,13 +14552,30 @@
+         (in_document, cross_document)
+     }
+ 
++    /// `source` analysed again with `index`'s export verdicts for its imports,
++    /// as the server's evidence sync does.
++    fn analyse_with_index_facts(index: &WorkspaceIndex, uri: &str, source: &str) -> AnalysisResult {
++        Analyser::new()
++            .with_import_exports(index.import_export_facts(uri).map(Arc::new))
++            .analyse(
++                source,
++                tcl_registry::model::ingress::resolve_environment("tcl8.6")
++                    .analyser_profile()
++                    .name,
++            )
++    }
++
+     #[test]
+     fn both_tiers_shadow_when_another_file_holds_the_covering_export() {
+-        // TP (CRITICAL) — the export that decides it lives in `exports.tcl`.
+-        // Oracle: SRC / `::src::helper`.
++        // TP (CRITICAL) — the export that decides it lives in `exports.tcl`,
++        // which a loader sources before `main.tcl`. Oracle: SRC /
++        // `::src::helper`.
+         let exports = analyse("namespace eval src {\n    namespace export helper\n}\n");
+-        let (in_document, cross_document) =
+-            both_tiers_on_main(&[("file:///exports.tcl", &exports)]);
++        let loader = analyse("source exports.tcl\nsource main.tcl\n");
++        let (in_document, cross_document) = both_tiers_on_main(&[
++            ("file:///loader.tcl", &loader),
++            ("file:///exports.tcl", &exports),
++        ]);
+         assert_eq!(in_document.as_deref(), Some("::src::helper"));
+         assert_eq!(
+             in_document, cross_document,
+@@ -14435,6 +14583,56 @@
+         );
+     }
+ 
++    #[test]
++    fn an_unranked_export_in_another_file_proves_nothing_to_the_compiler() {
++        // tclsh 8.4.20–9.1.0: LOCAL when `main.tcl` runs first, SRC when
++        // `exports.tcl` does. Nothing here orders the two files, so the
++        // compiler's import stays undecided and the call abstains.
++        let exports = analyse("namespace eval ::src {namespace export helper}\n");
++        let main = analyse(MAIN);
++        let index = WorkspaceIndex::from_documents([
++            ("file:///main.tcl", &main),
++            ("file:///exports.tcl", &exports),
++        ]);
++        let main = analyse_with_index_facts(&index, "file:///main.tcl", MAIN);
++        let call = u32::try_from(MAIN.rfind("    helper\n").expect("call present") + 4)
++            .expect("tiny test source");
++        let hit = crate::definition::resolve_called_proc(
++            &main,
++            MAIN,
++            "::app",
++            "helper",
++            call,
++            crate::definition::CallResolution::document_only(),
++        );
++        assert!(hit.is_none(), "{hit:?}");
++    }
++
++    #[test]
++    fn an_own_export_after_a_body_import_proves_nothing_for_it() {
++        // tclsh 8.4.20–9.1.0: LOCAL. `::setup` runs the forced import before
++        // this file's own `namespace export helper`.
++        const SOURCE: &str = "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nproc ::setup {} {\n    namespace eval ::app {\n        namespace import -force ::src::*\n    }\n}\n::setup\nnamespace eval src {\n    namespace export helper\n}\nnamespace eval app {\n    helper\n}\n";
++        let analysis = analyse(SOURCE);
++        let index = WorkspaceIndex::from_documents([("file:///main.tcl", &analysis)]);
++        let analysis = analyse_with_index_facts(&index, "file:///main.tcl", SOURCE);
++        let call = u32::try_from(SOURCE.rfind("    helper\n").expect("call present") + 4)
++            .expect("tiny test source");
++        let hit = crate::definition::resolve_called_proc(
++            &analysis,
++            SOURCE,
++            "::app",
++            "helper",
++            call,
++            crate::definition::CallResolution::document_only(),
++        )
++        .map(|p| p.qualified_name.clone());
++        assert!(
++            matches!(hit.as_deref(), None | Some("::app::helper")),
++            "{hit:?}"
++        );
++    }
++
+     #[test]
+     fn both_tiers_keep_the_local_when_the_whole_program_exports_nothing() {
+         // TN, byte-identical `MAIN` — nothing anywhere exports `helper`, so
+--- a/rust/tcl-lsp-db/src/lib.rs
++++ b/rust/tcl-lsp-db/src/lib.rs
+@@ -658,6 +658,18 @@
+     /// provides changes no declaration structure.
+     #[returns(ref)]
+     pub workspace_subclass_methods: Option<Arc<tcl_compiler::analyser::SubclassProvidedMethods>>,
++    /// Whole-program export verdicts for the commands this file's
++    /// `namespace import`s can bind, keyed by source command slot.
++    ///
++    /// `None` means "no workspace view": a source namespace with no export
++    /// statement in this file is then undecided, and a call such an import
++    /// may bind abstains. Set by the server from
++    /// `WorkspaceIndex::import_export_facts` (compare-then-set), the same
++    /// discipline as its siblings above. It holds only this file's imports'
++    /// slots, so an export edit elsewhere invalidates exactly the files that
++    /// import from that namespace.
++    #[returns(ref)]
++    pub import_export_facts: Option<Arc<tcl_compiler::command_binding::OriginalImportExportFacts>>,
+     /// Monotonic revision of workspace sidecar stubs. The server advances this
+     /// input for every `<dialect>.tcl.stubs` create/change/delete, so Salsa
+     /// invalidates analyses that read an external declaration bundle.
+@@ -676,7 +688,7 @@
+         dialect: String,
+         path: Option<String>,
+     ) -> Self {
+-        Self::with_call_site_evidence(db, text, dialect, path, None, None, None, 0)
++        Self::with_call_site_evidence(db, text, dialect, path, None, None, None, None, 0)
+     }
+ }
+ 
+@@ -862,6 +874,7 @@
+     Arc::new(
+         document_analyser(db, file, config)
+             .with_resolved_input((*input).clone())
++            .with_import_exports(file.import_export_facts(db).clone())
+             .analyse(file.text(db), file.dialect(db)),
+     )
+ }
+@@ -4219,7 +4232,9 @@
+         Ok(input) => input,
+         Err(miss) => return unavailable_document_analysis(&dialect, miss),
+     };
+-    let mut analyser = document_analyser(db, file, config).with_resolved_input((*input).clone());
++    let mut analyser = document_analyser(db, file, config)
++        .with_resolved_input((*input).clone())
++        .with_import_exports(file.import_export_facts(db).clone());
+ 
+     // Build the CFG/SSA tail's compilation unit with per-procedure lattices
+     // memoised by `function_lattice`, and feed it through the analyser's
+--- a/rust/tcl-lsp-server/src/current_diagnostics.rs
++++ b/rust/tcl-lsp-server/src/current_diagnostics.rs
+@@ -722,6 +722,7 @@
+                 workspace_subclass_methods: file
+                     .workspace_subclass_methods(&*captured.snapshot)
+                     .clone(),
++                import_export_facts: file.import_export_facts(&*captured.snapshot).clone(),
+                 sidecar_stubs_epoch: file.sidecar_stubs_epoch(&*captured.snapshot),
+                 config: proposal_diagnostics::ConfigInput {
+                     disabled_diagnostics: config.disabled_diagnostics(&*captured.snapshot).clone(),
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -5867,6 +5867,20 @@
+             changed.push(moved);
+         }
+     }
++    // The import export verdicts ride the same refresh, single-round for the
++    // same reason: they are computed off the index, from records the
++    // verdicts cannot change.
++    let exports_moved = sync_import_export_facts(handles).await;
++    if exports_moved.iter().any(|u| u == uri)
++        && let Some(slot) = slots.lock().await.get_mut(uri)
++    {
++        slot.mark_dirty();
++    }
++    for moved in exports_moved {
++        if !changed.contains(&moved) {
++            changed.push(moved);
++        }
++    }
+     // Republish every peer the refresh invalidated. Only documents
+     // that already have resolved inputs are eligible: a file nobody
+     // has analysed has no published diagnostics to go stale, and its
+@@ -6674,6 +6688,58 @@
+     changed
+ }
+ 
++/// Refresh every file's [`tcl_lsp_db::SourceFile::import_export_facts`] — the
++/// whole-program export verdicts its compiler import seal reads — and report
++/// the URIs whose stored verdicts actually moved.
++///
++/// One round suffices: the verdicts come from the workspace index's import,
++/// declaration and export records, none of which the verdicts change. Each
++/// file stores only the slots its own imports can bind, so an export edit
++/// invalidates only the files importing from that namespace. A file with no
++/// such slot stores `None`.
++///
++/// Lock discipline as [`sync_workspace_subclass_methods`]: the index read
++/// completes and drops before the `db` lock is taken.
++async fn sync_import_export_facts(handles: &EvidenceHandles) -> Vec<Uri> {
++    use salsa::Setter as _;
++    let uris = handles
++        .db_files
++        .lock()
++        .await
++        .keys()
++        .cloned()
++        .collect::<Vec<_>>();
++    let wanted = {
++        let index = handles.workspace_index.read().await;
++        uris.into_iter()
++            .map(|uri| {
++                let facts = index.import_export_facts(uri.as_str()).map(Arc::new);
++                (uri, facts)
++            })
++            .collect::<Vec<_>>()
++    };
++    let mut db = handles.db.lock().await;
++    let db_files = handles.db_files.lock().await;
++    let mut changed = Vec::new();
++    for (uri, want) in wanted {
++        let Some(&file) = db_files.get(&uri) else {
++            continue;
++        };
++        let have = file.import_export_facts(&*db);
++        let matches = match (have.as_ref(), want.as_ref()) {
++            (Some(have), Some(want)) => Arc::ptr_eq(have, want) || **have == **want,
++            (None, None) => true,
++            _ => false,
++        };
++        if matches {
++            continue;
++        }
++        file.set_import_export_facts(&mut *db).to(want);
++        changed.push(uri);
++    }
++    changed
++}
++
+ /// The evidence `uri` should be carrying, or `None` when the host cannot claim
+ /// a closed world over its callers.
+ ///
+@@ -28878,6 +28944,7 @@
+         // with the workspace's subclass evidence already in place.  No peers
+         // to wake: nothing has published diagnostics yet.
+         sync_workspace_subclass_methods(&scan_handles).await;
++        sync_import_export_facts(&scan_handles).await;
+         let inventory_class_factory_generation = scan_class_factory_generation;
+         self.publish_workspace_scan_inventory_if_current(
+             source_inventory_provider,
+--- a/rust/tcl-lsp-server/src/proposal_diagnostics.rs
++++ b/rust/tcl-lsp-server/src/proposal_diagnostics.rs
+@@ -43,6 +43,8 @@
+     pub(super) external_call_sites: Option<Arc<CallSiteEvidence>>,
+     pub(super) workspace_class_factories: Option<Arc<ClassFactoryIndex>>,
+     pub(super) workspace_subclass_methods: Option<Arc<SubclassProvidedMethods>>,
++    pub(super) import_export_facts:
++        Option<Arc<tcl_compiler::command_binding::OriginalImportExportFacts>>,
+     pub(super) sidecar_stubs_epoch: u64,
+     pub(super) config: ConfigInput,
+ }
+@@ -120,6 +122,8 @@
+         if &row.uri == selected_uri {
+             row.text.clear();
+             row.text.push_str(proposal_text);
++            // The live verdicts were judged for the live text's imports.
++            row.import_export_facts = None;
+         }
+         let file = SourceFile::with_call_site_evidence(
+             &db,
+@@ -129,6 +133,7 @@
+             row.external_call_sites,
+             row.workspace_class_factories,
+             row.workspace_subclass_methods,
++            row.import_export_facts,
+             row.sidecar_stubs_epoch,
+         );
+         let config = AnalyserConfig::new(

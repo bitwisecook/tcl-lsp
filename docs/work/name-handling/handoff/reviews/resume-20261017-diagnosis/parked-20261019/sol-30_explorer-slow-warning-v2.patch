@@ -1,0 +1,31 @@
+diff --git a/.config/nextest.toml b/.config/nextest.toml
+index a67fa9a..9cff0e8 100644
+--- a/.config/nextest.toml
++++ b/.config/nextest.toml
+@@ -56,6 +56,16 @@ manual-corpus = { max-threads = 2 }
+ filter = 'binary(/_corpus$/) | binary(/differential_incremental/)'
+ test-group = 'manual-corpus'
+ 
++# tcl-explorer's tests no longer pay the bundled spec-pack load, so one that
++# runs past 20 s in a debug build has regressed and is reported SLOW. Only a
++# warning: nothing here sets terminate-after, so a test never fails on time
++# (docs/design/contracts/test-tiers-and-ci-gates.md, rule 10). This override
++# also applies in every other profile; [profile.exhaustive] restores its own
++# hang guard for these tests below.
++[[profile.default.overrides]]
++filter = 'package(tcl-explorer)'
++slow-timeout = { period = "20s" }
++
+ # Smoke tier (`make smoke` / `make smoke-p P=<crate>`).
+ #
+ # The fast, per-module sanity check developers and agents run locally right
+@@ -172,3 +182,9 @@ fail-fast = false
+ # Corpus sweeps carry internal watchdogs up to 10 minutes (e.g. tcl-spectcl's
+ # spec_corpus sweep); give nextest's own timeout headroom past them.
+ slow-timeout = { period = "60s", terminate-after = 15 }
++# A profile's own overrides win over [profile.default]'s, so this keeps the
++# exhaustive hang guard on tcl-explorer tests despite the 20 s warning above.
++# It copies [profile.exhaustive]'s own slow-timeout; change the two together.
++[[profile.exhaustive.overrides]]
++filter = 'package(tcl-explorer)'
++slow-timeout = { period = "60s", terminate-after = 15 }

@@ -1,0 +1,1019 @@
+diff --git a/rust/tcl-lsp-core/src/package_resolver.rs b/rust/tcl-lsp-core/src/package_resolver.rs
+index 6330ba213c6a043cfe1aa78d72b80593dbee789d..0652e29ffbe16480c0db3ce70784061d9308e49d 100644
+--- a/rust/tcl-lsp-core/src/package_resolver.rs
++++ b/rust/tcl-lsp-core/src/package_resolver.rs
+@@ -854,6 +854,26 @@ impl PackageResolver {
+     /// that has the bytes but no filesystem (the browser worker) builds the
+     /// same package database from them. See [`crate::vfs`].
+     pub fn scan_path_in(&mut self, store: &dyn SourceStore, dir: &Path) {
++        self.scan_path_with(store, dir, None);
++    }
++
++    /// [`Self::scan_path_in`], taking each directory's survey from `surveys`
++    /// when its index files and everything they consulted are unchanged.
++    pub fn scan_path_reusing(
++        &mut self,
++        store: &dyn SourceStore,
++        dir: &Path,
++        surveys: &mut IndexSurveyCache,
++    ) {
++        self.scan_path_with(store, dir, Some(surveys));
++    }
++
++    fn scan_path_with(
++        &mut self,
++        store: &dyn SourceStore,
++        dir: &Path,
++        mut surveys: Option<&mut IndexSurveyCache>,
++    ) {
+         if !store.is_dir(dir) {
+             return;
+         }
+@@ -861,9 +881,9 @@ impl PackageResolver {
+         // order — `read_dir` order is filesystem-dependent, and discovery
+         // order decides which provider an unconstrained `resolve` answers, so
+         // it must not vary across machines.
+-        self.scan_single_dir(store, dir);
++        self.scan_single_dir(store, dir, surveys.as_deref_mut());
+         for path in sorted_subdirs(store, dir) {
+-            self.scan_single_dir(store, &path);
++            self.scan_single_dir(store, &path, surveys.as_deref_mut());
+         }
+     }
+ 
+@@ -885,6 +905,28 @@ impl PackageResolver {
+     /// [`Self::scan_tree`] against `store` rather than `std::fs`. See
+     /// [`Self::scan_path_in`].
+     pub fn scan_tree_in(&mut self, store: &dyn SourceStore, root: &Path, max_dirs: usize) {
++        self.scan_tree_with(store, root, max_dirs, None);
++    }
++
++    /// [`Self::scan_tree_in`], taking each directory's survey from `surveys`
++    /// when its index files and everything they consulted are unchanged.
++    pub fn scan_tree_reusing(
++        &mut self,
++        store: &dyn SourceStore,
++        root: &Path,
++        max_dirs: usize,
++        surveys: &mut IndexSurveyCache,
++    ) {
++        self.scan_tree_with(store, root, max_dirs, Some(surveys));
++    }
++
++    fn scan_tree_with(
++        &mut self,
++        store: &dyn SourceStore,
++        root: &Path,
++        max_dirs: usize,
++        mut surveys: Option<&mut IndexSurveyCache>,
++    ) {
+         let mut stack = vec![root.to_path_buf()];
+         let mut visited = 0usize;
+         while let Some(dir) = stack.pop() {
+@@ -895,7 +937,7 @@ impl PackageResolver {
+                 continue;
+             }
+             visited += 1;
+-            self.scan_single_dir(store, &dir);
++            self.scan_single_dir(store, &dir, surveys.as_deref_mut());
+             // Reverse-sorted push so the LIFO pop visits children in name
+             // order, keeping discovery order machine-independent.
+             for path in sorted_subdirs(store, &dir).into_iter().rev() {
+@@ -904,40 +946,23 @@ impl PackageResolver {
+         }
+     }
+ 
+-    fn scan_single_dir(&mut self, store: &dyn SourceStore, dir: &Path) {
++    fn scan_single_dir(
++        &mut self,
++        store: &dyn SourceStore,
++        dir: &Path,
++        surveys: Option<&mut IndexSurveyCache>,
++    ) {
+         let dir_buf = dir.to_path_buf();
+         if self.scanned_dirs.contains(&dir_buf) {
+             return;
+         }
+         self.scanned_dirs.push(dir_buf);
+-        let pkg_index = dir.join("pkgIndex.tcl");
+-        if store.is_file(&pkg_index)
+-            && let Ok(content) = store.read_to_string(&pkg_index)
+-        {
+-            let infos = parse_pkg_index(&content, dir, &pkg_index, &|p| store.is_file(p), &|d| {
+-                list_tcl_files(store, d)
+-            });
+-            self.add_original_pkg_index(&content, dir, &pkg_index, &|p| store.is_file(p), &|d| {
+-                list_tcl_files(store, d)
+-            });
+-            self.add_pkg_index(infos);
+-        }
+-        // `tclIndex` is matched case-insensitively (`tclIndex` / `tclindex`).
+-        if let Ok(entries) = store.read_dir(dir) {
+-            for entry in entries {
+-                let is_tcl_index = entry
+-                    .path
+-                    .file_name()
+-                    .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("tclindex"));
+-                if is_tcl_index && let Ok(content) = store.read_to_string(&entry.path) {
+-                    let dir_owned = entry.path.parent().unwrap_or(dir).to_path_buf();
+-                    self.add_original_tcl_index(&content, &dir_owned, &|p| store.is_file(p));
+-                    self.add_tcl_index(parse_tcl_index(&content, &dir_owned, &|p| {
+-                        store.is_file(p)
+-                    }));
+-                }
+-            }
+-        }
++        // `pkgIndex.tcl`, then each `tclIndex` (matched case-insensitively).
++        let survey = match surveys {
++            Some(surveys) => surveys.survey(store, dir),
++            None => survey::DirectorySurvey::of(store, dir),
++        };
++        self.apply_survey(survey);
+     }
+ 
+     /// Resolve a `package require NAME ?VERSION?` to its implementation files.
+@@ -1324,10 +1349,12 @@ fn list_tcl_files(store: &dyn SourceStore, dir: &Path) -> Vec<PathBuf> {
+ mod original_names;
+ pub mod reachability;
+ mod registration;
++mod survey;
+ pub use original_names::{
+     OriginalPackageFileCandidate, OriginalPackageFileCandidateKind, OriginalPackageInfo,
+     PackageRequirementAdvice, PackageRequirementAdviceKey,
+ };
++pub use survey::IndexSurveyCache;
+ 
+ #[cfg(test)]
+ mod tests;
+diff --git a/rust/tcl-lsp-core/src/package_resolver/original_names.rs b/rust/tcl-lsp-core/src/package_resolver/original_names.rs
+index a97898b50b601b4e8095c01af7fea3e2f910a3e0..f966606eb023a58a1b1c42154f66885d4a5ee503 100644
+--- a/rust/tcl-lsp-core/src/package_resolver/original_names.rs
++++ b/rust/tcl-lsp-core/src/package_resolver/original_names.rs
+@@ -190,16 +190,19 @@ impl PackageResolver {
+         exists: &dyn Fn(&Path) -> bool,
+         list_files: &dyn Fn(&Path) -> Vec<PathBuf>,
+     ) {
++        self.insert_original_packages(original_pkg_index_entries(
++            content, directory, index, exists, list_files,
++        ));
++    }
++
++    /// Record original package entries already surveyed from one index.
++    pub(super) fn insert_original_packages(&mut self, entries: Vec<OriginalPackageInfo>) {
+         self.invalidate();
+-        for version in tcl_dialect::TclVersion::ALL {
+-            for info in
+-                original_package_entries(content, directory, index, exists, list_files, version)
+-            {
+-                self.original_packages
+-                    .entry(info.name.clone())
+-                    .or_default()
+-                    .push(info);
+-            }
++        for info in entries {
++            self.original_packages
++                .entry(info.name.clone())
++                .or_default()
++                .push(info);
+         }
+     }
+ 
+@@ -487,23 +490,14 @@ impl PackageResolver {
+         index_dir: &Path,
+         exists: &dyn Fn(&Path) -> bool,
+     ) {
++        self.insert_original_auto_index(original_tcl_index_rows(content, index_dir, exists));
++    }
++
++    /// Record original `tclIndex` registrations already surveyed from one index.
++    pub(super) fn insert_original_auto_index(&mut self, rows: Vec<OriginalAutoIndexRow>) {
+         self.invalidate();
+-        for version in tcl_dialect::TclVersion::ALL {
+-            let profile = tcl_dialect::DialectProfile::find(version.dialect_name())
+-                .expect("C release profile");
+-            let config = LexerConfig::from_grammar(
+-                tcl_registry::InvocationDialect::of_profile(profile).lexer_grammar,
+-            );
+-            let policy = NamePolicyProtocol::authored_tcl(version);
+-            for entry in original_index_entries(content, index_dir, exists, config, policy) {
+-                self.original_auto_index
+-                    .entry((
+-                        policy.string_protocol(),
+-                        NameBytes::from(entry.input.bytes()),
+-                    ))
+-                    .or_default()
+-                    .push(entry);
+-            }
++        for (key, entry) in rows {
++            self.original_auto_index.entry(key).or_default().push(entry);
+         }
+     }
+ 
+@@ -612,6 +606,24 @@ impl OriginalPackageInfo {
+     }
+ }
+ 
++/// Every original package entry one `pkgIndex.tcl` registers, release by
++/// release in [`tcl_dialect::TclVersion::ALL`] order.
++pub(super) fn original_pkg_index_entries(
++    content: &str,
++    directory: &Path,
++    index: &Path,
++    exists: &dyn Fn(&Path) -> bool,
++    list_files: &dyn Fn(&Path) -> Vec<PathBuf>,
++) -> Vec<OriginalPackageInfo> {
++    let mut entries = Vec::new();
++    for version in tcl_dialect::TclVersion::ALL {
++        entries.extend(original_package_entries(
++            content, directory, index, exists, list_files, version,
++        ));
++    }
++    entries
++}
++
+ fn original_package_entries(
+     content: &str,
+     directory: &Path,
+@@ -751,12 +763,47 @@ fn original_package_entries(
+     entries
+ }
+ 
+-#[derive(Debug)]
++#[derive(Debug, Clone)]
+ pub(super) struct OriginalAutoIndexRegistration {
+     input: SignatureSourceNameValue,
+     file: PathBuf,
+ }
+ 
++/// One original `tclIndex` registration with the native key its release's
++/// naming policy files it under.
++pub(super) type OriginalAutoIndexRow = (
++    (tcl_syntax::native_string::NativeStringProtocol, NameBytes),
++    OriginalAutoIndexRegistration,
++);
++
++/// Every original registration one `tclIndex` makes, release by release in
++/// [`tcl_dialect::TclVersion::ALL`] order.
++pub(super) fn original_tcl_index_rows(
++    content: &str,
++    index_dir: &Path,
++    exists: &dyn Fn(&Path) -> bool,
++) -> Vec<OriginalAutoIndexRow> {
++    let mut rows = Vec::new();
++    for version in tcl_dialect::TclVersion::ALL {
++        let profile =
++            tcl_dialect::DialectProfile::find(version.dialect_name()).expect("C release profile");
++        let config = LexerConfig::from_grammar(
++            tcl_registry::InvocationDialect::of_profile(profile).lexer_grammar,
++        );
++        let policy = NamePolicyProtocol::authored_tcl(version);
++        for entry in original_index_entries(content, index_dir, exists, config, policy) {
++            rows.push((
++                (
++                    policy.string_protocol(),
++                    NameBytes::from(entry.input.bytes()),
++                ),
++                entry,
++            ));
++        }
++    }
++    rows
++}
++
+ fn original_index_entries(
+     content: &str,
+     index_dir: &Path,
+diff --git a/rust/tcl-lsp-core/src/package_resolver/survey.rs b/rust/tcl-lsp-core/src/package_resolver/survey.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..19483562363044e797887312ccad20d0b4832fa3
+--- /dev/null
++++ b/rust/tcl-lsp-core/src/package_resolver/survey.rs
+@@ -0,0 +1,311 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++//
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! One directory's index survey, and the cache that carries surveys from one
++//! package-database rebuild to the next.
++//!
++//! Surveying a `pkgIndex.tcl` or `tclIndex` analyses it once plainly and once
++//! per C Tcl release, which makes it the costliest part of building the
++//! database. A rebuild after a configuration change or a watched index edit
++//! still visits every installed library on `auto_path`, nearly all of it
++//! unchanged. [`IndexSurveyCache`] keeps each directory's survey together with
++//! every store answer the survey depended on, and reuses it only when the store
++//! gives every one of those answers again.
++
++use std::cell::RefCell;
++use std::collections::HashMap;
++use std::path::{Path, PathBuf};
++
++use super::original_names::{
++    OriginalAutoIndexRow, original_pkg_index_entries, original_tcl_index_rows,
++};
++use super::{
++    AutoIndexEntry, OriginalPackageInfo, PackageInfo, PackageResolver, list_tcl_files,
++    parse_pkg_index, parse_tcl_index,
++};
++use crate::vfs::SourceStore;
++
++/// What one directory's index files contribute to a [`PackageResolver`].
++#[derive(Debug, Clone)]
++pub(super) struct DirectorySurvey {
++    pkg_index: Option<IndexSurvey<OriginalPackageInfo, PackageInfo>>,
++    tcl_indexes: Vec<IndexSurvey<OriginalAutoIndexRow, AutoIndexEntry>>,
++}
++
++/// One index file's original registrations and its authored entries.
++#[derive(Debug, Clone)]
++struct IndexSurvey<Original, Authored> {
++    original: Vec<Original>,
++    authored: Vec<Authored>,
++}
++
++impl DirectorySurvey {
++    /// Survey `dir` through `probe`: its `pkgIndex.tcl`, then each `tclIndex`
++    /// (matched case-insensitively) in the order the store lists them.
++    fn take(probe: &SurveyProbe<'_>, dir: &Path) -> Self {
++        let exists = |path: &Path| probe.is_file(path);
++        let list_files = |dir: &Path| probe.tcl_files(dir);
++        let pkg_index_path = dir.join("pkgIndex.tcl");
++        let pkg_index = if probe.is_file(&pkg_index_path)
++            && let Some(content) = probe.text(&pkg_index_path)
++        {
++            Some(IndexSurvey {
++                original: original_pkg_index_entries(
++                    &content,
++                    dir,
++                    &pkg_index_path,
++                    &exists,
++                    &list_files,
++                ),
++                authored: parse_pkg_index(&content, dir, &pkg_index_path, &exists, &list_files),
++            })
++        } else {
++            None
++        };
++        let tcl_indexes = probe
++            .tcl_indexes(dir)
++            .into_iter()
++            .flatten()
++            .filter_map(|index| {
++                let content = probe.text(&index)?;
++                let index_dir = index.parent().unwrap_or(dir);
++                Some(IndexSurvey {
++                    original: original_tcl_index_rows(&content, index_dir, &exists),
++                    authored: parse_tcl_index(&content, index_dir, &exists),
++                })
++            })
++            .collect();
++        Self {
++            pkg_index,
++            tcl_indexes,
++        }
++    }
++
++    /// Survey `dir` with nothing kept for reuse.
++    pub(super) fn of(store: &dyn SourceStore, dir: &Path) -> Self {
++        Self::take(&SurveyProbe::new(store, false), dir)
++    }
++}
++
++impl PackageResolver {
++    /// Record a directory's survey in the order a scan always has: each
++    /// index's original registrations before its authored entries.
++    pub(super) fn apply_survey(&mut self, survey: DirectorySurvey) {
++        if let Some(index) = survey.pkg_index {
++            self.insert_original_packages(index.original);
++            self.add_pkg_index(index.authored);
++        }
++        for index in survey.tcl_indexes {
++            self.insert_original_auto_index(index.original);
++            self.add_tcl_index(index.authored);
++        }
++    }
++}
++
++/// One store answer a survey depended on.
++#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
++enum SurveyInput {
++    /// [`SourceStore::is_file`].
++    IsFile(PathBuf, bool),
++    /// [`SourceStore::read_to_string`], `None` when it failed.
++    Text(PathBuf, Option<String>),
++    /// The `*.tcl` files listed directly in a directory.
++    TclFiles(PathBuf, Vec<PathBuf>),
++    /// A directory's `tclIndex` entries in listing order, `None` when it could
++    /// not be listed.
++    TclIndexes(PathBuf, Option<Vec<PathBuf>>),
++}
++
++impl SurveyInput {
++    /// Whether `store` still gives this answer.
++    fn holds(&self, store: &dyn SourceStore) -> bool {
++        match self {
++            Self::IsFile(path, answer) => store.is_file(path) == *answer,
++            Self::Text(path, answer) => store.read_to_string(path).ok() == *answer,
++            Self::TclFiles(dir, answer) => list_tcl_files(store, dir) == *answer,
++            Self::TclIndexes(dir, answer) => tcl_index_files(store, dir) == *answer,
++        }
++    }
++}
++
++/// The `tclIndex` entries of `dir` (`tclIndex` / `tclindex`), in the store's
++/// listing order.
++fn tcl_index_files(store: &dyn SourceStore, dir: &Path) -> Option<Vec<PathBuf>> {
++    let entries = store.read_dir(dir).ok()?;
++    Some(
++        entries
++            .into_iter()
++            .filter(|entry| {
++                entry
++                    .path
++                    .file_name()
++                    .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("tclindex"))
++            })
++            .map(|entry| entry.path)
++            .collect(),
++    )
++}
++
++/// The store as a survey asks it, recording each answer when asked to.
++struct SurveyProbe<'a> {
++    store: &'a dyn SourceStore,
++    inputs: Option<RefCell<Vec<SurveyInput>>>,
++}
++
++impl<'a> SurveyProbe<'a> {
++    fn new(store: &'a dyn SourceStore, record: bool) -> Self {
++        Self {
++            store,
++            inputs: record.then(|| RefCell::new(Vec::new())),
++        }
++    }
++
++    fn record(&self, input: SurveyInput) {
++        if let Some(inputs) = &self.inputs {
++            inputs.borrow_mut().push(input);
++        }
++    }
++
++    fn is_file(&self, path: &Path) -> bool {
++        let answer = self.store.is_file(path);
++        self.record(SurveyInput::IsFile(path.to_path_buf(), answer));
++        answer
++    }
++
++    fn text(&self, path: &Path) -> Option<String> {
++        let answer = self.store.read_to_string(path).ok();
++        self.record(SurveyInput::Text(path.to_path_buf(), answer.clone()));
++        answer
++    }
++
++    fn tcl_files(&self, dir: &Path) -> Vec<PathBuf> {
++        let answer = list_tcl_files(self.store, dir);
++        self.record(SurveyInput::TclFiles(dir.to_path_buf(), answer.clone()));
++        answer
++    }
++
++    fn tcl_indexes(&self, dir: &Path) -> Option<Vec<PathBuf>> {
++        let answer = tcl_index_files(self.store, dir);
++        self.record(SurveyInput::TclIndexes(dir.to_path_buf(), answer.clone()));
++        answer
++    }
++
++    /// Every distinct answer given, in a stable order.
++    fn into_inputs(self) -> Vec<SurveyInput> {
++        let mut inputs = self.inputs.map(RefCell::into_inner).unwrap_or_default();
++        inputs.sort();
++        inputs.dedup();
++        inputs
++    }
++}
++
++/// The command registries a survey analyses index files against, by identity.
++///
++/// Each is a `&'static` promoted once per registry generation and never freed,
++/// so an unchanged address is an unchanged generation; a pack reload that
++/// re-registers an environment moves it.
++#[derive(Debug, Default, PartialEq, Eq)]
++struct SurveyRegistries(Vec<usize>);
++
++impl SurveyRegistries {
++    fn current() -> Self {
++        use tcl_registry::model::ingress::{static_context_for, static_context_for_profile};
++        let mut addresses = vec![std::ptr::from_ref(static_context_for("tcl")).addr()];
++        for version in tcl_dialect::TclVersion::ALL {
++            addresses.push(std::ptr::from_ref(static_context_for(version.dialect_name())).addr());
++            if let Some(profile) = tcl_dialect::DialectProfile::find(version.dialect_name()) {
++                addresses.push(std::ptr::from_ref(static_context_for_profile(profile)).addr());
++            }
++        }
++        Self(addresses)
++    }
++}
++
++/// Directory index surveys carried from one package-database rebuild to the
++/// next.
++///
++/// Owned by whoever rebuilds the database; the language server keeps one per
++/// session. A survey is reused only when the same store gives every answer it
++/// was derived from again: the index files' exact text, each file the indexes
++/// name existing or not, and each directory listing they consulted. Any
++/// changed answer, an unreadable file included, means a fresh survey. The C
++/// Tcl releases a survey covers are fixed by the build; a change to the
++/// command registries it analyses against drops every kept survey.
++#[derive(Debug, Default)]
++pub struct IndexSurveyCache {
++    entries: HashMap<PathBuf, CachedSurvey>,
++    registries: SurveyRegistries,
++    rebuild: u64,
++}
++
++#[derive(Debug)]
++struct CachedSurvey {
++    inputs: Vec<SurveyInput>,
++    survey: DirectorySurvey,
++    rebuild: u64,
++}
++
++impl IndexSurveyCache {
++    /// An empty cache.
++    #[must_use]
++    pub fn new() -> Self {
++        Self::default()
++    }
++
++    /// Start a rebuild. A directory not visited before
++    /// [`Self::finish_rebuild`] leaves the cache then, and every survey leaves
++    /// it now when the registries surveys analyse against have changed.
++    pub fn begin_rebuild(&mut self) {
++        self.rebuild += 1;
++        let registries = SurveyRegistries::current();
++        if registries != self.registries {
++            self.entries.clear();
++            self.registries = registries;
++        }
++    }
++
++    /// Drop every survey the rebuild since [`Self::begin_rebuild`] did not
++    /// visit.
++    pub fn finish_rebuild(&mut self) {
++        let rebuild = self.rebuild;
++        self.entries.retain(|_, entry| entry.rebuild == rebuild);
++    }
++
++    /// `dir`'s survey: the kept one when `store` still gives every answer it
++    /// was derived from, a fresh one otherwise. Called between
++    /// [`Self::begin_rebuild`] and [`Self::finish_rebuild`].
++    pub(super) fn survey(&mut self, store: &dyn SourceStore, dir: &Path) -> DirectorySurvey {
++        if let Some(entry) = self.entries.get_mut(dir)
++            && entry.inputs.iter().all(|input| input.holds(store))
++        {
++            entry.rebuild = self.rebuild;
++            return entry.survey.clone();
++        }
++        let probe = SurveyProbe::new(store, true);
++        let survey = DirectorySurvey::take(&probe, dir);
++        self.entries.insert(
++            dir.to_path_buf(),
++            CachedSurvey {
++                inputs: probe.into_inputs(),
++                survey: survey.clone(),
++                rebuild: self.rebuild,
++            },
++        );
++        survey
++    }
++}
+diff --git a/rust/tcl-lsp-core/src/package_resolver/tests.rs b/rust/tcl-lsp-core/src/package_resolver/tests.rs
+index 9bc4398f0fc6982ab2d59ab6b9d17cadbf948e33..3ff4388ee73233f223b164793aae57b86027ae39 100644
+--- a/rust/tcl-lsp-core/src/package_resolver/tests.rs
++++ b/rust/tcl-lsp-core/src/package_resolver/tests.rs
+@@ -1381,3 +1381,90 @@ fn logical_source_command_coordinate_selects_tcl_index_without_name_roundtrip()
+     );
+     assert!(resolver.resolve_logical_auto_command(&unrelated).is_empty());
+ }
++
++/// Everything a scan put in the database except its revision, in a stable order.
++fn database_contents(resolver: &PackageResolver) -> Vec<String> {
++    fn rows<K: std::fmt::Debug, V: std::fmt::Debug>(
++        table: &str,
++        map: &std::collections::HashMap<K, V>,
++    ) -> impl Iterator<Item = String> {
++        map.iter()
++            .map(move |(key, value)| format!("{table} {key:?} {value:?}"))
++    }
++    let mut out: Vec<String> = rows("packages", &resolver.packages)
++        .chain(rows("auto_index", &resolver.auto_index))
++        .chain(rows("source_auto_index", &resolver.source_auto_index))
++        .chain(rows("original_packages", &resolver.original_packages))
++        .chain(rows("original_auto_index", &resolver.original_auto_index))
++        .collect();
++    out.sort();
++    out.push(format!("scanned {:?}", resolver.scanned_dirs));
++    out
++}
++
++const HOST_LIBRARY: &str = "/host/lib";
++
++/// An installed library: one package directory and one auto-load directory.
++fn host_library_store() -> crate::vfs::MemoryStore {
++    let store = crate::vfs::MemoryStore::new();
++    let lib = Path::new(HOST_LIBRARY);
++    store.upsert(
++        lib.join("hostpkg/pkgIndex.tcl"),
++        "package ifneeded hostpkg 1.0 [list source [file join $dir hostpkg.tcl]]\n",
++    );
++    store.upsert(
++        lib.join("hostpkg/hostpkg.tcl"),
++        "package provide hostpkg 1.0\n",
++    );
++    store.upsert(
++        lib.join("autolib/tclIndex"),
++        "# Tcl autoload index file: each line identifies a Tcl\nhostcmd autolib.tcl\n",
++    );
++    store.upsert(lib.join("autolib/autolib.tcl"), "proc hostcmd {} {}\n");
++    store
++}
++
++fn rebuild_reusing(
++    store: &dyn crate::vfs::SourceStore,
++    surveys: &mut IndexSurveyCache,
++) -> PackageResolver {
++    surveys.begin_rebuild();
++    let mut resolver = PackageResolver::new();
++    resolver.scan_path_reusing(store, Path::new(HOST_LIBRARY), surveys);
++    surveys.finish_rebuild();
++    resolver
++}
++
++#[test]
++fn a_rescan_reusing_surveys_builds_the_database_a_fresh_scan_does() {
++    let store = host_library_store();
++    let lib = Path::new(HOST_LIBRARY);
++    let fresh = |store: &dyn crate::vfs::SourceStore| {
++        let mut resolver = PackageResolver::new();
++        resolver.scan_path_in(store, lib);
++        database_contents(&resolver)
++    };
++    let mut surveys = IndexSurveyCache::new();
++
++    let first = rebuild_reusing(&store, &mut surveys);
++    let second = rebuild_reusing(&store, &mut surveys);
++    assert_eq!(database_contents(&first), fresh(&store));
++    assert_eq!(database_contents(&second), fresh(&store));
++    assert!(second.provides("hostpkg"));
++    assert!(second.auto_command_names().contains(&"hostcmd"));
++
++    // A file an index names disappearing changes that index's survey.
++    assert!(store.remove(&lib.join("autolib/autolib.tcl")));
++    let third = rebuild_reusing(&store, &mut surveys);
++    assert_eq!(database_contents(&third), fresh(&store));
++    assert!(!third.auto_command_names().contains(&"hostcmd"));
++
++    // So does an edited index.
++    store.upsert(
++        lib.join("hostpkg/pkgIndex.tcl"),
++        "package ifneeded hostpkg 2.0 [list source [file join $dir hostpkg.tcl]]\n",
++    );
++    let fourth = rebuild_reusing(&store, &mut surveys);
++    assert_eq!(database_contents(&fourth), fresh(&store));
++    assert!(!fourth.resolve("hostpkg", Some("2.0")).is_empty());
++}
+diff --git a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+index 4452e7203f7768a106cf3be7e29b6ca1bd65e5e3..b0c459037701331be68c742bf1f86d6d8671c299 100644
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -122,7 +122,7 @@ use tcl_lsp_core::minify as core_minify;
+ use tcl_lsp_core::namespace_rename as core_namespace_rename;
+ use tcl_lsp_core::namespace_symbol as core_namespace_symbol;
+ use tcl_lsp_core::original_indexed_location::OriginalIndexedSourceLocation;
+-use tcl_lsp_core::package_resolver::PackageResolver;
++use tcl_lsp_core::package_resolver::{IndexSurveyCache, PackageResolver};
+ use tcl_lsp_core::references as core_references;
+ use tcl_lsp_core::rename as core_rename;
+ use tcl_lsp_core::rename_safety as core_rename_safety;
+@@ -9355,11 +9355,15 @@ pub struct Backend {
+     /// every waiter but the one that did the real work. Same "wait out the
+     /// in-flight pass" idiom as [`Self::workspace_scan_gate`].
+     rehoming_gate: Arc<tokio::sync::Mutex<()>>,
+-    /// Tcl installations discovered by scanning common install locations on
+-    /// disk (never by executing `tclsh`). Cached once per session. The package
+-    /// database scans these (plus configured `libraryPaths`) so it can see
++    /// What the machine contributes to the package database: the Tcl
++    /// installations discovered on disk (never by executing `tclsh`, once per
++    /// session), the user `config.ini` and `$TCLLIBPATH`. The package database
++    /// scans the installations (plus configured `libraryPaths`) so it can see
+     /// system-installed packages (Tk, tcllib, …), not just workspace ones.
+-    discovered_tcl: Arc<std::sync::OnceLock<Vec<core_tcl_install::TclInstallation>>>,
++    host_tcl: Arc<HostTclInputs>,
++    /// Directory index surveys kept from one package-database build to the
++    /// next, so a rescan does not analyse an unchanged installed library again.
++    index_surveys: Arc<std::sync::Mutex<IndexSurveyCache>>,
+     /// Editor-provided `tclLsp.libraryPaths` (the `auto_path` the user picked /
+     /// typed). Merged with the config-file layers (`config.ini [global]`,
+     /// `.tcl-lsp.ini [project]`) and discovery when building the package
+@@ -10970,7 +10974,8 @@ impl Backend {
+             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
+             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
+             rehoming_gate: Arc::new(tokio::sync::Mutex::new(())),
+-            discovered_tcl: Arc::new(std::sync::OnceLock::new()),
++            host_tcl: Arc::new(HostTclInputs::from_host()),
++            index_surveys: Arc::new(std::sync::Mutex::new(IndexSurveyCache::new())),
+             editor_library_paths: Mutex::new(Vec::new()),
+             workspace_scan_max_files: Mutex::new(WORKSPACE_SCAN_FILE_CAP),
+             package_prefer_latest_default: Mutex::new(false),
+@@ -15837,7 +15842,8 @@ impl Backend {
+             workspace_scan_gate: _,
+             workspace_scan_ready: _,
+             rehoming_gate: _,
+-            discovered_tcl: _,
++            host_tcl: _,
++            index_surveys: _,
+             editor_library_paths: _,
+             workspace_scan_max_files: _,
+             package_prefer_latest_default: _,
+@@ -24464,7 +24470,7 @@ impl Backend {
+         // documented precedence and merge rules.
+         let global_ini = read_ini_layer(
+             self.store.as_ref(),
+-            core_tcl_install::user_config_path(),
++            self.host_tcl.user_config.clone(),
+             config_ini::Layer::Global,
+         );
+         let folders = self.workspace_folder_urls().await;
+@@ -25390,7 +25396,7 @@ impl Backend {
+     /// the chosen `tcl_library` (or a custom path) back to
+     /// `tclLsp.libraryPaths`.
+     async fn list_tcl_installations_command(&self) -> serde_json::Value {
+-        let discovered = Arc::clone(&self.discovered_tcl);
++        let host = Arc::clone(&self.host_tcl);
+         let editor_paths = self.editor_library_paths.lock().await.clone();
+         let roots: Vec<PathBuf> = self
+             .workspace_folder_urls()
+@@ -25400,10 +25406,8 @@ impl Backend {
+             .collect();
+         let store = Arc::clone(&self.store);
+         crate::rt::spawn_blocking(move || {
+-            let installs = discovered.get_or_init(|| {
+-                core_tcl_install::discover(&core_tcl_install::default_search_bases())
+-            });
+-            let active = effective_auto_path(store.as_ref(), &roots, &editor_paths, installs);
++            let installs = host.installations();
++            let active = effective_auto_path(store.as_ref(), &roots, &editor_paths, &host);
+             serde_json::json!({
+                 "installations": installs
+                     .iter()
+@@ -28946,7 +28950,8 @@ impl Backend {
+                 }
+             }
+         }
+-        let discovered_cell = Arc::clone(&self.discovered_tcl);
++        let host = Arc::clone(&self.host_tcl);
++        let index_surveys = Arc::clone(&self.index_surveys);
+         let scan_store = Arc::clone(&self.store);
+         // `tclLsp.workspaceScan.maxFiles` — the whole-session budget the walk
+         // stops at (shared across roots, so it bounds the scan, not each
+@@ -28954,15 +28959,15 @@ impl Backend {
+         // async mutex by design.
+         let max_files = *self.workspace_scan_max_files.lock().await;
+         crate::rt::spawn_blocking(move || {
+-            let discovered = discovered_cell.get_or_init(|| {
+-                core_tcl_install::discover(&core_tcl_install::default_search_bases())
+-            });
+             let resolver = build_package_resolver(
+                 scan_store.as_ref(),
+                 &roots,
+                 &editor_library_paths,
+-                discovered,
++                &host,
+                 WORKSPACE_SCAN_DIR_CAP,
++                &mut index_surveys
++                    .lock()
++                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+             );
+             let mut files: Vec<PathBuf> = Vec::new();
+             let mut complete = true;
+@@ -37689,21 +37694,25 @@ const WORKSPACE_SCAN_DIR_CAP: usize = 4000;
+ /// consults: the workspace trees (recursive — an IDE nests packages
+ /// arbitrarily) plus the resolved `auto_path` ([`effective_auto_path`]) scanned
+ /// with C Tcl's immediate-subdir rule. Pure filesystem work, so it runs on the
+-/// scan worker.
++/// scan worker. A directory whose index files, and everything they consulted,
++/// are unchanged since the previous build reuses its survey from `surveys`.
+ fn build_package_resolver(
+     store: &dyn vfs::SourceStore,
+     roots: &[PathBuf],
+     editor_library_paths: &[String],
+-    discovered: &[core_tcl_install::TclInstallation],
++    host: &HostTclInputs,
+     dir_cap: usize,
++    surveys: &mut IndexSurveyCache,
+ ) -> PackageResolver {
++    surveys.begin_rebuild();
+     let mut resolver = PackageResolver::new();
+     for root in roots {
+-        resolver.scan_tree_in(store, root, dir_cap);
++        resolver.scan_tree_reusing(store, root, dir_cap, surveys);
+     }
+-    for dir in effective_auto_path(store, roots, editor_library_paths, discovered) {
+-        resolver.scan_path_in(store, &dir);
++    for dir in effective_auto_path(store, roots, editor_library_paths, host) {
++        resolver.scan_path_reusing(store, &dir, surveys);
+     }
++    surveys.finish_rebuild();
+     resolver
+ }
+ 
+@@ -37861,6 +37870,52 @@ fn tcl_installation_selection_paths(
+     Ok((tcl_library, auto_path))
+ }
+ 
++/// What the machine itself contributes to the package database, beside the
++/// client's settings and the workspace's own files.
++///
++/// [`Self::from_host`] reads the host once per session; a test backend holds
++/// an explicit value instead, so no test depends on what the machine running
++/// it has installed.
++#[derive(Debug)]
++struct HostTclInputs {
++    /// Tcl installations found on disk, discovered on first use.
++    installations: std::sync::OnceLock<Vec<core_tcl_install::TclInstallation>>,
++    /// The user `config.ini`, whose `[global] libraryPaths` the package
++    /// database and the settings layers read.
++    user_config: Option<PathBuf>,
++    /// The directories on `$TCLLIBPATH`.
++    tcllibpath: Vec<PathBuf>,
++}
++
++impl HostTclInputs {
++    /// The running machine's inputs. Installations are discovered at first
++    /// use, by scanning the common install locations.
++    fn from_host() -> Self {
++        Self {
++            installations: std::sync::OnceLock::new(),
++            user_config: core_tcl_install::user_config_path(),
++            tcllibpath: core_tcl_install::tcllibpath_dirs(),
++        }
++    }
++
++    /// Exactly `installations`, with no user `config.ini` and no
++    /// `$TCLLIBPATH`.
++    #[cfg(test)]
++    fn fixed(installations: Vec<core_tcl_install::TclInstallation>) -> Self {
++        Self {
++            installations: std::sync::OnceLock::from(installations),
++            user_config: None,
++            tcllibpath: Vec::new(),
++        }
++    }
++
++    /// The installations, discovering them on first use.
++    fn installations(&self) -> &[core_tcl_install::TclInstallation] {
++        self.installations
++            .get_or_init(|| core_tcl_install::discover(&core_tcl_install::default_search_bases()))
++    }
++}
++
+ /// The effective `auto_path` for the package database, layering the configured
+ /// sources plus on-disk discovery (deduped, in priority order):
+ ///
+@@ -37873,7 +37928,7 @@ fn effective_auto_path(
+     store: &dyn vfs::SourceStore,
+     roots: &[PathBuf],
+     editor_library_paths: &[String],
+-    discovered: &[core_tcl_install::TclInstallation],
++    host: &HostTclInputs,
+ ) -> Vec<PathBuf> {
+     let mut out: Vec<PathBuf> = Vec::new();
+     let push = |p: PathBuf, out: &mut Vec<PathBuf>| {
+@@ -37884,8 +37939,8 @@ fn effective_auto_path(
+     for p in editor_library_paths {
+         push(PathBuf::from(p), &mut out);
+     }
+-    if let Some(cfg) = core_tcl_install::user_config_path()
+-        && let Ok(content) = store.read_to_string(&cfg)
++    if let Some(cfg) = &host.user_config
++        && let Ok(content) = store.read_to_string(cfg)
+     {
+         for p in core_tcl_install::library_paths_from_ini(&content, "global") {
+             push(PathBuf::from(p), &mut out);
+@@ -37899,13 +37954,13 @@ fn effective_auto_path(
+             }
+         }
+     }
+-    for inst in discovered {
++    for inst in host.installations() {
+         for p in &inst.auto_path {
+             push(p.clone(), &mut out);
+         }
+     }
+-    for p in core_tcl_install::tcllibpath_dirs() {
+-        push(p, &mut out);
++    for p in &host.tcllibpath {
++        push(p.clone(), &mut out);
+     }
+     out
+ }
+@@ -40550,7 +40605,7 @@ info exists ::N::v\uD800";
+             &vfs::NativeStore,
+             std::slice::from_ref(&ws.0),
+             &editor,
+-            &discovered,
++            &HostTclInputs::fixed(discovered),
+         );
+         assert!(ap.contains(&PathBuf::from("/editor/lib")));
+         assert!(ap.contains(&PathBuf::from("/proj/lib")));
+@@ -40579,7 +40634,14 @@ info exists ::N::v\uD800";
+             tcl_library: lib_root.join("tcl8.6"),
+             auto_path: vec![lib_root.clone()],
+         }];
+-        let resolver = build_package_resolver(&vfs::NativeStore, &[], &[], &discovered, 100);
++        let resolver = build_package_resolver(
++            &vfs::NativeStore,
++            &[],
++            &[],
++            &HostTclInputs::fixed(discovered),
++            100,
++            &mut IndexSurveyCache::new(),
++        );
+         assert!(
+             resolver.provides("Tk"),
+             "discovered install's Tk package should be in the database"
+@@ -46599,7 +46661,19 @@ info exists ::N::v\uD800";
+     /// a handler actually executes.  The `AnalyserConfig` input must be created
+     /// against the same database, which is why it cannot simply be swapped in
+     /// after the fact.
++    ///
++    /// The machine contributes nothing: no discovered Tcl installation, no
++    /// user `config.ini` and no `$TCLLIBPATH`, so a workspace scan never walks
++    /// the host's installed libraries. A test that needs host inputs names them
++    /// through [`test_backend_with_host`].
+     fn test_backend_over(db: tcl_lsp_db::TclDatabase) -> Backend {
++        test_backend_with_host(db, HostTclInputs::fixed(Vec::new()))
++    }
++
++    /// [`test_backend_over`] with explicit host inputs: [`HostTclInputs::fixed`]
++    /// for a fixture installation, or [`HostTclInputs::from_host`] for whatever
++    /// the machine running the test has installed.
++    fn test_backend_with_host(db: tcl_lsp_db::TclDatabase, host: HostTclInputs) -> Backend {
+         let (service, _socket) = tower_lsp_server::LspService::new(Backend::new);
+         let client = service.inner().client.clone();
+         let diagnostic_publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
+@@ -46634,7 +46708,8 @@ info exists ::N::v\uD800";
+             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
+             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
+             rehoming_gate: Arc::new(tokio::sync::Mutex::new(())),
+-            discovered_tcl: Arc::new(std::sync::OnceLock::new()),
++            host_tcl: Arc::new(host),
++            index_surveys: Arc::new(std::sync::Mutex::new(IndexSurveyCache::new())),
+             editor_library_paths: Mutex::new(Vec::new()),
+             workspace_scan_max_files: Mutex::new(WORKSPACE_SCAN_FILE_CAP),
+             package_prefer_latest_default: Mutex::new(false),
+@@ -57560,8 +57635,9 @@ proc p {} {
+                 .to_str()
+                 .expect("library path configuration requires UTF-8")
+                 .to_owned()],
+-            &[],
++            &HostTclInputs::fixed(Vec::new()),
+             WORKSPACE_SCAN_DIR_CAP,
++            &mut IndexSurveyCache::new(),
+         );
+         Uri::from_file_path(libdir.join("graph.tcl")).expect("library uri")
+     }
+diff --git a/docs/design/contracts/package-loading.md b/docs/design/contracts/package-loading.md
+index 0f6fce7bb7d7b64c5bc41fb9ce5c8509ff7e80d6..f53209d990d84dc1ca9672c3aca71f1edb633e91 100644
+--- a/docs/design/contracts/package-loading.md
++++ b/docs/design/contracts/package-loading.md
+@@ -170,7 +170,15 @@ infer an engine from a lexer grammar, or derive an error code from message text.
+    `scan_tree_in` / `scan_path_in` take a `tcl_lsp_core::vfs::SourceStore`,
+    and the two-argument forms are `NativeStore` wrappers over them, so a
+    browser host that supplies `pkgIndex.tcl` / `tclIndex` bytes builds the
+-   same database. See [lsp-source-store.md](lsp-source-store.md).
++   same database. See [lsp-source-store.md](lsp-source-store.md). The server's
++   workspace scan builds through `scan_tree_reusing` / `scan_path_reusing`
++   with a session `IndexSurveyCache`: a directory's survey is reused only when
++   the store gives every answer it was derived from again (the index files'
++   exact text, whether each file they name exists, each directory listing they
++   consulted), so a rescan does not analyse an unchanged installed library
++   again. The machine's own inputs (discovered installations, the user
++   `config.ini`, `$TCLLIBPATH`) are read once per session; the server's unit
++   tests supply none of them.
+ 10. `parse_pkg_index` extracts `package ifneeded <name> <version> <script>`
+     entries and the source targets the script would `source` / `load`;
+     `parse_tcl_index` extracts the `auto_index` proc → file mappings from a

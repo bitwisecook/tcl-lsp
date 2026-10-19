@@ -1,0 +1,1500 @@
+diff --git a/.config/nextest.toml b/.config/nextest.toml
+index 2a25680..a67fa9a 100644
+--- a/.config/nextest.toml
++++ b/.config/nextest.toml
+@@ -80,6 +80,86 @@ fail-fast = true
+ status-level = "fail"
+ final-status-level = "flaky"
+ 
++# Quick tier (`make test-quick`, `make test-quick P=<crate>`).
++#
++# Local iteration only, never a gate: the deep suite minus the deep-only
++# originals listed in scripts/dev/deep-only-tests.tsv. CI and `make test-rust`
++# run the default profile, which sets no default-filter, so a manifest row
++# never removes a test from the deep tier. `cargo xtask deep-only-tests check`
++# (in `make xtask-check`) holds this filter to the manifest, every row to an
++# existing test, and every gate off this profile; `cargo xtask
++# deep-only-tests sync` rewrites the filter. Callers that add `-E` must
++# intersect it with `default()` to keep the exclusions.
++[profile.quick]
++# <generated: deep-only-tests> from scripts/dev/deep-only-tests.tsv by `cargo xtask deep-only-tests sync`
++default-filter = '''
++not (
++    (binary_id(=tcl-compiler) & test(=depth_guard::tests::the_analyser_stops_at_the_shared_cap))
++  | (binary_id(=tcl-compiler) & test(=interprocedural::completion::tests::a_body_of_commands_that_complete_completes))
++  | (binary_id(=tcl-compiler) & test(=interprocedural::completion::tests::a_body_that_may_raise_does_not_complete))
++  | (binary_id(=tcl-compiler) & test(=interprocedural::completion::tests::a_callee_counts_as_defined_only_where_its_definition_surely_ran))
++  | (binary_id(=tcl-compiler) & test(=interprocedural::tests::deeply_nested_if_survives_interprocedural_scan))
++  | (binary_id(=tcl-compiler) & test(=interprocedural::transfer::tests::a_name_argument_naming_an_outer_place_is_a_global_write))
++  | (binary_id(=tcl-compiler) & test(=interprocedural::transfer::tests::summaries_compose_through_two_callees))
++  | (binary_id(=tcl-compiler) & test(=optimiser::propagation::tests::depth_exhaustion_blocks_dynamic_name_load_forwarding))
++  | (binary_id(=tcl-lsp-core) & test(=diagnostic_report::tests::supplied_policy_rewrites_refuse_missing_unavailable_stale_and_foreign_input))
++  | (binary_id(=tcl-lsp-core) & test(=document_symbols::tests::deeply_nested_namespaces_produce_a_symbol_tree))
++  | (binary_id(=tcl-lsp-core) & test(=executable_regions::checked_potential_source_tests::checked_potential_source_retains_depth_exhaustion_as_incomplete))
++  | (binary_id(=tcl-lsp-core) & test(=minify::original::tests::logical_formal_alpha_requires_isolation_and_closed_binding_observability))
++  | (binary_id(=tcl-lsp-core) & test(=package_resolver::tests::parse_pkg_index_survives_deeply_nested_source_wrapper))
++  | (binary_id(=tcl-lsp-core) & test(=refactor::inline_variable::tests::deeply_nested_namespaces_survive_scope_walk))
++  | (binary_id(=tcl-lsp-db) & test(=tests::compiler_check_incremental_matches_fresh_under_edits))
++  | (binary_id(=tcl-lsp-db) & test(=tests::project_diagnostics_incremental_matches_fresh_both_files_edited))
++  | (binary_id(=tcl-lsp-db) & test(=tests::project_diagnostics_incremental_matches_fresh_under_edits))
++  | (binary_id(=tcl-lsp-db) & test(=tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads))
++  | (binary_id(=tcl-lsp-server) & test(=original_document_metadata_tests::source_rehoming_keeps_workspace_roles_in_the_actual_seed_namespace))
++  | (binary_id(=tcl-lsp-server) & test(=original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles))
++  | (binary_id(=tcl-lsp-server) & test(=studio_source::retirement_publication_tests::retire_and_shutdown_cannot_acknowledge_failed_withdrawal_and_can_retry))
++  | (binary_id(=tcl-lsp-server) & test(=studio_source::tests::acquire_before_creation_and_shutdown_retire_without_filesystem_cleanup))
++  | (binary_id(=tcl-lsp-server) & test(=studio_source::tests::active_saved_source_retires_without_deleting_and_restart_stays_closed))
++  | (binary_id(=tcl-lsp-server) & test(=studio_source::tests::cross_backend_same_uri_token_cannot_publish_or_retire_new_owner))
++  | (binary_id(=tcl-lsp-server) & test(=studio_source::tests::original_provider_mapping_cannot_rebind_across_equal_byte_aba))
++  | (binary_id(=tcl-lsp-server) & test(=studio_source::tests::replaced_or_stale_revision_and_missing_entropy_never_donate_a_live_lease))
++  | (binary_id(=tcl-lsp-server) & test(=studio_source::tests::retirement_invalidates_captured_reload_before_waiting_for_reload_lock))
++  | (binary_id(=tcl-lsp-server) & test(=studio_source::tests::saved_image_changed_after_load_before_publication_is_unavailable))
++  | (binary_id(=tcl-lsp-server) & test(=studio_source::tests::saved_image_changed_while_reload_is_queued_cannot_acknowledge_publication))
++  | (binary_id(=tcl-lsp-server) & test(=tests::a_cross_file_metaclass_resolves_after_the_workspace_scan))
++  | (binary_id(=tcl-lsp-server) & test(=tests::a_dynamic_metaclass_head_abstains_even_with_the_scan_index))
++  | (binary_id(=tcl-lsp-server) & test(=tests::a_relative_auto_path_entry_anchors_on_the_document_not_the_server_cwd))
++  | (binary_id(=tcl-lsp-server) & test(=tests::a_three_level_factory_scan_withdraws_descendants_when_the_source_root_disappears))
++  | (binary_id(=tcl-lsp-server) & test(=tests::a_triple_nested_dirname_auto_path_feeds_the_package_database))
++  | (binary_id(=tcl-lsp-server) & test(=tests::a_versioned_require_indexes_the_release_it_asks_for))
++  | (binary_id(=tcl-lsp-server) & test(=tests::a_workspace_with_no_metaclass_never_sets_the_factory_oracle))
++  | (binary_id(=tcl-lsp-server) & test(=tests::apply_global_config_applies_every_knob))
++  | (binary_id(=tcl-lsp-server) & test(=tests::autoload_merge_is_dropped_when_the_package_database_rebuilds))
++  | (binary_id(=tcl-lsp-server) & test(=tests::concurrent_snapshots_share_one_text_and_index_allocation))
++  | (binary_id(=tcl-lsp-server) & test(=tests::declared_package_provides_makes_tk_available_to_diagnostics))
++  | (binary_id(=tcl-lsp-server) & test(=tests::declared_package_provides_resolve_per_folder))
++  | (binary_id(=tcl-lsp-server) & test(=tests::declared_package_provides_survive_an_incomplete_buffer))
++  | (binary_id(=tcl-lsp-server) & test(=tests::default_dialect_change_retries_after_concurrent_edit_1854))
++  | (binary_id(=tcl-lsp-server) & test(=tests::definition_lands_in_the_package_release_tcl_would_load))
++  | (binary_id(=tcl-lsp-server) & test(=tests::definition_resolves_through_a_document_auto_path_package))
++  | (binary_id(=tcl-lsp-server) & test(=tests::document_auto_path_mutation_feeds_the_package_database))
++  | (binary_id(=tcl-lsp-server) & test(=tests::dropping_one_factory_reindexes_its_consumers_while_retaining_others))
++  | (binary_id(=tcl-lsp-server) & test(=tests::initialized_reschedules_open_documents_after_workspace_scan))
++  | (binary_id(=tcl-lsp-server) & test(=tests::removing_the_last_factory_reindexes_unopened_consumers_with_an_empty_oracle))
++  | (binary_id(=tcl-lsp-server) & test(=tests::resource_scoped_analyser_inputs_resolve_per_folder))
++  | (binary_id(=tcl-lsp-server) & test(=tests::scan_workspace_folders_builds_resolver_with_no_roots))
++  | (binary_id(=tcl-lsp-server) & test(=tests::scan_workspace_folders_does_not_build_deep_tier_for_unopened_files))
++  | (binary_id(=tcl-lsp-server) & test(=tests::scan_workspace_folders_indexes_unopened_files))
++  | (binary_id(=tcl-lsp-server) & test(=tests::scan_workspace_folders_skips_open_documents))
++  | (binary_id(=tcl-lsp-server) & test(=tests::set_auto_path_puts_every_list_element_on_the_search_path))
++  | (binary_id(=tcl-lsp-server) & test(=tests::the_last_generation_of_a_burst_still_runs_to_completion))
++  | (binary_id(=tcl-lsp-server) & test(=tests::workspace_folder_add_reschedules_non_xc_document_too))
++  | (binary_id(=tcl-lsp-server) & test(=tests::workspace_symbol_caps_its_answer))
++  | (binary_id(=tcl-lsp-server) & test(=tests::workspace_trust_comes_from_the_client_and_never_from_a_setting))
++)
++'''
++# </generated>
++# A quick-tier test past 30 s is reported SLOW: it belongs in the deep-only
++# manifest or its cost needs a fix. A warning, never a failure.
++slow-timeout = { period = "30s" }
++
+ # Exhaustive / manual-only tier (`make test-exhaustive`).
+ #
+ # Never runs automatically.  Settings for the #[ignore]d corpus / fuzz /
+diff --git a/AGENTS.md b/AGENTS.md
+index 6ee679c..3f0f809 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -55,7 +55,10 @@ make prep-pr        # format + codegen + lint/typecheck + smoke tier
+   (generator-driven or seeded-random bodies) are `#[ignore]`d into
+   `make test-exhaustive` regardless of speed; deterministic fixed-input tests
+   covering the same code stay in CI. `#[ignore]` has that one sanctioned use,
+-  always with a reason string; xfails never ship.
++  always with a reason string; xfails never ship. The one exception is the
++  three seeded `tcl-lsp-db` edit storms, which stay in the deep tier, not
++  `#[ignore]`d (rule 1 of
++  [test-tiers-and-ci-gates.md](docs/design/contracts/test-tiers-and-ci-gates.md)).
+ - Capture long gate output with `tee` to `/tmp/<gate>-<branch>.log` and
+   `grep` it — a `tail` loses mid-run failures.
+ 
+diff --git a/Makefile b/Makefile
+index 66291a7..a97ee94 100644
+--- a/Makefile
++++ b/Makefile
+@@ -215,7 +215,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
+ # Tests
+ .PHONY: test test-ext test-ext-partition test-ext-multi-folder test-emacs test-jetbrains test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
+ .PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-editor-configs xtask-gen-environment-docs xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership check-c-extension-wasm
+-.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-value-transfers xtask-registry-axes xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
++.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-value-transfers xtask-registry-axes xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-deep-only-tests check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
+ # Lint / format / typecheck
+ .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
+ .PHONY: build-report-assets build-report-pyz lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
+@@ -904,7 +904,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
+ # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
+ # runs them in the rust-tests-shard matrix and its stable rust-tests aggregate
+ # (ci.yml). `xtask-check` is the CI aggregate.
+-xtask-check: check-name-resolution-proofs check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-value-transfers xtask-registry-axes xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
++xtask-check: check-name-resolution-proofs check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-deep-only-tests check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-value-transfers xtask-registry-axes xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+ 
+ check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat LTO
+ 	@bash scripts/dev/test-lsp-wasi-lto.sh
+@@ -963,6 +963,10 @@ check-smoke-targets: ## Verify every convention-named smoke source is owned by t
+ 	@echo "==> Checking targeted Cargo smoke ownership"
+ 	@cargo xtask smoke-targets check
+ 
++check-deep-only-tests: ## Verify the quick tier's deep-only manifest names real tests and never reaches a gate
++	@echo "==> Checking the quick tier's deep-only manifest"
++	@cargo xtask deep-only-tests check
++
+ check-wasm-cc-env: ## Verify wasm32 C-compiler selection and dependency diagnostics
+ 	@echo "==> Checking wasm32 C compiler bootstrap"
+ 	@bash scripts/dev/test-wasm-cc-env.sh
+@@ -1180,7 +1184,7 @@ rust-check: check-rust-pr xtask-check ## Rust fmt + clippy + generated-file drif
+ prep-pr: format codegen ## Fast local gate (format + codegen + lint + typecheck + smoke tier) — deep suites run in CI
+ 	@$(MAKE) -j $(NPROC) _prep-pr-checks _prep-pr-smoke-tier
+ 
+-.PHONY: smoke smoke-p test-installer test-exhaustive fuzz test-spectcl-compat
++.PHONY: smoke smoke-p test-quick test-installer test-exhaustive fuzz test-spectcl-compat
+ 
+ # One fail-closed compatibility suite for the complete SpecTcl contract: legacy
+ # 1.x sources through TclVM (20), 2.0 golden upgrades (3), live 1.x/2.0 hook
+@@ -1237,6 +1241,38 @@ smoke-p: ## Smoke tier for one crate: make smoke-p P=<crate-name>
+ 		cargo xtask smoke-targets run --package "$(P)"; \
+ 	fi
+ 
++# Local quick tier: the deep workspace suite minus the deep-only originals in
++# scripts/dev/deep-only-tests.tsv (see .config/nextest.toml's [profile.quick]).
++# For iteration only and never a gate: NOT part of prep-pr, test, check-all, or
++# CI, which keep the full deep suite; `cargo xtask deep-only-tests check` keeps
++# it that way.  Same features as test-rust, so the two share one build.
++# Without nextest the manifest cannot be applied, so it runs the full suite:
++# slower, never weaker.
++test-quick: ## Local quick tier: deep suite minus the deep-only manifest; never a gate (P=<crate> narrows it)
++	@set -eu; \
++	if ! command -v cargo >/dev/null 2>&1; then \
++		echo "ERROR: 'cargo' not found on PATH."; exit 1; \
++	fi; \
++	$(MAKE) ensure-tcllib-source; \
++	cd $(ROOT) && \
++	if command -v cargo-nextest >/dev/null 2>&1; then \
++		if [ -n "$${P:-}" ]; then \
++			echo "==> cargo nextest run --profile quick --workspace --all-features -E package($(P)) & default()"; \
++			cargo nextest run --profile quick --workspace --all-features -E "package($(P)) & default()"; \
++		else \
++			echo "==> cargo nextest run --profile quick --workspace --all-features"; \
++			cargo nextest run --profile quick --workspace --all-features; \
++		fi; \
++	else \
++		echo "==> cargo-nextest not found; running the full deep suite (the quick filter needs nextest)"; \
++		echo "    (install: cargo install cargo-nextest --locked)"; \
++		if [ -n "$${P:-}" ]; then \
++			cargo test --all-features -p "$(P)"; \
++		else \
++			cargo test --workspace --all-features; \
++		fi; \
++	fi
++
+ # Manual-only tier: every #[ignore]d corpus sweep, differential-fuzz gate,
+ # and privileged/environment-gated test in the workspace (see
+ # docs/design/contracts/test-tiers-and-ci-gates.md).  NEVER wired into
+@@ -1274,7 +1310,9 @@ fuzz: ## Run a tcl-fuzz differential campaign (manual-only; see the fuzz-finding
+ # serially.
+ # nextest cannot run doctests, so those follow in a second pass — the same split
+ # the rust-tests-shard matrix makes. The `cargo test` fallback keeps the target
+-# working on a machine without nextest.
++# working on a machine without nextest. The nextest run pins
++# `--profile default`, the deep tier, so an exported NEXTEST_PROFILE (the
++# local quick tier, say) cannot narrow it.
+ test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip with SKIP_TEST_RUST=1)
+ 	@set -eu; \
+ 	if [ -n "$${SKIP_TEST_RUST:-}" ]; then \
+@@ -1290,8 +1328,8 @@ test-rust: ## Run Rust workspace tests + the native-server lsp_e2e suite (skip w
+ 	echo "==> Running Rust workspace tests (includes the native lsp_e2e suite)"; \
+ 	cd $(ROOT) && \
+ 	if command -v cargo-nextest >/dev/null 2>&1; then \
+-		echo "==> cargo nextest run --workspace --all-features"; \
+-		cargo nextest run --workspace --all-features --no-fail-fast; \
++		echo "==> cargo nextest run --profile default --workspace --all-features"; \
++		cargo nextest run --profile default --workspace --all-features --no-fail-fast; \
+ 		echo "==> cargo test --doc (nextest cannot run doctests)"; \
+ 		cargo test --workspace --all-features --doc --no-fail-fast; \
+ 	else \
+diff --git a/README.md b/README.md
+index 85e76b6..ca24b2c 100644
+--- a/README.md
++++ b/README.md
+@@ -2101,6 +2101,10 @@ they fall back to the manifest at `scripts/dev/smoke-targets.tsv` via
+ `cargo xtask smoke-targets` (`cargo xtask smoke-targets check` validates it —
+ see the [smoke fallback note](docs/kcs/kcs-issue-smoke-fallback-does-not-match-nextest.md)).
+ 
++`make test-quick` (or `make test-quick P=<crate>`) runs the deep Rust suite
++minus the slow tests listed in `scripts/dev/deep-only-tests.tsv`, for local
++iteration only; CI and `make test-rust` always run the full suite.
++
+ Tcl VM conformance work uses the shared C Tcl oracle harness. See
+ **[How to run the C tcltest suite through the bytecode VM](docs/kcs/kcs-howto-run-tcltest-bundles.md)**;
+ for example, a narrow Tcl 9 comparison is `cargo xtask tcltest-sweep --backend
+diff --git a/docs/design/contracts/test-tiers-and-ci-gates.md b/docs/design/contracts/test-tiers-and-ci-gates.md
+index 194629f..fd7e8c0 100644
+--- a/docs/design/contracts/test-tiers-and-ci-gates.md
++++ b/docs/design/contracts/test-tiers-and-ci-gates.md
+@@ -9,6 +9,7 @@ behind it.
+ | Tier | Runs | What |
+ |---|---|---|
+ | **smoke** — `make smoke`, `make smoke-p P=<crate>` | locally after every compile; inside `make prep-pr` | the fail-closed smoke-named function/module and effective Cargo-target subset owned by `scripts/dev/smoke-targets.tsv`, one sanity check per crate, seconds warm. Reuses the dev-profile default-features build (never `--all-features`), so it never forces a recompile. |
++| **quick** — `make test-quick`, `make test-quick P=<crate>` | locally, for developers and agents iterating on a change; **never** a gate | the deep workspace suite minus the deep-only tests in `scripts/dev/deep-only-tests.tsv`, through nextest's `[profile.quick]`, with the same features as `make test-rust`. Not part of `prep-pr`, `test`, `check-all`, or CI, and no substitute for the deep tier before a PR (rule 9). Without nextest it runs the full suite. |
+ | **deep** — CI jobs `rust-tests-shard` and `rust-tests-doctest` plus their stable `rust-tests` aggregate, `rust-tests-heavy`, `runtime-rust-tests`, `lsp-e2e`, `test-ext`, `test-ext-web`, `cargo-deny`, `python`, `spectcl-compat`, `web-frontends` | every PR and every push to `rust` | the full workspace suite (native `lsp_e2e` included), the VM-sim heavies, the standalone `runtime/rust` unit suite, the VS Code extension on desktop and in a browser host, supply-chain audit, Python lint/typecheck plus native-engine build and binding tests for `rust/bigip-report-gen/python`, and an `npm ci` of the two npm roots that are not `editors/vscode`. Skips only what demonstrably did not change (below). |
+ | **exhaustive** — `make test-exhaustive`, `make fuzz`, `make tcltest-sweep[-check]` | only when a human invokes it by name | every `#[ignore]`d corpus sweep over `tmp/tcl*` and tcllib, differential-fuzz gates, privileged bpf/kernel tests, fuzz campaigns. **Never** wired into `prep-pr`, `test`, `check-all`, or CI. |
+ 
+@@ -79,6 +80,14 @@ until the map assigns it.
+    exhaustive tier regardless of how fast they run today. Deterministic
+    fixed-input tests over the same code stay in CI. `tcl-fuzz`'s own plumbing
+    unit tests are ordinary tests of the fuzzer and run in `rust-tests-heavy`.
++   The one standing exception is the three seeded edit storms in
++   `tcl-lsp-db`: `tests::compiler_check_incremental_matches_fresh_under_edits`,
++   `tests::project_diagnostics_incremental_matches_fresh_under_edits`, and
++   `tests::project_diagnostics_incremental_matches_fresh_both_files_edited`.
++   They stay in the deep tier, not `#[ignore]`d, with their assertions
++   unchanged, and are deep-only rows of the quick tier. Their cost is cut by
++   memoising each fresh baseline, never by shrinking the storm. No other
++   seeded test inherits the exception.
+ 2. **`#[ignore]` has one sanctioned steady-state use:** a permanently
+    expensive or environment-gated test (corpus sweep, differential-fuzz gate,
+    root + live kernel), marked
+@@ -192,6 +201,57 @@ until the map assigns it.
+    the owning build script overrides it, matching Cargo. Ambient
+    `CARGO_BIN_EXE_*` values are likewise preserved, while executable paths
+    reconstructed for the owning package override same-named inherited values.
++9. **The quick tier never removes a test from a gate.**
++   `scripts/dev/deep-only-tests.tsv` lists the deep tests the quick tier
++   skips, one row each: Cargo package, target kind (`lib`, `bin`, `test`),
++   target name, exact libtest path, and the reason. The quick profile's
++   `default-filter` is generated from it (`cargo xtask deep-only-tests
++   sync`). A row only leaves a test out of `make test-quick`: the test keeps
++   its exact selector and assertion text in the deep tier, and a lighter
++   version of it is a separate test that runs in both tiers. A row leaves the
++   manifest when its test's cost is fixed. `cargo xtask deep-only-tests
++   check`, part of `make xtask-check`, fails when
++   - a row names no `#[test]` declared in its target's module tree, so a
++     renamed or deleted test cannot leave a stale row;
++   - `[profile.quick]`'s `default-filter` is not the one the manifest
++     generates;
++   - the default nextest profile, which CI and `make test-rust` run, sets a
++     `default-filter` or `run-extra-args` in its table or in any
++     `[[profile.default.overrides]]` entry (per-platform ones included), or
++     a `list-wrapper` or `run-wrapper` in any `[[profile.default.scripts]]`
++     entry, since extra arguments such as `--skip` or `--ignored`, or a
++     wrapper, can pass a test without running it;
++   - a `[[profile.default.overrides]]` entry sets anything other than
++     `filter`, `platform`, `priority`, `retries`, `flaky-result`,
++     `threads-required`, `test-group`, `slow-timeout` (without
++     `terminate-after`, below), `leak-timeout`, `success-output`,
++     `failure-output`, and `junit`. These only choose which tests an
++     override applies to, or schedule, retry, time, or report a test, so its
++     `filter` may name a row, for example to give the `tcl-lsp-db` storms a
++     serial test group;
++   - a `default-filter` in any profile other than `quick`, top-level or in
++     an override, names a row; the quick profile's overrides add a second
++     `default-filter`; or a profile `inherits` from `quick`, directly or
++     through another profile;
++   - anything tracked under `.github/` or `scripts/` selects the quick
++     profile (`--profile quick`, `-P quick`, or `NEXTEST_PROFILE=quick` in
++     any spelling, inline or as an argument list), passes nextest
++     `--config-file` or `--tool-config-file` (whose `default-filter` would
++     apply to the default profile), names `test-quick`, or reads the
++     manifest;
++   - a Makefile line outside the `test-quick` recipe selects the quick
++     profile, or any target other than `test-quick` names it.
++10. **Performance budgets are deterministic work counters.** A budget counts
++    work (analyses per request, pack parses per reload, linear scaling
++    between two small inputs) and asserts the count in an ordinary deep
++    test. No performance budget is a wall-clock assertion. A wall-clock
++    bound may only prove that a timeout fires, as the `tcl-cli`
++    `spec_verbs` sandbox-timeout tests do. In the default and quick nextest
++    profiles a `slow-timeout` is a warning only: a test past it is reported
++    SLOW (30 s in the quick profile), and neither profile nor any of its
++    overrides sets `terminate-after`, which `cargo xtask deep-only-tests
++    check` enforces. The exhaustive profile's `terminate-after` is a hang
++    guard for the manual corpus sweeps, not a budget.
+ 
+ ## CI redundancy contract
+ 
+@@ -332,13 +392,16 @@ identity** (tree/SHA, never a label or commit message), and bounded in time.
+ 
+ ## File-path anchors
+ 
+-- `Makefile` — `smoke`, `prep-pr`, `rust-check`, `check-all`, `test`,
+-  `test-exhaustive`, `fuzz`; `make help` lists everything.
+-- `.config/nextest.toml` — the `smoke` and `exhaustive` profiles.
++- `Makefile` — `smoke`, `test-quick`, `prep-pr`, `rust-check`, `check-all`,
++  `test`, `test-exhaustive`, `fuzz`; `make help` lists everything.
++- `.config/nextest.toml` — the `smoke`, `quick`, and `exhaustive` profiles.
+ - `scripts/dev/smoke-targets.tsv` — exact smoke-source to Cargo-target
+   ownership used by the no-nextest fallback.
+ - `rust/xtask/src/smoke_targets.rs` — fail-closed smoke inventory validation
+   and exact Cargo fallback execution.
++- `scripts/dev/deep-only-tests.tsv` — the deep tests the quick tier skips.
++- `rust/xtask/src/deep_only_tests.rs` — the quick filter generator and the
++  drift gate that keeps the manifest off every gate.
+ - `.github/workflows/ci.yml` — the `channel`, `rust-check`, and `pr-gate` jobs.
+ - `scripts/dev/test-pr-gate-path.sh` — the independent-worker and fail-closed
+   aggregate contract for issue #2014.
+diff --git a/rust/xtask/src/deep_only_tests.rs b/rust/xtask/src/deep_only_tests.rs
+new file mode 100644
+index 0000000..c05897f
+--- /dev/null
++++ b/rust/xtask/src/deep_only_tests.rs
+@@ -0,0 +1,981 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++//
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! The quick tier's deep-only manifest and its drift gate.
++//!
++//! `scripts/dev/deep-only-tests.tsv` names the deep tests that the local,
++//! non-gating quick tier (`make test-quick`, nextest `[profile.quick]`)
++//! leaves out. `sync` writes the quick profile's `default-filter` from it.
++//! `check` holds the manifest and the tier to
++//! `docs/design/contracts/test-tiers-and-ci-gates.md`:
++//!
++//! - every row names a `#[test]` that its Cargo target declares, found by
++//!   walking the target's module tree, so a renamed or deleted test fails;
++//! - the quick profile's filter is the one the manifest generates;
++//! - the default profile, which CI and `make test-rust` run, sets no
++//!   `default-filter` in its table or in any override (per-platform ones
++//!   included), no `default-filter` outside the quick profile names a row
++//!   (an override's plain `filter` only chooses settings, so it may), the
++//!   quick profile's overrides add no second filter, and no profile inherits
++//!   from `quick`;
++//! - neither the default nor the quick profile sets `terminate-after`, so a
++//!   slow-timeout there is only a warning;
++//! - the default profile sets no `run-extra-args` and no list or run
++//!   wrapper, and its overrides carry only settings that cannot stop a
++//!   selected test from running;
++//! - nothing tracked under `.github/` or `scripts/` selects the quick profile
++//!   (`--profile`, `-P`, or `NEXTEST_PROFILE`, inline or as an argument
++//!   list), hands nextest another config file, or reads the manifest, and in
++//!   the Makefile only the `test-quick` recipe selects it and no other target
++//!   reaches `test-quick`.
++
++use std::collections::hash_map::Entry;
++use std::collections::{BTreeSet, HashMap, HashSet};
++use std::fmt::Write as _;
++use std::fs;
++use std::path::{Path, PathBuf};
++use std::process::{Command, ExitCode};
++use std::sync::LazyLock;
++
++use anyhow::{Context, Result, bail};
++use regex::Regex;
++use serde::Deserialize;
++use syn::ext::IdentExt;
++
++use crate::cargo_smoke::{
++    canonical_target_kinds, default_true, has_test_attribute, inline_module_directories,
++    is_builtin_include_macro, lexically_normalise, module_sources,
++};
++use crate::util::{replace_generated_region, repo_root, write_if_changed};
++
++const MANIFEST: &str = "scripts/dev/deep-only-tests.tsv";
++const NEXTEST_CONFIG: &str = ".config/nextest.toml";
++const MAKEFILE: &str = "Makefile";
++const QUICK_PROFILE: &str = "quick";
++/// The profile CI and `make test-rust` run: the deep tier.
++const GATE_PROFILE: &str = "default";
++const QUICK_TARGET: &str = "test-quick";
++const GENERATED_REGION: &str = "deep-only-tests";
++/// Tracked trees that drive CI.
++const GATE_TREES: &[&str] = &[".github", "scripts"];
++const ROW_KINDS: &[&str] = &["lib", "bin", "test"];
++
++/// Selecting the quick profile on a nextest command line (`--profile quick`,
++/// `--profile=quick`, `-P quick`, `-P=quick`, `-Pquick`, or an argument list
++/// such as `["-P", "quick"]`) or through the environment
++/// (`NEXTEST_PROFILE=quick`, `NEXTEST_PROFILE: quick`,
++/// `.env("NEXTEST_PROFILE", "quick")`, ...).
++static QUICK_PROFILE_SELECTION: LazyLock<Regex> = LazyLock::new(|| {
++    Regex::new(concat!(
++        r#"(?:--profile|(?:^|[^A-Za-z0-9_-])-P|NEXTEST_PROFILE["']?\]?\s*(?::|[?+:]?=|,))"#,
++        r#"(?:["']?\s*,|\s+|=)?\s*["']?quick(?:$|[^A-Za-z0-9_-])"#,
++    ))
++    .expect("quick-profile selection pattern")
++});
++
++/// Pointing nextest at another config file, whose `default-filter` (nextest
++/// 0.9.145 and later) would apply to the default profile.
++static CONFIG_FILE_FLAG: LazyLock<Regex> = LazyLock::new(|| {
++    Regex::new(r"(?:^|[^A-Za-z0-9_-])--(?:tool-)?config-file(?:$|[^A-Za-z0-9_-])")
++        .expect("nextest config-file flag pattern")
++});
++
++/// What a `[[profile.default.overrides]]` entry may set: the tests it applies
++/// to, and settings that schedule, retry, time, or report a test without
++/// stopping it from running. `run-extra-args` (`--skip`, `--ignored`) is not
++/// one of them: it can pass a selected test without running its body.
++const GATE_OVERRIDE_SETTINGS: &[&str] = &[
++    "filter",
++    "platform",
++    "priority",
++    "retries",
++    "flaky-result",
++    "threads-required",
++    "test-group",
++    "slow-timeout",
++    "leak-timeout",
++    "success-output",
++    "failure-output",
++    "junit",
++];
++
++/// Script settings that replace how a test is listed or run, so a wrapper
++/// could hide a test or pass it without running it.
++const WRAPPER_SETTINGS: &[&str] = &["list-wrapper", "run-wrapper"];
++
++/// The `test-quick` make target as a whole word.
++static QUICK_TARGET_WORD: LazyLock<Regex> = LazyLock::new(|| {
++    Regex::new(r"(?:^|[^A-Za-z0-9_-])test-quick(?:[^A-Za-z0-9_-]|$)")
++        .expect("test-quick target pattern")
++});
++
++static CARGO_NAME: LazyLock<Regex> =
++    LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_-]+$").expect("Cargo name pattern"));
++
++static TEST_PATH: LazyLock<Regex> = LazyLock::new(|| {
++    Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*$").expect("test path pattern")
++});
++
++#[derive(Clone, Debug, PartialEq, Eq)]
++struct Row {
++    line: usize,
++    package: String,
++    kind: String,
++    target: String,
++    test: String,
++}
++
++impl Row {
++    /// The nextest binary id of the harness that runs this row's test.
++    fn binary_id(&self) -> String {
++        match self.kind.as_str() {
++            "lib" => self.package.clone(),
++            "bin" => format!("{}::bin/{}", self.package, self.target),
++            _ => format!("{}::{}", self.package, self.target),
++        }
++    }
++
++    fn selector(&self) -> String {
++        format!("(binary_id(={}) & test(={}))", self.binary_id(), self.test)
++    }
++}
++
++fn row_problem(
++    package: &str,
++    kind: &str,
++    target: &str,
++    test: &str,
++    reason: &str,
++) -> Option<String> {
++    if !CARGO_NAME.is_match(package) {
++        return Some(format!("invalid Cargo package name {package:?}"));
++    }
++    if !ROW_KINDS.contains(&kind) {
++        return Some(format!("target kind {kind:?} is not lib, bin, or test"));
++    }
++    if !CARGO_NAME.is_match(target) {
++        return Some(format!("invalid Cargo target name {target:?}"));
++    }
++    if !TEST_PATH.is_match(test) {
++        return Some(format!("{test:?} is not an exact Rust test path"));
++    }
++    if reason.trim().is_empty() {
++        return Some("a row needs a reason".to_owned());
++    }
++    None
++}
++
++fn parse_manifest(text: &str) -> Result<Vec<Row>> {
++    let mut rows = Vec::new();
++    let mut errors = Vec::new();
++    let mut seen = HashMap::new();
++    for (index, line) in text.lines().enumerate() {
++        let line_number = index + 1;
++        if line.is_empty() || line.starts_with('#') {
++            continue;
++        }
++        let fields: Vec<&str> = line.split('\t').collect();
++        let &[package, kind, target, test, reason] = fields.as_slice() else {
++            errors.push(format!(
++                "{MANIFEST}:{line_number}: expected five tab-separated fields"
++            ));
++            continue;
++        };
++        if let Some(problem) = row_problem(package, kind, target, test, reason) {
++            errors.push(format!("{MANIFEST}:{line_number}: {problem}"));
++            continue;
++        }
++        if let Some(first) = seen.insert((package, kind, target, test), line_number) {
++            errors.push(format!(
++                "{MANIFEST}:{line_number}: duplicate row (first at line {first})"
++            ));
++            continue;
++        }
++        rows.push(Row {
++            line: line_number,
++            package: package.to_owned(),
++            kind: kind.to_owned(),
++            target: target.to_owned(),
++            test: test.to_owned(),
++        });
++    }
++    if errors.is_empty() {
++        Ok(rows)
++    } else {
++        bail!("{}", errors.join("\n"))
++    }
++}
++
++/// The quick profile's `default-filter`: every test except the rows.
++fn filter_expression(rows: &[Row]) -> String {
++    if rows.is_empty() {
++        return "all()\n".to_owned();
++    }
++    let mut expression = String::from("not (\n");
++    for (index, row) in rows.iter().enumerate() {
++        let joiner = if index == 0 { "    " } else { "  | " };
++        let _ = writeln!(expression, "{joiner}{}", row.selector());
++    }
++    expression.push_str(")\n");
++    expression
++}
++
++/// The generated region of `.config/nextest.toml`.
++fn generated_region(rows: &[Row]) -> String {
++    format!("default-filter = '''\n{}'''\n", filter_expression(rows))
++}
++
++fn check_nextest_config(text: &str, rows: &[Row]) -> Vec<String> {
++    let mut errors = Vec::new();
++    match replace_generated_region(text, GENERATED_REGION, &generated_region(rows)) {
++        Ok(rendered) if rendered == text => {}
++        Ok(_) => errors.push(format!(
++            "{NEXTEST_CONFIG}: the quick filter is stale; run `cargo xtask deep-only-tests sync`"
++        )),
++        Err(error) => errors.push(format!("{NEXTEST_CONFIG}: {error:#}")),
++    }
++    let config: toml::Table = match toml::from_str(text) {
++        Ok(config) => config,
++        Err(error) => {
++            errors.push(format!("{NEXTEST_CONFIG}: {error}"));
++            return errors;
++        }
++    };
++    let Some(profiles) = config.get("profile").and_then(toml::Value::as_table) else {
++        errors.push(format!("{NEXTEST_CONFIG}: no [profile] tables"));
++        return errors;
++    };
++    let quick_filter = profiles
++        .get(QUICK_PROFILE)
++        .and_then(|profile| profile.get("default-filter"))
++        .and_then(toml::Value::as_str);
++    if quick_filter != Some(filter_expression(rows).as_str()) {
++        errors.push(format!(
++            "{NEXTEST_CONFIG}: [profile.{QUICK_PROFILE}] default-filter must be the filter generated in its `<generated: {GENERATED_REGION}>` region"
++        ));
++    }
++    for (name, profile) in profiles {
++        errors.extend(profile_problems(name, profile, rows));
++        if name == GATE_PROFILE {
++            errors.extend(gate_wrapper_problems(profile));
++        }
++        if inherits_quick(name, profiles) {
++            errors.push(format!(
++                "{NEXTEST_CONFIG}: [profile.{name}] inherits from {QUICK_PROFILE}, so it would carry the quick filter; only `make test-quick` may run it"
++            ));
++        }
++    }
++    errors
++}
++
++/// A profile's own table and each of its `[[profile.<name>.overrides]]`,
++/// labelled for messages.
++fn profile_settings<'a>(name: &str, profile: &'a toml::Value) -> Vec<(String, &'a toml::Value)> {
++    let mut settings = vec![(format!("[profile.{name}]"), profile)];
++    if let Some(overrides) = profile.get("overrides").and_then(toml::Value::as_array) {
++        for (index, setting) in overrides.iter().enumerate() {
++            settings.push((
++                format!("[[profile.{name}.overrides]] #{}", index + 1),
++                setting,
++            ));
++        }
++    }
++    settings
++}
++
++/// Whether `filter` names `test` as a whole path, whatever the matcher.
++fn names_test(filter: &str, test: &str) -> bool {
++    let continues_path = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == ':';
++    filter.match_indices(test).any(|(start, _)| {
++        !filter[..start].ends_with(continues_path)
++            && !filter[start + test.len()..].starts_with(continues_path)
++    })
++}
++
++/// What `name`'s table and overrides may not set: anything
++/// [`gate_setting_problems`] rejects in the gate profile, a second quick
++/// filter, a terminating slow-timeout in either
++/// profile, or a default-filter outside the quick profile that names a
++/// deep-only test. An override's plain `filter` only picks the tests its
++/// settings (test-group, retries, slow-timeout, ...) apply to and never drops
++/// one, so it may name a deep-only test.
++fn profile_problems(name: &str, profile: &toml::Value, rows: &[Row]) -> Vec<String> {
++    let mut errors = Vec::new();
++    for (index, (place, setting)) in profile_settings(name, profile).into_iter().enumerate() {
++        let is_override = index > 0;
++        if name == GATE_PROFILE {
++            errors.extend(gate_setting_problems(&place, setting, is_override));
++        }
++        if name == QUICK_PROFILE && is_override && setting.get("default-filter").is_some() {
++            errors.push(format!(
++                "{NEXTEST_CONFIG}: {place} sets default-filter; the quick filter comes only from its `<generated: {GENERATED_REGION}>` region"
++            ));
++        }
++        if (name == GATE_PROFILE || name == QUICK_PROFILE)
++            && setting
++                .get("slow-timeout")
++                .and_then(|timeout| timeout.get("terminate-after"))
++                .is_some()
++        {
++            errors.push(format!(
++                "{NEXTEST_CONFIG}: {place} slow-timeout sets terminate-after; a slow test there is a warning, never a failure"
++            ));
++        }
++        if name == QUICK_PROFILE {
++            continue;
++        }
++        if let Some(filter) = setting.get("default-filter").and_then(toml::Value::as_str)
++            && let Some(row) = rows.iter().find(|row| names_test(filter, &row.test))
++        {
++            errors.push(format!(
++                "{NEXTEST_CONFIG}: {place} default-filter names deep-only test {}; only the quick filter may leave one out",
++                row.test
++            ));
++        }
++    }
++    errors
++}
++
++/// What the gate profile's table or one of its overrides may not set: a
++/// `default-filter`, `run-extra-args`, or (in an override) any setting outside
++/// [`GATE_OVERRIDE_SETTINGS`].
++fn gate_setting_problems(place: &str, setting: &toml::Value, is_override: bool) -> Vec<String> {
++    let mut errors = Vec::new();
++    if setting.get("default-filter").is_some() {
++        errors.push(format!(
++            "{NEXTEST_CONFIG}: {place} sets default-filter; [profile.{GATE_PROFILE}] runs the deep tier for CI and `make test-rust` on every platform"
++        ));
++    }
++    if setting.get("run-extra-args").is_some() {
++        errors.push(format!(
++            "{NEXTEST_CONFIG}: {place} sets run-extra-args; arguments such as --skip or --ignored pass a deep-tier test without running it"
++        ));
++    }
++    if is_override && let Some(table) = setting.as_table() {
++        for key in table.keys().filter(|key| {
++            !GATE_OVERRIDE_SETTINGS.contains(&key.as_str())
++                && !matches!(key.as_str(), "default-filter" | "run-extra-args")
++        }) {
++            errors.push(format!(
++                "{NEXTEST_CONFIG}: {place} sets {key}; a [profile.{GATE_PROFILE}] override may set only {}",
++                GATE_OVERRIDE_SETTINGS.join(", ")
++            ));
++        }
++    }
++    errors
++}
++
++/// Every `[[profile.default.scripts]]` entry that wraps how a test is listed
++/// or run.
++fn gate_wrapper_problems(profile: &toml::Value) -> Vec<String> {
++    let Some(scripts) = profile.get("scripts").and_then(toml::Value::as_array) else {
++        return Vec::new();
++    };
++    let mut errors = Vec::new();
++    for (index, script) in scripts.iter().enumerate() {
++        for key in WRAPPER_SETTINGS {
++            if script.get(*key).is_some() {
++                errors.push(format!(
++                    "{NEXTEST_CONFIG}: [[profile.{GATE_PROFILE}.scripts]] #{} sets {key}; a wrapper could hide a deep-tier test or pass it without running it",
++                    index + 1
++                ));
++            }
++        }
++    }
++    errors
++}
++
++/// Whether `name`'s `inherits` chain reaches the quick profile.
++fn inherits_quick(name: &str, profiles: &toml::Table) -> bool {
++    let mut seen = HashSet::from([name]);
++    let mut current = name;
++    while let Some(parent) = profiles
++        .get(current)
++        .and_then(|profile| profile.get("inherits"))
++        .and_then(toml::Value::as_str)
++    {
++        if parent == QUICK_PROFILE {
++            return true;
++        }
++        if !seen.insert(parent) {
++            // nextest rejects the cycle itself.
++            return false;
++        }
++        current = parent;
++    }
++    false
++}
++
++fn is_quick_rule(line: &str) -> bool {
++    line.strip_prefix(QUICK_TARGET).is_some_and(|rest| {
++        let rest = rest.trim_start();
++        rest.starts_with(':') && !rest.starts_with(":=") && !rest.starts_with("::=")
++    })
++}
++
++/// Only the `test-quick` recipe may select the quick profile, and no other
++/// line may name `test-quick` except `.PHONY` and comments.
++fn check_makefile(text: &str) -> Vec<String> {
++    let mut errors = Vec::new();
++    let mut in_quick_recipe = false;
++    let mut saw_quick_rule = false;
++    let mut quick_recipe_selects_profile = false;
++    for (index, line) in text.lines().enumerate() {
++        let recipe = line.starts_with('\t');
++        if recipe && in_quick_recipe {
++            quick_recipe_selects_profile |= QUICK_PROFILE_SELECTION.is_match(line);
++            continue;
++        }
++        if !recipe {
++            let trimmed = line.trim_start();
++            if trimmed.is_empty() || trimmed.starts_with('#') || line.starts_with(".PHONY:") {
++                continue;
++            }
++            in_quick_recipe = is_quick_rule(line);
++            if in_quick_recipe {
++                saw_quick_rule = true;
++                continue;
++            }
++        }
++        if QUICK_TARGET_WORD.is_match(line) || QUICK_PROFILE_SELECTION.is_match(line) {
++            errors.push(format!(
++                "{MAKEFILE}:{}: only the `{QUICK_TARGET}` recipe may select the quick profile, and no other target may reach `{QUICK_TARGET}`",
++                index + 1
++            ));
++        }
++    }
++    if !(saw_quick_rule && quick_recipe_selects_profile) {
++        errors.push(format!(
++            "{MAKEFILE}: the `{QUICK_TARGET}` target must run the quick nextest profile"
++        ));
++    }
++    errors
++}
++
++/// Lines of a CI source that select the quick tier, hand nextest another
++/// config file, or read the manifest.
++fn gate_source_problems(path: &str, text: &str) -> Vec<String> {
++    text.lines()
++        .enumerate()
++        .filter(|(_, line)| {
++            QUICK_PROFILE_SELECTION.is_match(line)
++                || QUICK_TARGET_WORD.is_match(line)
++                || CONFIG_FILE_FLAG.is_match(line)
++                || line.contains("deep-only-tests.tsv")
++        })
++        .map(|(index, _)| {
++            format!(
++                "{path}:{}: CI runs the deep tier only; it may not select the quick tier, hand nextest another config file, or read the quick manifest",
++                index + 1
++            )
++        })
++        .collect()
++}
++
++fn check_gate_sources(root: &Path) -> Result<Vec<String>> {
++    let output = Command::new("git")
++        .args(["ls-files", "-z", "--"])
++        .args(GATE_TREES)
++        .current_dir(root)
++        .output()
++        .context("listing tracked CI sources")?;
++    if !output.status.success() {
++        bail!(
++            "git ls-files failed: {}",
++            String::from_utf8_lossy(&output.stderr)
++        );
++    }
++    let mut errors = Vec::new();
++    for relative in output.stdout.split(|byte| *byte == 0) {
++        let relative = String::from_utf8_lossy(relative);
++        if relative.is_empty() || relative == MANIFEST {
++            continue;
++        }
++        // A binary or deleted tracked file cannot name a profile.
++        let Ok(text) = fs::read_to_string(root.join(&*relative)) else {
++            continue;
++        };
++        errors.extend(gate_source_problems(&relative, &text));
++    }
++    Ok(errors)
++}
++
++#[derive(Deserialize)]
++struct Metadata {
++    packages: Vec<Package>,
++}
++
++#[derive(Deserialize)]
++struct Package {
++    name: String,
++    targets: Vec<RawTarget>,
++}
++
++#[derive(Deserialize)]
++struct RawTarget {
++    kind: Vec<String>,
++    name: String,
++    src_path: PathBuf,
++    #[serde(default = "default_true")]
++    test: bool,
++}
++
++impl RawTarget {
++    fn has_kind(&self, kind: &str) -> bool {
++        canonical_target_kinds(&self.kind).contains(kind)
++    }
++}
++
++fn workspace_packages(root: &Path) -> Result<Vec<Package>> {
++    let output = Command::new("cargo")
++        .args(["metadata", "--locked", "--no-deps", "--format-version", "1"])
++        .current_dir(root)
++        .output()
++        .context("running cargo metadata")?;
++    if !output.status.success() {
++        bail!(
++            "cargo metadata failed: {}",
++            String::from_utf8_lossy(&output.stderr)
++        );
++    }
++    let metadata: Metadata =
++        serde_json::from_slice(&output.stdout).context("parsing cargo metadata")?;
++    Ok(metadata.packages)
++}
++
++/// The libtest paths of the `#[test]` functions in a target's module tree.
++#[derive(Default)]
++struct TestWalk {
++    visited: HashSet<(PathBuf, String)>,
++    found: BTreeSet<String>,
++}
++
++fn child_path(prefix: &str, name: &str) -> String {
++    if prefix.is_empty() {
++        name.to_owned()
++    } else {
++        format!("{prefix}::{name}")
++    }
++}
++
++impl TestWalk {
++    fn file(&mut self, source: &Path, directory: &Path, prefix: &str) -> Result<()> {
++        if !self
++            .visited
++            .insert((source.to_path_buf(), prefix.to_owned()))
++        {
++            return Ok(());
++        }
++        let text = fs::read_to_string(source)
++            .with_context(|| format!("reading Rust module {}", source.display()))?;
++        let parsed = syn::parse_file(&text)
++            .with_context(|| format!("parsing Rust module {}", source.display()))?;
++        self.items(source, directory, prefix, &parsed.items)
++    }
++
++    fn items(
++        &mut self,
++        source: &Path,
++        directory: &Path,
++        prefix: &str,
++        items: &[syn::Item],
++    ) -> Result<()> {
++        for item in items {
++            match item {
++                syn::Item::Fn(function) if has_test_attribute(&function.attrs) => {
++                    self.found
++                        .insert(child_path(prefix, &function.sig.ident.unraw().to_string()));
++                }
++                syn::Item::Mod(module) => {
++                    let module_path = child_path(prefix, &module.ident.unraw().to_string());
++                    if let Some((_, items)) = &module.content {
++                        for child_directory in inline_module_directories(module, directory) {
++                            self.items(source, &child_directory, &module_path, items)?;
++                        }
++                    } else {
++                        for (child, child_directory) in module_sources(module, directory) {
++                            self.file(&child, &child_directory, &module_path)?;
++                        }
++                    }
++                }
++                syn::Item::Macro(item_macro) if is_builtin_include_macro(&item_macro.mac.path) => {
++                    if let Ok(literal) = syn::parse2::<syn::LitStr>(item_macro.mac.tokens.clone()) {
++                        self.include(source, &literal.value(), prefix)?;
++                    }
++                }
++                _ => {}
++            }
++        }
++        Ok(())
++    }
++
++    fn include(&mut self, source: &Path, path: &str, prefix: &str) -> Result<()> {
++        let parent = source
++            .parent()
++            .with_context(|| format!("Rust source has no parent: {}", source.display()))?;
++        let included = lexically_normalise(&parent.join(path));
++        if !included.is_file() {
++            return Ok(());
++        }
++        let text = fs::read_to_string(&included)
++            .with_context(|| format!("reading Rust include {}", included.display()))?;
++        // An expression- or statement-only include cannot declare a test.
++        let Ok(parsed) = syn::parse_file(&text) else {
++            return Ok(());
++        };
++        if !self.visited.insert((included.clone(), prefix.to_owned())) {
++            return Ok(());
++        }
++        let directory = included
++            .parent()
++            .map_or_else(|| parent.to_path_buf(), Path::to_path_buf);
++        self.items(&included, &directory, prefix, &parsed.items)
++    }
++}
++
++fn target_tests(source: &Path) -> Result<BTreeSet<String>> {
++    let directory = source
++        .parent()
++        .with_context(|| format!("Cargo target source has no parent: {}", source.display()))?;
++    let mut walk = TestWalk::default();
++    walk.file(source, directory, "")?;
++    Ok(walk.found)
++}
++
++fn check_rows_exist(packages: &[Package], rows: &[Row]) -> Result<Vec<String>> {
++    let mut errors = Vec::new();
++    let mut inventories: HashMap<PathBuf, BTreeSet<String>> = HashMap::new();
++    for row in rows {
++        let Some(package) = packages.iter().find(|package| package.name == row.package) else {
++            errors.push(format!(
++                "{MANIFEST}:{}: no workspace package {}",
++                row.line, row.package
++            ));
++            continue;
++        };
++        let Some(target) = package
++            .targets
++            .iter()
++            .find(|target| target.name == row.target && target.has_kind(&row.kind))
++        else {
++            errors.push(format!(
++                "{MANIFEST}:{}: {} has no {} target {}",
++                row.line, row.package, row.kind, row.target
++            ));
++            continue;
++        };
++        if !target.test {
++            errors.push(format!(
++                "{MANIFEST}:{}: {} target {} sets test = false, so no harness runs it",
++                row.line, row.kind, row.target
++            ));
++            continue;
++        }
++        let tests = match inventories.entry(target.src_path.clone()) {
++            Entry::Occupied(entry) => entry.into_mut(),
++            Entry::Vacant(entry) => entry.insert(target_tests(&target.src_path)?),
++        };
++        if !tests.contains(&row.test) {
++            errors.push(format!(
++                "{MANIFEST}:{}: {} declares no #[test] {}; update or remove the row",
++                row.line,
++                row.binary_id(),
++                row.test
++            ));
++        }
++    }
++    Ok(errors)
++}
++
++/// Check the deep-only manifest contract, or regenerate the quick filter.
++pub fn run(operation: &str) -> Result<ExitCode> {
++    let root = repo_root();
++    let manifest =
++        fs::read_to_string(root.join(MANIFEST)).with_context(|| format!("reading {MANIFEST}"))?;
++    let rows = parse_manifest(&manifest)?;
++    let config_path = root.join(NEXTEST_CONFIG);
++    let config =
++        fs::read_to_string(&config_path).with_context(|| format!("reading {NEXTEST_CONFIG}"))?;
++    match operation {
++        "sync" => {
++            let rendered =
++                replace_generated_region(&config, GENERATED_REGION, &generated_region(&rows))?;
++            if write_if_changed(&config_path, rendered)? {
++                println!("updated the quick filter in {NEXTEST_CONFIG}");
++            } else {
++                println!("the quick filter in {NEXTEST_CONFIG} is current");
++            }
++        }
++        "check" => {
++            let mut errors = check_rows_exist(&workspace_packages(&root)?, &rows)?;
++            errors.extend(check_nextest_config(&config, &rows));
++            let makefile = fs::read_to_string(root.join(MAKEFILE))
++                .with_context(|| format!("reading {MAKEFILE}"))?;
++            errors.extend(check_makefile(&makefile));
++            errors.extend(check_gate_sources(&root)?);
++            if !errors.is_empty() {
++                bail!("deep-only manifest contract failed:\n{}", errors.join("\n"));
++            }
++            println!(
++                "deep-only manifest: {} rows name existing tests, the quick filter is current, and no gate selects the quick tier",
++                rows.len()
++            );
++        }
++        _ => bail!("unknown deep-only-tests operation '{operation}'; expected check or sync"),
++    }
++    Ok(ExitCode::SUCCESS)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    const MANIFEST_TEXT: &str = "# header\n\
++        tcl-compiler\tlib\ttcl_compiler\tdepth_guard::tests::cap\tslow\n\
++        tcl-lsp-server\ttest\te2e\thover::shows_docs\tslow\n\
++        tcl-cli\tbin\ttcl\ttests::runs\tslow\n";
++
++    fn rows() -> Vec<Row> {
++        parse_manifest(MANIFEST_TEXT).unwrap()
++    }
++
++    fn config(region: &str, extra: &str) -> String {
++        format!(
++            "[profile.default]\n{extra}\n[profile.quick]\n# <generated: deep-only-tests> generated\n{region}# </generated>\nslow-timeout = {{ period = \"30s\" }}\n"
++        )
++    }
++
++    #[test]
++    fn filter_leaves_out_each_row_by_binary_and_exact_name() {
++        assert_eq!(
++            filter_expression(&rows()),
++            "not (\n    (binary_id(=tcl-compiler) & test(=depth_guard::tests::cap))\n  | (binary_id(=tcl-lsp-server::e2e) & test(=hover::shows_docs))\n  | (binary_id(=tcl-cli::bin/tcl) & test(=tests::runs))\n)\n"
++        );
++        assert_eq!(filter_expression(&[]), "all()\n");
++    }
++
++    #[test]
++    fn manifest_rejects_malformed_and_duplicate_rows() {
++        for bad in [
++            "a\tlib\ta\tx\n",
++            "a\tbench\ta\tx\tr\n",
++            "a\tlib\ta\tx y\tr\n",
++            "a\tlib\ta\tx::\tr\n",
++            "a\tlib\ta\tx\t \n",
++            "a\tlib\ta\tx\tr\na\tlib\ta\tx\tr\n",
++        ] {
++            assert!(parse_manifest(bad).is_err(), "{bad:?}");
++        }
++    }
++
++    #[test]
++    fn nextest_config_keeps_the_gate_profile_unfiltered_and_the_quick_filter_generated() {
++        let rows = rows();
++        let current = generated_region(&rows);
++        let warning_only = "[[profile.default.overrides]]\nfilter = 'package(tcl-explorer)'\nslow-timeout = { period = \"20s\" }";
++        for extra in [
++            "",
++            warning_only,
++            // A hang guard outside the default and quick profiles, and an
++            // override naming a test that only shares a row's prefix.
++            "[profile.exhaustive]\nslow-timeout = { period = \"60s\", terminate-after = 15 }\n[[profile.exhaustive.overrides]]\nfilter = 'test(=depth_guard::tests::cap_two)'\nretries = 1",
++            "[profile.ci]\ninherits = \"default\"",
++            // A plain override filter only chooses settings, so it may name
++            // a row: a serial group or retries for a deep-only test.
++            "[[profile.default.overrides]]\nfilter = 'test(=depth_guard::tests::cap)'\ntest-group = 'serial'\n[test-groups]\nserial = { max-threads = 1 }",
++            "[profile.ci]\n[[profile.ci.overrides]]\nfilter = 'test(~depth_guard::tests::cap)'\nretries = 2",
++        ] {
++            let errors = check_nextest_config(&config(&current, extra), &rows);
++            assert!(errors.is_empty(), "{extra}: {errors:?}");
++        }
++        let stale = generated_region(&rows[..1]);
++        assert!(!check_nextest_config(&config(&stale, ""), &rows).is_empty());
++        for extra in [
++            "default-filter = 'all()'".to_owned(),
++            warning_only.replace("\"20s\"", "\"20s\", terminate-after = 3"),
++            "[profile.ci]\ndefault-filter = 'not test(=depth_guard::tests::cap)'".to_owned(),
++        ] {
++            assert!(
++                !check_nextest_config(&config(&current, &extra), &rows).is_empty(),
++                "{extra}"
++            );
++        }
++    }
++
++    #[test]
++    fn nextest_overrides_and_inheritance_cannot_carry_a_filter_into_a_gate() {
++        let rows = rows();
++        let current = generated_region(&rows);
++        for extra in [
++            // A per-platform default filter on the gate profile, even one
++            // that names no row.
++            "[[profile.default.overrides]]\nplatform = 'cfg(windows)'\ndefault-filter = 'all()'",
++            // A row in any other profile's default-filter, top-level or in an
++            // override, by any matcher.
++            "[profile.ci]\n[[profile.ci.overrides]]\nplatform = 'cfg(unix)'\ndefault-filter = 'not test(/^depth_guard::tests::cap$/)'",
++            "[profile.ci]\ndefault-filter = 'all() - test(~depth_guard::tests::cap)'",
++            // A profile that inherits the quick filter, directly or not.
++            "[profile.ci]\ninherits = \"quick\"",
++            "[profile.ci]\ninherits = \"local\"\n[profile.local]\ninherits = \"quick\"",
++        ] {
++            assert!(
++                !check_nextest_config(&config(&current, extra), &rows).is_empty(),
++                "{extra}"
++            );
++        }
++        let second_quick_filter = format!(
++            "{}[[profile.quick.overrides]]\nplatform = 'cfg(windows)'\ndefault-filter = 'all()'\n",
++            config(&current, "")
++        );
++        assert!(!check_nextest_config(&second_quick_filter, &rows).is_empty());
++        let cycle: toml::Table =
++            toml::from_str("[a]\ninherits = \"b\"\n[b]\ninherits = \"a\"\n").unwrap();
++        assert!(!inherits_quick("a", &cycle));
++    }
++
++    #[test]
++    fn gate_profile_settings_cannot_pass_a_test_without_running_it() {
++        let rows = rows();
++        let current = generated_region(&rows);
++        for extra in [
++            // Every setting a gate override may carry, on a deep-only test.
++            "[[profile.default.overrides]]\nfilter = 'test(=depth_guard::tests::cap)'\npriority = 10\nretries = 2\nflaky-result = 'fail'\nthreads-required = 2\ntest-group = 'serial'\nslow-timeout = { period = \"20s\" }\nleak-timeout = \"1s\"\nsuccess-output = 'never'\nfailure-output = 'immediate'\njunit = { store-success-output = true }\n[test-groups]\nserial = { max-threads = 1 }",
++            // Outside the gate profile, extra arguments and wrappers are a
++            // local choice.
++            "[profile.ci]\nrun-extra-args = ['--nocapture']\n[[profile.ci.scripts]]\nfilter = 'all()'\nrun-wrapper = 'valgrind'",
++        ] {
++            let errors = check_nextest_config(&config(&current, extra), &rows);
++            assert!(errors.is_empty(), "{extra}: {errors:?}");
++        }
++        for extra in [
++            "[[profile.default.overrides]]\nfilter = 'test(=depth_guard::tests::cap)'\nrun-extra-args = ['--skip', 'depth_guard::tests::cap']",
++            "[[profile.default.overrides]]\nplatform = 'cfg(unix)'\nrun-extra-args = ['--ignored']",
++            "run-extra-args = ['--skip', 'depth_guard']",
++            "[[profile.default.overrides]]\nfilter = 'all()'\nsome-future-setting = true",
++            "[[profile.default.scripts]]\nfilter = 'all()'\nrun-wrapper = 'true'",
++            "[[profile.default.scripts]]\nplatform = 'cfg(unix)'\nlist-wrapper = 'empty-list'",
++        ] {
++            assert!(
++                !check_nextest_config(&config(&current, extra), &rows).is_empty(),
++                "{extra}"
++            );
++        }
++    }
++
++    #[test]
++    fn quick_profile_selection_covers_every_spelling() {
++        for selects in [
++            "cargo nextest run --profile quick",
++            "cargo nextest run --profile=quick",
++            "cargo nextest run --profile 'quick' --workspace",
++            "cargo nextest run -P quick",
++            "cargo nextest run -P=quick",
++            "cargo nextest run -Pquick",
++            "cargo nextest run -P \"quick\"",
++            "NEXTEST_PROFILE=quick cargo nextest run",
++            "  NEXTEST_PROFILE: quick",
++            "export NEXTEST_PROFILE := quick",
++            "NEXTEST_PROFILE ?= quick",
++            "echo \"NEXTEST_PROFILE=quick\" >> \"$GITHUB_ENV\"",
++            "os.environ[\"NEXTEST_PROFILE\"] = \"quick\"",
++            "args: [\"--profile\", \"quick\"]",
++            "[\"cargo\",\"nextest\",\"run\",\"-P\",\"quick\"]",
++            "args: [--profile, quick]",
++            ".env(\"NEXTEST_PROFILE\", \"quick\")",
++        ] {
++            assert!(QUICK_PROFILE_SELECTION.is_match(selects), "{selects}");
++        }
++        for other in [
++            "cargo nextest run --profile smoke",
++            "cargo nextest run -P smoke",
++            "cargo nextest run --profile quick-check",
++            "cargo nextest run -P quickly",
++            "cargo test -p quick-xml",
++            "NEXTEST_PROFILE=default",
++            "make test-quick",
++            "args: [\"--profile\", \"smoke\"]",
++            "[\"cargo\",\"nextest\",\"run\",\"-P\",\"quick-check\"]",
++        ] {
++            assert!(!QUICK_PROFILE_SELECTION.is_match(other), "{other}");
++        }
++    }
++
++    #[test]
++    fn only_the_test_quick_recipe_selects_the_quick_profile() {
++        let good = ".PHONY: smoke test-quick\n# test-quick is local\nprep-pr: format\n\t@echo prep\n\ntest-quick: ## quick\n\t@cargo nextest run --profile quick --workspace\n\ntest-rust:\n\tcargo nextest run --profile default --workspace\n";
++        for accepted in [good.to_owned(), good.replace("--profile quick", "-P quick")] {
++            let errors = check_makefile(&accepted);
++            assert!(errors.is_empty(), "{accepted}: {errors:?}");
++        }
++        for bad in [
++            good.replace("prep-pr: format", "prep-pr: format test-quick"),
++            good.replace("\t@echo prep", "\t@$(MAKE) test-quick"),
++            good.replace("--profile default", "--profile=quick"),
++            good.replace("--profile default", "-P quick"),
++            good.replace("--profile default", "-P=quick"),
++            good.replace("\tcargo nextest", "\tNEXTEST_PROFILE=quick cargo nextest"),
++            good.replace("--profile quick", "--profile smoke"),
++            format!("{good}export NEXTEST_PROFILE := quick\n"),
++        ] {
++            assert!(!check_makefile(&bad).is_empty(), "{bad}");
++        }
++    }
++
++    #[test]
++    fn ci_sources_may_not_reach_the_quick_tier() {
++        let errors = gate_source_problems(
++            "ci.yml",
++            "run: make rust-check\nrun: cargo nextest run --workspace\nrun: cargo nextest run -P smoke\nrun: cargo test -p quick-xml\nrun: make test-quick-tier\n",
++        );
++        assert!(errors.is_empty(), "{errors:?}");
++        for bad in [
++            "run: make test-quick",
++            "run: cargo nextest run --profile quick",
++            "run: cargo nextest run -P quick",
++            "run: cargo nextest run -P=quick",
++            "run: NEXTEST_PROFILE=quick cargo nextest run",
++            "env:\n  NEXTEST_PROFILE: quick",
++            "run: cargo nextest run --tool-config-file ci:ci-nextest.toml",
++            "run: cargo nextest run --config-file=ci.toml",
++            "args: [\"nextest\", \"run\", \"--config-file\", \"ci.toml\"]",
++            "cut -f4 scripts/dev/deep-only-tests.tsv",
++        ] {
++            assert!(!gate_source_problems("ci.yml", bad).is_empty(), "{bad}");
++        }
++    }
++
++    #[test]
++    fn walk_collects_test_functions_by_module_path() {
++        let parsed = syn::parse_file(
++            "#[cfg(test)] mod tests { #[test] fn a() {} #[tokio::test] async fn b() {} fn helper() {} mod inner { #[test] fn c() {} } }\n#[test] fn top() {}\n",
++        )
++        .unwrap();
++        let mut walk = TestWalk::default();
++        walk.items(
++            Path::new("lib.rs"),
++            Path::new("missing-directory"),
++            "",
++            &parsed.items,
++        )
++        .unwrap();
++        assert_eq!(
++            walk.found.into_iter().collect::<Vec<_>>(),
++            ["tests::a", "tests::b", "tests::inner::c", "top"]
++        );
++    }
++}
+diff --git a/rust/xtask/src/main.rs b/rust/xtask/src/main.rs
+index 5b8afe6..23402c5 100644
+--- a/rust/xtask/src/main.rs
++++ b/rust/xtask/src/main.rs
+@@ -35,6 +35,9 @@
+ //!   gate).
+ //! - `callback-inventory` — generate or verify the registry-backed executable
+ //!   and callback surface inventory.
++//! - `deep-only-tests` — verify the quick tier's deep-only manifest (every
++//!   row an existing test, the quick nextest filter generated from it, no
++//!   gate selecting the quick tier), or `sync` the filter.
+ //! - `diag-tables` — generate the `docs/generated/` code tables from the
+ //!   `DiagCode` catalogue (`--check` to verify instead of write).
+ //! - `f5-query-builtins-doc` — verify `docs/references/f5_query/builtins.md`
+@@ -88,6 +91,7 @@ mod callback_inventory;
+ mod cargo_smoke;
+ mod catalogue_callers;
+ mod command_backing;
++mod deep_only_tests;
+ mod diag_emission;
+ mod diag_tables;
+ mod dialect_drift;
+@@ -148,6 +152,13 @@ enum Command {
+         package: Option<String>,
+     },
+ 
++    /// Verify the quick tier's deep-only manifest, or regenerate its filter.
++    DeepOnlyTests {
++        /// Operation to perform: check or sync.
++        #[arg(default_value = "check")]
++        operation: String,
++    },
++
+     /// Print the project version (`git describe` → setuptools-scm scheme).
+     Version,
+ 
+@@ -531,6 +542,7 @@ fn main() -> anyhow::Result<ExitCode> {
+         Command::SmokeTargets { operation, package } => {
+             cargo_smoke::run(&operation, package.as_deref())
+         }
++        Command::DeepOnlyTests { operation } => deep_only_tests::run(&operation),
+         Command::Version => Ok(version::run()),
+         Command::TzdataBundle {
+             zoneinfo,
+diff --git a/rust/xtask/src/smoke_targets.rs b/rust/xtask/src/smoke_targets.rs
+index 1828b84..68c0a08 100644
+--- a/rust/xtask/src/smoke_targets.rs
++++ b/rust/xtask/src/smoke_targets.rs
+@@ -205,7 +205,7 @@ struct SmokeInventory {
+     owners: HashMap<String, BTreeSet<TargetIdentity>>,
+ }
+ 
+-fn default_true() -> bool {
++pub(crate) fn default_true() -> bool {
+     true
+ }
+ 
+@@ -419,7 +419,7 @@ fn workspace_target_features(
+     Ok(features)
+ }
+ 
+-fn canonical_target_kinds(raw_kinds: &[String]) -> BTreeSet<String> {
++pub(crate) fn canonical_target_kinds(raw_kinds: &[String]) -> BTreeSet<String> {
+     let mut kinds: BTreeSet<String> = raw_kinds
+         .iter()
+         .filter(|kind| SUPPORTED_KINDS.contains(&kind.as_str()))
+@@ -845,7 +845,7 @@ fn meta_applies_test_attribute(meta: &syn::Meta) -> bool {
+         .is_ok_and(|nested| nested.iter().skip(1).any(meta_applies_test_attribute))
+ }
+ 
+-fn has_test_attribute(attributes: &[syn::Attribute]) -> bool {
++pub(crate) fn has_test_attribute(attributes: &[syn::Attribute]) -> bool {
+     attributes
+         .iter()
+         .any(|attribute| meta_applies_test_attribute(&attribute.meta))
+@@ -866,7 +866,7 @@ fn module_directory(source: &Path) -> Result<PathBuf> {
+     }
+ }
+ 
+-fn lexically_normalise(path: &Path) -> PathBuf {
++pub(crate) fn lexically_normalise(path: &Path) -> PathBuf {
+     let mut normalised = PathBuf::new();
+     for component in path.components() {
+         match component {
+@@ -907,7 +907,7 @@ fn collect_module_paths(meta: &syn::Meta, paths: &mut Vec<String>) {
+     }
+ }
+ 
+-fn module_sources(module: &syn::ItemMod, directory: &Path) -> Vec<(PathBuf, PathBuf)> {
++pub(crate) fn module_sources(module: &syn::ItemMod, directory: &Path) -> Vec<(PathBuf, PathBuf)> {
+     let mut configured = Vec::new();
+     for attribute in &module.attrs {
+         collect_module_paths(&attribute.meta, &mut configured);
+@@ -944,7 +944,7 @@ fn module_sources(module: &syn::ItemMod, directory: &Path) -> Vec<(PathBuf, Path
+     sources
+ }
+ 
+-fn inline_module_directories(module: &syn::ItemMod, directory: &Path) -> Vec<PathBuf> {
++pub(crate) fn inline_module_directories(module: &syn::ItemMod, directory: &Path) -> Vec<PathBuf> {
+     let mut configured = Vec::new();
+     for attribute in &module.attrs {
+         collect_module_paths(&attribute.meta, &mut configured);
+@@ -965,7 +965,7 @@ fn inline_module_directories(module: &syn::ItemMod, directory: &Path) -> Vec<Pat
+     directories
+ }
+ 
+-fn is_builtin_include_macro(path: &syn::Path) -> bool {
++pub(crate) fn is_builtin_include_macro(path: &syn::Path) -> bool {
+     let mut segments = path.segments.iter();
+     let Some(first) = segments.next() else {
+         return false;
+diff --git a/scripts/dev/deep-only-tests.tsv b/scripts/dev/deep-only-tests.tsv
+new file mode 100644
+index 0000000..a9352a8
+--- /dev/null
++++ b/scripts/dev/deep-only-tests.tsv
+@@ -0,0 +1,66 @@
++# Tests the local quick tier (`make test-quick`, nextest [profile.quick]) leaves out.
++# Every row stays in the deep tier: CI and `make test-rust` run the default
++# nextest profile, which never reads this list. `cargo xtask deep-only-tests
++# sync` regenerates the quick filter from it; `check` (in `make xtask-check`)
++# rejects a row without a matching #[test] and any gate that selects the quick
++# profile. A row leaves when its test's cost is fixed.
++# Cargo package<TAB>target kind (lib/bin/test)<TAB>target name<TAB>exact test path<TAB>reason
++tcl-compiler	lib	tcl_compiler	depth_guard::tests::the_analyser_stops_at_the_shared_cap	over 180 s (timed out) in a debug build: nested bodies are re-cut at every nesting level
++tcl-compiler	lib	tcl_compiler	interprocedural::completion::tests::a_body_of_commands_that_complete_completes	32 s in a debug build: interprocedural cost grows with procedure count
++tcl-compiler	lib	tcl_compiler	interprocedural::completion::tests::a_body_that_may_raise_does_not_complete	over 180 s (timed out) in a debug build: interprocedural cost grows with procedure count
++tcl-compiler	lib	tcl_compiler	interprocedural::completion::tests::a_callee_counts_as_defined_only_where_its_definition_surely_ran	56 s in a debug build: interprocedural cost grows with procedure count
++tcl-compiler	lib	tcl_compiler	interprocedural::tests::deeply_nested_if_survives_interprocedural_scan	156 s in a debug build: nested bodies are re-cut at every nesting level
++tcl-compiler	lib	tcl_compiler	interprocedural::transfer::tests::a_name_argument_naming_an_outer_place_is_a_global_write	117 s in a debug build: interprocedural cost grows with procedure count
++tcl-compiler	lib	tcl_compiler	interprocedural::transfer::tests::summaries_compose_through_two_callees	42 s in a debug build: interprocedural cost grows with procedure count
++tcl-compiler	lib	tcl_compiler	optimiser::propagation::tests::depth_exhaustion_blocks_dynamic_name_load_forwarding	over 180 s (timed out) in a debug build: nested bodies are re-cut at every nesting level
++tcl-lsp-core	lib	tcl_lsp_core	diagnostic_report::tests::supplied_policy_rewrites_refuse_missing_unavailable_stale_and_foreign_input	35 s in a debug build: per-query Logical-path analysis
++tcl-lsp-core	lib	tcl_lsp_core	document_symbols::tests::deeply_nested_namespaces_produce_a_symbol_tree	124 s in a debug build: nested bodies are re-cut at every nesting level
++tcl-lsp-core	lib	tcl_lsp_core	executable_regions::checked_potential_source_tests::checked_potential_source_retains_depth_exhaustion_as_incomplete	44 s in a debug build: nested bodies are re-cut at every nesting level
++tcl-lsp-core	lib	tcl_lsp_core	minify::original::tests::logical_formal_alpha_requires_isolation_and_closed_binding_observability	59 s in a debug build: per-query Logical-path analysis
++tcl-lsp-core	lib	tcl_lsp_core	package_resolver::tests::parse_pkg_index_survives_deeply_nested_source_wrapper	over 180 s (timed out) in a debug build: nested bodies are re-cut at every nesting level
++tcl-lsp-core	lib	tcl_lsp_core	refactor::inline_variable::tests::deeply_nested_namespaces_survive_scope_walk	53 s in a debug build: nested bodies are re-cut at every nesting level
++tcl-lsp-db	lib	tcl_lsp_db	tests::compiler_check_incremental_matches_fresh_under_edits	over 180 s (timed out) in a debug build: seeded edit storm recomputes fresh baselines (tier rule 1 exception)
++tcl-lsp-db	lib	tcl_lsp_db	tests::project_diagnostics_incremental_matches_fresh_both_files_edited	60 s in a debug build: seeded edit storm recomputes fresh baselines (tier rule 1 exception)
++tcl-lsp-db	lib	tcl_lsp_db	tests::project_diagnostics_incremental_matches_fresh_under_edits	54 s in a debug build: seeded edit storm recomputes fresh baselines (tier rule 1 exception)
++tcl-lsp-db	lib	tcl_lsp_db	tests::summary_memo_observes_callee_edits_through_original_quoted_and_braced_heads	42 s in a debug build: per-query Logical-path analysis
++tcl-lsp-server	lib	tcl_lsp_server	original_document_metadata_tests::source_rehoming_keeps_workspace_roles_in_the_actual_seed_namespace	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	studio_source::retirement_publication_tests::retire_and_shutdown_cannot_acknowledge_failed_withdrawal_and_can_retry	110 s in a debug build: bundled EDA packs re-parsed per reload
++tcl-lsp-server	lib	tcl_lsp_server	studio_source::tests::acquire_before_creation_and_shutdown_retire_without_filesystem_cleanup	58 s in a debug build: bundled EDA packs re-parsed per reload
++tcl-lsp-server	lib	tcl_lsp_server	studio_source::tests::active_saved_source_retires_without_deleting_and_restart_stays_closed	96 s in a debug build: bundled EDA packs re-parsed per reload
++tcl-lsp-server	lib	tcl_lsp_server	studio_source::tests::cross_backend_same_uri_token_cannot_publish_or_retire_new_owner	57 s in a debug build: bundled EDA packs re-parsed per reload
++tcl-lsp-server	lib	tcl_lsp_server	studio_source::tests::original_provider_mapping_cannot_rebind_across_equal_byte_aba	91 s in a debug build: bundled EDA packs re-parsed per reload
++tcl-lsp-server	lib	tcl_lsp_server	studio_source::tests::replaced_or_stale_revision_and_missing_entropy_never_donate_a_live_lease	56 s in a debug build: bundled EDA packs re-parsed per reload
++tcl-lsp-server	lib	tcl_lsp_server	studio_source::tests::retirement_invalidates_captured_reload_before_waiting_for_reload_lock	58 s in a debug build: bundled EDA packs re-parsed per reload
++tcl-lsp-server	lib	tcl_lsp_server	studio_source::tests::saved_image_changed_after_load_before_publication_is_unavailable	40 s in a debug build: bundled EDA packs re-parsed per reload
++tcl-lsp-server	lib	tcl_lsp_server	studio_source::tests::saved_image_changed_while_reload_is_queued_cannot_acknowledge_publication	38 s in a debug build: bundled EDA packs re-parsed per reload
++tcl-lsp-server	lib	tcl_lsp_server	tests::a_cross_file_metaclass_resolves_after_the_workspace_scan	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::a_dynamic_metaclass_head_abstains_even_with_the_scan_index	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::a_relative_auto_path_entry_anchors_on_the_document_not_the_server_cwd	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::a_three_level_factory_scan_withdraws_descendants_when_the_source_root_disappears	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::a_triple_nested_dirname_auto_path_feeds_the_package_database	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::a_versioned_require_indexes_the_release_it_asks_for	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::a_workspace_with_no_metaclass_never_sets_the_factory_oracle	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::apply_global_config_applies_every_knob	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::autoload_merge_is_dropped_when_the_package_database_rebuilds	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::concurrent_snapshots_share_one_text_and_index_allocation	over 180 s (timed out) in a debug build: fixture analyses a 300-procedure document
++tcl-lsp-server	lib	tcl_lsp_server	tests::declared_package_provides_makes_tk_available_to_diagnostics	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::declared_package_provides_resolve_per_folder	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::declared_package_provides_survive_an_incomplete_buffer	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::default_dialect_change_retries_after_concurrent_edit_1854	over 180 s (timed out) in a debug build: did_change is awaited unbounded while the default-dialect guard is held
++tcl-lsp-server	lib	tcl_lsp_server	tests::definition_lands_in_the_package_release_tcl_would_load	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::definition_resolves_through_a_document_auto_path_package	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::document_auto_path_mutation_feeds_the_package_database	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::dropping_one_factory_reindexes_its_consumers_while_retaining_others	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::initialized_reschedules_open_documents_after_workspace_scan	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install; bundled EDA packs re-parsed per reload
++tcl-lsp-server	lib	tcl_lsp_server	tests::removing_the_last_factory_reindexes_unopened_consumers_with_an_empty_oracle	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::resource_scoped_analyser_inputs_resolve_per_folder	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::scan_workspace_folders_builds_resolver_with_no_roots	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::scan_workspace_folders_does_not_build_deep_tier_for_unopened_files	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::scan_workspace_folders_indexes_unopened_files	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::scan_workspace_folders_skips_open_documents	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::set_auto_path_puts_every_list_element_on_the_search_path	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::the_last_generation_of_a_burst_still_runs_to_completion	72 s in a debug build: bundled EDA packs re-parsed per reload
++tcl-lsp-server	lib	tcl_lsp_server	tests::workspace_folder_add_reschedules_non_xc_document_too	over 180 s (timed out) in a debug build: workspace scan surveys the host Tcl install
++tcl-lsp-server	lib	tcl_lsp_server	tests::workspace_symbol_caps_its_answer	over 180 s (timed out) in a debug build: read-only request analyses every hit document fresh
++tcl-lsp-server	lib	tcl_lsp_server	tests::workspace_trust_comes_from_the_client_and_never_from_a_setting	91 s in a debug build: bundled EDA packs re-parsed per reload

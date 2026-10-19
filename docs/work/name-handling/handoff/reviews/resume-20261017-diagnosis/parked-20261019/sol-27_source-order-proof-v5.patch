@@ -1,0 +1,2037 @@
+diff --git a/docs/design/analysis/import-order-source-graph.md b/docs/design/analysis/import-order-source-graph.md
+index 002ccfc..3f21357 100644
+--- a/docs/design/analysis/import-order-source-graph.md
++++ b/docs/design/analysis/import-order-source-graph.md
+@@ -473,3 +473,40 @@ Controls (unexecuted source definitions):
+ - Unpositioned consumers: `an_unpositioned_removal_applies_only_before_an_admitted_document_end` (source_graph: straight root and `namespace eval` body removals revoke; a removal behind `if {$x} return`, before `source` or a user procedure, in a procedure body or a branch, or before the install does not) and, on WorkspaceIndex links, `an_exact_import_link_dies_on_a_same_file_forget`, `an_exact_import_link_keeps_a_conditional_same_file_forget`, `an_exact_import_link_ignores_a_forget_in_another_file`, `an_exact_import_link_survives_a_forget_written_before_it` and `a_body_local_exact_import_survives_a_top_level_forget`.
+ - Conflicts: `a_sourced_forget_between_two_imports_does_not_make_the_later_one_conflict` and `a_branch_forget_between_two_imports_does_not_make_the_later_one_conflict`.
+ - Admission: `document_sequence_orders_straight_line_bodies_and_withholds_branches`, `document_sequence_ends_at_a_possible_early_exit`, `document_end_is_after_normal_completion_only` (a sourced file or user procedure doing `return -code return`, a top-level `break`, `apply $l`, `lsort -command cmp`, `expr $e`, `expr {f(1)}`, `if {f(1)}`, an undefined function reaching a user `unknown`) and `document_sequence_refuses_shadowed_or_namespace_local_entering_commands` (including `rename myeval eval`).
++
++### 8.2 Proof-grade cross-document order
++
++A compiler import seal completes on an `Exported` verdict, so the verdict it reads (`NamespaceExportOracle::proven_export_at_original`) needs order that is a fact in every run, not navigation advice. `RunOrder::proven_precedes(event, query)` supplies it beside the navigation relation, which stays as §8 and §8.1 describe. Within one document it is the §8.1 relation with `modeled_source_exclusion`. Across documents it answers `Some(true)` only when `event`'s command has completed before `query`'s starts in every run, and never `Some(false)`: a loader may be evaluated again, so an event later in one pass can precede the query of the next.
++
++`WorkspaceIndex` builds the proof with `RunOrder::with_entry_proof` over the same edges as the navigation order. A document entered once more by code the index cannot see breaks the claim: tclsh runs `main.tcl` before `exports.tcl` through `uplevel #0 [list source main.tcl]`, an alias of `source`, `$child eval [list source main.tcl]`, `eval source main.tcl`, `after 0 [list source main.tcl]`, a renamed `source`, or a `package require` whose index sources it, and a namespace deleted through `$cmd delete ::src` is invisible to the deletion inventory. So nothing is proven across documents unless every indexed document has a source-order context and every command of every document, definition bodies and callbacks included, is visible (`ProofInventory`, classified from selected Registry facts only):
++
++- no command word is dynamic;
++- every command word without selected Registry words names a procedure or class some indexed document declares, and no command word names a tail a rename may have moved a command to;
++- no command may evaluate code the inventory does not retain: every script-carrying operand (`Body`, `Expr` with a substitution, `LambdaLiteral`, `OpaqueScript`) is a literal word containing a retained script region, a `ScriptBodyFlow::ConcatenatedScript` takes a single script word, no `CommandPrefix` operand or retained callback exists (`authored_source_retains_callback`), and no command creates an alias, binds or renames commands under dynamic operands, or changes the working directory (`PackageResolverDependency::WorkingDirectory`); words whose schema cannot be read count as all of these;
++- every command that may enter a file (`BodyExecutionSpec::SourceFile`, `Traits::LOADS_EXTERNAL_UNIT`, or a package requirement) is the original site of a resolved edge, so an unresolved `source $dir/x.tcl` or a `package require` with no resolved provider turns the proof off.
++
++A document then has a *proven entry* when exactly one edge reaches it, a `source` edge whose command is a §8.1 sequence position directly in its parent's root script, outside every definition body. The root-script rule keeps the child in the parent's frame and namespace: tclsh evaluates a file sourced inside `namespace eval foo` in `::foo`, so its `namespace eval src` creates `::foo::src`.
++
++`event` precedes `query` when all of the following hold:
++
++- both are load-level sequence commands of their documents (`SourceOrderContext::load_command`). A body, branch, loop, caught script or callback event is never proven;
++- following proven entries upward from both documents reaches a common document, with no cycle on either chain;
++- in that document, the event side's entering `source` (or the event itself, when it is written there) is a sequence command that ends before the query side's entering `source` (or the query) starts. Reaching the later command means the earlier one returned normally;
++- in each document below the common one on the event side, no possible early exit starts before the end of the point that matters there: the event, or the `source` entering the next document down. Every command that cuts the §8.1 sequence or withholds its end counts as such an exit, so a `return`, a user procedure that may `return -code return`, or another `source` before the export leaves it unproven. The entering `source` itself is allowed: if its file returns early, the event's own exits already account for that.
++
++The common document may itself be entered any way and any number of times, conditionally included: the claim holds within each of its evaluations. A document entered from two sites (a re-sourced file), from a procedure body, from a branch or `catch`, or also through `package require` has no proven entry and can only be a common document.
++
++tclsh 8.4.20–9.1.0 agree on every shape: a loader that sources `exports.tcl` and then `main.tcl` beside itself imports the exported command, whatever the working directory, and a conditional, caught or procedure-local `source`, an early `return` or a procedure doing `return -code return` before the export, a nested `source` of a file doing `return -code return`, a `namespace eval foo` around the `source`, an intervening `namespace export -clear` or `namespace delete`, re-sourcing `main.tcl` first and running `main.tcl` alone do not. `source` of a file doing `return -code return` returns code 2 to its caller, and of a file with a top-level `break` code 3; `catch {source x}` around an error raised after the export still leaves the export in place, but a caught source is never a sequence command.
++
++The verdict also needs the export row's `unconditional_load_level` marker, recorded from the document's own sequence when the row is indexed, and no namespace deletion in the window. `SourceOrderContext` keeps the start of every command whose selected Registry transitions contain `NamespaceTransition::Delete` or widen `StateTransitionDomain::Namespaces`; with no name resolution, any such command that is not proven before the export or after the import makes the verdict unknown.
++
++How the program starts cannot be decided from the source. The user decided it (`docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261019T0710Z.json`: entry scripts, working directory, indexed path, configuration and relative paths), and the proof is anchored on the host's configuration, which `WorkspaceIndex::set_source_order_configuration` installs and `RunOrder::with_entry_proof` reads as an explicit input (`SourceOrderConfiguration`: each workspace folder and its `[project] entryPoints` from `.tcl-lsp.ini`, the same list the W120 inheritance reads):
++
++- **Entry scripts.** tclsh can run a sourced document as a script of its own (`tclsh main.tcl` gives LOCAL), which never runs the loader's earlier files. In a folder that configures `entryPoints`, the listed files are its entry scripts and every other document is sourced only: a listed file is never a proven entry even when another file sources it, and order is proven only below a document a listed entry reaches through `source` or `package require`, so an unlisted loader proves nothing. When one of a folder's configured entries is not an indexed document (a typo, another spelling of the same path) or cannot be placed at all, it may be the real entry script, so nothing in that folder is proven. In a folder that configures none, a sourced document is assumed not to be run as a script except a document with a `#!` line or that names the interpreter's script-name variable (`NativeBootstrapVariable::Argv0`, the `[info script] eq $argv0` guard; before Tcl 9.0 an unqualified `argv0` in any namespace falls back to the global one, so its name there counts too), and such a document is never a proven entry.
++- **Working directory and path resolution.** C Tcl's `source` resolves a relative path against the process's current working directory, never against the sourcing file's directory and never through `auto_path`, `TCLLIBPATH` or `libraryPaths` (tclsh 8.4.20–9.1.0: a relative `source exports.tcl` in `lib/inner.tcl` loads the working directory's `exports.tcl`, and `source x.tcl` with `x.tcl` only on `TCLLIBPATH` or `auto_path` fails). The proof therefore reuses the edges of the host's configured source resolver and admits an edge only when its path names its file without the working directory: an absolute path, or one built from `[file dirname [info script]]` (`OriginalSourcePathExpression::rooted_without_working_directory`), resolved against the sourcing document's indexed path. A loader is invoked at its indexed path, so a symlinked invocation from another directory is outside the premise. A relative literal `source` proves nothing, configured entry scripts included: the working directory is wherever the script was launched from (tclsh 8.4.20–9.1.0: an entry doing `source exports.tcl`, run from its parent directory, sources the parent's `exports.tcl` and gives LOCAL).
++
++  Any command whose Registry transitions change the working directory (`cd`) or the script path (`info script filename`, `PackageResolverDependency::ScriptPath`, which re-points `[file dirname [info script]]` for the rest of the evaluation: tclsh then gives LOCAL) turns the proof off. Library configuration reaches the proof only through `package require`: a required package must have an indexed provider for the require to be a placed edge.
++
++Premises shared with every single-document proof: each document's root script runs at level `#0` in the global namespace when its own analysis is read; code the workspace does not index (an unindexed `pkgIndex.tcl`, a library procedure reached as a command, the auto-loader's `tclIndex` files reached through `unknown` or `auto_import`) neither re-enters a document nor deletes a namespace; and a command whose Registry transitions are undeclared deletes no namespace.
++
++Controls (unexecuted source definitions, WorkspaceIndex): `a_loader_proves_its_first_source_ran_before_the_second` (also through a nested `source` and under a conditionally sourced loader; reversed order abstains), `a_conditional_or_caught_source_proves_nothing`, `a_source_in_a_procedure_or_another_namespace_proves_nothing`, `a_re_sourced_file_proves_nothing`, `no_loader_or_an_unplaced_source_proves_nothing`, `an_export_after_a_possible_early_exit_proves_nothing`, `hidden_evaluation_anywhere_proves_nothing` (every shape above, `cd`, `info script filename`, and an `eval $script` in a document nobody sources), `a_marked_entry_script_proves_nothing`, `a_namespace_local_argv0_read_marks_a_script_where_it_falls_back_to_the_global`, `only_a_working_directory_independent_source_proves_order` (relative gives none; absolute and `[file dirname [info script]]` paths prove), `configured_entry_points_start_the_proof`, `a_loader_no_configured_entry_reaches_proves_nothing`, `a_configured_entry_is_never_a_proven_child`, `a_folder_with_an_unindexed_or_unplaced_entry_proves_nothing` and `a_package_the_library_configuration_provides_keeps_the_proof`, each also pinning that the navigation relation stays unmodeled and that no foreign pair is proven the other way round. Verdict controls: `a_loader_sourcing_the_export_first_proves_the_forced_import`, `both_tiers_shadow_when_another_file_holds_the_covering_export`, and the counterexamples `a_namespace_deleted_after_the_export_proves_nothing` and `a_conditional_or_body_export_proves_nothing_to_the_compiler`.
+diff --git a/docs/design/contracts/command-resolution.md b/docs/design/contracts/command-resolution.md
+index 360548e..3d8913c 100644
+--- a/docs/design/contracts/command-resolution.md
++++ b/docs/design/contracts/command-resolution.md
+@@ -275,12 +275,24 @@ source/table receipts before deriving identity or mutation effects.
+     and stores it on the `SourceFile` input `import_export_facts`). Those
+     verdicts come from the oracle's proof-grade query
+     (`NamespaceExportOracle::proven_export_at_original`): an export counts
+-    only when another document writes it, the run order proves it ran
+-    before the import, and no `-clear` of that namespace may have run in
+-    between. The importing document's own rows only make the export list
+-    visible, so they can say "not exported" but never "exported".
+-    Cross-document `source` order is navigation advice rather than proof,
+-    so today an export written in another file leaves the import undecided.
++    only when another document writes it as an unconditional load-level
++    command, the run order proves it ran before the import
++    (`RunOrder::proven_precedes`), and no `-clear` of that namespace and no
++    command that may delete a namespace may have run in between. The
++    importing document's own rows only make the export list visible, so
++    they can say "not exported" but never "exported". Cross-document order
++    is proven only along an unconditional load-level `source` chain from a
++    common loader, as tclsh runs it, when no command anywhere in the
++    workspace may evaluate code the index cannot see. The proof starts
++    from the folder's configured `[project] entryPoints` (without them, a
++    sourced file is not an entry script unless it has a `#!` line or reads
++    `argv0`, and then it proves nothing), and admits a `source` path only
++    when it is absolute or built from `[file dirname [info script]]` at the
++    sourcing file's indexed path; a relative path proves nothing, since C
++    Tcl resolves it against the working directory
++    ([import-order-source-graph.md](../analysis/import-order-source-graph.md)
++    §8.2); any other export written in another file leaves the import
++    undecided.
+     Without that input, a source namespace with no export statement yet is
+     undecided rather than empty. An undecided export keeps both the prior
+     binding and the import at the destination, so a call that reaches it
+@@ -308,8 +320,11 @@ source/table receipts before deriving identity or mutation effects.
+     that has not run (an uncalled body, a body called later, a branch not
+     taken) decides nothing; an undecided forced import is not hidden by a
+     later caught re-import that conflicts with it; the document's own export
+-    written after a body-local import proves nothing for it; and an export
+-    in an unordered other file leaves the call undecided.
++    written after a body-local import proves nothing for it; an export in
++    an unordered other file leaves the call undecided; and a loader's
++    export proves nothing when the namespace is deleted and recreated
++    before the import, or when the export sits in a branch not taken or a
++    procedure nobody calls.
+   - **Redefining the imported name ends the alias.** A `proc ::dst::p` written
+     after the import silently recreates `::dst::p` as an ordinary command:
+     no error, `::dst::p` runs the new body, `namespace origin ::dst::p`
+diff --git a/rust/tcl-compiler/src/auto_path_eval/source_expression.rs b/rust/tcl-compiler/src/auto_path_eval/source_expression.rs
+index a50c80c..a65e8cf 100644
+--- a/rust/tcl-compiler/src/auto_path_eval/source_expression.rs
++++ b/rust/tcl-compiler/src/auto_path_eval/source_expression.rs
+@@ -122,6 +122,17 @@ impl OriginalSourcePathExpression {
+         super::fold_path_value(&self.evaluate_word_value(info_script, resolve_var)?)
+     }
+ 
++    /// Whether this plan names its file without the process's working
++    /// directory: evaluated with only a rooted `[info script]` and no
++    /// variable advice, it yields a rooted path. An absolute literal and a
++    /// path anchored at `[file dirname [info script]]` do; a relative
++    /// literal, a variable and a drive-relative path do not.
++    #[must_use]
++    pub fn rooted_without_working_directory(&self) -> bool {
++        self.evaluate(Some("/script.tcl"), &|_| None)
++            .is_some_and(|path| super::root_len(&path).is_some())
++    }
++
+     /// Exact original word span retained by this conditional source plan.
+     #[must_use]
+     pub const fn source_span(&self) -> tcl_lexer::Span {
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+index 582341f..9a59857 100644
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -13871,7 +13871,8 @@ impl ModuleCommandBindings {
+                 tcl_registry::model::binding::PackageResolverDependency::GlobalVariable(name) => (*name).to_owned(),
+                 tcl_registry::model::binding::PackageResolverDependency::GlobalArrayElement { array, element } => format!("{array}({element})"),
+                 tcl_registry::model::binding::PackageResolverDependency::WorkingDirectory
+-                | tcl_registry::model::binding::PackageResolverDependency::Filesystem => return None,
++                | tcl_registry::model::binding::PackageResolverDependency::Filesystem
++                | tcl_registry::model::binding::PackageResolverDependency::ScriptPath => return None,
+             };
+             Some(crate::var_resolve::resolve_place(&name, &self.source_variables, false, registry))
+         }).collect::<Vec<_>>();
+diff --git a/rust/tcl-lsp-core/src/source_graph.rs b/rust/tcl-lsp-core/src/source_graph.rs
+index a0e7d35..9050225 100644
+--- a/rust/tcl-lsp-core/src/source_graph.rs
++++ b/rust/tcl-lsp-core/src/source_graph.rs
+@@ -712,6 +712,10 @@ struct DocumentSequence {
+     /// position unreachable unnoticed (see [`Self::record_exits`]); the
+     /// document end, read as "after normal completion", is then withheld.
+     end_withheld: bool,
++    /// Start of every command outside definition bodies and callbacks that
++    /// may stop this document's evaluation before its end, for either reason
++    /// above, in source order.
++    exits: Vec<u32>,
+     /// Retained script regions, ordered by start and then outermost first.
+     regions: Vec<SequenceRegion>,
+     /// Definition bodies by start, each with the running maximum end.
+@@ -1093,6 +1097,7 @@ impl DocumentSequence {
+             end,
+             cutoff: None,
+             end_withheld: false,
++            exits: Vec::new(),
+             regions: Self::regions(structure, end),
+             definition_bodies: Self::definition_bodies(analysis),
+         };
+@@ -1233,14 +1238,19 @@ impl DocumentSequence {
+         let unretained = words.zip(flow).is_some_and(|(words, flow)| {
+             SequenceCapture::may_run_unretained_script(words, flow, &self.regions)
+         });
+-        if flow.is_some_and(|flow| flow.terminates) || (straight && unretained) {
++        let terminates = flow.is_some_and(|flow| flow.terminates) || (straight && unretained);
++        if terminates {
+             let exit = straight_ancestor.map_or(at, |span| span.end());
+             self.cutoff = Some(self.cutoff.map_or(exit, |cutoff| cutoff.min(exit)));
+         }
+-        self.end_withheld |= unretained
++        let ends_early = unretained
+             || completes_early
+             || flow.is_none_or(|flow| flow.may_end_load)
+             || !words.is_some_and(SequenceCapture::selected);
++        self.end_withheld |= ends_early;
++        if terminates || ends_early {
++            self.exits.push(at);
++        }
+     }
+ 
+     /// Admit one direct command of a straight region and mark the bodies it
+@@ -1312,6 +1322,40 @@ impl DocumentSequence {
+         index > 0 && bodies[index - 1].1 > at
+     }
+ 
++    /// The innermost retained script region containing `at`.
++    fn innermost_region(&self, at: u32) -> Option<&SequenceRegion> {
++        let mut current = self
++            .regions
++            .partition_point(|region| region.span.start() <= at)
++            .checked_sub(1);
++        while let Some(index) = current
++            && !(self.regions[index].span.start() <= at && at < self.regions[index].span.end())
++        {
++            current = self.regions[index].parent;
++        }
++        current.map(|index| &self.regions[index])
++    }
++
++    /// Whether `at` is a direct position of the document's own root script,
++    /// so no entered body selects another frame or namespace around it.
++    fn at_root(&self, at: u32) -> bool {
++        self.innermost_region(at).is_some_and(|region| {
++            region.parent.is_none() && region.span == tcl_lexer::Span::new(0, self.end)
++        })
++    }
++
++    /// Whether the sequence command spanning `command` has run whenever this
++    /// document's evaluation returns normally: it is a sequence position and
++    /// no possible early exit starts before its end. `entering` admits the
++    /// command itself as such an exit, for a `source` whose child is judged
++    /// separately.
++    fn completes_through(&self, command: tcl_lexer::Span, entering: bool) -> bool {
++        self.contains(command.start())
++            && self.exits[..self.exits.partition_point(|&exit| exit < command.end())]
++                .iter()
++                .all(|&exit| entering && exit == command.start())
++    }
++
+     fn contains(&self, at: u32) -> bool {
+         if at >= self.end {
+             return self.cutoff.is_none() && !self.end_withheld;
+@@ -1322,16 +1366,7 @@ impl DocumentSequence {
+         if Self::in_bodies(&self.definition_bodies, at) {
+             return false;
+         }
+-        let mut current = self
+-            .regions
+-            .partition_point(|region| region.span.start() <= at)
+-            .checked_sub(1);
+-        while let Some(index) = current
+-            && !(self.regions[index].span.start() <= at && at < self.regions[index].span.end())
+-        {
+-            current = self.regions[index].parent;
+-        }
+-        let Some(region) = current.map(|index| &self.regions[index]) else {
++        let Some(region) = self.innermost_region(at) else {
+             return false;
+         };
+         if !region.straight {
+@@ -1355,6 +1390,337 @@ impl DocumentSequence {
+     }
+ }
+ 
++/// What the proof-grade source order needs to know about every command of
++/// one document, definition bodies and callbacks included
++/// ([`RunOrder::with_entry_proof`]). Commands are classified from their
++/// selected Registry facts, never their spelling.
++#[derive(Debug, Clone, Default, PartialEq, Eq)]
++struct ProofInventory {
++    /// Start of every command whose transitions may delete a namespace.
++    namespace_deletions: Vec<u32>,
++    /// Every command that may enter another file: its body execution
++    /// evaluates a file, it loads an external unit, or it requires a package.
++    entering_commands: Vec<tcl_lexer::Span>,
++    /// Some command may evaluate code this inventory does not retain: a
++    /// dynamic command word, a script operand that is not one retained
++    /// literal script, a concatenated script of several words, a command
++    /// prefix or retained callback, an alias, a command binding or rename
++    /// whose operands are dynamic, a change of the working directory, or
++    /// Registry words whose schema cannot be read.
++    opaque: bool,
++    /// Literal command-word tails of commands with selected Registry words.
++    registry_heads: Vec<Vec<u8>>,
++    /// Literal command-word tails of every other command. Each must name a
++    /// procedure or class some indexed document declares.
++    other_heads: Vec<Vec<u8>>,
++    /// Tails a rename may move a command to.
++    moved_to: Vec<Vec<u8>>,
++    /// Tails of the procedures and classes this document declares.
++    declared: Vec<Vec<u8>>,
++    /// The document may be run as a script of its own: a `#!` line, or a
++    /// read of the variable the interpreter binds to the script name
++    /// (`[info script] eq $argv0`).
++    entry_script_marker: bool,
++    /// Retained script regions by start, outermost first; dropped once the
++    /// document is classified.
++    regions: Vec<tcl_lexer::Span>,
++}
++
++/// One command's selected Registry facts, as [`ProofInventory`] reads them.
++#[derive(Debug, Default)]
++struct ProofEffects {
++    deletes_namespace: bool,
++    enters_file: bool,
++    opaque: bool,
++    moved_to: Vec<Vec<u8>>,
++}
++
++impl ProofEffects {
++    /// A schema that cannot be borrowed may do anything.
++    fn unknown() -> Self {
++        Self {
++            deletes_namespace: true,
++            enters_file: true,
++            opaque: true,
++            moved_to: Vec::new(),
++        }
++    }
++
++    fn note(&mut self, transition: &tcl_registry::StateTransition) {
++        use tcl_registry::model::binding::{PackageResolverDependency, PackageTransition};
++        use tcl_registry::{
++            CommandBindingTransition, NamespaceTransition, StateTransition, StateTransitionDomain,
++        };
++        match transition {
++            StateTransition::Namespace(NamespaceTransition::Delete { .. }) => {
++                self.deletes_namespace = true;
++            }
++            StateTransition::Widen(widening) => {
++                self.deletes_namespace |= widening
++                    .domains
++                    .contains(&StateTransitionDomain::Namespaces);
++                self.opaque |= widening
++                    .domains
++                    .contains(&StateTransitionDomain::CommandBindings);
++            }
++            StateTransition::CommandBinding(
++                CommandBindingTransition::Alias { .. } | CommandBindingTransition::Unknown { .. },
++            )
++            | StateTransition::Package(PackageTransition::DiscoveryDependencyChanged {
++                dependency:
++                    PackageResolverDependency::WorkingDirectory | PackageResolverDependency::ScriptPath,
++            }) => self.opaque = true,
++            StateTransition::CommandBinding(CommandBindingTransition::Move { to, .. }) => {
++                match ProofInventory::subject_tail(to) {
++                    Some(tail) => self.moved_to.push(tail),
++                    None => self.opaque = true,
++                }
++            }
++            _ => {}
++        }
++    }
++}
++
++impl ProofInventory {
++    fn new(
++        source: &str,
++        analysis: &tcl_compiler::analyser::AnalysisResult,
++        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++        structure: &crate::source_structure::SourceStructure,
++    ) -> Self {
++        let mut regions = structure
++            .scripts
++            .iter()
++            .map(|(span, _)| *span)
++            .collect::<Vec<_>>();
++        regions.sort_by_key(|span| (span.start(), std::cmp::Reverse(span.end())));
++        Self {
++            declared: analysis
++                .original_procedure_declarations()
++                .map(|record| record.name().slot().simple.as_bytes().to_vec())
++                .chain(
++                    analysis
++                        .original_class_declarations()
++                        .map(|record| record.name().slot().simple.as_bytes().to_vec()),
++                )
++                .collect(),
++            entry_script_marker: source.starts_with("#!")
++                || Self::reads_script_name(analysis, input),
++            regions,
++            ..Self::default()
++        }
++    }
++
++    /// Whether the document names the variable the interpreter binds to the
++    /// script name (`argv0`, the `[info script] eq $argv0` guard). Where an
++    /// unqualified namespace variable falls back to the global one (C Tcl
++    /// before 9.0), its name in any namespace counts.
++    fn reads_script_name(
++        analysis: &tcl_compiler::analyser::AnalysisResult,
++        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++    ) -> bool {
++        use tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableSlot;
++        let name = tcl_registry::special_vars::NativeBootstrapVariable::Argv0.name();
++        let global = tcl_syntax::naming::qualify("::", name);
++        let fallback = input.analyser_profile().namespace_var_global_fallback();
++        analysis.original_variable_symbols.iter().any(|occurrence| {
++            let symbol = occurrence.symbol();
++            symbol.checked_c_namespace_key().as_deref() == Some(global.as_str())
++                || match symbol.slot() {
++                    SignatureSourceVariableSlot::C { simple, .. } => {
++                        fallback && simple.as_bytes() == name.as_bytes()
++                    }
++                    SignatureSourceVariableSlot::Jim(key) => key.as_bytes() == name.as_bytes(),
++                    _ => false,
++                }
++        })
++    }
++
++    /// Classify one command from its validated Registry words.
++    fn record(
++        &mut self,
++        command: &tcl_compiler::segmenter::SegmentedCommand,
++        words: Option<&tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords>,
++        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++    ) {
++        let head = Self::literal_head_tail(command);
++        if let Some(words) = words {
++            let effects = self.effects(words, input);
++            if effects.deletes_namespace {
++                self.namespace_deletions.push(command.span.start());
++            }
++            if effects.enters_file {
++                self.entering_commands.push(command.span);
++            }
++            self.opaque |= effects.opaque;
++            self.moved_to.extend(effects.moved_to);
++        }
++        let selected = words.is_some_and(Self::selected);
++        match head {
++            Some(head) if selected => self.registry_heads.push(head),
++            Some(head) => self.other_heads.push(head),
++            None => self.opaque = true,
++        }
++    }
++
++    fn finish(mut self) -> Self {
++        for names in [
++            &mut self.registry_heads,
++            &mut self.other_heads,
++            &mut self.moved_to,
++            &mut self.declared,
++        ] {
++            names.sort_unstable();
++            names.dedup();
++        }
++        self.regions = Vec::new();
++        self
++    }
++
++    /// Registry words whose schema is the selected command's own: the
++    /// unanimous selection, a scoped or definition-member vocabulary, or a
++    /// command reached through its recorded rename or alias lineage.
++    fn selected(
++        words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
++    ) -> bool {
++        use tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource;
++        matches!(
++            words.source(),
++            OriginalRegistrySource::Selected
++                | OriginalRegistrySource::Scoped(_)
++                | OriginalRegistrySource::DefinitionMember(_)
++                | OriginalRegistrySource::SourceTransitions(_)
++        )
++    }
++
++    /// The tail of a command word written without substitution or
++    /// expansion. Anything else is a dynamic command word.
++    fn literal_head_tail(command: &tcl_compiler::segmenter::SegmentedCommand) -> Option<Vec<u8>> {
++        let text = command.texts.first()?;
++        let expanded = command
++            .expand_word
++            .as_ref()
++            .is_some_and(|expand| expand.first() == Some(&true));
++        (!expanded && !text.contains(['$', '[', '\\'])).then(|| {
++            tcl_syntax::naming::key_holder_and_tail(text)
++                .1
++                .as_bytes()
++                .to_vec()
++        })
++    }
++
++    fn subject_tail(subject: &tcl_registry::TransitionSubject) -> Option<Vec<u8>> {
++        let name = match subject.literal() {
++            Some(name) => name,
++            None => std::str::from_utf8(subject.native_bytes()?).ok()?,
++        };
++        Some(
++            tcl_syntax::naming::key_holder_and_tail(name)
++                .1
++                .as_bytes()
++                .to_vec(),
++        )
++    }
++
++    fn effects(
++        &self,
++        words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
++        input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++    ) -> ProofEffects {
++        use tcl_registry::script_body_flow::{ScriptBodyFlow, script_body_flow_for_invocation};
++        let registry = input.borrowed_context_registry();
++        let requires_package = words.package_reference(registry).is_some_and(|reference| {
++            reference.kind() == tcl_registry::source_navigation::SourcePackageReferenceKind::Require
++        });
++        let unretained = self.runs_unretained_script(words);
++        words
++            .with_source_schema(registry, |schema| {
++                let mut effects = ProofEffects {
++                    enters_file: requires_package
++                        || schema.semantics.body_execution
++                            == Some(tcl_registry::body_execution::BodyExecutionSpec::SourceFile)
++                        || schema
++                            .semantics
++                            .traits
++                            .contains(tcl_registry::Traits::LOADS_EXTERNAL_UNIT),
++                    opaque: unretained || schema.authored_source_retains_callback() != Some(false),
++                    ..ProofEffects::default()
++                };
++                if let ScriptBodyFlow::ConcatenatedScript { argument_offset } =
++                    script_body_flow_for_invocation(&schema.facts(), schema.words.arguments())
++                    && schema.words.arguments().exact_argv_len() != argument_offset.checked_add(1)
++                {
++                    effects.opaque = true;
++                }
++                for fact in schema.state_transitions().facts() {
++                    effects.note(&fact.transition);
++                }
++                effects
++            })
++            .unwrap_or_else(ProofEffects::unknown)
++    }
++
++    /// Whether a script-carrying operand may run code this inventory does not
++    /// retain: a command prefix, an operand that is not a literal word, or a
++    /// literal script or substituted expression no retained region lies in.
++    fn runs_unretained_script(
++        &self,
++        words: &tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
++    ) -> bool {
++        use tcl_registry::ArgRole;
++        let carries = |role: ArgRole| {
++            role.carries_script() || matches!(role, ArgRole::OpaqueScript | ArgRole::CommandPrefix)
++        };
++        let Some(roles) = words.roles() else {
++            return words
++                .written_argument_roles()
++                .iter()
++                .any(|&(_, role)| carries(role));
++        };
++        roles
++            .iter()
++            .filter(|&&(_, role)| carries(role))
++            .any(|&(argument, role)| {
++                if role == ArgRole::CommandPrefix {
++                    return true;
++                }
++                let Some(operand) = words.operands().get(argument).and_then(Option::as_ref) else {
++                    return true;
++                };
++                let Some(word) = operand.word() else {
++                    return true;
++                };
++                let Some(literal) =
++                    tcl_syntax::word_rules::original_static_word_unicode_value(word)
++                else {
++                    return true;
++                };
++                if literal.iter().all(u8::is_ascii_whitespace)
++                    || (role == ArgRole::Expr && !literal.contains(&b'['))
++                {
++                    return false;
++                }
++                let written = operand.span();
++                let whole = word.span();
++                !self.retains(tcl_lexer::Span::new(
++                    whole.start().min(written.start()),
++                    whole.end().max(written.end()),
++                ))
++            })
++    }
++
++    /// Whether a retained script region lies inside `span`.
++    fn retains(&self, span: tcl_lexer::Span) -> bool {
++        let first = self
++            .regions
++            .partition_point(|region| region.start() < span.start());
++        self.regions[first..]
++            .iter()
++            .take_while(|region| region.start() < span.end())
++            .any(|region| region.end() <= span.end())
++    }
++}
++
+ /// Original source-point transport retained at the actual indexing ingress.
+ /// Captured source/body/schema owners stay separate from runtime completion.
+ #[derive(Debug, Clone, PartialEq, Eq)]
+@@ -1367,6 +1733,8 @@ pub(crate) struct SourceOrderContext {
+     command_spans: Vec<tcl_lexer::Span>,
+     // Same-document straight-line sequence; None keeps every point Conditional.
+     sequence: Option<DocumentSequence>,
++    // Proof-grade inventory of every command, bodies and callbacks included.
++    proof: ProofInventory,
+ }
+ 
+ impl SourceOrderContext {
+@@ -1396,8 +1764,24 @@ impl SourceOrderContext {
+         let sequence =
+             DocumentSequence::capture(source, analysis, input, image, &structure, &mut slots);
+         let mut sites = Vec::new();
++        let mut proof = ProofInventory::new(source, analysis, input, &structure);
+         for (index, command) in structure.commands.iter().enumerate() {
+             let at = command.argv.first()?.span.start();
++            let words = slots[index]
++                .take(|| {
++                    tcl_compiler::registry_invocation::source_structure::source_registry_words(
++                        source, analysis, command,
++                    )
++                })
++                .filter(|words| {
++                    words.matches_source(image, config)
++                        && words.matches_registry(input.borrowed_context_registry().commands())
++                        && words.context() == Some(input.availability_context())
++                });
++            proof.record(command, words.as_ref(), input);
++            let Some(words) = words else {
++                continue;
++            };
+             let body = analysis.original_definition_body_span(at);
+             if body.is_none()
+                 && structure
+@@ -1407,19 +1791,6 @@ impl SourceOrderContext {
+             {
+                 continue;
+             }
+-            let Some(words) = slots[index].take(|| {
+-                tcl_compiler::registry_invocation::source_structure::source_registry_words(
+-                    source, analysis, command,
+-                )
+-            }) else {
+-                continue;
+-            };
+-            if !words.matches_source(image, config)
+-                || !words.matches_registry(input.borrowed_context_registry().commands())
+-                || words.context() != Some(input.availability_context())
+-            {
+-                continue;
+-            }
+             let source_load = tcl_compiler::registry_invocation::source_structure::original_project_source_load_at(source, analysis, at);
+             let package_require = words
+                 .package_reference(input.borrowed_context_registry())
+@@ -1442,6 +1813,7 @@ impl SourceOrderContext {
+             sites,
+             command_spans,
+             sequence,
++            proof: proof.finish(),
+         })
+     }
+ 
+@@ -1506,6 +1878,43 @@ impl SourceOrderContext {
+                 .is_some_and(|sequence| sequence.contains(at))
+     }
+ 
++    /// The command at `at` when it is a load-level straight-line sequence
++    /// command of this document: outside every definition body, callback,
++    /// branch, loop or caught script, and before any possible early exit
++    /// that may leave it unreached. It runs at most once per evaluation of
++    /// the document, during that evaluation.
++    pub(crate) fn load_command(&self, at: u32) -> Option<tcl_lexer::Span> {
++        let site = self.site(at)?;
++        (site.body.is_none() && self.sequence_position(site.span.start())).then_some(site.span)
++    }
++
++    /// Whether `command` has run whenever this document's evaluation returns
++    /// normally (see [`DocumentSequence::completes_through`]).
++    fn completes_through(&self, command: tcl_lexer::Span, entering: bool) -> bool {
++        self.sequence_position(command.start())
++            && self
++                .sequence
++                .as_ref()
++                .is_some_and(|sequence| sequence.completes_through(command, entering))
++    }
++
++    /// The `source` command of `edge` when it enters the child once per
++    /// evaluation of this document, from the root script's own frame and
++    /// namespace: a load-level sequence command written directly in the
++    /// root script.
++    fn entering_command(&self, edge: &RunEdge) -> Option<tcl_lexer::Span> {
++        let site = self.edge_site(edge)?;
++        let command = site.span;
++        (edge.kind == RunEdgeKind::Source
++            && site.body.is_none()
++            && self.sequence_position(command.start())
++            && self
++                .sequence
++                .as_ref()
++                .is_some_and(|sequence| sequence.at_root(command.start())))
++        .then_some(command)
++    }
++
+     fn edge_site(&self, edge: &RunEdge) -> Option<&OriginalSourceOrderSite> {
+         let site = self.site(edge.at)?;
+         match edge.kind {
+@@ -1635,6 +2044,71 @@ pub struct RunOrder {
+     /// entry is stored once however many documents it covers, and a workspace
+     /// with no package edge leaves the map empty and every probe a miss.
+     package_alternatives: UriMap<Arc<[OwnedRunPoint]>>,
++    /// Proof-grade entries ([`Self::with_entry_proof`]): each document that
++    /// one load-level `source` command of a single parent enters, and
++    /// nothing else in the workspace may enter. None proves nothing across
++    /// documents.
++    proof: Option<UriMap<ProofEntry>>,
++    /// Documents of a folder that configures entry scripts which no
++    /// configured entry reaches through `source` or `package require`, or
++    /// whose configured entries are not all indexed documents. Order is
++    /// never proven from them.
++    unrooted: UriSet,
++}
++
++/// The host configuration proof-grade source order rests on
++/// (`import-order-source-graph.md` §8.2): each workspace folder and the entry
++/// scripts it declares (`[project] entryPoints` in `.tcl-lsp.ini`).
++#[derive(Debug, Clone, Default, PartialEq, Eq)]
++pub struct SourceOrderConfiguration {
++    folders: Vec<SourceOrderFolder>,
++}
++
++#[derive(Debug, Clone, PartialEq, Eq)]
++struct SourceOrderFolder {
++    /// Folder root as a document-key prefix, without a trailing `/`.
++    root: String,
++    /// The folder's configured entry scripts as document keys, `None` for
++    /// one the host cannot place; `None` when it configures none.
++    entry_points: Option<Vec<Option<String>>>,
++}
++
++impl SourceOrderConfiguration {
++    /// Add the workspace folder rooted at `root` (a document-key prefix such
++    /// as `file:///work/app`). `entry_points` holds its configured entry
++    /// scripts as document keys, `None` when it configures none. An entry
++    /// the host cannot place stays in the list as `None`: the folder then
++    /// proves nothing.
++    #[must_use]
++    pub fn with_folder(mut self, root: &str, entry_points: Option<Vec<Option<String>>>) -> Self {
++        self.folders.push(SourceOrderFolder {
++            root: root.trim_end_matches('/').to_owned(),
++            entry_points,
++        });
++        self
++    }
++
++    /// The configured entry scripts of the deepest folder holding `uri`,
++    /// when that folder configures them.
++    fn entry_points_for(&self, uri: &str) -> Option<&[Option<String>]> {
++        self.folders
++            .iter()
++            .filter(|folder| {
++                uri.strip_prefix(folder.root.as_str())
++                    .is_some_and(|rest| rest.starts_with('/'))
++            })
++            .max_by_key(|folder| folder.root.len())?
++            .entry_points
++            .as_deref()
++    }
++}
++
++/// The one `source` command that enters a document, in its parent's root
++/// script ([`SourceOrderContext::entering_command`]).
++#[derive(Debug, Clone, PartialEq, Eq)]
++struct ProofEntry {
++    parent: String,
++    command: tcl_lexer::Span,
+ }
+ 
+ /// A [`RunPoint`] the order has to keep past the borrow it was built from —
+@@ -1780,6 +2254,8 @@ impl RunOrder {
+             root_of,
+             ambiguous,
+             package_alternatives,
++            proof: None,
++            unrooted: UriSet::default(),
+         }
+     }
+ 
+@@ -1812,6 +2288,307 @@ impl RunOrder {
+         order
+     }
+ 
++    /// Admit proof-grade cross-document order over `edges`, the edges this
++    /// order was built from (§8.2 of `import-order-source-graph.md`).
++    ///
++    /// Nothing is proven across documents unless `every_document_captured`
++    /// (every indexed document has a source-order context) and every command
++    /// of every document, bodies and callbacks included, is visible to the
++    /// proof ([`ProofInventory`]): no command may evaluate code the
++    /// inventory does not retain, every other command word names a
++    /// procedure or class some document declares, no command is reached
++    /// under a name a rename may have moved another command to, and every
++    /// command that may enter a file is the original site of one of `edges`.
++    ///
++    /// A document is then entered provably only when exactly one edge
++    /// reaches it, that edge's `source` is a load-level sequence command of
++    /// its parent's root script, and `configuration` admits it:
++    ///
++    /// - in a folder that configures entry scripts, a listed entry is never
++    ///   entered provably and every other document is sourced only; in any
++    ///   other folder a document marked as a script (a `#!` line, or a read
++    ///   of the script-name variable `argv0`) is never entered provably;
++    /// - C Tcl resolves a relative `source` path against the process's
++    ///   working directory, wherever the script was launched from, so the
++    ///   `source` must be listed in `anchored` (parent and offset of each
++    ///   `source` whose path names its file without the working directory).
++    ///
++    /// In a folder that configures entry scripts, order is proven only below
++    /// a document a configured entry reaches, and nothing is proven when one
++    /// of its configured entries is not an indexed document. Navigation
++    /// answers are unchanged.
++    #[must_use]
++    pub(crate) fn with_entry_proof(
++        mut self,
++        edges: &[RunEdge],
++        every_document_captured: bool,
++        anchored: &[(String, u32)],
++        configuration: &SourceOrderConfiguration,
++    ) -> Self {
++        let Some(contexts) = self.source_contexts.as_ref() else {
++            return self;
++        };
++        if !every_document_captured || !Self::every_command_visible(contexts, edges) {
++            return self;
++        }
++        let every_entry_indexed = |entries: &[Option<String>]| {
++            entries.iter().all(|entry| {
++                entry
++                    .as_ref()
++                    .is_some_and(|entry| contexts.contains_key(entry))
++            })
++        };
++        let mut incoming: UriMap<Vec<Option<ProofEntry>>> = UriMap::default();
++        for edge in edges {
++            let sourced_only = match configuration.entry_points_for(&edge.child) {
++                Some(entries) => {
++                    every_entry_indexed(entries)
++                        && !entries
++                            .iter()
++                            .any(|entry| entry.as_deref() == Some(edge.child.as_str()))
++                }
++                None => contexts
++                    .get(&edge.child)
++                    .is_some_and(|child| !child.proof.entry_script_marker),
++            };
++            let anchored_file = anchored
++                .iter()
++                .any(|(parent, at)| *parent == edge.parent && *at == edge.at);
++            let admitted = edge.parent != edge.child && sourced_only && anchored_file;
++            let entry = contexts
++                .get(&edge.parent)
++                .filter(|_| admitted)
++                .and_then(|context| context.entering_command(edge))
++                .map(|command| ProofEntry {
++                    parent: edge.parent.clone(),
++                    command,
++                });
++            incoming.entry(edge.child.clone()).or_default().push(entry);
++        }
++        let reached = Self::reached_from_entries(edges, configuration, contexts.keys());
++        self.unrooted = contexts
++            .keys()
++            .filter(|uri| {
++                configuration.entry_points_for(uri).is_some_and(|entries| {
++                    !every_entry_indexed(entries) || !reached.contains(uri.as_str())
++                })
++            })
++            .cloned()
++            .collect();
++        self.proof = Some(
++            incoming
++                .into_iter()
++                .filter_map(|(child, entries)| match entries.as_slice() {
++                    [Some(entry)] => Some((child, entry.clone())),
++                    _ => None,
++                })
++                .collect(),
++        );
++        self
++    }
++
++    /// Every document a configured entry script reaches through `edges`,
++    /// the entries included.
++    fn reached_from_entries<'a>(
++        edges: &'a [RunEdge],
++        configuration: &SourceOrderConfiguration,
++        documents: impl Iterator<Item = &'a String>,
++    ) -> rustc_hash::FxHashSet<&'a str> {
++        let mut reached = rustc_hash::FxHashSet::default();
++        let mut stack = documents
++            .map(String::as_str)
++            .filter(|uri| {
++                configuration.entry_points_for(uri).is_some_and(|entries| {
++                    entries.iter().any(|entry| entry.as_deref() == Some(*uri))
++                })
++            })
++            .collect::<Vec<_>>();
++        while let Some(uri) = stack.pop() {
++            if reached.insert(uri) {
++                stack.extend(
++                    edges
++                        .iter()
++                        .filter(|edge| edge.parent == uri)
++                        .map(|edge| edge.child.as_str()),
++                );
++            }
++        }
++        reached
++    }
++
++    /// Whether every command of every document is visible to the proof
++    /// ([`Self::with_entry_proof`]).
++    fn every_command_visible(contexts: &UriMap<SourceOrderContext>, edges: &[RunEdge]) -> bool {
++        let mut placed: UriMap<Vec<tcl_lexer::Span>> = UriMap::default();
++        for edge in edges {
++            if let Some(site) = contexts
++                .get(&edge.parent)
++                .and_then(|context| context.edge_site(edge))
++            {
++                placed
++                    .entry(edge.parent.clone())
++                    .or_default()
++                    .push(site.span);
++            }
++        }
++        let declared = contexts
++            .values()
++            .flat_map(|context| context.proof.declared.iter().map(Vec::as_slice))
++            .collect::<rustc_hash::FxHashSet<&[u8]>>();
++        let moved = contexts
++            .values()
++            .flat_map(|context| context.proof.moved_to.iter().map(Vec::as_slice))
++            .collect::<rustc_hash::FxHashSet<&[u8]>>();
++        contexts.iter().all(|(uri, context)| {
++            let proof = &context.proof;
++            !proof.opaque
++                && proof
++                    .registry_heads
++                    .iter()
++                    .all(|head| !moved.contains(head.as_slice()))
++                && proof.other_heads.iter().all(|head| {
++                    declared.contains(head.as_slice()) && !moved.contains(head.as_slice())
++                })
++                && proof
++                    .entering_commands
++                    .iter()
++                    .all(|command| placed.get(uri).is_some_and(|sites| sites.contains(command)))
++        })
++    }
++
++    /// Proof-grade precedence, for verdicts a compiler seal may complete on.
++    ///
++    /// Within one document this is the modeled relation
++    /// ([`Self::navigation_precedence`] with
++    /// [`SourceNavigationOrder::modeled_source_exclusion`]). Across documents
++    /// it is `Some(true)` only when, in every run, `event`'s command has
++    /// completed before `query`'s command starts, and never `Some(false)`:
++    /// a document may be evaluated again, so a later event of one pass can
++    /// precede the query of the next. That holds when
++    ///
++    /// - both commands are load-level sequence commands of their documents
++    ///   ([`SourceOrderContext::load_command`]), never a body or branch;
++    /// - each document is entered provably ([`Self::with_entry_proof`]) along
++    ///   a chain up to a common document, which evaluates the event side's
++    ///   entering `source` (or the event itself) as a sequence command that
++    ///   ends before the query side's (or the query itself) starts; reaching
++    ///   the later one means the earlier one returned normally;
++    /// - on the event side, every document below the common one runs its
++    ///   point before any possible early exit, so the `source` that entered it
++    ///   returning normally means the point ran.
++    ///
++    /// The common document itself may be entered any way, any number of
++    /// times: the claim holds within each of its evaluations.
++    #[must_use]
++    pub fn proven_precedes(&self, event: RunPoint<'_>, query: RunPoint<'_>) -> Option<bool> {
++        if event.uri == query.uri || self.source_contexts.is_none() {
++            return self
++                .navigation_precedence(event, query)
++                .and_then(SourceNavigationOrder::modeled_source_exclusion);
++        }
++        self.proves_foreign_precedence(event, query).then_some(true)
++    }
++
++    fn proves_foreign_precedence(&self, event: RunPoint<'_>, query: RunPoint<'_>) -> bool {
++        let (Some(entries), Some(contexts)) = (&self.proof, &self.source_contexts) else {
++            return false;
++        };
++        let (Some(event_path), Some(query_path)) = (
++            Self::proof_path(entries, event.uri),
++            Self::proof_path(entries, query.uri),
++        ) else {
++            return false;
++        };
++        let Some((query_depth, event_depth)) =
++            query_path.iter().enumerate().find_map(|(depth, document)| {
++                Some((
++                    depth,
++                    event_path.iter().position(|other| other == document)?,
++                ))
++            })
++        else {
++            return false;
++        };
++        if self.unrooted.contains(query_path[query_depth]) {
++            return false;
++        }
++        let Some(common) = contexts.get(query_path[query_depth]) else {
++            return false;
++        };
++        let Some(event_command) = contexts
++            .get(event.uri)
++            .and_then(|context| context.load_command(event.at))
++        else {
++            return false;
++        };
++        let Some(query_command) = contexts
++            .get(query.uri)
++            .and_then(|context| context.load_command(query.at))
++        else {
++            return false;
++        };
++        let mut earlier = event_command;
++        for (depth, document) in event_path[..event_depth].iter().enumerate() {
++            let entering = depth > 0;
++            if !contexts
++                .get(*document)
++                .is_some_and(|context| context.completes_through(earlier, entering))
++            {
++                return false;
++            }
++            earlier = entries[*document].command;
++        }
++        let later = query_path[..query_depth]
++            .last()
++            .map_or(query_command, |document| entries[*document].command);
++        common.sequence_position(earlier.start())
++            && common.sequence_position(later.start())
++            && earlier.end() <= later.start()
++    }
++
++    /// `uri` and the documents that provably entered it, nearest first, up
++    /// to the first one with no proven entry. None on a cycle.
++    fn proof_path<'a>(entries: &'a UriMap<ProofEntry>, uri: &'a str) -> Option<Vec<&'a str>> {
++        let mut path = vec![uri];
++        let mut cursor = uri;
++        while let Some(entry) = entries.get(cursor) {
++            cursor = entry.parent.as_str();
++            if path.contains(&cursor) {
++                return None;
++            }
++            path.push(cursor);
++        }
++        Some(path)
++    }
++
++    /// Every command in an indexed document whose selected Registry
++    /// transitions may delete a namespace, callbacks and bodies included.
++    /// None when this order proves nothing across documents, where the
++    /// inventory is not known to cover the workspace.
++    #[must_use]
++    pub(crate) fn namespace_deletions(&self) -> Option<Vec<RunPoint<'_>>> {
++        if self.proof.is_none() {
++            return None;
++        }
++        Some(
++            self.source_contexts
++                .as_ref()?
++                .iter()
++                .flat_map(|(uri, context)| {
++                    context
++                        .proof
++                        .namespace_deletions
++                        .iter()
++                        .map(move |&at| RunPoint {
++                            uri,
++                            at,
++                            enclosing_body: None,
++                        })
++                })
++                .collect(),
++        )
++    }
++
+     /// Source relation for navigation, retaining its own purpose. Two
+     /// straight-line positions of one indexed document are ordered by that
+     /// document's sequence ([`SourceNavigationOrderPurpose::DocumentSequence`]);
+diff --git a/rust/tcl-lsp-core/src/workspace_index.rs b/rust/tcl-lsp-core/src/workspace_index.rs
+index e16153e..c175e8f 100644
+--- a/rust/tcl-lsp-core/src/workspace_index.rs
++++ b/rust/tcl-lsp-core/src/workspace_index.rs
+@@ -1156,6 +1156,12 @@ pub struct WorkspaceNamespaceExport {
+     pub enclosing_body: Option<Span>,
+     /// `true` for a `namespace export -clear` tombstone.
+     pub clears: bool,
++    /// The event is a load-level straight-line command of its document,
++    /// outside every definition body, callback, branch, loop or caught
++    /// script and before any possible early exit, so it runs whenever its
++    /// document's evaluation reaches the rest of the sequence. Recorded from
++    /// the document's own source sequence when the row is indexed.
++    pub unconditional_load_level: bool,
+ }
+ 
+ /// Collect `items` into source order by the span `key` reports, so a
+@@ -2138,6 +2144,9 @@ impl DocumentRecords {
+                 enclosing_body: analysis.innermost_definition_body_span(prefer.range.start()),
+             });
+         }
++        let order_context = self.source_order_context.as_ref();
++        let unconditional_load_level =
++            |at: u32| order_context.is_some_and(|context| context.load_command(at).is_some());
+         for exp in analysis.original_namespace_exports() {
+             self.namespace_exports.push(WorkspaceNamespaceExport {
+                 original: Some(exp.clone()),
+@@ -2150,6 +2159,7 @@ impl DocumentRecords {
+                 at: exp.span().start(),
+                 enclosing_body: analysis.original_definition_body_span(exp.span().start()),
+                 clears: exp.clears(),
++                unconditional_load_level: unconditional_load_level(exp.span().start()),
+             });
+         }
+         for span in analysis.original_namespace_export_unknowns() {
+@@ -2162,6 +2172,7 @@ impl DocumentRecords {
+                 at: span.start(),
+                 enclosing_body: analysis.original_definition_body_span(span.start()),
+                 clears: false,
++                unconditional_load_level: unconditional_load_level(span.start()),
+             });
+         }
+         if analysis.allows_lexical_declaration_advice() {
+@@ -2175,6 +2186,7 @@ impl DocumentRecords {
+                     at: exp.range.start(),
+                     enclosing_body: analysis.innermost_definition_body_span(exp.range.start()),
+                     clears: exp.clears,
++                    unconditional_load_level: false,
+                 });
+             }
+         }
+@@ -2637,6 +2649,9 @@ pub struct WorkspaceIndex {
+     /// map, with the document's own filesystem path standing in for
+     /// `[info script]`.
+     constant_folder: Option<ConstantFolder>,
++    /// The host's entry-script configuration proof-grade source order starts
++    /// from ([`WorkspaceIndex::set_source_order_configuration`]).
++    source_order_configuration: crate::source_graph::SourceOrderConfiguration,
+     /// The `source`-graph load order derived from it — see
+     /// [`WorkspaceIndex::run_order`].
+     run_order: Derived<crate::source_graph::RunOrder>,
+@@ -3246,6 +3261,21 @@ impl WorkspaceIndex {
+         self.export_snapshot = Derived::default();
+     }
+ 
++    /// Install the host's entry-script configuration
++    /// ([`crate::source_graph::SourceOrderConfiguration`]): each workspace
++    /// folder and its configured `entryPoints`. Proof-grade source order
++    /// starts from them; navigation is unaffected.
++    pub fn set_source_order_configuration(
++        &mut self,
++        configuration: crate::source_graph::SourceOrderConfiguration,
++    ) {
++        if self.source_order_configuration != configuration {
++            self.source_order_configuration = configuration;
++            self.run_order = Derived::default();
++            self.export_snapshot = Derived::default();
++        }
++    }
++
+     /// Candidate source edges using the same genuine expression plans and
+     /// retained inventories as import folding, namespace seeds and run order.
+     /// These are conditional source routes, not completed file evaluation.
+@@ -3341,12 +3371,32 @@ impl WorkspaceIndex {
+             let source_edges = self.resolved_source_edges().into_iter();
+             let edges: Vec<crate::source_graph::RunEdge> =
+                 source_edges.chain(self.package_run_edges()).collect();
++            let every_document_captured = self
++                .docs
++                .iter()
++                .filter(|doc| !doc.uri.is_empty())
++                .all(|doc| doc.source_order_context.is_some());
++            let anchored = self
++                .sources()
++                .filter(|source| {
++                    source.original_path_expression.as_ref().is_some_and(
++                        tcl_compiler::auto_path_eval::OriginalSourcePathExpression::rooted_without_working_directory,
++                    )
++                })
++                .map(|source| (source.uri.clone(), source.range.start()))
++                .collect::<Vec<_>>();
+             crate::source_graph::RunOrder::for_source_navigation(
+                 &edges,
+                 self.docs
+                     .iter()
+                     .filter_map(|doc| Some((doc.uri.clone(), doc.source_order_context.clone()?))),
+             )
++            .with_entry_proof(
++                &edges,
++                every_document_captured,
++                &anchored,
++                &self.source_order_configuration,
++            )
+         })
+     }
+ 
+@@ -9076,9 +9126,11 @@ impl crate::namespace_import::NamespaceExportOracle for NamespaceExportSnapshot
+ 
+     /// The navigation verdict above counts an export it cannot place as in
+     /// effect and lets a body observe its whole file. Neither is proof, so
+-    /// here an export counts only when it is written in another document,
+-    /// the run order proves it ran before the import, and every `-clear` of
+-    /// that namespace provably ran before it or after the import. The
++    /// here an export counts only when it is written in another document as
++    /// an unconditional load-level command, the run order proves it ran
++    /// before the import ([`crate::source_graph::RunOrder::proven_precedes`]),
++    /// and every `-clear` of that namespace and every command that may
++    /// delete a namespace provably ran before it or after the import. The
+     /// importing document's own rows only make the namespace's export list
+     /// visible, which can give `NotExported` but never `Exported`.
+     fn proven_export_at_original(
+@@ -9092,11 +9144,11 @@ impl crate::namespace_import::NamespaceExportOracle for NamespaceExportSnapshot
+         {
+             return ExportVerdict::Exported;
+         }
+-        let ran_before = |event: RunPoint<'_>, query: RunPoint<'_>| {
+-            self.order
+-                .navigation_precedence(event, query)
+-                .and_then(crate::source_graph::SourceNavigationOrder::modeled_source_exclusion)
+-        };
++        let ran_before =
++            |event: RunPoint<'_>, query: RunPoint<'_>| self.order.proven_precedes(event, query);
++        // Deleting a namespace, or an ancestor, drops its export list. The
++        // inventory is not resolved to names, so any deletion counts.
++        let deletions = self.order.namespace_deletions();
+         if self
+             .original_exports
+             .iter()
+@@ -9135,12 +9187,17 @@ impl crate::namespace_import::NamespaceExportOracle for NamespaceExportSnapshot
+                 None => return ExportVerdict::Unknown,
+                 Some(true) => {}
+             }
++            let in_window = |event: RunPoint<'_>| {
++                ran_before(event, export_row_point(row)) != Some(true)
++                    && ran_before(event, import_site) != Some(false)
++            };
+             let maybe_cleared = rows.iter().any(|&(clear_row, clear)| {
+-                clear.clears()
+-                    && ran_before(export_row_point(clear_row), export_row_point(row)) != Some(true)
+-                    && ran_before(export_row_point(clear_row), import_site) != Some(false)
++                clear.clears() && in_window(export_row_point(clear_row))
+             });
+-            if covers.is_none() || maybe_cleared {
++            let maybe_deleted = deletions
++                .as_ref()
++                .is_none_or(|deletions| deletions.iter().any(|&deletion| in_window(deletion)));
++            if covers.is_none() || !row.unconditional_load_level || maybe_cleared || maybe_deleted {
+                 return ExportVerdict::Unknown;
+             }
+             exported = true;
+@@ -14568,10 +14625,12 @@ p\uD801";
+     #[test]
+     fn both_tiers_shadow_when_another_file_holds_the_covering_export() {
+         // TP (CRITICAL) — the export that decides it lives in `exports.tcl`,
+-        // which a loader sources before `main.tcl`. Oracle: SRC /
+-        // `::src::helper`.
++        // which a loader sources before `main.tcl`, each by a path anchored
++        // at `[file dirname [info script]]`. Oracle: SRC / `::src::helper`.
+         let exports = analyse("namespace eval src {\n    namespace export helper\n}\n");
+-        let loader = analyse("source exports.tcl\nsource main.tcl\n");
++        let loader = analyse(
++            "source [file join [file dirname [info script]] exports.tcl]\nsource [file join [file dirname [info script]] main.tcl]\n",
++        );
+         let (in_document, cross_document) = both_tiers_on_main(&[
+             ("file:///loader.tcl", &loader),
+             ("file:///exports.tcl", &exports),
+@@ -14633,6 +14692,618 @@ p\uD801";
+         );
+     }
+ 
++    // Proof-grade source order (import-order-source-graph.md §8.2). tclsh
++    // 8.4.20–9.1.0, with `main.tcl` importing and calling the command: a
++    // loader that sources the export first gives SRC; a conditional, caught
++    // or procedure-local source, a possible early exit before the export, a
++    // `namespace eval` around the source, sourcing `main.tcl` before the
++    // export, running `main.tcl` alone and a relative path run from another
++    // directory holding a different `exports.tcl` give LOCAL. A file entered
++    // from two sites has no single position and is never ranked.
++
++    /// The export every proof test below places.
++    const PROOF_EXPORTS: &str = "namespace eval ::src {namespace export helper}\n";
++
++    /// The import every proof test below places.
++    const PROOF_IMPORTS: &str = "namespace eval ::app {namespace import ::src::*}\n";
++
++    /// `source` of `file` beside the sourcing document, in the anchored form
++    /// the decided working-directory premise admits.
++    fn source_beside(file: &str) -> String {
++        format!("source [file join [file dirname [info script]] {file}]")
++    }
++
++    /// The plain loader: `exports.tcl`, then `main.tcl`, both anchored.
++    fn plain_loader() -> String {
++        format!(
++            "{}\n{}\n",
++            source_beside("exports.tcl"),
++            source_beside("main.tcl")
++        )
++    }
++
++    /// What the run order proves about `exports`' `namespace export` against
++    /// `main.tcl`'s `namespace import`, with `loaders` indexed beside them.
++    fn proven_order(exports: &str, loaders: &[(&str, &str)]) -> Option<bool> {
++        proven_order_with(exports, PROOF_IMPORTS, loaders)
++    }
++
++    /// [`proven_order`] with `imports` as `main.tcl`. The navigation relation
++    /// stays conditional whatever the proof says, and no foreign pair is
++    /// ever proven the other way round.
++    fn proven_order_with(exports: &str, imports: &str, loaders: &[(&str, &str)]) -> Option<bool> {
++        proven_order_in(
++            "tcl8.6",
++            exports,
++            imports,
++            loaders,
++            &crate::source_graph::SourceOrderConfiguration::default(),
++        )
++    }
++
++    /// [`proven_order_with`] analysed under `environment`, with the host's
++    /// entry-script `configuration` installed.
++    fn proven_order_in(
++        environment: &str,
++        exports: &str,
++        imports: &str,
++        loaders: &[(&str, &str)],
++        configuration: &crate::source_graph::SourceOrderConfiguration,
++    ) -> Option<bool> {
++        let profile =
++            tcl_registry::model::ingress::resolve_environment(environment).analyser_profile();
++        let exported = analyse_as(exports, profile);
++        let imported = analyse_as(imports, profile);
++        let loaders = loaders
++            .iter()
++            .map(|(uri, source)| (*uri, analyse_as(source, profile)))
++            .collect::<Vec<_>>();
++        let mut index = sourced_index(
++            [
++                ("file:///p/exports.tcl", &exported),
++                ("file:///p/main.tcl", &imported),
++            ]
++            .into_iter()
++            .chain(loaders.iter().map(|(uri, analysis)| (*uri, analysis))),
++        );
++        index.set_source_order_configuration(configuration.clone());
++        let point = |uri, source: &str, needle: &str| RunPoint {
++            uri,
++            at: u32::try_from(source.find(needle).expect("needle present"))
++                .expect("tiny test source"),
++            enclosing_body: None,
++        };
++        let export = point("file:///p/exports.tcl", exports, "namespace export");
++        let import = point("file:///p/main.tcl", imports, "namespace import");
++        let order = index.run_order();
++        assert!(
++            order
++                .navigation_precedence(export, import)
++                .is_none_or(|relation| relation.modeled_source_exclusion().is_none())
++        );
++        assert_eq!(order.proven_precedes(import, export), None);
++        order.proven_precedes(export, import)
++    }
++
++    #[test]
++    fn a_loader_proves_its_first_source_ran_before_the_second() {
++        let loader = plain_loader();
++        assert_eq!(
++            proven_order(PROOF_EXPORTS, &[("file:///p/loader.tcl", loader.as_str())]),
++            Some(true)
++        );
++        // The same through a file the loader sources, and with the loader
++        // itself sourced conditionally: each of its evaluations runs the
++        // export before the import.
++        let nested = format!(
++            "{}\n{}\n",
++            source_beside("lib.tcl"),
++            source_beside("main.tcl")
++        );
++        let lib = format!("{}\n", source_beside("exports.tcl"));
++        let outer = format!("if {{$argc < 99}} {{{}}}\n", source_beside("nested.tcl"));
++        assert_eq!(
++            proven_order(
++                PROOF_EXPORTS,
++                &[
++                    ("file:///p/nested.tcl", nested.as_str()),
++                    ("file:///p/lib.tcl", lib.as_str()),
++                    ("file:///p/outer.tcl", outer.as_str()),
++                ]
++            ),
++            Some(true)
++        );
++        let reversed = format!(
++            "{}\n{}\n",
++            source_beside("main.tcl"),
++            source_beside("exports.tcl")
++        );
++        assert_eq!(
++            proven_order(
++                PROOF_EXPORTS,
++                &[("file:///p/loader.tcl", reversed.as_str())]
++            ),
++            None
++        );
++    }
++
++    #[test]
++    fn only_a_working_directory_independent_source_proves_order() {
++        // C Tcl resolves a relative `source` path against the process's
++        // working directory: run from a directory holding a different
++        // `exports.tcl`, the relative loader gives LOCAL. Only an absolute
++        // path or one built from `[file dirname [info script]]` proves.
++        for (loader, proven) in [
++            ("source exports.tcl\nsource main.tcl\n", None),
++            ("source /p/exports.tcl\nsource /p/main.tcl\n", Some(true)),
++            (plain_loader().as_str(), Some(true)),
++        ] {
++            assert_eq!(
++                proven_order(PROOF_EXPORTS, &[("file:///p/loader.tcl", loader)]),
++                proven,
++                "{loader}"
++            );
++        }
++    }
++
++    #[test]
++    fn a_marked_entry_script_proves_nothing() {
++        // tclsh runs `main.tcl` alone as a script (LOCAL) as readily as from
++        // the loader (SRC). A `#!` line or a read of `argv0` marks a script.
++        let loader = plain_loader();
++        for imports in [
++            "#!/usr/bin/env tclsh\nnamespace eval ::app {namespace import ::src::*}\n",
++            "if {[info script] eq $::argv0} {puts main}\nnamespace eval ::app {namespace import ::src::*}\n",
++        ] {
++            assert_eq!(
++                proven_order_with(
++                    PROOF_EXPORTS,
++                    imports,
++                    &[("file:///p/loader.tcl", loader.as_str())]
++                ),
++                None,
++                "{imports}"
++            );
++        }
++    }
++
++    #[test]
++    fn a_namespace_local_argv0_read_marks_a_script_where_it_falls_back_to_the_global() {
++        // tclsh 8.4–8.6 read `$argv0` inside `namespace eval foo` from the
++        // global variable; tclsh 9.0 does not fall back (`can't read`).
++        let imports = "namespace eval foo {set script $argv0}\nnamespace eval ::app {namespace import ::src::*}\n";
++        let loader = plain_loader();
++        let order = |environment| {
++            proven_order_in(
++                environment,
++                PROOF_EXPORTS,
++                imports,
++                &[("file:///p/loader.tcl", loader.as_str())],
++                &crate::source_graph::SourceOrderConfiguration::default(),
++            )
++        };
++        assert_eq!(order("tcl8.6"), None);
++        assert_eq!(order("tcl9.0"), Some(true));
++    }
++
++    /// The entry-script configuration of the `file:///p` folder.
++    fn entries(listed: &[&str]) -> crate::source_graph::SourceOrderConfiguration {
++        crate::source_graph::SourceOrderConfiguration::default().with_folder(
++            "file:///p",
++            Some(listed.iter().map(|uri| Some((*uri).to_owned())).collect()),
++        )
++    }
++
++    #[test]
++    fn configured_entry_points_start_the_proof() {
++        // `[project] entryPoints = loader.tcl`. A sourced file is sourced
++        // only, `#!` line or not. A relative `source` proves nothing, even in
++        // the entry: tclsh resolves it against the directory it was launched
++        // from (`luna-28/probes/so4/launch`: LOCAL when the entry is run from
++        // its parent directory).
++        let configuration = entries(&["file:///p/loader.tcl"]);
++        let order = |imports: &str, loaders: &[(&str, &str)]| {
++            proven_order_in("tcl8.6", PROOF_EXPORTS, imports, loaders, &configuration)
++        };
++        let anchored = plain_loader();
++        let shebang = "#!/usr/bin/env tclsh\nnamespace eval ::app {namespace import ::src::*}\n";
++        for (imports, loaders, proven) in [
++            (
++                PROOF_IMPORTS,
++                vec![("file:///p/loader.tcl", anchored.as_str())],
++                Some(true),
++            ),
++            (
++                PROOF_IMPORTS,
++                vec![(
++                    "file:///p/loader.tcl",
++                    "source exports.tcl\nsource main.tcl\n",
++                )],
++                None,
++            ),
++            (
++                shebang,
++                vec![("file:///p/loader.tcl", anchored.as_str())],
++                Some(true),
++            ),
++            (
++                PROOF_IMPORTS,
++                vec![
++                    (
++                        "file:///p/loader.tcl",
++                        "source lib/inner.tcl\nsource main.tcl\n",
++                    ),
++                    ("file:///p/lib/inner.tcl", "source exports.tcl\n"),
++                ],
++                None,
++            ),
++        ] {
++            assert_eq!(order(imports, &loaders), proven, "{loaders:?}");
++        }
++    }
++
++    #[test]
++    fn a_loader_no_configured_entry_reaches_proves_nothing() {
++        let anchored = plain_loader();
++        let configuration = entries(&["file:///p/app.tcl"]);
++        let order = |app: &str| {
++            proven_order_in(
++                "tcl8.6",
++                PROOF_EXPORTS,
++                PROOF_IMPORTS,
++                &[
++                    ("file:///p/app.tcl", app),
++                    ("file:///p/loader.tcl", anchored.as_str()),
++                ],
++                &configuration,
++            )
++        };
++        assert_eq!(order("puts app\n"), None);
++        assert_eq!(
++            order(&format!("{}\n", source_beside("loader.tcl"))),
++            Some(true)
++        );
++    }
++
++    #[test]
++    fn a_folder_with_an_unindexed_or_unplaced_entry_proves_nothing() {
++        // A configured entry the index does not hold (a typo, another
++        // spelling of the same path) or the host cannot place may be the
++        // real entry script, which must never be a proven child.
++        let anchored = plain_loader();
++        let order = |configuration: &crate::source_graph::SourceOrderConfiguration| {
++            proven_order_in(
++                "tcl8.6",
++                PROOF_EXPORTS,
++                PROOF_IMPORTS,
++                &[("file:///p/loader.tcl", anchored.as_str())],
++                configuration,
++            )
++        };
++        assert_eq!(order(&entries(&["file:///p/loader.tcl"])), Some(true));
++        assert_eq!(
++            order(&entries(&["file:///p/loader.tcl", "file:///p/Loader.tcl"])),
++            None
++        );
++        assert_eq!(
++            order(
++                &crate::source_graph::SourceOrderConfiguration::default().with_folder(
++                    "file:///p",
++                    Some(vec![Some("file:///p/loader.tcl".to_owned()), None]),
++                )
++            ),
++            None
++        );
++    }
++
++    #[test]
++    fn a_configured_entry_is_never_a_proven_child() {
++        // `main.tcl` is listed, so it may be run as a script of its own.
++        let anchored = plain_loader();
++        assert_eq!(
++            proven_order_in(
++                "tcl8.6",
++                PROOF_EXPORTS,
++                PROOF_IMPORTS,
++                &[("file:///p/loader.tcl", anchored.as_str())],
++                &entries(&["file:///p/loader.tcl", "file:///p/main.tcl"]),
++            ),
++            None
++        );
++    }
++
++    #[test]
++    fn a_package_the_library_configuration_provides_keeps_the_proof() {
++        // C Tcl's `source` never searches `auto_path`, `TCLLIBPATH` or the
++        // configured `libraryPaths`; they reach the proof through `package
++        // require`, whose provider must be an indexed document. Without it
++        // the require is unplaced and the proof is off.
++        let loader = format!("package require mylib\n{}", plain_loader());
++        let order = |library: &[(&str, &str)]| {
++            let mut loaders = vec![("file:///p/loader.tcl", loader.as_str())];
++            loaders.extend_from_slice(library);
++            proven_order(PROOF_EXPORTS, &loaders)
++        };
++        assert_eq!(
++            order(&[("file:///lib/mylib/mylib.tcl", "package provide mylib 1.0\n")]),
++            Some(true)
++        );
++        assert_eq!(order(&[]), None);
++    }
++
++    #[test]
++    fn a_conditional_or_caught_source_proves_nothing() {
++        for loader in [
++            format!(
++                "if {{[llength $argv] > 99}} {{{}}}\n{}\n",
++                source_beside("exports.tcl"),
++                source_beside("main.tcl")
++            ),
++            format!(
++                "catch {{{}}}\n{}\n",
++                source_beside("exports.tcl"),
++                source_beside("main.tcl")
++            ),
++        ] {
++            assert_eq!(
++                proven_order(PROOF_EXPORTS, &[("file:///p/loader.tcl", loader.as_str())]),
++                None,
++                "{loader}"
++            );
++        }
++    }
++
++    #[test]
++    fn a_source_in_a_procedure_or_another_namespace_proves_nothing() {
++        // A procedure-local source runs the file in the caller's frame, when
++        // called; one inside `namespace eval foo` creates `::foo::src`.
++        for loader in [
++            format!(
++                "proc load_exports {{}} {{{}}}\nload_exports\n{}\n",
++                source_beside("exports.tcl"),
++                source_beside("main.tcl")
++            ),
++            format!(
++                "namespace eval foo {{{}}}\n{}\n",
++                source_beside("exports.tcl"),
++                source_beside("main.tcl")
++            ),
++        ] {
++            assert_eq!(
++                proven_order(
++                    "namespace eval src {namespace export helper}\n",
++                    &[("file:///p/loader.tcl", loader.as_str())]
++                ),
++                None,
++                "{loader}"
++            );
++        }
++    }
++
++    #[test]
++    fn a_re_sourced_file_proves_nothing() {
++        let other = format!("{}\n", source_beside("exports.tcl"));
++        assert_eq!(
++            proven_order(
++                PROOF_EXPORTS,
++                &[
++                    ("file:///p/loader.tcl", plain_loader().as_str()),
++                    ("file:///p/other.tcl", other.as_str()),
++                ]
++            ),
++            None
++        );
++        let twice = format!(
++            "{}\n{}\n{}\n",
++            source_beside("main.tcl"),
++            source_beside("exports.tcl"),
++            source_beside("main.tcl")
++        );
++        assert_eq!(
++            proven_order(PROOF_EXPORTS, &[("file:///p/loader.tcl", twice.as_str())]),
++            None
++        );
++    }
++
++    #[test]
++    fn no_loader_or_an_unplaced_source_proves_nothing() {
++        assert_eq!(proven_order(PROOF_EXPORTS, &[]), None);
++        let loader = format!(
++            "{}\nsource $other\n{}\n",
++            source_beside("exports.tcl"),
++            source_beside("main.tcl")
++        );
++        assert_eq!(
++            proven_order(PROOF_EXPORTS, &[("file:///p/loader.tcl", loader.as_str())]),
++            None
++        );
++    }
++
++    #[test]
++    fn an_export_after_a_possible_early_exit_proves_nothing() {
++        // `return`, a procedure doing `return -code return`: the source of
++        // the file completes normally and the export never ran.
++        let loader = plain_loader();
++        for exports in [
++            "if {[llength $argv] < 99} return\nnamespace eval ::src {namespace export helper}\n",
++            "proc ::leave {} {return -code return}\n::leave\nnamespace eval ::src {namespace export helper}\n",
++        ] {
++            assert_eq!(
++                proven_order(exports, &[("file:///p/loader.tcl", loader.as_str())]),
++                None,
++                "{exports}"
++            );
++        }
++    }
++
++    #[test]
++    fn hidden_evaluation_anywhere_proves_nothing() {
++        // The shapes of `luna-28/probes/so1/fx/`, ahead of the anchored
++        // loader. tclsh 8.4.20–9.1.0: `main.tcl` runs once before
++        // `exports.tcl` (an `uplevel`, an alias, a child interpreter, `eval`
++        // of words, a callback, a renamed `source`, `package require`, a
++        // dynamic path), the namespace is deleted through a dynamic command
++        // word, or the working directory or script path changes, so some run
++        // of the import gives LOCAL. None of these is retained, so the whole
++        // cross-document proof is off.
++        for prefix in [
++            "uplevel #0 [list source main.tcl]\n",
++            "interp alias {} load_file {} source\nload_file main.tcl\n",
++            "set cmd namespace\n$cmd delete ::src\n",
++            "set c [interp create]\n$c eval [list source main.tcl]\n",
++            "eval source main.tcl\n",
++            "after 0 [list source main.tcl]\n",
++            "rename source _src\nproc source {f} { uplevel 1 [list _src $f] }\nsource main.tcl\n",
++            "lappend auto_path [file join [pwd] pkg]\npackage require mainpkg\n",
++            "set s main.tcl\nsource $s\n",
++            "cd /elsewhere\n",
++            // `luna-28/probes/so3/fx/T_info_script_redirect.tcl` and
++            // `T_info_script_set.tcl`: the anchored paths below then name
++            // another directory's files.
++            "info script [file join [file dirname [info script]] .. other x.tcl]\n",
++            "info script /nonexistent/elsewhere/loader.tcl\n",
++        ] {
++            let loader = format!("{prefix}{}", plain_loader());
++            assert_eq!(
++                proven_order(PROOF_EXPORTS, &[("file:///p/loader.tcl", loader.as_str())]),
++                None,
++                "{loader}"
++            );
++        }
++        // The same from a document the loader never sources.
++        assert_eq!(
++            proven_order(
++                PROOF_EXPORTS,
++                &[
++                    ("file:///p/loader.tcl", plain_loader().as_str()),
++                    ("file:///p/tools.tcl", "proc run {script} {eval $script}\n"),
++                ]
++            ),
++            None
++        );
++    }
++
++    /// The document-only answer for the `helper` call at the end of
++    /// `main_source`, indexed as `main_uri` beside `others` and analysed
++    /// again with the index's export verdicts. [`MAIN`] and every other
++    /// document are byte-identical to `luna-28/probes/fxA2/`, except that
++    /// each loader's `source` lines take the anchored form.
++    fn in_document_beside(
++        main_uri: &str,
++        main_source: &str,
++        others: &[(&str, &str)],
++    ) -> Option<String> {
++        let main = analyse(main_source);
++        let others = others
++            .iter()
++            .map(|(uri, source)| (*uri, analyse(source)))
++            .collect::<Vec<_>>();
++        let index = sourced_index(
++            std::iter::once((main_uri, &main))
++                .chain(others.iter().map(|(uri, analysis)| (*uri, analysis))),
++        );
++        let main = analyse_with_index_facts(&index, main_uri, main_source);
++        let call = u32::try_from(main_source.rfind("    helper\n").expect("call present") + 4)
++            .expect("tiny test source");
++        crate::definition::resolve_called_proc(
++            &main,
++            main_source,
++            "::app",
++            "helper",
++            call,
++            crate::definition::CallResolution::document_only(),
++        )
++        .map(|p| p.qualified_name.clone())
++    }
++
++    /// `luna-28/probes/fxA2/loader*.tcl` with anchored `source` lines.
++    fn fixture_loader(exports: &str, main: &str) -> String {
++        format!(
++            "set argv {{}}\n{}\n{}\n",
++            source_beside(exports),
++            source_beside(main)
++        )
++    }
++
++    #[test]
++    fn a_loader_sourcing_the_export_first_proves_the_forced_import() {
++        // `loader.tcl`. tclsh 8.4.20–9.1.0: SRC.
++        assert_eq!(
++            in_document_beside(
++                "file:///p/main.tcl",
++                MAIN,
++                &[
++                    (
++                        "file:///p/loader.tcl",
++                        fixture_loader("exports.tcl", "main.tcl").as_str()
++                    ),
++                    ("file:///p/exports.tcl", PROOF_EXPORTS),
++                ]
++            )
++            .as_deref(),
++            Some("::src::helper")
++        );
++    }
++
++    #[test]
++    fn a_namespace_deleted_after_the_export_proves_nothing() {
++        // CE18, `loader_delete.tcl`. tclsh 8.4.20–9.1.0: LOCAL. Deleting
++        // `::src` drops its export list; the recreated namespace exports
++        // nothing.
++        const MAIN_DELETE: &str = "rename auto_import savedPrelude; namespace eval src {\n    proc helper {} { return SRC }\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace delete src\nnamespace eval src {\n    proc helper {} { return SRC2 }\n    proc other {} { return O }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
++        let hit = in_document_beside(
++            "file:///p/main_delete.tcl",
++            MAIN_DELETE,
++            &[
++                (
++                    "file:///p/loader_delete.tcl",
++                    fixture_loader("exports.tcl", "main_delete.tcl").as_str(),
++                ),
++                ("file:///p/exports.tcl", PROOF_EXPORTS),
++            ],
++        );
++        assert!(
++            matches!(hit.as_deref(), None | Some("::app::helper")),
++            "{hit:?}"
++        );
++    }
++
++    #[test]
++    fn a_conditional_or_body_export_proves_nothing_to_the_compiler() {
++        // CE19 `loader_conditional.tcl` and CE20 `loader_body.tcl`. tclsh
++        // 8.4.20–9.1.0: LOCAL. The branch is not taken and the procedure is
++        // never called.
++        for (loader_uri, exports_file, exports) in [
++            (
++                "file:///p/loader_conditional.tcl",
++                "exports_conditional.tcl",
++                "if {[llength $argv] > 99} {\n    namespace eval ::src {namespace export helper}\n}\n",
++            ),
++            (
++                "file:///p/loader_body.tcl",
++                "exports_in_body.tcl",
++                "proc ::declare_exports {} {\n    namespace eval ::src {namespace export helper}\n}\n",
++            ),
++        ] {
++            let exports_uri = format!("file:///p/{exports_file}");
++            let hit = in_document_beside(
++                "file:///p/main.tcl",
++                MAIN,
++                &[
++                    (
++                        loader_uri,
++                        fixture_loader(exports_file, "main.tcl").as_str(),
++                    ),
++                    (exports_uri.as_str(), exports),
++                ],
++            );
++            assert!(
++                matches!(hit.as_deref(), None | Some("::app::helper")),
++                "{exports}: {hit:?}"
++            );
++        }
++    }
++
+     #[test]
+     fn both_tiers_keep_the_local_when_the_whole_program_exports_nothing() {
+         // TN, byte-identical `MAIN` — nothing anywhere exports `helper`, so
+diff --git a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+index 3eefb86..2c64e53 100644
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -25307,12 +25307,17 @@ impl Backend {
+                 &handles,
+             );
+         }
++        let source_order = source_order_configuration(&parsed);
+         *self.folder_configs.lock().await = parsed;
+         // The folder chain is what every per-URI knob in `diag_inputs` resolves
+         // through, so a replaced chain retires the scheduler's cached copies for
+         // the same reason `apply_global_config` does.
+         self.invalidate_diag_inputs();
+         drop(analyser_inputs_guard);
++        self.workspace_index
++            .write()
++            .await
++            .set_source_order_configuration(source_order);
+     }
+ 
+     /// The feature toggles in effect for `uri` — the process-global set with
+@@ -37689,6 +37694,32 @@ fn entry_point_uri(entry: &str, folder_root: Option<&Path>) -> Option<String> {
+     canonical_file_uri(&path).map(|u| u.as_str().to_owned())
+ }
+ 
++/// Every workspace folder with its configured `[project] entryPoints`, as
++/// the workspace index's proof-grade source order starts from them. An entry
++/// the server cannot map to a document stays in the list unplaced, so that
++/// folder proves nothing.
++fn source_order_configuration(
++    folders: &[(Uri, FolderConfig)],
++) -> tcl_lsp_core::source_graph::SourceOrderConfiguration {
++    folders.iter().fold(
++        tcl_lsp_core::source_graph::SourceOrderConfiguration::default(),
++        |configuration, (folder, fc)| {
++            let root = folder.to_file_path();
++            let entries = fc
++                .entry_points
++                .as_ref()
++                .filter(|entries| !entries.is_empty())
++                .map(|entries| {
++                    entries
++                        .iter()
++                        .map(|entry| entry_point_uri(entry, root.as_deref()))
++                        .collect()
++                });
++            configuration.with_folder(folder.as_str(), entries)
++        },
++    )
++}
++
+ /// Exact package key retained independently of diagnostic wording and fixes.
+ fn w120_required_package(
+     diagnostic: &tcl_compiler::analyser::Diagnostic,
+@@ -40951,6 +40982,33 @@ info exists ::N::v\uD800";
+         assert!(compute_inherited_requires(&index, &app, &[], None).is_empty());
+     }
+ 
++    #[cfg(unix)]
++    #[test]
++    fn source_order_configuration_maps_each_folders_entry_points() {
++        let folders = vec![
++            (
++                Uri::from_str("file:///ws/app").unwrap(),
++                FolderConfig {
++                    entry_points: Some(vec!["main.tcl".to_owned()]),
++                    ..FolderConfig::default()
++                },
++            ),
++            (
++                Uri::from_str("file:///ws/other").unwrap(),
++                FolderConfig::default(),
++            ),
++        ];
++        assert_eq!(
++            source_order_configuration(&folders),
++            tcl_lsp_core::source_graph::SourceOrderConfiguration::default()
++                .with_folder(
++                    "file:///ws/app",
++                    Some(vec![Some("file:///ws/app/main.tcl".to_owned())])
++                )
++                .with_folder("file:///ws/other", None),
++        );
++    }
++
+     #[test]
+     fn explicit_entry_points_override_source_graph() {
+         // main.tcl requires Tk but does NOT source other.tcl; with main.tcl set
+diff --git a/rust/tcl-registry/src/commands/tcl/info_.rs b/rust/tcl-registry/src/commands/tcl/info_.rs
+index 2f2896b..f121eba 100644
+--- a/rust/tcl-registry/src/commands/tcl/info_.rs
++++ b/rust/tcl-registry/src/commands/tcl/info_.rs
+@@ -1293,6 +1293,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
+             writes: true,
+             ..SideEffect::DEFAULT
+         }],
++        state_transitions: Some(StateTransitionDescriptor {
++            resolver: Some(script_path_changed),
++            ..StateTransitionDescriptor::EMPTY
++        }),
+         semantics: SemanticsDeclaration::Declared(&crate::value_transfer::builtins::STATE_DECIDED),
+         ..SubCommand::DEFAULT
+     },
+@@ -1384,10 +1388,45 @@ pub fn spec() -> CommandSpec {
+     }
+ }
+ 
++/// `info script filename` overrides what `[info script]` returns for the
++/// rest of the active evaluation (tclsh 8.4–9.1), re-pointing every path a
++/// script then builds from `[file dirname [info script]]`. The bare form
++/// only reads it.
++fn script_path_changed(arguments: InvocationArguments<'_>) -> StateTransitions {
++    let mut transitions = StateTransitions::default();
++    if arguments.len() > 1 {
++        transitions.push(StateTransition::Package(
++            crate::model::binding::PackageTransition::DiscoveryDependencyChanged {
++                dependency: crate::model::binding::PackageResolverDependency::ScriptPath,
++            },
++        ));
++    }
++    transitions
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn only_info_script_with_a_filename_changes_the_script_path() {
++        let changed = script_path_changed(InvocationArguments::literals(&["script", "/x.tcl"]));
++        assert!(matches!(
++            changed.facts(),
++            [fact] if fact.transition
++                == StateTransition::Package(
++                    crate::model::binding::PackageTransition::DiscoveryDependencyChanged {
++                        dependency: crate::model::binding::PackageResolverDependency::ScriptPath,
++                    }
++                )
++        ));
++        assert!(
++            script_path_changed(InvocationArguments::literals(&["script"]))
++                .facts()
++                .is_empty()
++        );
++    }
++
+     const OBJECT_86: &[&str] = &[
+         "call",
+         "class",
+diff --git a/rust/tcl-registry/src/model/binding.rs b/rust/tcl-registry/src/model/binding.rs
+index 9010604..9329b81 100644
+--- a/rust/tcl-registry/src/model/binding.rs
++++ b/rust/tcl-registry/src/model/binding.rs
+@@ -76,6 +76,10 @@ pub enum PackageResolverDependency {
+     WorkingDirectory,
+     /// Package indexes, module scripts and native libraries in search directories.
+     Filesystem,
++    /// The script path `[info script]` reports, which anchors every path a
++    /// script builds from `[file dirname [info script]]`. No package or
++    /// auto-load discovery reads it.
++    ScriptPath,
+ }
+ 
+ const C_PACKAGE_RESOLVER_DEPENDENCIES: &[PackageResolverDependency] = &[

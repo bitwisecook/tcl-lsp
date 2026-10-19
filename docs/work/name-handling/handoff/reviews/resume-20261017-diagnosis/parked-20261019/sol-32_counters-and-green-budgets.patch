@@ -1,0 +1,244 @@
+--- a/rust/tcl-compiler/Cargo.toml
++++ b/rust/tcl-compiler/Cargo.toml
+@@ -27,6 +27,11 @@
+ repository.workspace = true
+ authors.workspace = true
+ 
++[features]
++# Work counters for scaling budgets in dependent crates' tests
++# (`analyser::state::outermost_analyses`). Enabled through dev-dependencies only.
++test-support = []
++
+ [dependencies]
+ tcl-dialect = { path = "../tcl-dialect" }
+ tcl-lexer = { path = "../tcl-lexer" }
+--- a/rust/tcl-compiler/src/analyser/state.rs
++++ b/rust/tcl-compiler/src/analyser/state.rs
+@@ -1287,6 +1287,50 @@
+     Common,
+ }
+ 
++#[cfg(any(test, feature = "test-support"))]
++std::thread_local! {
++    /// Open [`Analyser::analyse`] calls and the outermost ones started, on
++    /// this thread.
++    static ANALYSES: std::cell::Cell<(u32, u64)> = const { std::cell::Cell::new((0, 0)) };
++}
++
++/// Outermost [`Analyser::analyse`] calls started on this thread.
++///
++/// A work counter for analysis-count budgets in tests, compiled only for this
++/// crate's tests and the `test-support` feature. An analysis started inside
++/// another one is part of that one's work and is not counted again. It carries
++/// no analysis semantics.
++#[cfg(any(test, feature = "test-support"))]
++#[must_use]
++pub fn outermost_analyses() -> u64 {
++    ANALYSES.with(|state| state.get().1)
++}
++
++/// Marks one [`Analyser::analyse`] call open for [`outermost_analyses`].
++#[cfg(any(test, feature = "test-support"))]
++struct OutermostAnalysis;
++
++#[cfg(any(test, feature = "test-support"))]
++impl OutermostAnalysis {
++    fn enter() -> Self {
++        ANALYSES.with(|state| {
++            let (open, started) = state.get();
++            state.set((open + 1, started + u64::from(open == 0)));
++        });
++        Self
++    }
++}
++
++#[cfg(any(test, feature = "test-support"))]
++impl Drop for OutermostAnalysis {
++    fn drop(&mut self) {
++        ANALYSES.with(|state| {
++            let (open, started) = state.get();
++            state.set((open.saturating_sub(1), started));
++        });
++    }
++}
++
+ impl Analyser {
+     /// Construct a fresh analyser with no disabled diagnostics.
+     ///
+@@ -2198,6 +2242,9 @@
+     pub fn analyse(&mut self, source: &str, dialect: &str) -> AnalysisResult {
+         use std::collections::HashSet;
+ 
++        #[cfg(any(test, feature = "test-support"))]
++        let _counted = OutermostAnalysis::enter();
++
+         #[cfg(debug_assertions)]
+         let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
+             .is_some()
+--- a/rust/tcl-compiler/src/interprocedural/transfer.rs
++++ b/rust/tcl-compiler/src/interprocedural/transfer.rs
+@@ -2603,6 +2603,36 @@
+         }
+     }
+ 
++    /// Work budget for interprocedural summaries: a module of independent
++    /// procedures costs SCCP solves in proportion to its procedure count.
++    /// Going from four procedures to eight may add at most 2.2 times the solves
++    /// that going from two to four added. The differences cancel fixed
++    /// per-module work, so linear growth passes at a ratio of 2, while a solve
++    /// repeated for every pair of procedures (a re-run or re-seed) drives the
++    /// ratio towards 4 and fails.
++    #[test]
++    fn module_sccp_solves_scale_linearly_with_procedure_count() {
++        let solves = |count: usize| {
++            let source = (0..count).fold(String::new(), |mut source, n| {
++                use std::fmt::Write as _;
++                let _ = writeln!(source, "proc p{n} {{x}} {{return $x}}");
++                source
++            });
++            let before = crate::sccp::solve_count();
++            let _ = summaries(&source, "tcl8.6");
++            crate::sccp::solve_count() - before
++        };
++        let (two, four, eight) = (solves(2), solves(4), solves(8));
++        assert!(
++            two < four && four <= eight,
++            "added procedures are solved: 2, 4 and 8 procedures cost {two}, {four}, {eight}"
++        );
++        assert!(
++            (eight - four) * 10 <= (four - two) * 22,
++            "SCCP solves grew super-linearly: 2, 4 and 8 procedures cost {two}, {four}, {eight}"
++        );
++    }
++
+     /// A procedure that reaches code the module cannot see, or a frame its
+     /// summary cannot name, has no summary, and neither has a caller of it.
+     #[test]
+--- a/rust/tcl-compiler/src/sccp.rs
++++ b/rust/tcl-compiler/src/sccp.rs
+@@ -1006,6 +1006,17 @@
+     drive(|round| solve(inputs, round))
+ }
+ 
++#[cfg(test)]
++std::thread_local! {
++    static SOLVES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
++}
++
++/// Solver drives started on this thread: a work counter for scaling budgets.
++#[cfg(test)]
++pub(crate) fn solve_count() -> usize {
++    SOLVES.with(std::cell::Cell::get)
++}
++
+ /// The solver's rounds over `solve`, one run of the solver each. A loop the
+ /// first run proves the start state of is run to its exit, and the run is
+ /// made again with the state it leaves stated on the edges it leaves by: the
+@@ -1014,6 +1025,8 @@
+ /// dropped and the run made again without them; every other loop's state
+ /// stands. Each such run drops at least one loop, so the rounds end.
+ fn drive(mut solve: impl FnMut(&Round) -> Solved) -> SccpResult {
++    #[cfg(test)]
++    SOLVES.with(|solves| solves.set(solves.get() + 1));
+     let mut round = Round::First;
+     let mut loops = Vec::new();
+     loop {
+--- a/rust/tcl-lexer/Cargo.toml
++++ b/rust/tcl-lexer/Cargo.toml
+@@ -31,6 +31,9 @@
+ # HTML syntax-highlighting helper (tcl_lexer::highlight_tcl). Off by default;
+ # turn on for the BIG-IP report generator's iRule source view.
+ html = []
++# Work counters for scaling budgets in dependent crates' tests
++# (`parse_cut::body_frames_entered`). Enabled through dev-dependencies only.
++test-support = []
+ 
+ [dependencies]
+ bytecount = "0.6.9"
+--- a/rust/tcl-lexer/src/parse_cut.rs
++++ b/rust/tcl-lexer/src/parse_cut.rs
+@@ -860,6 +860,23 @@
+     body_frame(body, child_base, report_at, config, channel, clean_key)
+ }
+ 
++#[cfg(any(test, feature = "test-support"))]
++std::thread_local! {
++    static BODY_FRAMES_ENTERED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
++}
++
++/// Command-substitution bodies the parse-cut walk has entered on this thread.
++///
++/// A work counter for scaling budgets in tests, compiled only for this
++/// crate's tests and the `test-support` feature: a body the
++/// [`NestedBodyCutMemo`] already holds as clean is not entered and not
++/// counted. It carries no parse semantics.
++#[cfg(any(test, feature = "test-support"))]
++#[must_use]
++pub fn body_frames_entered() -> u64 {
++    BODY_FRAMES_ENTERED.with(std::cell::Cell::get)
++}
++
+ /// A complete `[…]` body as a script frame to walk.
+ ///
+ /// A body that failed to *close* never reaches here — [`ExecutablePartArena`]
+@@ -875,6 +892,8 @@
+     channel: SourceChannel,
+     clean_key: Option<NestedBodyKey>,
+ ) -> Result<Frame, ParseCutUnavailable> {
++    #[cfg(any(test, feature = "test-support"))]
++    BODY_FRAMES_ENTERED.with(|entered| entered.set(entered.get() + 1));
+     let config = crate::SourceSegmentationPurpose::NestedScript.config(config);
+     let (tokens, commands) = lex_and_group(body, config, channel)?;
+     let jobs = commands
+--- a/rust/tcl-lsp-core/Cargo.toml
++++ b/rust/tcl-lsp-core/Cargo.toml
+@@ -70,6 +70,9 @@
+ # every pattern the tokenizer sub-tokenises is confirmed to be valid ARE by the
+ # same engine Tcl uses at runtime, tying the two to one source of truth.
+ tcl-regex = { path = "../tcl-regex" }
++# Work counters read by this crate's scaling and analysis-count budgets.
++tcl-lexer = { path = "../tcl-lexer", features = ["test-support"] }
++tcl-compiler = { path = "../tcl-compiler", features = ["test-support"] }
+ 
+ # Match the server provider's mutually exclusive runtime features per target.
+ [target.'cfg(not(target_family = "wasm"))'.dev-dependencies]
+--- a/rust/tcl-lsp-core/src/minify/original.rs
++++ b/rust/tcl-lsp-core/src/minify/original.rs
+@@ -1220,6 +1220,37 @@
+         }
+     }
+ 
++    /// Work budget for the compact lexical minifier: given the caller's
++    /// retained analysis, a compaction that renames the formals analyses at
++    /// most twice more (the renamed source and one rebuild).
++    #[test]
++    fn compact_minify_analyses_at_most_twice_beyond_the_callers_analysis() {
++        let source = "proc general {longleft {longright longleft}} {list $longleft $longright $longleft; return $longright}\n";
++        let analysis =
++            analysis_for_profile(source, lexical_profile(), &CommandRegistry::build_default());
++        let before = tcl_compiler::analyser::state::outermost_analyses();
++        let result = minify_with_analysis(
++            source,
++            &analysis,
++            MinifyOptions {
++                tier: MinifyTier::Compact,
++                isolated: true,
++                ..MinifyOptions::default()
++            },
++        );
++        let analyses = tcl_compiler::analyser::state::outermost_analyses() - before;
++        assert!(result.refusals.is_empty(), "{:?}", result.refusals);
++        assert!(
++            !result.symbol_map.variables.is_empty(),
++            "the formals were renamed: {}",
++            result.source
++        );
++        assert!(
++            analyses <= 2,
++            "compact minify ran {analyses} analyses beyond the caller's"
++        );
++    }
++
+     fn lexical_profile() -> &'static tcl_dialect::DialectProfile {
+         let mut profile = crate::profile_for_dialect("f5-irules").clone();
+         profile.name = "explicit-lexical-authoring";

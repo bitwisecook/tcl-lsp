@@ -1,0 +1,18 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 7fea4005cdec8434f6e6497ebf78fddbc0dbdce7..6f9bb4aec6c8df23bd565d4a7bc5ce4bf1d6fa68 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -240,3 +240,13 @@ opt-level = 3
+ opt-level = 3
+ [profile.dev.package.aes]
+ opt-level = 3
++
++# Loading the bundled SpecTcl packs (8 `.tclspec` files, 2 MB) costs 17-19 s
++# per process unoptimised: the explorer tests pay it once each, the server
++# tests once per process on their first pack reload. Segmentation (lexer and
++# compiler parsing), the pack program and the pack loader are the hot path;
++# opt-level 1 keeps these workspace crates debuggable.
++[profile.dev.package.tcl-lexer]
++opt-level = 1
++[profile.dev.package.tcl-spectcl]
++opt-level = 1

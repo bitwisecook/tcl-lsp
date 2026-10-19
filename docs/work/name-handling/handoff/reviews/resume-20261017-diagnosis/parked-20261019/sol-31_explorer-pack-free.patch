@@ -1,0 +1,397 @@
+diff -ruN a/rust/tcl-explorer/src/asm.rs b/rust/tcl-explorer/src/asm.rs
+--- a/rust/tcl-explorer/src/asm.rs	2026-10-19 10:47:46.000000000 +0000
++++ b/rust/tcl-explorer/src/asm.rs	2026-10-19 11:02:04.682003919 +0000
+@@ -381,7 +381,7 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+-    use crate::run_pipeline;
++    use crate::run_pipeline_core as run_pipeline;
+ 
+     /// Collect every `kind == "instr"` row across all asm entries.
+     fn instr_rows(asm: &Value) -> Vec<&Value> {
+diff -ruN a/rust/tcl-explorer/src/lib.rs b/rust/tcl-explorer/src/lib.rs
+--- a/rust/tcl-explorer/src/lib.rs	2026-10-19 10:47:46.000000000 +0000
++++ b/rust/tcl-explorer/src/lib.rs	2026-10-19 11:02:30.437856803 +0000
+@@ -212,11 +212,31 @@
+ #[must_use]
+ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
+     let registry_held = registry_for_dialect(dialect);
++    run_pipeline_with_registry(source, dialect, &registry_held)
++}
++
++/// [`run_pipeline`] against the registry an empty pack set installs: the
++/// plain profile registry `tcl_spectcl::install::registry_with_packs` returns
++/// when there are no packs. Unit tests use it so that each test process does
++/// not load and evaluate the bundled EDA packs, which no test input selects.
++#[cfg(test)]
++#[must_use]
++pub(crate) fn run_pipeline_core(source: &str, dialect: &str) -> ExplorerResult {
++    let registry_held =
++        tcl_spectcl::bundled::registry_for_dialect_from(dialect, &tcl_spectcl::PackSet::default());
++    run_pipeline_with_registry(source, dialect, &registry_held)
++}
++
++fn run_pipeline_with_registry(
++    source: &str,
++    dialect: &str,
++    registry: &tcl_registry::CommandRegistry,
++) -> ExplorerResult {
+     let profile = environment::profile_for_dialect(dialect);
+     run_pipeline_with_inputs(
+         source,
+         dialect,
+-        &registry_held,
++        registry,
+         profile,
+         tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+         None,
+@@ -330,75 +350,11 @@
+     }
+ 
+     #[test]
+-    fn original_document_pipeline_keeps_root_and_later_bom_roles() {
+-        // naming.source.original-configured-script-completeness
+-        // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+-        // Original document carriers supply no Native handler receipt.
+-        let source = "\u{feff}probe root\n\u{feff}probe later\n";
+-        for name in [
+-            "tcl8.4",
+-            "tcl8.5",
+-            "tcl8.6",
+-            "tcl9.0",
+-            "tcl9.1",
+-            "jim",
+-            "f5-irules",
+-            "f5-iapps",
+-            "f5-tmsh",
+-        ] {
+-            let environment = tcl_registry::model::ingress::resolve_known_environment(name)
+-                .expect("actual known provider source policy");
+-            let grammar = environment.grammar();
+-            let result = run_pipeline(source, name);
+-            let module = &result.unit.ir_module;
+-            assert_eq!(
+-                module.source,
+-                tcl_lexer::SourceImage::document(source),
+-                "{name}"
+-            );
+-            assert_eq!(
+-                module.lexer_config,
+-                tcl_lexer::LexerConfig::for_file_grammar(grammar),
+-                "{name}"
+-            );
+-            assert_eq!(
+-                module
+-                    .source_metadata_input
+-                    .as_ref()
+-                    .unwrap()
+-                    .lexer_config(),
+-                module.lexer_config,
+-                "{name}"
+-            );
+-            assert!(
+-                crate::serialise::retained_explorer_source(&result, source).is_some(),
+-                "{name}"
+-            );
+-            assert_eq!(module.top_level.statements.len(), 2, "{name}");
+-            let first = module.top_level.statements[0]
+-                .tokens()
+-                .expect("original root command");
+-            let expected = if grammar.script_skips_leading_bom {
+-                "probe"
+-            } else {
+-                "\u{feff}probe"
+-            };
+-            assert_eq!(first.argv_texts[0], expected, "{name}");
+-            assert_eq!(&source[first.argv[0].as_range()], expected, "{name}");
+-            let later = module.top_level.statements[1]
+-                .tokens()
+-                .expect("original later command");
+-            assert_eq!(later.argv_texts[0], "\u{feff}probe", "{name}");
+-            assert_eq!(&source[later.argv[0].as_range()], "\u{feff}probe", "{name}");
+-        }
+-    }
+-
+-    #[test]
+     fn original_document_pipeline_keeps_config_withdrawal_terminal() {
+         // naming.source.original-configured-script-completeness
+         // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+         let source = "\u{feff}probe root";
+-        let mut result = run_pipeline(source, "tcl9.1");
++        let mut result = run_pipeline_core(source, "tcl9.1");
+         assert!(crate::serialise::retained_explorer_source(&result, source).is_some());
+         result.unit.ir_module.lexer_config.leading_bom = tcl_lexer::LeadingBom::Content;
+         assert!(crate::serialise::retained_explorer_source(&result, source).is_none());
+@@ -408,19 +364,9 @@
+     }
+ 
+     #[test]
+-    fn run_pipeline_top_level_only() {
+-        let result = run_pipeline("set x 1\nset y 2", "tcl8.6");
+-        let snapshots = result.snapshots();
+-        // Only the top-level function exists for a script with no procs.
+-        assert_eq!(snapshots.len(), 1);
+-        assert_eq!(snapshots[0].name, "::top");
+-        assert!(result.total_blocks() >= 1);
+-    }
+-
+-    #[test]
+     fn run_pipeline_collects_procedures_in_order() {
+         let src = "proc beta {} { return 2 }\nproc alpha {} { return 1 }\nalpha";
+-        let result = run_pipeline(src, "tcl8.6");
++        let result = run_pipeline_core(src, "tcl8.6");
+         let names: Vec<&str> = result.snapshots().iter().map(|s| s.name).collect();
+         // Top-level first, then procedures sorted by qualified name.
+         assert_eq!(names[0], "::top");
+@@ -436,7 +382,7 @@
+     fn deep_pipeline_preserves_the_actual_source_metadata_owner() {
+         // naming.compiler.original-analysis-metadata-context
+         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+-        let result = run_pipeline(
++        let result = run_pipeline_core(
+             "::puts TOP; proc p {} {::puts PROC}; namespace eval n {::puts BODY}",
+             "tcl8.6",
+         );
+@@ -476,7 +422,7 @@
+ 
+     #[test]
+     fn snapshots_retain_duplicate_procedures_and_named_top_separately() {
+-        let result = run_pipeline(
++        let result = run_pipeline_core(
+             "proc p {} {return FIRST}; proc p {} {return LAST}; proc ::top {} {return NAMED}",
+             "tcl8.6",
+         );
+@@ -518,9 +464,100 @@
+     }
+ 
+     #[test]
+-    fn unparseable_dialect_does_not_panic() {
+-        let result = run_pipeline("set x 1", "not-a-real-dialect");
+-        assert_eq!(result.dialect, "not-a-real-dialect");
+-        assert!(!result.snapshots().is_empty());
++    fn smoke_explorer_serialises_the_core_views() {
++        let result = run_pipeline_core("if {$x} { puts a } else { puts b }", "tcl8.6");
++        let value = serialise_result(&result);
++        assert!(value.get("meta").is_some());
++        assert!(value["ir"]["topLevel"].is_array());
++        let top = &value["cfgPreSsa"][0];
++        assert_eq!(top["name"], "::top");
++        assert_eq!(top["entry"], "entry_1");
++    }
++
++    /// The shipped entry point, which resolves the bundled pack set; every
++    /// other test here uses the pack-free registry.
++    mod bundled_pack_path {
++        use crate::run_pipeline;
++
++        #[test]
++        fn original_document_pipeline_keeps_root_and_later_bom_roles() {
++            // naming.source.original-configured-script-completeness
++            // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
++            // Original document carriers supply no Native handler receipt.
++            let source = "\u{feff}probe root\n\u{feff}probe later\n";
++            for name in [
++                "tcl8.4",
++                "tcl8.5",
++                "tcl8.6",
++                "tcl9.0",
++                "tcl9.1",
++                "jim",
++                "f5-irules",
++                "f5-iapps",
++                "f5-tmsh",
++            ] {
++                let environment = tcl_registry::model::ingress::resolve_known_environment(name)
++                    .expect("actual known provider source policy");
++                let grammar = environment.grammar();
++                let result = run_pipeline(source, name);
++                let module = &result.unit.ir_module;
++                assert_eq!(
++                    module.source,
++                    tcl_lexer::SourceImage::document(source),
++                    "{name}"
++                );
++                assert_eq!(
++                    module.lexer_config,
++                    tcl_lexer::LexerConfig::for_file_grammar(grammar),
++                    "{name}"
++                );
++                assert_eq!(
++                    module
++                        .source_metadata_input
++                        .as_ref()
++                        .unwrap()
++                        .lexer_config(),
++                    module.lexer_config,
++                    "{name}"
++                );
++                assert!(
++                    crate::serialise::retained_explorer_source(&result, source).is_some(),
++                    "{name}"
++                );
++                assert_eq!(module.top_level.statements.len(), 2, "{name}");
++                let first = module.top_level.statements[0]
++                    .tokens()
++                    .expect("original root command");
++                let expected = if grammar.script_skips_leading_bom {
++                    "probe"
++                } else {
++                    "\u{feff}probe"
++                };
++                assert_eq!(first.argv_texts[0], expected, "{name}");
++                assert_eq!(&source[first.argv[0].as_range()], expected, "{name}");
++                let later = module.top_level.statements[1]
++                    .tokens()
++                    .expect("original later command");
++                assert_eq!(later.argv_texts[0], "\u{feff}probe", "{name}");
++                assert_eq!(&source[later.argv[0].as_range()], "\u{feff}probe", "{name}");
++            }
++        }
++
++        #[test]
++        fn run_pipeline_top_level_only() {
++            let result = run_pipeline("set x 1\nset y 2", "tcl8.6");
++            let snapshots = result.snapshots();
++            // Only the top-level function exists for a script with no procs.
++            assert_eq!(snapshots.len(), 1);
++            assert_eq!(snapshots[0].name, "::top");
++            assert!(result.total_blocks() >= 1);
++        }
++
++        #[test]
++        fn unparseable_dialect_does_not_panic() {
++            let result = run_pipeline("set x 1", "not-a-real-dialect");
++            assert_eq!(result.dialect, "not-a-real-dialect");
++            assert!(!result.snapshots().is_empty());
++        }
+     }
+ }
+diff -ruN a/rust/tcl-explorer/src/render.rs b/rust/tcl-explorer/src/render.rs
+--- a/rust/tcl-explorer/src/render.rs	2026-10-19 10:47:46.000000000 +0000
++++ b/rust/tcl-explorer/src/render.rs	2026-10-19 11:02:04.689875582 +0000
+@@ -247,7 +247,7 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+-    use crate::{run_pipeline, serialise_result};
++    use crate::{run_pipeline_core as run_pipeline, serialise_result};
+ 
+     fn data(src: &str) -> Value {
+         serialise_result(&run_pipeline(src, "tcl8.6"))
+@@ -400,7 +400,7 @@
+         ] {
+             config.enable(pass);
+         }
+-        let result = crate::run_pipeline(SEALED_ADD, "tcl8.6");
++        let result = crate::run_pipeline_core(SEALED_ADD, "tcl8.6");
+         let data = crate::serialise::serialise_result_with_optimisations(&result, config);
+         let text = render_all(&data, &["aot".to_owned()], false);
+         assert_eq!(
+diff -ruN a/rust/tcl-explorer/src/serialise.rs b/rust/tcl-explorer/src/serialise.rs
+--- a/rust/tcl-explorer/src/serialise.rs	2026-10-19 10:47:46.000000000 +0000
++++ b/rust/tcl-explorer/src/serialise.rs	2026-10-19 11:02:51.762988988 +0000
+@@ -3974,7 +3974,7 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+-    use crate::run_pipeline;
++    use crate::run_pipeline_core as run_pipeline;
+ 
+     #[test]
+     fn taint_replay_availability_is_separate_from_empty_warning_arrays() {
+@@ -5570,7 +5570,7 @@
+         // naming.source.original-configured-script-completeness
+         // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+         // Explorer source display; fixed C9 structural indexes remain separate.
+-        let mut result = crate::run_pipeline("set x ${a{}", "tcl9.1");
++        let mut result = crate::run_pipeline_core("set x ${a{}", "tcl9.1");
+         result.unit.ir_module.lexer_config.braced_var = tcl_lexer::BracedVarStyle::FirstClose;
+         assert_eq!(
+             serialise_result(&result)["structuralIndex"]["scriptComplete"],
+@@ -5583,7 +5583,7 @@
+         );
+         result.source.push_str("foreign");
+         assert!(serialise_result(&result)["structuralIndex"]["scriptComplete"].is_null());
+-        let mut jim = crate::run_pipeline("set x 1", "jim");
++        let mut jim = crate::run_pipeline_core("set x 1", "jim");
+         jim.unit.ir_module.lexer_config.braced_var = tcl_lexer::BracedVarStyle::Tcl9Nesting;
+         assert!(serialise_result(&jim)["structuralIndex"]["scriptComplete"].is_null());
+     }
+@@ -5936,7 +5936,7 @@
+ 
+     #[test]
+     fn remaining_source_range_consumers_refuse_foreign_source_arguments() {
+-        let result = crate::run_pipeline("puts current", "tcl8.6");
++        let result = crate::run_pipeline_core("puts current", "tcl8.6");
+         let source = "puts foreign";
+         let li = LineIndex::new(source);
+         for (field, value) in [
+@@ -5953,7 +5953,8 @@
+ 
+     #[test]
+     fn retained_irules_warning_view_and_statistics_share_the_actual_count() {
+-        let mut result = crate::run_pipeline("when HTTP_REQUEST {set u [HTTP::uri]}", "f5-irules");
++        let mut result =
++            crate::run_pipeline_core("when HTTP_REQUEST {set u [HTTP::uri]}", "f5-irules");
+         let li = LineIndex::new(&result.source);
+         let warnings = serialise_irules_flow(&result, &li, &result.source);
+         let count = warnings
+@@ -5984,7 +5985,7 @@
+         assert!(serialise_bounds(&result).is_array());
+         // The original Module still owns its full source. Replacing just the
+         // independently supplied function withdraws the required FU join.
+-        let foreign = crate::run_pipeline("proc foreign {} {puts foreign}", "tcl9.1");
++        let foreign = crate::run_pipeline_core("proc foreign {} {puts foreign}", "tcl9.1");
+         result.unit.top_level = foreign.unit.top_level;
+         assert!(retained_explorer_source(&result, &result.source).is_some());
+         assert!(serialise_bounds(&result).is_null());
+diff -ruN a/rust/tcl-explorer/src/view_tree.rs b/rust/tcl-explorer/src/view_tree.rs
+--- a/rust/tcl-explorer/src/view_tree.rs	2026-10-19 10:47:46.000000000 +0000
++++ b/rust/tcl-explorer/src/view_tree.rs	2026-10-19 11:02:04.692251769 +0000
+@@ -2071,7 +2071,7 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+-    use crate::{run_pipeline, serialise_result};
++    use crate::{run_pipeline_core as run_pipeline, serialise_result};
+ 
+     fn data(src: &str) -> Value {
+         serialise_result(&run_pipeline(src, "tcl8.6"))
+@@ -2335,11 +2335,11 @@
+         // naming.source.original-configured-script-completeness
+         // docs/design/analysis/name-resolution-proofs/source-original-configured-script-completeness.md
+         // Display of the actual source query; no parser or execution authority.
+-        let mut result = crate::run_pipeline("set x 1", "tcl8.6");
++        let mut result = crate::run_pipeline_core("set x 1", "tcl8.6");
+         let view = build_structural_index(&crate::serialise::serialise_result(&result));
+         assert_eq!(view[0].label, "script complete: true");
+         assert_eq!(view[0].style.as_deref(), Some("green"));
+-        let incomplete = crate::run_pipeline("set x {", "tcl8.6");
++        let incomplete = crate::run_pipeline_core("set x {", "tcl8.6");
+         let view = build_structural_index(&crate::serialise::serialise_result(&incomplete));
+         assert_eq!(view[0].label, "script complete: false");
+         assert_eq!(view[0].style.as_deref(), Some("yellow"));
+diff -ruN a/rust/tcl-explorer/src/wasm_explorer.rs b/rust/tcl-explorer/src/wasm_explorer.rs
+--- a/rust/tcl-explorer/src/wasm_explorer.rs	2026-10-19 10:47:46.000000000 +0000
++++ b/rust/tcl-explorer/src/wasm_explorer.rs	2026-10-19 11:02:04.684518422 +0000
+@@ -559,7 +559,7 @@
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+-    use crate::run_pipeline;
++    use crate::run_pipeline_core as run_pipeline;
+ 
+     fn wasm_entries(src: &str) -> Vec<Value> {
+         let result = run_pipeline(src, "tcl8.6");
+diff -ruN a/scripts/dev/smoke-targets.tsv b/scripts/dev/smoke-targets.tsv
+--- a/scripts/dev/smoke-targets.tsv	2026-10-19 10:47:46.000000000 +0000
++++ b/scripts/dev/smoke-targets.tsv	2026-10-19 11:02:45.250784380 +0000
+@@ -7,6 +7,7 @@
+ rust/tcl-cshim/tests/factory.rs	tcl-cshim	test	factory
+ rust/tcl-cshim/tests/pkga_e2e.rs	tcl-cshim	test	pkga_e2e
+ rust/tcl-cshim/tests/sandbox_isolation.rs	tcl-cshim	test	sandbox_isolation
++rust/tcl-explorer/src/lib.rs	tcl-explorer	lib	tcl_explorer
+ rust/tcl-irule-test/src/embedded.rs	tcl-irule-test	lib	tcl_irule_test
+ rust/tcl-lexer/src/lexer.rs	tcl-lexer	lib	tcl_lexer
+ rust/tcl-lsp-core/src/hover.rs	tcl-lsp-core	lib	tcl_lsp_core

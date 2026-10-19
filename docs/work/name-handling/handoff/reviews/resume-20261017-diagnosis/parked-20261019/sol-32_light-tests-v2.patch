@@ -1,0 +1,1869 @@
+--- a/rust/tcl-compiler/src/interprocedural.rs
++++ b/rust/tcl-compiler/src/interprocedural.rs
+@@ -8113,6 +8113,34 @@
+             .unwrap();
+     }
+ 
++    /// Light companion of `deeply_nested_if_survives_interprocedural_scan`:
++    /// the same proc at twice the shared source nesting cap plus two, which is
++    /// already past every cap a source-built unit can reach.
++    #[test]
++    fn deeply_nested_if_survives_interprocedural_scan_light() {
++        const DEPTH: usize = 2 * crate::depth_guard::MAX_SOURCE_NEST_DEPTH.0 as usize + 2;
++        // The original's 64 MiB over 1000 levels, scaled to 130: the same
++        // per-level stack budget, so a walker overflows here when it would there.
++        const STACK_SIZE: usize = 8 * 1024 * 1024;
++        let mut src = "proc ::p {} {\n".to_owned();
++        for _ in 0..DEPTH {
++            src.push_str("if {1} {\n");
++        }
++        src.push_str("set done 1\n");
++        for _ in 0..DEPTH {
++            src.push_str("}\n");
++        }
++        src.push_str("}\n");
++        std::thread::Builder::new()
++            .stack_size(STACK_SIZE)
++            .spawn(move || {
++                let _ = build(&src);
++            })
++            .unwrap()
++            .join()
++            .unwrap();
++    }
++
+     /// `collect_instance_var_writes`
+     /// (the `TclOO` method-body instance-write scan) recurses once per
+     /// nested `if` body, so it needs a depth cap of its own.
+--- a/rust/tcl-compiler/src/interprocedural/completion.rs
++++ b/rust/tcl-compiler/src/interprocedural/completion.rs
+@@ -532,6 +532,33 @@
+         );
+     }
+ 
++    /// Light companion of
++    /// `a_callee_counts_as_defined_only_where_its_definition_surely_ran`: a
++    /// direct and an `eval` run route, the conditional definition and one
++    /// defined-first positive.
++    #[test]
++    fn a_callee_counts_as_defined_only_where_its_definition_surely_ran_light() {
++        // naming.interprocedural.original-procedure-completion-source-context
++        // docs/design/analysis/name-resolution-proofs/interprocedural-original-procedure-completion-source-context.md
++        // Conditional Logical model only; no Native invocation is asserted.
++        let main = "proc main {} {set a [label abc]; return 1}\n";
++        let label = "proc label {x} {return [string length $x]}\n";
++        for run in ["main\n", "set s main\neval $s\n"] {
++            let source = format!("{main}{run}{label}");
++            assert!(
++                !defined_for(&source, "::main", "::label"),
++                "{source:?}: `main` runs before `label` is defined"
++            );
++        }
++        let conditional = format!("if {{[info exists ::env(NOPE)]}} {{\n{label}}}\n{main}");
++        assert!(!defined_for(&conditional, "::main", "::label"));
++        let source = format!("{label}{main}main\n").replace("[label abc]", "[::label abc]");
++        assert!(
++            defined_for(&source, "::main", "::label"),
++            "{source:?}: `::label` is defined before `main` can run"
++        );
++    }
++
+     /// A word the release's parser rejects is a compile error when the body
+     /// is first compiled, so a body holding one never completes:
+     /// content welded to a closing quote or brace under every release, and
+--- a/rust/tcl-compiler/src/interprocedural/transfer.rs
++++ b/rust/tcl-compiler/src/interprocedural/transfer.rs
+@@ -2603,6 +2603,74 @@
+         }
+     }
+ 
++    /// Light companion of `summaries_compose_through_two_callees`: the 8.4
++    /// release, where `incr` of an unset variable raises, and the newest one.
++    #[test]
++    fn summaries_compose_through_two_callees_light() {
++        for environment in ["tcl8.4", "tcl9.1"] {
++            let summaries = summaries(CALLEES, environment);
++            let params = |qname: &str| -> Vec<ParamRole> {
++                summaries
++                    .get(qname)
++                    .unwrap_or_else(|| panic!("{environment}: {qname} has a summary"))
++                    .params
++                    .clone()
++            };
++            assert_eq!(
++                params("::bump"),
++                [name(&[BIND]), ParamRole::Value],
++                "{environment}"
++            );
++            assert_eq!(
++                params("::reset"),
++                [name(&[ExistenceOutcome::Unbind])],
++                "{environment}"
++            );
++            assert_eq!(params("::twice"), [name(&[BIND])], "{environment}");
++            assert_eq!(params("::renew"), [name(&[BIND])], "{environment}");
++            assert_eq!(
++                params("::clear"),
++                [name(&[ExistenceOutcome::Unbind])],
++                "{environment}"
++            );
++            assert_eq!(
++                params("::maybe"),
++                [
++                    name(&[ExistenceOutcome::MayBind(BindingKind::Either)]),
++                    ParamRole::Value
++                ],
++                "{environment}"
++            );
++            assert_eq!(
++                params("::ensure"),
++                [name(&[ExistenceOutcome::Bind(BindingKind::Either)])],
++                "{environment}"
++            );
++            assert_eq!(
++                params("::peek"),
++                [name(&[ExistenceOutcome::Preserve])],
++                "{environment}"
++            );
++            let twice = &summaries["::twice"];
++            assert_eq!(
++                twice
++                    .evidence
++                    .bindings
++                    .iter()
++                    .map(|binding| binding.name.as_str())
++                    .collect::<Vec<_>>(),
++                ["::bump"],
++                "{environment}: `twice` rests on `bump`"
++            );
++            assert_eq!(
++                twice.completion,
++                CompletionCodeDomain::Exact(NORMAL_OR_ERROR),
++                "{environment}"
++            );
++            assert!(twice.globals.is_empty(), "{environment}");
++        }
++    }
++
+     /// A procedure that reaches code the module cannot see, or a frame its
+     /// summary cannot name, has no summary, and neither has a caller of it.
+     #[test]
+--- a/rust/tcl-lsp-core/src/definition.rs
++++ b/rust/tcl-lsp-core/src/definition.rs
+@@ -9415,6 +9415,57 @@
+         }
+     }
+ 
++    /// Light companion of
++    /// `native_conditional_publication_navigation_preserves_source_table_refusals`:
++    /// the five source-table cases under the newest release only.
++    #[test]
++    fn native_conditional_publication_navigation_preserves_source_table_refusals_light() {
++        for release in ["tcl9.1"] {
++            for (source, needle, expected) in [
++                (
++                    "oo::class create C {}\nproc p {} {C new}\n",
++                    "C new",
++                    Some(0),
++                ),
++                (
++                    "proc p {} {Future new}\noo::class create Future {}\n",
++                    "Future new",
++                    Some(1),
++                ),
++                (
++                    "oo::class create C {}\nrename C {}\nproc p {} {C new}\n",
++                    "C new",
++                    None,
++                ),
++                (
++                    "oo::class create C {}\nproc C args {}\nproc p {} {C new}\n",
++                    "C new",
++                    Some(1),
++                ),
++                (
++                    "oo::class create C {}\nproc p {} {unknown_mutator; C new}\n",
++                    "C new",
++                    None,
++                ),
++            ] {
++                let analysis = Analyser::new().analyse(source, release);
++                assert!(!analysis.allows_lexical_declaration_advice());
++                let offset = u32::try_from(source.find(needle).unwrap()).unwrap();
++                let position = LineIndex::new(source).position_at_utf16(offset, source);
++                let selected =
++                    definition(source, position.line, position.character.get(), &analysis)
++                        .into_iter()
++                        .map(|range| range.start_line)
++                        .collect::<Vec<_>>();
++                assert_eq!(
++                    selected,
++                    expected.into_iter().collect::<Vec<_>>(),
++                    "{release}: {source}"
++                );
++            }
++        }
++    }
++
+     #[test]
+     fn logical_recorded_reads_use_the_same_root_current_and_unknown_source_tables() {
+         let analysis = Analyser::new().analyse(SCOPED, "tcl");
+@@ -9669,6 +9720,94 @@
+             let original = Analyser::new().analyse(SCOPED, release);
+             assert!(
+                 original
++                    .logical_variable_scope_advice(
++                        &image,
++                        original.body_lexer_config.unwrap(),
++                        offset
++                    )
++                    .is_none()
++            );
++        }
++        let mut detached = analysis.clone();
++        detached.resolved_input = None;
++        assert!(
++            detached
++                .logical_variable_scope_advice(&image, config, offset)
++                .is_none()
++        );
++        let stale = format!("{SCOPED} ");
++        assert!(
++            crate::rename::rename(
++                &stale,
++                analysis.resolved_profile().unwrap(),
++                line,
++                character,
++                "other",
++                &analysis,
++                None
++            )
++            .is_empty()
++        );
++    }
++
++    /// Light companion of
++    /// `logical_scope_selector_current_image_and_domain_do_not_grant_edits`: the
++    /// same refusals with one versioned Tcl release and one foreign family in
++    /// place of the full release list.
++    #[test]
++    fn logical_scope_selector_current_image_and_domain_do_not_grant_edits_light() {
++        let analysis = Analyser::new().analyse(SCOPED, "tcl");
++        let image = tcl_lexer::SourceImage::document(SCOPED);
++        let config = analysis.body_lexer_config.unwrap();
++        let (offset, line, character) = cursor(SCOPED, "uplevel #0 {puts $x");
++        assert!(
++            analysis
++                .logical_variable_scope_advice(&image, config, offset)
++                .is_some()
++        );
++        assert!(
++            analysis
++                .logical_variable_scope_advice(
++                    &tcl_lexer::SourceImage::document(&format!("{SCOPED} ")),
++                    config,
++                    offset
++                )
++                .is_none()
++        );
++        assert!(
++            analysis
++                .logical_variable_scope_advice(
++                    &tcl_lexer::SourceImage::native(SCOPED.as_bytes()),
++                    config,
++                    offset
++                )
++                .is_none()
++        );
++        assert!(
++            analysis
++                .logical_variable_scope_advice(
++                    &image,
++                    tcl_lexer::LexerConfig {
++                        strict_quoting: !config.strict_quoting,
++                        ..config
++                    },
++                    offset
++                )
++                .is_none()
++        );
++        assert!(
++            analysis
++                .logical_variable_scope_advice(
++                    &image,
++                    config,
++                    u32::try_from(SCOPED.len() + 1).unwrap()
++                )
++                .is_none()
++        );
++        for release in ["tcl8.6", "f5-iapps"] {
++            let original = Analyser::new().analyse(SCOPED, release);
++            assert!(
++                original
+                     .logical_variable_scope_advice(
+                         &image,
+                         original.body_lexer_config.unwrap(),
+--- a/rust/tcl-lsp-core/src/document_symbols.rs
++++ b/rust/tcl-lsp-core/src/document_symbols.rs
+@@ -1434,6 +1434,72 @@
+             .unwrap();
+     }
+ 
++    /// Light companion of `deeply_nested_namespaces_produce_a_symbol_tree`:
++    /// the outline walk itself, without the analyser, over a synthetic
++    /// namespace tree two levels deeper than `MAX_SCOPE_WALK_DEPTH`. The walk
++    /// returns and its own cap truncates the outline.
++    #[test]
++    fn deeply_nested_namespaces_produce_a_symbol_tree_light() {
++        const STACK_SIZE: usize = 64 * 1024 * 1024;
++        let depth = usize::try_from(crate::MAX_SCOPE_WALK_DEPTH.0).unwrap() + 2;
++        let mut source = String::new();
++        let mut body_starts = Vec::with_capacity(depth);
++        for level in 0..depth {
++            let _ = writeln!(source, "namespace eval ns{level} {{");
++            body_starts.push(source.len());
++        }
++        let mut body_ends = vec![0; depth];
++        for end in body_ends.iter_mut().rev() {
++            *end = source.len();
++            source.push_str("}\n");
++        }
++        let offset = |at: usize| u32::try_from(at).unwrap();
++        let mut nested: Option<Scope> = None;
++        for level in (0..depth).rev() {
++            let mut scope = Scope::new(ScopeKind::Namespace, format!("ns{level}"));
++            scope.body_span = Some(Span::new(
++                offset(body_starts[level]),
++                offset(body_ends[level]),
++            ));
++            scope.children.extend(nested.take());
++            nested = Some(scope);
++        }
++        let mut global = Scope::new(ScopeKind::Global, "::");
++        global.children.extend(nested);
++        std::thread::Builder::new()
++            .stack_size(STACK_SIZE)
++            .spawn(move || {
++                let line_index = LineIndex::new(&source);
++                let mut rehomed = Vec::new();
++                let symbols = scope_symbols(
++                    &source,
++                    &global,
++                    &line_index,
++                    ScopePos {
++                        depth: 0,
++                        namespace: "::",
++                    },
++                    &mut SymbolCtx {
++                        rehomed: &mut rehomed,
++                    },
++                );
++                assert!(!symbols.is_empty());
++                let mut levels = 0;
++                let mut node = symbols.first();
++                while let Some(symbol) = node {
++                    levels += 1;
++                    node = symbol.children.first();
++                }
++                assert!(
++                    levels < depth,
++                    "the walk's cap truncates the outline: {levels} of {depth} levels"
++                );
++            })
++            .unwrap()
++            .join()
++            .unwrap();
++    }
++
+     #[test]
+     fn proc_symbol_range_contains_selection_range() {
+         let source = "proc greet {name} {\n    puts \"Hello $name\"\n}\n";
+--- a/rust/tcl-lsp-core/src/package_resolver/original_names.rs
++++ b/rust/tcl-lsp-core/src/package_resolver/original_names.rs
+@@ -1033,6 +1033,134 @@
+         }
+     }
+ 
++    /// Light companion of
++    /// `original_package_requirement_closure_keeps_versions_and_preference`: the
++    /// same selections and closures under the newest release only.
++    #[test]
++    fn original_package_requirement_closure_keeps_versions_and_preference_light() {
++        // The shared candidate owner also serves exact_require_selects_that_release_or_nothing
++        // and prefer_latest_selects_the_prerelease in package_resolver::tests;
++        // those tests retain their concrete C Tcl version-selection controls.
++        let index = "package ifneeded w 1.2 {source stable.tcl}\npackage ifneeded w 1.3b1 {source beta.tcl}\npackage ifneeded w 2.0 {source major.tcl}\npackage ifneeded dep 1.0 {source dep-old.tcl}\npackage ifneeded dep 2.0 {source dep-new.tcl}";
++        for version in [tcl_dialect::TclVersion::V9_1] {
++            let mut resolver = PackageResolver::new();
++            resolver.add_original_pkg_index(
++                index,
++                Path::new("/library"),
++                Path::new("/library/pkgIndex.tcl"),
++                &|_| true,
++                &|_| Vec::new(),
++            );
++            let entries = original_package_entries(
++                index,
++                Path::new("/library"),
++                Path::new("/library/pkgIndex.tcl"),
++                &|_| true,
++                &|_| Vec::new(),
++                version,
++            );
++            let key = |name: &str| {
++                PackageRequirementAdviceKey::Original(
++                    entries
++                        .iter()
++                        .find(|entry| entry.name().matches_ascii(name))
++                        .expect("authentic original registration")
++                        .name()
++                        .clone(),
++                )
++            };
++            let require = |name: &str, alternatives: &[&str], exact, prefer| {
++                PackageRequirementAdvice::new(
++                    key(name),
++                    alternatives
++                        .iter()
++                        .map(|version| (*version).to_owned())
++                        .collect(),
++                    exact,
++                    prefer,
++                )
++            };
++            let exact = require("w", &["1.2"], true, super::super::PackagePrefer::Latest);
++            let stable = require("w", &["1.0"], false, super::super::PackagePrefer::Stable);
++            let latest = require("w", &["1.0"], false, super::super::PackagePrefer::Latest);
++            let alternatives = require(
++                "w",
++                &["0.9", "2.0"],
++                false,
++                super::super::PackagePrefer::Stable,
++            );
++            assert_eq!(
++                resolver.resolve_requirement_advice(&exact, Some(version)),
++                vec![PathBuf::from("/library/stable.tcl")]
++            );
++            assert_eq!(
++                resolver.resolve_requirement_advice(&stable, Some(version)),
++                vec![PathBuf::from("/library/stable.tcl")]
++            );
++            assert_eq!(
++                resolver.resolve_requirement_advice(&latest, Some(version)),
++                vec![PathBuf::from("/library/beta.tcl")]
++            );
++            assert_eq!(
++                resolver.resolve_requirement_advice(&alternatives, Some(version)),
++                vec![PathBuf::from("/library/major.tcl")]
++            );
++            let dependency = require("dep", &["1.0"], true, super::super::PackagePrefer::Stable);
++            let available =
++                resolver.transitive_requirement_advice(&[latest.clone()], Some(version), &|file| {
++                    if file == Path::new("/library/beta.tcl") {
++                        vec![dependency.clone()]
++                    } else if file == Path::new("/library/dep-old.tcl") {
++                        vec![exact.clone()]
++                    } else if file == Path::new("/library/stable.tcl") {
++                        vec![latest.clone()]
++                    } else {
++                        panic!("constraints must not visit {file:?}")
++                    }
++                });
++            assert_eq!(available, HashSet::from([latest, dependency, exact]));
++            let foreign_key = tcl_registry::native_package::NativePackageNameKey::from_native_units(
++                b"dep",
++                NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4),
++            );
++            let foreign = PackageRequirementAdvice::new(
++                PackageRequirementAdviceKey::Original(foreign_key),
++                vec!["1.0".to_owned()],
++                true,
++                super::super::PackagePrefer::Latest,
++            );
++            let unknown = foreign.clone().unknown();
++            let available =
++                resolver.transitive_requirement_advice(&[stable.clone()], Some(version), &|file| {
++                    assert_eq!(file, Path::new("/library/stable.tcl"));
++                    vec![foreign.clone()]
++                });
++            assert_eq!(available, HashSet::from([stable, unknown]));
++
++            let root = require("w", &["1.0"], false, super::super::PackagePrefer::Stable);
++            let raised = require("dep", &["1.0"], true, super::super::PackagePrefer::Latest);
++            let after_raise = require("w", &["1.0"], false, super::super::PackagePrefer::Latest);
++            let available = resolver.transitive_requirement_advice_with_context(
++                &[root.clone()],
++                Some(version),
++                &|file, parent| {
++                    if file == Path::new("/library/stable.tcl") {
++                        assert_eq!(parent.prefer(), super::super::PackagePrefer::Stable);
++                        vec![raised.clone()]
++                    } else if file == Path::new("/library/dep-old.tcl") {
++                        assert_eq!(parent.prefer(), super::super::PackagePrefer::Latest);
++                        vec![after_raise.clone()]
++                    } else {
++                        assert_eq!(file, Path::new("/library/beta.tcl"));
++                        assert_eq!(parent.prefer(), super::super::PackagePrefer::Latest);
++                        Vec::new()
++                    }
++                },
++            );
++            assert_eq!(available, HashSet::from([root, raised, after_raise]));
++        }
++    }
++
+     #[test]
+     fn original_package_keys_keep_opaque_names_and_nested_source_owners() {
+         let source = r"if {1} {package ifneeded p\uD800 1.0 {source a.tcl}}\npackage ifneeded p\uD801 2.0 {source b.tcl}".replace("\\n", "\n");
+@@ -1373,6 +1501,72 @@
+             }
+             for source in [
+                 "set auto_index(p) [list unknown $dir/p.tcl]",
++                "set auto_index(p) [list source $unknown]",
++                "set auto_index(p) [list source [file join $dir $unknown]]",
++                "set auto_index(p) [list source [file join $dir p.tcl] EXTRA]",
++                "set auto_index(p) [list source {*}$unknown]",
++                "proc list args {return OTHER}; set auto_index(p) [list source [file join $dir p.tcl]]",
++                "proc file args {return OTHER}; set auto_index(p) [list source [file join $dir p.tcl]]",
++                "interp alias {} joiner {} file join; set auto_index(p) [list source [joiner $dir p.tcl]]",
++                "interp alias {} builder {} list source; set auto_index(p) [builder [file join $dir p.tcl]]",
++            ] {
++                assert!(
++                    original_index_entries(
++                        source,
++                        Path::new("/library"),
++                        &|_| true,
++                        config,
++                        NamePolicyProtocol::authored_tcl(version),
++                    )
++                    .is_empty(),
++                    "{version:?}: {source}"
++                );
++            }
++        }
++    }
++
++    /// Light companion of
++    /// `original_index_source_operand_grammar_and_real_producers_refuse_guessed_filenames`:
++    /// the option grammar on every release, and the refused producers on the
++    /// newest release only.
++    #[test]
++    fn original_index_source_operand_grammar_and_real_producers_refuse_guessed_filenames_light() {
++        for version in tcl_dialect::TclVersion::ALL {
++            let config = LexerConfig::from_grammar(
++                tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
++            );
++            for (option, accepted) in [
++                ("-encoding utf-8", version != tcl_dialect::TclVersion::V8_4),
++                (
++                    "-nopkg",
++                    matches!(
++                        version,
++                        tcl_dialect::TclVersion::V9_0 | tcl_dialect::TclVersion::V9_1
++                    ),
++                ),
++                ("-encoding utf-8 -nopkg", false),
++            ] {
++                let source = format!(
++                    "set auto_index(p) [list source {option} [file join $dir {{ spaced.tcl }}]]"
++                );
++                let entries = original_index_entries(
++                    &source,
++                    Path::new("/library"),
++                    &|path| path == Path::new("/library/ spaced.tcl "),
++                    config,
++                    NamePolicyProtocol::authored_tcl(version),
++                );
++                assert_eq!(
++                    entries.len(),
++                    usize::from(accepted),
++                    "{version:?}: {source}"
++                );
++            }
++            if version != tcl_dialect::TclVersion::V9_1 {
++                continue;
++            }
++            for source in [
++                "set auto_index(p) [list unknown $dir/p.tcl]",
+                 "set auto_index(p) [list source $unknown]",
+                 "set auto_index(p) [list source [file join $dir $unknown]]",
+                 "set auto_index(p) [list source [file join $dir p.tcl] EXTRA]",
+--- a/rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs
++++ b/rust/tcl-lsp-core/src/package_resolver/original_names/file_candidates.rs
+@@ -388,6 +388,67 @@
+         }
+     }
+ 
++    /// Light companion of
++    /// `original_package_files_keep_source_ordinals_data_and_directory_hints_distinct`:
++    /// the oldest and newest releases only.
++    #[test]
++    fn original_package_files_keep_source_ordinals_data_and_directory_hints_distinct_light() {
++        // Implementation contract: naming.package.original-file-candidate-provenance
++        // docs/design/analysis/name-resolution-proofs/original-package-file-candidate-provenance.md
++        for version in [TclVersion::V8_4, TclVersion::V9_1] {
++            let source = "package ifneeded P 1.0 {source actual.tcl; set data {source inert.tcl}; puts source}\n";
++            let entries = super::super::original_package_entries(
++                source,
++                Path::new("/library"),
++                Path::new("/library/pkgIndex.tcl"),
++                &|_| true,
++                &|_| Vec::new(),
++                version,
++            );
++            let entry = entries.first().expect("original package declaration");
++            assert_eq!(
++                entry
++                    .file_candidates()
++                    .iter()
++                    .map(|file| file.path())
++                    .collect::<Vec<_>>(),
++                [Path::new("/library/actual.tcl")],
++                "{version:?}"
++            );
++            let file = &entry.file_candidates()[0];
++            assert_eq!(file.kind(), OriginalPackageFileCandidateKind::SourceOperand);
++            assert!(file.source_schema().is_some());
++            assert!(file.original_operand().is_some());
++            assert!(file.matches_source(
++                &SourceImage::document(source),
++                analysis(source, version).body_lexer_config.unwrap()
++            ));
++
++            let source = "package ifneeded P 1.0 {set data {source inert.tcl}; puts source}";
++            let entries = super::super::original_package_entries(
++                source,
++                Path::new("/library"),
++                Path::new("/library/pkgIndex.tcl"),
++                &|_| true,
++                &|_| {
++                    vec![
++                        PathBuf::from("/library/pkgIndex.tcl"),
++                        PathBuf::from("/library/advice.tcl"),
++                    ]
++                },
++                version,
++            );
++            let files = entries[0].file_candidates();
++            assert_eq!(files.len(), 1);
++            assert_eq!(files[0].path(), Path::new("/library/advice.tcl"));
++            assert_eq!(
++                files[0].kind(),
++                OriginalPackageFileCandidateKind::DirectoryHint
++            );
++            assert!(files[0].source_schema().is_none() && files[0].original_operand().is_none());
++        }
++    }
++
+     #[test]
+     fn original_package_file_scanner_keeps_the_full_input_generation() {
+         // naming.package.original-file-candidate-provenance
+--- a/rust/tcl-lsp-core/src/package_resolver/tests.rs
++++ b/rust/tcl-lsp-core/src/package_resolver/tests.rs
+@@ -190,6 +190,27 @@
+     );
+ }
+ 
++/// Light companion of `parse_pkg_index_survives_deeply_nested_source_wrapper`:
++/// twice `MAX_SOURCE_TARGET_SCAN_DEPTH` plus two wrappers, past every 256
++/// cap with a margin.
++#[test]
++fn parse_pkg_index_survives_deeply_nested_source_wrapper_light() {
++    const DEPTH: usize = 2 * MAX_SOURCE_TARGET_SCAN_DEPTH.0 as usize + 2;
++    let mut body = String::from("source $dir/x.tcl");
++    for _ in 0..DEPTH {
++        body = format!("[list {body}]");
++    }
++    let content = format!("package ifneeded p 1.0 {body}");
++    let dir = Path::new("/pkg");
++    let _ = parse_pkg_index(
++        &content,
++        dir,
++        &dir.join("pkgIndex.tcl"),
++        &always_exists,
++        &no_tcl_files,
++    );
++}
++
+ #[test]
+ fn parse_pkg_index_standard_form() {
+     // The canonical `pkg_mkIndex` output shape.
+--- a/rust/tcl-lsp-core/src/refactor/inline_variable.rs
++++ b/rust/tcl-lsp-core/src/refactor/inline_variable.rs
+@@ -1013,6 +1013,27 @@
+         let _ = walk_scopes(&analysis.global_scope);
+     }
+ 
++    /// Light companion of `deeply_nested_namespaces_survive_scope_walk`: a
++    /// synthetic scope tree as deep as the analyser can build (its shared
++    /// source nesting cap of 64, plus two), walked on the default test thread
++    /// without running the analyser.
++    #[test]
++    fn deeply_nested_namespaces_survive_scope_walk_light() {
++        const DEPTH: usize = 66;
++        let mut nested: Option<Scope> = None;
++        for level in (0..DEPTH).rev() {
++            let mut scope = Scope::new(
++                tcl_compiler::analyser::ScopeKind::Namespace,
++                format!("ns{level}"),
++            );
++            scope.children.extend(nested.take());
++            nested = Some(scope);
++        }
++        let mut global = Scope::new(tcl_compiler::analyser::ScopeKind::Global, "::");
++        global.children.extend(nested);
++        let _ = walk_scopes(&global);
++    }
++
+     #[test]
+     fn inline_single_use() {
+         let source = "set name \"hello\"\nputs $name";
+--- a/rust/tcl-lsp-core/src/signature_help.rs
++++ b/rust/tcl-lsp-core/src/signature_help.rs
+@@ -694,6 +694,57 @@
+         }
+     }
+ 
++    /// Light companion of
++    /// `signature_subcommands_use_original_values_and_shared_prefix_rules`: the
++    /// pre-ensemble 8.4 release and the newest one.
++    #[test]
++    fn signature_subcommands_use_original_values_and_shared_prefix_rules_light() {
++        for dialect in ["tcl8.4", "tcl9.1"] {
++            let profile = crate::profile_for_dialect(dialect);
++            let registry = crate::registry_for_dialect_profile(profile);
++            for source in [
++                "string le value",
++                r#""string" "le" value"#,
++                r"\x73tring \u006ce value",
++            ] {
++                let mut analyser = Analyser::new();
++                let analysis = analyser.analyse(source, dialect);
++                let help = signature_help(
++                    source,
++                    0,
++                    u32::try_from(source.len()).unwrap(),
++                    &analysis,
++                    Some(registry),
++                )
++                .unwrap();
++                assert!(
++                    help.signatures[0].label.contains("length"),
++                    "{dialect} {source:?}"
++                );
++            }
++            for source in [
++                "string l value",
++                "string $selector value",
++                r"string le\u0000tail value",
++                "string {le\0tail} value",
++            ] {
++                let mut analyser = Analyser::new();
++                let analysis = analyser.analyse(source, dialect);
++                assert!(
++                    signature_help(
++                        source,
++                        0,
++                        u32::try_from(source.len()).unwrap(),
++                        &analysis,
++                        Some(registry)
++                    )
++                    .is_none(),
++                    "{dialect} {source:?}"
++                );
++            }
++        }
++    }
++
+     #[test]
+     fn original_signature_argument_mapping_keeps_captured_prefixes_without_source_anchors() {
+         // Implementation contract: naming.consumer.original-signature-argument-mapping
+--- a/rust/tcl-lsp-core/src/workspace_symbols.rs
++++ b/rust/tcl-lsp-core/src/workspace_symbols.rs
+@@ -665,4 +665,29 @@
+                 .collect(),
+         );
+     }
++
++    /// Light companion of `the_result_cap_holds_and_truncates_by_document`:
++    /// three documents of three procedures, capped inside the second document.
++    #[test]
++    fn the_result_cap_holds_and_truncates_by_document_light() {
++        let mut index = WorkspaceIndex::new();
++        for doc in 0..3 {
++            let src = (0..3).fold(String::new(), |mut src, n| {
++                use std::fmt::Write;
++                let _ = writeln!(src, "proc p{doc}_{n} {{}} {{}}");
++                src
++            });
++            let analysis = analyse(&src);
++            index.add_document(&format!("file:///d{doc}.tcl"), &analysis);
++        }
++        assert_eq!(index.symbols_matching("", 9).len(), 9);
++        let capped = index.symbols_matching("", 4);
++        assert_eq!(capped.len(), 4);
++        let uris: std::collections::BTreeSet<&str> =
++            capped.iter().map(|s| s.uri.as_str()).collect();
++        assert_eq!(
++            uris,
++            ["file:///d0.tcl", "file:///d1.tcl"].into_iter().collect(),
++        );
++    }
+ }
+--- a/rust/tcl-lsp-db/src/lib.rs
++++ b/rust/tcl-lsp-db/src/lib.rs
+@@ -8217,6 +8217,80 @@
+         }
+     }
+ 
++    /// Deterministic light companion of
++    /// `compiler_check_incremental_matches_fresh_under_edits`: one fixed edit
++    /// script over the same four slots that crosses each cascade edge once. The
++    /// callee flips passthrough, constant and arity-2 under the tainted caller;
++    /// the leaf flips global write and pure under the benign caller; then the
++    /// const-branch caller, both `calc` variants and a removed callee. The
++    /// script opens on the initial state, so every edit after it, the first
++    /// passthrough-to-constant flip included, is checked against a warm cache.
++    #[test]
++    fn compiler_check_incremental_matches_fresh_under_edits_light() {
++        use salsa::Setter as _;
++        let dialect = "tcl8.6";
++        let pass_variants = [
++            "",
++            "proc pass {x} { return $x }\n",
++            "proc pass {x} { return ok }\n",
++            "proc pass {x y} { return $x$y }\n",
++        ];
++        let leaf_variants = [
++            "",
++            "proc leaf {} { global g; incr g }\n",
++            "proc leaf {} { set z 1 }\n",
++        ];
++        let caller_variants = [
++            "",
++            "proc caller {} { set u [gets stdin]; set p [pass $u]; exec $p }\n",
++            "proc caller {} { leaf; set v [pass ok]; return $v }\n",
++            "proc caller {} { if {1} { return 1 }\n return [pass 2] }\n",
++        ];
++        let calc_variants = [
++            "",
++            "proc calc {n} { set acc 0\n for {set i 0} {$i < $n} {incr i} { set acc [expr {$acc + $i}] }\n return $acc }\n",
++            "proc calc {n} { if {1} { set y 1 }\n return $y }\n",
++        ];
++        let assemble = |s: &[usize; 4]| -> String {
++            format!(
++                "{}{}{}{}",
++                pass_variants[s[0]],
++                leaf_variants[s[1]],
++                caller_variants[s[2]],
++                calc_variants[s[3]],
++            )
++        };
++        let script = [
++            [1, 1, 1, 1],
++            [2, 1, 1, 1],
++            [3, 1, 1, 1],
++            [1, 1, 1, 1],
++            [1, 1, 2, 1],
++            [1, 2, 2, 1],
++            [1, 1, 2, 1],
++            [1, 1, 3, 1],
++            [1, 1, 3, 2],
++            [0, 1, 3, 2],
++        ];
++        let mut db = TclDatabase::default();
++        let registry = db.registry(dialect);
++        let file = SourceFile::new(&db, assemble(&[1, 1, 1, 1]), dialect.to_owned(), None);
++        for (step, state) in script.iter().enumerate() {
++            let src = assemble(state);
++            file.set_text(&mut db).to(src.clone());
++            let got = compiler_check_diagnostics(&db, file, cfg(&db));
++            let want = compiler_check_diagnostics_uncached(&src, registry, dialect, None, None);
++            assert_eq!(
++                got.checks, want.checks,
++                "step {step}: checks diverge from fresh build for state {state:?}:\n{src}"
++            );
++            assert_eq!(
++                got.optimisations, want.optimisations,
++                "step {step}: optimisations diverge from fresh build for state {state:?}:\n{src}"
++            );
++        }
++    }
++
+     /// The taint cascade memoises: a body edit to a procedure that no other
+     /// procedure's taint depends on must **not** re-execute the unrelated
+     /// procedures' `taint_cascade` (they reuse their cached taints), whereas the
+@@ -9387,6 +9461,68 @@
+         }
+     }
+ 
++    /// Deterministic light companion of
++    /// `project_diagnostics_incremental_matches_fresh_under_edits`: `b` visits
++    /// every variant in order, then revisits the empty file and crosses the
++    /// namespace and flat definitions once more.
++    #[test]
++    fn project_diagnostics_incremental_matches_fresh_under_edits_light() {
++        use salsa::Setter as _;
++        // `a` calls four commands; `set` is a builtin, the rest resolve only if
++        // `b` defines them.
++        let a_text = "alpha 1\nbeta 2\ngamma 3\nset x 4\ndelta 5\n";
++        let b_variants = [
++            "",
++            "proc alpha {x} {}\n",
++            "proc alpha {x} {}\nproc beta {y} {}\n",
++            "proc beta {y} {}\nproc gamma {z} {}\n",
++            "namespace eval ns { proc delta {q} {} }\n",
++            "proc alpha {x} {}\nproc beta {y} {}\nproc gamma {z} {}\nproc delta {q} {}\n",
++        ];
++        let mk = |b_text: &str| -> Vec<(String, u32, u32, String)> {
++            let db = TclDatabase::default();
++            let cfg = AnalyserConfig::new(
++                &db,
++                Vec::new(),
++                NonAsciiMode::Default,
++                Vec::new(),
++                None,
++                None,
++                0,
++                Vec::new(),
++                Vec::new(),
++            );
++            let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
++            let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned(), None);
++            let project = Project::new(&db, vec![a, b]);
++            diag_keys(&project_diagnostics(&db, a, cfg, project))
++        };
++
++        let mut db = TclDatabase::default();
++        let cfg = AnalyserConfig::new(
++            &db,
++            Vec::new(),
++            NonAsciiMode::Default,
++            Vec::new(),
++            None,
++            None,
++            0,
++            Vec::new(),
++            Vec::new(),
++        );
++        let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
++        let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned(), None);
++        let project = Project::new(&db, vec![a, b]);
++
++        for variant in [1, 2, 3, 4, 5, 0, 3, 4] {
++            let b_text = b_variants[variant];
++            b.set_text(&mut db).to(b_text.to_owned());
++            let inc = diag_keys(&project_diagnostics(&db, a, cfg, project));
++            let fresh = mk(b_text);
++            assert_eq!(inc, fresh, "incremental != fresh after b = {b_text:?}");
++        }
++    }
++
+     /// Cross-file differential, both files edited: the
+     /// stronger sibling of the B-only fuzzer above — drive a 2-file project through
+     /// independent edits to **both** the calling file (`a`) and the defining file
+@@ -9476,6 +9612,94 @@
+         }
+     }
+ 
++    /// Deterministic light companion of
++    /// `project_diagnostics_incremental_matches_fresh_both_files_edited`: `b`
++    /// visits every variant under the first caller, the wrong-arity caller
++    /// sees three of them, one round edits both files, and caller-only edits
++    /// visit the remaining callers.
++    #[test]
++    fn project_diagnostics_incremental_matches_fresh_both_files_edited_light() {
++        use salsa::Setter as _;
++        // Caller variants: vary which commands are called and with how many args
++        // (so the cross-file arity error path is exercised, not just W123).
++        let a_variants = [
++            "alpha 1\nbeta 2\n",
++            "alpha 1 2 3\nbeta\n", // wrong arg counts → arity error once resolved
++            "alpha\nset x 1\ngamma 9\n", // gamma may be unresolved → W123
++            "beta 1 2\nalpha 7\n",
++            "",
++        ];
++        // Defining variants: vary which procs exist and their arities.
++        let b_variants = [
++            "",
++            "proc alpha {x} {}\n",
++            "proc alpha {x} {}\nproc beta {y z} {}\n",
++            "proc alpha {a b c} {}\nproc beta {} {}\nproc gamma {q} {}\n",
++            "proc alpha {args} {}\nproc beta {x {y 1}} {}\n",
++        ];
++        let mk = |a_text: &str, b_text: &str| -> Vec<(String, u32, u32, String)> {
++            let db = TclDatabase::default();
++            let cfg = AnalyserConfig::new(
++                &db,
++                Vec::new(),
++                NonAsciiMode::Default,
++                Vec::new(),
++                None,
++                None,
++                0,
++                Vec::new(),
++                Vec::new(),
++            );
++            let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
++            let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned(), None);
++            let project = Project::new(&db, vec![a, b]);
++            diag_keys(&project_diagnostics(&db, a, cfg, project))
++        };
++
++        let mut db = TclDatabase::default();
++        let cfg = AnalyserConfig::new(
++            &db,
++            Vec::new(),
++            NonAsciiMode::Default,
++            Vec::new(),
++            None,
++            None,
++            0,
++            Vec::new(),
++            Vec::new(),
++        );
++        let a = SourceFile::new(&db, a_variants[0].to_owned(), "tcl8.6".to_owned(), None);
++        let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned(), None);
++        let project = Project::new(&db, vec![a, b]);
++
++        for (a_edit, b_edit) in [
++            (None, Some(1)),
++            (None, Some(2)),
++            (None, Some(3)),
++            (None, Some(4)),
++            (Some(1), None),
++            (None, Some(2)),
++            (None, Some(0)),
++            (Some(2), Some(3)),
++            (Some(3), None),
++            (Some(4), None),
++            (Some(0), None),
++        ] {
++            if let Some(variant) = a_edit {
++                a.set_text(&mut db).to(a_variants[variant].to_owned());
++            }
++            if let Some(variant) = b_edit {
++                b.set_text(&mut db).to(b_variants[variant].to_owned());
++            }
++            // Read back the *current* committed texts for the fresh comparison.
++            let cur_a = a.text(&db).clone();
++            let cur_b = b.text(&db).clone();
++            let inc = diag_keys(&project_diagnostics(&db, a, cfg, project));
++            let fresh = mk(&cur_a, &cur_b);
++            assert_eq!(inc, fresh, "incremental != fresh: a={cur_a:?} b={cur_b:?}");
++        }
++    }
++
+     /// Cross-file arity: a call to a workspace-defined
+     /// proc with the wrong argument count emits the analyser's arity error
+     /// (`E003` too many here) — *not* the unrelated `W124` IP-literal warning — and
+@@ -10764,6 +10988,214 @@
+             "package require struct::tree; proc cb {x y} {}; struct::tree t; t walkproc root ::cb",
+         ] {
+             // These library descriptors remain available in the closed model.
++            // Its supplied input cannot borrow the other source producer's receipts.
++            let mut analysis = analyse(source, Arc::clone(&available));
++            assert!(
++                analysis.matches_original_source_image(
++                    &tcl_lexer::SourceImage::document(source),
++                    config,
++                )
++            );
++            let supplied = input(Arc::clone(&unavailable));
++            analysis.resolved_input = Some(supplied.clone());
++            assert!(
++                analysis.resolved_input.as_ref() == Some(&supplied),
++                "{source}: exact retained editing input"
++            );
++            let resolved = analysis.resolved_input.as_ref().unwrap();
++            let current = resolved.context_registry();
++            assert!(Arc::ptr_eq(current.commands(), &commands));
++            assert_eq!(resolved.lexer_config(), config);
++            assert_eq!(resolved.vendor_source_policy(), None);
++            assert!(!resolved.has_hosted_source_name_context());
++            for command in [
++                "smtp::sendmessage",
++                "mime::getbody",
++                "struct::graph",
++                "struct::tree",
++            ] {
++                assert!(
++                    current.context().resolve_spec(&commands, command).is_some(),
++                    "{source}: ordinary library metadata remains available"
++                );
++            }
++            assert!(
++                !analysis
++                    .retained_command_realm()
++                    .unwrap()
++                    .matches_resolved_analysis_input(&supplied)
++            );
++            assert!(
++                !analysis.matches_original_source_image(
++                    &tcl_lexer::SourceImage::document(source),
++                    config
++                )
++            );
++            assert!(
++                analysis
++                    .original_procedure_declarations()
++                    .any(|declaration| declaration.metadata().qualified_name == "::cb")
++            );
++            let control_source = format!(
++                "proc availability_control {{x}} {{}}; lsort -command ::availability_control {{2 1}}; {source}"
++            );
++            let control = analyse(&control_source, Arc::clone(&available));
++            assert!(control.matches_original_source_image(
++                &tcl_lexer::SourceImage::document(&control_source),
++                config
++            ));
++            let control_diagnostics = project_callback_diagnostics_for_analysis(
++                &db,
++                project,
++                &control_source,
++                &control,
++                |_| false,
++            );
++            assert!(
++                control_diagnostics.iter().any(|diagnostic| {
++                    diagnostic.code == DiagCode::E003
++                        && diagnostic.callback_source_arity().is_some_and(|subject| {
++                            subject.prefix().name_input().bytes() == b"::availability_control"
++                                && subject.source_lookup().is_some()
++                        })
++                }),
++                "{control_source}"
++            );
++            let diagnostics = diagnostics_for(source, &analysis);
++            assert!(
++                !diagnostics
++                    .iter()
++                    .any(|(code, _)| code == "E002" || code == "E003"),
++                "{source}: {diagnostics:?}"
++            );
++        }
++        for source in [
++            "package require smtp; proc cb {x} {}; smtp::sendmessage $t -tlspolicy ::cb",
++            "package require mime; proc cb {} {}; mime::getbody $t -command ::cb",
++            "package require struct::graph; proc cb {x y} {}; struct::graph g; g walk root -command ::cb",
++            "package require struct::tree; proc cb {x y} {}; struct::tree t; t walkproc root ::cb",
++        ] {
++            let analysis = analyse(source, Arc::clone(&available));
++            let diagnostics = diagnostics_for(source, &analysis);
++            assert!(
++                diagnostics.iter().any(|(code, _)| code == "E003"),
++                "{source}: {diagnostics:?}"
++            );
++            let mut missing = analysis.clone();
++            missing.resolved_input = None;
++            assert!(
++                !diagnostics_for(source, &missing)
++                    .iter()
++                    .any(|(code, _)| code == "E002" || code == "E003")
++            );
++            let mut foreign = analysis.clone();
++            foreign.resolved_input = Some(input(Arc::clone(&unavailable)));
++            assert!(
++                !diagnostics_for(source, &foreign)
++                    .iter()
++                    .any(|(code, _)| code == "E002" || code == "E003")
++            );
++            let foreign_store = Arc::new(available.with_command_store(Arc::new(
++                tcl_registry::CommandRegistry::build_default().project_for_profile(profile),
++            )));
++            assert!(
++                foreign_store.commands().snapshot().semantic_key()
++                    != commands.snapshot().semantic_key()
++            );
++            let mut foreign = analysis.clone();
++            foreign.resolved_input = Some(input(foreign_store));
++            assert!(
++                !diagnostics_for(source, &foreign)
++                    .iter()
++                    .any(|(code, _)| code == "E002" || code == "E003")
++            );
++            assert!(
++                !diagnostics_for(&format!("{source}\nputs OTHER"), &analysis)
++                    .iter()
++                    .any(|(code, _)| code == "E002" || code == "E003")
++            );
++        }
++    }
++
++    /// Light companion of
++    /// `callback_arity_foreign_library_source_contexts_do_not_select_local_headers`:
++    /// a Tk option callback, a tcllib option callback, an object-method callback
++    /// and one package-required row.
++    #[test]
++    fn callback_arity_foreign_library_source_contexts_do_not_select_local_headers_light() {
++        // naming.database.original-project-callback-projection
++        // docs/design/analysis/name-resolution-proofs/database-original-project-callback-projection.md
++        let available = tcl_registry::model::ingress::static_context_for("tcl9.0");
++        let commands = Arc::clone(available.commands());
++        let available = Arc::new(available.with_command_store(Arc::clone(&commands)));
++        let unavailable = Arc::new(
++            tcl_registry::model::ingress::static_context_for("bpf")
++                .with_command_store(Arc::clone(&commands)),
++        );
++        assert!(Arc::ptr_eq(available.commands(), unavailable.commands()));
++        for command in [
++            "smtp::sendmessage",
++            "mime::getbody",
++            "struct::graph",
++            "struct::tree",
++        ] {
++            assert!(
++                available
++                    .context()
++                    .resolve_spec(&commands, command)
++                    .is_some()
++            );
++            assert!(
++                unavailable
++                    .context()
++                    .resolve_spec(&commands, command)
++                    .is_some()
++            );
++        }
++        let profile = tcl_dialect::DialectProfile::find("tcl9.0").unwrap();
++        let config = tcl_lexer::LexerConfig::for_dialect("tcl9.0");
++        let input = |context| {
++            tcl_compiler::analyser::ResolvedAnalysisInput::new(profile, profile, context, config)
++        };
++        assert_eq!(unavailable.context().environment.id.as_str(), "bpf");
++        assert_eq!(
++            unavailable
++                .context()
++                .environment
++                .policy_defaults
++                .closed_world,
++            tcl_dialect::model::WorldPolicy::Closed,
++        );
++        assert!(
++            unavailable
++                .context()
++                .environment
++                .expected_packages
++                .is_empty()
++        );
++        let excluded_input = input(Arc::clone(&unavailable));
++        assert!(!excluded_input.has_hosted_source_name_context());
++        assert_eq!(excluded_input.vendor_source_policy(), None);
++        let analyse = |source: &str, context| {
++            tcl_compiler::analyser::Analyser::new()
++                .with_resolved_input(input(context))
++                .analyse(source, "tcl9.0")
++        };
++        let db = TclDatabase::default();
++        let project = Project::new(&db, Vec::new());
++        let diagnostics_for = |source: &str, analysis: &AnalysisResult| {
++            project_callback_diagnostics_for_analysis(&db, project, source, analysis, |_| false)
++                .into_iter()
++                .map(|diagnostic| (diagnostic.code.as_str().to_owned(), diagnostic.message))
++                .collect::<Vec<_>>()
++        };
++        for source in [
++            "proc cb {} {}; scale .s -command cb",
++            "proc cb {x} {}; smtp::sendmessage $t -tlspolicy cb",
++            "proc cb {x y} {}; struct::graph g; g walk root -command cb",
++            "package require struct::tree; proc cb {x y} {}; struct::tree t; t walkproc root ::cb",
++        ] {
++            // These library descriptors remain available in the closed model.
+             // Its supplied input cannot borrow the other source producer's receipts.
+             let mut analysis = analyse(source, Arc::clone(&available));
+             assert!(
+--- a/rust/tcl-lsp-db/src/original_project_callback_projection_tests.rs
++++ b/rust/tcl-lsp-db/src/original_project_callback_projection_tests.rs
+@@ -278,6 +278,51 @@
+     }
+ }
+ 
++/// Light companion of
++/// `legacy_project_advice_requires_positive_retained_logical_input`: the
++/// oldest and newest Tcl releases and one foreign family relabelled `tcl`.
++#[test]
++fn legacy_project_advice_requires_positive_retained_logical_input_light() {
++    // naming.database.original-project-callback-projection
++    // docs/design/analysis/name-resolution-proofs/database-original-project-callback-projection.md
++    let logical = Analyser::new().analyse(LOGICAL_PROJECT_ADVICE_SOURCE, "tcl");
++    assert!(logical.allows_retained_logical_declaration_advice());
++    assert_eq!(
++        source_owned_advice(&logical),
++        (vec![DiagCode::E003], vec![DiagCode::E003])
++    );
++    let mut missing = logical.clone();
++    missing.resolved_input = None;
++    assert!(!missing.allows_lexical_declaration_advice());
++    assert_eq!(source_owned_advice(&missing), (Vec::new(), Vec::new()));
++    let mut unavailable = logical.clone();
++    unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
++        environment: "tcl".to_owned(),
++        overlay: 0x348,
++    });
++    assert_eq!(unavailable.resolved_input, logical.resolved_input);
++    assert!(!unavailable.allows_lexical_declaration_advice());
++    assert!(!unavailable.allows_retained_logical_declaration_advice());
++    assert_eq!(source_owned_advice(&unavailable), (Vec::new(), Vec::new()));
++    assert_eq!(
++        source_owned_advice(&AnalysisResult::default()),
++        (Vec::new(), Vec::new())
++    );
++    for dialect in ["tcl8.4", "tcl9.1", "f5-irules"] {
++        let mut analysis = Analyser::new().analyse(LOGICAL_PROJECT_ADVICE_SOURCE, dialect);
++        analysis.dialect = "tcl".to_owned();
++        assert!(
++            !analysis.allows_retained_logical_declaration_advice(),
++            "{dialect}"
++        );
++        assert_eq!(
++            source_owned_advice(&analysis),
++            (Vec::new(), Vec::new()),
++            "{dialect}"
++        );
++    }
++}
++
+ #[test]
+ fn supplied_project_callbacks_refuse_unavailable_generation_with_original_receipts() {
+     // naming.database.original-project-callback-projection
+--- a/rust/tcl-lsp-db/src/project_token_inputs/tests.rs
++++ b/rust/tcl-lsp-db/src/project_token_inputs/tests.rs
+@@ -467,6 +467,60 @@
+     }
+ }
+ 
++/// Light companion of
++/// `project_source_roles_select_current_call_declaration_and_formals`: the
++/// unversioned logical dialect only, which carries the most refusal paths.
++#[test]
++fn project_source_roles_select_current_call_declaration_and_formals_light() {
++    let mut db = TclDatabase::default();
++    let config = configuration(&db, 0);
++    for dialect in ["tcl"] {
++        let library = SourceFile::new(&db, "proc reader {name} {upvar 1 $name cell; set cell 1}; proc puts {name} {upvar 1 $name cell; set cell 1}".to_owned(), dialect.to_owned(), None);
++        let caller = SourceFile::new(&db, "reader retained".to_owned(), dialect.to_owned(), None);
++        let project = Project::with_token_configurations(
++            &db,
++            vec![library, caller],
++            Some(vec![(library, config), (caller, config)]),
++        );
++        for (source, expected) in [
++            ("reader retained", true),
++            ("puts retained", false),
++            ("proc reader {value} {}; reader retained", false),
++            ("interp alias {} reader {} puts; reader retained", false),
++            (
++                "proc reader {value} {}; rename reader {}; reader retained",
++                false,
++            ),
++            ("unknown_mutation; reader retained", false),
++            ("reader [unknown_operand] retained", false),
++            ("reader {*}{retained}", false),
++        ] {
++            caller.set_text(&mut db).to(source.to_owned());
++            let tokens = semantic_tokens_project_for_inputs(&db, caller, project);
++            assert_eq!(
++                is_variable(&tokens, source, "retained"),
++                expected,
++                "{dialect}: {source}"
++            );
++        }
++        caller.set_text(&mut db).to("reader retained".to_owned());
++        let duplicate = SourceFile::new(&db, library.text(&db).clone(), dialect.to_owned(), None);
++        project
++            .set_files(&mut db)
++            .to(vec![library, caller, duplicate]);
++        project.set_token_configurations(&mut db).to(Some(vec![
++            (library, config),
++            (caller, config),
++            (duplicate, config),
++        ]));
++        assert!(!is_variable(
++            &semantic_tokens_project_for_inputs(&db, caller, project),
++            "reader retained",
++            "retained"
++        ));
++    }
++}
++
+ #[test]
+ fn project_source_roles_bind_original_optional_formals_and_keep_foreign_class_barriers() {
+     let mut db = TclDatabase::default();
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -29941,6 +29941,181 @@
+ }
+ 
+ impl Backend {
++    /// `workspace/symbol` answered with at most `limit` symbols. The request
++    /// handler passes `MAX_WORKSPACE_SYMBOL_RESULTS`; a smaller limit lets a
++    /// test exercise the same cap with a handful of documents.
++    async fn workspace_symbols_within(
++        &self,
++        params: WorkspaceSymbolParams,
++        limit: usize,
++    ) -> jsonrpc::Result<Option<WorkspaceSymbolResponse>> {
++        // Workspace-wide query (no document URI): gate on the process-global
++        // `workspaceSymbols` toggle.
++        if !self
++            .feature_toggles
++            .lock()
++            .await
++            .is_enabled("workspaceSymbols")
++        {
++            return Ok(None);
++        }
++        // Answered from the workspace index, not from the open-document map.
++        // VS Code re-issues this request on every keystroke in its Ctrl+T box,
++        // so cloning the whole document store — every buffer and its
++        // `LineIndex` — and serially re-analysing each open document per
++        // keystroke would be costly *and* would miss every symbol in a file
++        // the editor had not opened.  The index already holds each of them,
++        // filters before materialising, and caps the answer.
++        //
++        // Freshness: the index is refreshed on each document's diagnostics
++        // publish, which the debounce puts ~50 ms behind an edit.  A symbol
++        // picker tolerates that — it is the same staleness every other
++        // cross-document feature answers with.  What it does *not* tolerate is
++        // an index that has not been populated at all yet, so wait out the
++        // initial folder scan first.  The `didOpen`/`didChange`
++        // barrier comes first for the same reason every other reader takes it:
++        // a query issued after an open must observe that open.
++        self.edits_settled().await;
++        self.wait_for_workspace_scan().await;
++        let inputs_epoch = self.diag_inputs_epoch();
++        let factory_generation = *self.class_factory_generation.read().await;
++        // Open buffers the index does not currently hold, filled in from their
++        // own analysis.  `did_open` drops a document's index entry (its
++        // on-disk records stop being authoritative the moment a buffer exists)
++        // and the debounced publish is what puts it back, so for that window
++        // every symbol in the file the user *just opened* — the file most
++        // likely to be searched for — would be missing from the picker.
++        // Bounded by the open-document set, empty in steady state, and the
++        // analysis read here is the memoised one the pending publish is
++        // already computing.
++        let WorkspaceSymbolCandidates {
++            fallback_hits: mut hits,
++            indexed_hits,
++            indexed_revisions,
++            mut sources,
++            mut analyses,
++        } = self
++            .open_but_unindexed_symbols(&params.query, limit)
++            .await?;
++        if hits.len() < limit {
++            let remaining = limit - hits.len();
++            hits.extend(indexed_hits.into_iter().take(remaining));
++        }
++        if hits.is_empty() {
++            return Ok(None);
++        }
++        // A name span becomes an LSP range only against a checked source
++        // snapshot for its own URI. The index retains immutable validation
++        // context, not a mutable current buffer. `hits` arrives grouped by
++        // URI, so each document is resolved once — from the open buffer when
++        // there is one, else from disk.
++        let mut all: Vec<(SymbolInformation, Uri, DocumentState, Option<u64>)> =
++            Vec::with_capacity(hits.len());
++        for hit in hits {
++            if !sources.contains_key(&hit.uri) {
++                let loaded = match Uri::from_str(&hit.uri) {
++                    Ok(uri) => self.read_document(&uri).await?,
++                    Err(_) => None,
++                };
++                sources.insert(hit.uri.clone(), loaded);
++            }
++            let (Some(Some(doc)), Ok(uri)) = (sources.get(&hit.uri), Uri::from_str(&hit.uri))
++            else {
++                continue;
++            };
++            if !analyses.contains_key(&hit.uri) {
++                let current = self.capture_workspace_symbol_analysis(&uri, doc).await?;
++                analyses.insert(hit.uri.clone(), current);
++            }
++            let Some(Some(current)) = analyses.get(&hit.uri) else {
++                continue;
++            };
++            if let Some(owner) = hit.original_location.as_ref() {
++                if owner.uri() != hit.uri
++                    || owner.validated_span(
++                        &doc.text,
++                        readonly_reference_reports::WorkspaceSymbolSourceAnalysis::analysis(
++                            current,
++                        ),
++                    ) != Some(hit.name_span)
++                {
++                    continue;
++                }
++            } else {
++                let Some(owner) = hit.logical_source.as_ref() else {
++                    // No latest-source span inverse: a logical report row
++                    // without its own retained source view is unavailable.
++                    continue;
++                };
++                if owner.uri() != hit.uri
++                    || owner.span() != hit.name_span
++                    || !owner.matches_source(&hit.uri, &doc.text)
++                    || indexed_revisions
++                        .get(&hit.uri)
++                        .is_some_and(|revision| owner.document_revision() != *revision)
++                {
++                    continue;
++                }
++            }
++            let start = doc
++                .line_index
++                .position_at_utf16(hit.name_span.start(), &doc.text);
++            let end = doc
++                .line_index
++                .position_at_utf16(hit.name_span.end(), &doc.text);
++            #[allow(deprecated)]
++            let symbol = SymbolInformation {
++                name: hit.name,
++                kind: match hit.kind {
++                    // A tcltest case has no dedicated LSP kind; it lists as
++                    // a function alongside real functions.
++                    CoreWorkspaceSymbolKind::Function | CoreWorkspaceSymbolKind::Test => {
++                        SymbolKind::FUNCTION
++                    }
++                    CoreWorkspaceSymbolKind::Class => SymbolKind::CLASS,
++                    CoreWorkspaceSymbolKind::Method => SymbolKind::METHOD,
++                    CoreWorkspaceSymbolKind::Property => SymbolKind::PROPERTY,
++                    CoreWorkspaceSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
++                    CoreWorkspaceSymbolKind::Constant => SymbolKind::CONSTANT,
++                    CoreWorkspaceSymbolKind::Operator => SymbolKind::OPERATOR,
++                    CoreWorkspaceSymbolKind::Event => SymbolKind::EVENT,
++                },
++                tags: None,
++                deprecated: None,
++                location: Location {
++                    uri: uri.clone(),
++                    range: Range {
++                        start: Position {
++                            line: start.line,
++                            character: start.character.get(),
++                        },
++                        end: Position {
++                            line: end.line,
++                            character: end.character.get(),
++                        },
++                    },
++                },
++                container_name: hit.container_name,
++            };
++            all.push((
++                symbol,
++                uri.clone(),
++                (*doc).clone(),
++                indexed_revisions.get(&hit.uri).copied(),
++            ));
++        }
++        if all.is_empty() {
++            return Ok(None);
++        }
++
++        // Reuse each actual checked URI input without weakening its final
++        // source/configuration/provider/index currency. No await separates the
++        // final joint owner checks from response projection.
++        self.finish_workspace_symbol_response(&analyses, &all, inputs_epoch, factory_generation)
++            .await
++            .map_err(Into::into)
++    }
++
+     /// Apply watched delete/revive state to buffers that remain open and
+     /// return the revived snapshots that need live Salsa/index publication and
+     /// the exact orphan revisions a deletion transaction may fully retire.
+@@ -32627,172 +32802,8 @@
+         &self,
+         params: WorkspaceSymbolParams,
+     ) -> jsonrpc::Result<Option<WorkspaceSymbolResponse>> {
+-        // Workspace-wide query (no document URI): gate on the process-global
+-        // `workspaceSymbols` toggle.
+-        if !self
+-            .feature_toggles
+-            .lock()
+-            .await
+-            .is_enabled("workspaceSymbols")
+-        {
+-            return Ok(None);
+-        }
+-        // Answered from the workspace index, not from the open-document map.
+-        // VS Code re-issues this request on every keystroke in its Ctrl+T box,
+-        // so cloning the whole document store — every buffer and its
+-        // `LineIndex` — and serially re-analysing each open document per
+-        // keystroke would be costly *and* would miss every symbol in a file
+-        // the editor had not opened.  The index already holds each of them,
+-        // filters before materialising, and caps the answer.
+-        //
+-        // Freshness: the index is refreshed on each document's diagnostics
+-        // publish, which the debounce puts ~50 ms behind an edit.  A symbol
+-        // picker tolerates that — it is the same staleness every other
+-        // cross-document feature answers with.  What it does *not* tolerate is
+-        // an index that has not been populated at all yet, so wait out the
+-        // initial folder scan first.  The `didOpen`/`didChange`
+-        // barrier comes first for the same reason every other reader takes it:
+-        // a query issued after an open must observe that open.
+-        self.edits_settled().await;
+-        self.wait_for_workspace_scan().await;
+-        let limit = core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS;
+-        let inputs_epoch = self.diag_inputs_epoch();
+-        let factory_generation = *self.class_factory_generation.read().await;
+-        // Open buffers the index does not currently hold, filled in from their
+-        // own analysis.  `did_open` drops a document's index entry (its
+-        // on-disk records stop being authoritative the moment a buffer exists)
+-        // and the debounced publish is what puts it back, so for that window
+-        // every symbol in the file the user *just opened* — the file most
+-        // likely to be searched for — would be missing from the picker.
+-        // Bounded by the open-document set, empty in steady state, and the
+-        // analysis read here is the memoised one the pending publish is
+-        // already computing.
+-        let WorkspaceSymbolCandidates {
+-            fallback_hits: mut hits,
+-            indexed_hits,
+-            indexed_revisions,
+-            mut sources,
+-            mut analyses,
+-        } = self
+-            .open_but_unindexed_symbols(&params.query, limit)
+-            .await?;
+-        if hits.len() < limit {
+-            let remaining = limit - hits.len();
+-            hits.extend(indexed_hits.into_iter().take(remaining));
+-        }
+-        if hits.is_empty() {
+-            return Ok(None);
+-        }
+-        // A name span becomes an LSP range only against a checked source
+-        // snapshot for its own URI. The index retains immutable validation
+-        // context, not a mutable current buffer. `hits` arrives grouped by
+-        // URI, so each document is resolved once — from the open buffer when
+-        // there is one, else from disk.
+-        let mut all: Vec<(SymbolInformation, Uri, DocumentState, Option<u64>)> =
+-            Vec::with_capacity(hits.len());
+-        for hit in hits {
+-            if !sources.contains_key(&hit.uri) {
+-                let loaded = match Uri::from_str(&hit.uri) {
+-                    Ok(uri) => self.read_document(&uri).await?,
+-                    Err(_) => None,
+-                };
+-                sources.insert(hit.uri.clone(), loaded);
+-            }
+-            let (Some(Some(doc)), Ok(uri)) = (sources.get(&hit.uri), Uri::from_str(&hit.uri))
+-            else {
+-                continue;
+-            };
+-            if !analyses.contains_key(&hit.uri) {
+-                let current = self.capture_workspace_symbol_analysis(&uri, doc).await?;
+-                analyses.insert(hit.uri.clone(), current);
+-            }
+-            let Some(Some(current)) = analyses.get(&hit.uri) else {
+-                continue;
+-            };
+-            if let Some(owner) = hit.original_location.as_ref() {
+-                if owner.uri() != hit.uri
+-                    || owner.validated_span(
+-                        &doc.text,
+-                        readonly_reference_reports::WorkspaceSymbolSourceAnalysis::analysis(
+-                            current,
+-                        ),
+-                    ) != Some(hit.name_span)
+-                {
+-                    continue;
+-                }
+-            } else {
+-                let Some(owner) = hit.logical_source.as_ref() else {
+-                    // No latest-source span inverse: a logical report row
+-                    // without its own retained source view is unavailable.
+-                    continue;
+-                };
+-                if owner.uri() != hit.uri
+-                    || owner.span() != hit.name_span
+-                    || !owner.matches_source(&hit.uri, &doc.text)
+-                    || indexed_revisions
+-                        .get(&hit.uri)
+-                        .is_some_and(|revision| owner.document_revision() != *revision)
+-                {
+-                    continue;
+-                }
+-            }
+-            let start = doc
+-                .line_index
+-                .position_at_utf16(hit.name_span.start(), &doc.text);
+-            let end = doc
+-                .line_index
+-                .position_at_utf16(hit.name_span.end(), &doc.text);
+-            #[allow(deprecated)]
+-            let symbol = SymbolInformation {
+-                name: hit.name,
+-                kind: match hit.kind {
+-                    // A tcltest case has no dedicated LSP kind; it lists as
+-                    // a function alongside real functions.
+-                    CoreWorkspaceSymbolKind::Function | CoreWorkspaceSymbolKind::Test => {
+-                        SymbolKind::FUNCTION
+-                    }
+-                    CoreWorkspaceSymbolKind::Class => SymbolKind::CLASS,
+-                    CoreWorkspaceSymbolKind::Method => SymbolKind::METHOD,
+-                    CoreWorkspaceSymbolKind::Property => SymbolKind::PROPERTY,
+-                    CoreWorkspaceSymbolKind::Constructor => SymbolKind::CONSTRUCTOR,
+-                    CoreWorkspaceSymbolKind::Constant => SymbolKind::CONSTANT,
+-                    CoreWorkspaceSymbolKind::Operator => SymbolKind::OPERATOR,
+-                    CoreWorkspaceSymbolKind::Event => SymbolKind::EVENT,
+-                },
+-                tags: None,
+-                deprecated: None,
+-                location: Location {
+-                    uri: uri.clone(),
+-                    range: Range {
+-                        start: Position {
+-                            line: start.line,
+-                            character: start.character.get(),
+-                        },
+-                        end: Position {
+-                            line: end.line,
+-                            character: end.character.get(),
+-                        },
+-                    },
+-                },
+-                container_name: hit.container_name,
+-            };
+-            all.push((
+-                symbol,
+-                uri.clone(),
+-                (*doc).clone(),
+-                indexed_revisions.get(&hit.uri).copied(),
+-            ));
+-        }
+-        if all.is_empty() {
+-            return Ok(None);
+-        }
+-
+-        // Reuse each actual checked URI input without weakening its final
+-        // source/configuration/provider/index currency. No await separates the
+-        // final joint owner checks from response projection.
+-        self.finish_workspace_symbol_response(&analyses, &all, inputs_epoch, factory_generation)
++        self.workspace_symbols_within(params, core_workspace_symbols::MAX_WORKSPACE_SYMBOL_RESULTS)
+             .await
+-            .map_err(Into::into)
+     }
+ 
+     async fn document_link(
+@@ -55115,6 +55126,64 @@
+         assert_eq!(&*snapshots[0].text, source.as_str());
+     }
+ 
++    /// Light companion of
++    /// `concurrent_snapshots_share_one_text_and_index_allocation`: the same
++    /// document opened with its Salsa source but without the analysis and index
++    /// entry `register` adds. A snapshot reads only the open buffer, so the
++    /// sharing property is unchanged.
++    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
++    async fn concurrent_snapshots_share_one_text_and_index_allocation_light() {
++        let backend = Arc::new(test_backend());
++        let uri = Uri::from_str("file:///shared.tcl").unwrap();
++        let source = large_document_source();
++        backend.documents.lock("test").await.insert(
++            uri.clone(),
++            DocumentState::new(source.clone(), "tcl8.6".to_owned()),
++        );
++        backend
++            .db_set_source(&uri, &source, "tcl8.6".to_owned())
++            .await
++            .expect("the fixture retains its actual checked SourceFile owner");
++
++        // 32 overlapping readers, the concurrency the issue asks for.
++        let mut tasks = Vec::new();
++        for _ in 0..32 {
++            let backend = Arc::clone(&backend);
++            let uri = uri.clone();
++            tasks.push(crate::rt::spawn(async move {
++                backend
++                    .read_document(&uri)
++                    .await
++                    .unwrap()
++                    .expect("open document")
++            }));
++        }
++        let mut snapshots = Vec::new();
++        for t in tasks {
++            snapshots.push(t.await.expect("reader task panicked"));
++        }
++
++        let owner = {
++            let docs = backend.documents.lock("test").await;
++            docs.get(&uri).expect("open document").clone()
++        };
++        for (i, snap) in snapshots.iter().enumerate() {
++            assert!(
++                Arc::ptr_eq(&owner.text, &snap.text),
++                "snapshot {i} copied the document text instead of sharing it"
++            );
++            assert!(
++                owner.line_index.shares_storage_with(&snap.line_index),
++                "snapshot {i} copied the line index instead of sharing it"
++            );
++        }
++        // One allocation, held by: the store, `owner`, and the 32 snapshots.
++        assert_eq!(Arc::strong_count(&owner.text), 34);
++        // …and every snapshot really does describe the whole document, so the
++        // sharing assertions above are not passing on an empty buffer.
++        assert_eq!(&*snapshots[0].text, source.as_str());
++    }
++
+     /// **FP** — editing while an older snapshot is alive must not mix
+     /// revisions: the in-flight reader keeps text *and* index from the
+     /// revision it was given, and they stay consistent with each other.
+@@ -65085,6 +65154,54 @@
+         );
+     }
+ 
++    /// Light companion of `workspace_symbol_caps_its_answer`: the same handler
++    /// body under a cap of three, over two indexed documents of two matching
++    /// procedures each.
++    #[tokio::test]
++    async fn workspace_symbol_caps_its_answer_light() {
++        let backend = test_backend();
++        let limit = 3;
++        let src = "proc capped_0 {} {}\nproc capped_1 {} {}\n";
++        let analysis = {
++            let mut analyser = Analyser::new();
++            analyser.analyse(src, "tcl8.6").clone()
++        };
++        let uris: Vec<Uri> = (0..2)
++            .map(|n| Uri::from_str(&format!("file:///w/many-{n}.tcl")).unwrap())
++            .collect();
++        {
++            let mut documents = backend.documents.lock("test").await;
++            for uri in &uris {
++                documents.insert(
++                    uri.clone(),
++                    DocumentState::new(src.to_owned(), "tcl8.6".to_owned()),
++                );
++            }
++        }
++        {
++            let mut index = backend.workspace_index.write().await;
++            for uri in &uris {
++                index.add_document(uri.as_str(), &analysis);
++            }
++        }
++
++        let found = backend
++            .workspace_symbols_within(
++                WorkspaceSymbolParams {
++                    query: "capped_".to_owned(),
++                    work_done_progress_params: WorkDoneProgressParams::default(),
++                    partial_result_params: PartialResultParams::default(),
++                },
++                limit,
++            )
++            .await
++            .expect("ok");
++        let Some(WorkspaceSymbolResponse::Flat(syms)) = found else {
++            panic!("expected a flat symbol list, got {found:?}");
++        };
++        assert_eq!(syms.len(), limit);
++    }
++
+     #[tokio::test]
+     async fn diagnostics_master_switch_clears_the_report() {
+         // `tclLsp.features.diagnostics = false` yields an empty diagnostic

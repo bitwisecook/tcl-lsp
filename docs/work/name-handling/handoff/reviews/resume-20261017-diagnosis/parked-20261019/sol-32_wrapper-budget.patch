@@ -1,0 +1,61 @@
+--- a/rust/tcl-lsp-core/src/package_resolver/tests.rs
++++ b/rust/tcl-lsp-core/src/package_resolver/tests.rs
+@@ -190,6 +190,58 @@
+     );
+ }
+ 
++/// Work budget for nested `[list …]` wrappers: doubling the depth of a
++/// `package ifneeded` body at most doubles the command-substitution bodies the
++/// parse cut enters (with a margin for fixed work). Re-cutting the whole nested
++/// remainder at each level is quadratic and fails here at depths that cost
++/// milliseconds.
++///
++/// The counter sees every parse-cut descent on this thread, so the budget holds
++/// only when every walker `parse_pkg_index` drives shares clean nested-body
++/// verdicts, or cuts each body once. The walkers it drives:
++///
++/// - tcl-compiler `Analyser::readonly_package_index_survey_realm`, reached
++///   through `OriginalPackageIndexSourceSurvey::capture`: the command-binding
++///   declaration scan and survey realm build;
++/// - the survey's word, control, advertisement and retained-body projections
++///   (tcl-compiler `registry_invocation/source_structure/package_target_survey.rs`);
++/// - the reachability `Walker::script`, once per entered region
++///   (`package_resolver/reachability/original.rs`);
++/// - `collect_source_targets` over the whole index text, then
++///   `IndexLoader::collect_script` once per wrapper level
++///   (`package_resolver.rs`, `package_resolver/original_names/index_loader.rs`).
++///
++/// The last three call the unmemoised `tcl_lexer::native_script_words_in`,
++/// so a memo in the tcl-compiler body walk alone does not cover them. Land
++/// this with a fix that a run shows makes the count linear.
++#[test]
++fn nested_source_wrapper_parse_cut_work_scales_linearly() {
++    let frames = |depth: usize| {
++        let mut body = String::from("source $dir/x.tcl");
++        for _ in 0..depth {
++            body = format!("[list {body}]");
++        }
++        let content = format!("package ifneeded p 1.0 {body}");
++        let dir = Path::new("/pkg");
++        let before = tcl_lexer::parse_cut::body_frames_entered();
++        let _ = parse_pkg_index(
++            &content,
++            dir,
++            &dir.join("pkgIndex.tcl"),
++            &always_exists,
++            &no_tcl_files,
++        );
++        tcl_lexer::parse_cut::body_frames_entered() - before
++    };
++    let shallow = frames(64);
++    let deep = frames(128);
++    assert!(shallow > 0, "the wrapper bodies are walked");
++    assert!(
++        deep * 10 <= shallow * 22,
++        "parse-cut body frames grew super-linearly: 64 levels {shallow}, 128 levels {deep}"
++    );
++}
++
+ #[test]
+ fn parse_pkg_index_standard_form() {
+     // The canonical `pkg_mkIndex` output shape.

@@ -1,0 +1,664 @@
+diff --git a/rust/tcl-lsp-core/src/minify.rs b/rust/tcl-lsp-core/src/minify.rs
+--- a/rust/tcl-lsp-core/src/minify.rs
++++ b/rust/tcl-lsp-core/src/minify.rs
+@@ -700,10 +700,11 @@
+ /// planning never enters this path.
+ fn lexical_aggressive(
+     source: &str,
+-    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++    analyses: &mut original::LexicalAnalyses<'_>,
+     isolated: bool,
+     abbreviations: bool,
+ ) -> Result<MinifyResult, MinifyRefusal> {
++    let input = analyses.input();
+     let dialect = input.unit_profile();
+     let context = input.context_registry();
+     let registry = context.commands().as_ref();
+@@ -728,36 +729,36 @@
+     let optimised = apply_edits(source, opt_edits);
+ 
+     // Fold static substrings (SCCP-proven constants).
+-    let (folded, fold_count, static_folds) = fold_original_static_substrings(&optimised, input);
++    let (folded, fold_count, static_folds) = fold_original_static_substrings(&optimised, analyses);
+ 
+     // Compact names.
+-    let (renamed, mut symbol_map) = compact_names(&folded, input, isolated);
++    let (renamed, mut symbol_map) = compact_names(&folded, analyses, isolated);
+     symbol_map.static_folds = static_folds;
+ 
+     // Keep observed collision candidates separate from the source/body gaps
+     // that remain unresolved. This preserves the existing aggressive
+     // authoring policy; it is not a completeness or absence certificate.
+-    let live_names = collect_live_names(&renamed, input);
++    let live_names = collect_live_names(&renamed, analyses);
+     let _unresolved_collision_debt = &live_names.gaps;
+     let mut claimed_names = collect_symbol_shorts(&symbol_map);
+     claimed_names.extend(live_names.names.iter().cloned());
+-    let (renamed, cmd_aliases) = alias_repeated_commands(&renamed, input, &mut claimed_names);
++    let (renamed, cmd_aliases) = alias_repeated_commands(&renamed, analyses, &mut claimed_names);
+     symbol_map.command_aliases = cmd_aliases;
+-    let (renamed, arg_aliases) = alias_repeated_arguments(&renamed, input, &mut claimed_names);
++    let (renamed, arg_aliases) = alias_repeated_arguments(&renamed, analyses, &mut claimed_names);
+     symbol_map.argument_aliases = arg_aliases;
+-    let (renamed, str_aliases) = alias_string_literals(&renamed, input, &mut claimed_names);
++    let (renamed, str_aliases) = alias_string_literals(&renamed, analyses, &mut claimed_names);
+     symbol_map.string_aliases = str_aliases;
+ 
+     // Emit unique-prefix keyword abbreviations.
+     let (renamed, abbrev_count) = if abbreviations {
+-        abbreviate_keywords(&renamed, input)
++        abbreviate_keywords(&renamed, analyses)
+     } else {
+         (renamed, 0)
+     };
+ 
+     // Rewritten source retains the same full editing input before any further
+     // script/body selection; no reporting label rebuilds its context.
+-    let current = original::analysis_with_input(&renamed, input);
++    let current = analyses.of(&renamed);
+     let minified = lexical_default(&renamed, &current)?;
+ 
+     Ok(MinifyResult {
+@@ -796,13 +797,13 @@
+ 
+ fn lexical_compact(
+     source: &str,
+-    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++    analyses: &mut original::LexicalAnalyses<'_>,
+     isolated: bool,
+ ) -> Result<(String, SymbolMap), MinifyRefusal> {
+     // Implementation contract: naming.minifier.lexical-authoring-passes
+     // docs/design/analysis/name-resolution-proofs/minifier-lexical-authoring-passes.md
+-    let (renamed, symbol_map) = compact_names(source, input, isolated);
+-    let current = original::analysis_with_input(&renamed, input);
++    let (renamed, symbol_map) = compact_names(source, analyses, isolated);
++    let current = analyses.of(&renamed);
+     let minified = lexical_default(&renamed, &current)?;
+     Ok((minified, symbol_map))
+ }
+@@ -817,8 +818,12 @@
+     registry: &CommandRegistry,
+     options: MinifyOptions,
+ ) -> MinifyResult {
+-    let analysis = original::analysis_for_profile(source, dialect, registry);
+-    minify_with_analysis(source, &analysis, options)
++    let input = original::profile_input(dialect, registry);
++    original::minify_with_seed(
++        source,
++        original::LexicalSeed::analyse(source, &input),
++        options,
++    )
+ }
+ 
+ fn lexical_default(source: &str, analysis: &AnalysisResult) -> Result<String, MinifyRefusal> {
+@@ -1263,10 +1268,11 @@
+ /// serialisation, not a private compiler symbol.
+ fn compact_names(
+     source: &str,
+-    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++    analyses: &mut original::LexicalAnalyses<'_>,
+     isolated: bool,
+ ) -> (String, SymbolMap) {
+-    let analysis = original::analysis_with_input(source, input);
++    let input = analyses.input();
++    let analysis = analyses.of(source);
+     let context = input.context_registry();
+     let Some(identities) = analysis.retained_command_realm() else {
+         return (source.to_owned(), SymbolMap::default());
+@@ -1776,12 +1782,13 @@
+ 
+ fn collect_live_names(
+     source: &str,
+-    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++    analyses: &mut original::LexicalAnalyses<'_>,
+ ) -> LiveNameInventory {
+     let mut out: HashSet<String> = HashSet::new();
+ 
+     // Analyser scope tables.
+-    let analysis = original::analysis_with_input(source, input);
++    let input = analyses.input();
++    let analysis = analyses.of(source);
+     let mut stack: Vec<&Scope> = vec![&analysis.global_scope];
+     while let Some(scope) = stack.pop() {
+         out.extend(scope.variables.keys().cloned());
+@@ -1882,12 +1889,13 @@
+ /// owner. Observed partial candidates provide no absence or complete inventory.
+ fn source_alias_uses(
+     source: &str,
+-    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++    analyses: &mut original::LexicalAnalyses<'_>,
+     purpose: AliasWordPurpose,
+ ) -> (Vec<String>, HashMap<String, Vec<usize>>) {
+     let mut order = Vec::new();
+     let mut uses = HashMap::<String, Vec<usize>>::new();
+-    let analysis = original::analysis_with_input(source, input);
++    let input = analyses.input();
++    let analysis = analyses.of(source);
+     let Some(identities) = analysis.retained_command_realm() else {
+         return (order, uses);
+     };
+@@ -2022,10 +2030,11 @@
+ /// three aliasing passes.
+ fn alias_repeated_commands(
+     source: &str,
+-    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++    analyses: &mut original::LexicalAnalyses<'_>,
+     claimed: &mut HashSet<String>,
+ ) -> (String, BTreeMap<String, String>) {
+-    let (order, uses) = source_alias_uses(source, input, AliasWordPurpose::CommandHead);
++    let input = analyses.input();
++    let (order, uses) = source_alias_uses(source, analyses, AliasWordPurpose::CommandHead);
+     alias_by_uses(source, &order, &uses, claimed, input.lexer_config())
+ }
+ 
+@@ -2056,9 +2065,10 @@
+ /// the registry does not resolve `Unique`.
+ fn abbreviate_keywords(
+     source: &str,
+-    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++    analyses: &mut original::LexicalAnalyses<'_>,
+ ) -> (String, usize) {
+-    let analysis = original::analysis_with_input(source, input);
++    let input = analyses.input();
++    let analysis = analyses.of(source);
+     let Some(identities) = analysis.retained_command_realm() else {
+         return (source.to_owned(), 0);
+     };
+@@ -2082,10 +2092,11 @@
+ /// aliasing pass.
+ fn alias_repeated_arguments(
+     source: &str,
+-    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++    analyses: &mut original::LexicalAnalyses<'_>,
+     claimed: &mut HashSet<String>,
+ ) -> (String, BTreeMap<String, String>) {
+-    let (order, uses) = source_alias_uses(source, input, AliasWordPurpose::Argument);
++    let input = analyses.input();
++    let (order, uses) = source_alias_uses(source, analyses, AliasWordPurpose::Argument);
+     alias_by_uses(source, &order, &uses, claimed, input.lexer_config())
+ }
+ 
+@@ -2195,10 +2206,11 @@
+ /// aliasing pass. (+ `_collect_string_literals`).
+ fn alias_string_literals(
+     source: &str,
+-    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++    analyses: &mut original::LexicalAnalyses<'_>,
+     claimed: &mut HashSet<String>,
+ ) -> (String, BTreeMap<String, String>) {
+-    let fragments = collect_string_literals(source, input);
++    let input = analyses.input();
++    let fragments = collect_string_literals(source, analyses);
+     let occ = string_alias_candidates(&fragments);
+     if occ.is_empty() {
+         return (source.to_owned(), BTreeMap::new());
+@@ -2302,9 +2314,10 @@
+ /// Original quoted text components from the selected source-role inventory.
+ fn collect_string_literals(
+     source: &str,
+-    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++    analyses: &mut original::LexicalAnalyses<'_>,
+ ) -> Vec<StringLiteralFragment> {
+-    let analysis = original::analysis_with_input(source, input);
++    let input = analyses.input();
++    let analysis = analyses.of(source);
+     let Some(identities) = analysis.retained_command_realm() else {
+         return Vec::new();
+     };
+@@ -2444,9 +2457,10 @@
+ /// Fold only original quoted words whose exact reads have independent erasure proof.
+ fn fold_original_static_substrings(
+     source: &str,
+-    input: &tcl_compiler::analyser::ResolvedAnalysisInput,
++    analyses: &mut original::LexicalAnalyses<'_>,
+ ) -> (String, usize, BTreeMap<String, String>) {
+-    let analysis = original::analysis_with_input(source, input);
++    let input = analyses.input();
++    let analysis = analyses.of(source);
+     let context = input.context_registry();
+     let registry = context.commands();
+     let Some(unit) =
+@@ -4472,7 +4486,10 @@
+         let analysis = original::analysis_for_profile(source, profile, &registry);
+         let input = analysis.resolved_input.as_ref().unwrap();
+         assert!(analysis.allows_retained_logical_declaration_advice());
+-        let (out, count, map) = fold_original_static_substrings(source, input);
++        let (out, count, map) = fold_original_static_substrings(
++            source,
++            &mut original::LexicalAnalyses::new(input, None),
++        );
+         assert_eq!(out, source);
+         assert_eq!(count, 0);
+         assert!(map.is_empty());
+@@ -4485,7 +4502,7 @@
+         let registry = CommandRegistry::build_default();
+         let analysis = original::analysis_for_profile(source, profile, &registry);
+         let input = analysis.resolved_input.as_ref().unwrap();
+-        let names = collect_live_names(source, input);
++        let names = collect_live_names(source, &mut original::LexicalAnalyses::new(input, None));
+         for name in ["a{b}c", "a::value", "a", "Ω"] {
+             assert!(names.names.contains(name), "{name}: {names:?}");
+         }
+@@ -4503,7 +4520,7 @@
+         let registry = CommandRegistry::build_default();
+         let analysis = original::analysis_for_profile(&source, profile, &registry);
+         let input = analysis.resolved_input.as_ref().unwrap();
+-        let names = collect_live_names(&source, input);
++        let names = collect_live_names(&source, &mut original::LexicalAnalyses::new(input, None));
+         assert!(names.names.contains("retained_candidate"));
+         assert!(
+             names
+@@ -4517,7 +4534,13 @@
+         );
+         // These debts remain explicit, while this patch leaves the existing
+         // aggressive authoring policy and its alias output unchanged.
+-        let result = lexical_aggressive(&source, input, false, false).unwrap();
++        let result = lexical_aggressive(
++            &source,
++            &mut original::LexicalAnalyses::new(input, None),
++            false,
++            false,
++        )
++        .unwrap();
+         assert!(result.source.contains(command));
+     }
+ 
+@@ -4528,7 +4551,7 @@
+         let registry = CommandRegistry::build_default();
+         let analysis = original::analysis_for_profile(source, profile, &registry);
+         let input = analysis.resolved_input.as_ref().unwrap();
+-        let names = collect_live_names(source, input);
++        let names = collect_live_names(source, &mut original::LexicalAnalyses::new(input, None));
+         for name in ["Ω", "caf", "café", "braced name"] {
+             assert!(names.names.contains(name), "{name}: {names:?}");
+         }
+@@ -4731,7 +4754,10 @@
+         let source =
+             "set data {puts \"inert repeated text\"}\nproc p {} {puts \"live repeated text\"}\n";
+         let analysis = original::analysis_for_profile(source, profile, &registry);
+-        let fragments = collect_string_literals(source, analysis.resolved_input.as_ref().unwrap());
++        let fragments = collect_string_literals(
++            source,
++            &mut original::LexicalAnalyses::new(analysis.resolved_input.as_ref().unwrap(), None),
++        );
+         assert!(!fragments.is_empty());
+         assert!(
+             fragments
+@@ -5853,7 +5879,11 @@
+     fn compact_original_formal_fields_reach_the_existing_editing_pass() {
+         let input = logical_input();
+         let source = "proc p {{longName default} {otherName longName} args} {return VALUE}";
+-        let (output, mapping) = compact_names(source, &input, false);
++        let (output, mapping) = compact_names(
++            source,
++            &mut original::LexicalAnalyses::new(&input, None),
++            false,
++        );
+         assert_eq!(
+             output,
+             "proc p {{a default} {b longName} args} {return VALUE}"
+@@ -5878,7 +5908,11 @@
+                     "{source}"
+                 );
+             }
+-            let (output, _) = compact_names(source, &input, false);
++            let (output, _) = compact_names(
++                source,
++                &mut original::LexicalAnalyses::new(&input, None),
++                false,
++            );
+             assert_eq!(output, source);
+         }
+         let source = "proc p {longName} {return $longName}";
+@@ -5975,14 +6009,22 @@
+             &registry,
+         );
+         let input = analysis.resolved_input.as_ref().unwrap();
+-        let (_, uses) = source_alias_uses(source, input, AliasWordPurpose::Argument);
++        let (_, uses) = source_alias_uses(
++            source,
++            &mut original::LexicalAnalyses::new(input, None),
++            AliasWordPurpose::Argument,
++        );
+         assert_eq!(uses["--verylongflag"].len(), 3);
+         assert!(
+             uses["--verylongflag"]
+                 .iter()
+                 .all(|off| *off > source.find("proc p").unwrap())
+         );
+-        let (rewritten, aliases) = alias_repeated_arguments(source, input, &mut HashSet::new());
++        let (rewritten, aliases) = alias_repeated_arguments(
++            source,
++            &mut original::LexicalAnalyses::new(input, None),
++            &mut HashSet::new(),
++        );
+         assert!(aliases.contains_key("--verylongflag"));
+         assert!(rewritten.contains("{foo --verylongflag --verylongflag}"));
+     }
+@@ -5999,7 +6041,7 @@
+         );
+         let (_, uses) = source_alias_uses(
+             source,
+-            analysis.resolved_input.as_ref().unwrap(),
++            &mut original::LexicalAnalyses::new(analysis.resolved_input.as_ref().unwrap(), None),
+             AliasWordPurpose::CommandHead,
+         );
+         assert_eq!(uses["mylongcommand"], vec![0]);
+@@ -6008,7 +6050,7 @@
+         assert!(
+             source_alias_uses(
+                 source,
+-                native.resolved_input.as_ref().unwrap(),
++                &mut original::LexicalAnalyses::new(native.resolved_input.as_ref().unwrap(), None),
+                 AliasWordPurpose::CommandHead
+             )
+             .1
+diff --git a/rust/tcl-lsp-core/src/minify/original.rs b/rust/tcl-lsp-core/src/minify/original.rs
+--- a/rust/tcl-lsp-core/src/minify/original.rs
++++ b/rust/tcl-lsp-core/src/minify/original.rs
+@@ -4,6 +4,7 @@
+ 
+ //! Current source/configuration eligibility and independent minifier purposes.
+ 
++use std::rc::Rc;
+ use std::sync::Arc;
+ 
+ use tcl_compiler::analyser::{Analyser, AnalysisResult, ResolvedAnalysisInput};
+@@ -163,6 +164,26 @@
+     analysis: &AnalysisResult,
+     options: MinifyOptions,
+ ) -> MinifyResult {
++    minify_with_retained(source, analysis, options, None)
++}
++
++/// [`minify_with_analysis`] over this module's own analysis of `source`, which
++/// the lexical passes may reuse instead of analysing the same text again.
++pub(super) fn minify_with_seed(
++    source: &str,
++    seed: LexicalSeed<'_>,
++    options: MinifyOptions,
++) -> MinifyResult {
++    let analysis = Rc::clone(&seed.analysis);
++    minify_with_retained(source, &analysis, options, Some(seed))
++}
++
++fn minify_with_retained(
++    source: &str,
++    analysis: &AnalysisResult,
++    options: MinifyOptions,
++    seed: Option<LexicalSeed<'_>>,
++) -> MinifyResult {
+     let mut result = MinifyResult {
+         source: source.to_owned(),
+         original_length: source.len(),
+@@ -210,21 +231,24 @@
+                 .push(MinifyRefusal::UnsupportedLexicalContext);
+             return result;
+         }
++        let mut analyses = LexicalAnalyses::new(input, seed);
+         let transformed = match options.tier {
+             MinifyTier::Default => super::lexical_default(source, analysis).map(|output| {
+                 result.source = output;
+                 result
+             }),
+-            MinifyTier::Compact => {
+-                super::lexical_compact(source, input, options.isolated).map(|(output, symbols)| {
++            MinifyTier::Compact => super::lexical_compact(source, &mut analyses, options.isolated)
++                .map(|(output, symbols)| {
+                     result.source = output;
+                     result.symbol_map = symbols;
+                     result
+-                })
+-            }
+-            MinifyTier::Aggressive => {
+-                super::lexical_aggressive(source, input, options.isolated, options.abbreviations)
+-            }
++                }),
++            MinifyTier::Aggressive => super::lexical_aggressive(
++                source,
++                &mut analyses,
++                options.isolated,
++                options.abbreviations,
++            ),
+         };
+         return transformed.unwrap_or_else(|refusal| MinifyResult {
+             source: source.to_owned(),
+@@ -393,35 +417,113 @@
+ 
+ /// Explicit driver inputs: profile and store are retained before the analyser
+ /// sees the presentation label. Custom/editor analyses bypass this constructor.
+-pub(super) fn analysis_for_profile(
+-    source: &str,
++pub(super) fn profile_input(
+     profile: &'static tcl_dialect::DialectProfile,
+     registry: &CommandRegistry,
+-) -> AnalysisResult {
++) -> ResolvedAnalysisInput {
+     // Implementation contract: naming.minifier.lexical-authoring-passes
+     // docs/design/analysis/name-resolution-proofs/minifier-lexical-authoring-passes.md
+     let generation = crate::context_for_dialect_profile(profile);
+     let context = Arc::new(generation.with_command_store(registry.snapshot().shared_registry()));
+-    let input = ResolvedAnalysisInput::new(
++    ResolvedAnalysisInput::new(
+         profile,
+         profile,
+         context,
+         LexerConfig::for_profile(Some(profile)),
+-    );
+-    Analyser::new()
+-        .with_resolved_input(input)
+-        .analyse(source, profile.name)
++    )
++}
++
++#[cfg(test)]
++pub(super) fn analysis_for_profile(
++    source: &str,
++    profile: &'static tcl_dialect::DialectProfile,
++    registry: &CommandRegistry,
++) -> AnalysisResult {
++    analysis_with_input(source, &profile_input(profile, registry))
+ }
+ 
+ /// A compatibility rewrite changes the source, retaining every actual input axis.
+ pub(super) fn analysis_with_input(source: &str, input: &ResolvedAnalysisInput) -> AnalysisResult {
+     // naming.minifier.retained-lexical-context
+     // docs/design/analysis/name-resolution-proofs/minifier-retained-lexical-context.md
++    #[cfg(test)]
++    LEXICAL_ANALYSES.with(|count| count.set(count.get() + 1));
+     Analyser::new()
+         .with_resolved_input(input.clone())
+         .analyse(source, input.analyser_profile().name)
+ }
+ 
++#[cfg(test)]
++std::thread_local! {
++    static LEXICAL_ANALYSES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
++}
++
++#[cfg(test)]
++fn reset_lexical_analysis_count() {
++    LEXICAL_ANALYSES.with(|count| count.set(0));
++}
++
++#[cfg(test)]
++fn lexical_analysis_count() -> usize {
++    LEXICAL_ANALYSES.with(std::cell::Cell::get)
++}
++
++/// This module's own analysis of `source` under `input`: a default analyser
++/// over that complete input, exactly what [`analysis_with_input`] produces.
++/// Only this module constructs one, so no caller-supplied analysis with an
++/// unknown producer can stand in for it.
++pub(super) struct LexicalSeed<'s> {
++    source: &'s str,
++    input: &'s ResolvedAnalysisInput,
++    analysis: Rc<AnalysisResult>,
++}
++
++impl<'s> LexicalSeed<'s> {
++    #[must_use]
++    pub(super) fn analyse(source: &'s str, input: &'s ResolvedAnalysisInput) -> Self {
++        Self {
++            source,
++            input,
++            analysis: Rc::new(analysis_with_input(source, input)),
++        }
++    }
++}
++
++/// The analyses of one lexical minify call. Every pass analyses its text with
++/// [`analysis_with_input`] under the same complete input, a pure function of
++/// that text and input, so a pass whose text equals the latest analysed text
++/// reuses that analysis. Only the latest text is held.
++pub(super) struct LexicalAnalyses<'i> {
++    input: &'i ResolvedAnalysisInput,
++    latest: Option<(String, Rc<AnalysisResult>)>,
++}
++
++impl<'i> LexicalAnalyses<'i> {
++    /// A seed is kept only when it was produced under this exact input.
++    #[must_use]
++    pub(super) fn new(input: &'i ResolvedAnalysisInput, seed: Option<LexicalSeed<'_>>) -> Self {
++        let latest = seed
++            .filter(|seed| seed.input == input)
++            .map(|seed| (seed.source.to_owned(), seed.analysis));
++        Self { input, latest }
++    }
++
++    pub(super) const fn input(&self) -> &'i ResolvedAnalysisInput {
++        self.input
++    }
++
++    pub(super) fn of(&mut self, source: &str) -> Rc<AnalysisResult> {
++        if let Some((text, analysis)) = &self.latest
++            && text == source
++        {
++            return Rc::clone(analysis);
++        }
++        let analysis = Rc::new(analysis_with_input(source, self.input));
++        self.latest = Some((source.to_owned(), Rc::clone(&analysis)));
++        analysis
++    }
++}
++
+ /// Gaps belong to authenticated script regions or a separately issued original
+ /// expression action proof, never to displayed argument text.
+ #[derive(Clone, Copy, PartialEq, Eq)]
+@@ -2061,4 +2163,76 @@
+             );
+         }
+     }
++
++    const REUSE_SOURCE: &str = "proc general {longleft {longright longleft}} {list $longleft $longright $longleft; return $longright}\n";
++
++    fn isolated(tier: MinifyTier) -> MinifyOptions {
++        MinifyOptions {
++            tier,
++            isolated: true,
++            ..MinifyOptions::default()
++        }
++    }
++
++    /// Reusing the seed changes no tier's answer.
++    #[test]
++    fn profile_minify_with_its_own_analysis_equals_the_retained_analysis_route() {
++        let registry = CommandRegistry::build_default();
++        let analysis = analysis_for_profile(REUSE_SOURCE, lexical_profile(), &registry);
++        for tier in [
++            MinifyTier::Default,
++            MinifyTier::Compact,
++            MinifyTier::Aggressive,
++        ] {
++            assert_eq!(
++                super::super::minify_with_profile(
++                    REUSE_SOURCE,
++                    lexical_profile(),
++                    &registry,
++                    isolated(tier)
++                ),
++                minify_with_analysis(REUSE_SOURCE, &analysis, isolated(tier)),
++                "{tier:?}"
++            );
++        }
++    }
++
++    /// Work budget: the profile route analyses the source once and the
++    /// renamed text once; a caller analysis of unknown provenance is never
++    /// reused, so that route analyses the source again.
++    #[test]
++    fn compact_minify_analyses_each_distinct_text_once() {
++        let registry = CommandRegistry::build_default();
++        reset_lexical_analysis_count();
++        let result = super::super::minify_with_profile(
++            REUSE_SOURCE,
++            lexical_profile(),
++            &registry,
++            isolated(MinifyTier::Compact),
++        );
++        assert!(result.refusals.is_empty(), "{:?}", result.refusals);
++        assert!(!result.symbol_map.variables.is_empty());
++        assert_eq!(lexical_analysis_count(), 2);
++
++        let analysis = analysis_for_profile(REUSE_SOURCE, lexical_profile(), &registry);
++        reset_lexical_analysis_count();
++        let supplied = minify_with_analysis(REUSE_SOURCE, &analysis, isolated(MinifyTier::Compact));
++        assert_eq!(supplied, result);
++        assert_eq!(lexical_analysis_count(), 2);
++    }
++
++    #[test]
++    fn a_seed_under_another_input_is_not_reused() {
++        let registry = CommandRegistry::build_default();
++        let input = profile_input(lexical_profile(), &registry);
++        let other = profile_input(lexical_profile(), &registry);
++        reset_lexical_analysis_count();
++        let mut analyses =
++            LexicalAnalyses::new(&other, Some(LexicalSeed::analyse(REUSE_SOURCE, &input)));
++        let reused = analyses.of(REUSE_SOURCE);
++        assert_eq!(lexical_analysis_count(), 2);
++        assert_eq!(reused.resolved_input.as_ref(), Some(&other));
++        let again = analyses.of(REUSE_SOURCE);
++        assert!(Rc::ptr_eq(&reused, &again));
++    }
+ }
+diff --git a/rust/tcl-lsp-core/src/minify/lexical_metadata.rs b/rust/tcl-lsp-core/src/minify/lexical_metadata.rs
+--- a/rust/tcl-lsp-core/src/minify/lexical_metadata.rs
++++ b/rust/tcl-lsp-core/src/minify/lexical_metadata.rs
+@@ -318,7 +318,11 @@
+             assert!(output.ends_with("if {1} $body"), "{output}");
+         });
+         let source = "proc p {{longName default}} {return VALUE}; if {1} $body";
+-        let (output, mapping) = crate::minify::compact_names(source, &input(), false);
++        let (output, mapping) = crate::minify::compact_names(
++            source,
++            &mut original::LexicalAnalyses::new(&input(), None),
++            false,
++        );
+         assert_eq!(output, source);
+         assert!(mapping.variables.is_empty());
+         assert!(mapping.procs.is_empty());
+diff --git a/docs/design/analysis/name-resolution-proofs/manifest.json b/docs/design/analysis/name-resolution-proofs/manifest.json
+--- a/docs/design/analysis/name-resolution-proofs/manifest.json
++++ b/docs/design/analysis/name-resolution-proofs/manifest.json
+@@ -1026333,7 +1026333,7 @@
+         },
+         {
+           "path": "rust/tcl-lsp-core/src/minify/original.rs",
+-          "symbol": "analysis_for_profile",
++          "symbol": "profile_input",
+           "purpose": "Retain the supplied profile/store as explicit driver inputs."
+         }
+       ],
+diff --git a/docs/design/analysis/name-resolution-proofs/minifier-lexical-authoring-passes.md b/docs/design/analysis/name-resolution-proofs/minifier-lexical-authoring-passes.md
+--- a/docs/design/analysis/name-resolution-proofs/minifier-lexical-authoring-passes.md
++++ b/docs/design/analysis/name-resolution-proofs/minifier-lexical-authoring-passes.md
+@@ -75,7 +75,7 @@
+ 
+ - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify_with_analysis`: Require independently selected Logical advice, current source, supported complete configuration and actual full context before any compatibility transformation.
+ - [rust/tcl-lsp-core/src/minify.rs](../../../../rust/tcl-lsp-core/src/minify.rs), `lexical_compact`: Keep reporting-map authoring behaviour inside the supported Logical branch and retain the same actual input when analysing rewritten source.
+-- [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `analysis_for_profile`: Retain the supplied profile/store as explicit driver inputs.
++- [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `profile_input`: Retain the supplied profile/store as explicit driver inputs.
+ - [rust/tcl-lsp-core/src/minify/original.rs](../../../../rust/tcl-lsp-core/src/minify/original.rs), `minify::original::tests::lexical_minifier_keeps_explicit_authoring_compaction_separate` (linked): An explicitly selected lexical-only profile preserves supported authoring local/procedure compaction without enabling the hosted or Native path.
+ 
+ A named test is a coverage binding, not a claim that it executed.

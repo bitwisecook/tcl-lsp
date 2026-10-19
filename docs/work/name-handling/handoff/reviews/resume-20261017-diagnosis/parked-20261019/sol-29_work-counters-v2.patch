@@ -1,0 +1,344 @@
+diff --git a/rust/tcl-spectcl/src/bundled.rs b/rust/tcl-spectcl/src/bundled.rs
+index 520440451958676db49087d33a219403f3037777..5426f8269bf5c52287b872456c5ace9e646c984b 100644
+--- a/rust/tcl-spectcl/src/bundled.rs
++++ b/rust/tcl-spectcl/src/bundled.rs
+@@ -1200,4 +1200,62 @@ mod bundled_reload_memo_tests {
+             assert!(crate::cache::bundled_snapshot(&key, &source).is_none());
+         }
+     }
++
++    /// Deep tier only: it evaluates every shipped pack, about 18 s per process
++    /// unoptimised. The probe test below carries the same contract quickly.
++    #[test]
++    fn a_reload_evaluates_each_shipped_pack_once_per_process() {
++        let _cache = cache_guard();
++        let files = discover(&DiscoveryOptions {
++            bundled_dir: Some(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs")),
++            skip_user_tier: true,
++            ..DiscoveryOptions::default()
++        });
++        let shipped = files
++            .iter()
++            .filter(|file| file.tier == Tier::Bundled)
++            .count();
++        assert!(shipped > 0, "the repository ships bundled packs");
++
++        let (cold, cold_evaluations) =
++            crate::cache::count_fresh_bundled_evaluations(|| load_discovered(&files));
++        let (warm, warm_evaluations) =
++            crate::cache::count_fresh_bundled_evaluations(|| load_discovered(&files));
++
++        if crate::cache::disabled() {
++            assert_eq!((cold_evaluations, warm_evaluations), (shipped, shipped));
++        } else {
++            // An earlier test in this process may already have memoised a
++            // shipped pack; none is ever evaluated twice.
++            assert!(
++                cold_evaluations <= shipped,
++                "the first load evaluates each shipped pack at most once"
++            );
++            assert_eq!(
++                warm_evaluations, 0,
++                "a reload of unchanged shipped packs evaluates none of them again"
++            );
++        }
++        assert_eq!(whole(&cold), whole(&warm));
++    }
++
++    #[test]
++    fn a_bundled_pack_is_evaluated_again_only_when_its_bytes_change() {
++        let _cache = cache_guard();
++        let probe = ProbeDir::new();
++        probe.write(1);
++        let files = probe.files();
++
++        let (_, cold) = crate::cache::count_fresh_bundled_evaluations(|| load_discovered(&files));
++        let (_, warm) = crate::cache::count_fresh_bundled_evaluations(|| load_discovered(&files));
++        probe.write(2);
++        let (_, edited) = crate::cache::count_fresh_bundled_evaluations(|| load_discovered(&files));
++
++        let expected = if crate::cache::disabled() {
++            (1, 1, 1)
++        } else {
++            (1, 0, 1)
++        };
++        assert_eq!((cold, warm, edited), expected);
++    }
+ }
+diff --git a/rust/tcl-spectcl/src/cache.rs b/rust/tcl-spectcl/src/cache.rs
+index 85c8ff4f5758ecc087383f36b4abd1f03f439256..ccc4c448d9d9587f6efe24964480f2dfe7f7f78a 100644
+--- a/rust/tcl-spectcl/src/cache.rs
++++ b/rust/tcl-spectcl/src/cache.rs
+@@ -244,7 +244,7 @@ fn entry_path(key: u64) -> PathBuf {
+     dir().join(&hex[..2]).join(format!("{hex}.pack"))
+ }
+ 
+-fn disabled() -> bool {
++pub(crate) fn disabled() -> bool {
+     override_of(|(_, off)| *off).unwrap_or(false)
+         || std::env::var_os(DISABLE_ENV).is_some_and(|v| v == "1")
+ }
+@@ -327,6 +327,34 @@ pub(crate) fn retain_bundled_snapshot(key: EvalSnapshotKey, source: &str, pack:
+         .insert(key, (source.into(), pack.clone()));
+ }
+ 
++#[cfg(test)]
++thread_local! {
++    /// Bundled-tier packs this thread evaluated afresh while
++    /// [`count_fresh_bundled_evaluations`] is counting.
++    static FRESH_BUNDLED: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
++}
++
++/// Note one bundled-tier pack evaluated afresh rather than taken from
++/// [`BUNDLED_SNAPSHOT`]. Only a test build counts it.
++pub(crate) fn note_fresh_bundled_evaluation() {
++    #[cfg(test)]
++    FRESH_BUNDLED.with(|count| {
++        if let Some(seen) = count.get() {
++            count.set(Some(seen + 1));
++        }
++    });
++}
++
++/// Run `body` and say how many bundled-tier packs it evaluated afresh on this
++/// thread.
++#[cfg(test)]
++pub(crate) fn count_fresh_bundled_evaluations<T>(body: impl FnOnce() -> T) -> (T, usize) {
++    let outer = FRESH_BUNDLED.replace(Some(0));
++    let value = body();
++    let counted = FRESH_BUNDLED.replace(outer).unwrap_or(0);
++    (value, counted)
++}
++
+ /// Drop every in-memory snapshot. [`clear`] does this as part of clearing the
+ /// whole cache; the tests that must exercise the on-disk tier call it directly
+ /// so a memo hit cannot answer for the read they are checking.
+diff --git a/rust/tcl-spectcl/src/pack.rs b/rust/tcl-spectcl/src/pack.rs
+index 328b77f531c1be261c8f81a970fec2f690ffd706..aaeb93f444589622c6f7886f448356f669c026b9 100644
+--- a/rust/tcl-spectcl/src/pack.rs
++++ b/rust/tcl-spectcl/src/pack.rs
+@@ -696,6 +696,9 @@ fn load_sources_unpublished_inner(
+                     }
+                 }
+             }
++            if file.tier == Tier::Bundled {
++                crate::cache::note_fresh_bundled_evaluation();
++            }
+             if let Some(key) = snapshot
+                 && !asked_include
+             {
+diff --git a/rust/tcl-lsp-core/src/package_resolver.rs b/rust/tcl-lsp-core/src/package_resolver.rs
+index 0652e29ffbe16480c0db3ce70784061d9308e49d..cf6137b241cc379abdf2801d0793cdf5453e8d86 100644
+--- a/rust/tcl-lsp-core/src/package_resolver.rs
++++ b/rust/tcl-lsp-core/src/package_resolver.rs
+@@ -1354,7 +1354,7 @@ pub use original_names::{
+     OriginalPackageFileCandidate, OriginalPackageFileCandidateKind, OriginalPackageInfo,
+     PackageRequirementAdvice, PackageRequirementAdviceKey,
+ };
+-pub use survey::IndexSurveyCache;
++pub use survey::{IndexSurveyCache, RebuildSurveys};
+ 
+ #[cfg(test)]
+ mod tests;
+diff --git a/rust/tcl-lsp-core/src/package_resolver/survey.rs b/rust/tcl-lsp-core/src/package_resolver/survey.rs
+index 19483562363044e797887312ccad20d0b4832fa3..d35608ec801a3c890dab0158a1216c27ef35895a 100644
+--- a/rust/tcl-lsp-core/src/package_resolver/survey.rs
++++ b/rust/tcl-lsp-core/src/package_resolver/survey.rs
+@@ -251,6 +251,20 @@ pub struct IndexSurveyCache {
+     entries: HashMap<PathBuf, CachedSurvey>,
+     registries: SurveyRegistries,
+     rebuild: u64,
++    last_rebuild: RebuildSurveys,
++}
++
++/// What one rebuild did with the kept surveys.
++#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
++pub struct RebuildSurveys {
++    /// The rebuild started by dropping every kept survey, because the
++    /// registries surveys analyse against had moved (always so for a cache's
++    /// first rebuild).
++    pub cleared_for_registries: bool,
++    /// Directories surveyed afresh.
++    pub fresh: u64,
++    /// Directories whose kept survey was reused.
++    pub reused: u64,
+ }
+ 
+ #[derive(Debug)]
+@@ -272,13 +286,22 @@ impl IndexSurveyCache {
+     /// it now when the registries surveys analyse against have changed.
+     pub fn begin_rebuild(&mut self) {
+         self.rebuild += 1;
++        self.last_rebuild = RebuildSurveys::default();
+         let registries = SurveyRegistries::current();
+         if registries != self.registries {
+             self.entries.clear();
+             self.registries = registries;
++            self.last_rebuild.cleared_for_registries = true;
+         }
+     }
+ 
++    /// What the latest rebuild, since its [`Self::begin_rebuild`], did with
++    /// the kept surveys.
++    #[must_use]
++    pub fn last_rebuild(&self) -> RebuildSurveys {
++        self.last_rebuild
++    }
++
+     /// Drop every survey the rebuild since [`Self::begin_rebuild`] did not
+     /// visit.
+     pub fn finish_rebuild(&mut self) {
+@@ -294,10 +317,12 @@ impl IndexSurveyCache {
+             && entry.inputs.iter().all(|input| input.holds(store))
+         {
+             entry.rebuild = self.rebuild;
++            self.last_rebuild.reused += 1;
+             return entry.survey.clone();
+         }
+         let probe = SurveyProbe::new(store, true);
+         let survey = DirectorySurvey::take(&probe, dir);
++        self.last_rebuild.fresh += 1;
+         self.entries.insert(
+             dir.to_path_buf(),
+             CachedSurvey {
+diff --git a/rust/tcl-lsp-core/src/package_resolver/tests.rs b/rust/tcl-lsp-core/src/package_resolver/tests.rs
+index 3ff4388ee73233f223b164793aae57b86027ae39..700c400bdf7901df81dd2be3faa9041e2df18179 100644
+--- a/rust/tcl-lsp-core/src/package_resolver/tests.rs
++++ b/rust/tcl-lsp-core/src/package_resolver/tests.rs
+@@ -1437,6 +1437,9 @@ fn rebuild_reusing(
+ 
+ #[test]
+ fn a_rescan_reusing_surveys_builds_the_database_a_fresh_scan_does() {
++    // Registers the compiled-in core surfaces now rather than in the middle of
++    // this test, when another test's first call would move the registries.
++    tcl_spectcl::core_surfaces::ensure();
+     let store = host_library_store();
+     let lib = Path::new(HOST_LIBRARY);
+     let fresh = |store: &dyn crate::vfs::SourceStore| {
+@@ -1468,3 +1471,47 @@ fn a_rescan_reusing_surveys_builds_the_database_a_fresh_scan_does() {
+     assert_eq!(database_contents(&fourth), fresh(&store));
+     assert!(!fourth.resolve("hostpkg", Some("2.0")).is_empty());
+ }
++
++/// One rebuild's record, exactly: every visited directory surveyed afresh when
++/// the rebuild dropped the kept surveys, otherwise `fresh` of them afresh and
++/// the rest reused.
++fn assert_rebuild(stats: RebuildSurveys, visited: u64, fresh: u64) {
++    let expected = if stats.cleared_for_registries {
++        (visited, 0)
++    } else {
++        (fresh, visited - fresh)
++    };
++    assert_eq!((stats.fresh, stats.reused), expected, "{stats:?}");
++}
++
++#[test]
++fn an_unchanged_rescan_surveys_no_directory_again() {
++    tcl_spectcl::core_surfaces::ensure();
++    let store = host_library_store();
++    let lib = Path::new(HOST_LIBRARY);
++    let mut surveys = IndexSurveyCache::new();
++
++    // The library directory and its two subdirectories.
++    rebuild_reusing(&store, &mut surveys);
++    assert_eq!(
++        surveys.last_rebuild(),
++        RebuildSurveys {
++            cleared_for_registries: true,
++            fresh: 3,
++            reused: 0,
++        }
++    );
++    rebuild_reusing(&store, &mut surveys);
++    assert_rebuild(surveys.last_rebuild(), 3, 0);
++
++    assert!(store.remove(&lib.join("autolib/autolib.tcl")));
++    rebuild_reusing(&store, &mut surveys);
++    assert_rebuild(surveys.last_rebuild(), 3, 1);
++
++    store.upsert(
++        lib.join("hostpkg/pkgIndex.tcl"),
++        "package ifneeded hostpkg 2.0 [list source [file join $dir hostpkg.tcl]]\n",
++    );
++    rebuild_reusing(&store, &mut surveys);
++    assert_rebuild(surveys.last_rebuild(), 3, 1);
++}
+diff --git a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+index b0c459037701331be68c742bf1f86d6d8671c299..f4f3fceb822ee190a23e7fad084fc21afd5464f5 100644
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -45429,6 +45429,74 @@ info exists ::N::v\uD800";
+         );
+     }
+ 
++    /// A rescan over an unchanged installed library surveys none of its index
++    /// files again; an edited index is surveyed again. The installation is an
++    /// explicit fixture, never the host's. Each scan is checked against the
++    /// survey cache's own record of that scan, so a registry generation moved
++    /// by another test in the same process changes which branch is asserted,
++    /// never whether it holds.
++    #[tokio::test]
++    async fn an_unchanged_rescan_resurveys_no_installed_library_index() {
++        // Registered now rather than between this test's scans.
++        tcl_spectcl::core_surfaces::ensure();
++        let sys = TmpWs::new("survey-host");
++        sys.write(
++            "lib/hostpkg/pkgIndex.tcl",
++            "package ifneeded hostpkg 1.0 [list source [file join $dir hostpkg.tcl]]\n",
++        );
++        sys.write("lib/hostpkg/hostpkg.tcl", "package provide hostpkg 1.0\n");
++        let lib_root = sys.0.join("lib");
++        let backend = test_backend_with_host(
++            tcl_lsp_db::TclDatabase::default(),
++            HostTclInputs::fixed(vec![core_tcl_install::TclInstallation {
++                version: "8.6".to_owned(),
++                tcl_library: lib_root.join("tcl8.6"),
++                auto_path: vec![lib_root.clone()],
++            }]),
++        );
++        let last_rebuild = || {
++            backend
++                .index_surveys
++                .lock()
++                .unwrap_or_else(std::sync::PoisonError::into_inner)
++                .last_rebuild()
++        };
++        // The library directory and its one package directory.
++        let visited = 2;
++        let assert_rebuild = |fresh_when_kept: u64| {
++            let stats = last_rebuild();
++            let expected = if stats.cleared_for_registries {
++                (visited, 0)
++            } else {
++                (fresh_when_kept, visited - fresh_when_kept)
++            };
++            assert_eq!((stats.fresh, stats.reused), expected, "{stats:?}");
++        };
++
++        backend.scan_workspace_folders().await.unwrap();
++        assert_eq!((last_rebuild().fresh, last_rebuild().reused), (visited, 0));
++        assert!(backend.package_resolver.read().await.provides("hostpkg"));
++
++        backend.scan_workspace_folders().await.unwrap();
++        assert_rebuild(0);
++        assert!(backend.package_resolver.read().await.provides("hostpkg"));
++
++        sys.write(
++            "lib/hostpkg/pkgIndex.tcl",
++            "package ifneeded hostpkg 2.0 [list source [file join $dir hostpkg.tcl]]\n",
++        );
++        backend.scan_workspace_folders().await.unwrap();
++        assert_rebuild(1);
++        assert!(
++            !backend
++                .package_resolver
++                .read()
++                .await
++                .resolve("hostpkg", Some("2.0"))
++                .is_empty()
++        );
++    }
++
+     /// Fix #3: `scan_workspace_folders` must (re)build the package resolver from
+     /// the editor library paths / discovered installations EVEN with no workspace
+     /// roots, so a single-file / no-folder session's W120 refinement sees the

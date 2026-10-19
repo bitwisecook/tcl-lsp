@@ -1,0 +1,64 @@
+--- a/rust/tcl-lsp-db/src/lib.rs
++++ b/rust/tcl-lsp-db/src/lib.rs
+@@ -8197,6 +8197,9 @@
+         let mut db = TclDatabase::default();
+         let registry = db.registry(dialect);
+         let file = SourceFile::new(&db, assemble(&state), dialect.to_owned(), None);
++        // The fresh baseline is a pure function of the source text (the dialect
++        // and registry are fixed), so each distinct text is built once.
++        let mut fresh_by_text = std::collections::HashMap::new();
+ 
+         for iter in 0..250 {
+             let slot = (next() as usize) % state.len();
+@@ -8205,7 +8208,9 @@
+             file.set_text(&mut db).to(src.clone());
+ 
+             let got = compiler_check_diagnostics(&db, file, cfg(&db));
+-            let want = compiler_check_diagnostics_uncached(&src, registry, dialect, None, None);
++            let want = fresh_by_text.entry(src.clone()).or_insert_with(|| {
++                compiler_check_diagnostics_uncached(&src, registry, dialect, None, None)
++            });
+             assert_eq!(
+                 got.checks, want.checks,
+                 "iter {iter}: checks diverge from fresh build for state {state:?}:\n{src}"
+@@ -9378,11 +9383,17 @@
+             rng ^= rng << 17;
+             rng
+         };
++        // The fresh rebuild is a pure function of `b`'s text (`a` is fixed), so
++        // each distinct text is rebuilt once.
++        let mut fresh_by_b = std::collections::HashMap::new();
+         for _ in 0..60 {
+             let b_text = b_variants[pick_index(next(), b_variants.len())];
+             b.set_text(&mut db).to(b_text.to_owned());
+             let inc = diag_keys(&project_diagnostics(&db, a, cfg, project));
+-            let fresh = mk(b_text);
++            let fresh = fresh_by_b
++                .entry(b_text)
++                .or_insert_with(|| mk(b_text))
++                .clone();
+             assert_eq!(inc, fresh, "incremental != fresh after b = {b_text:?}");
+         }
+     }
+@@ -9456,6 +9467,9 @@
+             rng ^= rng << 17;
+             rng
+         };
++        // The fresh rebuild is a pure function of the two committed texts, so
++        // each distinct pair is rebuilt once.
++        let mut fresh_by_pair = std::collections::HashMap::new();
+         for _ in 0..80 {
+             // Edit one file (sometimes both) per round.
+             let pick = next() % 3;
+@@ -9471,7 +9485,10 @@
+             let cur_a = a.text(&db).clone();
+             let cur_b = b.text(&db).clone();
+             let inc = diag_keys(&project_diagnostics(&db, a, cfg, project));
+-            let fresh = mk(&cur_a, &cur_b);
++            let fresh = fresh_by_pair
++                .entry((cur_a.clone(), cur_b.clone()))
++                .or_insert_with(|| mk(&cur_a, &cur_b))
++                .clone();
+             assert_eq!(inc, fresh, "incremental != fresh: a={cur_a:?} b={cur_b:?}");
+         }
+     }

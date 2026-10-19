@@ -1,0 +1,381 @@
+diff --git a/rust/tcl-spectcl/src/bundled.rs b/rust/tcl-spectcl/src/bundled.rs
+index fa71fb66d16437760924fb12b8c6b41246aa6248..520440451958676db49087d33a219403f3037777 100644
+--- a/rust/tcl-spectcl/src/bundled.rs
++++ b/rust/tcl-spectcl/src/bundled.rs
+@@ -1048,3 +1048,156 @@ mod required_generation_input_tests {
+         std::fs::remove_dir_all(root).unwrap();
+     }
+ }
++
++#[cfg(test)]
++mod bundled_reload_memo_tests {
++    use super::*;
++
++    fn cache_guard() -> std::sync::MutexGuard<'static, ()> {
++        crate::cache::REDIRECT_LOCK
++            .lock()
++            .unwrap_or_else(std::sync::PoisonError::into_inner)
++    }
++
++    /// Everything a load produced, for comparing two loads of the same inputs.
++    fn whole(set: &PackSet) -> String {
++        format!("{set:?}")
++    }
++
++    /// The cache switched off until this is dropped, panic included.
++    struct CacheOff;
++
++    impl CacheOff {
++        fn new(dir: PathBuf) -> Self {
++            crate::cache::redirect_for_test(Some((dir, true)));
++            Self
++        }
++    }
++
++    impl Drop for CacheOff {
++        fn drop(&mut self) {
++            crate::cache::redirect_for_test(None);
++        }
++    }
++
++    /// Text no other test loads, so no other thread can memoise a pack
++    /// carrying it.
++    fn nonce() -> String {
++        static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
++        format!(
++            "{}_{}_{}",
++            std::process::id(),
++            NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
++            std::time::SystemTime::now()
++                .duration_since(std::time::UNIX_EPOCH)
++                .map_or(0, |elapsed| elapsed.as_nanos())
++        )
++    }
++
++    /// A private bundled directory holding one pack whose bytes no other test
++    /// loads, so no other thread can memoise them.
++    struct ProbeDir {
++        root: PathBuf,
++        nonce: String,
++    }
++
++    impl ProbeDir {
++        fn new() -> Self {
++            let nonce = nonce();
++            let root = std::env::temp_dir().join(format!("bundled-reload-memo-{nonce}"));
++            std::fs::create_dir(&root).unwrap();
++            Self { root, nonce }
++        }
++
++        fn write(&self, arity: u8) {
++            let nonce = &self.nonce;
++            std::fs::write(
++                self.root.join("memo_probe.tclspec"),
++                format!(
++                    "speclib memo_probe 2.0 {{command memo_probe_{nonce} {{arity {arity}}}}}\n"
++                ),
++            )
++            .unwrap();
++        }
++
++        fn files(&self) -> Vec<PackFile> {
++            let files = discover(&DiscoveryOptions {
++                bundled_dir: Some(self.root.clone()),
++                skip_user_tier: true,
++                ..DiscoveryOptions::default()
++            });
++            assert_eq!(files.len(), 1);
++            assert_eq!(files[0].tier, Tier::Bundled);
++            files
++        }
++
++        fn arity(&self, set: &PackSet) -> Option<u16> {
++            let command = format!("memo_probe_{}", self.nonce);
++            set.packs
++                .iter()
++                .find_map(|pack| pack.command(&command))
++                .map(|command| command.spec.arity.min)
++        }
++    }
++
++    impl Drop for ProbeDir {
++        fn drop(&mut self) {
++            let _ = std::fs::remove_dir_all(&self.root);
++        }
++    }
++
++    #[test]
++    fn a_reloaded_bundled_pack_is_the_pack_a_fresh_evaluation_gives() {
++        let _cache = cache_guard();
++        let probe = ProbeDir::new();
++        probe.write(1);
++        let files = probe.files();
++
++        let first = load_discovered(&files);
++        let source = std::fs::read_to_string(&files[0].path).unwrap();
++        if let Some(key) =
++            crate::cache::bundled_snapshot_key(&source, Tier::Bundled, WorkspaceTrust::Trusted)
++        {
++            assert!(
++                crate::cache::bundled_snapshot(&key, &source).is_some(),
++                "a bundled pack that asked for no include is memoised"
++            );
++        }
++        let memoised = load_discovered(&files);
++        let fresh = {
++            let _off = CacheOff::new(probe.root.join("cache"));
++            load_discovered(&files)
++        };
++        assert_eq!(whole(&first), whole(&memoised));
++        assert_eq!(whole(&memoised), whole(&fresh));
++
++        probe.write(2);
++        let edited = load_discovered(&files);
++        assert_eq!(
++            (probe.arity(&memoised), probe.arity(&edited)),
++            (Some(1), Some(2)),
++            "edited bytes are evaluated again"
++        );
++    }
++
++    #[test]
++    fn a_failed_bundled_load_is_never_memoised() {
++        let _cache = cache_guard();
++        let source = format!("speclib memo_broken_{} 99.0 {{}}\n", nonce());
++        let set = crate::pack::load_in_memory(vec![(
++            PackFile {
++                tier: Tier::Bundled,
++                path: PathBuf::from("<probe>/memo_broken.tclspec"),
++                origin: Origin::Bundled,
++                dependency_tier: None,
++            },
++            source.clone(),
++        )]);
++        assert!(!set.load_errors.is_empty(), "{:?}", set.notices);
++        if let Some(key) =
++            crate::cache::bundled_snapshot_key(&source, Tier::Bundled, WorkspaceTrust::Trusted)
++        {
++            assert!(crate::cache::bundled_snapshot(&key, &source).is_none());
++        }
++    }
++}
+diff --git a/rust/tcl-spectcl/src/cache.rs b/rust/tcl-spectcl/src/cache.rs
+index 0fa2bfa758d9fa1efb95384daf01a4a34ed47fae..85c8ff4f5758ecc087383f36b4abd1f03f439256 100644
+--- a/rust/tcl-spectcl/src/cache.rs
++++ b/rust/tcl-spectcl/src/cache.rs
+@@ -41,15 +41,22 @@
+ //!
+ //! ## What is cached
+ //!
+-//! Two tiers, one key. The key is [`crate::loader::EvalSnapshotKey`] —
+-//! content hash × vocabulary version × loader-eval version × provenance tier
+-//! × workspace trust — stamped with this build ([`stamp_build`]); there is
+-//! no second cache identity anywhere in the crate.
++//! Two tiers and a bundled memo, one key. The key is
++//! [`crate::loader::EvalSnapshotKey`] — content hash × vocabulary version ×
++//! loader-eval version × provenance tier × workspace trust — stamped with
++//! this build ([`stamp_build`]); there is no second cache identity anywhere
++//! in the crate.
+ //!
+ //! - **In memory**: the finished [`Pack`]. It cannot go to disk at all — a
+ //!   resolved `CommandSpec` holds function pointers into this binary — so this
+ //!   tier lives and dies with the process. A pack that used `available?` is
+ //!   target-dependent (design E-R1) and is never stored.
++//! - **Bundled, in memory**: the finished [`Pack`] of a shipped (bundled-tier)
++//!   pack loaded through an `include` resolver it never asked, kept with its
++//!   exact source. [`crate::pack`]'s merge loads every file that way, so this
++//!   is what spares an LSP reload the shipped loadables. A target-dependent
++//!   pack and a pack whose load failed are never kept: the wall-clock budget
++//!   can fail one load of the same source and not the next.
+ //! - **On disk**: the **segmented statement tree** the evaluation loader
+ //!   parses on its way in, which is what makes the *next process* cheap. It is
+ //!   the only part of loading that a new process can be spared, and
+@@ -268,6 +275,58 @@ fn snapshot_put(key: EvalSnapshotKey, pack: &Pack) {
+         .insert(key, pack.clone());
+ }
+ 
++/// The in-memory tier for bundled-tier packs loaded through an `include`
++/// resolver, which is how [`crate::pack`]'s merge loads every file and so how
++/// every LSP reload loads the shipped loadables: each finished [`Pack`] with
++/// the exact source it was evaluated from, by snapshot identity.
++///
++/// [`evaluate_pack_including`] bypasses [`SNAPSHOT`] because an included file
++/// can change under an unchanged root. A pack whose evaluation never asked its
++/// resolver read nothing but its own bytes, so it is the same pure function
++/// of `(source, tier, trust)` that [`SNAPSHOT`] memoises, and only such a pack
++/// is kept. Only the bundled tier is kept: its bytes do not change under a
++/// running server, yet every configuration change, trust push and Studio
++/// publication reloads it, so the tier stays bounded by the packs that ship.
++/// A hit also compares the source byte for byte, so a hash collision cannot
++/// answer for another pack.
++static BUNDLED_SNAPSHOT: LazyLock<Mutex<HashMap<EvalSnapshotKey, (Box<str>, Pack)>>> =
++    LazyLock::new(|| Mutex::new(HashMap::new()));
++
++/// The identity a bundled-tier pack loaded through an `include` resolver is
++/// memoised under, or `None` when [`BUNDLED_SNAPSHOT`] may not answer for it:
++/// another tier, or the cache switched off.
++pub(crate) fn bundled_snapshot_key(
++    source: &str,
++    tier: Tier,
++    trust: WorkspaceTrust,
++) -> Option<EvalSnapshotKey> {
++    (tier == Tier::Bundled && !disabled())
++        .then(|| eval_snapshot_key(source, &options_for(tier, trust)))
++}
++
++/// The bundled pack memoised under `key` for exactly `source`, if one is.
++pub(crate) fn bundled_snapshot(key: &EvalSnapshotKey, source: &str) -> Option<Pack> {
++    let snapshots = BUNDLED_SNAPSHOT
++        .lock()
++        .unwrap_or_else(std::sync::PoisonError::into_inner);
++    let (held, pack) = snapshots.get(key)?;
++    (&**held == source).then(|| pack.clone())
++}
++
++/// Memoise a bundled pack freshly evaluated from `source` that asked for no
++/// `include`. A target-dependent pack (design E-R1) is never kept, and nor is
++/// one whose load failed: the wall-clock budget is not a function of the
++/// source, so the next reload must evaluate it again.
++pub(crate) fn retain_bundled_snapshot(key: EvalSnapshotKey, source: &str, pack: &Pack) {
++    if pack.target_dependent || pack.load_error.is_some() {
++        return;
++    }
++    BUNDLED_SNAPSHOT
++        .lock()
++        .unwrap_or_else(std::sync::PoisonError::into_inner)
++        .insert(key, (source.into(), pack.clone()));
++}
++
+ /// Drop every in-memory snapshot. [`clear`] does this as part of clearing the
+ /// whole cache; the tests that must exercise the on-disk tier call it directly
+ /// so a memo hit cannot answer for the read they are checking.
+@@ -276,6 +335,10 @@ pub(crate) fn forget_snapshots() {
+         .lock()
+         .unwrap_or_else(std::sync::PoisonError::into_inner)
+         .clear();
++    BUNDLED_SNAPSHOT
++        .lock()
++        .unwrap_or_else(std::sync::PoisonError::into_inner)
++        .clear();
+ }
+ 
+ /// Whether one source's snapshot is currently held in memory — the observable
+@@ -318,7 +381,8 @@ pub fn evaluate_pack_cached(source: &str, tier: Tier, trust: WorkspaceTrust) ->
+ /// [`evaluate_pack_cached`] for a pack carrying `include` rows: the on-disk
+ /// tier is skipped (its key hashes only *this* file's bytes and so cannot see
+ /// an included file change under it), and so is the in-memory tier, for the
+-/// same reason.
++/// same reason. [`crate::pack`] keeps a bundled pack that reached no include in
++/// a bundled in-memory tier of its own instead.
+ ///
+ /// Not a second loader and not a second cache — the same door with the tier
+ /// that cannot describe this input switched off, which is exactly what
+diff --git a/rust/tcl-spectcl/src/loader.rs b/rust/tcl-spectcl/src/loader.rs
+index 466e2e3ceb3f55173555f27d6b6298863fe319b7..d9fcd996b7d42f1f1c59d08c0966bbe0cde7c34c 100644
+--- a/rust/tcl-spectcl/src/loader.rs
++++ b/rust/tcl-spectcl/src/loader.rs
+@@ -1973,6 +1973,8 @@ fn file_extension_row(stmt: &Stmt, log: &mut Log) -> Option<FileExtension> {
+ /// search path the discovery layer already walks.
+ pub struct IncludeContext {
+     resolver: IncludeResolver,
++    /// Whether the load has asked for any include, answered or not.
++    asked: std::cell::Cell<bool>,
+ }
+ 
+ /// The resolver an [`IncludeContext`] wraps: include name in, source text
+@@ -1998,6 +2000,7 @@ impl IncludeContext {
+     pub fn new(resolver: impl Fn(&str) -> Result<String, String> + 'static) -> Self {
+         Self {
+             resolver: Box::new(resolver),
++            asked: std::cell::Cell::new(false),
+         }
+     }
+ 
+@@ -2043,8 +2046,16 @@ impl IncludeContext {
+     }
+ 
+     fn resolve(&self, name: &str) -> Result<String, String> {
++        self.asked.set(true);
+         (self.resolver)(name)
+     }
++
++    /// Whether the load asked this context to resolve any include, whatever
++    /// the resolver answered. A load that never asked read nothing but its
++    /// own source.
++    pub(crate) fn was_asked(&self) -> bool {
++        self.asked.get()
++    }
+ }
+ 
+ /// The most deeply nested chain of `include`s the loader follows. The
+diff --git a/rust/tcl-spectcl/src/pack.rs b/rust/tcl-spectcl/src/pack.rs
+index d2681ecfc0ee53d857dd1b1867dfa46aad45617a..328b77f531c1be261c8f81a970fec2f690ffd706 100644
+--- a/rust/tcl-spectcl/src/pack.rs
++++ b/rust/tcl-spectcl/src/pack.rs
+@@ -621,9 +621,16 @@ fn load_sources_unpublished_inner(
+     let mut load_errors = Vec::new();
+     for (file, source) in sources {
+         let file_trust = file.tier.trust_under(trust);
+-        // The resolver is lazy: helper/computed include invocations receive
+-        // the same actual provider even when no direct source row names it.
+-        let pack = {
++        // A shipped pack that asked for no `include` read nothing but its own
++        // bytes, so a reload takes it from the in-memory tier instead of
++        // evaluating the bundled loadables again.
++        let snapshot = crate::cache::bundled_snapshot_key(&source, file.tier, file_trust);
++        let memoised = snapshot.and_then(|key| crate::cache::bundled_snapshot(&key, &source));
++        let pack = if let Some(pack) = memoised {
++            pack
++        } else {
++            // The resolver is lazy: helper/computed include invocations receive
++            // the same actual provider even when no direct source row names it.
+             let reader = owned_store
+                 .clone()
+                 .or_else(|| store.and_then(|store| store.retained_source_reader()));
+@@ -655,12 +662,10 @@ fn load_sources_unpublished_inner(
+                     })
+                 }
+             };
+-            let pack = crate::cache::evaluate_pack_including(
+-                &source,
+-                file.tier,
+-                file_trust,
+-                &std::rc::Rc::new(context),
+-            );
++            let context = std::rc::Rc::new(context);
++            let pack =
++                crate::cache::evaluate_pack_including(&source, file.tier, file_trust, &context);
++            let asked_include = context.was_asked();
+             for observation in observations.borrow_mut().drain(..) {
+                 // The same images that were evaluated feed both content key
+                 // and provider publication; no second read or cached roster.
+@@ -691,6 +696,11 @@ fn load_sources_unpublished_inner(
+                     }
+                 }
+             }
++            if let Some(key) = snapshot
++                && !asked_include
++            {
++                crate::cache::retain_bundled_snapshot(key, &source, &pack);
++            }
+             pack
+         };
+         if let Some(error) = &pack.load_error {
+diff --git a/docs/design/registry/spec-packs.md b/docs/design/registry/spec-packs.md
+index 59879379ebe01962a6d444b1e7f4d6b0844c1e74..998f1b28efd6bd01fe686741b4673a4632fe73fd 100644
+--- a/docs/design/registry/spec-packs.md
++++ b/docs/design/registry/spec-packs.md
+@@ -615,7 +615,12 @@ message. See [W139](../../kcs/codes/kcs-diagnostic-w139-retired-at-resolved-vers
+   once, and an untrusted workspace's snapshot never answers for a trusted
+   one's. The cache is disposable by
+   contract: delete it and nothing breaks but first-load time; a corrupt or
+-  stale entry falls back to a fresh evaluation, never an error.
++  stale entry falls back to a fresh evaluation, never an error. Within one
++  process, a reload takes each shipped (bundled-tier) pack whose evaluation
++  asked for no `include` and loaded without error from an in-memory memo
++  under the same key, checked byte for byte against the pack's source, so a
++  configuration change, trust push or Studio publication does not evaluate
++  the bundled loadables again.
+ - **CLI and MCP.** `tcl spec import` derives version ranges for a
+   package's commands from several releases; `tcl spec upgrade` rewrites a
+   1.x pack to the newest vocabulary (`--check`, `--verify`, `--restyle`;

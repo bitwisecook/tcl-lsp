@@ -1,0 +1,63 @@
+diff -ruN a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+--- a/rust/tcl-lsp-server/src/lib.rs	2026-10-19 10:47:46.000000000 +0000
++++ b/rust/tcl-lsp-server/src/lib.rs	2026-10-19 11:03:30.424484759 +0000
+@@ -61931,20 +61931,46 @@
+         .await
+         .expect("configuration re-resolution must mark the document dirty");
+ 
+-        backend
+-            .did_change(DidChangeTextDocumentParams {
+-                text_document: VersionedTextDocumentIdentifier {
+-                    uri: uri.clone(),
+-                    version: 2,
+-                },
+-                content_changes: vec![TextDocumentContentChangeEvent {
+-                    range: None,
+-                    range_length: None,
+-                    text: "set x 2\n".to_owned(),
+-                }],
+-            })
+-            .await;
++        // Scheduling the edit's diagnostics reads the session default, so the
++        // edit runs as its own task: awaiting it here would wait on the guard
++        // this task holds. Release the guard once the splice has landed.
++        let editing = crate::rt::spawn({
++            let backend = Arc::clone(&backend);
++            let uri = uri.clone();
++            async move {
++                backend
++                    .did_change(DidChangeTextDocumentParams {
++                        text_document: VersionedTextDocumentIdentifier { uri, version: 2 },
++                        content_changes: vec![TextDocumentContentChangeEvent {
++                            range: None,
++                            range_length: None,
++                            text: "set x 2\n".to_owned(),
++                        }],
++                    })
++                    .await;
++            }
++        });
++        crate::rt::timeout(std::time::Duration::from_secs(5), async {
++            loop {
++                if backend
++                    .documents
++                    .lock("test")
++                    .await
++                    .get(&uri)
++                    .is_some_and(|doc| doc.version == Some(2))
++                {
++                    break;
++                }
++                crate::rt::yield_now().await;
++            }
++        })
++        .await
++        .expect("the edit must land while the session default is held");
+         drop(default);
++        crate::rt::timeout(std::time::Duration::from_secs(5), editing)
++            .await
++            .expect("the edit must finish once the session default is released")
++            .expect("the edit task panicked");
+         crate::rt::timeout(std::time::Duration::from_secs(5), resolving)
+             .await
+             .expect("dialect resolution must retry after the edit")
