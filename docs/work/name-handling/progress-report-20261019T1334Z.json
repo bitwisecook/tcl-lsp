@@ -1,0 +1,53 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-19T13:34:52.931905+00:00",
+  "scheduled_report_utc": "2026-10-19T13:34:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "candidates": {},
+  "merge_bar": "Full workspace inventory restarted 13:2xZ after the first attempt's cargo-nextest was OOM-killed (12.7 GB holding failure output for JUnit); runner now streams truncated output to disk. tcl-compiler lib (10444 tests) in progress at (  450/10444) with 93 failures so far. Early finding: per_item fast-path tests (ordinary_large_body_stays_on_the_fast_path, many_small_bodies_totalling_over_the_threshold_stay_fast) ran >30 min in the first attempt; these exist and pass on origin/rust, so a likely merge-blocking performance regression.",
+  "next_report_utc": "2026-10-19T14:05:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
