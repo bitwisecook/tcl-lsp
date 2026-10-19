@@ -1,0 +1,110 @@
+{
+  "status": "DIRECT_LSP_1085_EXECUTED_GUARDS_PASS",
+  "started": "2026-10-19T07:21:00.476393+00:00",
+  "git_head": "a29e51769091b4c6f5823a1379f893b26a6f4421",
+  "source_sha256": "ad1188fa4e39d20d2411d2e0d4056fa80b36590ba7a7fc59b7faf82e5ade002c",
+  "providers_sha256": "922d66d207d22abb5e74807e48741d1b8f8e37b994649c6edb10d7b262b8021c",
+  "artifacts_sha256": "5282dc4648abb9179afe603eaaa86c1228f18e31c0933342619dc58fc013d0b1",
+  "runs": [
+    {
+      "selection": "original",
+      "target": "tcl_lsp_db",
+      "exit": 1,
+      "result_sha256": "9bd04663d13d724d62f2351f543fd608acad4c08f7bdac7e97d747c9018b8bca",
+      "passed": 8,
+      "failed": 3,
+      "timeouts": 0,
+      "count": 11,
+      "partial_target": "tcl_lsp_db",
+      "full_group_complete": false
+    },
+    {
+      "selection": "original",
+      "target": "tcl_lsp_core",
+      "exit": 1,
+      "result_sha256": "96f6e214aea1d39da6261f6ee2939ca615db376595ea2d1bf9172c76d0e19011",
+      "passed": 551,
+      "failed": 113,
+      "timeouts": 1,
+      "count": 664,
+      "partial_target": "tcl_lsp_core",
+      "full_group_complete": false
+    },
+    {
+      "selection": "original",
+      "target": "tcl_lsp_server",
+      "exit": 1,
+      "result_sha256": "a454d7dafef40c4630069baae9904eac42730928cb654c39fddc2dfd00e0734a",
+      "passed": 159,
+      "failed": 16,
+      "timeouts": 2,
+      "count": 175,
+      "partial_target": "tcl_lsp_server",
+      "full_group_complete": false
+    },
+    {
+      "selection": "additive21",
+      "target": "tcl_lsp_core",
+      "exit": 1,
+      "result_sha256": "215c13a66dce21186201bdf39b3842b7bb0181e02f45d80ab482e50f4944cb32",
+      "passed": 133,
+      "failed": 83,
+      "timeouts": 0,
+      "count": 216,
+      "partial_target": "tcl_lsp_core",
+      "full_group_complete": false
+    },
+    {
+      "selection": "additive21",
+      "target": "tcl_lsp_server",
+      "exit": 0,
+      "result_sha256": "4c6266f79f4e6160f21fc216589d3e9f67f27adb134e4f764b0b940798594e94",
+      "passed": 14,
+      "failed": 0,
+      "timeouts": 0,
+      "count": 14,
+      "partial_target": "tcl_lsp_server",
+      "full_group_complete": false
+    },
+    {
+      "selection": "additional33-source-changed",
+      "target": "tcl_lsp_core",
+      "exit": 1,
+      "result_sha256": "c45a67b84f01c8cd794c88d6ad9d0fcdbfb8951f3f97f189a96086591f148cde",
+      "passed": 4,
+      "failed": 1,
+      "timeouts": 0,
+      "count": 5,
+      "partial_target": "tcl_lsp_core",
+      "full_group_complete": false
+    }
+  ],
+  "extra5_pin_drift": [
+    {
+      "selector": "original_declaration::readonly_source_reference_tests::readonly_property_reports_promote_only_a_complete_typed_source_census",
+      "source_path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "pinned_sha256": "c0cc0ebec5c13883915cf71dca876f31ebd6c82da6dedcb5fd92fe60e8710caf",
+      "actual_sha256": "d45fadc41edc58922d7afe6a39cfb6bd239f71cf708f60b84c9155313b35d7bd"
+    },
+    {
+      "selector": "original_declaration::property_source_census_unclassified_receiver_tests::unclassified_object_receivers_and_unknown_heads_preserve_partial_counts",
+      "source_path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "pinned_sha256": "c0cc0ebec5c13883915cf71dca876f31ebd6c82da6dedcb5fd92fe60e8710caf",
+      "actual_sha256": "d45fadc41edc58922d7afe6a39cfb6bd239f71cf708f60b84c9155313b35d7bd"
+    },
+    {
+      "selector": "code_lens::readonly_source_count_tests::complete_source_census_titles_report_exact_counts",
+      "source_path": "rust/tcl-lsp-core/src/code_lens.rs",
+      "pinned_sha256": "4f8527133209786d1239baace2190a86391ff6fe18fd6f6da94b3248260e8f5d",
+      "actual_sha256": "1f5457d953602ba345e42fcfe68bf4f923a88784efadf7dcc6467917b96a7ff0"
+    }
+  ],
+  "extra5_note": "Pinned control sources changed; the five selectors run under a separate label and are not the pinned-source controls.",
+  "scope": "Direct LSP original850/additive230/extra5 subgroups on frozen current source. Not original1024/additive314 full-group acceptance, compiler verification, integration/host acceptance or VM/runtime migration.",
+  "ended": "2026-10-19T08:11:43.110949+00:00",
+  "completed": 1085,
+  "passed": 869,
+  "failed": 216,
+  "timeouts": 3,
+  "source_provider_artifact_drift": false
+}

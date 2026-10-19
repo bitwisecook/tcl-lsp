@@ -20,3 +20,7 @@ Timings: `pathological_nesting_terminates` 4.9-5.4 s (2.5 s before; survey desce
 Server108 is not part of this candidate. The user-approved fixture change (`server108-fixture.patch`, Salsa-published documents) measured 368.9 / 367.5 / 376.8 s: 215 s of setup (25 publications at about 8.6 s) and 162 s of request, so it cannot meet 180 s; it is kept for the record and not applied.
 
 Owed: `make rust-check` / clippy at the PR stage (user decision 2026-10-18T07:30Z); `cargo xtask owner-resolution` fails identically at HEAD and here (607 drift lines, none added); Explorer durable-field coverage fails at HEAD on an unrelated row.
+
+## Capture47 (build47, HEAD aff99dc7e): NOT ADMITTED
+
+1085/1085 executed with source/provider/ELF guards passing; summary in capture47-summary.json. Against capture46 (integration44): five FAIL->PASS (fixed_source_guard_retains_real_query_and_advertisement_dependencies, the_body_descent_leaves_top_level_declarations_alone, the DB921 test, Server102, Server103) and one PASS->FAIL: `package_resolver::tests::parse_pkg_index_survives_deeply_nested_source_wrapper` timed out at 180.0 s (172.0 s in capture46). Rerun alone on the build47 ELF: pass in 179.3 s. Integration45 adds about 7 s to this test, leaving under 1 s of budget; a profiling fix is required before admission.
