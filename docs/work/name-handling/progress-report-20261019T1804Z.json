@@ -1,0 +1,58 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-19T18:04:18.790758+00:00",
+  "scheduled_report_utc": "2026-10-19T18:03:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "committed": {
+    "03c943a52c": "Sol-37 partial C1 parked as patch (91/518 C1 tests fixed; 12 baseline regressions: 9 Logical-only-purpose false positives, 3 per_item duplicate-proc; iRules hosted entry needs design)"
+  },
+  "merge": {
+    "state": "origin/rust merge in progress in the working tree (not committed): 154 conflicts resolved from drafts and staged, 15 extra files, 4 lockfiles regenerated keeping upstream security bumps (rustls 0.23.46, wasmtime 49.0.3, zip 9.0.3). Compile pass: tcl-syntax/tcl-host-native/tcl-runtime-api fixed by coordinator; Sol-40 iterating cargo check across the workspace (next: tcl-cmd-core, 9 errors), then warnings and fmt."
+  },
+  "note": "This report file is written during the in-progress merge and committed after the merge commit (a commit now would create the merge commit).",
+  "next_report_utc": "2026-10-19T18:35:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
