@@ -440,6 +440,21 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
 /// # Errors
 /// Preserves guest completions and typed host source/materialisation refusals.
 pub fn subst_word_bytes(word: &[u8], vm: &mut Vm) -> Result<Value, TclError> {
+    subst_word_bytes_as(word, vm, tcl_runtime_api::CommandEvaluation::Compiled)
+}
+
+/// [`subst_word_bytes`] for a word of a command the release evaluates as
+/// `evaluation` says: a command evaluated directly (`TclEvalEx`) evaluates
+/// each command substitution of its words directly too, a level of its own
+/// that logs its failing command as the error leaves it.
+///
+/// # Errors
+/// As [`subst_word_bytes`].
+pub(crate) fn subst_word_bytes_as(
+    word: &[u8],
+    vm: &mut Vm,
+    evaluation: tcl_runtime_api::CommandEvaluation,
+) -> Result<Value, TclError> {
     if let Some(inner) = tcl_syntax::word_rules::whole_braced_word_bytes(word) {
         return Ok(Value::from_native_string_bytes(inner));
     }
@@ -451,7 +466,7 @@ pub fn subst_word_bytes(word: &[u8], vm: &mut Vm) -> Result<Value, TclError> {
         return Ok(Value::from_native_string_bytes(word));
     }
     let arena = substitution_arena(word, tcl_lexer::word_parts::SubstFlags::compiled_word(), vm)?;
-    evaluate_arena(&arena, vm)
+    evaluate_arena(&arena, vm, evaluation)
 }
 
 /// Evaluate one original expression variable reference, including its index.
@@ -474,7 +489,7 @@ pub(crate) fn subst_variable_reference_bytes(
             "expression variable operand lacks an original sole-reference extent".into(),
         ));
     }
-    evaluate_arena(&arena, vm)
+    evaluate_arena(&arena, vm, tcl_runtime_api::CommandEvaluation::Compiled)
 }
 
 fn substitution_arena(
@@ -527,6 +542,7 @@ struct WordEvaluationFrame {
 fn evaluate_arena(
     arena: &tcl_lexer::word_parts::ExecutablePartArena,
     vm: &mut Vm,
+    evaluation: tcl_runtime_api::CommandEvaluation,
 ) -> Result<Value, TclError> {
     use tcl_lexer::word_parts::ExecutablePart;
     // Parse the complete word before executing any of its substitutions.
@@ -583,12 +599,17 @@ fn evaluate_arena(
                     )
                     .map_err(TclError::from_completion)?,
                 ExecutablePart::Command { body } => {
-                    let completion = vm.eval_source_image_at_internal(
-                        &tcl_lexer::SourceImage::native(
-                            arena.bytes(*body).expect("validated script extent"),
-                        ),
-                        None,
-                    )?;
+                    let script = arena.bytes(*body).expect("validated script extent");
+                    let direct = (evaluation == tcl_runtime_api::CommandEvaluation::Direct)
+                        .then(|| std::str::from_utf8(script).ok())
+                        .flatten();
+                    let completion = match direct {
+                        Some(script) => vm.eval_source_direct_internal(script)?,
+                        None => vm.eval_source_image_at_internal(
+                            &tcl_lexer::SourceImage::native(script),
+                            None,
+                        )?,
+                    };
                     if completion.code != Code::Ok {
                         return Err(TclError::from_completion(completion));
                     }

@@ -32,7 +32,7 @@ use std::rc::Rc;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
-use tcl_vm::{CompileService, Vm};
+use tcl_vm::Vm;
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -50,15 +50,19 @@ impl std::io::Write for Capture {
 fn vm_output(src: &str, version: TclVersion) -> String {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
         .analyser_profile();
-    let service = BytecodeCompileService::for_profile(profile);
-    let asm = service
-        .compile_for_profile(src, profile)
-        .expect("test script compiles for its selected profile");
     let cap = Capture::default();
-    let mut vm = Vm::with_output(Box::new(cap.clone()));
-    vm.set_compiler(Box::new(service));
-    vm.set_runtime_version(version);
-    let _ = vm.run_module(&asm);
+    let mut vm = Vm::with_native_core(
+        Box::new(cap.clone()),
+        std::rc::Rc::new(tcl_vm::host_native::NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs {
+            package_path: Vec::new(),
+            default_library: None,
+        },
+    )
+    .expect("native core for the selected profile");
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+    let _ = vm.try_eval_source(src).expect("original source provider");
     String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
 }
 

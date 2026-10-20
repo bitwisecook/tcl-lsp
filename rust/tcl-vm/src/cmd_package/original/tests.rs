@@ -22,7 +22,10 @@ fn call(vm: &mut Vm, words: &[&str]) -> Completion<Value> {
         .iter()
         .map(|word| Value::string(*word))
         .collect::<Vec<_>>();
-    super::super::cmd_package(vm, &operands)
+    // `package require` defers its discovery scripts to the explicit stack;
+    // a direct call settles them as the native invoke path does.
+    let completion = super::super::cmd_package(vm, &operands);
+    vm.settle_native_invoke(completion)
 }
 struct Formatter {
     failed: bool,

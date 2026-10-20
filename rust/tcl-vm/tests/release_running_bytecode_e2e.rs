@@ -43,9 +43,18 @@ impl std::io::Write for Capture {
 /// Run `source` as `tclsh` runs the script file it is given, under `version`.
 fn run_file(version: TclVersion, source: &str) -> String {
     let output = Capture::default();
-    let mut vm = Vm::with_output(Box::new(output.clone()));
     let profile = tcl_registry::model::resolve_environment(version.dialect_name()).unit_profile();
-    vm.set_dialect_profile(profile);
+    // A native-core interpreter of the release, as `tclvm` runs (work's entry).
+    let mut vm = Vm::with_native_core(
+        Box::new(output.clone()),
+        std::rc::Rc::new(tcl_vm::host_native::NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs {
+            package_path: Vec::new(),
+            default_library: None,
+        },
+    )
+    .expect("native core for the selected profile");
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     let completion = vm.eval_source_directly(source).expect("source compiles");
     assert_eq!(

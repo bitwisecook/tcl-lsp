@@ -621,6 +621,7 @@ fn cmd_eval(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 };
                 vm.pending.eval = Some(crate::exec::EvalReq {
                     selected_frame_restore: None,
+                    package: None,
                     script: unit.with_source_location(
                         args.first()
                             .filter(|_| args.len() == 1)
@@ -1835,10 +1836,24 @@ fn cmd_puts(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             rest = &rest[1..];
         }
     }
+    // The words are read as the interpreter reads them: a list or dict whose
+    // members are numbers produces its string through the interpreter's
+    // numeric operation, which an unchecked read cannot reach.
+    let text_of = |vm: &mut Vm, value: &Value| {
+        tcl_syntax::value::ValueOps::native_string_bytes(vm, value)
+            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+            .map_err(|error| completion_from_cmd_error(vm, error.into()))
+    };
     let (channel, text) = match rest {
-        [string] => ("stdout".to_string(), string.to_str().to_string()),
+        [string] => match text_of(vm, string) {
+            Ok(text) => ("stdout".to_string(), text),
+            Err(completion) => return completion,
+        },
         // `puts ?-nonewline? channelId string`
-        [channel, string] => (channel.to_str().to_string(), string.to_str().to_string()),
+        [channel, string] => match (text_of(vm, channel), text_of(vm, string)) {
+            (Ok(channel), Ok(text)) => (channel, text),
+            (Err(completion), _) | (_, Err(completion)) => return completion,
+        },
         _ => {
             return native_wrong_arguments_message(
                 vm,
@@ -3209,6 +3224,14 @@ fn cmd_continue(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// `catch script ?resultVarName? ?optionsVarName?`.
 fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // A compiled `catch` whose script is not a literal evaluates it as a
+    // word inside its catch range (C's `INST_EVAL_STK`), and logs itself as
+    // an error leaves that script.
+    let evaluates_word = vm
+        .pending
+        .release_compiled
+        .take()
+        .is_some_and(|compiled| compiled.script_word.is_some());
     if vm.uses_jim_error_stack() {
         if let Err(error) = vm.reset_original_jim_global_error_code()
             && vm.refused_completion().is_some()
@@ -3305,6 +3328,7 @@ fn cmd_catch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     optvar: optvar.map(|v| (*v).clone()),
                     fatal_tail: prepared.fatal_tail,
                     ignored_codes: selected.ignored_codes,
+                    evaluates_word,
                 });
                 ok(Value::empty())
             }
@@ -3481,11 +3505,22 @@ impl Vm {
             } else {
                 None
             };
+            // The interpreter's trace is the error's `-errorinfo`: the
+            // `return -errorinfo` object while nothing was logged after it,
+            // else the trace logging extended (a top-level `return -code
+            // error` logs its command, C's `TclEvalEx`).
             let error_info = active_error.then(|| {
-                self.native_return_error_info().cloned().unwrap_or_else(|| {
-                    self.error_info_value()
-                        .map_or_else(|| comp.result.clone(), Value::new_native_string_bytes)
-                })
+                let current = self.error_info_value().map(<[u8]>::to_vec);
+                match (self.native_return_error_info().cloned(), current) {
+                    (Some(original), Some(current))
+                        if original.string_bytes().as_ref() == current.as_slice() =>
+                    {
+                        original
+                    }
+                    (_, Some(current)) => Value::new_native_string_bytes(current),
+                    (Some(original), None) => original,
+                    (None, None) => comp.result.clone(),
+                }
             });
             Some(ErrorOptions {
                 error_code: Some(error_code),
@@ -4315,6 +4350,7 @@ fn eval_original_uplevel(
                     cleanup_proc: None,
                     fatal_tail: prepared.fatal_tail,
                     selected_frame_restore: selected,
+                    package: None,
                 });
                 ok(Value::empty())
             } else {

@@ -96,6 +96,19 @@ fn eval_in_ns(
         vm.push_ns_eval_token_frame(token, call_argv);
         vm.enter_ns_script();
         let result = eval_namespace_body(vm, body);
+        // The namespace the script ran in names its error frame (C's
+        // `NsEval_Callback`): read while it is still current.
+        let failed = match &result {
+            Ok(completion) => completion.code == Code::Error,
+            Err(_) => true,
+        };
+        let frame_namespace = if failed {
+            tcl_cmd_core::namespace::current_original(vm)
+                .ok()
+                .map(|fqn| fqn.string_bytes().to_vec())
+        } else {
+            None
+        };
         vm.leave_ns_script();
         vm.pop_ns();
         vm.pop_call_frame();
@@ -106,6 +119,18 @@ fn eval_in_ns(
             Ok(completion) => completion,
             Err(error) => crate::command::completion_from_tcl_error(vm, error),
         };
+        if completion.code == Code::Error
+            && let Some(fqn) = frame_namespace
+        {
+            let command = match frame_purpose {
+                NativeNamespaceFramePurpose::Eval => "eval",
+                NativeNamespaceFramePurpose::Inscope => "inscope",
+            };
+            let text =
+                tcl_cmd_core::namespace::script_frame_text(command, &fqn, vm.runtime_version());
+            let line = vm.error_line();
+            vm.append_frame_text(&format!("{} line {line}", String::from_utf8_lossy(&text)));
+        }
         settle_control_options(vm, completion, ControlOptionPolicy::FRESH_FORWARDED)
     })();
     if let Err(error) = original_names.finish(vm) {

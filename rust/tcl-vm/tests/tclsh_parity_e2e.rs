@@ -114,8 +114,19 @@ fn expected(name: &str, release: TclVersion, entry: Entry) -> String {
 fn vm_output(src: &str, release: TclVersion, entry: Entry) -> String {
     let profile = tcl_registry::model::resolve_environment(release.dialect_name()).unit_profile();
     let capture = Capture::default();
-    let mut vm = Vm::with_output(Box::new(capture.clone()));
-    vm.set_dialect_profile(profile);
+    // Work's entered source runs on a native-core interpreter (the genuine
+    // compiler provider admits each compile); the profile is pinned at
+    // construction.
+    let mut vm = Vm::with_native_core(
+        Box::new(capture.clone()),
+        Rc::new(tcl_vm::host_native::NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs {
+            package_path: Vec::new(),
+            default_library: None,
+        },
+    )
+    .expect("native core for the selected profile");
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     let mut tail = String::new();
     match entry {
@@ -196,19 +207,30 @@ fn tclsh_output(src: &str, release: TclVersion, entry: Entry) -> Option<String> 
     Some(String::from_utf8(output).expect("utf-8"))
 }
 
+/// Every vector, release and entry is compared; the failure lists each
+/// mismatch. `TCLSH_PARITY_VECTOR=<name>` narrows the run to one vector.
 #[test]
 fn the_vm_reads_each_script_as_each_tclsh_does() {
+    let only = std::env::var("TCLSH_PARITY_VECTOR").ok();
+    let mut mismatches = Vec::new();
     for (name, script) in vectors() {
+        if only.as_deref().is_some_and(|only| only != name) {
+            continue;
+        }
         for release in RELEASES {
             for entry in [Entry::File, Entry::Stdin] {
-                assert_eq!(
-                    vm_output(&script, release, entry),
-                    expected(&name, release, entry),
-                    "{name} on {release:?} from {entry:?}"
-                );
+                let actual = vm_output(&script, release, entry);
+                let expected = expected(&name, release, entry);
+                if actual != expected {
+                    eprintln!(
+                        "MISMATCH {name} on {release:?} from {entry:?}\n--- expected\n{expected}--- actual\n{actual}--- end"
+                    );
+                    mismatches.push(format!("{name} {release:?} {entry:?}"));
+                }
             }
         }
     }
+    assert!(mismatches.is_empty(), "mismatches: {mismatches:#?}");
 }
 
 #[test]

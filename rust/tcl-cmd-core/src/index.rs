@@ -1584,6 +1584,11 @@ pub fn resolve_for_ops_with<O: NativeIndexOps>(
             && let Some(numbers) = numbers
         {
             syntax.numbers = numbers;
+            // A caller naming 8.4's numerals reads 8.4's index grammar too
+            // (`integer or end?-integer?`, its sole bad-index wording).
+            if numbers == NumberSyntax::Tcl84 {
+                syntax.grammar = tcl_dialect::IndexGrammar::Tcl84;
+            }
         }
         if syntax.grammar != tcl_dialect::IndexGrammar::Jim {
             if let Some(value) = resolve_opt_in(spec, len, syntax) {

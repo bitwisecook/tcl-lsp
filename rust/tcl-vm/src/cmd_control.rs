@@ -56,7 +56,8 @@ fn no_script_following(token: &str) -> Completion<Value> {
 
 /// `if expr1 ?then? body1 elseif expr2 ?then? body2 ... ?else? ?bodyN?`.
 fn cmd_if(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    vm.pending.control = Some(ControlState::if_command(args.to_vec()));
+    let compiled = vm.pending.release_compiled.take();
+    vm.pending.control = Some(ControlState::if_command(args.to_vec()).compiled_as(compiled));
     ok(Value::empty())
 }
 
@@ -64,13 +65,15 @@ fn cmd_if(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// `while test body`.
 fn cmd_while(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let compiled = vm.pending.release_compiled.take();
     if args.len() != 2 {
         return crate::command::native_wrong_arguments_message(
             vm,
             "wrong # args: should be \"while test command\"",
         );
     }
-    vm.pending.control = Some(ControlState::while_loop(args[0].clone(), args[1].clone()));
+    vm.pending.control =
+        Some(ControlState::while_loop(args[0].clone(), args[1].clone()).compiled_as(compiled));
     ok(Value::empty())
 }
 
@@ -78,13 +81,14 @@ fn cmd_while(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 
 /// `for start test next body`.
 fn cmd_for(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let compiled = vm.pending.release_compiled.take();
     if args.len() != 4 {
         return crate::command::native_wrong_arguments_message(
             vm,
             "wrong # args: should be \"for start test next command\"",
         );
     }
-    vm.pending.control = Some(ControlState::for_loop(args));
+    vm.pending.control = Some(ControlState::for_loop(args).compiled_as(compiled));
     ok(Value::empty())
 }
 
@@ -262,6 +266,15 @@ pub(crate) struct ControlState {
     kind: ControlKind,
     phase: ControlPhase,
     finished: Option<Completion<Value>>,
+    /// How the emulated release compiles this command
+    /// ([`tcl_bytecode::Instruction::release_compiled`]); `None` for a command
+    /// it runs. A compiled command's literal scripts are inline code, whose
+    /// error logs only its innermost command; its script word is evaluated
+    /// (`INST_EVAL_STK`) as a level of its own.
+    compiled: Option<tcl_bytecode::ReleaseCompiled>,
+    /// The error this command finished with leaves the command that invoked
+    /// it to log (`invoked from within "while …"`).
+    logs_invoker: bool,
 }
 
 enum ControlKind {
@@ -308,6 +321,15 @@ enum ControlPhase {
     Done,
 }
 
+/// The frame a clause of a command the release runs adds on an error.
+#[derive(Clone, Copy)]
+enum ClauseFrame {
+    /// `("<name>" body line N)`.
+    Body(&'static str),
+    /// `(<text>)`.
+    Text(&'static str),
+}
+
 pub(crate) enum ControlStep {
     Invocation(crate::NativeListItems),
     ResumeInvocation,
@@ -349,6 +371,8 @@ impl ControlState {
             },
             phase: ControlPhase::ObjectCommand,
             finished: None,
+            compiled: None,
+            logs_invoker: false,
         }
     }
 
@@ -395,6 +419,8 @@ impl ControlState {
             },
             phase: ControlPhase::IfScan,
             finished: None,
+            compiled: None,
+            logs_invoker: false,
         }
     }
     fn while_loop(condition: Value, body: Value) -> Self {
@@ -402,6 +428,8 @@ impl ControlState {
             kind: ControlKind::While { condition, body },
             phase: ControlPhase::Condition,
             finished: None,
+            compiled: None,
+            logs_invoker: false,
         }
     }
     fn for_loop(arguments: &[Value]) -> Self {
@@ -414,25 +442,82 @@ impl ControlState {
             },
             phase: ControlPhase::Start,
             finished: None,
+            compiled: None,
+            logs_invoker: false,
         }
     }
     fn finish(&mut self, completion: Completion<Value>) {
         self.finished = Some(completion);
         self.phase = ControlPhase::Done;
     }
+
+    /// The word index of a loop's test (`None` for `if`, whose tests sit at
+    /// any index).
+    fn condition_word(&self) -> Option<u8> {
+        match self.kind {
+            ControlKind::While { .. } => Some(1),
+            ControlKind::For { .. } => Some(2),
+            ControlKind::If { .. } | ControlKind::ObjectEval { .. } => None,
+        }
+    }
+
+    fn compiled_as(mut self, compiled: Option<tcl_bytecode::ReleaseCompiled>) -> Self {
+        self.compiled = compiled;
+        self
+    }
+
+    /// Whether the error this command finished with is logged next by the
+    /// command that invoked it.
+    pub(crate) fn logs_invoking_command(&self) -> bool {
+        self.logs_invoker
+    }
+
+    /// Finish with a clause's failure. `word` is the clause's word index
+    /// (counting the command word), `frame` the frame the command adds when
+    /// the release runs it (`Tcl_WhileObjCmd`'s `("while" body line N)`,
+    /// `Tcl_ForObjCmd`'s `("for" initial command)`). A command the release
+    /// compiled logs nothing of its own: an error in an inline clause is
+    /// logged once, one in its evaluated script word by the command.
+    fn fail(
+        &mut self,
+        vm: &mut Vm,
+        completion: Completion<Value>,
+        word: Option<u8>,
+        frame: Option<ClauseFrame>,
+    ) {
+        if completion.code == Code::Error {
+            match self.compiled {
+                Some(compiled) if word.is_none() || compiled.script_word != word => {
+                    vm.mark_error_logged();
+                }
+                Some(_) => self.logs_invoker = true,
+                None => {
+                    match frame {
+                        Some(ClauseFrame::Body(name)) => vm.append_body_frame(name),
+                        Some(ClauseFrame::Text(text)) => vm.append_frame_text(text),
+                        None => {}
+                    }
+                    self.logs_invoker = true;
+                }
+            }
+        }
+        self.finish(completion);
+    }
     pub(crate) fn accept(&mut self, vm: &mut Vm, completion: Completion<Value>) {
         match self.phase {
             ControlPhase::AwaitObjectCommand => self.finish(completion),
             ControlPhase::AwaitCondition => {
+                let word = self.condition_word();
                 if completion.code != Code::Ok {
-                    self.finish(completion);
+                    self.fail(vm, completion, word, None);
                     return;
                 }
                 let value =
                     match crate::expr::expression_boolean_for_vm(vm, &completion.result, tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi) {
                         Ok(value) => value,
                         Err(error) => {
-                            self.finish(crate::command::completion_from_tcl_error(vm, error));
+                            let completion = crate::command::completion_from_tcl_error(vm, error);
+                            self.fail(vm, completion, word, None);
                             return;
                         }
                     };
@@ -461,23 +546,33 @@ impl ControlState {
                 if completion.code == Code::Ok {
                     self.phase = ControlPhase::Condition;
                 } else {
-                    self.finish(completion);
+                    self.fail(
+                        vm,
+                        completion,
+                        Some(1),
+                        Some(ClauseFrame::Text("\"for\" initial command")),
+                    );
                 }
             }
             ControlPhase::AwaitNext => match completion.code {
                 Code::Ok => self.phase = ControlPhase::Condition,
                 Code::Break => self.finish(ok(Value::empty())),
-                _ => self.finish(completion),
+                _ => self.fail(
+                    vm,
+                    completion,
+                    Some(3),
+                    Some(ClauseFrame::Text("\"for\" loop-end command")),
+                ),
             },
             ControlPhase::AwaitBody => {
-                let name = match self.kind {
+                let (name, word) = match self.kind {
                     ControlKind::If { .. } => {
-                        self.finish(completion);
+                        self.fail(vm, completion, None, None);
                         return;
                     }
                     ControlKind::ObjectEval { .. } => unreachable!(),
-                    ControlKind::While { .. } => "while",
-                    ControlKind::For { .. } => "for",
+                    ControlKind::While { .. } => ("while", 2),
+                    ControlKind::For { .. } => ("for", 4),
                 };
                 match completion.code {
                     Code::Ok | Code::Continue => {
@@ -489,8 +584,7 @@ impl ControlState {
                     }
                     Code::Break => self.finish(ok(Value::empty())),
                     Code::Error => {
-                        vm.append_body_frame(name);
-                        self.finish(completion);
+                        self.fail(vm, completion, Some(word), Some(ClauseFrame::Body(name)));
                     }
                     _ => self.finish(completion),
                 }

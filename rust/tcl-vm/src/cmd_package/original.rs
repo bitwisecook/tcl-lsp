@@ -14,6 +14,9 @@ use tcl_runtime_api::Completion;
 
 pub(super) struct OriginalPackage<'a> {
     vm: &'a mut Vm,
+    /// Whether the authored package table is the one in use, which a
+    /// suspended `package require` resumes against.
+    pub(super) authored: bool,
     operation: NativeOperationScope,
     table: PackageTableReceipt,
     operands: Vec<NativeObjectLifetimeLease>,
@@ -33,6 +36,7 @@ impl OriginalPackage<'_> {
         let reached = vm.with_package_table_checked(authored, &operation, |vm, table| {
             let mut original = OriginalPackage {
                 vm,
+                authored,
                 operation: operation.clone(),
                 table: table.clone(),
                 operands: operands.iter().map(Value::native_lifetime_lease).collect(),

@@ -1019,6 +1019,15 @@ pub(crate) struct PendingControl {
     pub(crate) expression: Option<crate::exec::ExpressionReq>,
     /// Next body, handler, or `finally` phase of a `try`.
     pub(crate) try_phase: Option<crate::cmd_try::TryReq>,
+    /// How the emulated release compiles the command the current invoke now
+    /// runs ([`tcl_bytecode::Instruction::release_compiled`]): a command the
+    /// release compiles reads its words, logs and binds as that compiled
+    /// command would. Taken by the command that consumes it.
+    pub(crate) release_compiled: Option<tcl_bytecode::ReleaseCompiled>,
+    /// The command the outermost activation was running when it completed
+    /// with an exceptional code: what C's `TclEvalEx` logs as an error leaves
+    /// a command run with no command active ([`Vm::settle_top_level`]).
+    pub(crate) top_level_command: Option<crate::exec::LoggedCommand>,
 }
 
 /// Written invocation and selected native implementation are independent.
@@ -14935,19 +14944,59 @@ impl Vm {
         version: impl AsRef<[u8]>,
         tracks_files: bool,
     ) {
-        if self
+        // A loader suspended in a coroutine can finish after a later one
+        // began, so the marker retired is this loader's own, wherever it sits
+        // (upstream's `PackageLoadToken`); the innermost matching one.
+        let position = self
             .selected_package_state()
             .package_loading
-            .last()
-            .is_some_and(|(key, loading_version)| {
+            .iter()
+            .rposition(|(key, loading_version)| {
                 key.as_bytes() == name.as_ref() && loading_version.as_bytes() == version.as_ref()
-            })
-        {
-            self.selected_package_state_mut().package_loading.pop();
+            });
+        if let Some(position) = position {
+            self.selected_package_state_mut()
+                .package_loading
+                .remove(position);
             if tracks_files {
-                self.selected_package_state_mut().package_file_scopes.pop();
+                let scopes = &mut self.selected_package_state_mut().package_file_scopes;
+                if let Some(scope) = scopes
+                    .iter()
+                    .rposition(|scope| scope.as_bytes() == name.as_ref())
+                {
+                    scopes.remove(scope);
+                }
             }
         }
+    }
+
+    /// Retire only the loading marker of a require whose loader activation
+    /// was refused by the host.
+    pub(crate) fn end_abandoned_package_loading(
+        &mut self,
+        name: &tcl_core_types::NameBytes,
+        version: &tcl_core_types::NameBytes,
+    ) {
+        let tracks_files = self
+            .selected_package_protocol()
+            .is_some_and(tcl_registry::native_package::NativePackageProtocol::tracks_files);
+        self.end_package_loading_using(name, version, tracks_files);
+    }
+
+    /// Retire the loading marker of a require abandoned while its loader was
+    /// suspended (its coroutine was deleted).
+    pub(crate) fn abandon_package_loading(
+        &mut self,
+        name: &tcl_core_types::NameBytes,
+        version: &tcl_core_types::NameBytes,
+    ) {
+        let tracks_files = self
+            .selected_package_protocol()
+            .is_some_and(tcl_registry::native_package::NativePackageProtocol::tracks_files);
+        self.end_package_loading_using(name, version, tracks_files);
+        // The version the loader provided before it was suspended is
+        // withdrawn, as a failed loader's is.
+        self.forget_package(name);
     }
 
     pub(crate) fn forget_package_completely(&mut self, name: impl AsRef<[u8]>) {
@@ -17341,6 +17390,12 @@ impl Vm {
             }
             let code = Value::list(words);
             scope.check_native(self)?;
+            // `Tcl_SetErrorCode`: the interpreter's code is the access's, not
+            // the one the callback's `return -errorcode` left.
+            if self.native_c_variable_name_protocol().is_some() {
+                self.restore_guest_error_code(code.clone());
+                scope.check_native(self)?;
+            }
             let options = match crate::command::completion_options(self, &failure) {
                 Ok(options) => options,
                 Err(crate::error::TclError::Host(first)) => {
@@ -18333,6 +18388,46 @@ impl Vm {
         self.names_directly_in_token(self.current_ns_id(), false)
     }
 
+    /// Whether every word `mask` selects (one bit per word index, counting the
+    /// command word) names a compiled local of the current procedure frame:
+    /// C's `TclFindCompiledLocal` reaches only those, so a release compiles a
+    /// command binding such a word only where it is one.
+    pub(crate) fn frame_compiled_locals_named(&self, mask: u8, words: &[Value]) -> bool {
+        if mask == 0 {
+            return true;
+        }
+        let Some(frame) = self.frames.last() else {
+            return false;
+        };
+        if frame.compiled_locals.is_empty() {
+            return false;
+        }
+        (0..u8::BITS).filter(|bit| mask >> bit & 1 == 1).all(|bit| {
+            usize::try_from(bit)
+                .ok()
+                .and_then(|index| words.get(index))
+                .is_some_and(|word| {
+                    let name = word.string_bytes();
+                    frame
+                        .local_bindings()
+                        .any(|(local, _)| local.as_bytes() == &*name)
+                        && frame
+                            .compiled_locals
+                            .iter()
+                            .any(|(local, _)| local.as_bytes() == &*name)
+                })
+        })
+    }
+
+    /// The word that invoked the current procedure frame (`info level 0`'s
+    /// first word), which C's `MakeProcError` names the procedure by.
+    pub(crate) fn current_invoking_word(&self) -> Option<String> {
+        self.frames
+            .last()
+            .and_then(|frame| frame.call_argv.first())
+            .map(|word| word.to_str().to_string())
+    }
+
     pub(crate) fn current_level(&self) -> usize {
         self.frames.len() - 1
     }
@@ -18513,6 +18608,16 @@ impl Vm {
             return;
         }
         self.native_errors.error_info = p.error_info.take();
+        // The trace's native errorInfo object travels with its bytes; a flow
+        // that built none seeds it from them.
+        self.native_errors.native_error_info = p.native_error_info.take();
+        self.native_errors.native_error_info_len = p.native_error_info_len;
+        if self.native_errors.native_error_info.is_none()
+            && let Some(info) = self.native_errors.error_info.clone()
+        {
+            self.native_errors.native_error_info_len = 0;
+            self.seed_native_error_result_object(&info);
+        }
         self.native_errors.error_line = p.error_line;
         std::mem::swap(&mut self.native_errors.error_stack, &mut p.error_stack);
         let recipe = self
@@ -23554,6 +23659,17 @@ impl Vm {
             self.native_errors.native_error_info.is_some();
     }
 
+    /// Seed the trace of an error a procedure boundary makes of a completion
+    /// its body may not return (`invoked "break" outside of a loop`). C8.4's
+    /// first `Tcl_AddObjErrorInfo` also stores the global `errorInfo` and,
+    /// unless a code was set, `errorCode` `NONE`.
+    pub(crate) fn seed_unexpected_completion_error(&mut self, message: &[u8]) {
+        if self.uses_c84_global_error_info() {
+            self.seed_native_error_result_object(message);
+        }
+        self.seed_error_info(message);
+    }
+
     /// Borrow the accumulated `errorInfo` without consuming the error episode.
     pub(crate) fn error_info_value(&self) -> Option<&[u8]> {
         self.native_errors.error_info.as_deref()
@@ -26347,7 +26463,10 @@ impl Vm {
         self.eval_source_as(src, tcl_runtime_api::CommandEvaluation::Direct)
     }
 
-    fn eval_source_direct_internal(&mut self, src: &str) -> Result<Completion<Value>, TclError> {
+    pub(crate) fn eval_source_direct_internal(
+        &mut self,
+        src: &str,
+    ) -> Result<Completion<Value>, TclError> {
         if let Some(refusal) = self.execution_refusal.clone() {
             return Err(TclError::from_execution_failure(refusal));
         }
@@ -26486,13 +26605,45 @@ impl Vm {
     /// (`TclUpdateReturnInfo`), and any other code but `ok` or `error` becomes
     /// an error (`ProcessUnexpectedResult`).
     fn settle_level_zero(&mut self, mut completion: Completion<Value>) -> Completion<Value> {
+        let command = self.pending.top_level_command.take();
+        // From 8.5 a `return` carrying `-errorinfo` logged its error as it
+        // ran (`TclProcessReturn`), so the trace names no command here.
+        let logged_by_return = completion.code == Code::Return
+            && self.runtime_version().has_return_options_dictionary()
+            && crate::command::opt_get_checked(self, &completion.options, b"-errorinfo")
+                .ok()
+                .flatten()
+                .is_some_and(|info| !info.string_bytes().is_empty());
         if completion.code == Code::Return {
             self.update_return_info(&mut completion);
         }
+        if completion.code == Code::Error && logged_by_return {
+            self.mark_error_logged();
+        }
         if !matches!(completion.code, Code::Ok | Code::Error) {
             completion = self.unexpected_result(completion.code);
+            // A fresh error: its trace starts at the command that raised the
+            // code (`while executing "break"`), or at its message alone.
+            let _ = self.take_error_info();
+            if command.is_none() {
+                let message = completion.result.string_bytes();
+                self.seed_error_info(message.to_vec());
+            }
+        }
+        // An error not yet logged logs the command the top level ran (C's
+        // `TclEvalEx` at `numLevels == 0`).
+        if completion.code == Code::Error
+            && !self.command_error_is_logged()
+            && let Some((text, line, enclosing)) = command
+        {
             let message = completion.result.string_bytes();
-            self.seed_error_info(message.to_vec());
+            self.log_command_with_enclosing(
+                &text,
+                Value::from_native_string_bytes(text.clone()),
+                &enclosing,
+                &message,
+                line,
+            );
         }
         completion
     }
@@ -26539,7 +26690,8 @@ impl Vm {
                 return;
             }
             if !completion.code.is_ok() {
-                let _ = self.publish_caught_error(&completion);
+                // `settle_top_level` already published the error's
+                // `errorInfo`/`errorCode` from the interpreter's trace.
                 let message = completion.result.to_str().to_string();
                 report(self, &message);
             }
@@ -26577,7 +26729,10 @@ impl Vm {
         } else if returned {
             self.update_return_info(&mut c);
         }
-        if c.code == Code::Error && !returned && !self.uses_jim_error_stack() {
+        // The file `tclsh` is given names itself even for an error its
+        // `return` settled to (8.4.20/8.5.19 `return -code error …`,
+        // `return -level 2 …` at file level).
+        if c.code == Code::Error && (!returned || top_level) && !self.uses_jim_error_stack() {
             let text =
                 tcl_cmd_core::error::file_frame_text(path.as_bytes(), self.runtime_version());
             let mut frame = b"\n    (".to_vec();

@@ -25,25 +25,33 @@
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
-use tcl_vm::{CompileService, Vm};
+use tcl_vm::Vm;
 
 fn run_for_version(src: &str, version: TclVersion) -> String {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
         .analyser_profile();
-    let service = BytecodeCompileService::for_profile(profile);
-    let asm = service
-        .compile_for_profile(src, profile)
-        .expect("test script compiles for its selected profile");
-    let mut vm = Vm::new();
-    vm.set_runtime_version(version);
-    vm.set_compiler(Box::new(service));
-    let completion = vm.run_module(&asm);
+    let mut vm = Vm::with_native_core(
+        Box::new(std::io::stdout()),
+        std::rc::Rc::new(tcl_vm::host_native::NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs {
+            package_path: Vec::new(),
+            default_library: None,
+        },
+    )
+    .expect("native core for the selected profile");
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+    let completion = vm.try_eval_source(src).expect("original source provider");
     assert!(
         completion.code.is_ok(),
         "{version:?}: {}",
         completion.result.to_str()
     );
-    completion.result.to_str().to_string()
+    String::from_utf8_lossy(
+        &tcl_syntax::value::ValueOps::native_string_bytes(&mut vm, &completion.result)
+            .expect("result string"),
+    )
+    .into_owned()
 }
 
 /// Runs `body` at the global level and answers `{code message errorCode}`.

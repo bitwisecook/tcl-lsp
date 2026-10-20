@@ -40,7 +40,7 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileService, Vm};
+use tcl_vm::Vm;
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
 #[derive(Clone)]
@@ -78,21 +78,29 @@ const FILE_MUST: &str = "must be atime, attributes, channels, copy, delete, dirn
 fn run_for_version(src: &str, version: tcl_dialect::TclVersion) -> (bool, String, String) {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
         .analyser_profile();
-    let service = BytecodeCompileService::for_profile(profile);
-    let asm = service
-        .compile_for_profile(src, profile)
-        .expect("test script compiles for its selected profile");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_runtime_version(version);
-    vm.set_compiler(Box::new(service));
-    let completion = vm.run_module(&asm);
+    let mut vm = Vm::with_native_core(
+        Box::new(Capture(Rc::clone(&buf))),
+        std::rc::Rc::new(tcl_vm::host_native::NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs {
+            package_path: Vec::new(),
+            default_library: None,
+        },
+    )
+    .expect("native core for the selected profile");
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+    let completion = vm.try_eval_source(src).expect("original source provider");
 
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
     (
         completion.code.is_ok(),
-        completion.result.to_str().to_string(),
+        String::from_utf8_lossy(
+            &tcl_syntax::value::ValueOps::native_string_bytes(&mut vm, &completion.result)
+                .expect("result string"),
+        )
+        .into_owned(),
         out,
     )
 }

@@ -26,26 +26,52 @@
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
-use tcl_vm::{CompileService, Vm};
+use tcl_vm::Vm;
 
 /// The result of `src` under the `version` pin; panics if it errors.
 fn result_for(version: TclVersion, src: &str) -> String {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
         .analyser_profile();
-    let service = BytecodeCompileService::for_profile(profile);
-    let asm = service
-        .compile_for_profile(src, profile)
-        .expect("test script compiles for its selected profile");
-    let mut vm = Vm::new();
-    vm.set_compiler(Box::new(service));
-    vm.set_runtime_version(version);
-    let completion = vm.run_module(&asm);
+    let capture = Capture::default();
+    let mut vm = Vm::with_native_core(
+        Box::new(capture.clone()),
+        std::rc::Rc::new(tcl_vm::host_native::NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs {
+            package_path: Vec::new(),
+            default_library: None,
+        },
+    )
+    .expect("native core for the selected profile");
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+    let completion = vm.try_eval_source(src).expect("original source provider");
     assert!(
         completion.code.is_ok(),
         "{version:?}: script errored: {}",
         completion.result.to_str()
     );
-    completion.result.to_str().to_string()
+    // The result is read as a Tcl string by the interpreter that made it: a
+    // numeric object's string needs that interpreter's numeric operation.
+    vm.set_var("s41_result", completion.result)
+        .expect("result variable");
+    let printed = vm
+        .try_eval_source("puts -nonewline $s41_result")
+        .expect("original source provider");
+    assert!(printed.code.is_ok(), "{version:?}: result print");
+    String::from_utf8_lossy(&capture.0.borrow()).into_owned()
+}
+
+#[derive(Clone, Default)]
+struct Capture(std::rc::Rc<std::cell::RefCell<Vec<u8>>>);
+
+impl std::io::Write for Capture {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0.borrow_mut().extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 fn assert_releases(releases: &[TclVersion], src: &str, expected: &str) {

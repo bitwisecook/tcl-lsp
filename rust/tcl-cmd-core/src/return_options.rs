@@ -151,8 +151,10 @@ impl ReturnOptionsProtocol {
     pub(crate) fn error(self, message: Vec<u8>, code: &[u8]) -> CmdError {
         let error_code = match self {
             Self::Jim084 => CmdErrorCodeUpdate::Unchanged,
-            Self::Tcl84 => CmdErrorCodeUpdate::Set(b"NONE".to_vec()),
-            Self::Tcl85 | Self::Tcl86Plus => CmdErrorCodeUpdate::Set(code.to_vec()),
+            // 8.4's and 8.5's `TclMergeReturnOptions` set no code of their
+            // own: the error reads `NONE` (measured on 8.4.20 and 8.5.19).
+            Self::Tcl84 | Self::Tcl85 => CmdErrorCodeUpdate::Set(b"NONE".to_vec()),
+            Self::Tcl86Plus => CmdErrorCodeUpdate::Set(code.to_vec()),
         };
         CmdError::from_byte_details(CmdErrorDetails {
             string_result: None,
@@ -322,13 +324,26 @@ pub fn prepare_return<O: ReturnOptionsOps>(
         && ops.bytes(&args[0])? == b"-options"
     {
         // Bytecode carries one outer dictionary, whose ingestion error is
-        // distinct from a nested user -options option.
-        let _ = prepare_option_pairs(
+        // distinct from a nested user -options option. 8.5 fails with the
+        // result word instead, as its user `-options` does.
+        if let Err(error) = prepare_option_pairs(
             ops,
             protocol,
             &args[1],
             ReturnOptionsPurpose::InternalDictionary,
-        )?;
+        ) {
+            if protocol != ReturnOptionsProtocol::Tcl85
+                || error.native_execution_refusal().is_some()
+                || error.native_access_refusal().is_some()
+            {
+                return Err(error);
+            }
+            let message = match args.get(2) {
+                Some(result) => ops.bytes(result)?,
+                None => Vec::new(),
+            };
+            return Err(protocol.error(message, b"NONE"));
+        }
     }
     let pair_len = args.len() & !1;
     let result = args.get(pair_len).cloned();
@@ -455,8 +470,31 @@ pub fn prepare_return_pairs<O: ReturnOptionsOps>(
     while let Some(pair) = work.pop() {
         let key = protocol.name(&pair.key_bytes);
         if merge && key == b"-options" {
-            let nested =
-                prepare_option_pairs(ops, protocol, &pair.value, ReturnOptionsPurpose::User)?;
+            let nested = match prepare_option_pairs(
+                ops,
+                protocol,
+                &pair.value,
+                ReturnOptionsPurpose::User,
+            ) {
+                Ok(nested) => nested,
+                // 8.5's `Tcl_ReturnObjCmd` leaves its result word in place
+                // of the rejected `-options` value's message: the command
+                // fails with that word (8.5.19 `return -options {-code ok
+                // -level} x` → `1 x`, errorCode `NONE`).
+                Err(error)
+                    if protocol == ReturnOptionsProtocol::Tcl85
+                        && purpose == ReturnOptionsPurpose::User
+                        && error.native_execution_refusal().is_none()
+                        && error.native_access_refusal().is_none() =>
+                {
+                    let message = match result.as_ref() {
+                        Some(result) => ops.bytes(result)?,
+                        None => Vec::new(),
+                    };
+                    return Err(protocol.error(message, b"NONE"));
+                }
+                Err(error) => return Err(error),
+            };
             work.extend(nested.pairs.into_iter().rev());
             continue;
         }

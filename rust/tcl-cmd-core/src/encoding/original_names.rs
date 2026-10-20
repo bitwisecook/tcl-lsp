@@ -28,7 +28,7 @@ impl NativeEncodingNameProtocol {
         let error = if self.version == TclVersion::V8_4 {
             CmdError::new_bytes(message)
         } else {
-            let mut code = b"TCL LOOKUP ENCODING".to_vec();
+            let mut code = b"TCL LOOKUP ENCODING ".to_vec();
             tcl_syntax::list::append_list_element(&mut code, name, false);
             CmdError::with_error_code_bytes(message, code)
         };
@@ -157,8 +157,9 @@ impl NativeSourceFileProtocol {
             HostError::WouldBlock => b"EAGAIN".as_slice(),
             HostError::Io(_) | HostError::Unsupported => return CmdError::new_bytes(message),
         };
-        let mut code = b"POSIX".to_vec();
+        let mut code = b"POSIX ".to_vec();
         tcl_syntax::list::append_list_element(&mut code, errno, false);
+        code.push(b' ');
         tcl_syntax::list::append_list_element(&mut code, reason.as_bytes(), false);
         CmdError::with_error_code_bytes(message, code)
     }

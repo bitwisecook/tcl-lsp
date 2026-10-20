@@ -27,7 +27,7 @@ pub fn present(failure: NativeFrameLevelFailure) -> CmdError {
             message.extend_from_slice(&name);
             message.push(b'"');
             let error = if lookup_code {
-                let mut code = b"TCL LOOKUP LEVEL".to_vec();
+                let mut code = b"TCL LOOKUP LEVEL ".to_vec();
                 tcl_syntax::list::append_list_element(&mut code, &name, false);
                 CmdError::with_error_code_bytes(message, code)
             } else {

@@ -533,6 +533,7 @@ fn vm_compare_original(
     command: &Value,
 ) -> Result<core::cmp::Ordering, Completion<Value>> {
     use tcl_cmd_core::index::NativeIndexOps;
+    let mut invoked: Option<Vec<Value>> = None;
     let mut completion = if vm.index_jim_sort_selected() {
         vm.eval_original_script_value(
             command,
@@ -547,6 +548,7 @@ fn vm_compare_original(
         let Some((name, arguments)) = words.split_first() else {
             return Err(err("invalid command name \"\""));
         };
+        invoked = Some(words.clone());
         vm.invoke_command_value_at(
             vm.current_ns_id(),
             name,
@@ -559,7 +561,27 @@ fn vm_compare_original(
         .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
     if !completion.code.is_ok() {
         if vm.index_c_version().is_some() {
+            // The comparator's own trace (its procedure frames) is the
+            // interpreter's; a completion without `-errorinfo` keeps it.
+            let carries_info = completion.code == tcl_runtime_api::Code::Error
+                && crate::command::opt_get_checked(vm, &completion.options, b"-errorinfo")
+                    .ok()
+                    .flatten()
+                    .is_some();
+            let trace = vm.error_info_value().map(<[u8]>::to_vec);
             let restored = vm.restore_completion_error_state(&completion);
+            if !carries_info && let Some(trace) = trace {
+                vm.seed_error_info_original(&completion.result, &trace);
+            }
+            // C's `Tcl_EvalObjv` logs the comparator command it ran.
+            if completion.code == tcl_runtime_api::Code::Error
+                && let Some(words) = invoked.as_ref()
+            {
+                let text = Value::list(words.clone()).string_bytes();
+                let message = completion.result.string_bytes();
+                vm.clear_error_logged();
+                vm.log_command_info(&*text, &*message, 0);
+            }
             vm.check_index_operation(original)
                 .map_err(|error| crate::command::completion_from_cmd_error(vm, error))?;
             restored.map_err(|error| crate::command::completion_from_tcl_error(vm, error))?;

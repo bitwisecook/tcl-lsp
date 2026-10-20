@@ -882,34 +882,194 @@ fn pkg_require(
     // A loader already registered for a satisfying version wins before the
     // last-resort unknown callback. This is the ordinary fast path populated
     // by pkgIndex.tcl.
-    if let Some(loader) = selected_loader(vm, &name, &reqs, exact, release) {
-        return evaluate_loader(vm, &name, &loader);
+    let require = PackageRequire {
+        name,
+        requested,
+        exact,
+        release,
+        step: RequireStep::Unknown,
+    };
+    if let Some(loader) = selected_loader(vm, &require.name, &reqs, exact, release) {
+        return evaluate_loader(vm, require, loader);
     }
 
-    if let Some(prefix) = vm.package_unknown().cloned()
-        && let Err(completion) =
-            invoke_package_unknown(vm, &prefix, &name, &requested, exact, release)
-    {
-        return completion;
+    if let Some(prefix) = vm.package_unknown().cloned() {
+        return invoke_package_unknown(vm, &prefix, require);
     }
+    after_package_unknown(vm, require)
+}
 
-    // The callback may provide the package directly or register a suitable
-    // ifneeded script. Re-check both forms, in that order, before failing.
+/// A `package require` whose discovery script (`package unknown` or `package
+/// ifneeded`) runs as an activation of its own on the explicit stack, so a
+/// coroutine can yield inside it (C's `PkgRequireCore` → `SelectPackage` →
+/// `SelectPackageFinal` NRE chain). The require resumes from `step` once the
+/// script completes ([`advance_require`]).
+pub(crate) struct PackageRequire {
+    name: NameBytes,
+    requested: Vec<NameBytes>,
+    exact: bool,
+    release: tcl_dialect::TclVersion,
+    step: RequireStep,
+}
+
+enum RequireStep {
+    /// The `package unknown` callback is running.
+    Unknown,
+    /// The selected `package ifneeded` script is running; its loading marker
+    /// is held until it completes.
+    Loader(SelectedLoader),
+}
+
+/// The authored-table selection a suspended require resumes against.
+pub(crate) struct SuspendedRequire {
+    authored: bool,
+    require: PackageRequire,
+}
+
+impl SuspendedRequire {
+    /// The loading marker this require holds while its loader runs, which a
+    /// coroutine deleted while suspended in the loader retires.
+    pub(crate) fn loading_marker(&self) -> Option<(&NameBytes, &NameBytes)> {
+        match &self.require.step {
+            RequireStep::Loader(loader) => Some((&self.require.name, &loader.version)),
+            RequireStep::Unknown => None,
+        }
+    }
+}
+
+/// Run a package discovery script at level 0 as a deferred activation that
+/// resumes `require` when it completes. A script that has nothing to run (or
+/// does not parse) completes here and the require continues at once.
+fn defer_package_script(
+    vm: &mut OriginalPackage<'_>,
+    script: &Value,
+    require: PackageRequire,
+) -> Completion<Value> {
+    let selected = match vm.checked(|vm| vm.select_execution_frame_checked(0)) {
+        Ok(selected) => selected,
+        Err(error) => {
+            let completion = crate::command::completion_from_cmd_error(vm, error);
+            return resume_require(vm, require, completion);
+        }
+    };
+    let location = script.source_location();
+    match vm.prepare_script_commands_value_for(
+        script,
+        tcl_registry::native_eval_object::EvalObjectPurpose::ControlBody,
+    ) {
+        Ok(prepared) => {
+            if let Some(unit) = prepared.prefix {
+                let authored = vm.authored;
+                vm.pending.eval = Some(crate::exec::EvalReq {
+                    script: unit.with_source_location(location),
+                    label: None,
+                    cleanup_proc: None,
+                    fatal_tail: prepared.fatal_tail,
+                    selected_frame_restore: selected,
+                    package: Some(Box::new(SuspendedRequire { authored, require })),
+                });
+                ok(Value::empty())
+            } else {
+                let completion = prepared.fatal_tail.map_or_else(
+                    || ok(Value::empty()),
+                    |tail| vm.raise_script_parse_failure(tail, location),
+                );
+                vm.restore_execution_frame(selected);
+                resume_require(vm, require, completion)
+            }
+        }
+        Err(error) => {
+            vm.restore_execution_frame(selected);
+            let completion = crate::command::completion_from_tcl_error(vm, error);
+            resume_require(vm, require, completion)
+        }
+    }
+}
+
+/// Continue a `package require` whose discovery script completed with
+/// `completion`. The result is the require's completion, unless it deferred
+/// its next script (`vm.pending.eval` then holds it).
+pub(crate) fn advance_require(
+    vm: &mut Vm,
+    suspended: SuspendedRequire,
+    completion: Completion<Value>,
+) -> Completion<Value> {
+    let SuspendedRequire { authored, require } = suspended;
+    OriginalPackage::run(vm, authored, &[], |original| {
+        resume_require(original, require, completion)
+    })
+}
+
+fn resume_require(
+    vm: &mut OriginalPackage<'_>,
+    require: PackageRequire,
+    completion: Completion<Value>,
+) -> Completion<Value> {
+    match require.step {
+        RequireStep::Loader(loader) => {
+            let PackageRequire { name, .. } = require;
+            finish_loader(vm, &name, &loader, completion)
+        }
+        RequireStep::Unknown => {
+            let completion = vm.settle_callback(completion);
+            if let Some(refused) = vm.refused_completion() {
+                return refused;
+            }
+            match completion.code {
+                Code::Ok => {
+                    drop(completion);
+                    if let Err(error) = vm.check() {
+                        return crate::command::completion_from_cmd_error(vm, error);
+                    }
+                }
+                Code::Error => {
+                    let message = match package_operand_bytes(vm, &completion.result) {
+                        Ok(bytes) => bytes,
+                        Err(refused) => return refused,
+                    };
+                    append_loader_error_frame(vm, &message, None);
+                    return completion;
+                }
+                _ => return bad_return_code(vm, &completion, None),
+            }
+            after_package_unknown(vm, require)
+        }
+    }
+}
+
+/// The callback may provide the package directly or register a suitable
+/// ifneeded script. Re-check both forms, in that order, before failing.
+fn after_package_unknown(
+    vm: &mut OriginalPackage<'_>,
+    require: PackageRequire,
+) -> Completion<Value> {
+    let PackageRequire {
+        ref name,
+        ref requested,
+        exact,
+        release,
+        ..
+    } = require;
+    let reqs = requested.clone();
+    let name = name.clone();
     match provided_status(vm, &name, &reqs, exact, release) {
         ProvidedStatus::Satisfies => {
             return ok(vm.package_version_object(&name));
         }
         ProvidedStatus::Conflicts(version) => {
-            return version_conflict(vm, discover, &name, &version, &requested, exact);
+            return version_conflict(vm, true, &name, &version, &reqs, exact);
         }
         ProvidedStatus::Absent => {}
     }
     if let Some(loader) = selected_loader(vm, &name, &reqs, exact, release) {
-        return evaluate_loader(vm, &name, &loader);
+        return evaluate_loader(vm, require, loader);
     }
 
+    // C names the requirements it could not satisfy after the package.
+    let need = requirement_text(&reqs, exact, release);
+    let separator: &[u8] = if need.is_empty() { b"" } else { b" " };
     package_error(
-        &[b"can't find package ", name.as_bytes()],
+        &[b"can't find package ", name.as_bytes(), separator, &need],
         package_protocol(vm)
             .expect("selected package protocol")
             .failure_error_code_update(
@@ -929,11 +1089,15 @@ enum ProvidedStatus {
 fn invoke_package_unknown(
     vm: &mut OriginalPackage<'_>,
     prefix: &[u8],
-    name: &NameBytes,
-    requested: &[NameBytes],
-    exact: bool,
-    release: tcl_dialect::TclVersion,
-) -> Result<(), Completion<Value>> {
+    require: PackageRequire,
+) -> Completion<Value> {
+    let PackageRequire {
+        ref name,
+        ref requested,
+        exact,
+        release,
+        ..
+    } = require;
     let mut callback = tcl_core_types::c_string_extent(prefix).to_vec();
     callback.push(b' ');
     tcl_syntax::list::append_list_element(&mut callback, name.as_bytes(), true);
@@ -951,7 +1115,7 @@ fn invoke_package_unknown(
     } else if requested.is_empty() {
         vec![NameBytes::from("0-")]
     } else {
-        requested.to_vec()
+        requested.clone()
     };
     for requirement in &callback_requirements {
         callback.push(b' ');
@@ -960,25 +1124,7 @@ fn invoke_package_unknown(
     if exact && !release.has_package_requirements() {
         callback.extend_from_slice(b" -exact");
     }
-    let completion = eval_package_script(vm, &Value::from_native_string_bytes(callback));
-    let completion = vm.settle_callback(completion);
-    if let Some(refused) = vm.refused_completion() {
-        return Err(refused);
-    }
-    match completion.code {
-        Code::Ok => {
-            drop(completion);
-            return vm
-                .check()
-                .map_err(|error| crate::command::completion_from_cmd_error(vm, error));
-        }
-        Code::Error => {
-            let message = package_operand_bytes(vm, &completion.result)?;
-            append_loader_error_frame(vm, &message, None);
-            return Err(completion);
-        }
-        _ => return Err(bad_return_code(vm, &completion, None)),
-    }
+    defer_package_script(vm, &Value::from_native_string_bytes(callback), require)
 }
 
 fn provided_status(
@@ -1010,19 +1156,11 @@ fn version_conflict(
         Ok(protocol) => protocol,
         Err(completion) => return completion,
     };
-    let code = if discover {
-        protocol.conflict_error_code_update()
-    } else {
-        protocol.failure_error_code_update(
-            tcl_registry::native_package::NativePackageFailure::PresentMissing,
-            name.as_bytes(),
-        )
-    };
-    let need = if exact {
-        [&b"exactly "[..], requested[0].as_bytes()].concat()
-    } else {
-        join_requirements(requested)
-    };
+    // `package present` reports a conflict as `package require` does
+    // (8.5.19: NONE; 8.6.18: `TCL PACKAGE VERSIONCONFLICT`).
+    let _ = discover;
+    let code = protocol.conflict_error_code_update();
+    let need = requirement_text(requested, exact, vm.runtime_version());
     package_error(
         &[
             b"version conflict for package \"",
@@ -1035,6 +1173,23 @@ fn version_conflict(
         code,
         vm,
     )
+}
+
+/// A require's requirements as its diagnostics spell them: `exactly V` for
+/// `-exact` from 8.5 (8.4 names the bare version), else the requirements
+/// joined by spaces.
+fn requirement_text(
+    requested: &[NameBytes],
+    exact: bool,
+    release: tcl_dialect::TclVersion,
+) -> Vec<u8> {
+    match requested.first() {
+        Some(version) if exact && release.has_package_requirements() => {
+            [&b"exactly "[..], version.as_bytes()].concat()
+        }
+        Some(version) if exact => version.as_bytes().to_vec(),
+        _ => join_requirements(requested),
+    }
 }
 
 fn invalid_version(vm: &mut OriginalPackage<'_>, version: &NameBytes) -> Completion<Value> {
@@ -1124,7 +1279,7 @@ fn circular_dependency(
     )
 }
 
-struct SelectedLoader {
+pub(crate) struct SelectedLoader {
     version: NameBytes,
     script: Vec<u8>,
     release: tcl_dialect::TclVersion,
@@ -1167,13 +1322,6 @@ fn selected_loader(
             script,
             release,
         })
-}
-
-/// Package discovery scripts are interpreter-global even when the require was
-/// issued in a proc or namespace. Keeping the frame transition here prevents
-/// the unknown and ifneeded paths from drifting apart.
-fn eval_package_script(vm: &mut OriginalPackage<'_>, script: &Value) -> Completion<Value> {
-    vm.eval_script(script)
 }
 
 fn bad_return_code(
@@ -1322,11 +1470,10 @@ fn append_loader_error_frame(
 
 fn evaluate_loader(
     vm: &mut OriginalPackage<'_>,
-    name: &NameBytes,
-    loader: &SelectedLoader,
+    require: PackageRequire,
+    loader: SelectedLoader,
 ) -> Completion<Value> {
-    let source = &loader.script;
-
+    let name = &require.name;
     vm.begin_package_loading(name, &loader.version);
     if let Err(error) = vm.checked(|vm| {
         vm.record_package_loader_origin(name, &loader.version)
@@ -1338,10 +1485,21 @@ fn evaluate_loader(
         }
         return crate::command::completion_from_cmd_error(vm, error);
     }
-    let completion = eval_package_script(
-        vm,
-        &Value::from_native_string_bytes(tcl_core_types::c_string_extent(source)),
-    );
+    let script = Value::from_native_string_bytes(tcl_core_types::c_string_extent(&loader.script));
+    let require = PackageRequire {
+        step: RequireStep::Loader(loader),
+        ..require
+    };
+    defer_package_script(vm, &script, require)
+}
+
+/// The rest of `PkgRequireCore` once the selected loader completed.
+fn finish_loader(
+    vm: &mut OriginalPackage<'_>,
+    name: &NameBytes,
+    loader: &SelectedLoader,
+    completion: Completion<Value>,
+) -> Completion<Value> {
     if let Err(error) = vm.end_loading(name, &loader.version) {
         return crate::command::completion_from_cmd_error(vm, error);
     }
@@ -1454,7 +1612,10 @@ mod tests {
 
     fn package(vm: &mut Vm, words: &[&str]) -> tcl_runtime_api::Completion<Value> {
         let args: Vec<Value> = words.iter().map(|word| Value::string(*word)).collect();
-        super::cmd_package(vm, &args)
+        // `package require` defers its discovery scripts to the explicit
+        // stack; a direct call settles them as the native invoke path does.
+        let completion = super::cmd_package(vm, &args);
+        vm.settle_native_invoke(completion)
     }
 
     fn selected_loader(

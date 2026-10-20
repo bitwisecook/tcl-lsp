@@ -183,7 +183,31 @@ fn new_vm(options: &Options) -> Vm {
 /// [`configure_vm`] over a fresh VM writing to `output`, with the `load` the
 /// options ask for.
 fn build_vm(output: Box<dyn Write>, options: &Options) -> Vm {
-    let mut vm = configure_vm(Vm::with_output(output), options.version);
+    // The VM is a native-core interpreter of the selected release: only that
+    // constructor installs the engine's command-name protocol, without which
+    // the interpreter refuses every command lookup.
+    let profile = tcl_registry::model::resolve_environment(
+        options
+            .version
+            .unwrap_or_else(|| {
+                tcl_registry::model::resolve_environment("tcl9.0")
+                    .unit_profile()
+                    .vm_runtime_version
+            })
+            .dialect_name(),
+    )
+    .unit_profile();
+    let vm = Vm::with_native_core(
+        output,
+        std::rc::Rc::new(tcl_vm::host_native::NativeHost::new()),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs {
+            package_path: Vec::new(),
+            default_library: None,
+        },
+    )
+    .expect("a native core for the selected Tcl release");
+    let mut vm = configure_vm(vm, options.version);
     if options.static_extensions {
         link_static_extensions(&mut vm);
     }

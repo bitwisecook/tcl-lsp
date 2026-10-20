@@ -828,7 +828,7 @@ impl Vm {
 }
 
 impl InterpState {
-    pub(super) fn uses_c84_global_error_info(&self) -> bool {
+    pub(crate) fn uses_c84_global_error_info(&self) -> bool {
         self.actual_native_invocation_dialect()
             .native_error_log_protocol()
             .is_some_and(

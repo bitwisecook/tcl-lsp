@@ -391,6 +391,18 @@ pub(crate) fn publish(
             original.map(|pair| &pair.value),
             ops.protocol != ReturnOptionsProtocol::Jim084,
         );
+        // C8.4's `return -errorcode` stores the global code at once
+        // (`Tcl_SetObjErrorCode`), which the first errorInfo frame then keeps
+        // (8.4.20: `return -errorcode {A B} -code error y` → `{A B}`).
+        if ops.protocol == ReturnOptionsProtocol::Tcl84
+            && vm.uses_c84_global_error_info()
+            && let Some(pair) = original
+        {
+            vm.restore_guest_error_code(pair.value.clone());
+            if let Some(refusal) = vm.refused_completion() {
+                return refusal;
+            }
+        }
     }
     if code == Code::Error
         && vm

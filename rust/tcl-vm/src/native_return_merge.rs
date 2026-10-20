@@ -278,6 +278,25 @@ pub(crate) fn process_stack(
             native_return_merge::merge_stack(checked, protocol, original)
         }) {
             Ok(merged) => merged,
+            // 8.5's `Tcl_ReturnObjCmd` leaves its result word in place of a
+            // rejected options dictionary's message (8.5.19 `return -options
+            // {-code error -level} x` → `1 x`, errorCode `NONE`).
+            Err(error)
+                if protocol == tcl_cmd_core::return_options::ReturnOptionsProtocol::Tcl85
+                    && error.native_execution_refusal().is_none()
+                    && error.native_access_refusal().is_none() =>
+            {
+                let message = match tcl_syntax::value::ValueOps::native_string_bytes(vm, &result) {
+                    Ok(bytes) => bytes.to_vec(),
+                    Err(error) => {
+                        return crate::command::completion_from_cmd_error(vm, error.into());
+                    }
+                };
+                return crate::command::completion_from_cmd_error(
+                    vm,
+                    tcl_cmd_core::CmdError::with_error_code_bytes(message, b"NONE".to_vec()),
+                );
+            }
             Err(error) => return crate::command::completion_from_cmd_error(vm, error),
         };
     process(
