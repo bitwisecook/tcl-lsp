@@ -26,7 +26,6 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode as lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::Vm;
 
 fn main() {
     let mut src = String::new();
@@ -54,9 +53,19 @@ fn main() {
             );
         }
     }
-    let mut vm = Vm::new();
+    // `DIS` shows the standalone lowering; execution goes through the VM's
+    // own compile entry, which supplies the native preflight a module compiled
+    // without an entry lacks.
+    drop(asm);
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
-    let c = vm.run_module(&asm);
+    let c = match vm.try_eval_source(&src) {
+        Ok(c) => c,
+        Err(error) => {
+            eprintln!("{error}");
+            std::process::exit(1);
+        }
+    };
     if c.code.is_ok() {
         println!("OK: {}", c.result.to_str());
     } else {

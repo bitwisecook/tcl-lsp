@@ -181,6 +181,22 @@ use crate::frame::CallFrame;
 use crate::host_native::NativeHost as DefaultHost;
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 use crate::host_wasm::BrowserHost as DefaultHost;
+
+/// The platform's standard host: the full-capability `NativeHost`, or the
+/// browser host on `wasm32-unknown-unknown` (whose wall clock reads from
+/// JavaScript). Hosts pass it to [`Vm::with_native_core`] when they have no
+/// host of their own.
+#[must_use]
+pub fn standard_host() -> Rc<dyn Host> {
+    Rc::new(DefaultHost::new())
+}
+
+/// What a sibling native-core interpreter is built from: the actual engine
+/// profile and the core bootstrap inputs ([`Vm::native_core_recipe`]).
+pub(crate) type NativeCoreRecipe = (
+    &'static tcl_dialect::DialectProfile,
+    tcl_registry::special_vars::NativeBootstrapInputs,
+);
 use crate::value::Value;
 use crate::vars::{NameLink, VarArena, VarState as Local, VarState, VarTable};
 use tcl_registry::native_rmw::{NativeRmwAmountError, NativeRmwOperation};
@@ -1152,11 +1168,50 @@ struct NativeErrorState {
     /// its frame (so the same bytecode frame is not re-logged), cleared at a
     /// real frame boundary (a nested `eval`/`[subst]`, a proc/control body) so
     /// the enclosing command logs its own `invoked from within` frame.
-    error_logged: bool,
+    error_logged: ErrorLogged,
     /// TIP 348's interpreter-local structured error stack. Its lazy reset
     /// keeps the last caught stack introspectable until a new error is logged.
     error_stack: NativeErrorStack,
     error_line: u32,
+}
+
+/// C's `ERR_ALREADY_LOGGED` for the current error.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum ErrorLogged {
+    #[default]
+    No,
+    /// The current command level logged its frame, so the same bytecode
+    /// frame is not logged again; a frame boundary clears it.
+    Yes,
+    /// Logged across frame boundaries until a procedure boundary: 8.4's
+    /// `Tcl_ExprObj` leaves `ERR_ALREADY_LOGGED` set after an error in a
+    /// command substitution
+    /// ([`tcl_dialect::TclVersion::keeps_expression_substitution_errors_logged`]),
+    /// and only the procedure boundary clears it.
+    ThroughFrames,
+}
+
+impl ErrorLogged {
+    /// Whether the current error's command is already logged.
+    pub(crate) fn is_logged(self) -> bool {
+        self != Self::No
+    }
+
+    /// What a frame boundary leaves.
+    pub(crate) fn past_frame(self) -> Self {
+        match self {
+            Self::ThroughFrames => Self::ThroughFrames,
+            Self::No | Self::Yes => Self::No,
+        }
+    }
+
+    /// The state once the current command level has logged.
+    pub(crate) fn marked(self) -> Self {
+        match self {
+            Self::No => Self::Yes,
+            logged => logged,
+        }
+    }
 }
 
 impl Default for NativeErrorState {
@@ -1172,7 +1227,7 @@ impl Default for NativeErrorState {
             native_error_legacy_copy: false,
             c84_global_code_set: false,
             primitive_error_code: None,
-            error_logged: false,
+            error_logged: ErrorLogged::No,
             error_stack: NativeErrorStack::default(),
             error_line: 1,
         }
@@ -1785,7 +1840,7 @@ pub(crate) struct ParkedFlow {
     /// Primitive interpreter error-code state, separate from guest globals.
     /// None is the fresh interpreter's native NONE state.
     primitive_error_code: Option<Value>,
-    error_logged: bool,
+    error_logged: ErrorLogged,
     error_stack: NativeErrorStack,
     pub(crate) jim_errors: JimEvaluationState,
     error_line: u32,
@@ -2161,16 +2216,36 @@ impl Vm {
         )
     }
 
-    /// A VM writing `puts` output to stdout.
+    /// Unit-test shorthand for [`crate::test_support::native_vm`]: a
+    /// native-core Tcl 9.0 interpreter writing `puts` output to stdout.
+    #[cfg(test)]
     #[must_use]
-    pub fn new() -> Self {
-        Self::with_output(Box::new(io::stdout()))
+    pub(crate) fn new() -> Self {
+        crate::test_support::native_vm()
     }
 
-    /// A VM writing `puts` output to `out` (tests pass a capture buffer).
+    /// Unit-test shorthand for [`crate::test_support::native_vm_with_output`].
+    #[cfg(test)]
     #[must_use]
-    pub fn with_output(out: Box<dyn Write>) -> Self {
+    pub(crate) fn with_output(out: Box<dyn Write>) -> Self {
+        crate::test_support::native_vm_with_output(out)
+    }
+
+    /// An interpreter with **no** native engine, writing `puts` output to
+    /// `out`. Test-only: it names no command until a test selects an engine
+    /// with [`Self::set_native_engine_profile`], so unit tests use it only to
+    /// exercise that unselected state.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn without_native_engine_with_output(out: Box<dyn Write>) -> Self {
         Self::with_shared_output(Rc::new(RefCell::new(out)))
+    }
+
+    /// [`Self::without_native_engine_with_output`] writing to stdout.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn without_native_engine() -> Self {
+        Self::without_native_engine_with_output(Box::new(io::stdout()))
     }
 
     /// Pin the Tcl release this VM's number/expr grammar emulates —
@@ -2905,14 +2980,20 @@ impl Vm {
         self.source_profile().grammar.escapes
     }
 
-    /// A VM writing to an already-shared output sink.
+    /// A VM writing to an already-shared output sink. Test-only (see
+    /// [`Self::new`]).
+    #[cfg(test)]
     fn with_shared_output(out: Rc<RefCell<Box<dyn Write>>>) -> Self {
         Self::with_shared_output_bootstrap(out, None)
     }
 
-    /// Construct native core root variables without adding library or CLI
-    /// globals. The ordinary `new` and `with_output` host contracts are unchanged.
-    /// This backend still registers its supported command implementations.
+    /// The interpreter constructor: the native core of `profile` names its
+    /// commands, over `host`, with the core's root variables and no library or
+    /// CLI globals. This backend still registers its supported command
+    /// implementations.
+    ///
+    /// `None` when `profile` has no native core (no measured execution point),
+    /// since an interpreter of it could name no command.
     pub fn with_native_core(
         out: Box<dyn Write>,
         host: Rc<dyn tcl_platform::Host>,
@@ -2932,6 +3013,31 @@ impl Vm {
             Rc::new(RefCell::new(out)),
             Some((host, profile, protocol, inputs)),
         ))
+    }
+
+    /// A native-core interpreter of this one's actual engine, over the
+    /// platform's standard host, writing to `out`: what a `thread::create` or
+    /// `tpool` worker runs on. The engine and bootstrap inputs are captured on
+    /// the parent's thread by [`Self::native_core_recipe`].
+    pub(crate) fn with_native_core_recipe(
+        out: Box<dyn Write>,
+        (profile, inputs): NativeCoreRecipe,
+    ) -> Option<Self> {
+        Self::with_native_core(out, standard_host(), profile, inputs)
+    }
+
+    /// The engine profile and bootstrap inputs a sibling interpreter of this
+    /// one is built from ([`Self::with_native_core_recipe`]). `None` when this
+    /// interpreter has no native engine.
+    pub(crate) fn native_core_recipe(&self) -> Option<NativeCoreRecipe> {
+        let profile = self.actual_engine_profile?;
+        let inputs = match &self.bootstrap {
+            NativeBootstrapPurpose::Core { inputs, .. } => inputs.clone(),
+            NativeBootstrapPurpose::Distribution => {
+                tcl_registry::special_vars::NativeBootstrapInputs::default()
+            }
+        };
+        Some((profile, inputs))
     }
 
     fn with_shared_output_bootstrap(
@@ -7757,6 +7863,12 @@ impl Vm {
             vm.active_native_profile = vm.actual_engine_profile.or(saved);
             let entered = (|| -> Result<(), tcl_runtime_api::NativeExecutionError> {
                 let scope = native_operation_currency::NativeOperationScope::enter_native(vm)?;
+                // The child's own error objects follow its engine, as the
+                // root's do at construction.
+                let recipe = vm
+                    .actual_native_invocation_dialect()
+                    .native_error_objects_protocol();
+                vm.native_errors.error_stack.configure(recipe);
                 vm.configure_c84_execution_environment_error_names()
                     .map_err(|error| {
                         let _ = crate::command::completion_from_cmd_error(vm, error);
@@ -17328,7 +17440,7 @@ impl Vm {
             self.append_var_trace_frame_bytes(op, name);
         } else {
             self.native_errors.error_info = None;
-            self.native_errors.error_logged = false;
+            self.native_errors.error_logged = ErrorLogged::No;
         }
         scope.check_native(self)?;
         let verb = match op {
@@ -18624,7 +18736,7 @@ impl Vm {
             .actual_native_invocation_dialect()
             .native_error_objects_protocol();
         self.native_errors.error_stack.configure(recipe);
-        self.native_errors.error_logged = false;
+        self.native_errors.error_logged = ErrorLogged::No;
         self.update_native_error_info();
     }
 
@@ -22734,7 +22846,7 @@ impl Vm {
         msg: impl AsRef<[u8]>,
         line: u32,
     ) {
-        if self.execution_refusal.is_some() || self.native_errors.error_logged {
+        if self.execution_refusal.is_some() || self.native_errors.error_logged.is_logged() {
             return;
         }
         self.error_stack_log_value(context);
@@ -22753,7 +22865,7 @@ impl Vm {
         if self.uses_jim_error_stack() {
             return;
         }
-        if self.execution_refusal.is_some() || self.native_errors.error_logged {
+        if self.execution_refusal.is_some() || self.native_errors.error_logged.is_logged() {
             return;
         }
         let source = cmd_text.as_ref();
@@ -22797,7 +22909,7 @@ impl Vm {
             info.extend_from_slice(("...").as_bytes());
         }
         info.push(b'"');
-        self.native_errors.error_logged = true;
+        self.native_errors.error_logged = ErrorLogged::Yes;
         self.update_native_error_info();
         self.publish_traced_native_error_info();
     }
@@ -22826,7 +22938,7 @@ impl Vm {
         info.extend_from_slice(("\" body line ").as_bytes());
         info.extend_from_slice(line.to_string().as_bytes());
         info.push(b')');
-        self.native_errors.error_logged = false;
+        self.native_errors.error_logged = self.native_errors.error_logged.past_frame();
         self.update_native_error_info();
     }
 
@@ -22855,7 +22967,7 @@ impl Vm {
             .error_info
             .get_or_insert_with(|| msg.as_ref().to_vec());
         info.extend_from_slice(frame.as_ref());
-        self.native_errors.error_logged = false;
+        self.native_errors.error_logged = ErrorLogged::No;
         self.update_native_error_info();
     }
 
@@ -22924,7 +23036,7 @@ impl Vm {
         info.extend_from_slice(b"\" line ");
         info.extend_from_slice(line.to_string().as_bytes());
         info.push(b')');
-        self.native_errors.error_logged = false;
+        self.native_errors.error_logged = ErrorLogged::No;
         self.update_native_error_info();
     }
 
@@ -22938,7 +23050,7 @@ impl Vm {
         info.extend_from_slice((" trace on \"").as_bytes());
         info.extend_from_slice(name);
         info.extend_from_slice(("\")").as_bytes());
-        self.native_errors.error_logged = false;
+        self.native_errors.error_logged = ErrorLogged::No;
         self.update_native_error_info();
     }
 
@@ -23115,16 +23227,22 @@ impl Vm {
     /// Clear `ERR_ALREADY_LOGGED` at a frame boundary (a nested `eval`/`[subst]`
     /// returned an error), so the enclosing command logs its own frame.
     pub(crate) fn command_error_is_logged(&self) -> bool {
-        self.native_errors.error_logged
+        self.native_errors.error_logged.is_logged()
     }
 
     pub(crate) fn clear_error_logged(&mut self) {
-        self.native_errors.error_logged = false;
+        self.native_errors.error_logged = self.native_errors.error_logged.past_frame();
     }
 
     /// Mark the current error's command logged (C's `ERR_ALREADY_LOGGED`).
     pub(crate) fn mark_error_logged(&mut self) {
-        self.native_errors.error_logged = true;
+        self.native_errors.error_logged = self.native_errors.error_logged.marked();
+    }
+
+    /// Mark the current error logged until a procedure boundary
+    /// ([`ErrorLogged::ThroughFrames`]).
+    pub(crate) fn mark_error_logged_through_frames(&mut self) {
+        self.native_errors.error_logged = ErrorLogged::ThroughFrames;
     }
 
     /// Append a `(<text>)` frame — a `switch` arm's `("PATTERN" arm line N)`,
@@ -23138,7 +23256,7 @@ impl Vm {
         info.extend_from_slice(b"\n    (");
         info.extend_from_slice(text.as_bytes());
         info.push(b')');
-        self.native_errors.error_logged = false;
+        self.native_errors.error_logged = self.native_errors.error_logged.past_frame();
         self.update_native_error_info();
     }
 
@@ -23650,7 +23768,7 @@ impl Vm {
         }
         self.native_errors.error_info = Some(info.as_ref().to_vec());
         self.native_errors.native_error_info_len = info.as_ref().len();
-        self.native_errors.error_logged = true;
+        self.native_errors.error_logged = self.native_errors.error_logged.marked();
         self.native_errors.native_error_info = self
             .native_invocation_dialect()
             .native_error_variable_protocol()
@@ -23728,7 +23846,7 @@ impl Vm {
     /// Add the innermost command context for a new Tcl 8.6+ error episode.
     #[cfg(test)]
     pub(crate) fn begin_error_stack_context(&mut self, context: Value) {
-        if self.supports_error_stack() && !self.native_errors.error_logged {
+        if self.supports_error_stack() && !self.native_errors.error_logged.is_logged() {
             if let Err(error) = self
                 .native_errors
                 .error_stack
@@ -23753,16 +23871,15 @@ impl Vm {
             return;
         }
         if recipe.is_some_and(tcl_registry::native_return_options::NativeReturnOptionsApplicationProtocol::clears_logged_after_result) {
-            self.native_errors.error_logged = false;
+            self.native_errors.error_logged = ErrorLogged::No;
         }
-        if !self.native_errors.error_logged {
-            if let Err(error) = self
+        if !self.native_errors.error_logged.is_logged()
+            && let Err(error) = self
                 .native_errors
                 .error_stack
                 .begin_instruction(name, operands)
-            {
-                let _ = crate::command::completion_from_tcl_error(self, error.into());
-            }
+        {
+            let _ = crate::command::completion_from_tcl_error(self, error.into());
         }
     }
 
@@ -23869,14 +23986,14 @@ impl Vm {
         self.native_errors.native_error_result = None;
         self.native_errors.native_return_options = None;
         self.native_errors.native_error_legacy_copy = false;
-        self.native_errors.error_logged = false;
+        self.native_errors.error_logged = ErrorLogged::No;
         self.native_errors.error_line = 1;
     }
 
     /// Take the accumulated `errorInfo` trace (if any) and reset it for the next
     /// error — used when `catch` reports an error.
     pub(crate) fn take_error_info(&mut self) -> Option<Vec<u8>> {
-        self.native_errors.error_logged = false;
+        self.native_errors.error_logged = ErrorLogged::No;
         self.native_errors.error_stack.mark_reset();
         self.native_errors.error_info.take()
     }
@@ -27401,6 +27518,7 @@ fn stdin_chunks(src: &str) -> impl Iterator<Item = &str> {
         })
 }
 
+#[cfg(test)]
 impl Default for Vm {
     fn default() -> Self {
         Self::new()
@@ -29540,7 +29658,7 @@ mod family_b_tests {
 
     #[test]
     fn explicit_host_engine_keeps_source_logical_and_availability_axes_separate() {
-        let mut vm = Vm::new();
+        let mut vm = Vm::without_native_engine();
         let source = tcl_dialect::DialectProfile::irules();
         let host = crate::environment::profile_for_dialect("tcl9.0");
         vm.set_dialect_profile(source);
@@ -29822,7 +29940,7 @@ mod family_b_tests {
         use tcl_registry::invocation_words::LogicalSourceWordProvider;
         let provider = LogicalSourceWordProvider::Tcl84CoreSimulation;
         let host = crate::environment::profile_for_dialect("tcl9.0");
-        let mut vm = Vm::new();
+        let mut vm = Vm::without_native_engine();
         vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
         assert!(vm.source_string_protocol().is_none());
         assert!(!vm.set_logical_source_word_provider(provider));
@@ -33377,7 +33495,7 @@ mod compiled_variable_provider_tests {
 
     #[test]
     fn logical_local_compiler_is_explicit_retained_and_independent_of_host() {
-        let mut vm = Vm::new();
+        let mut vm = Vm::without_native_engine();
         let f5 = tcl_dialect::DialectProfile::irules();
         let host = crate::environment::profile_for_dialect("tcl9.0");
         let provider = LogicalCompiledVariableProvider::Tcl84CoreSimulation;
@@ -33566,10 +33684,7 @@ mod definition_compiler_registration_tests {
                 Box::new(std::io::sink()),
                 Rc::new(crate::host_native::NativeHost::new()),
                 profile,
-                tcl_registry::special_vars::NativeBootstrapInputs {
-                    package_path: Vec::new(),
-                    default_library: None,
-                },
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
             )
             .unwrap();
             vm.set_compiler(Box::new(

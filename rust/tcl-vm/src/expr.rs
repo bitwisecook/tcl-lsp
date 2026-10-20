@@ -1719,6 +1719,17 @@ impl<'a> ExprEval<'a> {
         Ok(completion.result)
     }
 
+    /// An error leaving an expression's command substitution
+    /// ([`Vm::settle_expression_substitution_error`]).
+    fn settle_substitution_error_logging(
+        &mut self,
+        completion: &tcl_runtime_api::Completion<Value>,
+    ) {
+        if completion.code == Code::Error {
+            self.vm.settle_expression_substitution_error();
+        }
+    }
+
     pub(crate) fn finish_expression_result(
         self,
         result: Value,
@@ -1828,6 +1839,7 @@ impl ExprOps for ExprEval<'_> {
         let completion = self
             .vm
             .eval_source_image_at_internal(&tcl_lexer::SourceImage::native(script), None)?;
+        self.settle_substitution_error_logging(&completion);
         self.accept_completion(completion)
     }
 
@@ -1914,6 +1926,7 @@ impl ExprOps for ExprEval<'_> {
         // plain `TclError`; a `break`/`continue`/`return` escaping the substitution
         // carries its code so the enclosing construct sees it.
         let c = self.vm.eval_source(script)?;
+        self.settle_substitution_error_logging(&c);
         self.accept_completion(c)
     }
 

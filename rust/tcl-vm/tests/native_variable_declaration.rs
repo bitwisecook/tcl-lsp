@@ -16,9 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::rc::Rc;
 use tcl_syntax::value::ValueOps;
-use tcl_vm::{Vm, host_native::NativeHost};
 
 #[test]
 fn variable_declaration_arity_matches_each_original_worker() {
@@ -78,13 +76,10 @@ fn variable_declaration_arity_matches_each_original_worker() {
             ),
         ),
     ] {
-        let mut vm = Vm::with_native_core(
-            Box::new(std::io::sink()),
-            Rc::new(NativeHost::new()),
+        let mut vm = tcl_vm::test_support::native_vm_for_profile(
             tcl_registry::model::resolve_environment(environment).unit_profile(),
-            tcl_registry::special_vars::NativeBootstrapInputs::default(),
-        )
-        .expect("matching native core");
+            Box::new(std::io::sink()),
+        );
         for (prefix, rows, operands) in [
             ("NH_CONTROL variable-root ", oracle, Vec::new()),
             (

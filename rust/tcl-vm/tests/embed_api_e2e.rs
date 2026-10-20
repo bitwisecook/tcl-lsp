@@ -32,7 +32,15 @@ use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_vm::{Code, CompileService, Completion, NativeCommand, TclError, Value, Vm};
 
 fn vm() -> Vm {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
+    vm.set_compiler(Box::new(BytecodeCompileService::default()));
+    vm
+}
+
+/// [`vm`] over the native core of `environment`'s profile.
+fn vm_of(environment: &str) -> Vm {
+    let profile = tcl_registry::model::ingress::resolve_environment(environment).analyser_profile();
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     vm
 }
@@ -183,10 +191,7 @@ fn raw_function_execution_is_fallback_only_and_cannot_bypass_module_profile() {
         .compile_for_profile("lassign {a b} x; set x", v85)
         .expect("named-profile module compiles");
 
-    let mut v84_vm = vm();
-    v84_vm.set_dialect_profile(
-        tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
-    );
+    let mut v84_vm = vm_of("tcl8.4");
     let rejected = v84_vm.run_function(&named.top_level);
     assert_eq!(rejected.code, Code::Error);
     assert_eq!(
@@ -206,8 +211,7 @@ fn raw_function_execution_is_fallback_only_and_cannot_bypass_module_profile() {
 
     // The supported named-profile AOT entry remains the profile-bearing
     // module API, including same-profile execution.
-    let mut v85_vm = vm();
-    v85_vm.set_dialect_profile(v85);
+    let mut v85_vm = vm_of("tcl8.5");
     let completion = v85_vm.run_module(&named);
     assert!(completion.code.is_ok(), "{}", completion.result.to_str());
     assert_eq!(completion.result.to_str().as_ref(), "a");
@@ -266,10 +270,7 @@ fn native_mathfunc_identity_survives_rename_and_hide_expose_across_profiles() {
 
 #[test]
 fn embedder_can_remove_a_builtin_hidden_by_the_current_release() {
-    let mut vm = vm();
-    vm.set_dialect_profile(
-        tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
-    );
+    let mut vm = vm_of("tcl8.4");
     assert!(
         !vm.invoke_command("lassign", &[]).code.is_ok(),
         "lassign is outside Tcl 8.4's public surface"
@@ -649,8 +650,8 @@ fn variable_embedding_returns_original_trace_host_cause_and_preserves_prior_effe
     for version in tcl_dialect::TclVersion::ALL {
         let profile = tcl_dialect::DialectProfile::find(version.dialect_profile_name()).unwrap();
         for operation in ["r", "w", "u"] {
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(profile);
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
             vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
             vm.register_native_command("trace_refusal", Rc::new(VariableTraceHostRefusal));
             vm.try_eval_source(&format!(

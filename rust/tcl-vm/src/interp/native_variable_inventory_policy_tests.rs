@@ -56,7 +56,7 @@ fn unsupported_inventory_policy_refuses_before_a_pattern_getter() {
     // naming.invocation.original-variable-inventory-policy
     // docs/design/analysis/name-resolution-proofs/invocation-original-variable-inventory-policy.md
     // Standalone ingress supplies no independently retained actual native core.
-    let mut vm = Vm::new();
+    let mut vm = Vm::without_native_engine();
     let unknown = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
         "jim",
         &[],

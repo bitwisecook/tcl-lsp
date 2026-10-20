@@ -1032,7 +1032,7 @@ impl std::io::Write for Capture {
 
 fn vm() -> (Vm, Capture) {
     let output = Capture::default();
-    let mut vm = Vm::with_output(Box::new(output.clone()));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(output.clone()));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     (vm, output)
 }
@@ -1083,8 +1083,7 @@ fn explicit_inline_codegen_pipeline_invalidates_after_user_proc_redefinition() {
         "the consumed target call must survive codegen as an exact typed dependency",
     );
 
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(InliningCompilerSvc(
         BytecodeCompileService::for_profile(profile),
     )));
@@ -1156,8 +1155,7 @@ fn inlined_bare_procedure_call_revalidates_resolution_after_local_shadow() {
         "the erased call must retain its source resolution and selected definition",
     );
 
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(InliningCompilerSvc(
         BytecodeCompileService::for_profile(profile),
     )));
@@ -1229,8 +1227,7 @@ fn inlined_namespaced_body_revalidates_commands_in_its_defining_namespace() {
         "the copied expr specialisation must retain the callee's defining namespace",
     );
 
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(InliningCompilerSvc(
         BytecodeCompileService::for_profile(profile),
     )));
@@ -1336,8 +1333,7 @@ fn active_inlined_namespaced_boundary_replays_in_its_defining_namespace() {
         );
     }
 
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(InliningCompilerSvc(
         BytecodeCompileService::for_profile(profile),
     )));
@@ -1399,8 +1395,7 @@ fn namespaced_boundary_replay_preserves_the_frame_namespace_pairing() {
         "llength $::trigger; puts -nonewline {}; expr {40 + 2}}\n",
         "proc caller {} {::n::callee}\n",
     );
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(InliningCompilerSvc(
         BytecodeCompileService::for_profile(profile),
     )));
@@ -1431,8 +1426,7 @@ fn top_level_cross_namespace_call_keeps_its_proc_frame_and_matches_tcl90() {
         "a cross-namespace top-level call must keep its Tcl procedure frame",
     );
 
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(InliningCompilerSvc(
         BytecodeCompileService::for_profile(profile),
     )));
@@ -1555,7 +1549,7 @@ fn compiler_swap_invalidates_cached_eval_in_both_directions() {
 
 #[test]
 fn owned_registry_controls_value_position_constant_folds() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(custom_compile_service()));
 
     // `set`'s value is emitted through the shared value-position fold and
@@ -1600,7 +1594,7 @@ fn source_less_vm_runs_a_self_contained_foreign_module_proc_as_supplied() {
     let module = BytecodeCompileService::default()
         .compile("proc foreign_self {} {list {1 + 2}}; foreign_self")
         .expect("default module compiles");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
 
     let completion = vm.run_module(&module);
     assert_eq!(completion.code, Code::Ok, "{completion:?}");
@@ -1621,7 +1615,7 @@ fn source_less_vm_admits_multiple_exact_bodies_for_one_foreign_proc_name() {
     let second = service
         .compile("proc same_name {value} {return SECOND-$value}; same_name ok")
         .expect("second module compiles");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
 
     let completion = vm.run_module(&first);
     assert_eq!(completion.code, Code::Ok, "{completion:?}");
@@ -1646,7 +1640,7 @@ fn source_less_vm_uses_each_foreign_modules_same_source_proc_artifact() {
     let custom = custom_compile_service()
         .compile(source)
         .expect("custom module compiles");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
 
     for (module, expected) in [(&default, "{1 + 2}"), (&custom, "3"), (&default, "{1 + 2}")] {
         let completion = vm.run_module(module);
@@ -1677,7 +1671,7 @@ fn foreign_proc_provenance_name_must_match_its_module_entry() {
     let valid = service
         .compile("proc target {} {return CLAIMED}; target")
         .expect("valid module compiles");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
 
     // A source-less VM cannot compile the malformed module's unmatched proc
     // definition, but merely admitting it must not poison another name.
@@ -1733,7 +1727,7 @@ fn suspended_coroutine_fails_closed_after_compiler_swap() {
         "cannot continue bytecode after compile service changed"
     );
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(custom_compile_service()));
     assert_eq!(
         eval_ok(
@@ -1876,7 +1870,7 @@ fn final_native_compiler_swap_cannot_settle_old_deferred_bytecode() {
             "{source}"
         );
 
-        let mut vm = Vm::new();
+        let mut vm = tcl_vm::test_support::native_vm();
         vm.set_compiler(Box::new(custom_compile_service()));
         vm.register_native_command("switch_compiler", Rc::new(SwitchCompilerToDefault));
         let completion = vm.eval_source(source).expect("source compiles");
@@ -1939,8 +1933,7 @@ fn terminal_profile_flips_fail_closed_in_catch_try_and_trace() {
         "set head try; $head {switch_profile}",
         "set x 0; trace add variable x write switch_profile; set x 1",
     ] {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(v90);
+        let mut vm = tcl_vm::test_support::native_vm_for_profile(v90, Box::new(std::io::stdout()));
         vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v90)));
         vm.register_native_command("switch_profile", Rc::new(SwitchProfileAndOk(v84)));
 
@@ -2035,8 +2028,7 @@ fn runtime_foreach_revalidates_after_a_loop_variable_write_trace() {
 fn runtime_foreach_does_not_tag_old_profile_assembly_as_fresh() {
     let v90 = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
     let v84 = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(v90);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(v90, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v90)));
 
     let body_calls = Rc::new(Cell::new(0));
@@ -3316,7 +3308,7 @@ fn precompiled_proc_cache_requires_exact_body_and_parameters() {
 #[test]
 fn exact_static_proc_provenance_preserves_the_precompiled_body() {
     let fast_calls = Rc::new(Cell::new(0));
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(CountingCompilerSvc {
         inner: BytecodeCompileService::default(),
         fast_calls: Rc::clone(&fast_calls),
@@ -3824,7 +3816,7 @@ fn native_replacement_fails_closed_when_no_plain_compiler_exists() {
     let module = BytecodeCompileService::default()
         .compile("expr {1+2}")
         .expect("module compiles");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.register_native_command("expr", Rc::new(NativeOverride));
 
     let completion = vm.run_module(&module);
@@ -3916,7 +3908,7 @@ fn procedure_recovery_rejects_a_dishonest_plain_compiler() {
 fn procedure_consumers_preserve_a_missing_typed_compiler_capability() {
     const CAUSE: &str = "CompileService does not support procedure-body compilation";
 
-    let mut host_vm = Vm::new();
+    let mut host_vm = tcl_vm::test_support::native_vm();
     host_vm.set_compiler(Box::new(ScriptOnlyCompilerSvc(
         BytecodeCompileService::default(),
     )));
@@ -3936,7 +3928,7 @@ fn procedure_consumers_preserve_a_missing_typed_compiler_capability() {
         "set lambda [list {} {return APPLY}]; apply $lambda",
         "oo::class create C {method m {} {return METHOD}}; set o [C new]; $o m",
     ] {
-        let mut vm = Vm::new();
+        let mut vm = tcl_vm::test_support::native_vm();
         vm.set_compiler(Box::new(ScriptOnlyCompilerSvc(
             BytecodeCompileService::default(),
         )));
@@ -3968,7 +3960,7 @@ fn a_rung_zero_module_is_admitted_under_a_changed_pack_set() {
         evaluator_revision: 0,
     };
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let fast_calls = Rc::new(Cell::new(0));
     let plain_calls = Rc::new(Cell::new(0));
     vm.set_compiler(Box::new(CountingCompilerSvc {
@@ -4016,7 +4008,7 @@ fn a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites() {
     let held = pack_stamp("held", 1);
     let missing = pack_stamp("missing", 2);
     let plain_calls = Rc::new(Cell::new(0));
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(PackRestingCompilerSvc {
         inner: BytecodeCompileService::default(),
         claimed: held.clone(),
@@ -4058,7 +4050,7 @@ fn a_manifest_disagreeing_on_packs_refuses_only_rung_one_sites() {
 #[test]
 fn a_rung_zero_unit_is_admitted_under_a_changed_pack_set() {
     let plain_calls = Rc::new(Cell::new(0));
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(CountingCompilerSvc {
         inner: BytecodeCompileService::default(),
         fast_calls: Rc::new(Cell::new(0)),
@@ -4087,7 +4079,7 @@ fn a_manifest_for_another_world_refuses_the_whole_module() {
     let module = BytecodeCompileService::default()
         .compile("set x 1")
         .expect("module compiles");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     assert_eq!(vm.run_module(&module).code, Code::Ok);
 
@@ -4156,7 +4148,7 @@ fn a_manifest_for_another_intrinsic_table_refuses_only_shipped_backing_sites() {
 
     let run = |module: &tcl_bytecode::ModuleAsm| {
         let plain_calls = Rc::new(Cell::new(0));
-        let mut vm = Vm::new();
+        let mut vm = tcl_vm::test_support::native_vm();
         vm.register_native_command("native_probe", Rc::new(NativeOverride));
         vm.set_compiler(Box::new(CountingCompilerSvc {
             inner: BytecodeCompileService::default(),
@@ -4201,7 +4193,7 @@ fn a_pin_to_other_package_floors_refuses_the_units_that_rest_on_packs() {
     let held = pack_stamp("held", 1);
     let other = pack_stamp("other", 2);
     let plain_calls = Rc::new(Cell::new(0));
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(PackRestingCompilerSvc {
         inner: BytecodeCompileService::default(),
         claimed: held.clone(),
@@ -4248,7 +4240,7 @@ fn a_running_function_is_checked_against_its_manifest_when_the_pin_changes() {
     let other = pack_stamp("other", 2);
     let run = |pin_other_floors: bool| {
         let plain_calls = Rc::new(Cell::new(0));
-        let mut vm = Vm::new();
+        let mut vm = tcl_vm::test_support::native_vm();
         vm.set_compiler(Box::new(PackRestingCompilerSvc {
             inner: BytecodeCompileService::default(),
             claimed: held.clone(),

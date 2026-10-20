@@ -19,7 +19,7 @@ use std::rc::Rc;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
-use tcl_vm::{Code, Vm};
+use tcl_vm::Code;
 
 const RELEASES: [TclVersion; 5] = [
     TclVersion::V8_4,
@@ -48,16 +48,7 @@ fn run_file(version: TclVersion, source: &str) -> String {
     let output = Capture::default();
     let profile = tcl_registry::model::resolve_environment(version.dialect_name()).unit_profile();
     // A native-core interpreter of the release, as `tclvm` runs (work's entry).
-    let mut vm = Vm::with_native_core(
-        Box::new(output.clone()),
-        std::rc::Rc::new(tcl_vm::host_native::NativeHost::new()),
-        profile,
-        tcl_registry::special_vars::NativeBootstrapInputs {
-            package_path: Vec::new(),
-            default_library: None,
-        },
-    )
-    .expect("native core for the selected profile");
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(output.clone()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     let completion = vm.eval_source_directly(source).expect("source compiles");
     assert_eq!(

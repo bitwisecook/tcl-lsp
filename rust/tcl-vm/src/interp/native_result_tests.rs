@@ -131,7 +131,7 @@ fn modern_trace_state_restores_return_and_error_metadata_without_child_copies() 
         vm.native_errors.native_error_info_len = 13;
         vm.native_errors.primitive_error_code = Some(code.clone());
         vm.native_errors.native_return_options = Some(options.clone());
-        vm.native_errors.error_logged = true;
+        vm.native_errors.error_logged = crate::interp::ErrorLogged::Yes;
         let context = Value::string("ORIGINAL CONTEXT");
         if release.has_error_stack() {
             vm.native_errors
@@ -153,7 +153,7 @@ fn modern_trace_state_restores_return_and_error_metadata_without_child_copies() 
         vm.native_errors.native_error_info_len = 0;
         vm.native_errors.primitive_error_code = None;
         vm.native_errors.native_return_options = None;
-        vm.native_errors.error_logged = false;
+        vm.native_errors.error_logged = crate::interp::ErrorLogged::No;
         if release.has_error_stack() {
             vm.native_errors
                 .error_stack
@@ -185,7 +185,7 @@ fn modern_trace_state_restores_return_and_error_metadata_without_child_copies() 
                 .unwrap()
                 .is_same_object(&options)
         );
-        assert!(vm.native_errors.error_logged);
+        assert!(vm.native_errors.error_logged.is_logged());
         if release.has_error_stack() {
             assert!(vm.native_errors.error_stack.is_reset());
             assert!(vm.native_errors.error_stack.entries()[1].is_same_object(&context));

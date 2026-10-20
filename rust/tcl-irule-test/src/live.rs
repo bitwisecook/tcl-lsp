@@ -753,7 +753,7 @@ mod tests {
             )
         }
         let mut session = LiveSession {
-            vm: Vm::new(),
+            vm: tcl_vm::test_support::native_vm(),
             output: Rc::default(),
             measured_loader: None,
             measured_names: Rc::default(),
@@ -783,7 +783,7 @@ mod tests {
     #[test]
     fn completion_api_keeps_missing_execution_provider_outside_guest_errors() {
         let mut session = LiveSession {
-            vm: Vm::new(),
+            vm: tcl_vm::test_support::native_vm(),
             output: Rc::default(),
             measured_loader: None,
             measured_names: Rc::default(),

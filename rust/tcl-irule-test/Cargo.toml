@@ -54,6 +54,7 @@ tcl-cmd-core = { path = "../tcl-cmd-core" }
 
 [dev-dependencies]
 tcl-test-support = { path = "../tcl-test-support" }
+tcl-vm = { path = "../tcl-vm", features = ["test-support"] }
 
 [lints]
 workspace = true

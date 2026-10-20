@@ -3592,7 +3592,30 @@ impl Vm {
                 .resume(c.result);
             return Ok(());
         }
+        if c.code == Code::Error {
+            self.settle_expression_substitution_error();
+        }
         Err(c)
+    }
+
+    /// An error leaving an expression's command substitution. From 8.5 the
+    /// expression ends as `Tcl_EvalObjEx` does, clearing `ERR_ALREADY_LOGGED`,
+    /// so each command enclosing the expression logs its own level. 8.4's
+    /// `Tcl_ExprObj` runs it without that clear, so an error the substitution
+    /// logged stays logged through every enclosing command up to a procedure
+    /// boundary
+    /// ([`tcl_dialect::TclVersion::keeps_expression_substitution_errors_logged`]).
+    /// Measured against tclsh 8.4.20, 8.5.19 and 8.6.16 on
+    /// `set w [list a [expr $e]]` with `e` holding `[p] + 1`.
+    pub(crate) fn settle_expression_substitution_error(&mut self) {
+        if !self
+            .runtime_version()
+            .keeps_expression_substitution_errors_logged()
+        {
+            self.clear_error_logged();
+        } else if self.command_error_is_logged() {
+            self.mark_error_logged_through_frames();
+        }
     }
 
     /// Unwind one proc activation `act`: on error add its `(procedure "name" line

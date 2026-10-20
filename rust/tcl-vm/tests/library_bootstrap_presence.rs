@@ -17,20 +17,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::path::Path;
-use std::rc::Rc;
 
 use tcl_dialect::TclVersion;
 use tcl_test_support::{locate_source_tree, run_script_from_source_tree};
-use tcl_vm::{Value, Vm, host_native::NativeHost};
+use tcl_vm::Value;
 
 fn presence(environment: &str) -> Vec<u8> {
-    let mut vm = Vm::with_native_core(
-        Box::new(std::io::sink()),
-        Rc::new(NativeHost::new()),
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(
         tcl_registry::model::resolve_environment(environment).unit_profile(),
-        tcl_registry::special_vars::NativeBootstrapInputs::default(),
-    )
-    .expect("selected native core");
+        Box::new(std::io::sink()),
+    );
     let registered = vm
         .registered_command_token_bytes(b"::tcl::InitAutoPath")
         .is_some();

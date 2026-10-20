@@ -110,7 +110,16 @@ struct HostState {
 /// Build a fresh `Vm` wired with a compiler and an output capture.
 fn fresh_vm() -> (Vm, Rc<RefCell<Vec<u8>>>) {
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = Vm::with_native_core(
+        Box::new(Capture(Rc::clone(&buf))),
+        tcl_vm::standard_host(),
+        tcl_registry::model::resolve_environment("tcl9.0").unit_profile(),
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .expect("the Tcl 9.0 native core");
+    // The direct arm's modules are lowered against the default registry, the
+    // fallback profile's compile target.
+    vm.set_dialect_profile(tcl_dialect::DialectProfile::plain_tcl());
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     (vm, buf)
 }

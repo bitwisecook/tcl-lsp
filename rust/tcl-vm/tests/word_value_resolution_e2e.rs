@@ -87,7 +87,7 @@ use std::rc::Rc;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::{DialectProfile, TclVersion};
-use tcl_vm::{CompileError, CompileService, Vm};
+use tcl_vm::{CompileError, CompileService};
 
 /// The profile the vector selected, compiled exactly — never the ambient
 /// default, or every release column would be measured against one grammar.
@@ -127,11 +127,10 @@ fn vm_output(src: &str, version: TclVersion) -> String {
     let asm = compile_exact_profile(&src, profile_of(version))
         .expect("test script compiles for its selected profile");
     let capture = Capture::default();
-    let mut vm = Vm::with_output(Box::new(capture.clone()));
+    let mut vm = tcl_vm::test_support::native_vm_for_release(version, Box::new(capture.clone()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile_of(
         version,
     ))));
-    vm.set_runtime_version(version);
     let _ = vm.run_module(&asm);
     String::from_utf8_lossy(&capture.0.borrow())
         .trim()

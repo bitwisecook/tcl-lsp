@@ -194,8 +194,13 @@ impl VmBackend {
         let trace: Rc<RefCell<Vec<DebugSnapshot>>> = Rc::new(RefCell::new(Vec::new()));
         let sink = Rc::clone(&trace);
 
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(profile);
+        let mut vm = Vm::with_native_core(
+            Box::new(std::io::stdout()),
+            tcl_vm::standard_host(),
+            profile,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .ok_or_else(|| DebugError::Failed("no native core for Tcl 9.0".to_owned()))?;
         vm.set_compiler(Box::new(Svc::for_profile(profile)));
         vm.set_debug_hook(Some(Box::new(move |snap: &DebugSnapshot| {
             sink.borrow_mut().push(snap.clone());

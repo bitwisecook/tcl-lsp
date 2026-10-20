@@ -100,7 +100,7 @@ const CREATE_CORPUS: &[&[&str]] = &[
 /// Leg 1 — the owner, through this crate's `ValueOps` binding (the same code
 /// path every VM `dict` opcode takes).
 fn owner_pairs(dict: &str) -> Vec<(String, String)> {
-    let mut vm = tcl_vm::Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let value = vm.new_str(dict);
     let pairs = vm
         .dict_pairs(&value)

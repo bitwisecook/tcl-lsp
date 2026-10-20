@@ -1030,7 +1030,7 @@ mod tests {
 
     #[test]
     fn origin_string_result_requires_actual_native_core_issuer() {
-        let mut vm = Vm::new();
+        let mut vm = Vm::without_native_engine();
         vm.set_dialect_profile(tcl_dialect::DialectProfile::irules());
         assert!(vm.native_namespace_origin_result(b"::selected").is_err());
     }

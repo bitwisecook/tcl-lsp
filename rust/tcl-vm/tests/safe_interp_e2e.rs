@@ -45,7 +45,6 @@ use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_dialect::TclVersion;
 use tcl_registry::CommandRegistry;
-use tcl_vm::Vm;
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -68,7 +67,7 @@ fn run(src: &str) -> (bool, String) {
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     let cap = Capture::default();
-    let mut vm = Vm::with_output(Box::new(cap.clone()));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(cap.clone()));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let c = vm.run_module(&asm);
     let out = String::from_utf8_lossy(&cap.0.borrow()).trim().to_string();
@@ -91,8 +90,7 @@ fn run_at(version: TclVersion, src: &str) -> (bool, String) {
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     let cap = Capture::default();
-    let mut vm = Vm::with_output(Box::new(cap.clone()));
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(cap.clone()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     let c = vm.run_module(&asm);
     let out = String::from_utf8_lossy(&cap.0.borrow()).trim().to_string();

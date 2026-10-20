@@ -21,11 +21,9 @@
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::DialectProfile;
-use tcl_vm::Vm;
 
 fn diagnose_entry_stage(source: &str, profile: &'static DialectProfile) {
-    let mut vm = Vm::default();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
         source,
@@ -51,9 +49,9 @@ fn diagnose_entry_stage(source: &str, profile: &'static DialectProfile) {
 
 fn check(source: &str, expected: &str) {
     for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
-        let mut vm = Vm::default();
         let profile = DialectProfile::find(dialect).unwrap();
-        vm.set_dialect_profile(profile);
+        let mut vm =
+            tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
         vm.set_compiler(Box::new(BytecodeCompileService::default()));
         let completion = vm.try_eval_source(source).unwrap_or_else(|error| {
             diagnose_entry_stage(source, profile);

@@ -39,7 +39,7 @@ use tcl_compiler::cfg_builder::build_cfg_codegen;
 use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::lowering::{lower_to_ir, lower_to_ir_with_dialect};
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileError, CompileService, Vm};
+use tcl_vm::{CompileError, CompileService};
 
 struct CompilerSvc {
     registry: CommandRegistry,
@@ -218,8 +218,8 @@ fn run_at(src: &str, version: tcl_dialect::TclVersion) -> String {
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
-    vm.set_runtime_version(version);
+    let mut vm =
+        tcl_vm::test_support::native_vm_for_release(version, Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(CompilerSvc {
         registry: CommandRegistry::build_default(),
     }));

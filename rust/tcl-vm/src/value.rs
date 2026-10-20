@@ -1276,7 +1276,7 @@ impl Value {
         if self.native_object_is_live() {
             Ok(())
         } else {
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-support"))]
             if std::env::var_os("TCL_LSP_TRACE_RETIRED_HEADER").is_some() {
                 eprintln!(
                     "retired-native-header-access: {}",
@@ -1295,7 +1295,7 @@ impl Value {
         if self.0.retired.replace(true) {
             return;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-support"))]
         if std::env::var_os("TCL_LSP_TRACE_RETIRED_HEADER").is_some() {
             eprintln!(
                 "retired-native-header-release: {}",

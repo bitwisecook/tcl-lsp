@@ -22,7 +22,6 @@ use std::path::Path;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::DialectProfile;
 use tcl_test_support::{available_tclshs, locate_jimsh, require_jimsh, run_script};
-use tcl_vm::Vm;
 
 const CASES: &[(&str, &str, Option<&str>)] = &[
     (
@@ -125,8 +124,8 @@ fn selected_noop_header_survives_argument_mutation_once() {
             .unwrap()
             .strict_text()
             .unwrap();
-            let mut vm = Vm::default();
-            vm.set_dialect_profile(profile);
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
             vm.set_compiler(Box::new(BytecodeCompileService::default()));
             let result = vm
                 .try_eval_source(source)
@@ -179,8 +178,8 @@ fn reused_handles_preserve_native_compiler_invalidation_policy() {
                 &reference.path,
                 format!("{setup}; proc P {{}} {{{body}}}; set first [P]; {mutation}; set code [catch {{P}} result]; puts [list $first $code $result $::count]\n").as_bytes(),
             ).unwrap().strict_text().unwrap();
-            let mut vm = Vm::default();
-            vm.set_dialect_profile(profile);
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
             vm.set_compiler(Box::new(BytecodeCompileService::default()));
             assert!(vm.try_eval_source(setup).unwrap().code.is_ok());
             let handle = vm.try_compile_function(body).unwrap();
@@ -221,8 +220,8 @@ fn namespace_resolver_cache_admission_matches_native_c() {
             .unwrap()
             .strict_text()
             .unwrap();
-            let mut vm = Vm::default();
-            vm.set_dialect_profile(profile);
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
             vm.set_compiler(Box::new(BytecodeCompileService::default()));
             let result = vm
                 .try_eval_source(source)
@@ -313,8 +312,8 @@ fn actual_variable_observers_preserve_compiled_selection_and_callback_effects() 
         .unwrap()
         .strict_text()
         .unwrap();
-        let mut vm = Vm::default();
-        vm.set_dialect_profile(profile);
+        let mut vm =
+            tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
         vm.set_compiler(Box::new(BytecodeCompileService::default()));
         let completion = vm
             .try_eval_source(&source)
@@ -352,8 +351,8 @@ fn native_uplevel_selection_and_frames_match_actual_c() {
             .unwrap()
             .strict_text()
             .unwrap();
-            let mut vm = Vm::default();
-            vm.set_dialect_profile(profile);
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
             vm.set_compiler(Box::new(BytecodeCompileService::default()));
             let completion = vm
                 .try_eval_source(source)
@@ -409,8 +408,8 @@ fn actual_info_ensemble_private_commands_and_map_mutations_match_c() {
             .expect("native info observation")
             .strict_text()
             .expect("native success");
-            let mut vm = Vm::default();
-            vm.set_dialect_profile(profile);
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
             vm.set_compiler(Box::new(BytecodeCompileService::default()));
             let result = vm
                 .try_eval_source(source)
@@ -454,8 +453,8 @@ fn native_yield_relay_preserves_lookup_namespace_and_resumer_frame() {
             .expect("native coroutine observation")
             .strict_text()
             .expect("native success");
-            let mut vm = Vm::default();
-            vm.set_dialect_profile(profile);
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
             vm.set_compiler(Box::new(BytecodeCompileService::default()));
             let result = vm
                 .try_eval_source(source)
@@ -503,8 +502,8 @@ fn actual_array_ensemble_private_commands_and_map_mutations_match_c() {
             .expect("native array observation")
             .strict_text()
             .expect("native success");
-            let mut vm = Vm::default();
-            vm.set_dialect_profile(profile);
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
             vm.set_compiler(Box::new(BytecodeCompileService::default()));
             let result = vm
                 .try_eval_source(source)
@@ -539,8 +538,8 @@ fn output_lookup_after_write_traces_matches_selected_c_protocol() {
             .expect("native output observation")
             .strict_text()
             .expect("native success");
-            let mut vm = Vm::default();
-            vm.set_dialect_profile(profile);
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
             vm.set_compiler(Box::new(BytecodeCompileService::default()));
             let result = vm
                 .try_eval_source(&source)
@@ -575,8 +574,8 @@ fn compare(path: &Path, profile: &'static DialectProfile) {
             .expect("native invocation")
             .strict_text()
             .expect("successful native observation");
-        let mut vm = Vm::default();
-        vm.set_dialect_profile(profile);
+        let mut vm =
+            tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
         vm.set_compiler(Box::new(BytecodeCompileService::default()));
         let definitions = format!("proc run {{}} {{{body}}}");
         let defined = vm.eval_source(&definitions).expect("VM definition");
@@ -653,8 +652,8 @@ fn jim_alias_retains_root_slot_and_caller_lookup_and_frame() {
         .unwrap()
         .strict_text()
         .unwrap();
-        let mut vm = Vm::default();
-        vm.set_dialect_profile(profile);
+        let mut vm =
+            tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
         vm.set_compiler(Box::new(BytecodeCompileService::default()));
         let result = vm.eval_source(source).unwrap();
         assert!(result.code.is_ok(), "{source}: {}", result.result.to_str());
@@ -690,9 +689,9 @@ fn compare_alias_publication_fixture(engine: &str, source: &str, native: &[u8]) 
     }
 
     let output = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&output))));
     let profile = tcl_registry::model::ingress::resolve_environment(engine).unit_profile();
-    vm.set_dialect_profile(profile);
+    let mut vm =
+        tcl_vm::test_support::native_vm_for_profile(profile, Box::new(Capture(Rc::clone(&output))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let result = vm
         .try_eval_source(source)
@@ -815,7 +814,7 @@ fn unresolved_foreign_native_preflight_is_a_host_admission_error() {
     use tcl_runtime_api::{
         NativeCompilationAdmissionError, NativeCompilationPreflight, NativeExecutionError,
     };
-    let mut vm = Vm::default();
+    let mut vm = tcl_vm::test_support::native_vm();
     let unresolved = tcl_bytecode::FunctionAsm {
         native_compilation_preflight: NativeCompilationPreflight::UnpresentedDefiniteFailure,
         ..Default::default()
@@ -904,7 +903,7 @@ fn malformed_native_operation_ranges_are_host_admission_errors() {
     let mut site = valid;
     site.span = tcl_lexer::Span::empty(10);
     malformed.push(site);
-    let mut vm = Vm::default();
+    let mut vm = tcl_vm::test_support::native_vm();
     for site in malformed {
         body.instructions[0].native_operation_selections[0] = site;
         assert!(matches!(
@@ -937,8 +936,8 @@ fn native_compilation_failure_admission_matches_c_before_formals_and_stores() {
                 .unwrap()
                 .strict_text()
                 .unwrap();
-            let mut vm = Vm::default();
-            vm.set_dialect_profile(profile);
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
             vm.set_compiler(Box::new(BytecodeCompileService::default()));
             let result = vm.eval_source(&source).expect("native compiler admission");
             assert!(
@@ -1009,8 +1008,10 @@ fn native_compilation_trace_selection_matches_actual_c_releases() {
                     .expect("native invocation")
                     .strict_text()
                     .expect("native trace observation");
-                let mut vm = Vm::default();
-                vm.set_dialect_profile(profile);
+                let mut vm = tcl_vm::test_support::native_vm_for_profile(
+                    profile,
+                    Box::new(std::io::stdout()),
+                );
                 vm.set_compiler(Box::new(BytecodeCompileService::default()));
                 let defined = vm.eval_source(&definitions).expect("VM definitions");
                 assert!(
@@ -1053,8 +1054,8 @@ fn selected_native_set_keeps_live_variable_cell_traces() {
             .strict_text()
             .expect("native variable trace observation");
         assert_eq!(native, "9|1", "{}", profile.name);
-        let mut vm = Vm::default();
-        vm.set_dialect_profile(profile);
+        let mut vm =
+            tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
         vm.set_compiler(Box::new(BytecodeCompileService::default()));
         let defined = vm.eval_source(definitions).expect("VM definitions");
         assert!(defined.code.is_ok(), "{}", defined.result.to_str());
@@ -1095,8 +1096,8 @@ fn empty_lappend_updates_match_actual_native_read_and_write_traces() {
             .unwrap()
             .strict_text()
             .unwrap();
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(profile);
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
             vm.set_compiler(Box::new(BytecodeCompileService::default()));
             let result = vm
                 .try_eval_source(&source)
@@ -1178,8 +1179,8 @@ fn compare_append_vectors(
             .expect("actual append observation")
             .strict_text()
             .expect("native completion and result");
-        let mut vm = Vm::default();
-        vm.set_dialect_profile(profile);
+        let mut vm =
+            tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
         vm.set_compiler(Box::new(BytecodeCompileService::default()));
         let completion = vm
             .try_eval_source(&case.source)
@@ -1217,8 +1218,8 @@ fn tailcall_preserves_scheduled_activation_and_lookup_namespace_against_c() {
             .expect("native scheduled tailcall observation")
             .strict_text()
             .expect("native completion and result");
-            let mut vm = Vm::new();
-            vm.set_dialect_profile(profile);
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
             vm.set_compiler(Box::new(BytecodeCompileService::default()));
             let completion = vm
                 .try_eval_source(source)
@@ -1540,8 +1541,7 @@ fn try_compare_namespace_usage(
         "native completion observation failed: {native:?}"
     );
     let native = native.stdout.strip_suffix(b"\n").unwrap_or(&native.stdout);
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.try_eval_source(source).map_err(|error| {
         format!(
@@ -1570,8 +1570,7 @@ fn try_compare_namespace_usage(
 // Failure-only localization uses natural outer command boundaries in a fresh
 // interpreter. The original whole-source comparison remains authoritative.
 fn diagnose_namespace_usage_entry(profile: &'static DialectProfile, source: &str) -> String {
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
     for command in
@@ -1650,9 +1649,9 @@ fn automatic_jim_errors_retain_actual_evaluation_frames_and_source_locations() {
             .expect("native Jim")
             .strict_text()
             .expect("native observation");
-        let mut vm = Vm::default();
-        vm.set_dialect_profile(
+        let mut vm = tcl_vm::test_support::native_vm_for_profile(
             tcl_registry::model::ingress::resolve_environment("jim").unit_profile(),
+            Box::new(std::io::stdout()),
         );
         vm.set_compiler(Box::new(BytecodeCompileService::default()));
         let result = vm

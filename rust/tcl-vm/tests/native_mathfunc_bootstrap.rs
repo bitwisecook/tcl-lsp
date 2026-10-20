@@ -140,9 +140,9 @@ fn check_constructor_roster(profile: &'static DialectProfile) {
     }
     for engine in ["tcl8.4", "tcl8.5", "tcl9.0", "tcl9.1", "jim"] {
         let vm = native_vm(engine);
-        let mut previous = Vm::new();
-        previous.set_dialect_profile(
+        let previous = tcl_vm::test_support::native_vm_for_profile(
             tcl_registry::model::ingress::resolve_environment(engine).unit_profile(),
+            Box::new(std::io::stdout()),
         );
         for spec in tcl_syntax::expr::mathfunc::all() {
             let name = format!("::tcl::mathfunc::{}", spec.name);
@@ -156,8 +156,8 @@ fn check_constructor_roster(profile: &'static DialectProfile) {
             );
         }
     }
-    let mut distribution = Vm::new();
-    distribution.set_dialect_profile(profile);
+    let distribution =
+        tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     for name in [
         b"::tcl::mathfunc::min".as_slice(),
         b"::tcl::mathfunc::max".as_slice(),

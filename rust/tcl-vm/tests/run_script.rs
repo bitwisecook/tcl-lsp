@@ -52,7 +52,7 @@ fn run(src: &str) -> (bool, String, String) {
     let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
 
@@ -74,7 +74,7 @@ fn run_bytecode(src: &str) -> (bool, String, String) {
     let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
     let out = String::from_utf8(buf.borrow().clone()).expect("utf-8 output");
@@ -99,7 +99,7 @@ fn commands_dispatch_runs_proc() {
         codegen_module(&cfg, &ir, &registry).expect("original source namespace")
     };
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     // Running the module registers `add`.
     assert!(vm.run_module(&asm).code.is_ok());
@@ -123,7 +123,7 @@ fn commands_dispatch_runs_proc() {
 /// registered via the `trace` command (callbacks evaluate through the compiler).
 #[test]
 fn traces_fire_ok_error_and_unset() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     // `;#` comments out the appended `name elem op` trace words.
     for add in [
@@ -363,7 +363,7 @@ fn loop_body_redefining_continue_is_honoured() {
 #[test]
 fn autoloader_installs_unknown_and_reports_miss() {
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     vm.init_auto_load();
     // Decouple from any on-disk library so the test is environment-independent.
@@ -1025,9 +1025,9 @@ fn mathop_shared() {
 #[test]
 fn lseq_shared() {
     fn run(src: &str) -> (bool, String, String) {
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(
+        let mut vm = tcl_vm::test_support::native_vm_for_profile(
             tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            Box::new(std::io::stdout()),
         );
         vm.set_compiler(Box::new(BytecodeCompileService::default()));
         let completion = vm
@@ -1275,7 +1275,7 @@ fn run_asm(literals: &[&str], instrs: Vec<tcl_bytecode::Instruction>) -> String 
         procedure_provenance: std::collections::HashMap::new(),
         manifest: None,
     };
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.run_module(&module).result.to_str().to_string()
 }
 
@@ -2315,7 +2315,7 @@ fn vm_with_cached_body(qname: &str, body_src: &str, marker: &str) -> Vm {
         ..FunctionAsm::default()
     };
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(CachedBodyCompileService {
         inner: BytecodeCompileService::default(),
         qname: qname.to_owned(),
@@ -2567,7 +2567,7 @@ fn original_trace_facades_keep_the_full_pending_host_cause() {
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     // Actual VM Host producer and transport; no native callback or parser observation.
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let _ = vm.refuse_host_command("original VM variable trace refusal".to_owned());
     let first = Traces::fire_bytes(&mut vm, b"x", "read")
         .expect_err("the full Host refusal is outside the Guest value");

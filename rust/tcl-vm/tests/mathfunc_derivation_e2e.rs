@@ -39,7 +39,7 @@ use std::rc::Rc;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
-use tcl_vm::{CompileService, Vm};
+use tcl_vm::CompileService;
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -62,8 +62,7 @@ fn run_at(version: TclVersion, src: &str) -> (bool, String) {
     let svc = BytecodeCompileService::for_profile(profile);
     let asm = svc.compile(src).expect("compile");
     let cap = Capture::default();
-    let mut vm = Vm::with_output(Box::new(cap.clone()));
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(cap.clone()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     let c = vm.run_module(&asm);
     let out = String::from_utf8_lossy(&cap.0.borrow()).trim().to_string();

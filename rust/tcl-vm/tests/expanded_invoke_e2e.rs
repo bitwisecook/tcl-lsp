@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
 use tcl_test_support::{locate_source_tree, run_script_from_source_tree};
-use tcl_vm::{CompileService, Vm};
+use tcl_vm::CompileService;
 
 const EXPECTED: &str = "statement 2 \
 head-ordinary-expanded {head ordinary tail1 tail2} empty {} multi {a b} \
@@ -49,8 +49,7 @@ fn compile_for(release: &str, source: &str) -> tcl_bytecode::ModuleAsm {
 fn run_compiled(release: &str, source: &str) -> String {
     let profile = tcl_registry::model::ingress::resolve_environment(release).analyser_profile();
     let asm = compile_for(release, source);
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     let completion = vm.run_module(&asm);
     assert!(

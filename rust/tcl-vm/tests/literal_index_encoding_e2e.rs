@@ -43,7 +43,6 @@ use std::rc::Rc;
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
-use tcl_vm::Vm;
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -73,16 +72,7 @@ fn vm_output(src: &str, release: TclVersion, entry: Entry) -> String {
     let profile = tcl_registry::model::resolve_environment(release.dialect_name()).unit_profile();
     let capture = Capture::default();
     // `tclvm` runs a native-core interpreter of the release (work's entry).
-    let mut vm = Vm::with_native_core(
-        Box::new(capture.clone()),
-        std::rc::Rc::new(tcl_vm::host_native::NativeHost::new()),
-        profile,
-        tcl_registry::special_vars::NativeBootstrapInputs {
-            package_path: Vec::new(),
-            default_library: None,
-        },
-    )
-    .expect("native core for the selected profile");
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(capture.clone()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     match entry {
         Entry::File => {

@@ -668,8 +668,8 @@ mod stub_transport_tests {
 
     fn fixture() -> (Vm, Rc<Cell<usize>>) {
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(profile);
+        let mut vm =
+            tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
         vm.set_compiler(Box::new(
             tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
         ));
@@ -789,8 +789,8 @@ mod binary_boundary_tests {
         // Software contract: naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
-        let mut vm = Vm::new();
-        vm.set_dialect_profile(profile);
+        let mut vm =
+            tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
         vm.set_compiler(Box::new(
             tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
         ));

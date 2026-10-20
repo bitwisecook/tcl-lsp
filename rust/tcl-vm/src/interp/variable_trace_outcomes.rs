@@ -146,7 +146,7 @@ impl Vm {
                 original.native_errors.native_error_result = None;
                 original.native_errors.native_error_legacy_copy = false;
                 original.native_errors.c84_global_code_set = false;
-                original.native_errors.error_logged = false;
+                original.native_errors.error_logged = crate::interp::ErrorLogged::No;
                 original.native_errors.primitive_error_code.take()
             };
             drop(retired);

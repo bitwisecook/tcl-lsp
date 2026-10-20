@@ -1941,10 +1941,18 @@ impl TclVmEngine {
         // Building the VM pins its default release, which installs that
         // release's grammar for the whole thread.
         let _grammar = GrammarGuard::keep();
-        let mut vm = Vm::new();
         let native = tcl_registry::model::ingress::resolve_environment("tcl9.0").unit_profile();
-        vm.set_dialect_profile(native);
-        assert!(vm.set_native_engine_profile(native));
+        let host = tcl_vm::standard_host();
+        let mut vm = Vm::with_native_core(
+            Box::new(std::io::stdout()),
+            Rc::clone(&host),
+            native,
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .expect("the C9.0 native core");
+        // The core bootstraps only the core's own roots; the embedding host
+        // seeds its globals (`tcl_library`, `auto_path`, `env`, `tcl_platform`).
+        vm.set_host(host);
         vm.set_compiler(Box::new(BytecodeCompileService::new(registry)));
         Self {
             vm,
@@ -2320,7 +2328,7 @@ mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
     use std::time::Duration;
-    use tcl_vm::{Code, Completion, Vm};
+    use tcl_vm::{Code, Completion};
 
     use super::{Engine, TclVmEngine, recover_dictionary_children, register_host_command};
     use tcl_engine_api::{
@@ -2331,7 +2339,7 @@ mod tests {
     #[test]
     fn retained_list_bridge_keeps_actual_storage_and_native_header_sharing() {
         use tcl_engine_api::{OriginalObject, OriginalObjectResult as R, ResidentStringMutation};
-        let vm = tcl_vm::Vm::new();
+        let vm = tcl_vm::test_support::native_vm();
         let dialect = vm.native_scalar_carrier_dialect();
         let scope = vm.native_object_bridge_identity();
         let protocol = dialect.native_string_protocol().unwrap();
@@ -2403,7 +2411,7 @@ mod tests {
         use tcl_engine_api::{OriginalObject, OriginalObjectResult as R};
         use tcl_runtime_api::native_command_name::NativeCommandNameCache;
         use tcl_runtime_api::native_compilation::NativeInterpreterIdentity;
-        let vm = tcl_vm::Vm::new();
+        let vm = tcl_vm::test_support::native_vm();
         let dialect = vm.native_scalar_carrier_dialect();
         let scope = vm.native_object_bridge_identity();
         let original = tcl_vm::Value::new_native_string_bytes(b"head".as_slice());
@@ -2457,7 +2465,7 @@ mod tests {
             duplicate.snapshot().is_err(),
             "opaque native descriptor is not a data snapshot"
         );
-        let foreign = tcl_vm::Vm::new().native_object_bridge_identity();
+        let foreign = tcl_vm::test_support::native_vm().native_object_bridge_identity();
         assert!(super::recover_original_result(&duplicate, dialect, foreign).is_err());
         let forged = R::Resident {
             value: Box::new(R::CommandName(tcl_engine_api::NativeCommandNameCache::new(
@@ -2474,7 +2482,7 @@ mod tests {
     #[test]
     fn callback_namespace_primary_retains_private_scope_and_descriptor() {
         use tcl_engine_api::{OriginalObject, OriginalObjectResult as R};
-        let mut vm = tcl_vm::Vm::new();
+        let mut vm = tcl_vm::test_support::native_vm();
         let dialect = vm.native_scalar_carrier_dialect();
         let scope = vm.native_object_bridge_identity();
         let completion = vm.invoke_command("namespace", &[tcl_vm::Value::string("current")]);
@@ -2527,8 +2535,8 @@ mod tests {
 
     #[test]
     fn original_result_requires_its_actual_interpreter_and_native_issuer() {
-        let first = tcl_vm::Vm::new();
-        let second = tcl_vm::Vm::new();
+        let first = tcl_vm::test_support::native_vm();
+        let second = tcl_vm::test_support::native_vm();
         let original = tcl_vm::Value::from_native_string_bytes(b"a\0\xff".as_slice());
         let dialect = first.native_scalar_carrier_dialect();
         let scope = first.native_object_bridge_identity();
@@ -3882,11 +3890,10 @@ mod tests {
             TclVersion::V9_1,
         ] {
             let dialect = tcl_registry::InvocationDialect::for_version(version);
-            let mut vm = Vm::new();
             let native = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
                 .unit_profile();
-            vm.set_dialect_profile(native);
-            assert!(vm.set_native_engine_profile(native));
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(native, Box::new(std::io::stdout()));
             let key = tcl_vm::Value::new_native_string_bytes(b"-errorcode".as_slice());
             let code = tcl_vm::Value::new_native_string_bytes(b"CODE\0\xff".as_slice());
             let key_identity = key.native_object_identity();
@@ -3955,7 +3962,7 @@ mod tests {
             tcl_vm::Value::string("FAILED"),
             options,
         );
-        let mut vm = Vm::new();
+        let mut vm = tcl_vm::test_support::native_vm();
         let unknown = Box::leak(Box::new(tcl_dialect::DialectProfile::projected_from_point(
             "jim",
             &[],

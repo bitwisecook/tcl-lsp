@@ -46,7 +46,7 @@ fn configure_vm(mut vm: Vm, library: &Path) -> Vm {
 }
 
 fn vm_for_library(library: &Path) -> Vm {
-    configure_vm(Vm::new(), library)
+    configure_vm(tcl_vm::test_support::native_vm(), library)
 }
 
 #[derive(Clone)]
@@ -239,7 +239,8 @@ fn run_upstream_definitions(
         .stack_size(32 * 1024 * 1024)
         .spawn(move || {
             let bytes = Rc::new(RefCell::new(Vec::new()));
-            let vm = Vm::with_output(Box::new(Capture(Rc::clone(&bytes))));
+            let vm =
+                tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&bytes))));
             let mut vm = configure_vm(vm, &source_tree.library_dir());
             let init = vm.init_library();
             if !init.code.is_ok() {
@@ -312,7 +313,7 @@ fn upstream_channel_output_cases_use_real_tcltest() {
     let path2 = fixture.0.join("io-75.bin");
     let bytes = Rc::new(RefCell::new(Vec::new()));
     let mut vm = configure_vm(
-        Vm::with_output(Box::new(Capture(Rc::clone(&bytes)))),
+        tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&bytes)))),
         &source_tree.library_dir(),
     );
     let init = vm.init_library();

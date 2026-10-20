@@ -1753,7 +1753,14 @@ mod tests {
         let cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry(&ir, false, &registry);
         let asm = tcl_compiler::codegen::codegen_module(&cfg, &ir, &registry)
             .expect("original source namespace");
-        let mut vm = tcl_vm::Vm::with_output(Box::new(std::io::sink()));
+        let mut vm = tcl_vm::Vm::with_native_core(
+            Box::new(std::io::sink()),
+            tcl_vm::standard_host(),
+            tcl_registry::model::resolve_environment("tcl9.0").unit_profile(),
+            tcl_registry::special_vars::NativeBootstrapInputs::default(),
+        )
+        .expect("the Tcl 9.0 native core");
+        vm.set_dialect_profile(tcl_dialect::DialectProfile::plain_tcl());
         vm.run_module(&asm).code == tcl_vm::Code::Error
     }
 

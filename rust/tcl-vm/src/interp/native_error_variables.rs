@@ -61,12 +61,12 @@ pub(super) struct NativeErrorTraceState {
     code: Option<Value>,
     options: Option<Value>,
     bytes: Option<Vec<u8>>,
-    logged: bool,
+    logged: crate::interp::ErrorLogged,
 }
 
 pub(super) struct NativeGlobalErrorFlags {
     in_progress: bool,
-    already_logged: bool,
+    already_logged: crate::interp::ErrorLogged,
     code_set: bool,
 }
 
@@ -243,7 +243,9 @@ impl Vm {
     ) {
         if let Some(saved) = saved {
             self.native_errors.native_error_legacy_copy |= saved.in_progress;
-            self.native_errors.error_logged |= saved.already_logged;
+            if !self.native_errors.error_logged.is_logged() {
+                self.native_errors.error_logged = saved.already_logged;
+            }
             self.native_errors.c84_global_code_set |= saved.code_set;
         }
     }
@@ -297,7 +299,7 @@ impl Vm {
         bytes.extend_from_slice(info);
         self.native_errors.error_info = Some(bytes);
         self.append_c84_global_error_info();
-        self.native_errors.error_logged = true;
+        self.native_errors.error_logged = self.native_errors.error_logged.marked();
         Ok(true)
     }
 
@@ -845,7 +847,7 @@ impl InterpState {
             self.native_errors.native_error_legacy_copy = false;
             self.native_errors.c84_global_code_set = false;
             self.native_errors.primitive_error_code = None;
-            self.native_errors.error_logged = false;
+            self.native_errors.error_logged = crate::interp::ErrorLogged::No;
         }
     }
 }
@@ -1588,7 +1590,7 @@ mod tests {
                 b"second error\n    while executing\n\"second command\""
             );
             assert!(
-                vm.native_errors.error_logged,
+                vm.native_errors.error_logged.is_logged(),
                 "{profile} retains the reached log flag"
             );
         }

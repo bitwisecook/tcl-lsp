@@ -27,7 +27,7 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileService, Vm};
+use tcl_vm::CompileService;
 
 const IOVERFLOW: &str = "{integer value too large to represent} \
                          {ARITH IOVERFLOW {integer value too large to represent}}";
@@ -42,7 +42,12 @@ fn caught_under(script: &str, release: Option<tcl_dialect::TclVersion>) -> Strin
         "set rc [catch {{{script}}} m o]\n\
          list $rc $m [expr {{$rc == 1 ? [dict get $o -errorcode] : {{}}}}]\n"
     );
-    let mut vm = Vm::new();
+    let mut vm = match release {
+        Some(release) => {
+            tcl_vm::test_support::native_vm_for_release(release, Box::new(std::io::stdout()))
+        }
+        None => tcl_vm::test_support::native_vm(),
+    };
     let asm = if let Some(release) = release {
         let profile = tcl_registry::model::ingress::resolve_environment(release.dialect_name())
             .analyser_profile();
@@ -51,7 +56,6 @@ fn caught_under(script: &str, release: Option<tcl_dialect::TclVersion>) -> Strin
             .compile_for_profile(&src, profile)
             .expect("the script compiles for its release");
         vm.set_compiler(Box::new(service));
-        vm.set_runtime_version(release);
         asm
     } else {
         let registry = CommandRegistry::build_default();

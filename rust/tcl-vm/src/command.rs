@@ -4729,7 +4729,7 @@ mod tests {
             ),
             Header::NoOp,
         );
-        let mut missing = Vm::new();
+        let mut missing = Vm::without_native_engine();
         missing.set_dialect_profile(authored);
         assert!(!missing.set_native_engine_profile(authored));
         assert!(
@@ -5508,7 +5508,7 @@ mod tests {
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         for dialect in ["tcl8.4", "jim"] {
             let profile = tcl_registry::model::ingress::resolve_environment(dialect).unit_profile();
-            let mut vm = crate::Vm::new();
+            let mut vm = crate::Vm::without_native_engine();
             vm.set_dialect_profile(profile);
             assert!(
                 vm.actual_native_invocation_dialect()

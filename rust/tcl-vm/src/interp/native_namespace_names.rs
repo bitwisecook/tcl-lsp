@@ -1025,7 +1025,7 @@ mod tests {
             let before = vm.adopt_native_interp_result(Value::int(42)).unwrap();
             let retained = shared.then(|| before.value().clone());
             vm.native_errors.primitive_error_code = Some(Value::string("EPISODE"));
-            vm.native_errors.error_logged = true;
+            vm.native_errors.error_logged = crate::interp::ErrorLogged::Yes;
             vm.native_errors.native_error_info_len = 37;
             let result = vm
                 .original_ensemble_namespace_result(namespace, Stage::Option)
@@ -1073,7 +1073,7 @@ mod tests {
                     .as_ref(),
                 b"EPISODE"
             );
-            assert!(vm.native_errors.error_logged);
+            assert!(vm.native_errors.error_logged.is_logged());
             assert_eq!(vm.native_errors.native_error_info_len, 37);
         }
     }

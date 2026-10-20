@@ -122,9 +122,8 @@ fn vars(entries: &[(&str, &str)]) -> Vars {
 fn vm_on(version: TclVersion, env: &Vars) -> Vm {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
         .analyser_profile();
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm_for_release(version, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
-    vm.set_runtime_version(version);
     vm.set_host(Rc::new(MapHost {
         clock: MapClock,
         stdio: MapStdIo,
@@ -486,7 +485,7 @@ fn subprocesses_see_env_writes() {
     if !std::path::Path::new("/bin/sh").exists() {
         return;
     }
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     assert_eq!(
         eval(

@@ -50,7 +50,6 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
 use tcl_dialect::TclVersion;
-use tcl_vm::Vm;
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -85,9 +84,8 @@ fn vm_output(src: &str, version: TclVersion) -> String {
     let asm = codegen_module(&cfg, &ir, registry).expect("original source namespace");
 
     let cap = Capture::default();
-    let mut vm = Vm::with_output(Box::new(cap.clone()));
+    let mut vm = tcl_vm::test_support::native_vm_for_release(version, Box::new(cap.clone()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
-    vm.set_runtime_version(version);
     let _ = vm.run_module(&asm);
     String::from_utf8_lossy(&cap.0.borrow()).trim().to_string()
 }

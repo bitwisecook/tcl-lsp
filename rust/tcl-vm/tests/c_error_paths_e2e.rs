@@ -25,22 +25,12 @@
 
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::TclVersion;
-use tcl_vm::Vm;
 
 /// The result of `src` under the `version` pin; panics if it errors.
 fn result_for(version: TclVersion, src: &str) -> String {
     let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
         .analyser_profile();
-    let mut vm = Vm::with_native_core(
-        Box::new(std::io::stdout()),
-        std::rc::Rc::new(tcl_vm::host_native::NativeHost::new()),
-        profile,
-        tcl_registry::special_vars::NativeBootstrapInputs {
-            package_path: Vec::new(),
-            default_library: None,
-        },
-    )
-    .expect("native core for the selected profile");
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     let completion = vm.try_eval_source(src).expect("original source provider");
     assert!(

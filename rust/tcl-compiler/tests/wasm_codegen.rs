@@ -1262,8 +1262,13 @@ fn capture_native_refusal_entry(
         }
     }
     let captured = Rc::new(RefCell::new(None));
-    let mut vm = tcl_vm::Vm::default();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::Vm::with_native_core(
+        Box::new(std::io::sink()),
+        tcl_vm::standard_host(),
+        profile,
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    )
+    .expect("a native core for the fixture profile");
     vm.set_compiler(Box::new(Capture(Rc::clone(&captured))));
     assert!(vm.try_eval_source("set probe 1").is_err());
     captured

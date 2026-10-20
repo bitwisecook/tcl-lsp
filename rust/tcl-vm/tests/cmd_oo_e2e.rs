@@ -32,7 +32,7 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{CompileService, Vm};
+use tcl_vm::CompileService;
 
 #[derive(Clone)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -55,7 +55,7 @@ fn run(src: &str) -> (bool, String, String) {
     let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
 
@@ -74,7 +74,7 @@ fn run_without_compiler(src: &str) -> (bool, String) {
     let module = BytecodeCompileService::default()
         .compile(src)
         .expect("self-contained module compiles");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let completion = vm.run_module(&module);
     (
         completion.code.is_ok(),

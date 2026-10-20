@@ -8,9 +8,9 @@ use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_vm::{Code, Value, Vm};
 
 fn vm(dialect: &str) -> Vm {
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(
         tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
+        Box::new(std::io::stdout()),
     );
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     vm

@@ -6,7 +6,6 @@
 
 use tcl_bytecode::{FunctionAsm, Instruction, LiteralTable, Op, Operand};
 use tcl_runtime_api::{NativeCompilationPreflight, NativeExecutionError};
-use tcl_vm::Vm;
 
 fn literal_function(bytes: &[u8], verbatim: bool) -> FunctionAsm {
     let mut literals = LiteralTable::new();
@@ -24,7 +23,7 @@ fn literal_function(bytes: &[u8], verbatim: bool) -> FunctionAsm {
 #[test]
 fn unrepresented_native_byte_literal_is_a_host_refusal() {
     for verbatim in [false, true] {
-        let mut vm = Vm::default();
+        let mut vm = tcl_vm::test_support::native_vm();
         let artifact = literal_function(&[0xff], verbatim);
         assert!(matches!(
             vm.try_run_function(&artifact),
@@ -36,7 +35,7 @@ fn unrepresented_native_byte_literal_is_a_host_refusal() {
 
 #[test]
 fn checked_unicode_native_literal_keeps_its_exact_bytes() {
-    let mut vm = Vm::default();
+    let mut vm = tcl_vm::test_support::native_vm();
     let result = vm
         .try_run_function(&literal_function("ÿ".as_bytes(), true))
         .unwrap();

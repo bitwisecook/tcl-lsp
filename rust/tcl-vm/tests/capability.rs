@@ -30,7 +30,7 @@ use tcl_vm::{Value, Vm};
 
 #[test]
 fn exec_runs_on_native_host() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let host = NativeHost::new();
     let args = [Value::string("echo"), Value::string("hello")];
     let result = platform::exec(&mut vm, &host, &args).expect("native host should run exec");
@@ -39,7 +39,7 @@ fn exec_runs_on_native_host() {
 
 #[test]
 fn exec_unsupported_on_sandboxed_host() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     // The conditional `process` capability is off — exactly what `Host::process`
     // returns `None` for on every WASM target.
     let host = NativeHost::sandboxed();
@@ -57,7 +57,7 @@ fn exec_unsupported_on_sandboxed_host() {
 
 #[test]
 fn pwd_reads_working_directory() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let host = NativeHost::new();
     let result = platform::pwd(&mut vm, &host).expect("pwd should resolve");
     // An absolute path on the native (unix) host.
@@ -173,7 +173,11 @@ mod seam {
 }
 
 fn vm_on(host: seam::Seam) -> Vm {
-    let mut vm = Vm::new();
+    vm_of_release_on(tcl_dialect::TclVersion::V9_0, host)
+}
+
+fn vm_of_release_on(release: tcl_dialect::TclVersion, host: seam::Seam) -> Vm {
+    let mut vm = tcl_vm::test_support::native_vm_for_release(release, Box::new(std::io::stdout()));
     vm.set_compiler(Box::new(
         tcl_compiler::compile_service::BytecodeCompileService::default(),
     ));
@@ -278,11 +282,11 @@ fn source_defaults_to_the_system_encoding_before_tcl_nine() {
     let current = eval(&mut nine, "source /virtual/latin1.tcl");
     assert_eq!(current.result.to_str().as_ref(), "65533");
 
-    let mut vm = vm_on(
+    let mut vm = vm_of_release_on(
+        tcl_dialect::TclVersion::V8_6,
         seam::Seam::with_files(&[("/virtual/latin1.tcl", bytes)])
             .system_encoding_is(tcl_platform::SystemEncoding::Iso88591),
     );
-    vm.set_runtime_version(tcl_dialect::TclVersion::V8_6);
     let legacy = eval(&mut vm, "source /virtual/latin1.tcl");
     assert_eq!(legacy.result.to_str().as_ref(), "233");
 }

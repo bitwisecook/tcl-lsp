@@ -1105,7 +1105,7 @@ mod original_operand_tests {
         let error = cmd_corotype(&mut vm, std::slice::from_ref(&missing));
         assert_eq!(error.code, crate::Code::Error);
         assert!(vm.refused_completion().is_none());
-        let mut unavailable = Vm::new();
+        let mut unavailable = Vm::without_native_engine();
         unavailable.set_dialect_profile(tcl_dialect::DialectProfile::irules());
         let _ = cmd_corotype(&mut unavailable, &[missing]);
         assert!(unavailable.refused_completion().is_some());

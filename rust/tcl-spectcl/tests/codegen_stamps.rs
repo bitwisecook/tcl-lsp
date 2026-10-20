@@ -350,7 +350,7 @@ fn a_workspace_stamp_is_refused_and_specialises_nothing() {
     );
     assert!(module.top_level.site_claims.is_empty());
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let plain = PlainCounting::installed_on(&mut vm);
     prepare(
         &mut vm,
@@ -410,7 +410,7 @@ fn the_vm_admits_it_through_the_alias_hop() {
     let (set, registry) = bundled("admitted", "lassign");
     let module = compile(USE, &registry);
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let plain = PlainCounting::installed_on(&mut vm);
     vm.set_pack_facts(facts(&set));
     let refused = vm.run_module(&module);
@@ -449,7 +449,7 @@ fn a_changed_pack_invalidates_the_site() {
     let (set, registry) = bundled("changed", "lassign");
     let module = compile(USE, &registry);
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let plain = PlainCounting::installed_on(&mut vm);
     prepare(
         &mut vm,
@@ -511,7 +511,7 @@ fn a_pack_fold_is_admitted_only_under_its_pack_s_facts() {
         module.top_level
     );
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let plain = PlainCounting::installed_on(&mut vm);
     let refused = vm.run_module(&module);
     assert_eq!(refused.code, Code::Ok, "{}", refused.result.to_str());
@@ -654,7 +654,7 @@ fn a_proc_at_the_pack_name_recompiles_plain() {
     let (set, registry) = bundled("proc", "lassign");
     let module = compile(USE, &registry);
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let plain = PlainCounting::installed_on(&mut vm);
     vm.set_pack_facts(facts(&set));
     prepare(
@@ -703,9 +703,7 @@ fn tcl9() -> &'static DialectProfile {
 /// A VM pinned to the profile a packs' overlay is installed for, which is the
 /// one a service for that overlay compiles under.
 fn vm_for_overlay() -> Vm {
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(tcl9());
-    vm
+    tcl_vm::test_support::native_vm_for_profile(tcl9(), Box::new(std::io::stdout()))
 }
 
 /// The service for the packs' overlay — what the editor's queries compile

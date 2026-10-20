@@ -36,7 +36,7 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode;
 use tcl_registry::CommandRegistry;
-use tcl_vm::{Code, Vm};
+use tcl_vm::Code;
 
 /// Select the final original declaration in these procedure-only fixtures.
 fn final_declared_body<'a>(
@@ -83,7 +83,7 @@ fn compiled_proc_body(src: &str, qname: &str) -> FunctionAsm {
 /// Run a proc body compiled by [`compiled_proc_body`] on a fresh VM.
 fn run_body(src: &str, qname: &str) -> (Code, String) {
     let asm = compiled_proc_body(src, qname);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     (c.code, c.result.to_str().to_string())
 }
@@ -194,7 +194,7 @@ fn inline_catch_absorbs_child_proc_error() {
     let ir = lower_to_ir_for_bytecode(src, &registry);
     let cfg = build_cfg_codegen(&ir, false);
     let module = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     // Defining the procs needs a compile service for their (dynamic) bodies —
     // route through the compiler exactly like the CLI embedders.
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
@@ -255,7 +255,7 @@ fn nested_ranges_fire_inner_then_outer_not_handler() {
     instrs.push(Instruction::new(Op::END_CATCH, vec![]));
     instrs.push(Instruction::new(Op::DONE, vec![]));
     let asm = assemble(instrs, &labels, lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Error, "handler error must escape");
     assert_eq!(&*c.result.to_str(), "handler-boom");
@@ -273,7 +273,7 @@ fn inline_catch_publishes_error_info() {
     let cfg = build_cfg_codegen(&ir, false);
     let module = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
     let body = final_declared_body(&ir, &module, "::p");
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(body);
     assert_eq!(c.code, Code::Ok, "{}", c.result.to_str());
     assert_eq!(&*c.result.to_str(), "1");
@@ -295,7 +295,7 @@ fn decorative_begin_catch_stays_inert() {
         Instruction::new(Op::DONE, vec![]),
     ];
     let asm = assemble(instrs, &HashMap::new(), lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Error);
     assert_eq!(&*c.result.to_str(), "boom");
@@ -326,7 +326,7 @@ fn run_return_code_branch(code_lit: &str) -> (Code, String) {
         instrs.push(Instruction::new(Op::DONE, vec![]));
     }
     let asm = assemble(instrs, &labels, lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     (c.code, c.result.to_str().to_string())
 }
@@ -373,7 +373,7 @@ fn return_stk_applies_code_from_options() {
         Instruction::new(Op::DONE, vec![]),
     ];
     let asm = assemble(instrs, &HashMap::new(), lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Error);
     assert_eq!(&*c.result.to_str(), "boom");
@@ -393,7 +393,7 @@ fn return_stk_ok_outcome_continues() {
         Instruction::new(Op::DONE, vec![]),
     ];
     let asm = assemble(instrs, &HashMap::new(), lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Ok);
     assert_eq!(&*c.result.to_str(), "4", "strlen of the kept result");
@@ -411,7 +411,7 @@ fn return_stk_malformed_options_error() {
         Instruction::new(Op::DONE, vec![]),
     ];
     let asm = assemble(instrs, &HashMap::new(), lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Error);
     assert_eq!(
@@ -432,7 +432,7 @@ fn return_stk_plain_return() {
         Instruction::new(Op::DONE, vec![]),
     ];
     let asm = assemble(instrs, &HashMap::new(), lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Return, "level 1 raises TCL_RETURN");
     assert_eq!(&*c.result.to_str(), "value");
@@ -451,7 +451,7 @@ fn epilogue_reads_without_catch() {
         Instruction::new(Op::DONE, vec![]),
     ];
     let asm = assemble(instrs, &HashMap::new(), LiteralTable::new());
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Ok);
     assert_eq!(&*c.result.to_str(), "0 {-code 0 -level 0}");
@@ -512,7 +512,7 @@ fn outer_range_does_not_inherit_inner_ranges_absorption() {
     instrs.push(push_lit(&mut lits, "outer-handler-ran"));
     instrs.push(Instruction::new(Op::DONE, vec![]));
     let asm = assemble(instrs, &labels, lits);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let c = vm.run_function(&asm);
     assert_eq!(c.code, Code::Ok, "{}", c.result.to_str());
     assert_eq!(

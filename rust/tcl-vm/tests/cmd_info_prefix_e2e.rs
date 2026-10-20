@@ -40,7 +40,6 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::CommandRegistry;
-use tcl_vm::Vm;
 
 /// A `Write` sink backed by a shared buffer the test can read afterwards.
 #[derive(Clone)]
@@ -80,16 +79,8 @@ fn run_for_version(src: &str, version: tcl_dialect::TclVersion) -> (bool, String
         .analyser_profile();
 
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_native_core(
-        Box::new(Capture(Rc::clone(&buf))),
-        std::rc::Rc::new(tcl_vm::host_native::NativeHost::new()),
-        profile,
-        tcl_registry::special_vars::NativeBootstrapInputs {
-            package_path: Vec::new(),
-            default_library: None,
-        },
-    )
-    .expect("native core for the selected profile");
+    let mut vm =
+        tcl_vm::test_support::native_vm_for_profile(profile, Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     let completion = vm.try_eval_source(src).expect("original source provider");
 
@@ -112,7 +103,7 @@ fn run(src: &str) -> (bool, String, String) {
     let asm = codegen_module(&cfg, &ir, &registry).expect("original source namespace");
 
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    let mut vm = tcl_vm::test_support::native_vm_with_output(Box::new(Capture(Rc::clone(&buf))));
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     let completion = vm.run_module(&asm);
 

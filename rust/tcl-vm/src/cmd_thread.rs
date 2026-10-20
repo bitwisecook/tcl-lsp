@@ -107,6 +107,11 @@ struct Shared {
     /// The separately overridden host command surface, when the parent runs a
     /// sandboxed dialect inside a broader Tcl interpreter.
     command_surface_profile: &'static tcl_dialect::DialectProfile,
+    /// The parent's native engine and core bootstrap inputs. A worker is a
+    /// native-core interpreter of the same engine; without one it could name
+    /// no command. `None` when the parent itself has no engine, and then no
+    /// worker starts.
+    native_core: Option<crate::interp::NativeCoreRecipe>,
     output: ThreadedOutput,
     next_id: AtomicU64,
     /// Monotonic source of opaque handles (`mutex`/`cond`/`rwmutex`/`tpool`).
@@ -180,6 +185,7 @@ impl Vm {
             factory,
             dialect_profile: self.dialect_profile(),
             command_surface_profile: self.command_surface_profile(),
+            native_core: self.native_core_recipe(),
             output,
             next_id: AtomicU64::new(MAIN_ID + 1),
             handle_seq: AtomicU64::new(0),
@@ -290,12 +296,21 @@ fn cmd_thread_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::string(id.to_string()))
 }
 
+/// A worker's own interpreter: a native-core interpreter of the parent's
+/// engine writing to the shared sink. `None` when the parent had no engine.
+fn worker_vm(shared: &Arc<Shared>) -> Option<Vm> {
+    let out: Box<dyn Write> = Box::new(SharedOut(Arc::clone(&shared.output)));
+    Vm::with_native_core_recipe(out, shared.native_core.clone()?)
+}
+
 /// A worker thread: build its own `Vm` (shared-nothing), run `script`, then
 /// deregister. The `Vm` is created and dropped entirely within this closure, so
 /// it never crosses a thread boundary.
 fn run_worker(shared: &Arc<Shared>, id: u64, inbox: Receiver<Job>, script: &str) {
-    let out: Box<dyn Write> = Box::new(SharedOut(Arc::clone(&shared.output)));
-    let mut vm = Vm::with_output(out);
+    let Some(mut vm) = worker_vm(shared) else {
+        shared.workers.lock().expect("workers lock").remove(&id);
+        return;
+    };
     vm.set_compiler((shared.factory)());
     // Same release as the parent: the worker's compiler already targets it, and
     // the runtime must agree or numerals mean different things either side of
@@ -883,8 +898,9 @@ struct PoolInner {
 /// A pool worker: build one `Vm` (thread-enabled so jobs can use `tsv`/mutexes),
 /// run the optional `initcmd`, then drain jobs until the pool shuts down.
 fn run_pool_worker(shared: &Arc<Shared>, queue: &Arc<PoolQueue>, initcmd: Option<&str>) {
-    let out: Box<dyn Write> = Box::new(SharedOut(Arc::clone(&shared.output)));
-    let mut vm = Vm::with_output(out);
+    let Some(mut vm) = worker_vm(shared) else {
+        return;
+    };
     vm.set_compiler((shared.factory)());
     // Same release as the parent: the worker's compiler already targets it, and
     // the runtime must agree or numerals mean different things either side of

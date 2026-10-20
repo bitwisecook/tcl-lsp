@@ -951,13 +951,7 @@ impl NativeCommand for NativeTarget {
 #[test]
 fn native_invoke_uses_the_post_enter_trace_owner_snapshot() {
     let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
-    let mut vm = Vm::with_native_core(
-        Box::new(std::io::sink()),
-        Rc::new(tcl_vm::host_native::NativeHost::new()),
-        profile,
-        tcl_registry::special_vars::NativeBootstrapInputs::default(),
-    )
-    .expect("actual C9.0 core before native callback registration");
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::sink()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     vm.register_native_command("target", Rc::new(NativeTarget));
     let setup = vm

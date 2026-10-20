@@ -1166,7 +1166,7 @@ mod native_ensemble_tests {
     #[test]
     fn binary_private_tokens_follow_the_actual_bootstrap_release() {
         for dialect in ["tcl8.4", "tcl8.5", "jim"] {
-            let mut vm = Vm::new();
+            let mut vm = Vm::without_native_engine();
             vm.set_dialect_profile(
                 tcl_registry::model::ingress::resolve_environment(dialect).unit_profile(),
             );

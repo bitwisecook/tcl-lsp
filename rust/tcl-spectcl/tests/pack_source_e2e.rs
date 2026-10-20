@@ -300,7 +300,7 @@ fn proved_under(dialect: &str, definition: &str, arity: usize, call: &str) -> Op
 
 /// What the VM answers when `definition` is the procedure and `call` is run.
 fn executed(definition: &str, call: &str) -> String {
-    let mut vm = tcl_vm::Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     vm.eval_source("namespace eval vendor {}")
         .expect("the namespace the definition lives in");

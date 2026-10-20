@@ -42,6 +42,8 @@ pub mod host_wasm;
 #[cfg(any(test, feature = "test-support"))]
 pub mod native_conformance;
 mod return_options;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 pub mod value;
 mod value_ops;
 
@@ -95,7 +97,7 @@ pub use interp::native_scalar_ingress::NativeScalarIngress;
 pub use interp::{
     LimitKind, NativeCommandLookupUnavailable, NativePreparedPublication, NativePublicationCommit,
     NativePublicationError, NativePublicationKey, NativePublicationPurpose,
-    NativePublicationService, NativeRegisteredCommandToken, Vm,
+    NativePublicationService, NativeRegisteredCommandToken, Vm, standard_host,
 };
 pub use retained_activation::RetainedActivation;
 pub use value::{NativeObjectLifetimeLease, Value};

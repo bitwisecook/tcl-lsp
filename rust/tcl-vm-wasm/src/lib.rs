@@ -67,7 +67,17 @@ impl std::io::Write for Capture {
 /// observes failures rather than a silent empty result.
 fn run(script: &[u8]) -> Vec<u8> {
     let buf = Rc::new(RefCell::new(Vec::new()));
-    let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    // A native-core 9.0 interpreter: only the native core names commands.
+    let Some(mut vm) = Vm::with_native_core(
+        Box::new(Capture(Rc::clone(&buf))),
+        tcl_vm::standard_host(),
+        tcl_registry::model::resolve_environment("tcl9.0").unit_profile(),
+        tcl_registry::special_vars::NativeBootstrapInputs::default(),
+    ) else {
+        return b"no native core for Tcl 9.0".to_vec();
+    };
+    // The default compile service targets the permissive fallback profile.
+    vm.set_dialect_profile(tcl_dialect::DialectProfile::plain_tcl());
     vm.set_compiler(Box::new(BytecodeCompileService::default()));
     // On a non-OK completion, append the message so the host sees the failure.
     let source = tcl_lexer::SourceImage::from_bytes(script, tcl_lexer::SourceChannel::Document);

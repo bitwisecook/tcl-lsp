@@ -51,7 +51,7 @@ use std::collections::HashMap;
 use tcl_bytecode::{
     FunctionAsm, Instruction, LiteralTable, LocalVarTable, Op, Operand, bytecode_imm, layout,
 };
-use tcl_vm::{Code, Completion, Value, Vm};
+use tcl_vm::{Code, Completion, Value};
 
 /// A hand-built instruction stream plus its literal pool, mirroring the
 /// `Asm` helper in `opcode_c_parity.rs` (kept file-local, per that file's own
@@ -110,7 +110,7 @@ impl Asm {
 }
 
 fn run(asm: Asm) -> Completion<Value> {
-    Vm::new().run_function(&asm.build())
+    tcl_vm::test_support::native_vm().run_function(&asm.build())
 }
 
 /// Run `land ( a b )` (`a`/`b` are Tcl boolean literals) and return the

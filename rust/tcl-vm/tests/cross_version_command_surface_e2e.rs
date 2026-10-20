@@ -43,7 +43,7 @@ use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect as lower_to_ir;
 use tcl_dialect::{DialectProfile, TclVersion};
-use tcl_vm::{Code, CompileError, CompileService, ProcedureCompileTarget, ProcedureDispatch, Vm};
+use tcl_vm::{Code, CompileError, CompileService, ProcedureCompileTarget, ProcedureDispatch};
 
 #[derive(Clone, Default)]
 struct Capture(Rc<RefCell<Vec<u8>>>);
@@ -483,8 +483,7 @@ impl CompileService for WrongProfileCompilerSvc {
 #[test]
 fn named_profiles_reject_fixed_or_mislabelled_compile_services() {
     let v84 = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
-    let mut fixed = Vm::new();
-    fixed.set_dialect_profile(v84);
+    let mut fixed = tcl_vm::test_support::native_vm_for_profile(v84, Box::new(std::io::stdout()));
     fixed.set_compiler(Box::new(FixedFallbackCompilerSvc));
     assert_eq!(
         fixed
@@ -496,8 +495,8 @@ fn named_profiles_reject_fixed_or_mislabelled_compile_services() {
         "CompileService does not support dialect profile tcl8.4"
     );
 
-    let mut mislabelled = Vm::new();
-    mislabelled.set_dialect_profile(v84);
+    let mut mislabelled =
+        tcl_vm::test_support::native_vm_for_profile(v84, Box::new(std::io::stdout()));
     mislabelled.set_compiler(Box::new(WrongProfileCompilerSvc));
     assert_eq!(
         mislabelled
@@ -514,8 +513,7 @@ fn named_profiles_reject_fixed_or_mislabelled_compile_services() {
 fn command_surface_override_accepts_the_universal_fallback_from_tcl91() {
     let v91 = tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile();
     let fallback = DialectProfile::plain_tcl();
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(v91);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(v91, Box::new(std::io::stdout()));
 
     assert_eq!(fallback.vm_runtime_version, TclVersion::V9_0);
     assert!(
@@ -535,8 +533,7 @@ fn named_command_surface_override_cannot_hide_compiled_release_commands() {
     let cfg = build_cfg_codegen(&ir, false);
     let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
 
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(v91);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(v91, Box::new(std::io::stdout()));
     assert!(
         !vm.set_command_surface_profile(v90),
         "a named Tcl 9.0 surface cannot host Tcl 9.1 bytecode"
@@ -557,7 +554,7 @@ fn named_command_surface_override_cannot_hide_compiled_release_commands() {
 /// `" \n set x \""` down the completion channel having executed nothing.
 #[test]
 fn eval_source_reports_a_script_that_ran_nothing_through_the_error_channel() {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_compiler(Box::new(
         tcl_compiler::compile_service::BytecodeCompileService::default(),
     ));
@@ -609,7 +606,7 @@ fn command_surface_override_rejects_a_same_release_narrower_profile() {
     let cfg = build_cfg_codegen(&ir, false);
     let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
 
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_dialect_profile(bpf);
     assert!(
         !vm.set_command_surface_profile(bigip),
@@ -625,7 +622,7 @@ fn command_surface_override_rejects_a_same_release_narrower_profile() {
 fn compatible_irules_host_surface_override_remains_accepted() {
     let irules = DialectProfile::irules();
     let host = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_dialect_profile(irules);
     assert!(vm.set_command_surface_profile(host));
     assert!(std::ptr::eq(vm.command_surface_profile(), host));
@@ -643,8 +640,7 @@ fn profile_output(src: &str, profile: &'static DialectProfile) -> String {
         Err(e) => return e.to_string(),
     };
     let cap = Capture::default();
-    let mut vm = Vm::with_output(Box::new(cap.clone()));
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(cap.clone()));
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     let completion = vm.run_module(&asm);
     let out = String::from_utf8_lossy(&cap.0.borrow()).trim().to_string();
@@ -961,9 +957,9 @@ fn hidden_builtin_stays_hidden_through_children_imports_and_aliases() {
 /// the final builtin identity.
 #[test]
 fn version_mutation_rechecks_an_existing_imports_source_identity() {
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        Box::new(std::io::stdout()),
     );
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
@@ -1005,11 +1001,10 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     let v85 = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
     let v84 = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
     let v86 = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(v86, Box::new(std::io::stdout()));
     // TclOO is an 8.6 command surface, so the class factory is
     // only reachable there; the resulting object command is script-created and
     // stays callable on every release, which is what the flips below exercise.
-    vm.set_dialect_profile(v86);
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v85)));
     let oo_setup = vm
         .eval_source(
@@ -1036,8 +1031,8 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         .expect("8.5 handle compiles");
     // A reusable handle is VM-affine: another VM can have the same profile
     // generation but must never adopt its bytecode.
-    let mut foreign_vm = Vm::new();
-    foreign_vm.set_dialect_profile(v85);
+    let mut foreign_vm =
+        tcl_vm::test_support::native_vm_for_profile(v85, Box::new(std::io::stdout()));
     foreign_vm.set_compiler(Box::new(BytecodeCompileService::for_profile(v85)));
     assert_eq!(
         foreign_vm.invoke_function(&handle).result.to_str().as_ref(),
@@ -1210,11 +1205,11 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
 #[test]
 fn tcloo_method_profile_refresh_is_persisted_after_the_first_call() {
     let calls = Rc::new(Cell::new(0));
-    let mut vm = Vm::new();
     // TclOO's class factory is 8.6+; the object it makes is
     // script-created and survives the flip to 8.4 below.
-    vm.set_dialect_profile(
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        Box::new(std::io::stdout()),
     );
     vm.set_compiler(Box::new(CountingCompilerSvc {
         calls: Rc::clone(&calls),
@@ -1393,9 +1388,9 @@ fn refused_alias_rename_restores_import_provenance() {
 /// builtin with both trace registrations intact.
 #[test]
 fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        Box::new(std::io::stdout()),
     );
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
@@ -1454,9 +1449,9 @@ fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
 /// global command with the same tail.
 #[test]
 fn unavailable_local_candidate_falls_through_to_global_command() {
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        Box::new(std::io::stdout()),
     );
     vm.set_compiler(Box::new(BytecodeCompileService::for_profile(
         tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
@@ -2157,9 +2152,11 @@ fn the_profile_form_of_a_pin_is_the_context_the_profile_names() {
         .iter()
         .chain([DialectProfile::plain_tcl(), DialectProfile::tk()])
     {
-        let mut by_profile = Vm::new();
+        // Vendor profiles have no native core of their own; they run on the
+        // default engine.
+        let mut by_profile = tcl_vm::test_support::native_vm();
         by_profile.set_dialect_profile(profile);
-        let mut by_context = Vm::new();
+        let mut by_context = tcl_vm::test_support::native_vm();
         by_context
             .pin_context(&tcl_registry::model::runtime_context_for_profile(profile))
             .unwrap_or_else(|error| panic!("{}: {error}", profile.name));
@@ -2181,8 +2178,7 @@ fn the_profile_form_of_a_pin_is_the_context_the_profile_names() {
 #[test]
 fn a_vm_states_the_identity_a_module_compiled_for_its_pin_states() {
     let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
-    let mut vm = Vm::new();
-    vm.set_dialect_profile(profile);
+    let mut vm = tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
     let compiled = BytecodeCompileService::for_profile(profile)
         .compile("set x 1")
         .expect("compiles")
@@ -2226,7 +2222,7 @@ fn a_context_the_ingress_refuses_leaves_the_pin_unchanged() {
     const OVERLAY: u64 = 0x0C0_1703;
     let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
     let context = tcl_registry::model::runtime_context_for_profile(profile);
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.pin_context(&context).expect("the profile's own context");
 
     let mut unknown = context.clone();

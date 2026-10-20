@@ -5,7 +5,6 @@
 //! Independent native vectors for variable roots, elements, aliases and scope writes.
 
 use tcl_compiler::compile_service::BytecodeCompileService;
-use tcl_vm::Vm;
 
 #[test]
 fn selected_container_models_match_native_root_and_alias_vectors() {
@@ -24,8 +23,8 @@ fn selected_container_models_match_native_root_and_alias_vectors() {
                 .zip(expected.lines())
                 .enumerate()
         {
-            let mut vm = Vm::default();
-            vm.set_dialect_profile(profile);
+            let mut vm =
+                tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
             vm.set_compiler(Box::new(BytecodeCompileService::default()));
             checked += 1;
             match vm.try_eval_source(source) {
@@ -78,8 +77,8 @@ fn dictionary_element_aliases_follow_replacements_and_values_copy_on_write() {
             "{other KEEP} 0",
         ),
     ] {
-        let mut vm = Vm::default();
-        vm.set_dialect_profile(profile);
+        let mut vm =
+            tcl_vm::test_support::native_vm_for_profile(profile, Box::new(std::io::stdout()));
         vm.set_compiler(Box::new(BytecodeCompileService::default()));
         let result = vm.try_eval_source(source).unwrap();
         assert!(result.code.is_ok(), "{source}: {}", result.result.to_str());
