@@ -1,0 +1,64 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-20T22:37:21.758880+00:00",
+  "scheduled_report_utc": "interim (Sol-44 hand-back)",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "committed": {
+    "b6db8ed446": "Sol-44: every tclvm interpreter is native-core (Vm::new test-only, test_support helpers, standard_host); thread/tpool workers and interp-create children fixed; errorInfo-level VM half; tcl-vm lib 945 -> 1107/1387, no new failures; builtins 100/126, namespace_surface 108/123, cmd_math_expr 95/102, run_script 74/98"
+  },
+  "open_findings": [
+    "cluster B: module compiled without an entry refused (NativePreflightRequired) \u2014 compiler, pre-merge",
+    "cluster C: native compiler selection refuses string/regexp/format/dict/... \u2014 Sol-45 in progress",
+    "TclOO method recursion costs ~200 KB stack per level in debug; depth 10 overflows a 2 MiB test thread (VM)",
+    "compiler lowering hang recursing per nesting level (prove_possible_bodies -> stamp_original_tokens)",
+    "tclvm deferred ports still open: items 2, 3 (rest), 5, 6, 7, 8, 9, 10"
+  ],
+  "in_progress": {
+    "sol-45": "cluster C / C6 / C2 (uncommitted, 7 C6 regressions pending)"
+  },
+  "next_report_utc": "2026-10-20T22:44:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
