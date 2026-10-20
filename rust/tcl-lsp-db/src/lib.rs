@@ -6281,14 +6281,28 @@ p\uD801 ordinary";
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let config = tcl_lexer::LexerConfig::for_dialect("tcl8.6");
+        let supplied = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
+            Arc::clone(&generation),
+            config,
+        );
         let mut lowerer =
             tcl_compiler::lowering::Lowerer::with_config(generation.commands(), config)
-                .with_resolved_analysis_input(tcl_compiler::analyser::ResolvedAnalysisInput::new(
-                    tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
-                    tcl_dialect::DialectProfile::find("tcl8.6").unwrap(),
-                    Arc::clone(&generation),
-                    config,
-                ));
+                .with_resolved_analysis_input(supplied.clone());
+        // Without an entry the document runs in a fresh interpreter; unknown
+        // history must be supplied explicitly.
+        lowerer.set_source_analysis_options(
+            tcl_compiler::command_binding::SourceAnalysisEntry {
+                metadata_context:
+                    tcl_compiler::registry_invocation::OwnedInvocationMetadataContext::for_source_input(
+                        Some(&supplied),
+                    ),
+                unknown_entry: true,
+                ..tcl_compiler::command_binding::SourceAnalysisEntry::default()
+            }
+            .options(),
+        );
         let source = "throw ERROR payload; set reached 1";
         let unknown_module = lowerer.lower(source).clone();
         assert!(unknown_module.source_entry.unknown_entry);

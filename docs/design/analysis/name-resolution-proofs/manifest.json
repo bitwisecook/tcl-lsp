@@ -753504,7 +753504,7 @@
         {
           "path": "rust/tcl-compiler/src/command_binding/source_analysis_entry.rs",
           "symbol": "SourceAnalysisEntry::for_supplied_source",
-          "purpose": "Own complete supplied source metadata separately from Logical/Native name policy, execution entry or missing-input fallback."
+          "purpose": "Own complete supplied source metadata separately from Logical/Native name policy, execution entry or missing-input fallback; a Native-axis document with no explicit entry receives the fresh-interpreter authoring entry, while mismatched metadata keeps unknown runtime history."
         },
         {
           "path": "rust/tcl-compiler/src/command_binding/source_analysis_entry.rs",

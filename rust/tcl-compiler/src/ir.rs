@@ -895,6 +895,24 @@ impl CommandTokens {
         &self.word_exprs
     }
 
+    /// Whether this synthetic statement's `defs`/`reads` are literal names
+    /// its producer already proved (iteration bindings, `[…]` substitution
+    /// effects, a condition's kill-set, upvar invalidations, opaque arm
+    /// writes). Such a statement invokes nothing; its names resolve directly.
+    #[must_use]
+    pub fn carries_proved_names(&self) -> bool {
+        matches!(
+            self.synthetic,
+            Some(
+                SyntheticMarker::IterationBindings(_)
+                    | SyntheticMarker::WordEffects(_)
+                    | SyntheticMarker::Condition
+                    | SyntheticMarker::UpvarInvalidate
+                    | SyntheticMarker::ArmWrites
+            )
+        )
+    }
+
     /// Whether this boundary evaluates its written words. Residual wrapper
     /// boundaries refer to the argv already evaluated before entering phases.
     #[must_use]

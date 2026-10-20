@@ -3070,6 +3070,260 @@ impl PartialEq for AnalysisResult {
     }
 }
 
+#[cfg(test)]
+impl AnalysisResult {
+    /// Bounded description of where two results differ, for comparison tests.
+    /// Whole-result `Debug` output can reach gigabytes (it renders retained IR
+    /// and source bindings), so each differing field is rendered through a
+    /// capped writer instead; equality itself is unchanged ([`PartialEq`]).
+    pub(crate) fn bounded_mismatch_summary(&self, other: &Self) -> String {
+        fn bounded(value: &dyn std::fmt::Debug) -> String {
+            struct Capped(String);
+            const LIMIT: usize = 1500;
+            impl std::fmt::Write for Capped {
+                fn write_str(&mut self, text: &str) -> std::fmt::Result {
+                    let room = LIMIT.saturating_sub(self.0.len());
+                    if text.len() > room {
+                        let mut cut = room;
+                        while !text.is_char_boundary(cut) {
+                            cut -= 1;
+                        }
+                        self.0.push_str(&text[..cut]);
+                        self.0.push_str("…");
+                        return Err(std::fmt::Error);
+                    }
+                    self.0.push_str(text);
+                    Ok(())
+                }
+            }
+            let mut out = Capped(String::new());
+            let _ = std::fmt::write(&mut out, format_args!("{value:?}"));
+            out.0
+        }
+        fn field(name: &str, left: &dyn std::fmt::Debug, right: &dyn std::fmt::Debug) -> String {
+            format!(
+                "  {name}:\n    left:  {}\n    right: {}",
+                bounded(left),
+                bounded(right)
+            )
+        }
+        let Self {
+            optimiser_source_origin,
+            analysis_context_unavailable,
+            command_realm,
+            original_command_world,
+            lexical_declaration_advice,
+            resolved_input,
+            original_vendor_source_names,
+            original_vendor_variable_advice,
+            original_vendor_variable_bodies,
+            global_scope,
+            all_procs,
+            original_procedure_metadata,
+            original_vendor_procedure_metadata,
+            original_vendor_class_metadata,
+            original_symbol_metadata,
+            original_vendor_symbol_metadata,
+            proc_declaration_sites,
+            superseded_procs,
+            all_classes,
+            logical_procedure_declarations,
+            logical_class_declarations,
+            original_class_metadata,
+            original_class_configuration_metadata,
+            original_object_configuration_metadata,
+            superseded_classes,
+            class_body_spans,
+            all_variables,
+            all_defined_symbols,
+            diagnostics,
+            command_invocations,
+            package_requires,
+            package_provides,
+            package_ifneededs,
+            package_prefer_latest,
+            has_dynamic_providers,
+            source_targets,
+            path_constant_assignments,
+            command_aliases,
+            alias_offsets,
+            renamed_commands,
+            rename_offsets,
+            ensemble_subcommand_targets,
+            prefixless_ensembles,
+            namespace_imports,
+            namespace_forgets,
+            original_namespace_patterns,
+            destroyed_commands,
+            namespace_exports,
+            original_namespace_exports,
+            original_namespace_export_unknowns,
+            namespace_paths,
+            namespace_path_computed,
+            auto_path_entries,
+            qualified_var_refs,
+            original_variable_symbols,
+            original_variable_write_advice,
+            original_variable_symbol_conflicts,
+            original_variable_roots,
+            original_variable_alias_sites,
+            original_variable_name_unknowns,
+            original_variable_alias_obligations,
+            original_variable_alias_operands,
+            original_variable_alias_source_operands,
+            original_variable_alias_receipts,
+            namespace_refs,
+            namespace_name_unknowns,
+            dynamic_variable_names,
+            namespace_overrides,
+            stub_commands,
+            stub_expr_defs,
+            regex_patterns,
+            suppressed_lines,
+            unknown_proc_info,
+            instance_classes,
+            object_handle_facts,
+            created_instance_commands,
+            instance_command_bindings,
+            ambiguous_instance_names,
+            object_methods,
+            object_member_state,
+            unresolved_command_sites,
+            scoped_command_regions,
+            original_scoped_bodies,
+            original_conditional_registry_metadata,
+            scoped_sibling_defs,
+            hierarchy_cache,
+            dialect,
+            body_lexer_config,
+            library_versions,
+        } = self;
+        let mut differing = Vec::new();
+        macro_rules! compare {
+            ($($field:ident),* $(,)?) => {
+                $(if $field != &other.$field {
+                    differing.push(field(stringify!($field), $field, &other.$field));
+                })*
+            };
+        }
+        if !object_handle_facts.analysis_report_eq(&other.object_handle_facts) {
+            differing.push(field(
+                "object_handle_facts",
+                object_handle_facts,
+                &other.object_handle_facts,
+            ));
+        }
+        compare!(
+            optimiser_source_origin,
+            analysis_context_unavailable,
+            command_realm,
+            original_command_world,
+            lexical_declaration_advice,
+            resolved_input,
+            original_vendor_source_names,
+            original_vendor_variable_advice,
+            original_vendor_variable_bodies,
+            global_scope,
+            all_procs,
+            original_procedure_metadata,
+            original_vendor_procedure_metadata,
+            original_vendor_class_metadata,
+            original_symbol_metadata,
+            original_vendor_symbol_metadata,
+            proc_declaration_sites,
+            superseded_procs,
+            all_classes,
+            logical_procedure_declarations,
+            logical_class_declarations,
+            original_class_metadata,
+            original_class_configuration_metadata,
+            original_object_configuration_metadata,
+            superseded_classes,
+            class_body_spans,
+            all_variables,
+            all_defined_symbols,
+            diagnostics,
+            command_invocations,
+            package_requires,
+            package_provides,
+            package_ifneededs,
+            package_prefer_latest,
+            has_dynamic_providers,
+            source_targets,
+            path_constant_assignments,
+            command_aliases,
+            alias_offsets,
+            renamed_commands,
+            rename_offsets,
+            ensemble_subcommand_targets,
+            prefixless_ensembles,
+            namespace_imports,
+            namespace_forgets,
+            original_namespace_patterns,
+            destroyed_commands,
+            namespace_exports,
+            original_namespace_exports,
+            original_namespace_export_unknowns,
+            namespace_paths,
+            namespace_path_computed,
+            auto_path_entries,
+            qualified_var_refs,
+            original_variable_symbols,
+            original_variable_write_advice,
+            original_variable_symbol_conflicts,
+            original_variable_roots,
+            original_variable_alias_sites,
+            original_variable_name_unknowns,
+            original_variable_alias_obligations,
+            original_variable_alias_operands,
+            original_variable_alias_source_operands,
+            original_variable_alias_receipts,
+            namespace_refs,
+            namespace_name_unknowns,
+            dynamic_variable_names,
+            namespace_overrides,
+            stub_commands,
+            stub_expr_defs,
+            regex_patterns,
+            suppressed_lines,
+            unknown_proc_info,
+            instance_classes,
+            created_instance_commands,
+            instance_command_bindings,
+            ambiguous_instance_names,
+            object_methods,
+            object_member_state,
+            unresolved_command_sites,
+            scoped_command_regions,
+            original_scoped_bodies,
+            original_conditional_registry_metadata,
+            scoped_sibling_defs,
+            hierarchy_cache,
+            dialect,
+            body_lexer_config,
+            library_versions,
+        );
+        differing.join("\n")
+    }
+}
+
+/// Assert two analysis results are equal, reporting only a bounded summary
+/// of the differing fields on failure.
+#[cfg(test)]
+#[track_caller]
+pub(crate) fn assert_analysis_results_eq(
+    left: &AnalysisResult,
+    right: &AnalysisResult,
+    context: &str,
+) {
+    if left != right {
+        panic!(
+            "analysis results differ ({context}); differing fields:\n{}",
+            left.bounded_mismatch_summary(right)
+        );
+    }
+}
+
 #[derive(Clone, Copy)]
 enum ScalarAlphaFormalSelection {
     Single,

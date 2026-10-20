@@ -576,9 +576,12 @@ mod original_native_body_tests {
             std::sync::Arc::clone(&context),
             config,
         );
+        // Unentered native declarations need an explicit unknown entry; no
+        // entry means a fresh interpreter that defines each procedure.
         crate::lowering::lower_to_ir_with(
             crate::lowering::Lowerer::with_config(context.commands(), config)
-                .with_resolved_analysis_input(input),
+                .with_resolved_analysis_input(input)
+                .with_explicit_unknown_entry(),
             source,
         )
     }
@@ -839,7 +842,8 @@ mod original_native_body_tests {
         assert!(procedure.body.native_compilation_admission.is_none());
         let foreign_same_input = crate::lowering::lower_to_ir_with(
             crate::lowering::Lowerer::with_config(registry, input.lexer_config())
-                .with_resolved_analysis_input(input.clone()),
+                .with_resolved_analysis_input(input.clone())
+                .with_explicit_unknown_entry(),
             source,
         );
         let foreign_bindings = foreign_same_input

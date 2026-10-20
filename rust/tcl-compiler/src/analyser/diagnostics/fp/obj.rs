@@ -1360,19 +1360,31 @@ fn fp_obj_20_local_mixin_unknown_method_still_w308() {
 
 #[test]
 fn mixin_method_inventory_withdraws_after_original_base_mutation() {
-    for mutation in [
-        "rename ::Observable ::Retired; oo::class create ::Observable {}",
-        "oo::define ::Observable method unknown {args} {return dynamicallyHandled}",
-    ] {
-        let source = format!(
+    let source = |mutation: &str| {
+        format!(
             "oo::class create ::Observable {{method subscribe {{h}} {{}}}}\noo::class create Reactive {{mixin ::Observable}}\n{mutation}\nset o [Reactive new]\n$o nosuch"
-        );
-        assert!(
-            !fires(&source, D, "W308"),
-            "{source}: {:?}",
-            codes(&source, D)
-        );
-    }
+        )
+    };
+    // An `unknown` method added to the mixed-in class answers every name.
+    let unknown =
+        source("oo::define ::Observable method unknown {args} {return dynamicallyHandled}");
+    assert!(
+        !fires(&unknown, D, "W308"),
+        "{unknown}: {:?}",
+        codes(&unknown, D)
+    );
+    // Narrow correction (Sol-42, 2026-10-19): a mixin names the class object,
+    // not its command name, so renaming `::Observable` and creating a new
+    // empty class under that name leaves `Reactive` mixing in the original
+    // (now `::Retired`). tclsh 8.6.18, 9.0.4 and 9.1.0 all report `unknown
+    // method "nosuch": must be destroy or subscribe`, so W308 is a true
+    // positive here, not a withdrawn inventory.
+    let renamed = source("rename ::Observable ::Retired; oo::class create ::Observable {}");
+    assert!(
+        fires(&renamed, D, "W308"),
+        "{renamed}: {:?}",
+        codes(&renamed, D)
+    );
 }
 
 #[test]

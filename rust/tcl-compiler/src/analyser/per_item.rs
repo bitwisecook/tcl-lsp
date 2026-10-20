@@ -2521,7 +2521,11 @@ mod tests {
     fn eq(src: &str) {
         let want = Analyser::new().analyse(src, "tcl8.6");
         let got = Analyser::new().analyse_per_item(src, "tcl8.6");
-        assert_eq!(got, want, "per_item != analyse for:\n{src}");
+        crate::analyser::types::assert_analysis_results_eq(
+            &got,
+            &want,
+            &format!("per_item != analyse for:\n{src}"),
+        );
     }
 
     #[test]
@@ -2620,7 +2624,11 @@ mod tests {
         let (gate, got) = gate_and_result(src, "tcl8.6");
         assert_eq!(gate, None, "expected fast path for:\n{src}");
         let want = Analyser::new().analyse(src, "tcl8.6");
-        assert_eq!(got, want, "per_item != analyse for:\n{src}");
+        crate::analyser::types::assert_analysis_results_eq(
+            &got,
+            &want,
+            &format!("per_item != analyse for:\n{src}"),
+        );
     }
 
     /// Assert that `src` hands off to a full walk with `reason`, and that the
@@ -2629,7 +2637,11 @@ mod tests {
         let (gate, got) = gate_and_result(src, dialect);
         assert_eq!(gate, Some(reason), "gate for:\n{src}");
         let want = Analyser::new().analyse(src, dialect);
-        assert_eq!(got, want, "per_item != analyse for:\n{src}");
+        crate::analyser::types::assert_analysis_results_eq(
+            &got,
+            &want,
+            &format!("per_item != analyse for:\n{src}"),
+        );
     }
 
     // Body-defined global cells.

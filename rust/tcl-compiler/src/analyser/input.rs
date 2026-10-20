@@ -447,7 +447,7 @@ mod tests {
         let per_item = Analyser::new()
             .with_resolved_input(input.clone())
             .analyse_per_item(source, "tcl9.0");
-        assert_eq!(full, per_item);
+        crate::analyser::types::assert_analysis_results_eq(&full, &per_item, "full != per_item");
         assert_eq!(full.body_lexer_config, Some(input.config));
         let first_close = full.global_scope.variables.get("::a{b").unwrap();
         let nested_close = full.global_scope.variables.get("::a{b}c").unwrap();

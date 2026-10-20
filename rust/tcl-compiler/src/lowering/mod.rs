@@ -1586,6 +1586,20 @@ impl<'r> Lowerer<'r> {
         self
     }
 
+    /// Replace the default fresh entry of the retained input with an explicit
+    /// unknown prior history.
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn with_explicit_unknown_entry(mut self) -> Self {
+        let input = self
+            .metadata_input
+            .clone()
+            .expect("retained analysis input");
+        let entry = crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input);
+        self.set_source_analysis_options(entry.options());
+        self
+    }
+
     /// Retain the complete caller input independently of execution entry.
     /// Missing or foreign source metadata cannot acquire a profile fallback.
     #[must_use]
@@ -4339,6 +4353,20 @@ impl<'r> Lowerer<'r> {
                         .then(|| candidate.body.clone())
                         .flatten()
                     })
+            })
+            .or_else(|| {
+                // A declaration replaced before any call never enters its body,
+                // yet `proc` created it from this exact script: C Tcl runs it in
+                // the declaration's namespace if a caller reaches it first.
+                let tokens = self.cmd_tokens(seg);
+                let declaration = tokens.source_binding.as_ref()?.invocation_site()?;
+                let mut bodies = self
+                    .source_bindings
+                    .as_ref()?
+                    .procedure_implementation_bodies()
+                    .filter(|body| &body.allocation.site == declaration);
+                let first = bodies.next()?.source.clone();
+                bodies.all(|body| body.source == &first).then_some(first)
             });
         if let Some(source) = retained {
             let declaration = self
@@ -11463,8 +11491,18 @@ mod tests {
             std::sync::Arc::clone(&context),
             tcl_lexer::LexerConfig::for_file_grammar(native_profile.grammar),
         );
+        // No supplied entry: a fresh tclsh defines `::subject` (user decision
+        // 2026-10-19T14:20Z). Explicit unknown history still withholds it.
+        let mut fresh = Lowerer::with_config(context.commands(), native.lexer_config())
+            .with_resolved_analysis_input(native.clone());
+        let module = fresh.lower(source);
+        assert!(fixture_id_if_present(&module.procedures, "::subject").is_some());
+        assert!(module.source_entry.logical_source_input.is_none());
+        assert!(module.source_entry.native_entry.is_none());
+        assert!(!module.source_entry.unknown_entry);
         let mut absent = Lowerer::with_config(context.commands(), native.lexer_config())
-            .with_resolved_analysis_input(native);
+            .with_resolved_analysis_input(native)
+            .with_explicit_unknown_entry();
         let module = absent.lower(source);
         assert!(!fixture_id_if_present(&module.procedures, "::subject").is_some());
         assert!(module.source_entry.logical_source_input.is_none());

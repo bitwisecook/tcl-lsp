@@ -5080,12 +5080,9 @@ mod tests {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar),
         );
         let registry = context.commands();
-        let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
-            registry,
-            &input,
-            input.lexer_config(),
-            Some(profile),
-        );
+        // Unknown history is an explicit entry; with none supplied the
+        // document runs in a fresh interpreter (user decision 2026-10-19T14:20Z).
+        let entry = crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input);
         let source = "proc helper {} {}; $command unknown";
         let (module, cfg, _) = lower_source_callers(
             source,

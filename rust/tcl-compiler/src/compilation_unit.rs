@@ -3738,8 +3738,8 @@ impl CompilationUnit {
 
     /// Build using the caller's complete source input and independent entry.
     /// With no supplied entry, matching Logical and hosted inputs retain their
-    /// source advice. Runtime history stays unknown for other supplied inputs;
-    /// catalogue availability never establishes an execution entry.
+    /// source advice and Native inputs start from a fresh interpreter
+    /// ([`crate::command_binding::SourceAnalysisEntry::for_supplied_source`]).
     #[must_use]
     pub fn build_with_analysis_input(
         source: &str,
@@ -5631,15 +5631,22 @@ mod tests {
                 .logical_source_input
                 .is_none()
         );
-        // The same metadata does not promote an ordinary supplied-document request.
+        // The same metadata does not promote an ordinary supplied-document
+        // request to Standalone; with no entry it starts a fresh interpreter.
         let supplied = CompilationUnit::build_with_analysis_input(source, options, None, &input);
         assert_eq!(
             supplied.ir_module.source_metadata_input.as_ref(),
             Some(&input)
         );
         assert!(supplied.ir_module.source_entry.native_entry.is_none());
-        assert!(supplied.ir_module.source_entry.unknown_entry);
-        assert!(supplied.ir_module.source_entry.invocation_dialect.is_none());
+        assert!(!supplied.ir_module.source_entry.unknown_entry);
+        assert!(
+            !supplied
+                .ir_module
+                .source_entry
+                .metadata_context
+                .is_standalone()
+        );
         let mut changed_config = options.config;
         changed_config.leading_bom = tcl_lexer::LeadingBom::Skip;
         assert!(
@@ -6520,7 +6527,8 @@ mod tests {
                 .is_none()
         );
         assert!(native_unit.ir_module.source_entry.native_entry.is_none());
-        assert!(native_unit.ir_module.source_entry.unknown_entry);
+        // No supplied entry: a fresh interpreter, not unknown history.
+        assert!(!native_unit.ir_module.source_entry.unknown_entry);
         assert_eq!(
             native_unit.ir_module.source_metadata_input.as_ref(),
             Some(&native)
@@ -6612,8 +6620,17 @@ mod tests {
                 .original_authored_declaration_body_units
                 .is_empty()
         );
+        // No supplied entry: a fresh tclsh defines `::original` (user decision
+        // 2026-10-19T14:20Z); an unentered card needs explicit unknown history.
+        assert!(supplied.function("::original").is_some());
+        let unknown_supplied = CompilationUnit::build_with_analysis_input(
+            source,
+            options,
+            Some(&crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input)),
+            &input,
+        );
         assert_eq!(
-            supplied
+            unknown_supplied
                 .ir_module
                 .original_native_declaration_body_units
                 .len(),

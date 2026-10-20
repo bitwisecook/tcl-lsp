@@ -514,6 +514,9 @@ mod tests {
             input.lexer_config(),
         )
         .with_resolved_analysis_input(input.clone())
+        // The cache serves unentered declarations, which need explicit unknown
+        // history; no entry means a fresh interpreter that defines them.
+        .with_explicit_unknown_entry()
         .with_source_body_syntax_cache(cache);
         lowerer.verify_source_body_syntax_cache = true;
         crate::lowering::lower_to_ir_with(lowerer, source)

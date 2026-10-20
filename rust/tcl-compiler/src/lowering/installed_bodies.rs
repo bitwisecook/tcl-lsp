@@ -46,7 +46,7 @@ impl Lowerer<'_> {
                     procedure.body.executed_source.as_deref()?.clone(),
                     procedure.body.namespace_context.as_deref()?.clone(),
                     procedure.span.start(),
-                    procedure.params_raw.clone(),
+                    canonical_parameter_list(&procedure.params_raw),
                 ))
             })
             .collect();
@@ -335,4 +335,21 @@ impl Lowerer<'_> {
                 .insert(id, installed.allocation);
         }
     }
+}
+
+/// The written formal list in the canonical form an installed body carries:
+/// each formal re-joined from its list elements, so `{"as" v}` and its
+/// installed `as v` name the same formals. Unparsable text keeps its spelling.
+fn canonical_parameter_list(raw: &str) -> String {
+    let Ok(formals) = tcl_syntax::list::split_list(raw) else {
+        return raw.to_owned();
+    };
+    let mut canonical = Vec::with_capacity(formals.len());
+    for formal in &formals {
+        let Ok(fields) = tcl_syntax::list::split_list(formal) else {
+            return raw.to_owned();
+        };
+        canonical.push(tcl_syntax::list::join_list(&fields));
+    }
+    tcl_syntax::list::join_list(canonical.iter().map(String::as_str))
 }

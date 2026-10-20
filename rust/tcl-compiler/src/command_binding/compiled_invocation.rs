@@ -4019,8 +4019,10 @@ mod compiler_point_source_metadata_tests {
             Arc::clone(&context),
             config,
         );
+        // Unknown execution is an explicit entry; no entry means a fresh interpreter.
         let mut lowerer = crate::lowering::Lowerer::with_config(context.commands(), config)
-            .with_resolved_analysis_input(input.clone());
+            .with_resolved_analysis_input(input.clone())
+            .with_explicit_unknown_entry();
         (lowerer.lower(source).clone(), input)
     }
 

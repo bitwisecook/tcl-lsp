@@ -424,9 +424,12 @@ impl SourceAnalysisEntry {
         })
     }
 
-    /// Select only authored advice justified by the complete supplied input.
-    /// An absent runtime entry stays unknown for Native, mismatched or unsupported
-    /// source axes; catalogue metadata cannot assert a fresh interpreter.
+    /// Entry for a whole document supplied without an explicit execution entry.
+    /// A Native-axis document runs in a fresh interpreter of its dialect, so
+    /// builtins are original until the source itself redefines them. Logical
+    /// and hosted inputs keep their source policies; mismatched metadata keeps
+    /// unknown runtime history. A caller that knows the interpreter was used
+    /// before must supply `unknown_entry` explicitly.
     #[must_use]
     pub fn for_supplied_source(
         registry: &tcl_registry::CommandRegistry,
@@ -434,18 +437,31 @@ impl SourceAnalysisEntry {
         config: tcl_lexer::LexerConfig,
         profile: Option<&tcl_dialect::DialectProfile>,
     ) -> Self {
-        crate::registry_invocation::InvocationMetadataContext::for_source_input(
+        let metadata_context =
+            crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                input,
+            ));
+        if crate::registry_invocation::InvocationMetadataContext::for_source_input(
             registry, input, config, profile,
         )
-        .and_then(|_| Self::for_logical_source(input).or_else(|| Self::for_hosted_source(input)))
-        .unwrap_or_else(|| Self {
-            metadata_context:
-                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
-                    input,
+        .is_none()
+        {
+            return Self {
+                metadata_context,
+                unknown_entry: true,
+                ..Self::default()
+            };
+        }
+        Self::for_logical_source(input)
+            .or_else(|| Self::for_hosted_source(input))
+            .unwrap_or_else(|| Self {
+                metadata_context,
+                invocation_dialect: Some(crate::environment_ingress::authoring_invocation_dialect(
+                    registry, profile, config,
                 )),
-            unknown_entry: true,
-            ..Self::default()
-        })
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..Self::default()
+            })
     }
 
     /// Borrow the entry contract for a shared binding interpretation.
@@ -470,6 +486,21 @@ impl SourceAnalysisEntry {
             invocation_dialect: self.invocation_dialect,
             compiled_variable_provider: self.compiled_variable_provider,
             native_compilation: self.native_compilation,
+        }
+    }
+}
+
+#[cfg(test)]
+impl SourceAnalysisEntry {
+    /// An explicitly supplied entry whose prior interpreter history is unknown.
+    pub(crate) fn unknown_history_for_test(input: &crate::analyser::ResolvedAnalysisInput) -> Self {
+        Self {
+            metadata_context:
+                crate::registry_invocation::OwnedInvocationMetadataContext::for_source_input(Some(
+                    input,
+                )),
+            unknown_entry: true,
+            ..Self::default()
         }
     }
 }
@@ -501,7 +532,15 @@ mod source_entry_tests {
         assert!(entry.native_entry.is_none());
         assert!(entry.execution_name_policy.is_none());
         assert!(entry.logical_source_input.is_none());
-        assert!(entry.unknown_entry);
+        // No supplied entry: the document runs in a fresh tclsh, not after
+        // unknown history (user decision 2026-10-19T14:20Z).
+        assert!(!entry.unknown_entry);
+        assert_eq!(
+            entry.options().execution_name_policy(),
+            Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(
+                tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6)
+            ))
+        );
         assert_eq!(
             entry.options().retained_metadata_context(),
             entry.metadata_context

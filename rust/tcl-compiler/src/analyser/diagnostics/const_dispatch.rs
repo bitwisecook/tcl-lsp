@@ -227,6 +227,9 @@ impl Analyser {
                 ambiguous.insert(span);
             }
         }
+        // Literals the dispatch-table harvest saw reach different
+        // implementations from different consuming sites.
+        ambiguous.extend(self.divergent_table_literals.iter().copied());
         let unsafe_targets: HashSet<_> = settled
             .iter()
             .filter(|invocation| {

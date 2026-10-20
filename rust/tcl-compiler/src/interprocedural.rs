@@ -5633,8 +5633,11 @@ mod tests {
             config,
         );
         let source = "proc p {} {return ORIGINAL}";
+        // Unentered declaration cards need explicit unknown history; with no
+        // entry a fresh interpreter defines `::p` (user decision 2026-10-19T14:20Z).
         let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
-            .with_resolved_analysis_input(input);
+            .with_resolved_analysis_input(input)
+            .with_explicit_unknown_entry();
         lowerer.lower(source);
         let module = lowerer.finish_module(source);
         let mut bodies = module.original_source_procedure_bodies();

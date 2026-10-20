@@ -750,6 +750,10 @@ pub struct Analyser {
     /// [`Self::pending_const_dispatches`] once the CFG/SSA
     /// `CompilationUnit` exists.
     pub(super) pending_instance_class_sites: Vec<PendingInstanceClassSite>,
+    /// Dispatch-table value literals whose consuming sites reach different
+    /// implementations. Each such literal keeps navigation but no rename
+    /// authority, whichever producer anchors a reference there.
+    pub(super) divergent_table_literals: HashSet<(u32, u32)>,
     /// The namespace key a seeded analysis wraps the whole file in (set
     /// by [`Analyser::analyse_with_source_namespace`]); the scope chain it
     /// creates becomes the top-level walk's base path.
@@ -1601,6 +1605,7 @@ impl Analyser {
             var_command_sites: Vec::new(),
             pending_const_dispatches: Vec::new(),
             pending_instance_class_sites: Vec::new(),
+            divergent_table_literals: HashSet::new(),
             seed_namespace_key: None,
             path_constant_source_namespace: None,
             seed_scope_path: Vec::new(),

@@ -422,23 +422,18 @@ pub fn def_places(
             defs,
             tokens: Some(tokens),
             ..
-        } if matches!(
-            tokens.synthetic,
-            Some(crate::ir::SyntheticMarker::IterationBindings(_))
-        ) =>
-        {
-            defs.iter()
-                .map(|name| {
-                    crate::var_resolve::resolve_literal_access(
-                        name,
-                        ctx,
-                        false,
-                        registry,
-                        tcl_registry::TraceOperation::Write,
-                    )
-                })
-                .collect()
-        }
+        } if tokens.carries_proved_names() => defs
+            .iter()
+            .map(|name| {
+                crate::var_resolve::resolve_literal_access(
+                    name,
+                    ctx,
+                    false,
+                    registry,
+                    tcl_registry::TraceOperation::Write,
+                )
+            })
+            .collect(),
         Statement::Call { .. } => invocation_def_places(stmt, ctx, registry),
         _ => Vec::new(),
     }
@@ -618,6 +613,18 @@ pub fn def_places_at(
     }
     if statement.has_opaque_native_accesses() {
         return Vec::new();
+    }
+    // A definitions carrier (`[…]` substitution effects, a condition's
+    // kill-set, …) has no evaluated words of its own: its names are the
+    // writes its producer proved, placed by the shared continuation
+    // projection under the same naming policy.
+    if statement
+        .tokens()
+        .is_some_and(crate::ir::CommandTokens::carries_proved_names)
+    {
+        return def_places_with_continuation_with_metadata_context(
+            statement, before, after, registry, metadata,
+        );
     }
     let Some(tokens) = points.source_tokens_at(block, index) else {
         return Vec::new();

@@ -1971,13 +1971,16 @@ impl Analyser {
         let Some(input) = self.result.resolved_input.as_ref() else {
             return;
         };
-        let harvested = harvest_table_command_value_spans(
+        let (harvested, divergent) = harvest_table_command_value_spans(
             cu,
             &self.source,
             &input.context_registry(),
             input.lexer_config(),
             &consumed,
         );
+        // A literal whose consuming sites reach different implementations
+        // keeps no rename authority, including a row another producer adds.
+        self.divergent_table_literals.extend(divergent);
         for (value, span, reference) in harvested {
             if !reference.is_user_command()
                 || self.result.command_invocations.iter().any(|existing| {
@@ -2234,6 +2237,14 @@ fn is_callback_array_slot(var_name: &str) -> bool {
         .any(|suffix| k.ends_with(suffix))
 }
 
+/// One dispatch-table value literal and the implementation every consuming
+/// site reaches through it.
+type TableCommandValue = (
+    String,
+    tcl_lexer::Span,
+    crate::command_binding::SourceCommandReference,
+);
+
 /// Values are harvested only through original reached consumption carriers and
 /// exact physical contents ancestry. A literal's command lookup occurs in the
 /// consuming invocation's post-argv world, rather than its producer's namespace.
@@ -2243,14 +2254,10 @@ fn harvest_table_command_value_spans(
     context: &tcl_registry::model::ContextRegistry,
     config: tcl_lexer::LexerConfig,
     consumed: &HashSet<u32>,
-) -> Vec<(
-    String,
-    tcl_lexer::Span,
-    crate::command_binding::SourceCommandReference,
-)> {
+) -> (Vec<TableCommandValue>, HashSet<(u32, u32)>) {
     use crate::ir::WordExpr;
     if consumed.is_empty() {
-        return Vec::new();
+        return (Vec::new(), HashSet::new());
     }
     let mut selected = HashMap::new();
     for unit in cu.all_body_function_units() {
@@ -2301,10 +2308,17 @@ fn harvest_table_command_value_spans(
             }
         }
     }
-    selected
-        .into_values()
-        .filter_map(|(value, span, reference)| Some((value, span, reference?)))
-        .collect()
+    let mut rows = Vec::new();
+    let mut divergent = HashSet::new();
+    for (value, span, reference) in selected.into_values() {
+        match reference {
+            Some(reference) => rows.push((value, span, reference)),
+            None => {
+                divergent.insert((span.start(), span.end()));
+            }
+        }
+    }
+    (rows, divergent)
 }
 
 fn dispatch_table_values(

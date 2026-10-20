@@ -307,6 +307,81 @@ pub(super) fn collect_existence_guards(
     guards
 }
 
+/// Names a branch condition's own `[…]` substitutions write: the `<cond>`
+/// kill-set the CFG records ahead of the branch. C Tcl evaluates the
+/// condition, and so every write it makes, before either arm runs.
+#[derive(Default)]
+pub(super) struct ConditionWrites {
+    /// `(name, true arm)` for a condition that is one bare substitution
+    /// (`if {[regexp … m]}`): its arm runs only on a true result, which the
+    /// writing commands (`regexp`, `scan`, `gets`, `catch`) give only after
+    /// assigning their output variables.
+    truthy: Vec<(String, BlockId)>,
+    /// `(name, condition block)` for every condition substitution's write.
+    written: Vec<(String, BlockId)>,
+}
+
+impl ConditionWrites {
+    /// Whether a possibly-missing read of `name` in `block` follows a
+    /// condition that writes it: inside the true arm of a bare substitution
+    /// condition, or after any condition write when the read is not a
+    /// proved absence on every path (`may_be_defined`). A proved absence —
+    /// a `regexp` that provably never matches — still reports.
+    pub(super) fn covers(
+        &self,
+        name: &str,
+        ssa: &crate::ssa::SsaFunction,
+        block: BlockId,
+        may_be_defined: bool,
+    ) -> bool {
+        self.truthy
+            .iter()
+            .any(|(written, arm)| written == name && block_dominated_by(ssa, block, *arm))
+            || may_be_defined
+                && self.written.iter().any(|(written, condition)| {
+                    written == name
+                        && block != *condition
+                        && block_dominated_by(ssa, block, *condition)
+                })
+    }
+}
+
+pub(super) fn collect_condition_writes(
+    fu: &crate::compilation_unit::FunctionUnit,
+) -> ConditionWrites {
+    let mut out = ConditionWrites::default();
+    for (&block_id, block) in &fu.cfg.blocks {
+        let Some(crate::cfg::Terminator::Branch {
+            condition,
+            true_target,
+            ..
+        }) = &block.terminator
+        else {
+            continue;
+        };
+        for statement in &block.statements {
+            let crate::ir::Statement::Call {
+                defs,
+                tokens: Some(tokens),
+                ..
+            } = statement
+            else {
+                continue;
+            };
+            if tokens.synthetic != Some(crate::ir::SyntheticMarker::Condition) {
+                continue;
+            }
+            for name in defs {
+                if matches!(condition, crate::expr_ast::ExprNode::Command { .. }) {
+                    out.truthy.push((name.clone(), *true_target));
+                }
+                out.written.push((name.clone(), block_id));
+            }
+        }
+    }
+    out
+}
+
 /// True when `block` is dominated by `dom` (walking the SSA immediate
 /// dominator chain; a block dominates itself).
 pub(super) fn block_dominated_by(

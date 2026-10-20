@@ -2275,10 +2275,27 @@ must arbitrate all retained alternatives before operation selection.
 retains the complete caller input through lowering, the module and its function
 units. Keep its ContextRegistry, lexer configuration and independently selected
 source entry together. A supplied entry remains authoritative. Without an
-explicit entry, `SourceAnalysisEntry::for_supplied_source` selects source advice
-only when the input positively supplies the matching Logical or hosted policy.
-Native, missing and contradictory inputs remain unknown; metadata availability
-provides no Native execution entry.
+explicit entry, `SourceAnalysisEntry::for_supplied_source` keeps the matching
+Logical or hosted source policy, and gives a Native-axis document the fresh
+authoring entry: the document runs in a fresh interpreter of its dialect, so
+builtins are original until the source redefines them. Missing and
+contradictory metadata remain unknown, as does an explicitly supplied unknown
+entry; metadata availability provides no Native execution entry. A hosted
+(iRules/iApps) document still keeps unknown runtime history: its fresh rule
+loader entry needs a realm-aware authored command world (the Tcl 8.4 recipe
+baseline does not yet hold the rule-loader `when`/`priority` declarations), so
+it is not yet selected here.
+
+The fresh entry carries the native authored name policy, so consumers that
+branch on `execution_name_policy` take the policy route. Synthetic statements
+whose `defs`/`reads` are names their producer already proved
+(`CommandTokens::carries_proved_names`: `[…]` substitution effects, a
+condition's kill-set, iteration bindings, upvar invalidations, opaque arm
+writes) resolve those names directly on that route as on the Logical one; they
+evaluate no words, so a missing evaluated-token carrier is not a refusal. A
+top-level `SourceContext(Authored(ns))` namespace is the same symbolic
+namespace as `Exact(ns)` when a procedure publication key is qualified; native
+and allocated identities still refuse a display join.
 
 A caller using `Lowerer` directly retains that input with
 `with_resolved_analysis_input(input.clone())`. That builder shares the supplied

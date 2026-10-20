@@ -1332,6 +1332,9 @@ mod tests {
 
 #[cfg(test)]
 mod native_source_lattice_tests {
+    // Unentered native declaration cards exist only under explicitly supplied
+    // unknown runtime history; with no entry a fresh interpreter defines each
+    // procedure (user decision 2026-10-19T14:20Z).
     use super::*;
     use crate::compilation_unit::{FunctionLatticeInputs, LatticeRequest, UnitDialect};
 
@@ -1495,7 +1498,12 @@ mod native_source_lattice_tests {
             external_call_sites: None,
             declared_commands: None,
         };
-        let unit = CompilationUnit::build_with_analysis_input(source, options, None, &input);
+        let unit = CompilationUnit::build_with_analysis_input(
+            source,
+            options,
+            Some(&crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input)),
+            &input,
+        );
         let (&id, card) = unit
             .ir_module
             .original_native_declaration_body_units
@@ -1584,7 +1592,9 @@ mod native_source_lattice_tests {
                     external_call_sites: None,
                     declared_commands: None,
                 },
-                None,
+                Some(
+                    &crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input),
+                ),
                 &input,
             ))
         };
@@ -1658,7 +1668,7 @@ mod native_source_lattice_tests {
                 external_call_sites: None,
                 declared_commands: None,
             },
-            None,
+            Some(&crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input)),
             &input,
         );
         let foreign_script = foreign_store
@@ -1924,7 +1934,7 @@ mod native_source_lattice_tests {
         let supplied = Arc::new(CompilationUnit::build_with_analysis_input(
             "proc kept {x} {set value $x; return $value}",
             options,
-            None,
+            Some(&crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input)),
             &input,
         ));
         assert!(

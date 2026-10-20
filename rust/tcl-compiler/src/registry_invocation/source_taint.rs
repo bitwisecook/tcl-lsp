@@ -540,9 +540,11 @@ mod tests {
             Arc::clone(&context),
             config,
         );
+        // Unentered native declaration bodies need explicit unknown history.
         let module = crate::lowering::lower_to_ir_with(
             crate::lowering::Lowerer::with_config(context.commands(), config)
-                .with_resolved_analysis_input(input.clone()),
+                .with_resolved_analysis_input(input.clone())
+                .with_explicit_unknown_entry(),
             source,
         );
         (module, input)

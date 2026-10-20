@@ -2036,6 +2036,7 @@ is renamed or deleted in this file."
         let mut missing = std::collections::HashMap::new();
         let registry = self.profile_registry();
         let grammar = self.lexer_config().braced_var;
+        let condition_writes = super::helpers::collect_condition_writes(fu);
         for (&block, data) in &fu.ssa.blocks {
             if !fu
                 .diagnostic_value_facts()
@@ -2050,16 +2051,16 @@ is renamed or deleted in this file."
                     continue;
                 };
                 for access in &tokens.variable_accesses {
-                    if !view
+                    let Some(presence) = view
                         .read_contents_presence_alternatives_at(
                             &access.source,
                             &access.original_spelling,
                             &registry,
                         )
-                        .is_some_and(crate::ssa::SsaReadPresenceAlternatives::may_be_undefined)
-                    {
+                        .filter(|presence| presence.may_be_undefined())
+                    else {
                         continue;
-                    }
+                    };
                     // Reading a live array as a scalar is a wrong-kind error,
                     // rather than evidence that the root cell is undefined.
                     if super::helpers::original_read_is_live_array_scalar(access, &registry) {
@@ -2086,6 +2087,7 @@ is renamed or deleted in this file."
                                 read_cell.as_ref().is_some_and(|cell| guarded == cell)
                                     && block_dominated_by(&fu.ssa, block, *dominator)
                             })
+                        || condition_writes.covers(&name, &fu.ssa, block, presence.may_be_defined())
                     {
                         continue;
                     }

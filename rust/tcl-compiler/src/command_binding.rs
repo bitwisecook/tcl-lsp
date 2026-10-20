@@ -18555,7 +18555,13 @@ fn qualify_execution_name(
     if name.starts_with("::") {
         return Some(tcl_syntax::naming::canonical_written_command(name));
     }
-    let crate::ir_helpers::ExecutionNamespace::Exact(namespace) = namespace else {
+    // An authored source context is the same symbolic namespace as an exact
+    // one; native and allocated identities keep refusing a display join.
+    let (crate::ir_helpers::ExecutionNamespace::Exact(namespace)
+    | crate::ir_helpers::ExecutionNamespace::SourceContext(SourceNamespaceKey::Authored(
+        namespace,
+    ))) = namespace
+    else {
         return None;
     };
     Some(tcl_syntax::naming::qualify(namespace, name))

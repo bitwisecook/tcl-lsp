@@ -331,6 +331,7 @@ pub struct Symbol(pub u32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SsaReadPresenceAlternatives {
     contains_undefined: bool,
+    contains_defined: bool,
 }
 
 impl SsaReadPresenceAlternatives {
@@ -339,6 +340,13 @@ impl SsaReadPresenceAlternatives {
     #[must_use]
     pub const fn may_be_undefined(self) -> bool {
         self.contains_undefined
+    }
+
+    /// At least one retained continuation may hold defined contents, so the
+    /// read is not a proved absence on every path.
+    #[must_use]
+    pub const fn may_be_defined(self) -> bool {
+        self.contains_defined
     }
 }
 
@@ -2316,20 +2324,26 @@ impl<'a> SsaSourceView<'a> {
             return None;
         }
         let mut contains_undefined = false;
+        let mut contains_defined = false;
         for context in access.context_alternatives() {
             let place = access.place_in_context(context, registry);
             if place.observed {
                 return None;
             }
             match context.closed_contents_presence(&place)? {
-                ContentsPresence::Defined => {}
-                ContentsPresence::Undefined | ContentsPresence::DefinedOrUndefined => {
+                ContentsPresence::Defined => contains_defined = true,
+                ContentsPresence::Undefined => contains_undefined = true,
+                ContentsPresence::DefinedOrUndefined => {
                     contains_undefined = true;
+                    contains_defined = true;
                 }
                 ContentsPresence::Unknown => return None,
             }
         }
-        Some(SsaReadPresenceAlternatives { contains_undefined })
+        Some(SsaReadPresenceAlternatives {
+            contains_undefined,
+            contains_defined,
+        })
     }
 
     fn read_properties_at(
@@ -5842,9 +5856,9 @@ fn uses_in_call(
         }
     }
     let retained_roles = selection.standalone
-        || tokens
-            .as_ref()
-            .is_some_and(|tokens| selection.normal(tokens).is_some());
+        || tokens.as_ref().is_some_and(|tokens| {
+            tokens.carries_proved_names() || selection.normal(tokens).is_some()
+        });
     // `reads` are the registry's `ArgRole::VarRead` positions and
     // `reads_own_defs` its `READS_BEFORE_WRITE` targets: both name the cell
     // rather than substituting it, so they are `UseClass::Name` — a real read

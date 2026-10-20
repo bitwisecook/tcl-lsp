@@ -5352,6 +5352,16 @@ const MEMOIZED_DIAGNOSTIC_SNIPPETS: [&str; 6] = [
     "oo::class create K {\n  method m {} { return 1 }\n}\nproc top {} { set o [K new]; $o gone }\n",
 ];
 
+/// Memo key for an offset-0 procedure body in the memoized-unit tests: the
+/// structural hash of the whole `Script` (the same identity the db interns),
+/// without rendering its `Debug` text.
+fn memo_body_key(body: &crate::ir::Script) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    body.hash(&mut hasher);
+    hasher.finish()
+}
+
 #[test]
 fn memoized_compilation_unit_diagnostics_match_whole_file() {
     use crate::compilation_unit::{CompilationUnit, FunctionUnit};
@@ -5385,10 +5395,13 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                     // Key + build mirror the db's `function_lattice` query,
                     // including the whole-unit `known_classes` /
                     // `traced_variables` fingerprints.
+                    // The body enters the key through its structural hash:
+                    // its `Debug` text renders every retained source binding
+                    // and grew too large to format per request.
                     let key = format!(
-                        "{}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
+                        "{}\u{0}{:x}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
                         req.qname,
-                        req.body,
+                        memo_body_key(req.body),
                         req.params,
                         req.param_constants,
                         req.known_classes,
@@ -5512,9 +5525,13 @@ fn memoized_compilation_unit_shift_correctness() {
             // before the callback sees it, so a shifted-but-unedited proc
             // hits and the builder rebases the cached offset-0 unit.
             &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
+                // Structural body hash; see `memo_body_key`.
                 let key = format!(
-                    "{}\u{0}{:?}\u{0}{:?}\u{0}{:?}",
-                    req.qname, req.body, req.params, req.param_constants
+                    "{}\u{0}{:x}\u{0}{:?}\u{0}{:?}",
+                    req.qname,
+                    memo_body_key(req.body),
+                    req.params,
+                    req.param_constants
                 );
                 if let Some(fu) = cache.get(&key) {
                     return fu.clone();
@@ -13216,16 +13233,21 @@ fn issue_703_genuine_dash_command_outside_try_still_flagged() {
 #[test]
 fn issue_703_no_false_w210_on_fallthrough_group_var() {
     // When a fallthrough handler's var differs from the target's, the shared
-    // body must not be flagged W210 for reading either var. Real Tcl is itself
+    // body reads whichever var the reached handler bound. Real Tcl is itself
     // inconsistent here — a byte-compiled `try` binds the *matching* handler's
-    // var, the interpreted form the *target*'s — so the shared body is analysed
-    // with the whole group's vars treated as defined.
+    // var, the interpreted form the *target*'s — and a literal `try` in a
+    // procedure is the byte-compiled form.
     let reads_fallthrough_var =
         "proc p {} {\n    try {set v ok} on ok x - on error y {\n        return $x\n    }\n}\n";
     let reads_target_var =
         "proc p {} {\n    try {set v ok} on ok x - on error y {\n        return $y\n    }\n}\n";
     assert_eq!(count_code(reads_fallthrough_var, "W210"), 0);
-    assert_eq!(count_code(reads_target_var, "W210"), 0);
+    // Narrow correction (Sol-42, 2026-10-19): a literal `try` in a procedure
+    // is byte-compiled, which binds the matching `on ok x` handler's var, and
+    // `set v ok` cannot raise, so only the `ok` arm reaches the shared body.
+    // tclsh 8.6.18, 9.0.4 and 9.1.0 all fail `p` with `can't read "y": no
+    // such variable`; the fresh-interpreter analysis reports that read.
+    assert_eq!(count_code(reads_target_var, "W210"), 1);
 }
 
 #[test]
