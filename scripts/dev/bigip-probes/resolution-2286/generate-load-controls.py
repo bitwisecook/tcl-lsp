@@ -38,7 +38,7 @@ def main():
 
     def emit(case, body, purpose, line_endings="lf"):
         object_name = f"/Common/{prefix}_{case}"
-        data = f"ltm rule {object_name} {{\n{body}\n}}\n".encode("utf-8")
+        data = f"ltm rule {object_name} {{\n{body}\n}}\n".encode()
         if line_endings == "crlf":
             data = data.replace(b"\n", b"\r\n")
         filename = f"{case}.conf"

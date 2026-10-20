@@ -20,7 +20,6 @@ import re
 import tkinter
 from pathlib import Path
 
-
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--primary-appliance", required=True, type=Path)
 parser.add_argument("--primary-dev", required=True, type=Path)

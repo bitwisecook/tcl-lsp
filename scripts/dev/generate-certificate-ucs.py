@@ -129,7 +129,7 @@ def generate(template, output, chain):
                 work / "intermediate.crt",
                 work / "leaf.crt",
             )
-            expired = subprocess.run(
+            expired = subprocess.run(  # noqa: PLW1510 - the expired chain is expected to fail verification
                 [
                     "openssl",
                     "verify",

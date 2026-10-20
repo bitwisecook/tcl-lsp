@@ -24,14 +24,13 @@ Repeated chunks stay unjoined and no runtime error implies unsupported status.
 """
 
 import argparse
-from collections import defaultdict
 import hashlib
 import json
-from pathlib import Path
 import re
+from collections import defaultdict
+from pathlib import Path
 
 from parse_capture import parse_capture
-
 
 ROOT = Path(__file__).resolve().parents[4]
 SCRIPT_LOG_CONTEXTS = {"iapp-implementation", "icall", "iapp-apl"}
@@ -120,11 +119,13 @@ def _load(job, context, root):
             "not-tested"
             if code is None
             else "warn"
-            if code == 0 and re.search(r"warning", output, re.I)
+            if code == 0 and re.search(r"warning", output, re.IGNORECASE)
             else "accept"
             if code == 0
             else "reject"
-            if re.search(r"error|invalid|disabled|undefined|syntax", output, re.I)
+            if re.search(
+                r"error|invalid|disabled|undefined|syntax", output, re.IGNORECASE
+            )
             else "infrastructure-failure"
         )
     return {
@@ -576,7 +577,7 @@ def build_records(run_path, root=ROOT):
                         and re.search(
                             r'bad (?:option|subcommand) "ensemble"|unknown.*ensemble',
                             result_text or "",
-                            re.I,
+                            re.IGNORECASE,
                         )
                     ) or (
                         case_id.startswith("oo-")

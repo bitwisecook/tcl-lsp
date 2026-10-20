@@ -22,6 +22,7 @@ import argparse
 import datetime
 import json
 from pathlib import Path
+
 import capture
 
 
@@ -88,15 +89,15 @@ def main():
         ]
         records = []
         for index, (cid, op) in enumerate(specs):
-            case = dict(
-                id="literal-" + cid,
-                question_id="F5-N01",
-                setup="",
-                operation=op,
-                variant_id="literal-caught-loader-control-v1",
-                scope="Literal source inside catch; load rejection leaves operation unreached. Compare separate dynamic capability probe.",
-                context=context,
-            )
+            case = {
+                "id": "literal-" + cid,
+                "question_id": "F5-N01",
+                "setup": "",
+                "operation": op,
+                "variant_id": "literal-caught-loader-control-v1",
+                "scope": "Literal source inside catch; load rejection leaves operation unreached. Compare separate dynamic capability probe.",
+                "context": context,
+            }
             records.append(case)
             unit = (
                 "[TMM::cmp_group]:[TMM::cmp_unit]"

@@ -655,18 +655,17 @@ PY_ENGINE_CACHE_PROVENANCE   := cache-neutral-v1
 # they are declared by hand-written stubs under typings/.
 PY_VENV := $(ROOT).venv-typecheck
 
-# Native/authored fixture scripts and captured proof sources retain exact input
-# bytes. Format and lint executable tooling, preserving those evidence files.
+# Native/authored fixture scripts, captured proof sources and the archived
+# evidence under experiments/ and docs/ retain exact input bytes. Format and lint
+# executable tooling, preserving those evidence files.
 # The tracked file set also excludes build outputs, the venv and scratch files.
 PY_FILES = $(shell git -C $(ROOT) ls-files '*.py' \
-	':(exclude,glob)rust/*/tests/data/native*/**/*.py' \
-	':(exclude,glob)rust/*/tests/data/authored*/**/*.py' \
-	':(exclude,glob)runtime/rust/tests/data/native*/**/*.py' \
-	':(exclude,glob)runtime/rust/tests/data/authored*/**/*.py' \
+	':(exclude,glob)rust/*/tests/data/**/*.py' \
+	':(exclude,glob)runtime/rust/tests/data/**/*.py' \
 	':(exclude,glob)scripts/dev/bigip-probes/resolution-2286/evidence/**/*.py' \
 	':(exclude)scripts/dev/replay-namespace-delete-callback-events.py' \
-	':(exclude,glob)experiments/name-handling/patterns/wiki-subject-results/**/capture.py' \
-	':(exclude,glob)docs/design/analysis/name-resolution-proofs/evidence/**/*.py')
+	':(exclude,glob)experiments/**/*.py' \
+	':(exclude,glob)docs/**/*.py')
 
 .PHONY: lint-py format-py typecheck-py test-py-engine py-venv python-engine-source-hash
 

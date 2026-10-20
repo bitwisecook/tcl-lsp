@@ -19,7 +19,6 @@ import json
 import tkinter
 from pathlib import Path
 
-
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--traffic-dir", required=True, type=Path)
 parser.add_argument("--out", required=True, type=Path)

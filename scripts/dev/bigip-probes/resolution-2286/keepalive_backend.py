@@ -6,7 +6,6 @@ import json
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--bind", required=True)
 parser.add_argument("--port", type=int, required=True)

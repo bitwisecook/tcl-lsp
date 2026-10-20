@@ -23,6 +23,7 @@ import hashlib
 import json
 import tkinter
 from pathlib import Path
+
 import parse_capture
 import report
 
@@ -40,13 +41,16 @@ def main():
     if not any(line.strip() == selected_template for line in snapshot.splitlines()):
         raise RuntimeError("Selected template not proven by DOM")
     data = [select for select in data if select["name"].startswith("var__probe__")]
-    snapshot = "\n".join(
-        line
-        for line in snapshot.splitlines()
-        if line.strip() == selected_template
-        or "var__probe__" in line
-        or "NHO|" in line
-    ) + "\n"
+    snapshot = (
+        "\n".join(
+            line
+            for line in snapshot.splitlines()
+            if line.strip() == selected_template
+            or "var__probe__" in line
+            or "NHO|" in line
+        )
+        + "\n"
+    )
     tcl = tkinter.Tcl()
     rows = []
     projections = set()

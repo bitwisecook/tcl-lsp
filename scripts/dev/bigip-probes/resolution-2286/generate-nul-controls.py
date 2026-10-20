@@ -73,10 +73,10 @@ when HTTP_REQUEST {{
 when HTTP_REQUEST {{
     set x "A""".encode("ascii")
         + b"\x00"
-        + f"""B"
+        + """B"
     HTTP::respond 200 content "$x\\n" Connection close
-}}
-}}
+}
+}
 """.encode("ascii")
     )
     emit(

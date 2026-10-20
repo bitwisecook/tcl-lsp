@@ -17,7 +17,6 @@ import json
 import re
 from pathlib import Path
 
-
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--run", required=True)
 parser.add_argument("--payload", required=True, type=Path)

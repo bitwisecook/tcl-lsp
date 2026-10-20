@@ -5,7 +5,6 @@ import argparse
 import socket
 from pathlib import Path
 
-
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--host", required=True)
 parser.add_argument("--port", required=True, type=int)

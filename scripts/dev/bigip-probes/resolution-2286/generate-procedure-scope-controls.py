@@ -63,7 +63,7 @@ def main():
     }
 
     def emit(case, object_name, body, purpose):
-        data = f"ltm rule {object_name} {{\n{body}\n}}\n".encode("utf-8")
+        data = f"ltm rule {object_name} {{\n{body}\n}}\n".encode()
         filename = f"{case}.conf"
         (args.out / filename).write_bytes(data)
         (args.out / f"{filename}.hex").write_text(data.hex() + "\n", encoding="ascii")
@@ -102,7 +102,7 @@ def main():
         )
 
     def caller_body(case, calls):
-        rows_tcl = " ".join("{%s %s}" % pair for pair in calls)
+        rows_tcl = " ".join(f"{{{first} {second}}}" for first, second in calls)
         return f'''proc local_identify {{expected}} {{
     set command [binary format H* 6e616d6573706163652063757272656e74]
     set current [eval $command]

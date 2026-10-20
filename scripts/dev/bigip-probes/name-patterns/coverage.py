@@ -24,13 +24,12 @@ The original questions.json and all existing run artefacts are read-only.
 """
 
 import argparse
-from collections import Counter
-from datetime import datetime, timezone
 import hashlib
 import json
-from pathlib import Path
 import re
-
+from collections import Counter
+from datetime import datetime, timezone
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 PATTERN_BASE = "experiments/name-handling/patterns/f5"

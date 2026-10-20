@@ -18,7 +18,6 @@ import re
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
-
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--bind", required=True)
 parser.add_argument("--port", type=int, required=True)

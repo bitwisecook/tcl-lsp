@@ -26,9 +26,9 @@ import shlex
 import subprocess
 from pathlib import Path
 
+import broader_cases
 import capture
 import cases
-import broader_cases
 
 CONTEXTS = [
     "stock-8.4",

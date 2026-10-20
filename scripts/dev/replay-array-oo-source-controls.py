@@ -130,19 +130,19 @@ def replay(args, originals):
             )
         (directory / "stdout.tsv").write_bytes(result.stdout)
         (directory / "stderr").write_bytes(result.stderr)
-        row = dict(
-            provider=original["provider"],
-            probe_sha256=digest(FIXTURE / "probe.c"),
-            header_sha256=digest(header),
-            library_sha256=digest(library),
-            compile_command=command,
-            compile_exit=compiled.returncode,
-            executable_sha256=digest(executable),
-            process_exit=result.returncode,
-            stdout_sha256=digest(directory / "stdout.tsv"),
-            stderr_sha256=digest(directory / "stderr"),
-            rows=result.stdout.decode().splitlines(),
-        )
+        row = {
+            "provider": original["provider"],
+            "probe_sha256": digest(FIXTURE / "probe.c"),
+            "header_sha256": digest(header),
+            "library_sha256": digest(library),
+            "compile_command": command,
+            "compile_exit": compiled.returncode,
+            "executable_sha256": digest(executable),
+            "process_exit": result.returncode,
+            "stdout_sha256": digest(directory / "stdout.tsv"),
+            "stderr_sha256": digest(directory / "stderr"),
+            "rows": result.stdout.decode().splitlines(),
+        }
         row["matches_original"] = (
             result.returncode == original["process_exit"]
             and row["stdout_sha256"] == original["stdout_sha256"]

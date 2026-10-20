@@ -8,7 +8,6 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("input", type=Path)
 parser.add_argument("output", type=Path)

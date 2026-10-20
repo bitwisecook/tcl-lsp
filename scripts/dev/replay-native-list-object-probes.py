@@ -11,8 +11,8 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 VERSIONS = ("8.4.20", "8.5.19", "8.6.18", "9.0.4", "9.1.0")
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,36 +49,38 @@ def tasks(corpus):
         manifest = read_json(base / "manifest.json")
         for row in manifest["rows"]:
             result.append(
-                dict(
-                    version=row["version"],
-                    name=row["version"],
-                    source=base / "probe.c",
-                    source_sha=manifest["source_sha256"],
-                    library_sha=row["library_sha256"],
-                    expected=base / (row["version"] + ".txt"),
-                    output_sha=row["stdout_sha256"],
-                    arguments=[],
-                    private=True,
-                )
+                {
+                    "version": row["version"],
+                    "name": row["version"],
+                    "source": base / "probe.c",
+                    "source_sha": manifest["source_sha256"],
+                    "library_sha": row["library_sha256"],
+                    "expected": base / (row["version"] + ".txt"),
+                    "output_sha": row["stdout_sha256"],
+                    "arguments": [],
+                    "private": True,
+                }
             )
         jim = read_json(base / "jim-manifest.json")
         hashes = jim["sha256"]
         result.append(
-            dict(
-                version="jim",
-                name="jim",
-                source=base / "jim-probe.c",
-                source_sha=next(
+            {
+                "version": "jim",
+                "name": "jim",
+                "source": base / "jim-probe.c",
+                "source_sha": next(
                     v for k, v in hashes.items() if k.endswith("/jim-probe.c")
                 ),
-                library_sha=next(
+                "library_sha": next(
                     v for k, v in hashes.items() if k.endswith("/libjim.a")
                 ),
-                expected=base / "jim.txt",
-                output_sha=next(v for k, v in hashes.items() if k.endswith("/jim.txt")),
-                arguments=[],
-                private=False,
-            )
+                "expected": base / "jim.txt",
+                "output_sha": next(
+                    v for k, v in hashes.items() if k.endswith("/jim.txt")
+                ),
+                "arguments": [],
+                "private": False,
+            }
         )
         if corpus == "assignment":
             trace = read_json(base / "trace-manifest.json")
@@ -87,17 +89,17 @@ def tasks(corpus):
                     ["trace"] if row["mode"] == "generic" else ["trace", "allow-inline"]
                 )
                 result.append(
-                    dict(
-                        version=row["version"],
-                        name=row["version"] + "-" + row["mode"],
-                        source=base / "trace-probe.c",
-                        source_sha=trace["source_sha256"],
-                        library_sha=row["library_sha256"],
-                        expected=base / Path(row["stdout_path"]).name,
-                        output_sha=row["stdout_sha256"],
-                        arguments=args,
-                        private=True,
-                    )
+                    {
+                        "version": row["version"],
+                        "name": row["version"] + "-" + row["mode"],
+                        "source": base / "trace-probe.c",
+                        "source_sha": trace["source_sha256"],
+                        "library_sha": row["library_sha256"],
+                        "expected": base / Path(row["stdout_path"]).name,
+                        "output_sha": row["stdout_sha256"],
+                        "arguments": args,
+                        "private": True,
+                    }
                 )
     else:
         base = (
@@ -123,17 +125,17 @@ def tasks(corpus):
                 source, output = row["source"], row["output"]
             arguments = [] if jim or corpus == "stock-length" else ["{library}"]
             result.append(
-                dict(
-                    version=version,
-                    name=str(n) + "-" + output.removesuffix(".txt"),
-                    source=base / source,
-                    source_sha=row["source_sha256"],
-                    library_sha=row["library_sha256"],
-                    expected=base / output,
-                    output_sha=row["output_sha256"],
-                    arguments=arguments,
-                    private=False,
-                )
+                {
+                    "version": version,
+                    "name": str(n) + "-" + output.removesuffix(".txt"),
+                    "source": base / source,
+                    "source_sha": row["source_sha256"],
+                    "library_sha": row["library_sha256"],
+                    "expected": base / output,
+                    "output_sha": row["output_sha256"],
+                    "arguments": arguments,
+                    "private": False,
+                }
             )
     return result
 
@@ -153,12 +155,12 @@ def run(argv, destination, environment):
     destination.with_suffix(".stdout").write_bytes(stdout)
     destination.with_suffix(".stderr").write_bytes(stderr)
     return (
-        dict(
-            argv=argv,
-            status=status,
-            stdout_sha256=hashlib.sha256(stdout).hexdigest(),
-            stderr_sha256=hashlib.sha256(stderr).hexdigest(),
-        ),
+        {
+            "argv": argv,
+            "status": status,
+            "stdout_sha256": hashlib.sha256(stdout).hexdigest(),
+            "stderr_sha256": hashlib.sha256(stderr).hexdigest(),
+        },
         stdout,
         stderr,
     )
@@ -186,12 +188,12 @@ def main():
             continue
         directory = args.output / task["name"]
         directory.mkdir()
-        record = dict(
-            version=version,
-            source=str(task["source"]),
-            input_channel="Actual native API factory and original ASCII source/object-vector protocol in the retained probe.",
-            expected_stream=str(task["expected"]),
-        )
+        record = {
+            "version": version,
+            "source": str(task["source"]),
+            "input_channel": "Actual native API factory and original ASCII source/object-vector protocol in the retained probe.",
+            "expected_stream": str(task["expected"]),
+        }
         try:
             require_digest(task["source"], task["source_sha"])
             require_digest(task["expected"], task["output_sha"])
@@ -263,22 +265,22 @@ def main():
             record.update(status="adapter-refusal", comparison=str(error))
         (directory / "receipt.json").write_text(json.dumps(record, indent=2) + "\n")
         results.append(record)
-    receipt = dict(
-        corpus=args.corpus,
-        native_process_budget_seconds=60,
-        serial=True,
-        results=results,
-        passed=bool(results) and all(r["status"] == "matched" for r in results),
-        limitations="This is an independent current rebuild. Original executed executable hashes and labels remain in the unchanged original receipts. No Rust pass, native token, body/frame entry or unrestricted class/effect grant is inferred.",
-    )
+    receipt = {
+        "corpus": args.corpus,
+        "native_process_budget_seconds": 60,
+        "serial": True,
+        "results": results,
+        "passed": bool(results) and all(r["status"] == "matched" for r in results),
+        "limitations": "This is an independent current rebuild. Original executed executable hashes and labels remain in the unchanged original receipts. No Rust pass, native token, body/frame entry or unrestricted class/effect grant is inferred.",
+    }
     (args.output / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print(
         json.dumps(
-            dict(
-                passed=receipt["passed"],
-                comparisons=len(results),
-                receipt=str(args.output / "receipt.json"),
-            )
+            {
+                "passed": receipt["passed"],
+                "comparisons": len(results),
+                "receipt": str(args.output / "receipt.json"),
+            }
         )
     )
     return 0 if receipt["passed"] else 1

@@ -23,6 +23,7 @@ import datetime
 import json
 import shlex
 from pathlib import Path
+
 import capture
 
 
@@ -133,14 +134,14 @@ def main():
                 )
             )
         selected = [
-            dict(
-                id=key,
-                question_id=q,
-                setup="",
-                operation=op,
-                variant_id="owned-common-cross-rule-v1",
-                scope="Owned Common rules; distinct provider sentinels; identical target tails; no claim about other partitions or active suspended frames.",
-            )
+            {
+                "id": key,
+                "question_id": q,
+                "setup": "",
+                "operation": op,
+                "variant_id": "owned-common-cross-rule-v1",
+                "scope": "Owned Common rules; distinct provider sentinels; identical target tails; no claim about other partitions or active suspended frames.",
+            }
             for key, q, op in case_specs
         ]
         for x in selected:
@@ -149,7 +150,9 @@ def main():
             json.dumps(selected, indent=2) + "\n"
         )
 
-        def config_override(ctx, n, source, port=19912):
+        def config_override(
+            ctx, n, source, port=19912, base=base, other=other, static=static
+        ):
             config, objects, invoke = original(ctx, n, source, port)
             local = "proc target {fixed value} {list LOCAL $fixed $value}\n"
             provider_config = (
@@ -189,7 +192,7 @@ def main():
 
         capture.make_config = config_override
 
-        def mutate(job, staging, ctx, n, index):
+        def mutate(job, staging, ctx, n, index, base=base, other=other):
             if index not in [8, 12]:
                 return
             phase = "replace" if index == 8 else "detach"

@@ -277,34 +277,34 @@ def main():
         (output / (stem + ".stdout")).write_bytes(result.stdout)
         (output / (stem + ".stderr")).write_bytes(result.stderr)
         rows.append(
-            dict(
-                case=case,
-                source_sha256=digest(source),
-                exit=result.returncode,
-                stdout_sha256=digest(result.stdout),
-                stderr_sha256=digest(result.stderr),
-                matches=(
+            {
+                "case": case,
+                "source_sha256": digest(source),
+                "exit": result.returncode,
+                "stdout_sha256": digest(result.stdout),
+                "stderr_sha256": digest(result.stderr),
+                "matches": (
                     result.returncode == expected_exit
                     and result.stdout == expected
                     and result.stderr == expected_error
                 ),
-            )
+            }
         )
     if not rows:
         parser.error("No retained observations exist for this exact provider/question.")
-    receipt = dict(
-        proof=args.proof,
-        provider=args.provider,
-        reported_patchlevel=version.stdout.decode().strip(),
-        executable=str(executable),
-        executable_sha256=digest(executable.read_bytes()),
-        timeout_seconds=60,
-        global_slots=2,
-        rows=rows,
-    )
+    receipt = {
+        "proof": args.proof,
+        "provider": args.provider,
+        "reported_patchlevel": version.stdout.decode().strip(),
+        "executable": str(executable),
+        "executable_sha256": digest(executable.read_bytes()),
+        "timeout_seconds": 60,
+        "global_slots": 2,
+        "rows": rows,
+    }
     (output / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
     print(
-        json.dumps(dict(cases=len(rows), matches=sum(row["matches"] for row in rows)))
+        json.dumps({"cases": len(rows), "matches": sum(row["matches"] for row in rows)})
     )
     return int(any(not row["matches"] for row in rows))
 

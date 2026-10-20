@@ -29,7 +29,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from f5report import QueryError, load_paths
 from f5report.report import build_report, collect_model
 

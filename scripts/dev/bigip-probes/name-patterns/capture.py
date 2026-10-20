@@ -119,7 +119,11 @@ def literal(text):
 
 def rpc(command, data=None, timeout=180):
     return subprocess.run(
-        ssh_argv() + [command], input=data, capture_output=True, timeout=timeout, check=False
+        ssh_argv() + [command],
+        input=data,
+        capture_output=True,
+        timeout=timeout,
+        check=False,
     )
 
 
@@ -262,12 +266,12 @@ def capabilities(tag):
         unique = n + "_" + key.replace(".", "_")
         cleanup = f"if {{[namespace exists {unique}]}} {{namespace delete {unique}}}; foreach nh_cmd [info commands {unique}_*] {{rename $nh_cmd {{}}}}; list [namespace exists {unique}] [info commands {unique}_*]"
         cases.append(
-            dict(
-                id=key,
-                setup=setup.replace(n, unique),
-                operation=op.replace(n, unique),
-                cleanup=cleanup,
-            )
+            {
+                "id": key,
+                "setup": setup.replace(n, unique),
+                "operation": op.replace(n, unique),
+                "cleanup": cleanup,
+            }
         )
     return cases
 
@@ -449,7 +453,9 @@ echo 0 > "$E/destination-check.exit"
                     ]
                     result = subprocess.run(command, capture_output=True, check=False)
                     (dest / f"traffic-{index}.stdout").write_bytes(result.stdout)
-                    (dest / f"traffic-{index}.stderr").write_bytes(receipt_bytes(result.stderr))
+                    (dest / f"traffic-{index}.stderr").write_bytes(
+                        receipt_bytes(result.stderr)
+                    )
                     (dest / f"traffic-{index}.json").write_text(
                         json.dumps(
                             {
@@ -507,7 +513,9 @@ echo 0 > "$E/destination-check.exit"
                     data = probe_log_bytes(data)
                 elif path.name.startswith("applied-") and path.name.endswith(".stdout"):
                     text = data.decode("utf-8", errors="surrogateescape")
-                    data = fixture_receipt_text(text).encode("utf-8", errors="surrogateescape")
+                    data = fixture_receipt_text(text).encode(
+                        "utf-8", errors="surrogateescape"
+                    )
                 (dest / path.name).write_bytes(data)
     for index in range(len(objects)):
         after = dest / f"after-{index}.stderr"

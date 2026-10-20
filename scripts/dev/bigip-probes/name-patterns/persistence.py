@@ -254,7 +254,9 @@ def paired_requests(dest, _remote, _context, name, index):
         by_unit = {}
         pair = None
         for i in range(5):
-            conn = http.client.HTTPConnection(capture.fixture_address(), 19912, timeout=3)
+            conn = http.client.HTTPConnection(
+                capture.fixture_address(), 19912, timeout=3
+            )
             connections.append(conn)
             unit = request(conn, "keep-candidate-" + str(i))
             if unit in by_unit:
@@ -282,7 +284,7 @@ def paired_requests(dest, _remote, _context, name, index):
                 (b, "keep-worker-recreated", "read"),
             ]:
                 request(conn, invocation, action)
-    except Exception as error:
+    except Exception as error:  # noqa: BLE001 - any appliance failure is recorded as an observation
         observations.append(
             {
                 "status": "infrastructure-failure",
@@ -403,7 +405,9 @@ def main():
     for path in [Path(__file__), Path(capture.__file__)]:
         (dest / path.name).write_bytes(path.read_bytes())
     (dest / "prepared.conf").write_text(capture.fixture_receipt_text(plan["config"]))
-    (dest / "plan.json").write_text(capture.fixture_receipt_text(json.dumps(plan, indent=2)) + "\n")
+    (dest / "plan.json").write_text(
+        capture.fixture_receipt_text(json.dumps(plan, indent=2)) + "\n"
+    )
     for context, items in plan["metadata"].items():
         (dest / (context + "-cases.json")).write_text(
             json.dumps(items, indent=2) + "\n"

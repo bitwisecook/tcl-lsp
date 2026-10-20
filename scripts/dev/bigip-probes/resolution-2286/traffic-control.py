@@ -19,7 +19,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
-
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--bind", required=True)
 parser.add_argument("--port", type=int, default=18082)

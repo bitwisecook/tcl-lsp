@@ -64,7 +64,7 @@ def pointer(value: object, selector: str) -> object:
         elif isinstance(value, dict):
             value = value[part]
         else:
-            raise ValueError(f"pointer enters a scalar at {part!r}")
+            raise ValueError(f"pointer enters a scalar at {part!r}")  # noqa: TRY004 - callers report ValueError
     return value
 
 
@@ -75,7 +75,13 @@ def schema_errors(value: object, schema: dict, document: dict, label: str) -> li
             value, pointer(document, schema["$ref"][1:]), document, label
         )
     errors = []
-    kinds = {"object": dict, "array": list, "string": str, "integer": int, "boolean": bool}
+    kinds = {
+        "object": dict,
+        "array": list,
+        "string": str,
+        "integer": int,
+        "boolean": bool,
+    }
     kind = schema.get("type")
     if kind and (
         not isinstance(value, kinds[kind])
@@ -223,7 +229,9 @@ def source_anchor_geometry_errors(anchor: dict, label: str) -> list[str]:
     if "line_unit" not in anchor and "byte_range" not in anchor:
         return errors
     if "line_unit" not in anchor or "byte_range" not in anchor:
-        errors.append(f"{label}: counted source geometry needs both line and byte units")
+        errors.append(
+            f"{label}: counted source geometry needs both line and byte units"
+        )
         return errors
     data = anchor["snippet"].encode()
     begin, end = anchor["byte_range"]
@@ -367,10 +375,15 @@ def annotated_rust_tests(root: Path) -> list[tuple[str, str, str, str]]:
                     for first, last in comment_ranges
                     if boundary <= first and last <= end
                 )
-                for identifier in sorted({
-                    match.group(1).rstrip(".") for match in question.finditer(comments)
-                }):
-                    result.append((path.relative_to(root).as_posix(), name, identifier, comments))
+                for identifier in sorted(
+                    {
+                        match.group(1).rstrip(".")
+                        for match in question.finditer(comments)
+                    }
+                ):
+                    result.append(
+                        (path.relative_to(root).as_posix(), name, identifier, comments)
+                    )
     return result
 
 
@@ -386,12 +399,18 @@ def test_annotation_errors(root: Path, proofs: list[dict]) -> list[str]:
     for path, name, identifier, comments in annotated_rust_tests(root):
         record = records.get(identifier)
         if record is None:
-            errors.append(f"test proof annotation is not indexed: {identifier}: {path}::{name}")
+            errors.append(
+                f"test proof annotation is not indexed: {identifier}: {path}::{name}"
+            )
             continue
         if (path, name, identifier) not in bindings:
-            errors.append(f"test proof annotation has no catalog binding: {identifier}: {path}::{name}")
+            errors.append(
+                f"test proof annotation has no catalog binding: {identifier}: {path}::{name}"
+            )
         if record["document"] not in comments:
-            errors.append(f"test proof annotation has no matching document comment: {identifier}: {path}::{name}")
+            errors.append(
+                f"test proof annotation has no matching document comment: {identifier}: {path}::{name}"
+            )
     return errors
 
 
@@ -418,7 +437,11 @@ def environment_errors(record: dict, evidence: dict, doc: str) -> list[str]:
     label = record["id"]
     environments = record.get("environments", [])
     if record["kind"] != "environment-observation":
-        return [f"{label}: environment answers require their own record kind"] if "environments" in record else []
+        return (
+            [f"{label}: environment answers require their own record kind"]
+            if "environments" in record
+            else []
+        )
     errors = []
     if not environments:
         errors.append(f"{label}: environment observation has no environment answer")
@@ -427,8 +450,13 @@ def environment_errors(record: dict, evidence: dict, doc: str) -> list[str]:
     identifiers = [item["id"] for item in environments]
     if len(identifiers) != len(set(identifiers)):
         errors.append(f"{label}: duplicate environment answer")
-    if any(provider["status"] in {"observed", "unsupported", "inspected"} for provider in record["providers"]):
-        errors.append(f"{label}: environment result cannot issue a measured native-provider answer")
+    if any(
+        provider["status"] in {"observed", "unsupported", "inspected"}
+        for provider in record["providers"]
+    ):
+        errors.append(
+            f"{label}: environment result cannot issue a measured native-provider answer"
+        )
     for item in environments:
         context = f"{label}/{item['id']}"
         measured = item["status"] in {"observed", "failed"}
@@ -439,46 +467,68 @@ def environment_errors(record: dict, evidence: dict, doc: str) -> list[str]:
                 errors.append(f"{context}: unknown evidence ID {key}")
         roles = {evidence[key]["role"] for key in item["evidence"] if key in evidence}
         if measured and "provider" not in roles:
-            errors.append(f"{context}: captured environment answer has no provider record")
+            errors.append(
+                f"{context}: captured environment answer has no provider record"
+            )
         if item["status"] == "observed" and "observation" not in roles:
             errors.append(f"{context}: observed environment answer has no observation")
-        if item["status"] == "failed" and not roles.intersection({"observation", "limitation"}):
-            errors.append(f"{context}: failed environment answer has no failure observation")
+        if item["status"] == "failed" and not roles.intersection(
+            {"observation", "limitation"}
+        ):
+            errors.append(
+                f"{context}: failed environment answer has no failure observation"
+            )
         if normalized(item["answer"]) not in normalized(doc):
             errors.append(f"{context}: document omits exact environment answer")
     return errors
 
 
-def native_attempt_errors(record: dict, evidence: dict, selected: dict, doc: str) -> list[str]:
+def native_attempt_errors(
+    record: dict, evidence: dict, selected: dict, doc: str
+) -> list[str]:
     """Retain failed setup captures without answering the intended native question."""
     label = record["id"]
     attempt = record.get("attempt")
     if record["kind"] != "native-attempt":
-        return [f"{label}: attempt fields require their own record kind"] if attempt is not None else []
+        return (
+            [f"{label}: attempt fields require their own record kind"]
+            if attempt is not None
+            else []
+        )
     errors = []
     if not isinstance(attempt, dict):
         return [f"{label}: native attempt has no explicit setup-failure record"]
     if any(provider["status"] != "not-tested" for provider in record["providers"]):
-        errors.append(f"{label}: native attempt cannot answer the intended provider question")
+        errors.append(
+            f"{label}: native attempt cannot answer the intended provider question"
+        )
     if "environments" in record:
         errors.append(f"{label}: native attempt cannot issue an environment answer")
     if attempt.get("intended_question_reached") is not False:
-        errors.append(f"{label}: native attempt requires an unreached intended question")
+        errors.append(
+            f"{label}: native attempt requires an unreached intended question"
+        )
     limits = (
         "The intended question was not reached. The setup captures cannot be used "
         "as a positive answer or as execution, teardown or implementation equivalence evidence."
     )
     if attempt.get("limitations") != limits:
         errors.append(f"{label}: native attempt lacks its strict setup-only limitation")
-    if normalized(limits) not in normalized(record["conclusion"]) or normalized(limits) not in normalized(doc):
-        errors.append(f"{label}: native attempt conclusion omits its setup-only limitation")
+    if normalized(limits) not in normalized(record["conclusion"]) or normalized(
+        limits
+    ) not in normalized(doc):
+        errors.append(
+            f"{label}: native attempt conclusion omits its setup-only limitation"
+        )
     intended = attempt.get("intended_question", "")
     if not intended or normalized(intended) not in normalized(doc):
         errors.append(f"{label}: document omits the exact unreached intended question")
     probe_id = attempt.get("probe")
     probe = evidence.get(probe_id)
     if not probe or probe["role"] != "input" or probe_id not in selected:
-        errors.append(f"{label}: native attempt lacks the retained original probe input")
+        errors.append(
+            f"{label}: native attempt lacks the retained original probe input"
+        )
     captures = attempt.get("captures", [])
     if not captures:
         errors.append(f"{label}: native attempt has no reached setup capture")
@@ -497,14 +547,23 @@ def native_attempt_errors(record: dict, evidence: dict, selected: dict, doc: str
             errors.append(f"{context}: duplicate original setup input capture")
         seen.add(pair)
         linked = True
-        for field, role in [("input", "input"), ("receipt", "provider"), ("observation", "observation"), ("stderr", "observation")]:
+        for field, role in [
+            ("input", "input"),
+            ("receipt", "provider"),
+            ("observation", "observation"),
+            ("stderr", "observation"),
+        ]:
             key = capture.get(field)
             item = evidence.get(key)
             if not item or item["role"] != role or key not in selected:
-                errors.append(f"{context}: setup capture lacks retained {field} evidence")
+                errors.append(
+                    f"{context}: setup capture lacks retained {field} evidence"
+                )
                 linked = False
             elif key not in provider["evidence"]:
-                errors.append(f"{context}: setup {field} is not attached to this provider")
+                errors.append(
+                    f"{context}: setup {field} is not attached to this provider"
+                )
         if probe_id not in provider["evidence"]:
             errors.append(f"{context}: original probe is not attached to this provider")
         stage = capture.get("failure_stage", "")
@@ -513,31 +572,69 @@ def native_attempt_errors(record: dict, evidence: dict, selected: dict, doc: str
         code = capture.get("guest_code")
         row = capture.get("completion_row", "")
         match = re.fullmatch(r"ORIGINAL\|([1-9][0-9]*)\|([0-9a-f]*)", row)
-        if type(code) is not int or code <= 0 or not match or int(match[1]) != code or len(match[2]) % 2:
-            errors.append(f"{context}: setup capture is not an original failed guest completion")
+        if (
+            type(code) is not int
+            or code <= 0
+            or not match
+            or int(match[1]) != code
+            or len(match[2]) % 2
+        ):
+            errors.append(
+                f"{context}: setup capture is not an original failed guest completion"
+            )
         if not linked or not probe:
             continue
         try:
             receipt = json.loads(selected[capture["receipt"]])
             stdout = selected[capture["observation"]]
             stderr = selected[capture["stderr"]]
-            if not isinstance(receipt, dict) or not isinstance(stdout, str) or not isinstance(stderr, str):
-                raise ValueError("expected complete original receipt and streams")
+            if (
+                not isinstance(receipt, dict)
+                or not isinstance(stdout, str)
+                or not isinstance(stderr, str)
+            ):
+                raise ValueError("expected complete original receipt and streams")  # noqa: TRY004 - callers report ValueError
             rows = stdout.splitlines()
             if receipt.get("rows") != rows or row not in rows:
-                raise ValueError("completion row differs from the retained receipt or stream")
+                raise ValueError(
+                    "completion row differs from the retained receipt or stream"
+                )
             if receipt.get("exit") != 0:
-                raise ValueError("setup capture lacks its closed driver process outcome")
-            if receipt.get("stdout_sha256") != evidence[capture["observation"]]["sha256"] or receipt.get("stderr_sha256") != evidence[capture["stderr"]]["sha256"]:
-                raise ValueError("original process stream digests do not match the receipt")
-            if receipt.get("source_sha256", {}).get("original") != evidence[input_id]["sha256"]:
-                raise ValueError("setup receipt does not retain the original source input")
+                raise ValueError(
+                    "setup capture lacks its closed driver process outcome"
+                )
+            if (
+                receipt.get("stdout_sha256")
+                != evidence[capture["observation"]]["sha256"]
+                or receipt.get("stderr_sha256") != evidence[capture["stderr"]]["sha256"]
+            ):
+                raise ValueError(
+                    "original process stream digests do not match the receipt"
+                )
+            if (
+                receipt.get("source_sha256", {}).get("original")
+                != evidence[input_id]["sha256"]
+            ):
+                raise ValueError(
+                    "setup receipt does not retain the original source input"
+                )
             required = receipt.get("required_sha256", {})
-            if not isinstance(required, dict) or probe["sha256"] not in required.values():
-                raise ValueError("setup receipt does not retain the original probe input")
+            if (
+                not isinstance(required, dict)
+                or probe["sha256"] not in required.values()
+            ):
+                raise ValueError(
+                    "setup receipt does not retain the original probe input"
+                )
             versions = [line for line in rows if line.startswith("VERSION|0|")]
-            if len(versions) != 1 or bytes.fromhex(versions[0].split("|", 2)[2]).decode() != provider["version"]:
-                raise ValueError("setup version stream does not match this provider answer")
+            if (
+                len(versions) != 1
+                or bytes.fromhex(versions[0].split("|", 2)[2]).decode()
+                != provider["version"]
+            ):
+                raise ValueError(
+                    "setup version stream does not match this provider answer"
+                )
         except (ValueError, TypeError, KeyError, AttributeError, UnicodeError) as exc:
             errors.append(f"{context}: {exc}")
     return errors
@@ -676,7 +773,7 @@ def validate(root: Path, structure_only: bool = False) -> tuple[list[str], dict]
                 errors.append(f"{label}: source snippet digest changed")
             value = selected.get(anchor["evidence"])
 
-            def attached(node: object) -> bool:
+            def attached(node: object, anchor: dict = anchor) -> bool:
                 if isinstance(node, str):
                     return anchor["snippet"] in node
                 if isinstance(node, dict):
@@ -754,7 +851,12 @@ def validate(root: Path, structure_only: bool = False) -> tuple[list[str], dict]
         ids = row.get("proof_ids", [])
         if (
             classification
-            in {"native-observation", "environment-observation", "authored-contract", "duplicate-evidence"}
+            in {
+                "native-observation",
+                "environment-observation",
+                "authored-contract",
+                "duplicate-evidence",
+            }
             and not ids
         ):
             errors.append(f"census question association is absent: {name}")

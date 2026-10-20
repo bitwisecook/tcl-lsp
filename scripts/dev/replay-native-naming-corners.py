@@ -10,9 +10,9 @@ import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import subprocess
 import time
+from pathlib import Path
 
 PROVIDERS = {
     "tcl8.4": "8.4.20",

@@ -38,7 +38,9 @@ class ProofGateTests(unittest.TestCase):
             {"lines": [10, 9]},
         ]:
             with self.subTest(changed=changed):
-                self.assertTrue(gate.source_anchor_geometry_errors(anchor | changed, "fixture"))
+                self.assertTrue(
+                    gate.source_anchor_geometry_errors(anchor | changed, "fixture")
+                )
 
     def test_counted_source_anchor_requires_paired_units(self):
         # Implementation contract: naming.proof-records.exact-evidence-and-coverage
@@ -50,7 +52,9 @@ class ProofGateTests(unittest.TestCase):
             {"byte_range": [0, 4]},
         ]:
             with self.subTest(changed=changed):
-                self.assertTrue(gate.source_anchor_geometry_errors(anchor | changed, "fixture"))
+                self.assertTrue(
+                    gate.source_anchor_geometry_errors(anchor | changed, "fixture")
+                )
 
     def fixture(self, root):
         directory = root / DIRECTORY
@@ -152,7 +156,10 @@ class ProofGateTests(unittest.TestCase):
         )
         for provider in record["providers"]:
             provider.update(status="not-tested", evidence=[])
-        record["providers"][0].update(version="synthetic", evidence=["probe", "input", "receipt", "stdout", "stderr"])
+        record["providers"][0].update(
+            version="synthetic",
+            evidence=["probe", "input", "receipt", "stdout", "stderr"],
+        )
         probe = original.with_name("probe.c")
         probe.write_text("/* Synthetic setup driver; no original provider claim. */\n")
         stdout = original.with_name("execute.stdout")
@@ -162,14 +169,18 @@ class ProofGateTests(unittest.TestCase):
         stderr = original.with_name("execute.stderr")
         stderr.write_text("")
         receipt = original.with_name("receipt.json")
-        receipt.write_text(json.dumps({
-            "exit": 0,
-            "rows": rows,
-            "stdout_sha256": gate.digest(stdout),
-            "stderr_sha256": gate.digest(stderr),
-            "source_sha256": {"original": gate.digest(original)},
-            "required_sha256": {"probe": gate.digest(probe)},
-        }))
+        receipt.write_text(
+            json.dumps(
+                {
+                    "exit": 0,
+                    "rows": rows,
+                    "stdout_sha256": gate.digest(stdout),
+                    "stderr_sha256": gate.digest(stderr),
+                    "source_sha256": {"original": gate.digest(original)},
+                    "required_sha256": {"probe": gate.digest(probe)},
+                }
+            )
+        )
         record["evidence"] = [
             {
                 "id": key,
@@ -191,16 +202,18 @@ class ProofGateTests(unittest.TestCase):
             "intended_question_reached": False,
             "probe": "probe",
             "limitations": limits,
-            "captures": [{
-                "provider": "tcl8.4",
-                "input": "input",
-                "receipt": "receipt",
-                "observation": "stdout",
-                "stderr": "stderr",
-                "guest_code": 1,
-                "completion_row": row,
-                "failure_stage": "Setup refuses before registering the callback or entering teardown.",
-            }],
+            "captures": [
+                {
+                    "provider": "tcl8.4",
+                    "input": "input",
+                    "receipt": "receipt",
+                    "observation": "stdout",
+                    "stderr": "stderr",
+                    "guest_code": 1,
+                    "completion_row": row,
+                    "failure_stage": "Setup refuses before registering the callback or entering teardown.",
+                }
+            ],
         }
         return record, census
 
@@ -424,22 +437,36 @@ class ProofGateTests(unittest.TestCase):
             )
             errors = self.write_record_fixture(root, record, census)
             self.assertTrue(any("no catalog binding" in error for error in errors))
-            record["tests"] = [{
-                "path": str(source.relative_to(root)),
-                "selector": "fixture::result",
-                "status": "linked",
-                "assertion": "Synthetic authored test-pair coverage only; no provider execution.",
-            }]
+            record["tests"] = [
+                {
+                    "path": str(source.relative_to(root)),
+                    "selector": "fixture::result",
+                    "status": "linked",
+                    "assertion": "Synthetic authored test-pair coverage only; no provider execution.",
+                }
+            ]
             self.assertEqual(self.write_record_fixture(root, record, census), [])
-            self.assertTrue(all(provider["status"] == "not-tested" for provider in record["providers"]))
-            source.write_text(source.read_text() +
-                "#[test]\nfn another() {\n"
+            self.assertTrue(
+                all(
+                    provider["status"] == "not-tested"
+                    for provider in record["providers"]
+                )
+            )
+            source.write_text(
+                source.read_text() + "#[test]\nfn another() {\n"
                 f"    // {record['id']}\n    // {record['document']}\n"
-                "    assert!(true);\n}\n")
-            self.assertTrue(any("another" in error and "no catalog binding" in error
-                                for error in gate.validate(root, True)[0]))
+                "    assert!(true);\n}\n"
+            )
+            self.assertTrue(
+                any(
+                    "another" in error and "no catalog binding" in error
+                    for error in gate.validate(root, True)[0]
+                )
+            )
 
-    def test_plain_unknown_question_is_rejected_without_literal_or_helper_donation(self):
+    def test_plain_unknown_question_is_rejected_without_literal_or_helper_donation(
+        self,
+    ):
         # Implementation contract: naming.proof-records.exact-evidence-and-coverage
         # docs/design/analysis/name-resolution-proofs/exact-evidence-and-coverage.md
         with tempfile.TemporaryDirectory() as temporary:
@@ -449,13 +476,17 @@ class ProofGateTests(unittest.TestCase):
             source.parent.mkdir(parents=True)
             source.write_text(
                 "fn helper() {\n// naming.fixture.unknown\n}\n"
-                "#[test]\nfn result() { let template = r###\"\n"
-                "// naming.fixture.unknown\n#[test]\nfn fake() {}\n\"###; assert!(true); }\n"
+                '#[test]\nfn result() { let template = r###"\n'
+                '// naming.fixture.unknown\n#[test]\nfn fake() {}\n"###; assert!(true); }\n'
             )
             self.assertEqual(self.write_record_fixture(root, record, census), [])
             source.write_text("#[test]\nfn result() {\n// naming.fixture.unknown\n}\n")
-            self.assertTrue(any("annotation is not indexed" in error
-                                for error in gate.validate(root, True)[0]))
+            self.assertTrue(
+                any(
+                    "annotation is not indexed" in error
+                    for error in gate.validate(root, True)[0]
+                )
+            )
 
     def test_actual_body_requires_its_own_matching_document_comment(self):
         # Implementation contract: naming.proof-records.exact-evidence-and-coverage
@@ -465,12 +496,14 @@ class ProofGateTests(unittest.TestCase):
             record, _, census = self.fixture(root)
             source = root / "rust/tcl-syntax/src/fixture.rs"
             source.parent.mkdir(parents=True)
-            record["tests"] = [{
-                "path": str(source.relative_to(root)),
-                "selector": "fixture::result",
-                "status": "linked",
-                "assertion": "Synthetic comment-boundary correspondence only.",
-            }]
+            record["tests"] = [
+                {
+                    "path": str(source.relative_to(root)),
+                    "selector": "fixture::result",
+                    "status": "linked",
+                    "assertion": "Synthetic comment-boundary correspondence only.",
+                }
+            ]
             source.write_text(
                 "fn helper() {\n"
                 f"// {record['id']}\n// {record['document']}\n"
@@ -481,10 +514,14 @@ class ProofGateTests(unittest.TestCase):
             source.write_text(
                 "#[test]\nfn result() {\n"
                 f"// {record['id']}\n// {DIRECTORY}/different-question.md\n"
-                f"let text = \"{record['document']}\"; assert!(true);\n}}\n"
+                f'let text = "{record["document"]}"; assert!(true);\n}}\n'
             )
-            self.assertTrue(any("no matching document comment" in error
-                                for error in gate.validate(root, True)[0]))
+            self.assertTrue(
+                any(
+                    "no matching document comment" in error
+                    for error in gate.validate(root, True)[0]
+                )
+            )
 
     def test_missing_provider_and_native_donation_to_rust_contract_fail(self):
         # Implementation contract: naming.proof-records.exact-evidence-and-coverage
@@ -568,12 +605,14 @@ class ProofGateTests(unittest.TestCase):
                 f"// Proof {record['id']}:\n// {record['document']}\n"
                 "#[test]\nfn result() { assert!(true); }\n"
             )
-            record["tests"] = [{
-                "path": str(source.relative_to(root)),
-                "selector": "fixture::result",
-                "status": "linked",
-                "assertion": "Synthetic indexed question, document and actual function pair.",
-            }]
+            record["tests"] = [
+                {
+                    "path": str(source.relative_to(root)),
+                    "selector": "fixture::result",
+                    "status": "linked",
+                    "assertion": "Synthetic indexed question, document and actual function pair.",
+                }
+            ]
             self.assertEqual(self.write_record_fixture(root, record, census), [])
 
     def test_scope_and_conclusion_cannot_borrow_partial_heading_names(self):
@@ -644,7 +683,6 @@ class ProofGateTests(unittest.TestCase):
                 )
             )
 
-
     def test_failed_native_setup_cannot_answer_the_intended_question(self):
         # Implementation contract: naming.proof-records.exact-evidence-and-coverage
         # docs/design/analysis/name-resolution-proofs/exact-evidence-and-coverage.md
@@ -656,18 +694,24 @@ class ProofGateTests(unittest.TestCase):
             for status in ["observed", "unsupported", "inspected"]:
                 with self.subTest(status=status):
                     record["providers"][0]["status"] = status
-                    self.assertTrue(any(
-                        "cannot answer the intended provider question" in error
-                        for error in self.write_record_fixture(root, record, census)
-                    ))
+                    self.assertTrue(
+                        any(
+                            "cannot answer the intended provider question" in error
+                            for error in self.write_record_fixture(root, record, census)
+                        )
+                    )
             record["providers"][0]["status"] = "not-tested"
             record["kind"] = "native-observation"
-            self.assertTrue(any(
-                "attempt fields require their own record kind" in error
-                for error in self.write_record_fixture(root, record, census)
-            ))
+            self.assertTrue(
+                any(
+                    "attempt fields require their own record kind" in error
+                    for error in self.write_record_fixture(root, record, census)
+                )
+            )
             record["kind"] = "native-attempt"
-            record["attempt"]["captures"][0].update(guest_code=0, completion_row="ORIGINAL|0|")
+            record["attempt"]["captures"][0].update(
+                guest_code=0, completion_row="ORIGINAL|0|"
+            )
             self.assertTrue(self.write_record_fixture(root, record, census))
 
     def test_unreached_native_question_requires_boolean_false_not_integer_zero(self):
@@ -695,39 +739,53 @@ class ProofGateTests(unittest.TestCase):
                 provider.update(status="not-tested", evidence=[])
             receipt = path.with_name("environment-receipt.json")
             receipt.write_text('{"exit":0,"target":"synthetic-environment"}\n')
-            record["evidence"].append({
-                "id": "environment-receipt",
-                "role": "provider",
-                "path": str(receipt.relative_to(root)),
-                "sha256": gate.digest(receipt),
-                "description": "Synthetic environment receipt; not a Tcl or Jim provider result.",
-            })
-            record["environments"] = [{
-                "id": "synthetic-environment",
-                "version": "synthetic",
-                "build": "Synthetic validator fixture only.",
-                "target": "synthetic target",
-                "input_channel": "Synthetic retained row.",
-                "status": "observed",
-                "answer": "Only this synthetic environment's captured result is described.",
-                "evidence": ["row", "environment-receipt"],
-            }]
+            record["evidence"].append(
+                {
+                    "id": "environment-receipt",
+                    "role": "provider",
+                    "path": str(receipt.relative_to(root)),
+                    "sha256": gate.digest(receipt),
+                    "description": "Synthetic environment receipt; not a Tcl or Jim provider result.",
+                }
+            )
+            record["environments"] = [
+                {
+                    "id": "synthetic-environment",
+                    "version": "synthetic",
+                    "build": "Synthetic validator fixture only.",
+                    "target": "synthetic target",
+                    "input_channel": "Synthetic retained row.",
+                    "status": "observed",
+                    "answer": "Only this synthetic environment's captured result is described.",
+                    "evidence": ["row", "environment-receipt"],
+                }
+            ]
             for outcome in ["observed", "failed"]:
                 record["environments"][0]["status"] = outcome
                 self.assertEqual(self.write_record_fixture(root, record, census), [])
                 for status in ["observed", "unsupported", "inspected"]:
                     with self.subTest(outcome=outcome, native_status=status):
-                        record["providers"][0].update(status=status, evidence=["row", "environment-receipt"])
-                        self.assertTrue(any(
-                            "environment result cannot issue a measured native-provider answer" in error
-                            for error in self.write_record_fixture(root, record, census)
-                        ))
+                        record["providers"][0].update(
+                            status=status, evidence=["row", "environment-receipt"]
+                        )
+                        self.assertTrue(
+                            any(
+                                "environment result cannot issue a measured native-provider answer"
+                                in error
+                                for error in self.write_record_fixture(
+                                    root, record, census
+                                )
+                            )
+                        )
                 record["providers"][0].update(status="not-tested", evidence=[])
             record["kind"] = "native-observation"
-            self.assertTrue(any(
-                "environment answers require their own record kind" in error
-                for error in self.write_record_fixture(root, record, census)
-            ))
+            self.assertTrue(
+                any(
+                    "environment answers require their own record kind" in error
+                    for error in self.write_record_fixture(root, record, census)
+                )
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

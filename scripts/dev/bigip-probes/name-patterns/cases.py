@@ -30,10 +30,9 @@ JSON-serialisable original-input metadata accompanies every case.
 
 import hashlib
 import json
-from pathlib import Path
 import re
 import tkinter
-
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
 BUNDLE = ROOT / "experiments/name-handling/patterns/f5/questions.json"
