@@ -5328,7 +5328,7 @@ fn emit_cfg_ssa_diagnostics_runs_without_panicking_on_empty_source() {
     // gracefully (an empty CompilationUnit yields no
     // diagnostics).
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("");
+    a.emit_document_cfg_ssa_diagnostics_for_test("");
     assert_eq!(
         a.result.diagnostics,
         [] as [crate::analyser::types::Diagnostic; 0]
@@ -5604,7 +5604,7 @@ fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
     // W220 is deduped in favour of the more informative W211 — a single hint,
     // not two.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set x 1 }");
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { set x 1 }");
     let lifecycle: Vec<_> = a
         .result
         .diagnostics
@@ -5622,7 +5622,7 @@ fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
     // A dead store of a variable that *is* used elsewhere still fires a
     // standalone W220 (no W211, so nothing to dedup against).
     let mut c = Analyser::new();
-    c.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set x 1\nset x 2\nreturn $x }");
+    c.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { set x 1\nset x 2\nreturn $x }");
     assert!(
         c.result
             .diagnostics
@@ -5638,7 +5638,7 @@ fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
     );
 
     let mut b = Analyser::new();
-    b.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set x 1\nreturn $x }");
+    b.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { set x 1\nreturn $x }");
     assert!(
         !b.result
             .diagnostics
@@ -5730,7 +5730,7 @@ fn emit_cfg_ssa_diagnostics_w220_dead_store_overwritten() {
     // is overwritten before being read.  W220 should fire
     // at the first assignment.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("set x 1\nset x 2\nputs $x");
+    a.emit_document_cfg_ssa_diagnostics_for_test("set x 1\nset x 2\nputs $x");
     let w220s: Vec<_> = a
         .result
         .diagnostics
@@ -5816,7 +5816,7 @@ fn w220_braced_literal_arg_is_not_a_read() {
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_skips_global_qualified_var() {
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("set ::x 1\nset ::x 2\nputs $::x");
+    a.emit_document_cfg_ssa_diagnostics_for_test("set ::x 1\nset ::x 2\nputs $::x");
     let w220s: Vec<_> = a
         .result
         .diagnostics
@@ -5837,7 +5837,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_global_qualified_var() {
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_skips_command_substitution_value() {
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("set x [clock seconds]\nset x 2\nputs $x");
+    a.emit_document_cfg_ssa_diagnostics_for_test("set x [clock seconds]\nset x 2\nputs $x");
     let w220s: Vec<_> = a
         .result
         .diagnostics
@@ -5859,7 +5859,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_command_substitution_value() {
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_skips_expr_with_command_call() {
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+    a.emit_document_cfg_ssa_diagnostics_for_test(
         "set x [expr {[clock seconds] + 1}]\nset x 2\nputs $x",
     );
     let w220s: Vec<_> = a
@@ -5891,7 +5891,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_incr_writes() {
     // (``set x 0`` is read by incr, ``set x 5`` is read
     // by puts), so any W220 on x must be from the incr,
     // and the IR-statement-type filter must drop it.
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("set x 0\nincr x\nset x 5\nputs $x");
+    a.emit_document_cfg_ssa_diagnostics_for_test("set x 0\nincr x\nset x 5\nputs $x");
     let w220s: Vec<_> = a
         .result
         .diagnostics
@@ -5914,7 +5914,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_incr_writes() {
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_skips_call_defs() {
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("lassign {1 2} a b\nset a 5\nputs $a");
+    a.emit_document_cfg_ssa_diagnostics_for_test("lassign {1 2} a b\nset a 5\nputs $a");
     let w220s: Vec<_> = a
         .result
         .diagnostics
@@ -5936,7 +5936,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_call_defs() {
 fn emit_cfg_ssa_diagnostics_w220_pkgindex_dir_var_suppressed() {
     let mut a = Analyser::new();
     a.file_path = Some("/some/path/pkgIndex.tcl".to_string());
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("set dir foo\nset dir bar\nputs $dir");
+    a.emit_document_cfg_ssa_diagnostics_for_test("set dir foo\nset dir bar\nputs $dir");
     let w220s: Vec<_> = a
         .result
         .diagnostics
@@ -5957,7 +5957,7 @@ fn emit_cfg_ssa_diagnostics_w220_pkgindex_dir_var_suppressed() {
 fn emit_cfg_ssa_diagnostics_w220_dir_var_not_suppressed_outside_pkgindex() {
     let mut a = Analyser::new();
     a.file_path = Some("/some/path/script.tcl".to_string());
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("set dir foo\nset dir bar\nputs $dir");
+    a.emit_document_cfg_ssa_diagnostics_for_test("set dir foo\nset dir bar\nputs $dir");
     let w220s: Vec<_> = a
         .result
         .diagnostics
@@ -5986,7 +5986,7 @@ fn emit_cfg_ssa_diagnostics_w220_irules_cross_event_var_suppressed() {
     // ``set v 1\nset v 2`` shape inside ``HTTP_REQUEST``
     // would normally fire W220 on the first ``set v 1``,
     // but cross-event suppression should drop it.
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+    a.emit_document_cfg_ssa_diagnostics_for_test(
         "when HTTP_REQUEST {\n  set v 1\n  set v 2\n}\nwhen HTTP_RESPONSE {\n  log local0. $v\n}",
     );
     let w220s: Vec<_> = a
@@ -6013,7 +6013,7 @@ fn emit_cfg_ssa_diagnostics_w220_irules_proc_local_still_flagged() {
     // ``local`` is only used inside HTTP_REQUEST — not a
     // cross-event var, so W220 should still fire on the
     // overwritten first assignment.
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+    a.emit_document_cfg_ssa_diagnostics_for_test(
         "when HTTP_REQUEST {\n  set local 1\n  set local 2\n  log local0. $local\n}",
     );
     let w220s: Vec<_> = a
@@ -6037,7 +6037,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_unreachable_block() {
     let mut a = Analyser::new();
     // ``if {0} { ... }`` makes the then-branch unreachable
     // under SCCP.  Any dead store inside is suppressed.
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+    a.emit_document_cfg_ssa_diagnostics_for_test(
         "if {0} {\n  set x 1\n  set x 2\n  puts $x\n}\nputs done",
     );
     let w220s: Vec<_> = a
@@ -6059,7 +6059,7 @@ fn emit_cfg_ssa_diagnostics_w214_unused_param() {
     // declared but never read in the body.  W214 should
     // fire on it.  Parameter ``x`` is read, so no W214.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {x y} { puts $x }");
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {x y} { puts $x }");
     let w214s: Vec<_> = a
         .result
         .diagnostics
@@ -6085,7 +6085,7 @@ fn emit_cfg_ssa_diagnostics_w211_unused_variable() {
     // assumptions, so use a proc body where the local-only
     // verdict is safe.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set y 1 }");
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { set y 1 }");
     let w211s: Vec<_> = a
         .result
         .diagnostics
@@ -6183,7 +6183,7 @@ fn emit_cfg_ssa_diagnostics_w211_w220_skipped_for_traced_var() {
         "proc f {} { trace variable x w cb; set x 1 }",
     ] {
         let mut a = Analyser::new();
-        a.emit_cfg_ssa_diagnostics_standalone_for_test(src);
+        a.emit_document_cfg_ssa_diagnostics_for_test(src);
         assert!(
             !a.result
                 .diagnostics
@@ -6202,7 +6202,7 @@ fn emit_cfg_ssa_diagnostics_w211_skipped_for_textually_referenced() {
     // textual-reference filter should suppress W211 because
     // the def-use builder doesn't track ``"$msg"`` reads.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+    a.emit_document_cfg_ssa_diagnostics_for_test(
         "proc foo {} { set msg hello; puts \"got $msg\" }",
     );
     let w211s: Vec<_> = a
@@ -6226,7 +6226,7 @@ fn emit_cfg_ssa_diagnostics_w211_skipped_for_global_aliased() {
     // outer scope, so the local "no use" verdict is unsafe.
     // W211 must not fire.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { global config; set config 1 }");
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { global config; set config 1 }");
     let w211s: Vec<_> = a
         .result
         .diagnostics
@@ -6247,7 +6247,7 @@ fn emit_cfg_ssa_diagnostics_h300_repeated_assignment() {
     // same literal value, consecutive statements.  The
     // first is a dead store; H300 fires on the second.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set x 1\nset x 1 }");
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { set x 1\nset x 1 }");
     let h300s: Vec<_> = a
         .result
         .diagnostics
@@ -6268,7 +6268,7 @@ fn emit_cfg_ssa_diagnostics_h300_skips_underscore_vars() {
     // Vars starting with ``_`` are excluded (the convention
     // for "intentionally unused").
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set _x 1\nset _x 1 }");
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { set _x 1\nset _x 1 }");
     assert!(
         !a.result
             .diagnostics
@@ -6282,7 +6282,7 @@ fn emit_cfg_ssa_diagnostics_h300_skips_underscore_vars() {
 fn emit_cfg_ssa_diagnostics_h300_skips_distinct_values() {
     // Same var, different literal → not a paste error.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set x 1\nset x 2 }");
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { set x 1\nset x 2 }");
     assert!(
         !a.result
             .diagnostics
@@ -6297,7 +6297,7 @@ fn emit_cfg_ssa_diagnostics_w210_read_before_set() {
     // ``proc foo {} { puts $undef }`` — undef is not a
     // parameter and not in scope; W210 fires at the use.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { puts $undef }");
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { puts $undef }");
     let w210s: Vec<_> = a
         .result
         .diagnostics
@@ -6319,7 +6319,7 @@ fn w210_not_fired_for_qualified_global_read() {
     // definition may live in another proc, namespace, or file, so it must
     // never be flagged read-before-set even when this unit never sets it.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { puts $::myVar }");
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { puts $::myVar }");
     assert!(
         !a.result
             .diagnostics
@@ -6337,7 +6337,7 @@ fn opaque_switch_recovers_exhaustive_arm_defs() {
     // switch (a `default` plus every arm setting `y`) defines `y`, so the
     // following `$y` read is NOT a read-before-set — no false W210.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+    a.emit_document_cfg_ssa_diagnostics_for_test(
         "proc f {x} { switch -glob $x {a* {set y 1} default {set y 2}}\n puts $y }",
     );
     assert!(
@@ -6352,7 +6352,7 @@ fn opaque_switch_recovers_exhaustive_arm_defs() {
     // A non-exhaustive switch (no `default`) leaves `y` only maybe-defined,
     // so the read IS a read-before-set — W210 must still fire.
     let mut b = Analyser::new();
-    b.emit_cfg_ssa_diagnostics_standalone_for_test(
+    b.emit_document_cfg_ssa_diagnostics_for_test(
         "proc g {x} { switch -glob $x {a* {set y 1} b* {set y 2}}\n puts $y }",
     );
     assert!(
@@ -6369,7 +6369,7 @@ fn opaque_switch_recovers_exhaustive_arm_defs() {
 #[cfg(test)]
 fn w210_fires_for(src: &str, var: &str) -> bool {
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(src);
+    a.emit_document_cfg_ssa_diagnostics_for_test(src);
     let needle = format!("'{var}'");
     a.result
         .diagnostics
@@ -6709,7 +6709,7 @@ fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
         "proc foo {} { append buf x\nputs $buf }",
     ] {
         let mut a = Analyser::new();
-        a.emit_cfg_ssa_diagnostics_standalone_for_test(src);
+        a.emit_document_cfg_ssa_diagnostics_for_test(src);
         assert!(
             !a.result
                 .diagnostics
@@ -6722,7 +6722,7 @@ fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
     // `unset` (without -nocomplain) is destructive, not auto-creating —
     // its missing-variable case must still raise W213.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { unset gone }");
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { unset gone }");
     assert!(
         a.result
             .diagnostics
@@ -6738,7 +6738,7 @@ fn emit_cfg_ssa_diagnostics_w210_skipped_for_real_param() {
     // ``proc foo {x} { puts $x }`` — x IS a real parameter,
     // so W210 must not fire.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {x} { puts $x }");
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {x} { puts $x }");
     let w210s: Vec<_> = a
         .result
         .diagnostics
@@ -6760,7 +6760,7 @@ fn emit_cfg_ssa_diagnostics_w213_unset_on_possibly_undef() {
     // runtime.  W213 fires (instead of W210) at the unset
     // statement.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { unset xs }");
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { unset xs }");
     let w213s: Vec<_> = a
         .result
         .diagnostics
@@ -6801,7 +6801,7 @@ fn emit_cfg_ssa_diagnostics_w210_read_after_unset() {
     // (the killed real version is undef at its use, like a version-0
     // origin).
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+    a.emit_document_cfg_ssa_diagnostics_for_test(
         "proc f {} {\n    set a 1\n    unset a\n    puts $a\n}",
     );
     assert!(
@@ -6823,7 +6823,7 @@ fn try_handler_edge_merges_pretry_when_body_falls_through() {
     // the on-error edge only from the explicit-throw block (after `set y 2`
     // failed to run) would wrongly suppress it.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+    a.emit_document_cfg_ssa_diagnostics_for_test(
             "proc f {c} {\n try {\n  if {$c} { error e }\n  set y 2\n } on error {} {\n  puts $y\n }\n}\n",
         );
     assert!(
@@ -6842,7 +6842,7 @@ fn try_handler_edge_suppressed_when_var_set_before_sole_throw() {
     // is set before the sole throw, so the handler sees `x` defined; no
     // W210. tclsh 9.0.3 reads x == 1 here.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+    a.emit_document_cfg_ssa_diagnostics_for_test(
         "proc f {} {\n try {\n  set x 1\n  error boom\n } on error {} {\n  puts $x\n }\n}\n",
     );
     assert!(
@@ -6860,7 +6860,7 @@ fn emit_cfg_ssa_diagnostics_w213_skipped_with_nocomplain() {
     // ``unset -nocomplain xs`` is the safe form — W213
     // must not fire.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { unset -nocomplain xs }");
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { unset -nocomplain xs }");
     assert!(
         !a.result
             .diagnostics
@@ -6877,7 +6877,7 @@ fn emit_cfg_ssa_diagnostics_w210_fires_at_top_level() {
     // proc writes the variable.  ``puts $undef`` reads
     // ``undef`` without any preceding write.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("puts $undef");
+    a.emit_document_cfg_ssa_diagnostics_for_test("puts $undef");
     assert!(
         a.result
             .diagnostics
@@ -7169,9 +7169,7 @@ fn emit_cfg_ssa_diagnostics_w210_suppressed_when_proc_writes_global() {
     // so the top-level read should not flag W210 — the proc
     // may run before the read.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
-        "proc init {} { set ::counter 0 }\nputs $counter",
-    );
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc init {} { set ::counter 0 }\nputs $counter");
     assert!(
         !a.result
             .diagnostics
@@ -7188,7 +7186,7 @@ fn emit_cfg_ssa_diagnostics_w210_suppressed_via_global_alias() {
     // ``global`` declaration aliases the proc-local ``counter``
     // to the global.  Top-level read should not flag W210.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+    a.emit_document_cfg_ssa_diagnostics_for_test(
         "proc init {} { global counter; set counter 0 }\nputs $counter",
     );
     assert!(
@@ -7205,7 +7203,7 @@ fn emit_cfg_ssa_diagnostics_w210_suppressed_via_global_alias() {
 
 fn codes_for(src: &str) -> Vec<String> {
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(src);
+    a.emit_document_cfg_ssa_diagnostics_for_test(src);
     a.result
         .diagnostics
         .iter()
@@ -7472,7 +7470,7 @@ fn i230_message_quotes_bare_var_as_source_spells_it() {
     // the segmenter's re-braced `${n}` reconstruction.
     let src = "set n 1\nif $n { puts a } else { puts b }\n";
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(src);
+    a.emit_document_cfg_ssa_diagnostics_for_test(src);
     let i230: Vec<_> = a
         .result
         .diagnostics
@@ -7502,7 +7500,7 @@ fn i230_message_keeps_braced_var_spelling() {
     // A source-braced `${n}` stays `${n}` — fidelity cuts both ways.
     let src = "set n 1\nif ${n} { puts a } else { puts b }\n";
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test(src);
+    a.emit_document_cfg_ssa_diagnostics_for_test(src);
     let i230: Vec<_> = a
         .result
         .diagnostics
@@ -12086,7 +12084,7 @@ fn emit_cfg_ssa_diagnostics_w214_skips_args_param() {
     // The variadic ``args`` is conventional and frequently
     // declared without use; W214 must not fire on it.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {x args} { puts $x }");
+    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {x args} { puts $x }");
     assert!(
         !a.result
             .diagnostics

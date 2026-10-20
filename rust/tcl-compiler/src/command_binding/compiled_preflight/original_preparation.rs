@@ -221,6 +221,9 @@ impl CompilerTraversal<'_> {
             NativeInstructionPlan::Scalar(recipe) => {
                 self.original_operands(words, recipe.operands.iter().cloned(), context)
             }
+            NativeInstructionPlan::StringOperand(recipe) => {
+                self.original_operands(words, recipe.operands.iter().cloned(), context)
+            }
             NativeInstructionPlan::Expression(expression) => {
                 if let Some(program) = &expression.program {
                     self.original_expression(

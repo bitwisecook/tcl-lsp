@@ -2973,6 +2973,11 @@ impl CodegenCtx<'_> {
             NativeInstructionPlan::Scalar(recipe) => {
                 return Self::append_native_scalar_tasks(command, recipe, version, operations);
             }
+            NativeInstructionPlan::StringOperand(recipe) => {
+                return Self::append_native_string_operand_tasks(
+                    command, recipe, version, operations,
+                );
+            }
             NativeInstructionPlan::TclOoHelper(recipe) => {
                 return Self::append_native_tcloo_tasks(command, version, recipe, operations);
             }

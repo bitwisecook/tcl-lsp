@@ -845,6 +845,15 @@ pub enum NativeCompilationGrammar {
     /// C8.4+ string length accepts one evaluated operand; refused modern
     /// public forms retain the selected private worker invocation.
     StringLength(crate::native_scalar_compilation::NativeScalarScope),
+    /// A fixed-operand String member instruction (`strcmp`, `strindex`,
+    /// `strfind`, `strrfind` and the case conversions), with the release and
+    /// refused-count fallbacks of its actual compiler.
+    StringOperand {
+        /// Public member or actual private worker operand layout.
+        scope: crate::native_scalar_compilation::NativeScalarScope,
+        /// Selected instruction, independent of the current command spelling.
+        operation: crate::native_string_operand_compilation::NativeStringOperandOperation,
+    },
     /// Original C string-match hook and its actual registration operand scope.
     StringMatch(crate::native_string_compilation::NativeStringMatchScope),
     /// C8.6+ original trim subject and explicit/default character set.
@@ -1893,6 +1902,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::ListLength
             | NativeCompilationGrammar::NamespaceOrigin
             | NativeCompilationGrammar::NamespaceString(_) => count == 1,
+            NativeCompilationGrammar::StringOperand { operation, .. } => count == operation.arity(),
             NativeCompilationGrammar::StringMatch(_) => {
                 count == 2 || (count == 3 && words.literal(operand_from) == Some(b"-nocase"))
             }
@@ -2028,6 +2038,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::StringMatch(_)
             | NativeCompilationGrammar::StringEqual(_)
             | NativeCompilationGrammar::StringLength(_)
+            | NativeCompilationGrammar::StringOperand { .. }
             | NativeCompilationGrammar::ListLength
             | NativeCompilationGrammar::Tailcall
             | NativeCompilationGrammar::CoroutineYield
@@ -2305,6 +2316,9 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::NamespaceCode
             | NativeCompilationGrammar::NamespaceString(_) => version >= TclVersion::V8_6,
             NativeCompilationGrammar::Uplevel => version >= TclVersion::V9_1,
+            NativeCompilationGrammar::StringOperand { operation, .. } => {
+                version >= operation.hook_from()
+            }
             _ => true,
         })
     }
@@ -2368,7 +2382,10 @@ impl NativeCompilationSpec {
                 ..
             } | NativeCompilationGrammar::StringMatch(
                 crate::native_string_compilation::NativeStringMatchScope::PublicMember,
-            )
+            ) | NativeCompilationGrammar::StringOperand {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                ..
+            }
         ) {
             return self.public_string_implementation_lookup(dialect);
         }
@@ -2448,6 +2465,14 @@ impl NativeCompilationSpec {
         {
             return implementation_version_matches(dialect, TclVersion::V8_5)
                 .then_some(crate::native_string_compilation::STRING_MATCH_IMPLEMENTATION);
+        }
+        if let NativeCompilationGrammar::StringOperand {
+            scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+            operation,
+        } = self.grammar
+        {
+            return implementation_version_matches(dialect, TclVersion::V8_5)
+                .then_some(*operation.implementation());
         }
         None
     }
@@ -2811,6 +2836,16 @@ impl NativeCompilationSpec {
             return Some(crate::native_string_compilation::select_original(
                 words,
                 operand_from,
+                scope,
+                version,
+                self.operation,
+            ));
+        }
+        if let NativeCompilationGrammar::StringOperand { scope, operation } = self.grammar {
+            return Some(crate::native_string_operand_compilation::select_original(
+                words,
+                operand_from,
+                operation,
                 scope,
                 version,
                 self.operation,
@@ -3284,7 +3319,10 @@ impl NativeCompilationSpec {
                 ..
             } | NativeCompilationGrammar::StringMatch(
                 crate::native_string_compilation::NativeStringMatchScope::PublicMember
-            )
+            ) | NativeCompilationGrammar::StringOperand {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                ..
+            }
         );
         facts
             .argument_offset
@@ -4067,6 +4105,16 @@ impl NativeCompilationSpec {
                 scope,
                 1,
             ),
+            NativeCompilationGrammar::StringOperand { scope, operation } => {
+                crate::native_string_operand_compilation::select_shapes(
+                    shapes,
+                    words.arguments().literal_at(0).map(str::as_bytes),
+                    operation,
+                    scope,
+                    version,
+                    self.operation,
+                )
+            }
             NativeCompilationGrammar::ListRange => {
                 list_range_grammar(words, shapes, version, self.operation)
             }

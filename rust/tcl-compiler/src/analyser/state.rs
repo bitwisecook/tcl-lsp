@@ -1033,6 +1033,11 @@ pub struct Analyser {
     /// `analyse` (gated by the `file_decls_corpus` corpus test).  Defaults to
     /// `false`; normal `analyse` is unaffected.
     pub structure_only: bool,
+    /// Test-only capture of the diagnostics the whole-document CFG/SSA phase
+    /// adds, so fixtures that assert on that phase alone run through the
+    /// checked `analyse` ingress instead of a detached unit build.
+    #[cfg(test)]
+    pub(crate) cfg_ssa_capture_for_test: Option<Vec<crate::analyser::types::Diagnostic>>,
     /// Fully-qualified names of classes defined **elsewhere in the workspace**,
     /// supplied by the cross-file reference/definition path so instance
     /// inference can resolve a constructor whose class lives in another file
@@ -1641,6 +1646,8 @@ impl Analyser {
             pending_next_arity: Vec::new(),
             non_ascii_mode: NonAsciiMode::Default,
             structure_only: false,
+            #[cfg(test)]
+            cfg_ssa_capture_for_test: None,
             workspace_classes: std::collections::HashSet::new(),
             workspace_bare_word_classes: std::collections::HashSet::new(),
             workspace_class_factories: None,
@@ -3366,7 +3373,23 @@ impl Analyser {
         self.emit_variable_usage_diagnostics();
         #[cfg(debug_assertions)]
         trace_phase("variable-usage");
+        #[cfg(test)]
+        let before_cfg_ssa = self
+            .cfg_ssa_capture_for_test
+            .is_some()
+            .then(|| self.result.diagnostics.clone());
         self.emit_cfg_ssa_diagnostics(source);
+        #[cfg(test)]
+        if let Some(before) = before_cfg_ssa {
+            self.cfg_ssa_capture_for_test = Some(
+                self.result
+                    .diagnostics
+                    .iter()
+                    .filter(|diagnostic| !before.contains(diagnostic))
+                    .cloned()
+                    .collect(),
+            );
+        }
         #[cfg(debug_assertions)]
         trace_phase("cfg-ssa");
         self.flush_loop_terminations();

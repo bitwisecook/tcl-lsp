@@ -47,3 +47,34 @@ impl CodegenCtx<'_> {
         true
     }
 }
+
+impl CodegenCtx<'_> {
+    pub(super) fn append_native_string_operand_tasks(
+        command: &tcl_lexer::NativeScriptCommandWords,
+        recipe: tcl_registry::native_string_operand_compilation::NativeStringOperandInstruction,
+        version: tcl_dialect::TclVersion,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        use tcl_registry::native_string_operand_compilation::NativeStringOperandOperation as Operation;
+        if recipe.operands.len() != recipe.operation.arity() {
+            return false;
+        }
+        for operand in recipe.operands {
+            let Some(task) = Self::native_namespace_word_task(&command.words, operand) else {
+                return false;
+            };
+            operations.push(task);
+        }
+        let op = match recipe.operation {
+            Operation::Compare => Op::STR_CMP,
+            Operation::Index => Op::STR_INDEX,
+            Operation::First => Op::STR_FIND,
+            Operation::Last => Op::STR_RFIND,
+            Operation::ToUpper => Op::STR_UPPER,
+            Operation::ToLower => Op::STR_LOWER,
+            Operation::ToTitle => Op::STR_TITLE,
+        };
+        operations.push(NativeEmissionTask::SwitchOperation(op, Vec::new(), version));
+        true
+    }
+}

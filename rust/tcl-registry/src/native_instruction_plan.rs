@@ -98,6 +98,8 @@ pub enum NativeInstructionPlan {
     StringMatch(crate::native_string_compilation::NativeStringMatchInstruction),
     /// Original trim subject and optional original character set.
     StringTrim(crate::native_string_trim_compilation::NativeStringTrimInstruction),
+    /// Original fixed String operands followed by the selected instruction.
+    StringOperand(crate::native_string_operand_compilation::NativeStringOperandInstruction),
     /// Read the selected original variable operand.
     Load {
         /// Exact index of the target in the complete original word vector.
@@ -940,6 +942,19 @@ fn selected_projected_instruction_plan(
                 version,
             )
             .map(NativeInstructionPlan::Scalar)
+            .ok_or(Unavailable::OperandGeometry),
+        );
+    }
+    if let NativeCompilationGrammar::StringOperand { scope, operation } = spec.grammar {
+        return Some(
+            crate::native_string_operand_compilation::compile_native_string_operand(
+                words,
+                operand_from,
+                operation,
+                scope,
+                version,
+            )
+            .map(NativeInstructionPlan::StringOperand)
             .ok_or(Unavailable::OperandGeometry),
         );
     }

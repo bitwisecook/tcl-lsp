@@ -1095,6 +1095,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "compare",
+        // C84 TclCompileStringCmd; C85+ TclCompileStringCmpCmd (`strcmp`), with
+        // C86+ TclCompileEnsemble's private-name fallback on refused forms.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                operation:
+                    crate::native_string_operand_compilation::NativeStringOperandOperation::Compare,
+            },
+            operation: SemanticOperationId::Intrinsic(IntrinsicId::StringCompare),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringCompare)),
         arity: Arity::at_least(2),
         reserved_trailing_words: 2,
@@ -1224,6 +1235,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "first",
+        // C86+ TclCompileStringFirstCmd (`strfind`); C84/C85 run the command.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                operation:
+                    crate::native_string_operand_compilation::NativeStringOperandOperation::First,
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         arity: Arity::new(2, 3),
         detail: "Find first occurrence of needle in haystack.",
         synopsis: "string first needleString haystackString ?startIndex?",
@@ -1293,6 +1314,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "index",
+        // C84 TclCompileStringCmd; C85+ TclCompileStringIndexCmd (`strindex`), with
+        // C86+ TclCompileEnsemble's private-name fallback on refused forms.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                operation:
+                    crate::native_string_operand_compilation::NativeStringOperandOperation::Index,
+            },
+            operation: SemanticOperationId::Intrinsic(IntrinsicId::StringIndex),
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringIndex)),
         // S110: keeps a pure byte-array rep in both 8.6 and 9.0
         // (`StringIndexCmd` returns a one-byte `Tcl_NewByteArrayObj` on the
@@ -1477,6 +1509,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "last",
+        // C86+ TclCompileStringLastCmd (`strrfind`); C84/C85 run the command.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                operation:
+                    crate::native_string_operand_compilation::NativeStringOperandOperation::Last,
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         arity: Arity::new(2, 3),
         detail: "Find last occurrence of needle in haystack.",
         synopsis: "string last needleString haystackString ?lastIndex?",
@@ -1928,6 +1970,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "reverse",
+        // C86+ TclCompileBasic1ArgCmd invokes the private worker by its full name.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "reverse",
+                    slot: "::tcl::string::reverse",
+                    command: "string",
+                    prepended: &["reverse"],
+                },
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                hook_from: tcl_dialect::TclVersion::V8_6,
+                arity: Arity::exact(1),
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         // S110: keeps a pure byte-array rep in both 8.6 and 9.0
         // (`TclStringReverse`'s `TclIsPureByteArray` path reverses the bytes;
         // tclsh 8.6.14-verified).
@@ -1977,6 +2036,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "tolower",
+        // C86+ TclCompileStringToLowerCmd (`strcaseLower`), else
+        // TclCompileBasic1To3ArgCmd; C84/C85 run the command.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                operation:
+                    crate::native_string_operand_compilation::NativeStringOperandOperation::ToLower,
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         byte_array_effect: ByteArrayEffect::CaseFolds,
         arity: Arity::new(1, 3),
         detail: "Convert to lower case.",
@@ -2026,6 +2096,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "totitle",
+        // C86+ TclCompileStringToTitleCmd (`strcaseTitle`), else
+        // TclCompileBasic1To3ArgCmd; C84/C85 run the command.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                operation:
+                    crate::native_string_operand_compilation::NativeStringOperandOperation::ToTitle,
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         byte_array_effect: ByteArrayEffect::CaseFolds,
         arity: Arity::new(1, 3),
         detail: "Convert to title case.",
@@ -2075,6 +2156,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "toupper",
+        // C86+ TclCompileStringToUpperCmd (`strcaseUpper`), else
+        // TclCompileBasic1To3ArgCmd; C84/C85 run the command.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                operation:
+                    crate::native_string_operand_compilation::NativeStringOperandOperation::ToUpper,
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         byte_array_effect: ByteArrayEffect::CaseFolds,
         arity: Arity::new(1, 3),
         detail: "Convert to upper case.",
@@ -2269,6 +2361,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "wordend",
+        // C86+ TclCompileBasic2ArgCmd invokes the private worker by its full name.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "wordend",
+                    slot: "::tcl::string::wordend",
+                    command: "string",
+                    prepended: &["wordend"],
+                },
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                hook_from: tcl_dialect::TclVersion::V8_6,
+                arity: Arity::exact(2),
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         arity: Arity::exact(2),
         detail: "Index of character after end of word.",
         synopsis: "string wordend string charIndex",
@@ -2313,6 +2422,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "wordstart",
+        // C86+ TclCompileBasic2ArgCmd invokes the private worker by its full name.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
+                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
+                    ensemble: "::string",
+                    member: "wordstart",
+                    slot: "::tcl::string::wordstart",
+                    command: "string",
+                    prepended: &["wordstart"],
+                },
+                implementation_from: tcl_dialect::TclVersion::V8_5,
+                hook_from: tcl_dialect::TclVersion::V8_6,
+                arity: Arity::exact(2),
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         arity: Arity::exact(2),
         detail: "Index of first character of word.",
         synopsis: "string wordstart string charIndex",

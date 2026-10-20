@@ -449,37 +449,24 @@ impl Analyser {
         }));
     }
 
-    /// Explicit legacy fixture ingress without a supplied source analysis.
-    /// Actual production callers use the checked complete-input method above.
+    /// Test fixture: the CFG/SSA-phase diagnostics of `source` analysed as a
+    /// whole document under this analyser's profile, through the checked
+    /// complete-input `analyse` ingress (and so its supplied-source entry).
+    /// `self.result` keeps the analysis facts, with only that phase's
+    /// diagnostics. A supplied `cu_override` is still consumed directly.
     #[cfg(test)]
-    fn emit_cfg_ssa_diagnostics_standalone_for_test(&mut self, source: &str) {
-        let generation = self.analysis_context();
-        let registry = generation.commands().as_ref();
+    fn emit_document_cfg_ssa_diagnostics_for_test(&mut self, source: &str) {
         if let Some(cu) = self.cu_override.take() {
+            let generation = self.analysis_context();
+            let registry = generation.commands().as_ref();
             self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
             return;
         }
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let dialect = Some(self.unit_profile.unwrap_or_else(|| {
-                crate::environment_ingress::resolve_environment(self.profile.name).unit_profile()
-            }));
-            let options = crate::compilation_unit::UnitBuildOptions {
-                registry,
-                defer_top_level: false,
-                config: self.file_lexer_config(),
-                dialect,
-                external_call_sites: None,
-                declared_commands: self.declared_commands.as_ref(),
-            };
-            let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
-                source,
-                options,
-                self.source_analysis_entry.as_deref(),
-                std::sync::Arc::clone(&generation),
-            )
-            .with_interprocedural(registry, dialect);
-            self.emit_cfg_ssa_diagnostics_with_cu(&unit, registry);
-        }));
+        let dialect = self.profile.name;
+        self.cfg_ssa_capture_for_test = Some(Vec::new());
+        let mut result = self.analyse(source, dialect);
+        result.diagnostics = self.cfg_ssa_capture_for_test.take().unwrap_or_default();
+        self.result = result;
     }
 
     /// Settle explicitly Logical constructor reporting labels, then produce

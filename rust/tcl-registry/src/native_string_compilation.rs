@@ -114,6 +114,10 @@ impl crate::CommandRegistry {
                 | crate::native_compilation::NativeCompilationGrammar::StringLength(
                     crate::native_scalar_compilation::NativeScalarScope::PublicMember
                 )
+                | crate::native_compilation::NativeCompilationGrammar::StringOperand {
+                    scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                    ..
+                }
         )
         .then_some(selected)
     }

@@ -1,0 +1,1428 @@
+diff --git a/rust/tcl-compiler/src/analyser/diagnostics.rs b/rust/tcl-compiler/src/analyser/diagnostics.rs
+index c1e51f0ced..4a8437a684 100644
+--- a/rust/tcl-compiler/src/analyser/diagnostics.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics.rs
+@@ -449,37 +449,24 @@ impl Analyser {
+         }));
+     }
+ 
+-    /// Explicit legacy fixture ingress without a supplied source analysis.
+-    /// Actual production callers use the checked complete-input method above.
++    /// Test fixture: the CFG/SSA-phase diagnostics of `source` analysed as a
++    /// whole document under this analyser's profile, through the checked
++    /// complete-input `analyse` ingress (and so its supplied-source entry).
++    /// `self.result` keeps the analysis facts, with only that phase's
++    /// diagnostics. A supplied `cu_override` is still consumed directly.
+     #[cfg(test)]
+-    fn emit_cfg_ssa_diagnostics_standalone_for_test(&mut self, source: &str) {
+-        let generation = self.analysis_context();
+-        let registry = generation.commands().as_ref();
++    fn emit_document_cfg_ssa_diagnostics_for_test(&mut self, source: &str) {
+         if let Some(cu) = self.cu_override.take() {
++            let generation = self.analysis_context();
++            let registry = generation.commands().as_ref();
+             self.emit_cfg_ssa_diagnostics_with_cu(&cu, registry);
+             return;
+         }
+-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+-            let dialect = Some(self.unit_profile.unwrap_or_else(|| {
+-                crate::environment_ingress::resolve_environment(self.profile.name).unit_profile()
+-            }));
+-            let options = crate::compilation_unit::UnitBuildOptions {
+-                registry,
+-                defer_top_level: false,
+-                config: self.file_lexer_config(),
+-                dialect,
+-                external_call_sites: None,
+-                declared_commands: self.declared_commands.as_ref(),
+-            };
+-            let unit = crate::compilation_unit::CompilationUnit::build_with_context_registry(
+-                source,
+-                options,
+-                self.source_analysis_entry.as_deref(),
+-                std::sync::Arc::clone(&generation),
+-            )
+-            .with_interprocedural(registry, dialect);
+-            self.emit_cfg_ssa_diagnostics_with_cu(&unit, registry);
+-        }));
++        let dialect = self.profile.name;
++        self.cfg_ssa_capture_for_test = Some(Vec::new());
++        let mut result = self.analyse(source, dialect);
++        result.diagnostics = self.cfg_ssa_capture_for_test.take().unwrap_or_default();
++        self.result = result;
+     }
+ 
+     /// Settle explicitly Logical constructor reporting labels, then produce
+diff --git a/rust/tcl-compiler/src/analyser/diagnostics/tests.rs b/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
+index c027be9d3a..d51a520cd6 100644
+--- a/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
+@@ -5328,7 +5328,7 @@ fn emit_cfg_ssa_diagnostics_runs_without_panicking_on_empty_source() {
+     // gracefully (an empty CompilationUnit yields no
+     // diagnostics).
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("");
++    a.emit_document_cfg_ssa_diagnostics_for_test("");
+     assert_eq!(
+         a.result.diagnostics,
+         [] as [crate::analyser::types::Diagnostic; 0]
+@@ -5604,7 +5604,7 @@ fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
+     // W220 is deduped in favour of the more informative W211 — a single hint,
+     // not two.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set x 1 }");
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { set x 1 }");
+     let lifecycle: Vec<_> = a
+         .result
+         .diagnostics
+@@ -5622,7 +5622,7 @@ fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
+     // A dead store of a variable that *is* used elsewhere still fires a
+     // standalone W220 (no W211, so nothing to dedup against).
+     let mut c = Analyser::new();
+-    c.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set x 1\nset x 2\nreturn $x }");
++    c.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { set x 1\nset x 2\nreturn $x }");
+     assert!(
+         c.result
+             .diagnostics
+@@ -5638,7 +5638,7 @@ fn emit_cfg_ssa_diagnostics_w220_on_set_once_never_read() {
+     );
+ 
+     let mut b = Analyser::new();
+-    b.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set x 1\nreturn $x }");
++    b.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { set x 1\nreturn $x }");
+     assert!(
+         !b.result
+             .diagnostics
+@@ -5730,7 +5730,7 @@ fn emit_cfg_ssa_diagnostics_w220_dead_store_overwritten() {
+     // is overwritten before being read.  W220 should fire
+     // at the first assignment.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("set x 1\nset x 2\nputs $x");
++    a.emit_document_cfg_ssa_diagnostics_for_test("set x 1\nset x 2\nputs $x");
+     let w220s: Vec<_> = a
+         .result
+         .diagnostics
+@@ -5816,7 +5816,7 @@ fn w220_braced_literal_arg_is_not_a_read() {
+ #[test]
+ fn emit_cfg_ssa_diagnostics_w220_skips_global_qualified_var() {
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("set ::x 1\nset ::x 2\nputs $::x");
++    a.emit_document_cfg_ssa_diagnostics_for_test("set ::x 1\nset ::x 2\nputs $::x");
+     let w220s: Vec<_> = a
+         .result
+         .diagnostics
+@@ -5837,7 +5837,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_global_qualified_var() {
+ #[test]
+ fn emit_cfg_ssa_diagnostics_w220_skips_command_substitution_value() {
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("set x [clock seconds]\nset x 2\nputs $x");
++    a.emit_document_cfg_ssa_diagnostics_for_test("set x [clock seconds]\nset x 2\nputs $x");
+     let w220s: Vec<_> = a
+         .result
+         .diagnostics
+@@ -5859,7 +5859,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_command_substitution_value() {
+ #[test]
+ fn emit_cfg_ssa_diagnostics_w220_skips_expr_with_command_call() {
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
++    a.emit_document_cfg_ssa_diagnostics_for_test(
+         "set x [expr {[clock seconds] + 1}]\nset x 2\nputs $x",
+     );
+     let w220s: Vec<_> = a
+@@ -5891,7 +5891,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_incr_writes() {
+     // (``set x 0`` is read by incr, ``set x 5`` is read
+     // by puts), so any W220 on x must be from the incr,
+     // and the IR-statement-type filter must drop it.
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("set x 0\nincr x\nset x 5\nputs $x");
++    a.emit_document_cfg_ssa_diagnostics_for_test("set x 0\nincr x\nset x 5\nputs $x");
+     let w220s: Vec<_> = a
+         .result
+         .diagnostics
+@@ -5914,7 +5914,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_incr_writes() {
+ #[test]
+ fn emit_cfg_ssa_diagnostics_w220_skips_call_defs() {
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("lassign {1 2} a b\nset a 5\nputs $a");
++    a.emit_document_cfg_ssa_diagnostics_for_test("lassign {1 2} a b\nset a 5\nputs $a");
+     let w220s: Vec<_> = a
+         .result
+         .diagnostics
+@@ -5936,7 +5936,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_call_defs() {
+ fn emit_cfg_ssa_diagnostics_w220_pkgindex_dir_var_suppressed() {
+     let mut a = Analyser::new();
+     a.file_path = Some("/some/path/pkgIndex.tcl".to_string());
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("set dir foo\nset dir bar\nputs $dir");
++    a.emit_document_cfg_ssa_diagnostics_for_test("set dir foo\nset dir bar\nputs $dir");
+     let w220s: Vec<_> = a
+         .result
+         .diagnostics
+@@ -5957,7 +5957,7 @@ fn emit_cfg_ssa_diagnostics_w220_pkgindex_dir_var_suppressed() {
+ fn emit_cfg_ssa_diagnostics_w220_dir_var_not_suppressed_outside_pkgindex() {
+     let mut a = Analyser::new();
+     a.file_path = Some("/some/path/script.tcl".to_string());
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("set dir foo\nset dir bar\nputs $dir");
++    a.emit_document_cfg_ssa_diagnostics_for_test("set dir foo\nset dir bar\nputs $dir");
+     let w220s: Vec<_> = a
+         .result
+         .diagnostics
+@@ -5986,7 +5986,7 @@ fn emit_cfg_ssa_diagnostics_w220_irules_cross_event_var_suppressed() {
+     // ``set v 1\nset v 2`` shape inside ``HTTP_REQUEST``
+     // would normally fire W220 on the first ``set v 1``,
+     // but cross-event suppression should drop it.
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
++    a.emit_document_cfg_ssa_diagnostics_for_test(
+         "when HTTP_REQUEST {\n  set v 1\n  set v 2\n}\nwhen HTTP_RESPONSE {\n  log local0. $v\n}",
+     );
+     let w220s: Vec<_> = a
+@@ -6013,7 +6013,7 @@ fn emit_cfg_ssa_diagnostics_w220_irules_proc_local_still_flagged() {
+     // ``local`` is only used inside HTTP_REQUEST — not a
+     // cross-event var, so W220 should still fire on the
+     // overwritten first assignment.
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
++    a.emit_document_cfg_ssa_diagnostics_for_test(
+         "when HTTP_REQUEST {\n  set local 1\n  set local 2\n  log local0. $local\n}",
+     );
+     let w220s: Vec<_> = a
+@@ -6037,7 +6037,7 @@ fn emit_cfg_ssa_diagnostics_w220_skips_unreachable_block() {
+     let mut a = Analyser::new();
+     // ``if {0} { ... }`` makes the then-branch unreachable
+     // under SCCP.  Any dead store inside is suppressed.
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
++    a.emit_document_cfg_ssa_diagnostics_for_test(
+         "if {0} {\n  set x 1\n  set x 2\n  puts $x\n}\nputs done",
+     );
+     let w220s: Vec<_> = a
+@@ -6059,7 +6059,7 @@ fn emit_cfg_ssa_diagnostics_w214_unused_param() {
+     // declared but never read in the body.  W214 should
+     // fire on it.  Parameter ``x`` is read, so no W214.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {x y} { puts $x }");
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {x y} { puts $x }");
+     let w214s: Vec<_> = a
+         .result
+         .diagnostics
+@@ -6085,7 +6085,7 @@ fn emit_cfg_ssa_diagnostics_w211_unused_variable() {
+     // assumptions, so use a proc body where the local-only
+     // verdict is safe.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set y 1 }");
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { set y 1 }");
+     let w211s: Vec<_> = a
+         .result
+         .diagnostics
+@@ -6183,7 +6183,7 @@ fn emit_cfg_ssa_diagnostics_w211_w220_skipped_for_traced_var() {
+         "proc f {} { trace variable x w cb; set x 1 }",
+     ] {
+         let mut a = Analyser::new();
+-        a.emit_cfg_ssa_diagnostics_standalone_for_test(src);
++        a.emit_document_cfg_ssa_diagnostics_for_test(src);
+         assert!(
+             !a.result
+                 .diagnostics
+@@ -6202,7 +6202,7 @@ fn emit_cfg_ssa_diagnostics_w211_skipped_for_textually_referenced() {
+     // textual-reference filter should suppress W211 because
+     // the def-use builder doesn't track ``"$msg"`` reads.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
++    a.emit_document_cfg_ssa_diagnostics_for_test(
+         "proc foo {} { set msg hello; puts \"got $msg\" }",
+     );
+     let w211s: Vec<_> = a
+@@ -6226,7 +6226,7 @@ fn emit_cfg_ssa_diagnostics_w211_skipped_for_global_aliased() {
+     // outer scope, so the local "no use" verdict is unsafe.
+     // W211 must not fire.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { global config; set config 1 }");
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { global config; set config 1 }");
+     let w211s: Vec<_> = a
+         .result
+         .diagnostics
+@@ -6247,7 +6247,7 @@ fn emit_cfg_ssa_diagnostics_h300_repeated_assignment() {
+     // same literal value, consecutive statements.  The
+     // first is a dead store; H300 fires on the second.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set x 1\nset x 1 }");
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { set x 1\nset x 1 }");
+     let h300s: Vec<_> = a
+         .result
+         .diagnostics
+@@ -6268,7 +6268,7 @@ fn emit_cfg_ssa_diagnostics_h300_skips_underscore_vars() {
+     // Vars starting with ``_`` are excluded (the convention
+     // for "intentionally unused").
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set _x 1\nset _x 1 }");
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { set _x 1\nset _x 1 }");
+     assert!(
+         !a.result
+             .diagnostics
+@@ -6282,7 +6282,7 @@ fn emit_cfg_ssa_diagnostics_h300_skips_underscore_vars() {
+ fn emit_cfg_ssa_diagnostics_h300_skips_distinct_values() {
+     // Same var, different literal → not a paste error.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set x 1\nset x 2 }");
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { set x 1\nset x 2 }");
+     assert!(
+         !a.result
+             .diagnostics
+@@ -6297,7 +6297,7 @@ fn emit_cfg_ssa_diagnostics_w210_read_before_set() {
+     // ``proc foo {} { puts $undef }`` — undef is not a
+     // parameter and not in scope; W210 fires at the use.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { puts $undef }");
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { puts $undef }");
+     let w210s: Vec<_> = a
+         .result
+         .diagnostics
+@@ -6319,7 +6319,7 @@ fn w210_not_fired_for_qualified_global_read() {
+     // definition may live in another proc, namespace, or file, so it must
+     // never be flagged read-before-set even when this unit never sets it.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { puts $::myVar }");
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { puts $::myVar }");
+     assert!(
+         !a.result
+             .diagnostics
+@@ -6337,7 +6337,7 @@ fn opaque_switch_recovers_exhaustive_arm_defs() {
+     // switch (a `default` plus every arm setting `y`) defines `y`, so the
+     // following `$y` read is NOT a read-before-set — no false W210.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
++    a.emit_document_cfg_ssa_diagnostics_for_test(
+         "proc f {x} { switch -glob $x {a* {set y 1} default {set y 2}}\n puts $y }",
+     );
+     assert!(
+@@ -6352,7 +6352,7 @@ fn opaque_switch_recovers_exhaustive_arm_defs() {
+     // A non-exhaustive switch (no `default`) leaves `y` only maybe-defined,
+     // so the read IS a read-before-set — W210 must still fire.
+     let mut b = Analyser::new();
+-    b.emit_cfg_ssa_diagnostics_standalone_for_test(
++    b.emit_document_cfg_ssa_diagnostics_for_test(
+         "proc g {x} { switch -glob $x {a* {set y 1} b* {set y 2}}\n puts $y }",
+     );
+     assert!(
+@@ -6369,7 +6369,7 @@ fn opaque_switch_recovers_exhaustive_arm_defs() {
+ #[cfg(test)]
+ fn w210_fires_for(src: &str, var: &str) -> bool {
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(src);
++    a.emit_document_cfg_ssa_diagnostics_for_test(src);
+     let needle = format!("'{var}'");
+     a.result
+         .diagnostics
+@@ -6709,7 +6709,7 @@ fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
+         "proc foo {} { append buf x\nputs $buf }",
+     ] {
+         let mut a = Analyser::new();
+-        a.emit_cfg_ssa_diagnostics_standalone_for_test(src);
++        a.emit_document_cfg_ssa_diagnostics_for_test(src);
+         assert!(
+             !a.result
+                 .diagnostics
+@@ -6722,7 +6722,7 @@ fn emit_cfg_ssa_diagnostics_w210_skipped_for_lappend_autocreate() {
+     // `unset` (without -nocomplain) is destructive, not auto-creating —
+     // its missing-variable case must still raise W213.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { unset gone }");
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { unset gone }");
+     assert!(
+         a.result
+             .diagnostics
+@@ -6738,7 +6738,7 @@ fn emit_cfg_ssa_diagnostics_w210_skipped_for_real_param() {
+     // ``proc foo {x} { puts $x }`` — x IS a real parameter,
+     // so W210 must not fire.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {x} { puts $x }");
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {x} { puts $x }");
+     let w210s: Vec<_> = a
+         .result
+         .diagnostics
+@@ -6760,7 +6760,7 @@ fn emit_cfg_ssa_diagnostics_w213_unset_on_possibly_undef() {
+     // runtime.  W213 fires (instead of W210) at the unset
+     // statement.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { unset xs }");
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { unset xs }");
+     let w213s: Vec<_> = a
+         .result
+         .diagnostics
+@@ -6801,7 +6801,7 @@ fn emit_cfg_ssa_diagnostics_w210_read_after_unset() {
+     // (the killed real version is undef at its use, like a version-0
+     // origin).
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
++    a.emit_document_cfg_ssa_diagnostics_for_test(
+         "proc f {} {\n    set a 1\n    unset a\n    puts $a\n}",
+     );
+     assert!(
+@@ -6823,7 +6823,7 @@ fn try_handler_edge_merges_pretry_when_body_falls_through() {
+     // the on-error edge only from the explicit-throw block (after `set y 2`
+     // failed to run) would wrongly suppress it.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
++    a.emit_document_cfg_ssa_diagnostics_for_test(
+             "proc f {c} {\n try {\n  if {$c} { error e }\n  set y 2\n } on error {} {\n  puts $y\n }\n}\n",
+         );
+     assert!(
+@@ -6842,7 +6842,7 @@ fn try_handler_edge_suppressed_when_var_set_before_sole_throw() {
+     // is set before the sole throw, so the handler sees `x` defined; no
+     // W210. tclsh 9.0.3 reads x == 1 here.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
++    a.emit_document_cfg_ssa_diagnostics_for_test(
+         "proc f {} {\n try {\n  set x 1\n  error boom\n } on error {} {\n  puts $x\n }\n}\n",
+     );
+     assert!(
+@@ -6860,7 +6860,7 @@ fn emit_cfg_ssa_diagnostics_w213_skipped_with_nocomplain() {
+     // ``unset -nocomplain xs`` is the safe form — W213
+     // must not fire.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { unset -nocomplain xs }");
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {} { unset -nocomplain xs }");
+     assert!(
+         !a.result
+             .diagnostics
+@@ -6877,7 +6877,7 @@ fn emit_cfg_ssa_diagnostics_w210_fires_at_top_level() {
+     // proc writes the variable.  ``puts $undef`` reads
+     // ``undef`` without any preceding write.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("puts $undef");
++    a.emit_document_cfg_ssa_diagnostics_for_test("puts $undef");
+     assert!(
+         a.result
+             .diagnostics
+@@ -7169,9 +7169,7 @@ fn emit_cfg_ssa_diagnostics_w210_suppressed_when_proc_writes_global() {
+     // so the top-level read should not flag W210 — the proc
+     // may run before the read.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+-        "proc init {} { set ::counter 0 }\nputs $counter",
+-    );
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc init {} { set ::counter 0 }\nputs $counter");
+     assert!(
+         !a.result
+             .diagnostics
+@@ -7188,7 +7186,7 @@ fn emit_cfg_ssa_diagnostics_w210_suppressed_via_global_alias() {
+     // ``global`` declaration aliases the proc-local ``counter``
+     // to the global.  Top-level read should not flag W210.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(
++    a.emit_document_cfg_ssa_diagnostics_for_test(
+         "proc init {} { global counter; set counter 0 }\nputs $counter",
+     );
+     assert!(
+@@ -7205,7 +7203,7 @@ fn emit_cfg_ssa_diagnostics_w210_suppressed_via_global_alias() {
+ 
+ fn codes_for(src: &str) -> Vec<String> {
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(src);
++    a.emit_document_cfg_ssa_diagnostics_for_test(src);
+     a.result
+         .diagnostics
+         .iter()
+@@ -7472,7 +7470,7 @@ fn i230_message_quotes_bare_var_as_source_spells_it() {
+     // the segmenter's re-braced `${n}` reconstruction.
+     let src = "set n 1\nif $n { puts a } else { puts b }\n";
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(src);
++    a.emit_document_cfg_ssa_diagnostics_for_test(src);
+     let i230: Vec<_> = a
+         .result
+         .diagnostics
+@@ -7502,7 +7500,7 @@ fn i230_message_keeps_braced_var_spelling() {
+     // A source-braced `${n}` stays `${n}` — fidelity cuts both ways.
+     let src = "set n 1\nif ${n} { puts a } else { puts b }\n";
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test(src);
++    a.emit_document_cfg_ssa_diagnostics_for_test(src);
+     let i230: Vec<_> = a
+         .result
+         .diagnostics
+@@ -12086,7 +12084,7 @@ fn emit_cfg_ssa_diagnostics_w214_skips_args_param() {
+     // The variadic ``args`` is conventional and frequently
+     // declared without use; W214 must not fire on it.
+     let mut a = Analyser::new();
+-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {x args} { puts $x }");
++    a.emit_document_cfg_ssa_diagnostics_for_test("proc foo {x args} { puts $x }");
+     assert!(
+         !a.result
+             .diagnostics
+diff --git a/rust/tcl-compiler/src/analyser/state.rs b/rust/tcl-compiler/src/analyser/state.rs
+index 712e972da5..430b1937f8 100644
+--- a/rust/tcl-compiler/src/analyser/state.rs
++++ b/rust/tcl-compiler/src/analyser/state.rs
+@@ -1033,6 +1033,11 @@ pub struct Analyser {
+     /// `analyse` (gated by the `file_decls_corpus` corpus test).  Defaults to
+     /// `false`; normal `analyse` is unaffected.
+     pub structure_only: bool,
++    /// Test-only capture of the diagnostics the whole-document CFG/SSA phase
++    /// adds, so fixtures that assert on that phase alone run through the
++    /// checked `analyse` ingress instead of a detached unit build.
++    #[cfg(test)]
++    pub(crate) cfg_ssa_capture_for_test: Option<Vec<crate::analyser::types::Diagnostic>>,
+     /// Fully-qualified names of classes defined **elsewhere in the workspace**,
+     /// supplied by the cross-file reference/definition path so instance
+     /// inference can resolve a constructor whose class lives in another file
+@@ -1641,6 +1646,8 @@ impl Analyser {
+             pending_next_arity: Vec::new(),
+             non_ascii_mode: NonAsciiMode::Default,
+             structure_only: false,
++            #[cfg(test)]
++            cfg_ssa_capture_for_test: None,
+             workspace_classes: std::collections::HashSet::new(),
+             workspace_bare_word_classes: std::collections::HashSet::new(),
+             workspace_class_factories: None,
+@@ -3366,7 +3373,23 @@ impl Analyser {
+         self.emit_variable_usage_diagnostics();
+         #[cfg(debug_assertions)]
+         trace_phase("variable-usage");
++        #[cfg(test)]
++        let before_cfg_ssa = self
++            .cfg_ssa_capture_for_test
++            .is_some()
++            .then(|| self.result.diagnostics.clone());
+         self.emit_cfg_ssa_diagnostics(source);
++        #[cfg(test)]
++        if let Some(before) = before_cfg_ssa {
++            self.cfg_ssa_capture_for_test = Some(
++                self.result
++                    .diagnostics
++                    .iter()
++                    .filter(|diagnostic| !before.contains(diagnostic))
++                    .cloned()
++                    .collect(),
++            );
++        }
+         #[cfg(debug_assertions)]
+         trace_phase("cfg-ssa");
+         self.flush_loop_terminations();
+diff --git a/rust/tcl-compiler/src/codegen/statements.rs b/rust/tcl-compiler/src/codegen/statements.rs
+index 8f8d11bdb7..181b1c1058 100644
+--- a/rust/tcl-compiler/src/codegen/statements.rs
++++ b/rust/tcl-compiler/src/codegen/statements.rs
+@@ -2973,6 +2973,11 @@ impl CodegenCtx<'_> {
+             NativeInstructionPlan::Scalar(recipe) => {
+                 return Self::append_native_scalar_tasks(command, recipe, version, operations);
+             }
++            NativeInstructionPlan::StringOperand(recipe) => {
++                return Self::append_native_string_operand_tasks(
++                    command, recipe, version, operations,
++                );
++            }
+             NativeInstructionPlan::TclOoHelper(recipe) => {
+                 return Self::append_native_tcloo_tasks(command, version, recipe, operations);
+             }
+diff --git a/rust/tcl-compiler/src/codegen/statements/native_scalar.rs b/rust/tcl-compiler/src/codegen/statements/native_scalar.rs
+index 924f27f994..748e20ac0a 100644
+--- a/rust/tcl-compiler/src/codegen/statements/native_scalar.rs
++++ b/rust/tcl-compiler/src/codegen/statements/native_scalar.rs
+@@ -47,3 +47,34 @@ impl CodegenCtx<'_> {
+         true
+     }
+ }
++
++impl CodegenCtx<'_> {
++    pub(super) fn append_native_string_operand_tasks(
++        command: &tcl_lexer::NativeScriptCommandWords,
++        recipe: tcl_registry::native_string_operand_compilation::NativeStringOperandInstruction,
++        version: tcl_dialect::TclVersion,
++        operations: &mut Vec<NativeEmissionTask>,
++    ) -> bool {
++        use tcl_registry::native_string_operand_compilation::NativeStringOperandOperation as Operation;
++        if recipe.operands.len() != recipe.operation.arity() {
++            return false;
++        }
++        for operand in recipe.operands {
++            let Some(task) = Self::native_namespace_word_task(&command.words, operand) else {
++                return false;
++            };
++            operations.push(task);
++        }
++        let op = match recipe.operation {
++            Operation::Compare => Op::STR_CMP,
++            Operation::Index => Op::STR_INDEX,
++            Operation::First => Op::STR_FIND,
++            Operation::Last => Op::STR_RFIND,
++            Operation::ToUpper => Op::STR_UPPER,
++            Operation::ToLower => Op::STR_LOWER,
++            Operation::ToTitle => Op::STR_TITLE,
++        };
++        operations.push(NativeEmissionTask::SwitchOperation(op, Vec::new(), version));
++        true
++    }
++}
+diff --git a/rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs b/rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs
+index 1a7dd8d8bf..d41b030297 100644
+--- a/rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs
++++ b/rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs
+@@ -221,6 +221,9 @@ impl CompilerTraversal<'_> {
+             NativeInstructionPlan::Scalar(recipe) => {
+                 self.original_operands(words, recipe.operands.iter().cloned(), context)
+             }
++            NativeInstructionPlan::StringOperand(recipe) => {
++                self.original_operands(words, recipe.operands.iter().cloned(), context)
++            }
+             NativeInstructionPlan::Expression(expression) => {
+                 if let Some(program) = &expression.program {
+                     self.original_expression(
+diff --git a/rust/tcl-registry/src/commands/tcl/string_.rs b/rust/tcl-registry/src/commands/tcl/string_.rs
+index abb43c3233..1ee43f80cc 100644
+--- a/rust/tcl-registry/src/commands/tcl/string_.rs
++++ b/rust/tcl-registry/src/commands/tcl/string_.rs
+@@ -1095,6 +1095,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
+     },
+     SubCommand {
+         name: "compare",
++        // C84 TclCompileStringCmd; C85+ TclCompileStringCmpCmd (`strcmp`), with
++        // C86+ TclCompileEnsemble's private-name fallback on refused forms.
++        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
++            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
++                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++                operation:
++                    crate::native_string_operand_compilation::NativeStringOperandOperation::Compare,
++            },
++            operation: SemanticOperationId::Intrinsic(IntrinsicId::StringCompare),
++            body: crate::native_compilation::NativeBodyCompilation::Inherit,
++        }),
+         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringCompare)),
+         arity: Arity::at_least(2),
+         reserved_trailing_words: 2,
+@@ -1224,6 +1235,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
+     },
+     SubCommand {
+         name: "first",
++        // C86+ TclCompileStringFirstCmd (`strfind`); C84/C85 run the command.
++        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
++            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
++                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++                operation:
++                    crate::native_string_operand_compilation::NativeStringOperandOperation::First,
++            },
++            operation: SemanticOperationId::Invoke,
++            body: crate::native_compilation::NativeBodyCompilation::Inherit,
++        }),
+         arity: Arity::new(2, 3),
+         detail: "Find first occurrence of needle in haystack.",
+         synopsis: "string first needleString haystackString ?startIndex?",
+@@ -1293,6 +1314,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
+     },
+     SubCommand {
+         name: "index",
++        // C84 TclCompileStringCmd; C85+ TclCompileStringIndexCmd (`strindex`), with
++        // C86+ TclCompileEnsemble's private-name fallback on refused forms.
++        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
++            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
++                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++                operation:
++                    crate::native_string_operand_compilation::NativeStringOperandOperation::Index,
++            },
++            operation: SemanticOperationId::Intrinsic(IntrinsicId::StringIndex),
++            body: crate::native_compilation::NativeBodyCompilation::Inherit,
++        }),
+         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringIndex)),
+         // S110: keeps a pure byte-array rep in both 8.6 and 9.0
+         // (`StringIndexCmd` returns a one-byte `Tcl_NewByteArrayObj` on the
+@@ -1477,6 +1509,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
+     },
+     SubCommand {
+         name: "last",
++        // C86+ TclCompileStringLastCmd (`strrfind`); C84/C85 run the command.
++        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
++            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
++                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++                operation:
++                    crate::native_string_operand_compilation::NativeStringOperandOperation::Last,
++            },
++            operation: SemanticOperationId::Invoke,
++            body: crate::native_compilation::NativeBodyCompilation::Inherit,
++        }),
+         arity: Arity::new(2, 3),
+         detail: "Find last occurrence of needle in haystack.",
+         synopsis: "string last needleString haystackString ?lastIndex?",
+@@ -1928,6 +1970,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
+     },
+     SubCommand {
+         name: "reverse",
++        // C86+ TclCompileBasic1ArgCmd invokes the private worker by its full name.
++        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
++            grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
++                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
++                    ensemble: "::string",
++                    member: "reverse",
++                    slot: "::tcl::string::reverse",
++                    command: "string",
++                    prepended: &["reverse"],
++                },
++                implementation_from: tcl_dialect::TclVersion::V8_5,
++                hook_from: tcl_dialect::TclVersion::V8_6,
++                arity: Arity::exact(1),
++            },
++            operation: SemanticOperationId::Invoke,
++            body: crate::native_compilation::NativeBodyCompilation::Inherit,
++        }),
+         // S110: keeps a pure byte-array rep in both 8.6 and 9.0
+         // (`TclStringReverse`'s `TclIsPureByteArray` path reverses the bytes;
+         // tclsh 8.6.14-verified).
+@@ -1977,6 +2036,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
+     },
+     SubCommand {
+         name: "tolower",
++        // C86+ TclCompileStringToLowerCmd (`strcaseLower`), else
++        // TclCompileBasic1To3ArgCmd; C84/C85 run the command.
++        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
++            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
++                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++                operation:
++                    crate::native_string_operand_compilation::NativeStringOperandOperation::ToLower,
++            },
++            operation: SemanticOperationId::Invoke,
++            body: crate::native_compilation::NativeBodyCompilation::Inherit,
++        }),
+         byte_array_effect: ByteArrayEffect::CaseFolds,
+         arity: Arity::new(1, 3),
+         detail: "Convert to lower case.",
+@@ -2026,6 +2096,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
+     },
+     SubCommand {
+         name: "totitle",
++        // C86+ TclCompileStringToTitleCmd (`strcaseTitle`), else
++        // TclCompileBasic1To3ArgCmd; C84/C85 run the command.
++        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
++            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
++                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++                operation:
++                    crate::native_string_operand_compilation::NativeStringOperandOperation::ToTitle,
++            },
++            operation: SemanticOperationId::Invoke,
++            body: crate::native_compilation::NativeBodyCompilation::Inherit,
++        }),
+         byte_array_effect: ByteArrayEffect::CaseFolds,
+         arity: Arity::new(1, 3),
+         detail: "Convert to title case.",
+@@ -2075,6 +2156,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
+     },
+     SubCommand {
+         name: "toupper",
++        // C86+ TclCompileStringToUpperCmd (`strcaseUpper`), else
++        // TclCompileBasic1To3ArgCmd; C84/C85 run the command.
++        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
++            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
++                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++                operation:
++                    crate::native_string_operand_compilation::NativeStringOperandOperation::ToUpper,
++            },
++            operation: SemanticOperationId::Invoke,
++            body: crate::native_compilation::NativeBodyCompilation::Inherit,
++        }),
+         byte_array_effect: ByteArrayEffect::CaseFolds,
+         arity: Arity::new(1, 3),
+         detail: "Convert to upper case.",
+@@ -2269,6 +2361,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
+     },
+     SubCommand {
+         name: "wordend",
++        // C86+ TclCompileBasic2ArgCmd invokes the private worker by its full name.
++        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
++            grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
++                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
++                    ensemble: "::string",
++                    member: "wordend",
++                    slot: "::tcl::string::wordend",
++                    command: "string",
++                    prepended: &["wordend"],
++                },
++                implementation_from: tcl_dialect::TclVersion::V8_5,
++                hook_from: tcl_dialect::TclVersion::V8_6,
++                arity: Arity::exact(2),
++            },
++            operation: SemanticOperationId::Invoke,
++            body: crate::native_compilation::NativeBodyCompilation::Inherit,
++        }),
+         arity: Arity::exact(2),
+         detail: "Index of character after end of word.",
+         synopsis: "string wordend string charIndex",
+@@ -2313,6 +2422,23 @@ static SUBCOMMANDS: &[SubCommand] = &[
+     },
+     SubCommand {
+         name: "wordstart",
++        // C86+ TclCompileBasic2ArgCmd invokes the private worker by its full name.
++        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
++            grammar: crate::native_compilation::NativeCompilationGrammar::NamedEnsembleInvocation {
++                lookup: &crate::native_compilation::NativeCompilerImplementationLookup {
++                    ensemble: "::string",
++                    member: "wordstart",
++                    slot: "::tcl::string::wordstart",
++                    command: "string",
++                    prepended: &["wordstart"],
++                },
++                implementation_from: tcl_dialect::TclVersion::V8_5,
++                hook_from: tcl_dialect::TclVersion::V8_6,
++                arity: Arity::exact(2),
++            },
++            operation: SemanticOperationId::Invoke,
++            body: crate::native_compilation::NativeBodyCompilation::Inherit,
++        }),
+         arity: Arity::exact(2),
+         detail: "Index of first character of word.",
+         synopsis: "string wordstart string charIndex",
+diff --git a/rust/tcl-registry/src/lib.rs b/rust/tcl-registry/src/lib.rs
+index 9daab2b451..cc9be332af 100644
+--- a/rust/tcl-registry/src/lib.rs
++++ b/rust/tcl-registry/src/lib.rs
+@@ -136,6 +136,7 @@ pub mod native_namespace_string_compilation;
+ pub mod native_namespace_upvar_compilation;
+ pub mod native_scalar_compilation;
+ pub mod native_string_compilation;
++pub mod native_string_operand_compilation;
+ pub mod native_string_trim_compilation;
+ pub mod native_switch_compilation;
+ pub mod native_tcloo_bootstrap;
+diff --git a/rust/tcl-registry/src/native_compilation.rs b/rust/tcl-registry/src/native_compilation.rs
+index 70b2c0d4ad..d14fdf74ae 100644
+--- a/rust/tcl-registry/src/native_compilation.rs
++++ b/rust/tcl-registry/src/native_compilation.rs
+@@ -845,6 +845,15 @@ pub enum NativeCompilationGrammar {
+     /// C8.4+ string length accepts one evaluated operand; refused modern
+     /// public forms retain the selected private worker invocation.
+     StringLength(crate::native_scalar_compilation::NativeScalarScope),
++    /// A fixed-operand String member instruction (`strcmp`, `strindex`,
++    /// `strfind`, `strrfind` and the case conversions), with the release and
++    /// refused-count fallbacks of its actual compiler.
++    StringOperand {
++        /// Public member or actual private worker operand layout.
++        scope: crate::native_scalar_compilation::NativeScalarScope,
++        /// Selected instruction, independent of the current command spelling.
++        operation: crate::native_string_operand_compilation::NativeStringOperandOperation,
++    },
+     /// Original C string-match hook and its actual registration operand scope.
+     StringMatch(crate::native_string_compilation::NativeStringMatchScope),
+     /// C8.6+ original trim subject and explicit/default character set.
+@@ -1893,6 +1902,7 @@ impl NativeCompilationSpec {
+             | NativeCompilationGrammar::ListLength
+             | NativeCompilationGrammar::NamespaceOrigin
+             | NativeCompilationGrammar::NamespaceString(_) => count == 1,
++            NativeCompilationGrammar::StringOperand { operation, .. } => count == operation.arity(),
+             NativeCompilationGrammar::StringMatch(_) => {
+                 count == 2 || (count == 3 && words.literal(operand_from) == Some(b"-nocase"))
+             }
+@@ -2028,6 +2038,7 @@ impl NativeCompilationSpec {
+             | NativeCompilationGrammar::StringMatch(_)
+             | NativeCompilationGrammar::StringEqual(_)
+             | NativeCompilationGrammar::StringLength(_)
++            | NativeCompilationGrammar::StringOperand { .. }
+             | NativeCompilationGrammar::ListLength
+             | NativeCompilationGrammar::Tailcall
+             | NativeCompilationGrammar::CoroutineYield
+@@ -2305,6 +2316,9 @@ impl NativeCompilationSpec {
+             | NativeCompilationGrammar::NamespaceCode
+             | NativeCompilationGrammar::NamespaceString(_) => version >= TclVersion::V8_6,
+             NativeCompilationGrammar::Uplevel => version >= TclVersion::V9_1,
++            NativeCompilationGrammar::StringOperand { operation, .. } => {
++                version >= operation.hook_from()
++            }
+             _ => true,
+         })
+     }
+@@ -2368,7 +2382,10 @@ impl NativeCompilationSpec {
+                 ..
+             } | NativeCompilationGrammar::StringMatch(
+                 crate::native_string_compilation::NativeStringMatchScope::PublicMember,
+-            )
++            ) | NativeCompilationGrammar::StringOperand {
++                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++                ..
++            }
+         ) {
+             return self.public_string_implementation_lookup(dialect);
+         }
+@@ -2449,6 +2466,14 @@ impl NativeCompilationSpec {
+             return implementation_version_matches(dialect, TclVersion::V8_5)
+                 .then_some(crate::native_string_compilation::STRING_MATCH_IMPLEMENTATION);
+         }
++        if let NativeCompilationGrammar::StringOperand {
++            scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++            operation,
++        } = self.grammar
++        {
++            return implementation_version_matches(dialect, TclVersion::V8_5)
++                .then_some(*operation.implementation());
++        }
+         None
+     }
+ 
+@@ -2816,6 +2841,16 @@ impl NativeCompilationSpec {
+                 self.operation,
+             ));
+         }
++        if let NativeCompilationGrammar::StringOperand { scope, operation } = self.grammar {
++            return Some(crate::native_string_operand_compilation::select_original(
++                words,
++                operand_from,
++                operation,
++                scope,
++                version,
++                self.operation,
++            ));
++        }
+ 
+         if let Some(kind) = self.introspection_compilation()
+             && crate::native_introspection_compilation::compile_native_introspection(
+@@ -3284,7 +3319,10 @@ impl NativeCompilationSpec {
+                 ..
+             } | NativeCompilationGrammar::StringMatch(
+                 crate::native_string_compilation::NativeStringMatchScope::PublicMember
+-            )
++            ) | NativeCompilationGrammar::StringOperand {
++                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++                ..
++            }
+         );
+         facts
+             .argument_offset
+@@ -4067,6 +4105,16 @@ impl NativeCompilationSpec {
+                 scope,
+                 1,
+             ),
++            NativeCompilationGrammar::StringOperand { scope, operation } => {
++                crate::native_string_operand_compilation::select_shapes(
++                    shapes,
++                    words.arguments().literal_at(0).map(str::as_bytes),
++                    operation,
++                    scope,
++                    version,
++                    self.operation,
++                )
++            }
+             NativeCompilationGrammar::ListRange => {
+                 list_range_grammar(words, shapes, version, self.operation)
+             }
+diff --git a/rust/tcl-registry/src/native_instruction_plan.rs b/rust/tcl-registry/src/native_instruction_plan.rs
+index 65ead7f41e..dfd70b9264 100644
+--- a/rust/tcl-registry/src/native_instruction_plan.rs
++++ b/rust/tcl-registry/src/native_instruction_plan.rs
+@@ -98,6 +98,8 @@ pub enum NativeInstructionPlan {
+     StringMatch(crate::native_string_compilation::NativeStringMatchInstruction),
+     /// Original trim subject and optional original character set.
+     StringTrim(crate::native_string_trim_compilation::NativeStringTrimInstruction),
++    /// Original fixed String operands followed by the selected instruction.
++    StringOperand(crate::native_string_operand_compilation::NativeStringOperandInstruction),
+     /// Read the selected original variable operand.
+     Load {
+         /// Exact index of the target in the complete original word vector.
+@@ -943,6 +945,19 @@ fn selected_projected_instruction_plan(
+             .ok_or(Unavailable::OperandGeometry),
+         );
+     }
++    if let NativeCompilationGrammar::StringOperand { scope, operation } = spec.grammar {
++        return Some(
++            crate::native_string_operand_compilation::compile_native_string_operand(
++                words,
++                operand_from,
++                operation,
++                scope,
++                version,
++            )
++            .map(NativeInstructionPlan::StringOperand)
++            .ok_or(Unavailable::OperandGeometry),
++        );
++    }
+     Some(match spec.grammar {
+         NativeCompilationGrammar::Upvar => crate::native_upvar_compilation::compile_native_upvar(
+             words,
+diff --git a/rust/tcl-registry/src/native_string_compilation.rs b/rust/tcl-registry/src/native_string_compilation.rs
+index 428378eb46..72add816ab 100644
+--- a/rust/tcl-registry/src/native_string_compilation.rs
++++ b/rust/tcl-registry/src/native_string_compilation.rs
+@@ -114,6 +114,10 @@ impl crate::CommandRegistry {
+                 | crate::native_compilation::NativeCompilationGrammar::StringLength(
+                     crate::native_scalar_compilation::NativeScalarScope::PublicMember
+                 )
++                | crate::native_compilation::NativeCompilationGrammar::StringOperand {
++                    scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++                    ..
++                }
+         )
+         .then_some(selected)
+     }
+diff --git a/rust/tcl-registry/src/registry.rs b/rust/tcl-registry/src/registry.rs
+index 14f39b6449..6bb3ea763e 100644
+--- a/rust/tcl-registry/src/registry.rs
++++ b/rust/tcl-registry/src/registry.rs
+@@ -4021,6 +4021,7 @@ impl CommandRegistry {
+                             crate::native_compilation::NativeCompilationGrammar::StringTrim { operation, .. } => crate::native_compilation::NativeCompilationGrammar::StringTrim { scope: crate::native_scalar_compilation::NativeScalarScope::PrivateOperands, operation },
+                             crate::native_compilation::NativeCompilationGrammar::StringEqual(_) => crate::native_compilation::NativeCompilationGrammar::StringEqual(crate::native_scalar_compilation::NativeScalarScope::PrivateOperands),
+                             crate::native_compilation::NativeCompilationGrammar::StringLength(_) => crate::native_compilation::NativeCompilationGrammar::StringLength(crate::native_scalar_compilation::NativeScalarScope::PrivateOperands),
++                            crate::native_compilation::NativeCompilationGrammar::StringOperand { operation, .. } => crate::native_compilation::NativeCompilationGrammar::StringOperand { scope: crate::native_scalar_compilation::NativeScalarScope::PrivateOperands, operation },
+                             grammar => grammar,
+                         };
+                         compiler
+diff --git a/rust/tcl-registry/src/native_string_operand_compilation.rs b/rust/tcl-registry/src/native_string_operand_compilation.rs
+new file mode 100644
+index 0000000000..3e991cea59
+--- /dev/null
++++ b/rust/tcl-registry/src/native_string_operand_compilation.rs
+@@ -0,0 +1,465 @@
++// tcl-lsp — a language server and toolchain for Tcl
++// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++//
++// SPDX-License-Identifier: AGPL-3.0-or-later
++
++//! Fixed-operand String member compilers and their actual registration scopes.
++//!
++//! C Tcl compiles these `string` members to one stack instruction over their
++//! evaluated operands (`generic/tclCompCmdsSZ.c`; C 8.4's monolithic
++//! `TclCompileStringCmd` in `generic/tclCompCmds.c`):
++//!
++//! | member | instruction | hook from | wrong operand count |
++//! |---|---|---|---|
++//! | `compare` | `strcmp` | 8.4 | `TCL_ERROR` |
++//! | `index` | `strindex` | 8.4 | `TCL_ERROR` |
++//! | `first` | `strfind` | 8.6 | `TCL_ERROR` |
++//! | `last` | `strrfind` | 8.6 | `TCL_ERROR` |
++//! | `toupper`, `tolower`, `totitle` | `strupper`, `strlower`, `strtitle` | 8.6 | `TclCompileBasic1To3ArgCmd` |
++//!
++//! A refused public ensemble member keeps its selected private worker through
++//! the ensemble's invocation rewrite from C 8.6. `TclCompileBasic1To3ArgCmd`
++//! instead invokes the worker's full name directly for one to three operands.
++//! C 8.4 and 8.5 have no such fallback, and an earlier release without the hook
++//! invokes the command generically.
++
++use crate::SemanticOperationId;
++use crate::native_compilation::{
++    NativeCompilationGuard, NativeCompilationSelection, NativeCompilationWordShape as Shape,
++    NativeCompilerImplementationLookup, NativeNamedInvocationProtocol,
++};
++use crate::native_compiler_word_projection::{
++    NativeCompilerWordOperand, project_native_compiler_words,
++};
++use crate::native_compiler_words::NativeCompilerWords;
++use crate::native_scalar_compilation::NativeScalarScope;
++use tcl_dialect::TclVersion;
++
++/// Native String instruction over a fixed number of evaluated operands.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
++pub enum NativeStringOperandOperation {
++    /// `string compare a b`: `strcmp`.
++    Compare,
++    /// `string index s i`: `strindex`.
++    Index,
++    /// `string first needle haystack`: `strfind`.
++    First,
++    /// `string last needle haystack`: `strrfind`.
++    Last,
++    /// `string toupper s`: `strupper`.
++    ToUpper,
++    /// `string tolower s`: `strlower`.
++    ToLower,
++    /// `string totitle s`: `strtitle`.
++    ToTitle,
++}
++
++impl NativeStringOperandOperation {
++    /// Every authored operation.
++    pub const ALL: [Self; 7] = [
++        Self::Compare,
++        Self::Index,
++        Self::First,
++        Self::Last,
++        Self::ToUpper,
++        Self::ToLower,
++        Self::ToTitle,
++    ];
++
++    /// Number of evaluated operands the inline instruction consumes.
++    #[must_use]
++    pub const fn arity(self) -> usize {
++        match self {
++            Self::Compare | Self::Index | Self::First | Self::Last => 2,
++            Self::ToUpper | Self::ToLower | Self::ToTitle => 1,
++        }
++    }
++
++    /// First C release whose compiler selects this member's instruction.
++    /// C 8.4's monolithic String compiler covers `compare` and `index` only.
++    #[must_use]
++    pub const fn hook_from(self) -> TclVersion {
++        match self {
++            Self::Compare | Self::Index => TclVersion::V8_4,
++            Self::First | Self::Last | Self::ToUpper | Self::ToLower | Self::ToTitle => {
++                TclVersion::V8_6
++            }
++        }
++    }
++
++    /// Whether a refused operand count falls through to
++    /// `TclCompileBasic1To3ArgCmd`, a direct invocation of the worker.
++    const fn basic_one_to_three(self) -> bool {
++        matches!(self, Self::ToUpper | Self::ToLower | Self::ToTitle)
++    }
++
++    /// Actual private String worker registration (C 8.5 onwards).
++    #[must_use]
++    pub const fn implementation(self) -> &'static NativeCompilerImplementationLookup {
++        match self {
++            Self::Compare => &STRING_COMPARE_IMPLEMENTATION,
++            Self::Index => &STRING_INDEX_IMPLEMENTATION,
++            Self::First => &STRING_FIRST_IMPLEMENTATION,
++            Self::Last => &STRING_LAST_IMPLEMENTATION,
++            Self::ToUpper => &STRING_TOUPPER_IMPLEMENTATION,
++            Self::ToLower => &STRING_TOLOWER_IMPLEMENTATION,
++            Self::ToTitle => &STRING_TOTITLE_IMPLEMENTATION,
++        }
++    }
++}
++
++macro_rules! string_worker {
++    ($name:ident, $member:literal) => {
++        #[doc = concat!("Genuine original private String `", $member, "` registration.")]
++        pub const $name: NativeCompilerImplementationLookup = NativeCompilerImplementationLookup {
++            ensemble: "::string",
++            member: $member,
++            slot: concat!("::tcl::string::", $member),
++            command: "string",
++            prepended: &[$member],
++        };
++    };
++}
++
++string_worker!(STRING_COMPARE_IMPLEMENTATION, "compare");
++string_worker!(STRING_INDEX_IMPLEMENTATION, "index");
++string_worker!(STRING_FIRST_IMPLEMENTATION, "first");
++string_worker!(STRING_LAST_IMPLEMENTATION, "last");
++string_worker!(STRING_TOUPPER_IMPLEMENTATION, "toupper");
++string_worker!(STRING_TOLOWER_IMPLEMENTATION, "tolower");
++string_worker!(STRING_TOTITLE_IMPLEMENTATION, "totitle");
++
++/// Chronological original operands followed by the selected instruction.
++#[derive(Debug, Clone, PartialEq, Eq, Hash)]
++pub struct NativeStringOperandInstruction {
++    /// Selected native instruction.
++    pub operation: NativeStringOperandOperation,
++    /// Exact original words or original static expansion member receipts.
++    pub operands: Vec<NativeCompilerWordOperand>,
++}
++
++/// Select the actual compiler outcome from the post-head word shapes.
++///
++/// `shapes` starts at the public member word for [`NativeScalarScope::PublicMember`]
++/// and at the first operand for a private worker; `member` is that public
++/// member's literal value. Opaque operands retain an unknown outcome.
++#[must_use]
++pub fn select_shapes(
++    shapes: &[Shape],
++    member: Option<&[u8]>,
++    operation: NativeStringOperandOperation,
++    scope: NativeScalarScope,
++    version: TclVersion,
++    semantic: SemanticOperationId,
++) -> NativeCompilationSelection {
++    use NativeCompilationSelection as Selection;
++    let public = scope == NativeScalarScope::PublicMember;
++    if version < operation.hook_from() || (!public && version == TclVersion::V8_4) {
++        return Selection::Generic;
++    }
++    if public {
++        let Some(shape) = shapes.first() else {
++            return Selection::Generic;
++        };
++        // C84 parses the raw member token, including delimiters. Later
++        // ensemble compilers select a literal member's unwrapped value.
++        if (version == TclVersion::V8_4 && *shape != Shape::Literal)
++            || !matches!(
++                shape,
++                Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral
++            )
++            || !member.is_some_and(|member| {
++                !member.is_empty()
++                    && operation
++                        .implementation()
++                        .member
++                        .as_bytes()
++                        .starts_with(member)
++            })
++        {
++            return Selection::Generic;
++        }
++    }
++    let from = usize::from(public);
++    let Some(operands) = shapes.get(from..) else {
++        return Selection::Generic;
++    };
++    if operands.contains(&Shape::Opaque) {
++        return Selection::Unknown;
++    }
++    // An expanded word bypasses every compiler hook.
++    if operands.contains(&Shape::Expanded) {
++        return Selection::Generic;
++    }
++    if operands.len() == operation.arity() {
++        return Selection::Inline {
++            operation: semantic,
++            guard: NativeCompilationGuard::for_c_version(version),
++        };
++    }
++    if operation.basic_one_to_three() && (1..=3).contains(&operands.len()) {
++        return Selection::NamedInvocation {
++            lookup: operation.implementation(),
++            arguments_from: from,
++            protocol: NativeNamedInvocationProtocol::Direct,
++        };
++    }
++    if public && version >= TclVersion::V8_6 {
++        return Selection::NamedInvocation {
++            lookup: operation.implementation(),
++            arguments_from: from,
++            protocol: NativeNamedInvocationProtocol::EnsembleRewrite,
++        };
++    }
++    Selection::Generic
++}
++
++/// Select the actual compiler's argument geometry over original words.
++/// This grants no registration or native issuer authority; its caller
++/// independently retains both.
++#[must_use]
++pub fn select_original(
++    words: &NativeCompilerWords<'_>,
++    operand_from: usize,
++    operation: NativeStringOperandOperation,
++    scope: NativeScalarScope,
++    version: TclVersion,
++    semantic: SemanticOperationId,
++) -> NativeCompilationSelection {
++    let Ok(projected) = project_native_compiler_words(words, version) else {
++        return NativeCompilationSelection::Unknown;
++    };
++    let Some(arguments) = operand_from
++        .checked_sub(1)
++        .and_then(|_| projected.get(operand_from..))
++    else {
++        return NativeCompilationSelection::Unknown;
++    };
++    let shapes = arguments
++        .iter()
++        .map(|argument| argument.shape)
++        .collect::<Vec<_>>();
++    let member = arguments
++        .first()
++        .and_then(|argument| argument.literal.as_deref());
++    select_shapes(&shapes, member, operation, scope, version, semantic)
++}
++
++/// Project only the independently admitted inline geometry onto original stack operands.
++#[must_use]
++pub fn compile_native_string_operand(
++    words: &NativeCompilerWords<'_>,
++    operand_from: usize,
++    operation: NativeStringOperandOperation,
++    scope: NativeScalarScope,
++    version: TclVersion,
++) -> Option<NativeStringOperandInstruction> {
++    if !matches!(
++        select_original(
++            words,
++            operand_from,
++            operation,
++            scope,
++            version,
++            SemanticOperationId::Invoke
++        ),
++        NativeCompilationSelection::Inline { .. }
++    ) {
++        return None;
++    }
++    let projected = project_native_compiler_words(words, version).ok()?;
++    let from = operand_from + usize::from(scope == NativeScalarScope::PublicMember);
++    Some(NativeStringOperandInstruction {
++        operation,
++        operands: projected
++            .get(from..)?
++            .iter()
++            .map(|operand| operand.operand.clone())
++            .collect(),
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use NativeStringOperandOperation as Operation;
++
++    fn words(source: &str, version: TclVersion) -> Vec<Shape> {
++        let dialect = crate::InvocationDialect::for_version(version);
++        let parsed = tcl_lexer::native_script_words_in(
++            tcl_lexer::SourceImage::native(source.as_bytes()),
++            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
++            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
++        )
++        .unwrap();
++        let captured = NativeCompilerWords::capture(
++            &parsed.commands[0].words,
++            dialect.native_string_protocol().unwrap(),
++        )
++        .unwrap();
++        captured.shapes().to_vec()
++    }
++
++    fn select(
++        source: &str,
++        operation: Operation,
++        version: TclVersion,
++    ) -> NativeCompilationSelection {
++        let dialect = crate::InvocationDialect::for_version(version);
++        let parsed = tcl_lexer::native_script_words_in(
++            tcl_lexer::SourceImage::native(source.as_bytes()),
++            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
++            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
++        )
++        .unwrap();
++        let captured = NativeCompilerWords::capture(
++            &parsed.commands[0].words,
++            dialect.native_string_protocol().unwrap(),
++        )
++        .unwrap();
++        select_original(
++            &captured,
++            1,
++            operation,
++            NativeScalarScope::PublicMember,
++            version,
++            SemanticOperationId::Invoke,
++        )
++    }
++
++    /// Instruction windows measured with `::tcl::unsupported::disassemble
++    /// script` on tclsh 8.4.20 (`tcl::unsupported` is absent there, so the
++    /// 8.4 rows follow `TclCompileStringCmd`), 8.5.19, 8.6.18, 9.0.4 and
++    /// 9.1.0: `strcmp`/`strindex` from 8.4, and `strfind`/`strrfind`/
++    /// `strupper`/`strlower`/`strtitle` from 8.6.
++    #[test]
++    fn original_string_operand_windows_follow_each_release() {
++        let inline = |selection| matches!(selection, NativeCompilationSelection::Inline { .. });
++        for version in TclVersion::ALL {
++            for (source, operation) in [
++                ("string compare a b", Operation::Compare),
++                ("string index $s 1", Operation::Index),
++                ("string first a $s", Operation::First),
++                ("string last a $s", Operation::Last),
++                ("string toupper $s", Operation::ToUpper),
++                ("string tolower $s", Operation::ToLower),
++                ("string totitle $s", Operation::ToTitle),
++            ] {
++                assert_eq!(
++                    inline(select(source, operation, version)),
++                    version >= operation.hook_from(),
++                    "{version:?}: {source}"
++                );
++            }
++        }
++        // An unknown or ambiguous member spelling never selects the hook here;
++        // resolution of the public member belongs to the registry.
++        assert_eq!(
++            select("string x a b", Operation::Compare, TclVersion::V9_0),
++            NativeCompilationSelection::Generic
++        );
++        // C84 reads the raw member token.
++        assert_eq!(
++            select("string {index} $s 1", Operation::Index, TclVersion::V8_4),
++            NativeCompilationSelection::Generic
++        );
++        assert!(inline(select(
++            "string {index} $s 1",
++            Operation::Index,
++            TclVersion::V8_5
++        )));
++    }
++
++    #[test]
++    fn refused_operand_counts_keep_the_actual_fallback() {
++        use NativeNamedInvocationProtocol::{Direct, EnsembleRewrite};
++        let named = |selection| match selection {
++            NativeCompilationSelection::NamedInvocation { protocol, .. } => Some(protocol),
++            _ => None,
++        };
++        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
++            assert_eq!(
++                named(select("string index $s", Operation::Index, version)),
++                Some(EnsembleRewrite)
++            );
++            assert_eq!(
++                named(select("string toupper $s 1", Operation::ToUpper, version)),
++                Some(Direct)
++            );
++            assert_eq!(
++                named(select("string toupper $s 1 2", Operation::ToUpper, version)),
++                Some(Direct)
++            );
++            assert_eq!(
++                named(select("string toupper", Operation::ToUpper, version)),
++                Some(EnsembleRewrite)
++            );
++            assert_eq!(
++                named(select(
++                    "string toupper a 1 2 3",
++                    Operation::ToUpper,
++                    version
++                )),
++                Some(EnsembleRewrite)
++            );
++            assert_eq!(
++                select("string index {*}$l", Operation::Index, version),
++                NativeCompilationSelection::Generic
++            );
++        }
++        for version in [TclVersion::V8_4, TclVersion::V8_5] {
++            assert_eq!(
++                select("string index $s", Operation::Index, version),
++                NativeCompilationSelection::Generic
++            );
++        }
++        assert!(!words("string index $s 1", TclVersion::V9_0).is_empty());
++    }
++
++    #[test]
++    fn private_workers_consume_only_their_operands() {
++        for version in TclVersion::ALL {
++            let selection = select_shapes(
++                &[Shape::Literal, Shape::Literal],
++                None,
++                Operation::Index,
++                NativeScalarScope::PrivateOperands,
++                version,
++                SemanticOperationId::Invoke,
++            );
++            assert_eq!(
++                matches!(selection, NativeCompilationSelection::Inline { .. }),
++                version >= TclVersion::V8_5,
++                "{version:?}"
++            );
++        }
++        assert_eq!(
++            select_shapes(
++                &[Shape::Literal, Shape::Literal],
++                None,
++                Operation::ToUpper,
++                NativeScalarScope::PrivateOperands,
++                TclVersion::V9_0,
++                SemanticOperationId::Invoke,
++            ),
++            NativeCompilationSelection::NamedInvocation {
++                lookup: &STRING_TOUPPER_IMPLEMENTATION,
++                arguments_from: 0,
++                protocol: NativeNamedInvocationProtocol::Direct,
++            }
++        );
++    }
++}

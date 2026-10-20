@@ -1,0 +1,142 @@
+diff --git a/docs/design/contracts/name-handling.md b/docs/design/contracts/name-handling.md
+index 8df0070d90..2718533b42 100644
+--- a/docs/design/contracts/name-handling.md
++++ b/docs/design/contracts/name-handling.md
+@@ -1003,7 +1003,7 @@ Caller-frame source collection retains actual SourceNamespaceKey values through
+ 
+ Logical workspace rename proposals use the shared qualifier constructor only after the public entry validates a safe unqualified replacement. Source/target correspondence and collision checks remain independent. Readonly command references obtain implicit namespace paths from the actual innermost analysed scope and Registry metadata; a matching path candidate supplies no Native lookup or edit permission.
+ 
+-A default source build selects explicit Standalone authoring only when source entry, supplied context and supplied input are all absent. The Registry, full configuration and optional profile retain authoring grammar without producing availability ownership. Supplied and driver ingress preserve their own purpose even when metadata is missing or unknown. Editor rename, method-cursor, reference and highlight entry points independently require the complete current source owner before reading retained declaration metadata; missing rename execution ownership is a terminal refusal, while identity and edit eligibility remain separate.
++A default source build selects explicit Standalone authoring only when source entry, supplied context and supplied input are all absent and it names no dialect profile, or when its command store does not correspond to that profile's availability. A dialect-bearing default build (`CompilationUnit::build_for_dialect`, `build_for_profile`, `build_with_options` with a profile) is a whole document run by a fresh interpreter of that dialect, as `tclsh file.tcl` runs it: it supplies the dialect's default availability over the caller's exact command store as its complete input and takes `SourceAnalysisEntry::for_supplied_source`, so `proc f` publishes `::f` (user decision 2026-10-19T14:20Z). Logical and hosted profiles keep their own supplied-source purposes. The Registry, full configuration and optional profile retain authoring grammar without producing availability ownership. Supplied and driver ingress preserve their own purpose even when metadata is missing or unknown. Editor rename, method-cursor, reference and highlight entry points independently require the complete current source owner before reading retained declaration metadata; missing rename execution ownership is a terminal refusal, while identity and edit eligibility remain separate.
+ 
+ Editor command-head eligibility reborrows `SourceSyntaxStructure::capture_commands` from the existing readonly source-structure producer under the complete current analysis, exact input/image and full configuration. This commands-only projection preserves the selected script regions and original command vectors without building an unused lexical-token inventory. The consumer independently checks strict UTF-16 round trips, the whole original head vector and its execution-site geometry. Partial, expanded, stale or mismatched owners refuse; this source geometry supplies no lookup, completeness, binding, execution or edit authority.
+ 
+diff --git a/rust/tcl-compiler/src/command_binding/materialized_footprint.rs b/rust/tcl-compiler/src/command_binding/materialized_footprint.rs
+index 2cd4ef5e96..28e2c44c5d 100644
+--- a/rust/tcl-compiler/src/command_binding/materialized_footprint.rs
++++ b/rust/tcl-compiler/src/command_binding/materialized_footprint.rs
+@@ -1193,8 +1193,18 @@ mod tests {
+         let profile =
+             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+-        let standalone =
++        // A profiled default build is a fresh-interpreter document (user
++        // decision 2026-10-19T14:20Z); explicit Standalone authoring is the
++        // dialect-blind build, still profiled through its Registry.
++        let fresh =
+             CompilationUnit::build_for_profile("set value ORIGINAL", &registry, false, profile);
++        assert!(fresh.ir_module.source_metadata_input.is_some());
++        let standalone = CompilationUnit::build_for_with_config(
++            "set value ORIGINAL",
++            &registry,
++            false,
++            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
++        );
+         let module = &standalone.ir_module;
+         assert!(module.source_metadata_input.is_none());
+         assert!(module.source_entry.metadata_context.is_standalone());
+diff --git a/rust/tcl-compiler/src/compilation_unit.rs b/rust/tcl-compiler/src/compilation_unit.rs
+index 8fd9ebdac1..5536bb2f5f 100644
+--- a/rust/tcl-compiler/src/compilation_unit.rs
++++ b/rust/tcl-compiler/src/compilation_unit.rs
+@@ -3721,9 +3721,55 @@ impl CompilationUnit {
+         cache: Option<&mut ProcLatticeCache<'_>>,
+         body_cache: Option<&BodyLoweringCache<'_>>,
+     ) -> Self {
++        // A whole source with a known dialect is a document `tclsh file.tcl`
++        // runs in a fresh interpreter, where `proc f` defines `::f`. It takes
++        // the same supplied-source entry as a whole-document analysis
++        // (`SourceAnalysisEntry::for_supplied_source`); a dialect-blind or
++        // foreign command store keeps the standalone authoring purpose.
++        if let Some(input) = Self::fresh_document_input(&options) {
++            return Self::build_with_retained_entry(
++                source,
++                options,
++                cache,
++                body_cache,
++                None,
++                None,
++                Some(&input),
++            );
++        }
+         Self::build_with_entry(source, options, cache, body_cache, None, None)
+     }
+ 
++    /// The complete source input of a dialect-bearing standalone build: its
++    /// profile, the dialect's default availability over the caller's exact
++    /// command store, and its lexer configuration. Inputs whose metadata does
++    /// not correspond (no dialect, a mismatched profile/config, or a store
++    /// the availability context cannot carry) return `None`.
++    fn fresh_document_input(
++        options: &UnitBuildOptions<'_>,
++    ) -> Option<crate::analyser::ResolvedAnalysisInput> {
++        let profile = options.dialect?;
++        let environment = tcl_registry::model::ingress::resolve_environment(profile.name);
++        let mut context = environment.default_context_registry();
++        if context.commands().snapshot().semantic_key()
++            != options.registry.snapshot().semantic_key()
++        {
++            context = std::sync::Arc::new(
++                tcl_registry::model::ingress::static_context_for_profile(profile)
++                    .with_command_store(options.registry.snapshot().shared_registry()),
++            );
++        }
++        let input =
++            crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, options.config);
++        crate::registry_invocation::InvocationMetadataContext::for_source_input(
++            options.registry,
++            &input,
++            options.config,
++            Some(profile),
++        )?;
++        Some(input)
++    }
++
+     /// Build conditional source diagnostics under the caller's complete
+     /// availability context. This context supplies no Native execution entry.
+     #[must_use]
+@@ -6550,6 +6596,17 @@ mod tests {
+             declared_commands: None,
+         };
+         let source = "proc local {value} {set result $value; return $result}";
++        // A dialect-bearing default build is a whole document in a fresh
++        // interpreter of that dialect (user decision 2026-10-19T14:20Z):
++        // `tclsh8.6` defines `::local`, so the unit publishes it.
++        let fresh = CompilationUnit::build_with_options(source, options);
++        assert!(fresh.ir_module.source_metadata_input.is_some());
++        assert!(fresh.function("::local").is_some());
++        // Explicit Standalone authoring remains the dialect-blind build.
++        let options = UnitBuildOptions {
++            dialect: None,
++            ..options
++        };
+         let unit = CompilationUnit::build_with_options(source, options);
+         let module = &unit.ir_module;
+         assert!(module.source_entry.metadata_context.is_standalone());
+diff --git a/rust/tcl-compiler/src/registry_invocation/authored_controls.rs b/rust/tcl-compiler/src/registry_invocation/authored_controls.rs
+index fa7bf66d05..a5d0fc31da 100644
+--- a/rust/tcl-compiler/src/registry_invocation/authored_controls.rs
++++ b/rust/tcl-compiler/src/registry_invocation/authored_controls.rs
+@@ -420,9 +420,21 @@ mod tests {
+         let profile = environment.unit_profile();
+         assert!(registry.profile().is_some());
+         let source = "proc subject {} {set value 1; return OK}";
+-        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
++        // A profiled default build is a fresh-interpreter document (user
++        // decision 2026-10-19T14:20Z) and publishes `::subject` as tclsh8.6
++        // does; the dialect-blind build keeps explicit Standalone authoring,
++        // still profiled through its Registry.
++        let fresh = crate::compilation_unit::CompilationUnit::build_for_profile(
+             source, registry, false, profile,
+         );
++        assert!(fresh.ir_module.source_metadata_input.is_some());
++        assert!(fresh.function("::subject").is_some());
++        let unit = crate::compilation_unit::CompilationUnit::build_for_with_config(
++            source,
++            registry,
++            false,
++            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
++        );
+         assert!(unit.ir_module.source_metadata_input.is_none());
+         assert!(unit.ir_module.source_entry.metadata_context.is_standalone());
+         assert_eq!(
