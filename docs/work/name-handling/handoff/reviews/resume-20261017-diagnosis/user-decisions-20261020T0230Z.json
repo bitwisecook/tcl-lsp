@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-20T02:30Z",
+  "source": "AskUserQuestion answers in chat",
+  "decisions": {
+    "python_lint_scope": {
+      "choice": "Exclude evidence paths",
+      "meaning": "Exclude experiments/ and docs/ (archived name-handling evidence and recorded artefacts, some digest-pinned) from PY_FILES / the python lint gate; format and fix real tooling (including scripts/dev and bigip-probes) so it passes ruff."
+    },
+    "tclvm_default_constructors": {
+      "choice": "Require with_native_core",
+      "meaning": "Vm::new()/Vm::with_output() do not get an implicit native core. Every test harness and embedder constructs interpreters with Vm::with_native_core(...) and an explicit profile; Vm::new becomes test-only or is removed so no caller can build an interpreter that refuses every command name.",
+      "evidence": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/sol-41-tclvm-ports-NOTES.md section A (cluster A, introduced on work by 6fa086c780)"
+    }
+  }
+}
