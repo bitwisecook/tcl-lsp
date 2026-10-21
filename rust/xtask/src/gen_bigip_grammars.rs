@@ -64,17 +64,16 @@ const VSCODE_APL: &str = "editors/vscode/syntaxes/apl.tmLanguage.json";
 const VSCODE_BIGIP: &str = "editors/vscode/syntaxes/bigip.tmLanguage.json";
 
 /// The object kinds the `TextMate` grammar gives a typed-reference rule of
-/// their own, with the `TextMate` scope `package.json` maps the server's token
-/// type for that kind to. A monitor key is the `monitor-expression` rule's
-/// opener instead; an untyped object key falls to the generic path rules.
-const TYPED_REFERENCE_SCOPES: &[(BigipTokenKind, &str, &str)] = &[
-    (BigipTokenKind::Pool, "pool", "entity.name.type.pool.bigip"),
-    (
-        BigipTokenKind::Profile,
-        "profile",
-        "entity.name.type.profile.bigip",
-    ),
-    (BigipTokenKind::Vlan, "vlan", "entity.name.type.vlan.bigip"),
+/// their own, with the server's semantic token type for that kind; the rule's
+/// scope is the one `package.json` maps that token type to
+/// ([`crate::editor_extensions::bigip_token_scope`]), so the static rule and
+/// the semantic token land on the same theme colour. A monitor key is the
+/// `monitor-expression` rule's opener instead; an untyped object key falls to
+/// the generic path rules.
+const TYPED_REFERENCE_KINDS: &[(BigipTokenKind, &str)] = &[
+    (BigipTokenKind::Pool, "pool"),
+    (BigipTokenKind::Profile, "profile"),
+    (BigipTokenKind::Vlan, "vlan"),
 ];
 
 /// The generated provenance note every projected `TextMate` rule carries.
@@ -376,11 +375,13 @@ fn render_vscode_bigip(original: &str) -> Result<String> {
     set_rule_comment(&mut grammar, "declaration", comment)?;
 
     let mut patterns = Vec::new();
-    for &(kind, label, scope) in TYPED_REFERENCE_SCOPES {
+    for &(kind, token_type) in TYPED_REFERENCE_KINDS {
         let keys = keys_of(kind);
         if keys.is_empty() {
-            bail!("the BIG-IP key table has no {label} key");
+            bail!("the BIG-IP key table has no {token_type} key");
         }
+        let scope = crate::editor_extensions::bigip_token_scope(token_type)
+            .with_context(|| format!("no TextMate scope for the {token_type} token type"))?;
         patterns.push(json!({
             "match": format!(r"(?<=^|\s)({})\s+([^\s{{}}]+)", alternation(&keys)?),
             "captures": {
@@ -535,16 +536,22 @@ mod tests {
         }
     }
 
-    /// Each typed-reference scope is the one `package.json` maps the server's
-    /// token type for that kind to, so the static rule and the semantic token
-    /// land on the same theme colour.
+    /// Each typed-reference rule carries the scope `package.json` maps the
+    /// server's token type for that kind to.
     #[test]
-    fn typed_reference_scopes_are_the_semantic_token_scopes() {
-        for &(_, label, scope) in TYPED_REFERENCE_SCOPES {
-            assert_eq!(
-                crate::editor_extensions::bigip_token_scope(label),
-                Some(scope),
-                "{label}"
+    fn typed_reference_rules_use_the_semantic_token_scopes() {
+        let rendered = fs::read_to_string(repo_root().join(VSCODE_BIGIP)).expect("read");
+        for scope in [
+            "entity.name.type.pool.bigip",
+            "entity.name.type.profile.bigip",
+            "entity.name.type.vlan.bigip",
+        ] {
+            assert!(rendered.contains(scope), "{scope}");
+        }
+        for &(_, token_type) in TYPED_REFERENCE_KINDS {
+            assert!(
+                crate::editor_extensions::bigip_token_scope(token_type).is_some(),
+                "{token_type}"
             );
         }
     }
