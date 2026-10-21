@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 21 October 2026, 16:00 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
+Updated 21 October 2026, 16:05 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
 
 ## Scope
 
@@ -82,6 +82,8 @@ Pass-to-fail relative to capture48:
 - Core `executable_regions::checked_potential_source_tests::checked_potential_source_retains_depth_exhaustion_as_incomplete`: stack overflow / SIGABRT, `original-tcl_lsp_core/test-462.log`.
 - Core `refactor::inline_variable::tests::deeply_nested_namespaces_survive_scope_walk`: stack overflow / SIGABRT, `additive21-tcl_lsp_core/test-185.log`.
 - DB `original_optimiser_memo_transport_tests::body_optimiser_memo_retains_the_actual_optional_worker_dialect`: missing body entry unwrapped at `rust/tcl-lsp-db/src/lib.rs:11927`, `original-tcl_lsp_db/test-008.log`.
+
+Source-owner leads for a future unit mapping: the audit records `lsp-potential-source-region-walker` at `executable_regions.rs` and `lsp-inline-variable-logical-edit-admission` at `refactor/inline_variable.rs`. These file/purpose associations do not establish complete test-to-unit coverage; the DB selector has no explicit matching unit link in the reviewed catalogue. [Earlier performance review](handoff/reviews/test-performance-20261019/luna-29/REVIEW.md) sections 13–14 records the unchanged 80-namespace and 258-`if` stress fixtures passing on a 2 MiB test thread. Their current stack-overflow aborts remain unclassified observed losses; no fixture, stack, cap or assertion adjustment was made.
 
 Fail-to-pass, all in Core `refactor::inline_variable::tests`:
 
