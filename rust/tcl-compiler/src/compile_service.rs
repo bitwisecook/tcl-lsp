@@ -3371,4 +3371,52 @@ mod tests {
             }
         }
     }
+
+    /// A quoted word inside a command substitution reaches a native operand
+    /// hook as its *written* text (`{}$z`), while the original word spells its
+    /// variable `${z}`. The written text once reached the compiled-word path,
+    /// which reads a bare `$` as data, so `string length "{}$z"` pushed the
+    /// four bytes `{}$z` unsubstituted and answered 4. tclsh 8.4.20, 8.5.19,
+    /// 8.6.18, 9.0.4 and 9.1.0 all print `3 3 2 2 3 4 3 3` for
+    /// `"{}$z" "$z{}" "a$z" "{}" "{$z}" "a{}$z" "\{}$z" "\{\}$z"`.
+    #[test]
+    fn native_operand_words_in_a_substitution_keep_their_variables_live() {
+        let shapes = [
+            (r#"string length "{}$z""#, "{}$z"),
+            (r#"string length "$z{}""#, "$z{}"),
+            (r#"string length "a$z""#, "a$z"),
+            (r#"string length "a{}$z""#, "a{}$z"),
+            (r#"string length "\{}$z""#, "{}$z"),
+            (r#"string length "\{\}$z""#, "{}$z"),
+            (r#"string index "{}$z" 2"#, "{}$z"),
+            (r#"list "{}$z""#, "{}$z"),
+        ];
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let Some(profile) = tcl_dialect::DialectProfile::find(dialect) else {
+                continue;
+            };
+            let service = BytecodeCompileService::for_profile(profile);
+            for (command, written) in shapes {
+                let source = format!("set z x\nputs [{command}]\n");
+                let module = service
+                    .compile_for_profile(&source, profile)
+                    .unwrap_or_else(|error| panic!("[{dialect}] {command}: {error:?}"));
+                let literals = module.top_level.literals.entries();
+                assert!(
+                    !literals.iter().any(|literal| literal == written),
+                    "[{dialect}] {command}: the written word was pushed as a value: {:?}",
+                    module.top_level.instructions
+                );
+                assert!(
+                    module
+                        .top_level
+                        .instructions
+                        .iter()
+                        .any(|instruction| instruction.op == tcl_bytecode::Op::STR_CONCAT1),
+                    "[{dialect}] {command}: the word was not built from its parts: {:?}",
+                    module.top_level.instructions
+                );
+            }
+        }
+    }
 }

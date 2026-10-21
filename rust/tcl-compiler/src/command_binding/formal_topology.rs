@@ -181,6 +181,9 @@ impl OriginalFormalTopology {
                 .authored_name_policy()
                 .map(tcl_syntax::naming::NamePolicyProtocol::recipe)
         }) != Some(protocol)
+            && dialect
+                .authored_logical_name_simulation(producer.policy())
+                .is_none()
         {
             return None;
         }

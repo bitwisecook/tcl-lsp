@@ -45,6 +45,7 @@ pub const fn spec() -> CommandSpec {
             (2, ArgRole::Body),
         ],
         lowering_hook: Some(LoweringHookId::Proc),
+        procedure_definition: Some(crate::native_procedure::NativeProcedureDefinitionSpec::Core),
         body_kind: BodyKind::Structural,
         hover: Some(HoverSnippet {
             summary: "Define an iRule proc.",

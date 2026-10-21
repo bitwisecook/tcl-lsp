@@ -351,3 +351,58 @@ fn original_oo_cascade_keeps_original_records_and_stops_later_destructors_after_
         Some(&first)
     );
 }
+
+/// A method body compiles once and is reused until something C would
+/// recompile it for changes: C keeps one `Proc` per method and
+/// `TclProcCompileProc` reuses its bytecode while the compile epoch holds.
+/// tclsh 9.0.4 prints `33`, `R`, `3`, `4` for the calls below.
+#[test]
+fn a_method_body_compiles_once_until_its_definition_or_command_world_changes() {
+    let mut vm =
+        crate::native_fixture::interpreter(crate::environment::profile_for_dialect("tcl9.0"));
+    let run = |vm: &mut Vm, source: &str| {
+        let completion = vm.eval_source(source).unwrap();
+        assert_eq!(completion.code, Code::Ok, "{}", completion.result.to_str());
+        completion.result.to_str().to_string()
+    };
+    run(
+        &mut vm,
+        "oo::class create C {method m {} {expr {1+2}}}; C create o",
+    );
+    let class = resolve_object_value(&mut vm, &Value::string("C"))
+        .unwrap()
+        .unwrap();
+    let body = |vm: &Vm| {
+        vm.oo
+            .classes
+            .get(&class)
+            .and_then(|class| class.methods.get("m"))
+            .and_then(|method| method.compiled_body)
+            .map(|(_, unit)| unit.asm)
+            .expect("the method body is compiled")
+    };
+    assert_eq!(run(&mut vm, "o m"), "3");
+    let first = body(&vm);
+    assert_eq!(run(&mut vm, "o m"), "3");
+    assert!(
+        Rc::ptr_eq(&first, &body(&vm)),
+        "a second call must reuse the compiled body"
+    );
+
+    // A command-world change invalidates it, as C's compile epoch does.
+    run(&mut vm, "rename expr _e; proc expr args {return R}");
+    assert_eq!(run(&mut vm, "o m"), "R");
+    let replaced = body(&vm);
+    assert!(!Rc::ptr_eq(&first, &replaced));
+    run(&mut vm, "rename expr {}; rename _e expr");
+    assert_eq!(run(&mut vm, "o m"), "3");
+    let restored = body(&vm);
+    assert!(!Rc::ptr_eq(&replaced, &restored));
+    assert_eq!(run(&mut vm, "o m"), "3");
+    assert!(Rc::ptr_eq(&restored, &body(&vm)));
+
+    // So does redefining the method.
+    run(&mut vm, "oo::define C method m {} {expr {2+2}}");
+    assert_eq!(run(&mut vm, "o m"), "4");
+    assert!(!Rc::ptr_eq(&restored, &body(&vm)));
+}

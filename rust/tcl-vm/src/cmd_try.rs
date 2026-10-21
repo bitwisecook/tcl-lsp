@@ -96,6 +96,11 @@ struct TryPlan {
     jim_prefix: Option<tcl_registry::catch_invocation::JimCapturePrefix>,
     ignored_body: bool,
     body_error_code: Option<Rc<crate::interp::native_jim_lookup::OriginalJimErrorCodeCapture>>,
+    /// The release compiles this `try` (`TclCompileTryCmd`): the matched
+    /// clause binds its own variables before a `-` script falls through,
+    /// where the command (`TryPostBody`) binds those of the clause whose
+    /// script runs.
+    compiled: bool,
 }
 
 /// Which phase of a `try` an explicit-stack activation is running, and the
@@ -751,6 +756,7 @@ fn parse_clauses(
 /// `Vm::unwind` fold.
 fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     const USAGE: &str = "wrong # args: should be \"try body ?handler ...? ?finally script?\"";
+    let compiled = vm.pending.release_compiled.take().is_some();
     let Some(protocol) = vm
         .actual_native_invocation_dialect()
         .return_options_protocol()
@@ -818,6 +824,7 @@ fn cmd_try(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             jim_prefix,
             ignored_body: false,
             body_error_code: None,
+            compiled,
         });
         if let Some(original) = &original {
             if let Err(error) = original.current_for_value(vm, body) {
@@ -936,6 +943,7 @@ fn advance_after_body(
             jim_prefix: Some(prefix),
             ignored_body: prefix.ignores(body_comp.code.as_int()),
             body_error_code: Some(captured_error_code),
+            compiled: plan.compiled,
         });
         return advance_after_body(vm, &parsed, body_comp);
     }
@@ -1013,13 +1021,27 @@ fn advance_after_body(
     while plan.handlers[handler_index].is_dash {
         handler_index += 1; // guaranteed to terminate (the last body is not `-`)
     }
-    enter_matched_handler(vm, plan, handler_index, &body_comp, body_opts, &errorcode)
+    let binding_index = if plan.compiled {
+        matched_index
+    } else {
+        handler_index
+    };
+    enter_matched_handler(
+        vm,
+        plan,
+        handler_index,
+        binding_index,
+        &body_comp,
+        body_opts,
+        &errorcode,
+    )
 }
 
 fn enter_matched_handler(
     vm: &mut Vm,
     plan: &Rc<TryPlan>,
     handler_index: usize,
+    binding_index: usize,
     body_comp: &Completion<Value>,
     body_opts: Value,
     errorcode: &Value,
@@ -1037,7 +1059,7 @@ fn enter_matched_handler(
     } else {
         bind_handler_vars(
             vm,
-            &plan.handlers[handler_index].vars,
+            &plan.handlers[binding_index].vars,
             &body_comp.result,
             &body_opts,
         )

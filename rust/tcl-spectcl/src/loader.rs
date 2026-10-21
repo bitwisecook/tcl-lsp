@@ -8307,10 +8307,13 @@ fn derive_transitions_from_frame_effect(
         hook.family == HookFamily::StateTransitionResolver
             && matches!(&hook.source, HookSource::Derived { keyword } if keyword == FROM_FRAME_EFFECT)
     }) {
+        // Nothing to derive is "a notice, and no resolver" (the README's
+        // `from-frame-effect` rule): the command still loads, degraded, so
+        // the transition answers `Unknown` rather than the command vanishing.
         if derived.is_none() {
             log.say_classified(
                 line,
-                VocabularyClass::Semantic,
+                VocabularyClass::Assistance,
                 "`resolver from-frame-effect` needs the command's `frame_effect -layout \
                  AliasPairs`; the descriptor keeps no resolver and cannot supply strong analysis",
             );

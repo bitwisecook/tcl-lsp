@@ -71,6 +71,13 @@ pub(crate) struct ReleaseUnits {
     /// The kind of the activation's own unit.
     kind: UnitKind,
     /// The unit the activation inherited from the invocation that runs it.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "unit inheritance into child activations is not ported yet (Sol-48 notes, item 2)"
+        )
+    )]
     inherited: Option<InheritedUnit>,
 }
 
@@ -160,6 +167,13 @@ impl ReleaseUnits {
     }
 
     /// Run in `unit` as the activation's own unit.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "unit inheritance into child activations is not ported yet (Sol-48 notes, item 2)"
+        )
+    )]
     pub(crate) fn inherit(&mut self, unit: InheritedUnit) {
         Self::set(&mut self.entries, 0, unit.entry);
         self.kind = unit.kind;
@@ -168,12 +182,26 @@ impl ReleaseUnits {
 
     /// The unit the activation inherited, which the bodies a driver
     /// activation runs inherit in turn.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "unit inheritance into child activations is not ported yet (Sol-48 notes, item 2)"
+        )
+    )]
     pub(crate) fn inherited(&self) -> Option<InheritedUnit> {
         self.inherited
     }
 }
 
 /// What a command-table key held.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the command-table history feeds `release_compiled_command`, not ported yet (Sol-48 notes, item 2)"
+    )
+)]
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum Held {
     /// No command.
@@ -185,6 +213,13 @@ pub(crate) enum Held {
 }
 
 /// What one key held before a command-table change at `epoch`.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the command-table history feeds `release_compiled_command`, not ported yet (Sol-48 notes, item 2)"
+    )
+)]
 #[derive(Debug, Clone)]
 struct Change {
     epoch: u64,
@@ -195,11 +230,25 @@ struct Change {
 /// The changes to keys whose command a release may compile, each with what
 /// the key held before it, so that a unit entered before a change can name
 /// the command it was compiled against.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the command-table history feeds `release_compiled_command`, not ported yet (Sol-48 notes, item 2)"
+    )
+)]
 #[derive(Debug, Default)]
 pub(crate) struct CommandTableHistory {
     log: Vec<Change>,
 }
 
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the command-table history feeds `release_compiled_command`, not ported yet (Sol-48 notes, item 2)"
+    )
+)]
 impl CommandTableHistory {
     /// Record that `key` held `held` before a change made at `epoch`.
     pub(crate) fn record(&mut self, epoch: u64, key: &str, held: Held) {

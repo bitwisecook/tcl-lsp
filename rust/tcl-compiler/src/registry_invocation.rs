@@ -1746,6 +1746,7 @@ impl NormalTransferInvocation {
         }
         self.with_arguments(|arguments| {
             if state.execution_name_policy.is_some() {
+                if std::env::var_os("ZZ_SOL49").is_some() { eprintln!("ZZ mutplaces cmd={:?} operands={:?}", self.invocation.facts.canonical_command, self.original_operands.as_deref().map(|o| format!("{o:?}").chars().take(300).collect::<String>())); }
                 return self.original_operands.as_deref().map_or_else(
                     || vec![crate::place::unknown_top()],
                     |operands| crate::variable_bindings::source_variable_write_places_with_output_order_and_original_operands(
@@ -5986,6 +5987,16 @@ pub fn original_registry_invocation_assistance_with_metadata_context(
             .is_some_and(|input| input.has_hosted_source_name_context())
     {
         let mut reached = reached?;
+        // In the fresh F5 world the original command table answers first;
+        // the hosted catalogue is advice only where that lookup has nothing.
+        if !reached.candidates.is_empty()
+            && tokens
+                .source_binding
+                .as_ref()
+                .is_some_and(crate::command_binding::SourceInvocationBinding::in_hosted_rule_loader_world)
+        {
+            return Some(reached);
+        }
         let Some(candidate) =
             RegistryInvocationShape::from_hosted_source(registry, context, tokens)
         else {

@@ -228,3 +228,5 @@ pub use tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr, format_tcl_value
 /// assert!(!tcl_compiler::VERSION.is_empty());
 /// ```
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+#[cfg(test)]
+mod zz_sol49_probe;

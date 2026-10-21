@@ -72,11 +72,13 @@ impl SourceInvocationBinding {
         metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
         registry: &tcl_registry::CommandRegistry,
     ) -> Option<OriginalInvocationSourcePurpose> {
+        let zz = std::env::var_os("ZZ_SOL49").is_some();
         if !metadata.matches_registry(registry) || tokens.source_binding.as_ref() != Some(self) {
+            if zz { eprintln!("ZZ purpose: registry/binding mismatch"); }
             return None;
         }
         let original_input = if let Some(input) = metadata.source_analysis_input() {
-            self.original_invocation_metadata_for_input(tokens, input, registry)?
+            { let r = self.original_invocation_metadata_for_input(tokens, input, registry); if zz && r.is_none() { eprintln!("ZZ purpose: metadata_for_input none"); } r? }
                 .source_analysis_input()
         } else {
             metadata.is_standalone().then_some(())?;
@@ -90,8 +92,8 @@ impl SourceInvocationBinding {
         };
         let declaration = if self.lookup_state.is_none() {
             Some(
-                self.declaration_operand_layout_advice(tokens)
-                    .or_else(|| self.original_compilation_lookup_advice(tokens))?,
+                { let r = self.declaration_operand_layout_advice(tokens)
+                    .or_else(|| self.original_compilation_lookup_advice(tokens)); if zz && r.is_none() { eprintln!("ZZ purpose: no lookup_state, no advice"); } r? },
             )
         } else {
             None
@@ -104,6 +106,7 @@ impl SourceInvocationBinding {
         if state.current_source_origin.as_ref() != Some(&self.invocation_site()?.source)
             || state.variable_frame != self.variable_frame
         {
+            if zz { eprintln!("ZZ purpose: origin/frame mismatch"); }
             return None;
         }
         if original_input.is_some()
@@ -112,8 +115,10 @@ impl SourceInvocationBinding {
                 .is_some_and(|advice| !advice.closed_logical_source_lookup())
             && state.baseline.native_entry.is_none()
         {
+            if zz { eprintln!("ZZ purpose: not closed logical lookup"); }
             return None;
         }
+        if zz { eprintln!("ZZ purpose: state purpose={:?} unknown_entry={} policy={:?}", state.retained_original_source_purpose(metadata, registry), state.baseline.unknown_entry, state.baseline.execution_name_policy.is_some()); }
         state.retained_original_source_purpose(metadata, registry)
     }
 

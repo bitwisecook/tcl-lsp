@@ -1543,7 +1543,11 @@ impl OriginalCommandOperands {
     ) -> Option<()> {
         match transition {
             CommandBindingTransition::Define { name, kind } => {
-                let key = state.original_definition_key(current, self.input(name)?, *kind)?;
+                let zz = std::env::var_os("ZZ_SOL49").is_some();
+                if zz { eprintln!("ZZ define input={:?} procbody={}", self.input(name).map(|i| String::from_utf8_lossy(i.bytes()).into_owned()), self.procedure_body); }
+                let key = state.original_definition_key(current, self.input(name)?, *kind);
+                if zz { eprintln!("ZZ define key={key:?}"); }
+                let key = key?;
                 if *kind == CommandBindingDefinitionKind::Procedure && !self.procedure_body {
                     return None;
                 }
@@ -1951,6 +1955,9 @@ impl ModuleCommandBindings {
         #[cfg(any(test, debug_assertions))]
         if let Some(timing) = geometry_timing.as_ref() {
             timing.record_clone(query.clone_nanos());
+        }
+        if std::env::var_os("ZZ_SOL49").is_some() && (query.selected_policy() != Some(policy) || self.has_opaque_domain()) {
+            eprintln!("ZZ slotpaths {:?}: selected={:?} want={policy:?} opaque={}", String::from_utf8_lossy(bytes), query.selected_policy(), self.has_opaque_domain());
         }
         if query.selected_policy()? != policy || self.has_opaque_domain() {
             return None;
@@ -2853,8 +2860,9 @@ impl ModuleCommandBindings {
         if let Some(timing) = geometry_timing.as_ref() {
             timing.record_clone(query.clone_nanos());
         }
-        let policy = query.selected_policy()?;
-        let scope = query.world().scope(namespace, policy)?;
+        let zz = std::env::var_os("ZZ_SOL49").is_some();
+        let Some(policy) = query.selected_policy() else { if zz { eprintln!("ZZ baseline {simple:?}: no selected policy"); } return None; };
+        let Some(scope) = query.world().scope(namespace, policy) else { if zz { eprintln!("ZZ baseline {simple:?}: no scope for {namespace:?}"); } return None; };
         let selected = match policy.recipe() {
             tcl_syntax::naming::NativeNameProtocol::C(_) => {
                 let SignatureNamespaceScope::C(path) = scope else {
@@ -2884,8 +2892,10 @@ impl ModuleCommandBindings {
             .filter(|index| index.matches(policy, &self.baseline.semantics))
         {
             let Some(row) = index.slots.get(&selected) else {
+                if zz { eprintln!("ZZ baseline {simple:?}: Missing in index"); }
                 return Some(BTreeSet::from([MayBinding::Missing]));
             };
+            if zz { eprintln!("ZZ baseline {simple:?}: row={row:?}"); }
             row.as_ref()?
         } else {
             let mut metadata = self

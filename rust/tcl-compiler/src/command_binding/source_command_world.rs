@@ -462,6 +462,11 @@ impl OriginalSourceCommandWorld {
     }
 
     pub(super) fn withdraw(&mut self) {
+        if std::env::var_os("ZZ_SOL49_BT").is_some() && !self.unavailable {
+            let bt = std::backtrace::Backtrace::force_capture().to_string();
+            let frames: Vec<&str> = bt.lines().filter(|l| l.contains("tcl_compiler::") && !l.contains("backtrace")).take(12).collect();
+            eprintln!("ZZ WITHDRAW via\n{}", frames.join("\n"));
+        }
         self.unavailable = true;
     }
 

@@ -1506,6 +1506,56 @@ fn recursion_at_the_oo_dispatch_limit_fits_a_two_mib_thread() {
     );
 }
 
+/// Recursion that re-enters the interpreter from inside a non-invoking
+/// instruction, on an explicit 2 MiB thread: a variable write trace fired by
+/// a compiled `set` (`STORE_*`), and a user math function called from a
+/// compiled `expr`. Both run guest code natively while the instruction is
+/// still executing, so the frame of the instruction's arm stays on the
+/// stack for every level. tclsh 9.0.4 and 8.6.16 print `0 done 19`, `20`
+/// and `19` for the three runs; a method nested past
+/// `OO_DISPATCH_DEPTH_LIMIT` (20) is this VM's catchable refusal.
+#[test]
+fn recursion_through_a_trace_or_math_function_fits_a_two_mib_thread() {
+    let outcome = std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            result(
+                "oo::class create C { \
+                   method go {n args} { \
+                     if {$n <= 1} { return done }; \
+                     incr ::depth; \
+                     trace add variable ::v$n write [list [self] go [expr {$n-1}]]; \
+                     set ::v$n 1; \
+                     return done \
+                   }; \
+                   method walk {n} { expr {down($n-1) + 1} } \
+                 }; \
+                 C create obj; \
+                 proc ::tcl::mathfunc::down {n} { \
+                   if {$n <= 1} { return 1 }; \
+                   return [obj walk $n] \
+                 }; \
+                 proc bump {n} { \
+                   if {$n > 1} { \
+                     incr ::d; \
+                     trace add variable ::w$n write [list fire $n]; \
+                     set ::w$n 1 \
+                   } \
+                 }; \
+                 proc fire {n args} { bump [expr {$n-1}] }; \
+                 set depth 0; set d 0; \
+                 set traced [list [catch {obj go 20} a] $a $depth]; \
+                 set refused [catch {obj go 21} b]; \
+                 bump 20; \
+                 list $traced [obj walk 20] $d $refused [string match {*too many nested evaluations*} $b]",
+            )
+        })
+        .expect("spawn a 2 MiB thread")
+        .join()
+        .expect("recursion through a trace or math function must not overflow a 2 MiB stack");
+    assert_eq!(outcome, "{0 done 19} 20 19 1 1");
+}
+
 /// A moderately recursive method (well under `OO_DISPATCH_DEPTH_LIMIT`)
 /// still runs normally — the safety net must not fire on realistic
 /// recursion depths.

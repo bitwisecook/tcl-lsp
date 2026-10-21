@@ -424,11 +424,45 @@ impl SourceAnalysisEntry {
         })
     }
 
+    /// Fresh F5 rule-loader entry for hosted source supplied without an explicit
+    /// execution entry (user decision 2026-10-21T00:10Z, "realm-aware command
+    /// world"). BIG-IP loads a rule, then runs each `when` body in a fresh TMM
+    /// event context; neither phase inherits unknown interpreter history.
+    ///
+    /// - The load phase is the `RuleLoader` realm: the loader dispatches its
+    ///   declarations (`when`, `proc`, `rule`, ...) directly after argv, so the
+    ///   top level selects `Direct` compilation rather than an unproved vendor
+    ///   bytecode protocol.
+    /// - Names follow the authored F5 Tcl 8.4 naming simulation, the only
+    ///   policy `InvocationDialect::authored_logical_name_simulation` admits.
+    ///
+    /// Each entered body then selects the TMM execution context
+    /// (`BindingBaseline::body_compilation`). An input without that simulation
+    /// keeps unknown runtime history.
+    #[must_use]
+    pub fn for_fresh_hosted_source(input: &crate::analyser::ResolvedAnalysisInput) -> Option<Self> {
+        let mut entry = Self::for_hosted_source(input)?;
+        let policy = entry.invocation_dialect.and_then(|dialect| {
+            dialect.authored_logical_name_simulation(
+                tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4),
+            )
+        });
+        if let Some(policy) = policy {
+            entry.unknown_entry = false;
+            entry.invocation_realm = tcl_dialect::model::InvocationRealm::RuleLoader;
+            entry.execution_name_policy =
+                Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(policy));
+            entry.native_compilation = crate::environment_ingress::authoring_native_compilation();
+        }
+        Some(entry)
+    }
+
     /// Entry for a whole document supplied without an explicit execution entry.
     /// A Native-axis document runs in a fresh interpreter of its dialect, so
     /// builtins are original until the source itself redefines them. Logical
-    /// and hosted inputs keep their source policies; mismatched metadata keeps
-    /// unknown runtime history. A caller that knows the interpreter was used
+    /// inputs keep their source policy; hosted inputs take the fresh F5
+    /// rule-loader entry ([`Self::for_fresh_hosted_source`]); mismatched
+    /// metadata keeps unknown runtime history. A caller that knows the interpreter was used
     /// before must supply `unknown_entry` explicitly.
     #[must_use]
     pub fn for_supplied_source(
@@ -453,7 +487,7 @@ impl SourceAnalysisEntry {
             };
         }
         Self::for_logical_source(input)
-            .or_else(|| Self::for_hosted_source(input))
+            .or_else(|| Self::for_fresh_hosted_source(input))
             .unwrap_or_else(|| Self {
                 metadata_context,
                 invocation_dialect: Some(crate::environment_ingress::authoring_invocation_dialect(

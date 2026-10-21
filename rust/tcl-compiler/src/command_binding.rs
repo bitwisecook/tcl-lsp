@@ -964,6 +964,31 @@ impl BindingBaseline {
         native_compilation_dialect(self.native_entry.as_deref(), self.dialect)
     }
 
+    /// Fresh F5 rule-loader world: hosted source entered from a known entry in
+    /// the rule loader's realm (user decision 2026-10-21T00:10Z;
+    /// [`SourceAnalysisEntry::for_fresh_hosted_source`]).
+    fn hosted_rule_loader_world(&self) -> bool {
+        self.native_entry.is_none()
+            && !self.unknown_entry
+            && self.invocation_realm == tcl_dialect::model::InvocationRealm::RuleLoader
+            && self
+                .vendor_source_input
+                .as_ref()
+                .is_some_and(crate::analyser::ResolvedAnalysisInput::has_hosted_source_name_context)
+    }
+
+    /// Compilation context of an entered procedure or event body. In the fresh
+    /// F5 world each body runs in the TMM execution context, whose vendor
+    /// compiler protocol is unmeasured: its commands are selected when they
+    /// execute, after argv, as `Direct` states. Other worlds keep the
+    /// dialect's procedure-object protocol.
+    fn body_compilation(&self) -> tcl_registry::native_compilation::NativeCompilationContext {
+        if self.hosted_rule_loader_world() {
+            return crate::environment_ingress::authoring_native_compilation();
+        }
+        procedure_compilation(self.compilation_dialect())
+    }
+
     fn for_registry(registry: &CommandRegistry) -> Self {
         let mut baseline = Self {
             metadata_context:
@@ -2171,6 +2196,14 @@ impl SourceInvocationBinding {
     #[must_use]
     pub fn evaluated_written_argument_value(&self, argument: usize) -> Option<&str> {
         self.evaluated_argument_values.get(argument)?.as_deref()
+    }
+
+    /// Whether this point belongs to the fresh F5 rule-loader world
+    /// ([`SourceAnalysisEntry::for_fresh_hosted_source`]).
+    pub(crate) fn in_hosted_rule_loader_world(&self) -> bool {
+        self.lookup_state
+            .as_ref()
+            .is_some_and(|snapshot| snapshot.state.hosted_rule_loader_world())
     }
 
     /// Resolve another command word in this exact immutable interpreter point.
@@ -7228,7 +7261,8 @@ impl SourceCommandBindings {
                 {
                     continue;
                 }
-                self.walk_deferred_entry(&root, &entry, config, registry);
+                let after_load = self.uncalled_body_after_load(&root, &entry);
+                self.walk_deferred_entry_with(&root, &entry, config, registry, after_load);
             }
             if root_count == self.deferred.len() {
                 break;
@@ -7349,12 +7383,46 @@ impl SourceCommandBindings {
             .collect::<Vec<_>>()
     }
 
+    /// An uncalled procedure body is analysed as if called after the
+    /// document finished running at top level (user decision
+    /// 2026-10-21T08:20Z, "world after load"): its commands resolve in the
+    /// procedure's namespace against the command world as it stands at the end
+    /// of the script. That needs a normal completion of the whole document and
+    /// this very end-of-script state; event handlers, receiver methods, future
+    /// frames and bodies first installed by deferred outcomes keep their own
+    /// conditional entries.
+    fn uncalled_body_after_load(
+        &self,
+        root: &DeferredSourceBody,
+        incoming: &ModuleCommandBindings,
+    ) -> bool {
+        std::env::var_os("ZZ_AFTER_LOAD").is_some()
+            && root.event.is_none()
+            && !root.receiver_method
+            && root.future_frame.is_none()
+            && self
+                .original_completed_root_state
+                .as_deref()
+                .is_some_and(|completed| completed.same_state(incoming))
+    }
+
     fn walk_deferred_entry(
         &mut self,
         root: &DeferredSourceBody,
         incoming: &ModuleCommandBindings,
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
+    ) {
+        self.walk_deferred_entry_with(root, incoming, config, registry, false);
+    }
+
+    fn walk_deferred_entry_with(
+        &mut self,
+        root: &DeferredSourceBody,
+        incoming: &ModuleCommandBindings,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+        after_load: bool,
     ) {
         #[cfg(any(test, debug_assertions))]
         let _timing = root_owner_work::Timing::at(root_owner_work::Query::DeferredEntry);
@@ -7418,20 +7486,25 @@ impl SourceCommandBindings {
                 self.record_executed_word(origin, *span, None, script.clone());
             }
         }
-        let compilation = procedure_compilation(branch.baseline.compilation_dialect());
+        let compilation = branch.baseline.body_compilation();
         // This root is already being interpreted in its selected preview
         // frame. A recursive call must reach the ordinary backedge residual,
         // rather than re-enter this body once before noticing the cycle.
         // Preview ownership does not mark a document call as reached.
         let implementation = root.implementation_id();
         let activated = self.active_calls.insert(implementation.clone());
-        self.declaration_preview_depth += 1;
+        let preview = usize::from(!after_load);
+        self.declaration_preview_depth += preview;
         let outcomes = self.walk_source(
             &root.source,
             root.offset,
             &mut branch,
             &SourceExecutionContext {
-                body_entry: SourceBodyEntryPurpose::Conditional,
+                body_entry: if after_load {
+                    SourceBodyEntryPurpose::Selected
+                } else {
+                    SourceBodyEntryPurpose::Conditional
+                },
                 source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                 realm: root.realm,
                 compilation,
@@ -7457,7 +7530,7 @@ impl SourceCommandBindings {
                 expression_source: None,
             },
         );
-        self.declaration_preview_depth -= 1;
+        self.declaration_preview_depth -= preview;
         if activated {
             self.active_calls.remove(&implementation);
         }
@@ -9705,7 +9778,7 @@ impl SourceCommandBindings {
                 state,
                 &SourceExecutionContext {
                     source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
-                    compilation: procedure_compilation(state.baseline.compilation_dialect()),
+                    compilation: state.baseline.body_compilation(),
                     compilation_snapshot: None,
                     selected_compilation: None,
                     original_variable_compilation: None,
@@ -11612,7 +11685,7 @@ impl SourceCommandBindings {
                 &SourceExecutionContext {
                     source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                     realm,
-                    compilation: procedure_compilation(state.baseline.compilation_dialect()),
+                    compilation: state.baseline.body_compilation(),
                     compilation_snapshot: None,
                     selected_compilation: None,
                     original_variable_compilation: None,
@@ -12890,6 +12963,9 @@ fn source_binding_projection_in(
             .binding_alternatives(key)
             .contains(&MayBinding::Missing)
     });
+    if std::env::var_os("ZZ_SOL49").is_some() {
+        eprintln!("ZZ proj {head}: ns={namespace_display:?} keys={:?} alts={:?} unknown1={} nsknown={} nsctx={}", keys, keys.iter().map(|k| state.binding_alternatives(k)).collect::<Vec<_>>(), state.target_may_be_unknown(head, namespace), state.source_variables.namespace_known, namespace.namespace_key().native_context().is_some());
+    }
     SourceInvocationBinding {
         compiled_candidates: Vec::new(),
         compiled_named_candidates: Vec::new(),
@@ -14552,17 +14628,36 @@ impl ModuleCommandBindings {
         true
     }
 
+    /// Fresh F5 rule-loader world ([`BindingBaseline::hosted_rule_loader_world`]).
+    pub(super) fn hosted_rule_loader_world(&self) -> bool {
+        self.baseline.hosted_rule_loader_world()
+    }
+
     /// Widen command resolution without claiming an unknown command-table
     /// mutation. Namespace lookup changes are relevant to source-safe
     /// resolution but do not by themselves invalidate optimiser trust.
+    #[track_caller]
     fn mark_opaque_resolution(&mut self) {
+        if std::env::var_os("ZZ_SOL49").is_some() && !self.opaque_domain { eprintln!("ZZ OPAQUERESAT {}", std::panic::Location::caller()); }
+        if std::env::var_os("ZZ_SOL49_BT").is_some() && !self.opaque_domain {
+            let bt = std::backtrace::Backtrace::force_capture().to_string();
+            let frames: Vec<&str> = bt.lines().filter(|l| l.contains("tcl_compiler::") && !l.contains("backtrace")).take(12).collect();
+            eprintln!("ZZ OPAQUE {} via\n{}", stringify!(mark_opaque_resolution), frames.join("\n"));
+        }
         Arc::make_mut(&mut self.original_command_world).withdraw();
         self.opaque_domain = true;
     }
 
     /// Widen both command resolution and the optimiser's command-trust
     /// projection because an unbounded command-binding effect may occur.
+    #[track_caller]
     fn mark_opaque_binding_mutation(&mut self) {
+        if std::env::var_os("ZZ_SOL49").is_some() && !self.opaque_domain { eprintln!("ZZ OPAQUEAT {}", std::panic::Location::caller()); }
+        if std::env::var_os("ZZ_SOL49_BT").is_some() && !self.opaque_domain {
+            let bt = std::backtrace::Backtrace::force_capture().to_string();
+            let frames: Vec<&str> = bt.lines().filter(|l| l.contains("tcl_compiler::") && !l.contains("backtrace")).take(12).collect();
+            eprintln!("ZZ OPAQUE {} via\n{}", stringify!(mark_opaque_binding_mutation), frames.join("\n"));
+        }
         Arc::make_mut(&mut self.original_command_world).withdraw();
         self.ordinary_literal_pool = None;
         Arc::make_mut(&mut self.object_instances).invalidate_dispatch(true);
@@ -14574,14 +14669,18 @@ impl ModuleCommandBindings {
 
     /// Record the narrow event that invalidates an otherwise-retained
     /// procedure's declared binding at arbitrary call sites.
+    #[track_caller]
     fn mark_dynamic_proc_binding(&mut self) {
+        if std::env::var_os("ZZ_SOL49").is_some() && !self.opaque_domain { eprintln!("ZZ DYNPROCAT {}", std::panic::Location::caller()); }
         self.mark_opaque_binding_mutation();
         self.dynamic_proc_binding = true;
     }
 
     /// Record that a binding *transition* moved something this lattice cannot
     /// name, so no name in the module can be claimed as untouched (#2168).
+    #[track_caller]
     fn mark_unnameable_rebinding_subject(&mut self) {
+        if std::env::var_os("ZZ_SOL49").is_some() && !self.opaque_domain { eprintln!("ZZ UNNAMEAT {}", std::panic::Location::caller()); }
         self.mark_dynamic_proc_binding();
         self.unnameable_rebinding_subject = true;
     }
@@ -17046,7 +17145,7 @@ fn interpret_binding_source(
                 crate::var_resolve::VariableExecutionFrame::Procedure { .. }
                     | crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
             ) {
-                procedure_compilation(bindings.baseline.compilation_dialect())
+                bindings.baseline.body_compilation()
             } else {
                 bindings.baseline.native_compilation
             },
@@ -18021,6 +18120,7 @@ fn apply_declared_binding_transitions(
     let interpreted_execution =
         facts.body_execution.is_some() || invocation_selects_evaluated_body(facts);
     if !interpreted_execution && transitions.facts().iter().any(|fact| matches!(&fact.transition, StateTransition::Widen(widening) if widening.domains.contains(&StateTransitionDomain::CommandResolution))) {
+        if std::env::var_os("ZZ_SOL49").is_some() { eprintln!("ZZ widen-res by {:?}", facts.canonical_command); }
         bindings.mark_opaque_resolution();
     }
     for fact in transitions.facts() {

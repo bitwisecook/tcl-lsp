@@ -1016,6 +1016,16 @@ enum CommandSemantics {
     Tracking,
 }
 
+/// What [`Vm::eval_original_script_value`] runs, prepared out of line.
+enum OriginalScriptRun {
+    /// A pure list evaluated as one command's words.
+    Words(crate::NativeListItems),
+    /// A compiled script unit.
+    Unit(Box<CompiledUnit>),
+    /// Nothing to run: the completion stands.
+    Finished(Completion<Value>),
+}
+
 /// Deferred control requests handed from builtins to the explicit VM stack.
 #[derive(Default)]
 pub(crate) struct PendingControl {
@@ -1044,6 +1054,12 @@ pub(crate) struct PendingControl {
     /// with an exceptional code: what C's `TclEvalEx` logs as an error leaves
     /// a command run with no command active ([`Vm::settle_top_level`]).
     pub(crate) top_level_command: Option<crate::exec::LoggedCommand>,
+    /// The activation being ticked is the bottom one of the outermost drive,
+    /// so a command it invokes runs with no other command active.
+    pub(crate) bottom_activation: bool,
+    /// The command being dispatched is a top-level statement's own command
+    /// (C's `numLevels == 0`); `coroutine` takes it.
+    pub(crate) top_level_invocation: bool,
 }
 
 /// Written invocation and selected native implementation are independent.
@@ -8864,6 +8880,23 @@ impl Vm {
             && self.function_identity_claims_match(asm, manifest)
     }
 
+    /// What a release that keeps the commands running bytecode compiled
+    /// still relies on after a command-table change: the procedures inlined
+    /// into `asm`, its compiled-local layout, and its artifact identity and
+    /// pack claims.
+    pub(crate) fn function_inlined_facts_hold(
+        &self,
+        asm: &FunctionAsm,
+        manifest: Option<&ArtefactIdentityManifest>,
+    ) -> bool {
+        self.compiled_local_layout_matches(asm)
+            && asm
+                .procedure_bindings
+                .iter()
+                .all(|binding| self.procedure_binding_matches(binding))
+            && self.function_identity_claims_match(asm, manifest)
+    }
+
     /// Retained artifact identity and pack claims at admission or live revalidation.
     /// This does not supply compiler, command, procedure or activation authority.
     pub(crate) fn function_identity_claims_match(
@@ -15523,6 +15556,14 @@ impl Vm {
                 scope.check_native(self)?;
             }
             scope.check_native(self)?;
+            // From 8.5 `TclCallVarTraces` starts errorInfo from the trace
+            // procedure's own message and logs its `(write trace on "…")`
+            // frame; 8.4 starts it again from the access error.
+            if !self.uses_jim_error_stack() && self.runtime_version.has_var_trace_error_frames() {
+                self.native_errors.error_info = None;
+                self.seed_error_info_frame(error.as_bytes(), b"");
+                self.append_var_trace_frame_bytes("write", name);
+            }
             let mut message = b"can't set \"".to_vec();
             message.extend_from_slice(name);
             message.extend_from_slice(b"\": ");
@@ -18401,14 +18442,23 @@ impl Vm {
         // Foreign authored artifacts have their independent admission and never
         // manufacture a native body primary or declaration context.
         let retained_foreign = proc.retained_foreign_body();
+        // A declaration adapter built per call (a `TclOO` method body) carries
+        // the body its persistent owner prepared with this compile service last
+        // time: C keeps one `Proc` per method and `TclProcCompileProc` reuses
+        // its bytecode until an epoch says otherwise. It must pass exactly the
+        // currency checks below.
+        let retained = retained_foreign
+            .as_ref()
+            .filter(|body| body.compiler.is_current_service(self.compiler_generation));
         let foreign = retained_foreign.as_ref().filter(|body| {
             self.compiler.is_none()
                 && body
                     .compiler
                     .is_current_foreign_admission(self.compiler_generation)
         });
-        let body = cache_body.or(foreign)?;
-        let is_foreign = foreign.is_some() && cache_body.is_none();
+        let native = cache_body.or(retained);
+        let body = native.or(foreign)?;
+        let is_foreign = native.is_none();
         if (!is_foreign
             && body.native_cache != Some(self.native_cache_stamp(proc.actual_namespace_id())))
             || body.profile_generation != self.profile_generation
@@ -22942,6 +22992,30 @@ impl Vm {
         self.update_native_error_info();
     }
 
+    /// Append a `(<clause> line N)` frame, `N` the innermost logged command's
+    /// line: a clause other than a `body` one, such as `switch`'s
+    /// `("PATTERN" arm line N)` ([`tcl_cmd_core::switch::arm_frame_text`]).
+    pub(crate) fn append_clause_frame_line(&mut self, clause: &[u8]) {
+        let mut frame = clause.to_vec();
+        frame.extend_from_slice(b" line ");
+        frame.extend_from_slice(self.native_errors.error_line.to_string().as_bytes());
+        self.append_clause_frame(&frame);
+    }
+
+    /// Append a `(<clause>)` frame, such as `dict with`'s
+    /// `(body of "dict with")`, so the enclosing command logs after it.
+    pub(crate) fn append_clause_frame(&mut self, clause: &[u8]) {
+        if self.uses_jim_error_stack() {
+            return;
+        }
+        let info = self.native_errors.error_info.get_or_insert_with(Vec::new);
+        info.extend_from_slice(b"\n    (");
+        info.extend_from_slice(clause);
+        info.push(b')');
+        self.native_errors.error_logged = self.native_errors.error_logged.past_frame();
+        self.update_native_error_info();
+    }
+
     /// Seed `errorInfo` for an error that *originates* in a command (not from a
     /// sub-command) with a context frame (C's `Tcl_AppendObjToErrorInfo`): start
     /// it from `msg` if unset or empty, append `frame` verbatim, and clear `error_logged`
@@ -26721,7 +26795,10 @@ impl Vm {
     /// `TclEvalEx` at `numLevels == 0`: a `return` is settled
     /// (`TclUpdateReturnInfo`), and any other code but `ok` or `error` becomes
     /// an error (`ProcessUnexpectedResult`).
-    fn settle_level_zero(&mut self, mut completion: Completion<Value>) -> Completion<Value> {
+    pub(crate) fn settle_level_zero(
+        &mut self,
+        mut completion: Completion<Value>,
+    ) -> Completion<Value> {
         let command = self.pending.top_level_command.take();
         // From 8.5 a `return` carrying `-errorinfo` logged its error as it
         // ran (`TclProcessReturn`), so the trace names no command here.
@@ -27291,6 +27368,30 @@ impl Vm {
         purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
         location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
     ) -> Result<Completion<Value>, TclError> {
+        // Prepared out of line, so preparation's locals are off the native
+        // stack while the script runs: a trace callback or `catch` body can
+        // recurse back through here.
+        let completion = match self.prepare_original_script_run(value, purpose, location)? {
+            OriginalScriptRun::Words(words) => {
+                return Ok(self.run_original_object_body(value.clone(), words));
+            }
+            OriginalScriptRun::Unit(unit) => self.run_compiled_unit(*unit),
+            OriginalScriptRun::Finished(completion) => completion,
+        };
+        if completion.code == Code::Error {
+            self.clear_error_logged();
+        }
+        Ok(completion)
+    }
+
+    /// What [`Self::eval_original_script_value`] runs for `value`.
+    #[inline(never)]
+    fn prepare_original_script_run(
+        &mut self,
+        value: &Value,
+        purpose: tcl_registry::native_eval_object::EvalObjectPurpose,
+        location: Option<tcl_runtime_api::script_source_location::ScriptSourceLocation>,
+    ) -> Result<OriginalScriptRun, TclError> {
         if let Some(refusal) = self.execution_refusal.clone() {
             return Err(TclError::from_execution_failure(refusal));
         }
@@ -27299,23 +27400,19 @@ impl Vm {
         let direct = crate::command::original_script_list(self, value, purpose)
             .map_err(TclError::from_completion)?;
         if let Some(words) = direct {
-            return Ok(self.run_original_object_body(value.clone(), words));
+            return Ok(OriginalScriptRun::Words(words));
         }
         let prepared = self.prepare_script_commands_value_for(value, purpose)?;
-        let completion = match prepared.prefix {
-            Some(unit) => self.run_compiled_unit(
+        Ok(match prepared.prefix {
+            Some(unit) => OriginalScriptRun::Unit(Box::new(
                 unit.with_fatal_tail(prepared.fatal_tail)
                     .with_source_location(location),
-            ),
-            None => prepared.fatal_tail.map_or_else(
+            )),
+            None => OriginalScriptRun::Finished(prepared.fatal_tail.map_or_else(
                 || ok(Value::empty()),
                 |tail| self.raise_script_parse_failure(tail, location),
-            ),
-        };
-        if completion.code == Code::Error {
-            self.clear_error_logged();
-        }
-        Ok(completion)
+            )),
+        })
     }
 
     /// Prepare an original script through its native Script or C bytecode owner.

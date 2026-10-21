@@ -1147,7 +1147,32 @@ pub(crate) fn arith_in<'a>(
         }
         return Ok(Value::int(integer));
     }
+    // 8.4 refuses a double division by zero before dividing
+    // (`tclExecute.c` 8.4 `INST_DIV`), where later releases return `Inf`.
+    if op == BinOp::Div
+        && num_f(&y) == 0.0
+        && context_release(dialect).is_some_and(tcl_dialect::TclVersion::raises_float_range_errors)
+    {
+        return Err(TclError::with_error_code(
+            errors::DIVZERO_MESSAGE,
+            errors::DIVZERO_CODE,
+        ));
+    }
     dbl_arith(op, num_f(&x), num_f(&y))
+}
+
+/// The release whose numeric semantics `context` selects, if any.
+fn context_release(context: NumericContext<'_>) -> Option<tcl_dialect::TclVersion> {
+    if let Some(simulation) = context.simulation {
+        return Some(match simulation {
+            tcl_syntax::logical_numeric_simulation::AuthoredLogicalNumericSimulation::Tcl84Core => {
+                tcl_dialect::TclVersion::V8_4
+            }
+        });
+    }
+    context
+        .native_scalar_getter_protocol()
+        .and_then(tcl_syntax::scalar_getter::NativeScalarGetterProtocol::tcl_version)
 }
 
 fn expression_operand_error(
@@ -1225,17 +1250,28 @@ fn context_operand_error(
         }
         _ => errors::OperandDesc::NonNumericString,
     };
-    let spelling =
+    // Before 9.0 the message never spells the operand, but its text still
+    // decides the description (`empty string`, `invalid octal number`).
+    let message =
         if release >= tcl_dialect::TclVersion::V9_0 && description != errors::OperandDesc::List {
             match tcl_syntax::raw_string::RawString::from_bytes(Rc::clone(&original)).unicode() {
-                Ok(text) => text,
+                Ok(text) => {
+                    errors::illegal_operand_message(description, &text, side, operator, release)
+                        .into_bytes()
+                }
                 Err(error) => return error.into(),
             }
         } else {
-            std::rc::Rc::from("")
+            errors::illegal_operand_message_bytes(
+                description,
+                &original,
+                side,
+                operator.as_bytes(),
+                release,
+            )
         };
     TclError::with_error_code(
-        errors::illegal_operand_message(description, &spelling, side, operator, release),
+        message,
         errors::illegal_operand_error_code(
             description,
             &String::from_utf8_lossy(&original),

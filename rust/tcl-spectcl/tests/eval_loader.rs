@@ -1569,3 +1569,39 @@ fn derived_frame_aliases_register_explicit_logical_source_dispatch() {
         );
     }
 }
+
+#[test]
+fn zz_s48_probe() {
+    let source = r"speclib probe 2.1 {
+        command probe::alias {
+            arity 2..
+            state_transitions { resolver from-frame-effect }
+            frame_effect -level-word ArityParity -layout AliasPairs
+        }
+        command probe::plain {
+            arity 1
+            state_transitions { resolver from-frame-effect }
+        }
+    }";
+    for (label, pack) in [("static", evaluate_pack(source)), ("interp", evaluate_through_the_interpreter(source))] {
+        eprintln!("S48 {label}: err={:?} cmds={:?}", pack.load_error, pack.commands.iter().map(|c| c.spec.name).collect::<Vec<_>>());
+        for n in &pack.notices { eprintln!("S48 {label} notice {n:?}"); }
+    }
+}
+
+#[test]
+fn zz_s48_probe_budget() {
+    let source = "speclib hungry 2.0 {\n    command fine { arity 1 }\n    \
+                  set i 0\n    while {1} { set x [llength [list a b $i]]\n incr i }\n}\n";
+    let options = EvalOptions {
+        config: tcl_spec_hooks::pack_eval::PackEvalConfig {
+            budget: tcl_engine_api::Budget::of_commands(2_000)
+                .with_wall_clock(std::time::Duration::from_secs(120))
+                .with_max_value_bytes(64 * 1024 * 1024),
+        },
+        ..EvalOptions::default()
+    };
+    let start = std::time::Instant::now();
+    let pack = evaluate_pack_with(source, &options);
+    eprintln!("S48 budget {:?} in {:?}", pack.load_error, start.elapsed());
+}

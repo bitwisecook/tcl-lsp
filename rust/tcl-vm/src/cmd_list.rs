@@ -569,7 +569,19 @@ fn vm_compare_original(
                     .flatten()
                     .is_some();
             let trace = vm.error_info_value().map(<[u8]>::to_vec);
-            let restored = vm.restore_completion_error_state(&completion);
+            // The comparator ran in an activation of its own, which has
+            // retired the options objects it issued; the interpreter already
+            // holds that error's code (C restores nothing here), so only a
+            // completion whose error code is still live is restored.
+            let live = crate::command::opt_get_checked(vm, &completion.options, b"-errorcode")
+                .ok()
+                .flatten()
+                .is_none_or(|code| code.native_object_is_live());
+            let restored = if live {
+                vm.restore_completion_error_state(&completion)
+            } else {
+                Ok(())
+            };
             if !carries_info && let Some(trace) = trace {
                 vm.seed_error_info_original(&completion.result, &trace);
             }

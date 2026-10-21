@@ -279,6 +279,18 @@ pub(crate) struct Frame {
     /// enclosing loop rather than unwinding through it. Mutually exclusive with
     /// `is_proc`.
     is_script: bool,
+    /// The instruction starting the command of a directly evaluated script
+    /// this activation last began (`Instruction::script_command`): the
+    /// outermost command C's level-0 `TclEvalEx` names when a completion
+    /// leaves it, whichever command inside it raised the code.
+    script_command: Option<usize>,
+    /// A coroutine's base activation created by a top-level statement: its
+    /// completion is settled as at `numLevels == 0` on every resume.
+    settles_as_top_level: bool,
+    /// The units an emulated release that keeps the commands running bytecode
+    /// compiled runs this activation's instructions in, and when it entered
+    /// each ([`crate::release_units`]).
+    release_units: crate::release_units::ReleaseUnits,
     /// Ambient frame namespace replaced by a transparent boundary-replay
     /// activation.  Replay changes command resolution without adding a Tcl
     /// call frame, so the namespace entry at the current frame depth is
@@ -471,6 +483,26 @@ pub(crate) struct CatchReq {
     /// The release compiles this `catch` and evaluates its script word inside
     /// the catch range of the code that holds it (C's `INST_EVAL_STK`).
     pub(crate) evaluates_word: bool,
+}
+
+/// What [`Vm::settle_native_invoke`] runs for a natively settled invocation.
+enum NativeSettlement {
+    /// Nothing was deferred: the invocation's own completion stands.
+    Unchanged,
+    /// The deferred work finished before any activation ran.
+    Finished(Completion<Value>),
+    /// Run this activation; its completion is the result.
+    Run(Box<Frame>),
+    /// Run a deferred `catch` body, then its epilogue.
+    Catch(Box<Frame>, Box<NativeCatchEpilogue>),
+}
+
+/// The part of a [`CatchReq`] its epilogue consumes after the body ran.
+struct NativeCatchEpilogue {
+    resvar: Option<Value>,
+    optvar: Option<Value>,
+    ignored_codes: u64,
+    fatal_tail: Option<FatalTail>,
 }
 
 /// Expression state owned by the shared syntax evaluator.
@@ -706,6 +738,9 @@ impl Frame {
             original_target: None,
             procedure_call_exit: None,
             is_script: false,
+            script_command: None,
+            settles_as_top_level: false,
+            release_units: crate::release_units::ReleaseUnits::new(is_proc),
             replay_namespace_restore: None,
             selected_frame_restore: None,
             body_label: None,
@@ -776,6 +811,12 @@ impl Frame {
     /// consumers from accidentally substituting the VM's current generations.
     fn from_compiled_unit(unit: crate::compiled::CompiledUnit) -> Self {
         Self::new(unit, false)
+    }
+
+    /// Settle this coroutine base activation's completion as at
+    /// `numLevels == 0` ([`Vm::settle_level_zero`]).
+    pub(crate) fn settle_as_top_level(&mut self) {
+        self.settles_as_top_level = true;
     }
 
     /// A transparent script activation (see [`Frame::is_script`]) for a body run
@@ -1132,6 +1173,120 @@ fn is_invoke_op(op: Op) -> bool {
             | Op::TCLOO_NEXT_CLASS4
             | Op::TCLOO_NEXT_LIST
             | Op::TCLOO_NEXT_CLASS_LIST
+    )
+}
+
+/// The instructions [`Vm::tick_variable_instruction`] runs: variable access,
+/// which can run guest code (a variable trace) before the instruction ends.
+fn is_variable_op(op: Op) -> bool {
+    matches!(
+        op,
+        Op::LOAD_STK
+            | Op::LOAD_SCALAR_STK
+            | Op::STORE_STK
+            | Op::STORE_SCALAR_STK
+            | Op::INCR_STK_IMM
+            | Op::INCR_SCALAR_STK_IMM
+            | Op::INCR_STK
+            | Op::INCR_SCALAR_STK
+            | Op::LOAD_SCALAR1
+            | Op::LOAD_SCALAR4
+            | Op::STORE_SCALAR1
+            | Op::STORE_SCALAR4
+            | Op::INCR_SCALAR1
+            | Op::INCR_SCALAR1_IMM
+            | Op::INCR_ARRAY_STK_IMM
+            | Op::INCR_ARRAY_STK
+            | Op::INCR_ARRAY1
+            | Op::INCR_ARRAY1_IMM
+            | Op::EXIST_SCALAR
+            | Op::EXIST_STK
+            | Op::EXIST_ARRAY
+            | Op::EXIST_ARRAY_STK
+            | Op::LOAD_ARRAY_STK
+            | Op::STORE_ARRAY_STK
+            | Op::LOAD_ARRAY1
+            | Op::LOAD_ARRAY4
+            | Op::STORE_ARRAY1
+            | Op::STORE_ARRAY4
+            | Op::ARRAY_EXISTS_IMM
+            | Op::ARRAY_EXISTS_STK
+            | Op::ARRAY_MAKE_IMM
+            | Op::ARRAY_MAKE_STK
+            | Op::UNSET_STK
+            | Op::UNSET_SCALAR
+            | Op::UNSET_ARRAY
+            | Op::UNSET_ARRAY_STK
+            | Op::APPEND_SCALAR1
+            | Op::APPEND_SCALAR4
+            | Op::APPEND_ARRAY1
+            | Op::APPEND_ARRAY4
+            | Op::LAPPEND_SCALAR1
+            | Op::LAPPEND_SCALAR4
+            | Op::LAPPEND_ARRAY1
+            | Op::LAPPEND_ARRAY4
+            | Op::APPEND_STK
+            | Op::LAPPEND_STK
+            | Op::APPEND_ARRAY_STK
+            | Op::LAPPEND_ARRAY_STK
+            | Op::LAPPEND_LIST
+            | Op::LAPPEND_LIST_STK
+            | Op::LAPPEND_LIST_ARRAY
+            | Op::LAPPEND_LIST_ARRAY_STK
+            | Op::CONST_IMM
+            | Op::CONST_STK
+            | Op::NSUPVAR
+            | Op::UPVAR
+            | Op::VARIABLE
+            | Op::FOREACH_START
+            | Op::FOREACH_STEP
+            | Op::LMAP_COLLECT
+            | Op::FOREACH_END
+            | Op::DICT_FIRST
+            | Op::DICT_NEXT
+            | Op::DICT_UPDATE_START
+            | Op::DICT_UPDATE_END
+            | Op::DICT_EXPAND
+            | Op::DICT_RECOMBINE_IMM
+            | Op::DICT_RECOMBINE_STK
+            | Op::VERIFY_DICT
+            | Op::DICT_PUT
+            | Op::DICT_SET
+            | Op::DICT_UNSET
+            | Op::DICT_INCR_IMM
+            | Op::DICT_APPEND
+            | Op::DICT_LAPPEND
+    )
+}
+
+/// The instructions [`Vm::tick_scalar_variable_instruction`] runs.
+fn is_scalar_variable_op(op: Op) -> bool {
+    matches!(
+        op,
+        Op::LOAD_STK
+            | Op::LOAD_SCALAR_STK
+            | Op::STORE_STK
+            | Op::STORE_SCALAR_STK
+            | Op::INCR_STK_IMM
+            | Op::INCR_SCALAR_STK_IMM
+            | Op::INCR_STK
+            | Op::INCR_SCALAR_STK
+            | Op::LOAD_SCALAR1
+            | Op::LOAD_SCALAR4
+            | Op::STORE_SCALAR1
+            | Op::STORE_SCALAR4
+            | Op::INCR_SCALAR1
+            | Op::INCR_SCALAR1_IMM
+            | Op::INCR_ARRAY_STK_IMM
+            | Op::INCR_ARRAY_STK
+            | Op::INCR_ARRAY1
+            | Op::INCR_ARRAY1_IMM
+            | Op::LOAD_ARRAY_STK
+            | Op::STORE_ARRAY_STK
+            | Op::LOAD_ARRAY1
+            | Op::LOAD_ARRAY4
+            | Op::STORE_ARRAY1
+            | Op::STORE_ARRAY4
     )
 }
 
@@ -2188,6 +2343,7 @@ impl Vm {
                 continue;
             }
             self.refresh_jim_evaluation_frames(acts);
+            self.pending.bottom_activation = acts.len() == 1 && self.activation_depth == 1;
             let mut tick = {
                 let top = acts.last_mut().expect("activation stack is non-empty");
                 self.tick(top)
@@ -3361,10 +3517,23 @@ impl Vm {
                 self.pending.top_level_command = (c.code != Code::Error
                     || !self.command_error_is_logged())
                 .then(|| {
-                    act.asm
-                        .instructions
-                        .get(act.pc.saturating_sub(1))
-                        .map(logged_command)
+                    // A directly evaluated script names the outermost command
+                    // it was running (C's `TclEvalEx` at `numLevels == 0`).
+                    match act
+                        .script_command
+                        .and_then(|start| act.asm.instructions.get(start))
+                    {
+                        Some(start) => Some((
+                            start.source_cmd_text.bytes().to_vec(),
+                            start.source_line,
+                            Vec::new(),
+                        )),
+                        None => act
+                            .asm
+                            .instructions
+                            .get(act.pc.saturating_sub(1))
+                            .map(logged_command),
+                    }
                 })
                 .flatten();
             }
@@ -3403,6 +3572,9 @@ impl Vm {
                 }
             }
             match acts.last_mut() {
+                None if act.settles_as_top_level && !c.code.is_ok() => {
+                    return Some(self.settle_level_zero(c));
+                }
                 None => return Some(c),
                 Some(parent) => {
                     if c.code.is_ok() {
@@ -5049,6 +5221,21 @@ impl Vm {
         Ok(())
     }
 
+    /// Whether the release keeps running `instr`'s command as `f` compiled it
+    /// across the command-table change that outdated `f`'s bindings, where
+    /// this VM would otherwise evaluate the command afresh: the release
+    /// compiled every command the command's specialised instructions rely on
+    /// into a unit `f` entered before the change ([`crate::release_units`]).
+    fn release_keeps_running(&self, f: &Frame, asm: &FunctionAsm, instr: &Instruction) -> bool {
+        !self.runtime_version().revalidates_running_bytecode()
+            && instr.evaluation == tcl_runtime_api::CommandEvaluation::Compiled
+            && !self.step_trace_active()
+            && f.release_units.current(instr).is_some_and(|unit| {
+                !unit.entry.stale && instr.release_hold.is_some_and(|hold| hold.binds(unit.kind))
+            })
+            && self.function_inlined_facts_hold(asm, f.manifest.as_deref())
+    }
+
     fn active_native_bindings_match(&self, frame: &Frame, asm: &FunctionAsm) -> bool {
         let selected = frame
             .entered_native_operations
@@ -5311,6 +5498,14 @@ impl Vm {
         if is_invoke_op(instr.op) {
             return self.tick_invoke(f, &asm, instr);
         }
+        // Likewise a variable access, whose trace callbacks run guest code
+        // while the instruction is executing.
+        if is_scalar_variable_op(instr.op) {
+            return self.tick_scalar_variable_instruction(f, instr);
+        }
+        if is_variable_op(instr.op) {
+            return self.tick_variable_instruction(f, &asm, instr);
+        }
         self.tick_instruction(f, &asm, instr)
     }
 
@@ -5351,6 +5546,19 @@ impl Vm {
         if let Some(tick) = self.enter_native_compiler_selection(f, &asm, instr) {
             return Err(tick);
         }
+        // A release that keeps the commands running bytecode compiled (8.4)
+        // checks its compile epoch only as it enters a unit: note when.
+        if !self.runtime_version().revalidates_running_bytecode() && f.release_units.enters(instr) {
+            let stale =
+                !self.function_command_bindings_match_with_manifest(&asm, f.manifest.as_deref());
+            f.release_units.enter(
+                instr,
+                crate::release_units::UnitEntry {
+                    epoch: self.trace_deopt_epoch(),
+                    stale,
+                },
+            );
+        }
         // Each source command resets the interpreter's result owner. Frame
         // mirrors preserve lifetime without introducing native references.
         if instr.source_command_boundary.is_start() {
@@ -5373,6 +5581,7 @@ impl Vm {
                 .iter()
                 .any(|(start, end)| *start <= f.pc && f.pc < *end)
             && f.command_epoch != self.trace_deopt_epoch()
+            && !self.release_keeps_running(f, &asm, instr)
         {
             if self.active_native_bindings_match(f, &asm) && !self.step_trace_active() {
                 f.command_epoch = self.trace_deopt_epoch();
@@ -5451,6 +5660,9 @@ impl Vm {
         {
             f.last_options = Value::empty();
         }
+        if instr.script_command {
+            f.script_command = Some(f.pc);
+        }
         f.pc += 1;
         // Line-watch seam: keep the embedder's cell on the dispatching
         // instruction's source line (see `Vm::set_line_watch`).
@@ -5478,7 +5690,6 @@ impl Vm {
         instr: &Instruction,
     ) -> Tick {
         let lits = asm.literals.entries();
-        let lvt = asm.lvt.entries();
 
         // Unwrap a fallible step, unwinding the instruction on an error. The
         // value form lets a store arm push what the variable reads back.
@@ -5505,58 +5716,6 @@ impl Vm {
                 }
             };
         }
-
-        // Like `try_op!`, but logs this instruction's command-source frame to
-        // `errorInfo` before unwinding — for compiled command-boundary ops
-        // (`set`/`incr` → STORE_*/INCR_*) so a failing compiled command
-        // contributes its `while executing`/`invoked from within "<cmd>"`
-        // frame just as the INVOKE path and reference Tcl's bytecode engine do
-        // (set-2.4: a write-trace rejection's `errorInfo` must reach the
-        // triggering `set x 1`).
-        macro_rules! try_cmd {
-            ($e:expr) => {
-                match $e {
-                    Ok(v) => v,
-                    Err(c) => {
-                        // C logs only an error; a `TCL_RETURN` carrying `-code
-                        // error` is raised at the procedure boundary, which
-                        // logs the call instead.
-                        if c.code == Code::Error {
-                            let (cmd_text, line, enclosing) = logged_command(instr);
-                            let msg = c.result.string_bytes();
-                            self.log_command_with_enclosing(
-                                &cmd_text,
-                                Value::from_native_string_bytes(cmd_text.clone()),
-                                &enclosing,
-                                &msg,
-                                line,
-                            );
-                        }
-                        return Tick::Return(c);
-                    }
-                }
-            };
-        }
-
-        macro_rules! native_operand_bytes {
-            ($value:expr) => {{
-                let operand = $value;
-                match self.native_name_operand_bytes_checked(&operand) {
-                    Ok(bytes) => bytes,
-                    Err(error) => {
-                        return Tick::Return(crate::command::completion_from_cmd_error(
-                            self, error,
-                        ));
-                    }
-                }
-            }};
-        }
-
-        let lvt_name = |slot: i32| -> tcl_core_types::NameBytes {
-            lvt.get(usize::try_from(slot).unwrap_or(usize::MAX))
-                .cloned()
-                .unwrap_or_default()
-        };
 
         match instr.op {
             // Stack.
@@ -5782,226 +5941,6 @@ impl Vm {
                 }
             }
 
-            // Variables (stack form, by name)
-            // The `*ScalarStk` opcodes share their C `TEBCresume` case with the
-            // general `*Stk` form (the compiler emits them when the name is known
-            // to carry no `(index)` part), so they are the same arm here.
-            Op::LOAD_STK | Op::LOAD_SCALAR_STK => {
-                let name = native_operand_bytes!(pop(f));
-                f.stack
-                    .push(try_op!(self.read_variable_result_bytes(&name, None)));
-            }
-            Op::STORE_STK | Op::STORE_SCALAR_STK => {
-                let value = pop(f);
-                let name = native_operand_bytes!(pop(f));
-                let stored = try_cmd!(self.store_var_result_bytes(&name, value));
-                f.stack.push(stored);
-            }
-            Op::INCR_STK_IMM | Op::INCR_SCALAR_STK_IMM => {
-                let name = native_operand_bytes!(pop(f));
-                let amount = Value::int(i64::from(imm0(instr)));
-                let updated = try_op!(self.increment_captured_bytes(&name, None, &amount));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-            Op::INCR_STK | Op::INCR_SCALAR_STK => {
-                let amount = pop(f);
-                let name = native_operand_bytes!(pop(f));
-                let updated = try_op!(self.increment_captured_bytes(&name, None, &amount));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-
-            // Variables (LVT form, proc bodies)
-            Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4 => {
-                f.stack.push(try_op!(self.read_compiled_variable_result(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    None
-                )));
-            }
-            Op::STORE_SCALAR1 | Op::STORE_SCALAR4 => {
-                let value = pop(f);
-                let stored = try_op!(self.store_compiled_variable_result(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    None,
-                    value
-                ));
-                f.stack.push(stored);
-            }
-            Op::INCR_SCALAR1 => {
-                let amount = pop(f);
-                let updated = try_op!(self.increment_compiled_variable(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    None,
-                    &amount
-                ));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-            Op::INCR_SCALAR1_IMM => {
-                let amount = Value::int(i64::from(imm_at(instr, 1)));
-                let updated = try_op!(self.increment_compiled_variable(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    None,
-                    &amount
-                ));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-            Op::INCR_ARRAY_STK_IMM => {
-                let key = native_operand_bytes!(pop(f));
-                let name = native_operand_bytes!(pop(f));
-                let amount = Value::int(i64::from(imm0(instr)));
-                let updated = try_op!(self.increment_captured_bytes(&name, Some(&key), &amount));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-            Op::INCR_ARRAY_STK => {
-                let amount = pop(f);
-                let key = native_operand_bytes!(pop(f));
-                let name = native_operand_bytes!(pop(f));
-                let updated = try_op!(self.increment_captured_bytes(&name, Some(&key), &amount));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-            Op::INCR_ARRAY1 => {
-                let amount = pop(f);
-                let key = native_operand_bytes!(pop(f));
-                let updated = try_op!(self.increment_compiled_variable(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    Some(&key),
-                    &amount
-                ));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-            Op::INCR_ARRAY1_IMM => {
-                let key = native_operand_bytes!(pop(f));
-                let amount = Value::int(i64::from(imm_at(instr, 1)));
-                let updated = try_op!(self.increment_compiled_variable(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    Some(&key),
-                    &amount
-                ));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-            Op::EXIST_SCALAR => {
-                let found = try_op!(self.exists_compiled_original_variable(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    None
-                ));
-                f.stack.push(try_op!(self.compiled_existence_result(found)));
-            }
-            Op::EXIST_STK => {
-                let original = pop(f);
-                let found = if self.native_c_variable_name_protocol().is_some() {
-                    try_op!(self.exists_original_c_parts(&original, None))
-                } else {
-                    let name = native_operand_bytes!(original);
-                    try_op!(self.exists_var_traced_bytes(&name).map_err(|first| {
-                        self.refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(first))
-                    }))
-                };
-                f.stack.push(try_op!(self.compiled_existence_result(found)));
-            }
-            Op::EXIST_ARRAY => {
-                let index = pop(f);
-                let found = try_op!(self.exists_compiled_original_variable(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    Some(&index)
-                ));
-                f.stack.push(try_op!(self.compiled_existence_result(found)));
-            }
-            Op::EXIST_ARRAY_STK => {
-                let index = pop(f);
-                let original = pop(f);
-                let found = if self.native_c_variable_name_protocol().is_some() {
-                    try_op!(self.exists_original_c_parts(&original, Some(&index)))
-                } else {
-                    let index = native_operand_bytes!(index);
-                    let name = native_operand_bytes!(original);
-                    try_op!(
-                        self.exists_elem_traced_bytes(&name, &index)
-                            .map_err(|first| self.refuse_tcl_host_failure(
-                                crate::error::TclHostFailure::Execution(first)
-                            ))
-                    )
-                };
-                f.stack.push(try_op!(self.compiled_existence_result(found)));
-            }
-
-            // Arrays.
-            Op::LOAD_ARRAY_STK => {
-                let key = native_operand_bytes!(pop(f));
-                let name = native_operand_bytes!(pop(f));
-                f.stack
-                    .push(try_op!(self.read_variable_result_bytes(&name, Some(&key))));
-            }
-            Op::STORE_ARRAY_STK => {
-                let value = pop(f);
-                let key = native_operand_bytes!(pop(f));
-                let name = native_operand_bytes!(pop(f));
-                f.stack
-                    .push(try_op!(self.store_elem_result_bytes(&name, &key, value)));
-            }
-            Op::LOAD_ARRAY1 | Op::LOAD_ARRAY4 => {
-                let key = native_operand_bytes!(pop(f));
-                f.stack.push(try_op!(self.read_compiled_variable_result(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    Some(&key)
-                )));
-            }
-            Op::STORE_ARRAY1 | Op::STORE_ARRAY4 => {
-                let value = pop(f);
-                let key = native_operand_bytes!(pop(f));
-                f.stack.push(try_op!(self.store_compiled_variable_result(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    Some(&key),
-                    value
-                )));
-            }
-            Op::ARRAY_EXISTS_IMM => {
-                let found = try_op!(self.array_exists_compiled(
-                    usize::try_from(imm0(instr)).expect("local slot index")
-                ));
-                let version = self.actual_native_invocation_dialect().tcl_version;
-                let Some(version) = version else {
-                    return Tick::Return(
-                        self.refuse_host_command("native array existence issuer".into()),
-                    );
-                };
-                let result = try_op!(self.native_c_execution_boolean(found, version).map_err(
-                    |error| crate::command::completion_from_cmd_error(self, error.into())
-                ));
-                f.stack.push(result);
-            }
-            Op::ARRAY_EXISTS_STK => {
-                let original = pop(f);
-                let found = try_op!(self.array_exists_original_opcode(&original));
-                let Some(version) = self.actual_native_invocation_dialect().tcl_version else {
-                    return Tick::Return(
-                        self.refuse_host_command("native Array constant issuer".into()),
-                    );
-                };
-                let result = try_op!(self.native_c_execution_boolean(found, version).map_err(
-                    |error| crate::command::completion_from_cmd_error(self, error.into())
-                ));
-                f.stack.push(result);
-            }
-            // `array set`'s materialising half (C `INST_ARRAY_MAKE_*`): make the
-            // variable an empty array when undefined, no-op when it already is
-            // one, and error on a scalar or an array element.
-            Op::ARRAY_MAKE_IMM => {
-                try_op!(self.ensure_array_compiled(
-                    usize::try_from(imm0(instr)).expect("local slot index")
-                ));
-            }
-            Op::ARRAY_MAKE_STK => {
-                let original = pop(f);
-                try_op!(self.array_make_original_opcode(&original));
-            }
-
             // Lists (inline opcodes)
             Op::LIST => {
                 let n = usize::try_from(imm0(instr)).unwrap_or(0);
@@ -6190,221 +6129,6 @@ impl Vm {
                 };
                 f.stack.push(Value::bool(r));
             }
-            Op::UNSET_STK => {
-                // operand = flags; a non-zero flag means "complain" (error when
-                // the variable is absent). The name (possibly `a(k)`) is on TOS.
-                let complain = imm0(instr) != 0;
-                let name = pop(f);
-                try_op!(self.unset_original_named_variable(&name, complain));
-            }
-            Op::UNSET_SCALAR => {
-                // Operands [flags, slot]; flags bit 0 ⇒ complain when absent.
-                f.dict_iters.remove(&imm_at(instr, 1));
-                let complain = imm0(instr) != 0;
-                try_op!(self.unset_compiled_variable(
-                    usize::try_from(imm_at(instr, 1)).expect("local slot index"),
-                    None,
-                    complain
-                ));
-            }
-            Op::UNSET_ARRAY => {
-                // Operands [flags, slot]; the element key is on TOS. C
-                // `INST_UNSET_ARRAY` reads the flags operand
-                // (`flags = TclGetUInt1AtPtr(pc + 1) ? TCL_LEAVE_ERR_MSG : 0`,
-                // `tclExecute.c:3814`) and, when it is set and the element is
-                // absent, deliberately falls to `slowUnsetArray` (3837-3839,
-                // 3851-3862) so the miss is reported. Ignoring the operand made
-                // `unset B(nope)` silently succeed while `UNSET_SCALAR`/
-                // `UNSET_STK` complained.
-                let complain = imm0(instr) != 0;
-                let key_original = pop(f);
-                let key = native_operand_bytes!(key_original.native_lifetime_lease().into_value());
-                try_op!(self.unset_compiled_variable(
-                    usize::try_from(imm_at(instr, 1)).expect("local slot index"),
-                    Some(&key),
-                    complain
-                ));
-            }
-            Op::UNSET_ARRAY_STK => {
-                // Operand = flags (non-zero ⇒ C's `TCL_LEAVE_ERR_MSG`: complain
-                // when the element is absent); the key is on TOS over the array
-                // name, matching C's `part2Ptr = OBJ_AT_TOS` /
-                // `part1Ptr = OBJ_UNDER_TOS` (`tclExecute.c:3866-3872`).
-                let complain = imm0(instr) != 0;
-                let key = pop(f);
-                let name = pop(f);
-                if self.native_c_variable_name_protocol().is_some() {
-                    try_op!(self.unset_original_c_variable_parts(&name, &key, complain));
-                } else {
-                    let key_bytes = native_operand_bytes!(key.native_lifetime_lease().into_value());
-                    let name_bytes =
-                        native_operand_bytes!(name.native_lifetime_lease().into_value());
-                    try_op!(self.unset_array_elem_checked_bytes(&name_bytes, &key_bytes, complain));
-                }
-            }
-
-            // Single-value append opcodes do not fire a read trace; list
-            // expansion opcodes use the retained-cell read/update protocol.
-            Op::APPEND_SCALAR1 | Op::APPEND_SCALAR4 => {
-                let value = pop(f);
-                f.stack.push(try_op!(self.append_compiled_variable(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    None,
-                    &[value]
-                )));
-            }
-            Op::APPEND_ARRAY1 | Op::APPEND_ARRAY4 => {
-                let value = pop(f);
-                let key = native_operand_bytes!(pop(f));
-                f.stack.push(try_op!(self.append_compiled_variable(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    Some(&key),
-                    &[value]
-                )));
-            }
-            Op::LAPPEND_SCALAR1 | Op::LAPPEND_SCALAR4 => {
-                let value = pop(f);
-                f.stack.push(try_op!(self.lappend_compiled_single(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    None,
-                    &value
-                )));
-            }
-            Op::LAPPEND_ARRAY1 | Op::LAPPEND_ARRAY4 => {
-                let value = pop(f);
-                let key = native_operand_bytes!(pop(f));
-                f.stack.push(try_op!(self.lappend_compiled_single(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    Some(&key),
-                    &value
-                )));
-            }
-            Op::APPEND_STK | Op::LAPPEND_STK => {
-                let value = pop(f);
-                let name = native_operand_bytes!(pop(f));
-                let stored = if instr.op == Op::APPEND_STK {
-                    self.append_variable_bytes(&name, None, value)
-                } else {
-                    self.lappend_instruction_single_bytes(&name, None, &value)
-                };
-                f.stack.push(try_op!(stored));
-            }
-            Op::APPEND_ARRAY_STK | Op::LAPPEND_ARRAY_STK => {
-                let value = pop(f);
-                let key = native_operand_bytes!(pop(f));
-                let name = native_operand_bytes!(pop(f));
-                let stored = if instr.op == Op::APPEND_ARRAY_STK {
-                    self.append_variable_bytes(&name, Some(&key), value)
-                } else {
-                    self.lappend_instruction_single_bytes(&name, Some(&key), &value)
-                };
-                f.stack.push(try_op!(stored));
-            }
-            Op::LAPPEND_LIST => {
-                let additions = pop(f);
-                let updated = try_op!(self.lappend_instruction_compiled_list(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    None,
-                    &additions
-                ));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-            Op::LAPPEND_LIST_STK => {
-                let additions = pop(f);
-                let name = native_operand_bytes!(pop(f));
-                let updated = try_op!(self.lappend_instruction_list_bytes(&name, None, &additions));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-            Op::LAPPEND_LIST_ARRAY => {
-                let additions = pop(f);
-                let key = native_operand_bytes!(pop(f));
-                let updated = try_op!(self.lappend_instruction_compiled_list(
-                    usize::try_from(imm0(instr)).expect("local slot index"),
-                    Some(&key),
-                    &additions
-                ));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-            Op::LAPPEND_LIST_ARRAY_STK => {
-                let additions = pop(f);
-                let key = native_operand_bytes!(pop(f));
-                let name = native_operand_bytes!(pop(f));
-                let updated =
-                    try_op!(self.lappend_instruction_list_bytes(&name, Some(&key), &additions));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-
-            Op::CONST_IMM => {
-                let value = pop(f);
-                try_op!(self.declare_compiled_constant(
-                    usize::try_from(imm0(instr)).unwrap_or(usize::MAX),
-                    value
-                ));
-            }
-            Op::CONST_STK => {
-                let value = pop(f);
-                let name = native_operand_bytes!(pop(f));
-                try_op!(self.declare_constant_bytes(&name, value, false));
-            }
-
-            // -- global / upvar links. The namespace ("::") or level reference
-            // is left on the stack for the next link op to reuse; a trailing
-            // `pop` discards it (matching C Tcl's nsupvar/upvar codegen). --
-            Op::NSUPVAR => {
-                let other = pop(f);
-                let Some(namespace_operand) = f.stack.last() else {
-                    return Tick::Return(err("nsupvar: stack underflow"));
-                };
-                let namespace = try_core!(self.namespace_object_lookup(namespace_operand));
-                let Some(namespace) = namespace else {
-                    let namespace_bytes = native_operand_bytes!(
-                        namespace_operand.native_lifetime_lease().into_value()
-                    );
-                    return Tick::Return(self.namespace_lookup_error_bytes(&namespace_bytes));
-                };
-                try_op!(self.link_compiled_namespace_original(
-                    usize::try_from(imm0(instr)).unwrap_or(usize::MAX),
-                    namespace,
-                    &other,
-                    false,
-                ));
-            }
-            Op::UPVAR => {
-                let other = pop(f);
-                let Some(level_operand) = f
-                    .stack
-                    .last()
-                    .map(|value| value.native_lifetime_lease().into_value())
-                else {
-                    return Tick::Return(err("upvar: stack underflow"));
-                };
-                let (_, target) = try_op!(crate::command::runtime_frame_selection(
-                    self,
-                    tcl_registry::FrameEffectSpec::UPVAR,
-                    &[level_operand]
-                ));
-                try_op!(self.link_compiled_upvar(
-                    usize::try_from(imm0(instr)).unwrap_or(usize::MAX),
-                    target,
-                    &other,
-                ));
-            }
-            // `variable` (C `INST_VARIABLE`): link the local slot to the
-            // namespace variable named by the popped original object. Namespace-only
-            // lookup updates its selected name cache before binding the local slot.
-            Op::VARIABLE => {
-                let original = pop(f);
-                try_op!(self.link_compiled_namespace_original(
-                    usize::try_from(imm0(instr)).unwrap_or(usize::MAX),
-                    self.current_ns_id(),
-                    &original,
-                    true,
-                ));
-            }
 
             // Concat (stack form): Tcl-concat the top N values.
             Op::CONCAT_STK => {
@@ -6540,282 +6264,6 @@ impl Vm {
                     }
                 };
                 f.stack.push(Value::list(result));
-            }
-
-            // -- foreach (C Tcl INST_FOREACH_*): aux var groups on the
-            //    instruction; foreach_start jumps to step; step binds the loop
-            //    vars and jumps back to the body, or falls through to end. --
-            Op::FOREACH_START => {
-                if let Some(auxiliary) = &instr.native_each {
-                    return self.native_compiled_each_start(f, auxiliary, instr.foreach_collect);
-                }
-                let policy = if instr.foreach_collect {
-                    tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED
-                } else {
-                    tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_SETTLED
-                };
-                if policy.begins_fresh() {
-                    f.last_options = Value::empty();
-                }
-                let start_idx = f.pc - 1;
-                let body_idx = f.pc;
-                let groups = instr.foreach_vars.clone().unwrap_or_default();
-                let n = groups.len();
-                if f.stack.len() < n {
-                    return Tick::Return(err("foreach: stack underflow"));
-                }
-                let raw = f.stack.split_off(f.stack.len() - n);
-                let mut value_lists = Vec::with_capacity(n);
-                let mut iter_max = 0;
-                let Some(protocol) = self
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                else {
-                    return Tick::Return(self.refuse_host_command(
-                        "native foreach list protocol is unavailable".into(),
-                    ));
-                };
-                for (gi, lv) in raw.iter().enumerate() {
-                    let items = match self.native_object_list_elements_in(lv, protocol) {
-                        Ok(items) => items,
-                        Err(error) => {
-                            return Tick::Return(crate::command::completion_from_cmd_error(
-                                self,
-                                error.into(),
-                            ));
-                        }
-                    };
-                    let nv = groups[gi].len().max(1);
-                    iter_max = iter_max.max(items.len().div_ceil(nv));
-                    value_lists.push(items);
-                }
-                f.foreach_stack.push(ForeachState {
-                    native: None,
-                    _native_iterator_headers: None,
-                    native_accumulator: None,
-                    var_groups: groups,
-                    lists: value_lists,
-                    _list_roots: raw,
-                    iter_num: 0,
-                    iter_max,
-                    body_idx,
-                    collect: instr.foreach_collect,
-                    accum: Vec::new(),
-                });
-                if let Some(&step) = f.foreach_pairs.get(&start_idx) {
-                    f.pc = step;
-                }
-            }
-            Op::FOREACH_STEP => {
-                if f.foreach_stack
-                    .last()
-                    .is_some_and(|state| state.native.is_some())
-                {
-                    return self.native_compiled_each_step(f);
-                }
-                let (binds, body, more) = {
-                    match f.foreach_stack.last_mut() {
-                        None => (Vec::new(), 0usize, false),
-                        Some(st) if st.iter_num >= st.iter_max => (Vec::new(), 0, false),
-                        Some(st) => {
-                            let it = st.iter_num;
-                            let mut binds: Vec<(tcl_bytecode::CompiledVariableTarget, Value)> =
-                                Vec::new();
-                            for (gi, group) in st.var_groups.iter().enumerate() {
-                                let nv = group.len();
-                                for (j, var) in group.iter().enumerate() {
-                                    let v = st.lists[gi]
-                                        .get(it * nv + j)
-                                        .cloned()
-                                        .unwrap_or_else(Value::empty);
-                                    binds.push((var.clone(), v));
-                                }
-                            }
-                            st.iter_num += 1;
-                            (binds, st.body_idx, true)
-                        }
-                    }
-                };
-                if more {
-                    f.last_options = Value::empty();
-                    for (name, v) in binds {
-                        match name {
-                            tcl_bytecode::CompiledVariableTarget::Slot(slot) => {
-                                try_op!(self.store_compiled_variable_result(slot, None, v));
-                            }
-                            tcl_bytecode::CompiledVariableTarget::Name(name) => {
-                                try_op!(self.set_var_bytes(name.as_bytes(), v));
-                            }
-                        }
-                    }
-                    f.pc = body;
-                }
-            }
-            Op::LMAP_COLLECT => {
-                // Append this fall-through iteration's result to the collecting
-                // loop's accumulator. A `break`/`continue` redirect jumps past this
-                // opcode (to `FOREACH_END` / `FOREACH_STEP`), so a skipped iteration
-                // contributes nothing — matching C `lmap`.
-                let v = pop(f);
-                if let Some(st) = f.foreach_stack.last_mut() {
-                    if let (Some(accumulator), Some(auxiliary)) =
-                        (&st.native_accumulator, &st.native)
-                    {
-                        let protocol =
-                            tcl_syntax::native_string::NativeStringProtocol::C(auxiliary.version);
-                        if let Err(error) =
-                            accumulator.native_list_append_prepared_elements(&[v], protocol)
-                        {
-                            return Tick::Return(crate::command::completion_from_cmd_error(
-                                self,
-                                error.into(),
-                            ));
-                        }
-                    } else {
-                        st.accum.push(v);
-                    }
-                }
-            }
-            Op::FOREACH_END => {
-                let st = f.foreach_stack.pop();
-                // A collecting loop (`lmap`) yields `list(accum)`; a plain
-                // `foreach` yields nothing (its `""` result is pushed by the
-                // loop-end block).
-                if let Some(st) = st {
-                    if st.collect {
-                        f.stack.push(
-                            st.native_accumulator
-                                .unwrap_or_else(|| Value::list(st.accum)),
-                        );
-                    } else {
-                        f.last_options = Value::empty();
-                    }
-                }
-            }
-
-            // Compiled `dict for` / `dict map` iteration primitives. `dictFirst
-            // <slot>` pops the dict (TOS), records an iterator in `<slot>`, and
-            // pushes `value, key, done` (done on top). `dictNext <slot>`
-            // advances and pushes the next `value, key, done`. `done` is the
-            // "exhausted" flag the compiled loop tests with `jumpTrue`
-            // (dictFirst: skip an empty dict) / `jumpFalse` (dictNext: loop
-            // while more). On exhaustion the pushed key/value are empty
-            // placeholders the loop epilogue pops.
-            Op::DICT_FIRST => {
-                let slot = imm0(instr);
-                let dict = pop(f);
-                let Some(protocol) = self
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                else {
-                    return Tick::Return(self.refuse_host_command(
-                        "native dictionary search protocol is unavailable".into(),
-                    ));
-                };
-                let mut search = match dict.into_native_dictionary_search(protocol) {
-                    Ok(search) => search,
-                    Err(error) => {
-                        return Tick::Return(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
-                        ));
-                    }
-                };
-                #[cfg(test)]
-                {
-                    self.actual_dictionary_search_entries += 1;
-                }
-                let pair = match search.next_pair() {
-                    Ok(pair) => pair,
-                    Err(error) => {
-                        return Tick::Return(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
-                        ));
-                    }
-                };
-                let done = pair.is_none();
-                let (k, v) = pair.unwrap_or_else(|| (Value::empty(), Value::empty()));
-                f.dict_iters.insert(slot, DictIterState { search });
-                f.stack.push(v);
-                f.stack.push(k);
-                f.stack.push(Value::bool(done));
-            }
-            Op::DICT_NEXT => {
-                let pair = match f.dict_iters.get_mut(&imm0(instr)) {
-                    Some(state) => match state.search.next_pair() {
-                        Ok(pair) => pair,
-                        Err(error) => {
-                            return Tick::Return(crate::command::completion_from_cmd_error(
-                                self,
-                                error.into(),
-                            ));
-                        }
-                    },
-                    None => None,
-                };
-                let done = pair.is_none();
-                let (k, v) = pair.unwrap_or_else(|| (Value::empty(), Value::empty()));
-                f.stack.push(v);
-                f.stack.push(k);
-                f.stack.push(Value::bool(done));
-            }
-            Op::DICT_UPDATE_START => {
-                let slot = usize::try_from(imm0(instr)).unwrap_or(usize::MAX);
-                let vars = instr.dict_vars.as_deref().unwrap_or_default();
-                let Some(keys) = f.stack.last() else {
-                    return Tick::Return(err("dictUpdateStart: stack underflow"));
-                };
-                try_op!(self.start_compiled_dictionary_update(slot, keys, vars));
-            }
-            Op::DICT_UPDATE_END => {
-                let slot = usize::try_from(imm0(instr)).unwrap_or(usize::MAX);
-                let keys = pop(f);
-                try_op!(self.finish_compiled_dictionary_update(
-                    slot,
-                    &keys,
-                    instr.dict_vars.as_deref().unwrap_or_default()
-                ));
-            }
-            Op::DICT_EXPAND => {
-                let path = pop(f);
-                let dictionary = pop(f);
-                let keys = try_op!(crate::cmd_dict::expand_dictionary_scope(
-                    self,
-                    &dictionary,
-                    &path
-                ));
-                f.stack.push(keys);
-            }
-            Op::DICT_RECOMBINE_IMM | Op::DICT_RECOMBINE_STK => {
-                let state = pop(f);
-                let path = pop(f);
-                let (name, publication) = if instr.op == Op::DICT_RECOMBINE_STK {
-                    (tcl_core_types::NameBytes::from(native_operand_bytes!(pop(f)).as_ref()),
-                     crate::interp::native_dictionary::DictionaryVariablePublication::RetainedLocalCell)
-                } else {
-                    (lvt_name(imm0(instr)), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(
-                        usize::try_from(imm0(instr)).unwrap_or(usize::MAX)))
-                };
-                try_op!(crate::cmd_dict::recombine_dictionary_scope(
-                    self,
-                    name.as_bytes(),
-                    publication,
-                    &path,
-                    &state
-                ));
-            }
-            Op::VERIFY_DICT => {
-                let top = pop(f);
-                match tcl_syntax::value::ValueOps::dict_pairs(self, &top) {
-                    Ok(pairs) => drop(pairs),
-                    Err(error) => {
-                        return Tick::Return(crate::command::completion_from_cmd_error(
-                            self,
-                            error.into(),
-                        ));
-                    }
-                }
             }
 
             // Arithmetic / bitwise / shift.
@@ -7613,99 +7061,6 @@ impl Vm {
                     }
                 };
             }
-
-            // Dicts (LVT form, proc bodies)
-            // `dict set var k1 ?k2 …? value` — operands [Imm(N), Imm(slot)];
-            // stack holds the N keys then the value. Writes the variable and
-            // leaves the new dict on the stack (the codegen POPs it).
-            Op::DICT_PUT => {
-                let value = pop(f);
-                let key = pop(f);
-                let original = pop(f);
-                if !self
-                    .actual_native_invocation_dialect()
-                    .native_string_protocol()
-                    .is_some_and(|protocol| {
-                        protocol
-                            .tcl_version()
-                            .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_1)
-                    })
-                {
-                    return Tick::Return(self.refuse_host_command(
-                        "native dictionary-put recipe is unavailable".into(),
-                    ));
-                }
-                let updated = try_core!(crate::cmd_dict::put_original_member(
-                    self, &original, &key, value
-                ));
-                f.stack.push(updated);
-            }
-            Op::DICT_SET => {
-                let nkeys = usize::try_from(imm0(instr)).unwrap_or(0);
-                let name = lvt_name(imm_at(instr, 1));
-                let value = pop(f);
-                if f.stack.len() < nkeys || nkeys == 0 {
-                    return Tick::Return(err("dictSet: stack underflow"));
-                }
-                let keys = f.stack.split_off(f.stack.len() - nkeys);
-                let updated = try_op!(crate::cmd_dict::dictionary_path_update_bytes(self,
-                    name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm_at(instr, 1)).unwrap_or(usize::MAX)),
-                    &keys, Some(value)));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-            // `dict unset var k1 ?k2 …?` — operands [Imm(N), Imm(slot)]; stack
-            // holds the N keys.
-            Op::DICT_UNSET => {
-                let nkeys = usize::try_from(imm0(instr)).unwrap_or(0);
-                let name = lvt_name(imm_at(instr, 1));
-                if f.stack.len() < nkeys || nkeys == 0 {
-                    return Tick::Return(err("dictUnset: stack underflow"));
-                }
-                let keys = f.stack.split_off(f.stack.len() - nkeys);
-                let updated = try_op!(crate::cmd_dict::dictionary_path_update_bytes(self,
-                    name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm_at(instr, 1)).unwrap_or(usize::MAX)),
-                    &keys, None));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-            // `dict incr var key ?amount?` — operands [Imm(amount), Imm(slot)];
-            // stack holds the key.
-            Op::DICT_INCR_IMM => {
-                let amount = i64::from(imm0(instr));
-                let name = lvt_name(imm_at(instr, 1));
-                let key = pop(f);
-                let increment = Value::int(amount);
-                let updated = try_op!(crate::cmd_dict::dictionary_member_update_bytes(self,
-                    name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm_at(instr, 1)).unwrap_or(usize::MAX)),
-                    &key, |vm, old| crate::cmd_dict::increment_dictionary_member(vm, old, &increment, true)));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-            // `dict append var key value` — operand [Imm(slot)]; stack holds the
-            // key then the value.
-            Op::DICT_APPEND => {
-                let name = lvt_name(imm0(instr));
-                let value = pop(f);
-                let key = pop(f);
-                let updated = try_op!(crate::cmd_dict::dictionary_member_update_bytes(self,
-                    name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm0(instr)).unwrap_or(usize::MAX)),
-                    &key, |vm, old| crate::cmd_dict::append_compiled_member_value(vm, old, &value)));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
-            // `dict lappend var key value` — operand [Imm(slot)]; stack holds the
-            // key then the value.
-            Op::DICT_LAPPEND => {
-                let name = lvt_name(imm0(instr));
-                let value = pop(f);
-                let key = pop(f);
-                let updated = try_op!(crate::cmd_dict::dictionary_member_update_bytes(self,
-                    name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm0(instr)).unwrap_or(usize::MAX)),
-                    &key, |vm, old| crate::cmd_dict::lappend_member_values(vm, old, &[value])));
-                f.last_options = updated.options;
-                f.stack.push(updated.value);
-            }
             // `dict get $d k1 ?k2 …?` — operand [Imm(N)]; stack holds the dict
             // then the N keys. Leaves the looked-up value on the stack.
             Op::DICT_GET => {
@@ -8294,6 +7649,1034 @@ impl Vm {
             | Op::TCLOO_NEXT_CLASS4
             | Op::TCLOO_NEXT_LIST
             | Op::TCLOO_NEXT_CLASS_LIST => return self.tick_invoke(f, asm, instr),
+            // Routed before this match by `tick_in_original_scope`; kept so the
+            // match stays exhaustive.
+            Op::LOAD_STK
+            | Op::LOAD_SCALAR_STK
+            | Op::STORE_STK
+            | Op::STORE_SCALAR_STK
+            | Op::INCR_STK_IMM
+            | Op::INCR_SCALAR_STK_IMM
+            | Op::INCR_STK
+            | Op::INCR_SCALAR_STK
+            | Op::LOAD_SCALAR1
+            | Op::LOAD_SCALAR4
+            | Op::STORE_SCALAR1
+            | Op::STORE_SCALAR4
+            | Op::INCR_SCALAR1
+            | Op::INCR_SCALAR1_IMM
+            | Op::INCR_ARRAY_STK_IMM
+            | Op::INCR_ARRAY_STK
+            | Op::INCR_ARRAY1
+            | Op::INCR_ARRAY1_IMM
+            | Op::EXIST_SCALAR
+            | Op::EXIST_STK
+            | Op::EXIST_ARRAY
+            | Op::EXIST_ARRAY_STK
+            | Op::LOAD_ARRAY_STK
+            | Op::STORE_ARRAY_STK
+            | Op::LOAD_ARRAY1
+            | Op::LOAD_ARRAY4
+            | Op::STORE_ARRAY1
+            | Op::STORE_ARRAY4
+            | Op::ARRAY_EXISTS_IMM
+            | Op::ARRAY_EXISTS_STK
+            | Op::ARRAY_MAKE_IMM
+            | Op::ARRAY_MAKE_STK
+            | Op::UNSET_STK
+            | Op::UNSET_SCALAR
+            | Op::UNSET_ARRAY
+            | Op::UNSET_ARRAY_STK
+            | Op::APPEND_SCALAR1
+            | Op::APPEND_SCALAR4
+            | Op::APPEND_ARRAY1
+            | Op::APPEND_ARRAY4
+            | Op::LAPPEND_SCALAR1
+            | Op::LAPPEND_SCALAR4
+            | Op::LAPPEND_ARRAY1
+            | Op::LAPPEND_ARRAY4
+            | Op::APPEND_STK
+            | Op::LAPPEND_STK
+            | Op::APPEND_ARRAY_STK
+            | Op::LAPPEND_ARRAY_STK
+            | Op::LAPPEND_LIST
+            | Op::LAPPEND_LIST_STK
+            | Op::LAPPEND_LIST_ARRAY
+            | Op::LAPPEND_LIST_ARRAY_STK
+            | Op::CONST_IMM
+            | Op::CONST_STK
+            | Op::NSUPVAR
+            | Op::UPVAR
+            | Op::VARIABLE
+            | Op::FOREACH_START
+            | Op::FOREACH_STEP
+            | Op::LMAP_COLLECT
+            | Op::FOREACH_END
+            | Op::DICT_FIRST
+            | Op::DICT_NEXT
+            | Op::DICT_UPDATE_START
+            | Op::DICT_UPDATE_END
+            | Op::DICT_EXPAND
+            | Op::DICT_RECOMBINE_IMM
+            | Op::DICT_RECOMBINE_STK
+            | Op::VERIFY_DICT
+            | Op::DICT_PUT
+            | Op::DICT_SET
+            | Op::DICT_UNSET
+            | Op::DICT_INCR_IMM
+            | Op::DICT_APPEND
+            | Op::DICT_LAPPEND => return self.tick_variable_instruction(f, asm, instr),
+        }
+
+        Tick::Continue
+    }
+
+    /// The variable-access arms of [`Self::tick_instruction`]. A variable
+    /// trace (and an `upvar`/`dict`/`foreach` write that fires one) runs its
+    /// callback while the instruction is still executing, so recursion
+    /// through a trace keeps this frame, not the whole opcode match, on the
+    /// native stack.
+    #[inline(never)]
+    fn tick_variable_instruction(
+        &mut self,
+        f: &mut Frame,
+        asm: &Rc<FunctionAsm>,
+        instr: &Instruction,
+    ) -> Tick {
+        let lvt = asm.lvt.entries();
+
+        // Unwrap a fallible step, unwinding the instruction on an error. The
+        // value form lets a store arm push what the variable reads back.
+        macro_rules! try_op {
+            ($e:expr) => {
+                match $e {
+                    Ok(v) => v,
+                    Err(c) => return Tick::Return(c),
+                }
+            };
+        }
+
+        // Portable operation failures retain byte diagnostics and host refusal tags.
+        macro_rules! try_core {
+            ($operation:expr) => {
+                match $operation {
+                    Ok(value) => value,
+                    Err(error) => {
+                        return Tick::Return(crate::command::completion_from_cmd_error(
+                            self,
+                            error.into(),
+                        ));
+                    }
+                }
+            };
+        }
+
+        macro_rules! native_operand_bytes {
+            ($value:expr) => {{
+                let operand = $value;
+                match self.native_name_operand_bytes_checked(&operand) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        return Tick::Return(crate::command::completion_from_cmd_error(
+                            self, error,
+                        ));
+                    }
+                }
+            }};
+        }
+
+        let lvt_name = |slot: i32| -> tcl_core_types::NameBytes {
+            lvt.get(usize::try_from(slot).unwrap_or(usize::MAX))
+                .cloned()
+                .unwrap_or_default()
+        };
+
+        match instr.op {
+            Op::EXIST_SCALAR => {
+                let found = try_op!(self.exists_compiled_original_variable(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    None
+                ));
+                f.stack.push(try_op!(self.compiled_existence_result(found)));
+            }
+            Op::EXIST_STK => {
+                let original = pop(f);
+                let found = if self.native_c_variable_name_protocol().is_some() {
+                    try_op!(self.exists_original_c_parts(&original, None))
+                } else {
+                    let name = native_operand_bytes!(original);
+                    try_op!(self.exists_var_traced_bytes(&name).map_err(|first| {
+                        self.refuse_tcl_host_failure(crate::error::TclHostFailure::Execution(first))
+                    }))
+                };
+                f.stack.push(try_op!(self.compiled_existence_result(found)));
+            }
+            Op::EXIST_ARRAY => {
+                let index = pop(f);
+                let found = try_op!(self.exists_compiled_original_variable(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    Some(&index)
+                ));
+                f.stack.push(try_op!(self.compiled_existence_result(found)));
+            }
+            Op::EXIST_ARRAY_STK => {
+                let index = pop(f);
+                let original = pop(f);
+                let found = if self.native_c_variable_name_protocol().is_some() {
+                    try_op!(self.exists_original_c_parts(&original, Some(&index)))
+                } else {
+                    let index = native_operand_bytes!(index);
+                    let name = native_operand_bytes!(original);
+                    try_op!(
+                        self.exists_elem_traced_bytes(&name, &index)
+                            .map_err(|first| self.refuse_tcl_host_failure(
+                                crate::error::TclHostFailure::Execution(first)
+                            ))
+                    )
+                };
+                f.stack.push(try_op!(self.compiled_existence_result(found)));
+            }
+            Op::ARRAY_EXISTS_IMM => {
+                let found = try_op!(self.array_exists_compiled(
+                    usize::try_from(imm0(instr)).expect("local slot index")
+                ));
+                let version = self.actual_native_invocation_dialect().tcl_version;
+                let Some(version) = version else {
+                    return Tick::Return(
+                        self.refuse_host_command("native array existence issuer".into()),
+                    );
+                };
+                let result = try_op!(self.native_c_execution_boolean(found, version).map_err(
+                    |error| crate::command::completion_from_cmd_error(self, error.into())
+                ));
+                f.stack.push(result);
+            }
+            Op::ARRAY_EXISTS_STK => {
+                let original = pop(f);
+                let found = try_op!(self.array_exists_original_opcode(&original));
+                let Some(version) = self.actual_native_invocation_dialect().tcl_version else {
+                    return Tick::Return(
+                        self.refuse_host_command("native Array constant issuer".into()),
+                    );
+                };
+                let result = try_op!(self.native_c_execution_boolean(found, version).map_err(
+                    |error| crate::command::completion_from_cmd_error(self, error.into())
+                ));
+                f.stack.push(result);
+            }
+            // `array set`'s materialising half (C `INST_ARRAY_MAKE_*`): make the
+            // variable an empty array when undefined, no-op when it already is
+            // one, and error on a scalar or an array element.
+            Op::ARRAY_MAKE_IMM => {
+                try_op!(self.ensure_array_compiled(
+                    usize::try_from(imm0(instr)).expect("local slot index")
+                ));
+            }
+            Op::ARRAY_MAKE_STK => {
+                let original = pop(f);
+                try_op!(self.array_make_original_opcode(&original));
+            }
+            Op::UNSET_STK => {
+                // operand = flags; a non-zero flag means "complain" (error when
+                // the variable is absent). The name (possibly `a(k)`) is on TOS.
+                let complain = imm0(instr) != 0;
+                let name = pop(f);
+                try_op!(self.unset_original_named_variable(&name, complain));
+            }
+            Op::UNSET_SCALAR => {
+                // Operands [flags, slot]; flags bit 0 ⇒ complain when absent.
+                f.dict_iters.remove(&imm_at(instr, 1));
+                let complain = imm0(instr) != 0;
+                try_op!(self.unset_compiled_variable(
+                    usize::try_from(imm_at(instr, 1)).expect("local slot index"),
+                    None,
+                    complain
+                ));
+            }
+            Op::UNSET_ARRAY => {
+                // Operands [flags, slot]; the element key is on TOS. C
+                // `INST_UNSET_ARRAY` reads the flags operand
+                // (`flags = TclGetUInt1AtPtr(pc + 1) ? TCL_LEAVE_ERR_MSG : 0`,
+                // `tclExecute.c:3814`) and, when it is set and the element is
+                // absent, deliberately falls to `slowUnsetArray` (3837-3839,
+                // 3851-3862) so the miss is reported. Ignoring the operand made
+                // `unset B(nope)` silently succeed while `UNSET_SCALAR`/
+                // `UNSET_STK` complained.
+                let complain = imm0(instr) != 0;
+                let key_original = pop(f);
+                let key = native_operand_bytes!(key_original.native_lifetime_lease().into_value());
+                try_op!(self.unset_compiled_variable(
+                    usize::try_from(imm_at(instr, 1)).expect("local slot index"),
+                    Some(&key),
+                    complain
+                ));
+            }
+            Op::UNSET_ARRAY_STK => {
+                // Operand = flags (non-zero ⇒ C's `TCL_LEAVE_ERR_MSG`: complain
+                // when the element is absent); the key is on TOS over the array
+                // name, matching C's `part2Ptr = OBJ_AT_TOS` /
+                // `part1Ptr = OBJ_UNDER_TOS` (`tclExecute.c:3866-3872`).
+                let complain = imm0(instr) != 0;
+                let key = pop(f);
+                let name = pop(f);
+                if self.native_c_variable_name_protocol().is_some() {
+                    try_op!(self.unset_original_c_variable_parts(&name, &key, complain));
+                } else {
+                    let key_bytes = native_operand_bytes!(key.native_lifetime_lease().into_value());
+                    let name_bytes =
+                        native_operand_bytes!(name.native_lifetime_lease().into_value());
+                    try_op!(self.unset_array_elem_checked_bytes(&name_bytes, &key_bytes, complain));
+                }
+            }
+
+            // Single-value append opcodes do not fire a read trace; list
+            // expansion opcodes use the retained-cell read/update protocol.
+            Op::APPEND_SCALAR1 | Op::APPEND_SCALAR4 => {
+                let value = pop(f);
+                f.stack.push(try_op!(self.append_compiled_variable(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    None,
+                    &[value]
+                )));
+            }
+            Op::APPEND_ARRAY1 | Op::APPEND_ARRAY4 => {
+                let value = pop(f);
+                let key = native_operand_bytes!(pop(f));
+                f.stack.push(try_op!(self.append_compiled_variable(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    Some(&key),
+                    &[value]
+                )));
+            }
+            Op::LAPPEND_SCALAR1 | Op::LAPPEND_SCALAR4 => {
+                let value = pop(f);
+                f.stack.push(try_op!(self.lappend_compiled_single(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    None,
+                    &value
+                )));
+            }
+            Op::LAPPEND_ARRAY1 | Op::LAPPEND_ARRAY4 => {
+                let value = pop(f);
+                let key = native_operand_bytes!(pop(f));
+                f.stack.push(try_op!(self.lappend_compiled_single(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    Some(&key),
+                    &value
+                )));
+            }
+            Op::APPEND_STK | Op::LAPPEND_STK => {
+                let value = pop(f);
+                let name = native_operand_bytes!(pop(f));
+                let stored = if instr.op == Op::APPEND_STK {
+                    self.append_variable_bytes(&name, None, value)
+                } else {
+                    self.lappend_instruction_single_bytes(&name, None, &value)
+                };
+                f.stack.push(try_op!(stored));
+            }
+            Op::APPEND_ARRAY_STK | Op::LAPPEND_ARRAY_STK => {
+                let value = pop(f);
+                let key = native_operand_bytes!(pop(f));
+                let name = native_operand_bytes!(pop(f));
+                let stored = if instr.op == Op::APPEND_ARRAY_STK {
+                    self.append_variable_bytes(&name, Some(&key), value)
+                } else {
+                    self.lappend_instruction_single_bytes(&name, Some(&key), &value)
+                };
+                f.stack.push(try_op!(stored));
+            }
+            Op::LAPPEND_LIST => {
+                let additions = pop(f);
+                let updated = try_op!(self.lappend_instruction_compiled_list(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    None,
+                    &additions
+                ));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+            Op::LAPPEND_LIST_STK => {
+                let additions = pop(f);
+                let name = native_operand_bytes!(pop(f));
+                let updated = try_op!(self.lappend_instruction_list_bytes(&name, None, &additions));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+            Op::LAPPEND_LIST_ARRAY => {
+                let additions = pop(f);
+                let key = native_operand_bytes!(pop(f));
+                let updated = try_op!(self.lappend_instruction_compiled_list(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    Some(&key),
+                    &additions
+                ));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+            Op::LAPPEND_LIST_ARRAY_STK => {
+                let additions = pop(f);
+                let key = native_operand_bytes!(pop(f));
+                let name = native_operand_bytes!(pop(f));
+                let updated =
+                    try_op!(self.lappend_instruction_list_bytes(&name, Some(&key), &additions));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+
+            Op::CONST_IMM => {
+                let value = pop(f);
+                try_op!(self.declare_compiled_constant(
+                    usize::try_from(imm0(instr)).unwrap_or(usize::MAX),
+                    value
+                ));
+            }
+            Op::CONST_STK => {
+                let value = pop(f);
+                let name = native_operand_bytes!(pop(f));
+                try_op!(self.declare_constant_bytes(&name, value, false));
+            }
+
+            // -- global / upvar links. The namespace ("::") or level reference
+            // is left on the stack for the next link op to reuse; a trailing
+            // `pop` discards it (matching C Tcl's nsupvar/upvar codegen). --
+            Op::NSUPVAR => {
+                let other = pop(f);
+                let Some(namespace_operand) = f.stack.last() else {
+                    return Tick::Return(err("nsupvar: stack underflow"));
+                };
+                let namespace = try_core!(self.namespace_object_lookup(namespace_operand));
+                let Some(namespace) = namespace else {
+                    let namespace_bytes = native_operand_bytes!(
+                        namespace_operand.native_lifetime_lease().into_value()
+                    );
+                    return Tick::Return(self.namespace_lookup_error_bytes(&namespace_bytes));
+                };
+                try_op!(self.link_compiled_namespace_original(
+                    usize::try_from(imm0(instr)).unwrap_or(usize::MAX),
+                    namespace,
+                    &other,
+                    false,
+                ));
+            }
+            Op::UPVAR => {
+                let other = pop(f);
+                let Some(level_operand) = f
+                    .stack
+                    .last()
+                    .map(|value| value.native_lifetime_lease().into_value())
+                else {
+                    return Tick::Return(err("upvar: stack underflow"));
+                };
+                let (_, target) = try_op!(crate::command::runtime_frame_selection(
+                    self,
+                    tcl_registry::FrameEffectSpec::UPVAR,
+                    &[level_operand]
+                ));
+                try_op!(self.link_compiled_upvar(
+                    usize::try_from(imm0(instr)).unwrap_or(usize::MAX),
+                    target,
+                    &other,
+                ));
+            }
+            // `variable` (C `INST_VARIABLE`): link the local slot to the
+            // namespace variable named by the popped original object. Namespace-only
+            // lookup updates its selected name cache before binding the local slot.
+            Op::VARIABLE => {
+                let original = pop(f);
+                try_op!(self.link_compiled_namespace_original(
+                    usize::try_from(imm0(instr)).unwrap_or(usize::MAX),
+                    self.current_ns_id(),
+                    &original,
+                    true,
+                ));
+            }
+
+            // -- foreach (C Tcl INST_FOREACH_*): aux var groups on the
+            //    instruction; foreach_start jumps to step; step binds the loop
+            //    vars and jumps back to the body, or falls through to end. --
+            Op::FOREACH_START => {
+                if let Some(auxiliary) = &instr.native_each {
+                    return self.native_compiled_each_start(f, auxiliary, instr.foreach_collect);
+                }
+                let policy = if instr.foreach_collect {
+                    tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_FORWARDED
+                } else {
+                    tcl_runtime_api::completion_options::ControlOptionPolicy::FRESH_SETTLED
+                };
+                if policy.begins_fresh() {
+                    f.last_options = Value::empty();
+                }
+                let start_idx = f.pc - 1;
+                let body_idx = f.pc;
+                let groups = instr.foreach_vars.clone().unwrap_or_default();
+                let n = groups.len();
+                if f.stack.len() < n {
+                    return Tick::Return(err("foreach: stack underflow"));
+                }
+                let raw = f.stack.split_off(f.stack.len() - n);
+                let mut value_lists = Vec::with_capacity(n);
+                let mut iter_max = 0;
+                let Some(protocol) = self
+                    .actual_native_invocation_dialect()
+                    .native_string_protocol()
+                else {
+                    return Tick::Return(self.refuse_host_command(
+                        "native foreach list protocol is unavailable".into(),
+                    ));
+                };
+                for (gi, lv) in raw.iter().enumerate() {
+                    let items = match self.native_object_list_elements_in(lv, protocol) {
+                        Ok(items) => items,
+                        Err(error) => {
+                            return Tick::Return(crate::command::completion_from_cmd_error(
+                                self,
+                                error.into(),
+                            ));
+                        }
+                    };
+                    let nv = groups[gi].len().max(1);
+                    iter_max = iter_max.max(items.len().div_ceil(nv));
+                    value_lists.push(items);
+                }
+                f.foreach_stack.push(ForeachState {
+                    native: None,
+                    _native_iterator_headers: None,
+                    native_accumulator: None,
+                    var_groups: groups,
+                    lists: value_lists,
+                    _list_roots: raw,
+                    iter_num: 0,
+                    iter_max,
+                    body_idx,
+                    collect: instr.foreach_collect,
+                    accum: Vec::new(),
+                });
+                if let Some(&step) = f.foreach_pairs.get(&start_idx) {
+                    f.pc = step;
+                }
+            }
+            Op::FOREACH_STEP => {
+                if f.foreach_stack
+                    .last()
+                    .is_some_and(|state| state.native.is_some())
+                {
+                    return self.native_compiled_each_step(f);
+                }
+                let (binds, body, more) = {
+                    match f.foreach_stack.last_mut() {
+                        None => (Vec::new(), 0usize, false),
+                        Some(st) if st.iter_num >= st.iter_max => (Vec::new(), 0, false),
+                        Some(st) => {
+                            let it = st.iter_num;
+                            let mut binds: Vec<(tcl_bytecode::CompiledVariableTarget, Value)> =
+                                Vec::new();
+                            for (gi, group) in st.var_groups.iter().enumerate() {
+                                let nv = group.len();
+                                for (j, var) in group.iter().enumerate() {
+                                    let v = st.lists[gi]
+                                        .get(it * nv + j)
+                                        .cloned()
+                                        .unwrap_or_else(Value::empty);
+                                    binds.push((var.clone(), v));
+                                }
+                            }
+                            st.iter_num += 1;
+                            (binds, st.body_idx, true)
+                        }
+                    }
+                };
+                if more {
+                    f.last_options = Value::empty();
+                    for (name, v) in binds {
+                        match name {
+                            tcl_bytecode::CompiledVariableTarget::Slot(slot) => {
+                                try_op!(self.store_compiled_variable_result(slot, None, v));
+                            }
+                            tcl_bytecode::CompiledVariableTarget::Name(name) => {
+                                try_op!(self.set_var_bytes(name.as_bytes(), v));
+                            }
+                        }
+                    }
+                    f.pc = body;
+                }
+            }
+            Op::LMAP_COLLECT => {
+                // Append this fall-through iteration's result to the collecting
+                // loop's accumulator. A `break`/`continue` redirect jumps past this
+                // opcode (to `FOREACH_END` / `FOREACH_STEP`), so a skipped iteration
+                // contributes nothing — matching C `lmap`.
+                let v = pop(f);
+                if let Some(st) = f.foreach_stack.last_mut() {
+                    if let (Some(accumulator), Some(auxiliary)) =
+                        (&st.native_accumulator, &st.native)
+                    {
+                        let protocol =
+                            tcl_syntax::native_string::NativeStringProtocol::C(auxiliary.version);
+                        if let Err(error) =
+                            accumulator.native_list_append_prepared_elements(&[v], protocol)
+                        {
+                            return Tick::Return(crate::command::completion_from_cmd_error(
+                                self,
+                                error.into(),
+                            ));
+                        }
+                    } else {
+                        st.accum.push(v);
+                    }
+                }
+            }
+            Op::FOREACH_END => {
+                let st = f.foreach_stack.pop();
+                // A collecting loop (`lmap`) yields `list(accum)`; a plain
+                // `foreach` yields nothing (its `""` result is pushed by the
+                // loop-end block).
+                if let Some(st) = st {
+                    if st.collect {
+                        f.stack.push(
+                            st.native_accumulator
+                                .unwrap_or_else(|| Value::list(st.accum)),
+                        );
+                    } else {
+                        f.last_options = Value::empty();
+                    }
+                }
+            }
+
+            // Compiled `dict for` / `dict map` iteration primitives. `dictFirst
+            // <slot>` pops the dict (TOS), records an iterator in `<slot>`, and
+            // pushes `value, key, done` (done on top). `dictNext <slot>`
+            // advances and pushes the next `value, key, done`. `done` is the
+            // "exhausted" flag the compiled loop tests with `jumpTrue`
+            // (dictFirst: skip an empty dict) / `jumpFalse` (dictNext: loop
+            // while more). On exhaustion the pushed key/value are empty
+            // placeholders the loop epilogue pops.
+            Op::DICT_FIRST => {
+                let slot = imm0(instr);
+                let dict = pop(f);
+                let Some(protocol) = self
+                    .actual_native_invocation_dialect()
+                    .native_string_protocol()
+                else {
+                    return Tick::Return(self.refuse_host_command(
+                        "native dictionary search protocol is unavailable".into(),
+                    ));
+                };
+                let mut search = match dict.into_native_dictionary_search(protocol) {
+                    Ok(search) => search,
+                    Err(error) => {
+                        return Tick::Return(crate::command::completion_from_cmd_error(
+                            self,
+                            error.into(),
+                        ));
+                    }
+                };
+                #[cfg(test)]
+                {
+                    self.actual_dictionary_search_entries += 1;
+                }
+                let pair = match search.next_pair() {
+                    Ok(pair) => pair,
+                    Err(error) => {
+                        return Tick::Return(crate::command::completion_from_cmd_error(
+                            self,
+                            error.into(),
+                        ));
+                    }
+                };
+                let done = pair.is_none();
+                let (k, v) = pair.unwrap_or_else(|| (Value::empty(), Value::empty()));
+                f.dict_iters.insert(slot, DictIterState { search });
+                f.stack.push(v);
+                f.stack.push(k);
+                f.stack.push(Value::bool(done));
+            }
+            Op::DICT_NEXT => {
+                let pair = match f.dict_iters.get_mut(&imm0(instr)) {
+                    Some(state) => match state.search.next_pair() {
+                        Ok(pair) => pair,
+                        Err(error) => {
+                            return Tick::Return(crate::command::completion_from_cmd_error(
+                                self,
+                                error.into(),
+                            ));
+                        }
+                    },
+                    None => None,
+                };
+                let done = pair.is_none();
+                let (k, v) = pair.unwrap_or_else(|| (Value::empty(), Value::empty()));
+                f.stack.push(v);
+                f.stack.push(k);
+                f.stack.push(Value::bool(done));
+            }
+            Op::DICT_UPDATE_START => {
+                let slot = usize::try_from(imm0(instr)).unwrap_or(usize::MAX);
+                let vars = instr.dict_vars.as_deref().unwrap_or_default();
+                let Some(keys) = f.stack.last() else {
+                    return Tick::Return(err("dictUpdateStart: stack underflow"));
+                };
+                try_op!(self.start_compiled_dictionary_update(slot, keys, vars));
+            }
+            Op::DICT_UPDATE_END => {
+                let slot = usize::try_from(imm0(instr)).unwrap_or(usize::MAX);
+                let keys = pop(f);
+                try_op!(self.finish_compiled_dictionary_update(
+                    slot,
+                    &keys,
+                    instr.dict_vars.as_deref().unwrap_or_default()
+                ));
+            }
+            Op::DICT_EXPAND => {
+                let path = pop(f);
+                let dictionary = pop(f);
+                let keys = try_op!(crate::cmd_dict::expand_dictionary_scope(
+                    self,
+                    &dictionary,
+                    &path
+                ));
+                f.stack.push(keys);
+            }
+            Op::DICT_RECOMBINE_IMM | Op::DICT_RECOMBINE_STK => {
+                let state = pop(f);
+                let path = pop(f);
+                let (name, publication) = if instr.op == Op::DICT_RECOMBINE_STK {
+                    (tcl_core_types::NameBytes::from(native_operand_bytes!(pop(f)).as_ref()),
+                     crate::interp::native_dictionary::DictionaryVariablePublication::RetainedLocalCell)
+                } else {
+                    (lvt_name(imm0(instr)), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(
+                        usize::try_from(imm0(instr)).unwrap_or(usize::MAX)))
+                };
+                try_op!(crate::cmd_dict::recombine_dictionary_scope(
+                    self,
+                    name.as_bytes(),
+                    publication,
+                    &path,
+                    &state
+                ));
+            }
+            Op::VERIFY_DICT => {
+                let top = pop(f);
+                match tcl_syntax::value::ValueOps::dict_pairs(self, &top) {
+                    Ok(pairs) => drop(pairs),
+                    Err(error) => {
+                        return Tick::Return(crate::command::completion_from_cmd_error(
+                            self,
+                            error.into(),
+                        ));
+                    }
+                }
+            }
+
+            // Dicts (LVT form, proc bodies)
+            // `dict set var k1 ?k2 …? value` — operands [Imm(N), Imm(slot)];
+            // stack holds the N keys then the value. Writes the variable and
+            // leaves the new dict on the stack (the codegen POPs it).
+            Op::DICT_PUT => {
+                let value = pop(f);
+                let key = pop(f);
+                let original = pop(f);
+                if !self
+                    .actual_native_invocation_dialect()
+                    .native_string_protocol()
+                    .is_some_and(|protocol| {
+                        protocol
+                            .tcl_version()
+                            .is_some_and(|version| version >= tcl_dialect::TclVersion::V9_1)
+                    })
+                {
+                    return Tick::Return(self.refuse_host_command(
+                        "native dictionary-put recipe is unavailable".into(),
+                    ));
+                }
+                let updated = try_core!(crate::cmd_dict::put_original_member(
+                    self, &original, &key, value
+                ));
+                f.stack.push(updated);
+            }
+            Op::DICT_SET => {
+                let nkeys = usize::try_from(imm0(instr)).unwrap_or(0);
+                let name = lvt_name(imm_at(instr, 1));
+                let value = pop(f);
+                if f.stack.len() < nkeys || nkeys == 0 {
+                    return Tick::Return(err("dictSet: stack underflow"));
+                }
+                let keys = f.stack.split_off(f.stack.len() - nkeys);
+                let updated = try_op!(crate::cmd_dict::dictionary_path_update_bytes(self,
+                    name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm_at(instr, 1)).unwrap_or(usize::MAX)),
+                    &keys, Some(value)));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+            // `dict unset var k1 ?k2 …?` — operands [Imm(N), Imm(slot)]; stack
+            // holds the N keys.
+            Op::DICT_UNSET => {
+                let nkeys = usize::try_from(imm0(instr)).unwrap_or(0);
+                let name = lvt_name(imm_at(instr, 1));
+                if f.stack.len() < nkeys || nkeys == 0 {
+                    return Tick::Return(err("dictUnset: stack underflow"));
+                }
+                let keys = f.stack.split_off(f.stack.len() - nkeys);
+                let updated = try_op!(crate::cmd_dict::dictionary_path_update_bytes(self,
+                    name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm_at(instr, 1)).unwrap_or(usize::MAX)),
+                    &keys, None));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+            // `dict incr var key ?amount?` — operands [Imm(amount), Imm(slot)];
+            // stack holds the key.
+            Op::DICT_INCR_IMM => {
+                let amount = i64::from(imm0(instr));
+                let name = lvt_name(imm_at(instr, 1));
+                let key = pop(f);
+                let increment = Value::int(amount);
+                let updated = try_op!(crate::cmd_dict::dictionary_member_update_bytes(self,
+                    name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm_at(instr, 1)).unwrap_or(usize::MAX)),
+                    &key, |vm, old| crate::cmd_dict::increment_dictionary_member(vm, old, &increment, true)));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+            // `dict append var key value` — operand [Imm(slot)]; stack holds the
+            // key then the value.
+            Op::DICT_APPEND => {
+                let name = lvt_name(imm0(instr));
+                let value = pop(f);
+                let key = pop(f);
+                let updated = try_op!(crate::cmd_dict::dictionary_member_update_bytes(self,
+                    name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm0(instr)).unwrap_or(usize::MAX)),
+                    &key, |vm, old| crate::cmd_dict::append_compiled_member_value(vm, old, &value)));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+            // `dict lappend var key value` — operand [Imm(slot)]; stack holds the
+            // key then the value.
+            Op::DICT_LAPPEND => {
+                let name = lvt_name(imm0(instr));
+                let value = pop(f);
+                let key = pop(f);
+                let updated = try_op!(crate::cmd_dict::dictionary_member_update_bytes(self,
+                    name.as_bytes(), crate::interp::native_dictionary::DictionaryVariablePublication::RetainedCompiledLocal(usize::try_from(imm0(instr)).unwrap_or(usize::MAX)),
+                    &key, |vm, old| crate::cmd_dict::lappend_member_values(vm, old, &[value])));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+            _ => {
+                return Tick::Return(
+                    self.refuse_host_command(
+                        "variable instruction dispatch is inconsistent".into(),
+                    ),
+                );
+            }
+        }
+
+        Tick::Continue
+    }
+
+    /// The scalar and array-element loads, stores and increments of
+    /// [`Self::tick_variable_instruction`]: the instructions recursion through
+    /// a variable trace most often passes, in a frame of their own.
+    #[inline(never)]
+    fn tick_scalar_variable_instruction(&mut self, f: &mut Frame, instr: &Instruction) -> Tick {
+        // Unwrap a fallible step, unwinding the instruction on an error. The
+        // value form lets a store arm push what the variable reads back.
+        macro_rules! try_op {
+            ($e:expr) => {
+                match $e {
+                    Ok(v) => v,
+                    Err(c) => return Tick::Return(c),
+                }
+            };
+        }
+
+        // Like `try_op!`, but logs this instruction's command-source frame to
+        // `errorInfo` before unwinding — for compiled command-boundary ops
+        // (`set`/`incr` → STORE_*/INCR_*) so a failing compiled command
+        // contributes its `while executing`/`invoked from within "<cmd>"`
+        // frame just as the INVOKE path and reference Tcl's bytecode engine do
+        // (set-2.4: a write-trace rejection's `errorInfo` must reach the
+        // triggering `set x 1`).
+        macro_rules! try_cmd {
+            ($e:expr) => {
+                match $e {
+                    Ok(v) => v,
+                    Err(c) => {
+                        // C logs only an error; a `TCL_RETURN` carrying `-code
+                        // error` is raised at the procedure boundary, which
+                        // logs the call instead.
+                        if c.code == Code::Error {
+                            let (cmd_text, line, enclosing) = logged_command(instr);
+                            let msg = c.result.string_bytes();
+                            self.log_command_with_enclosing(
+                                &cmd_text,
+                                Value::from_native_string_bytes(cmd_text.clone()),
+                                &enclosing,
+                                &msg,
+                                line,
+                            );
+                        }
+                        return Tick::Return(c);
+                    }
+                }
+            };
+        }
+
+        macro_rules! native_operand_bytes {
+            ($value:expr) => {{
+                let operand = $value;
+                match self.native_name_operand_bytes_checked(&operand) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        return Tick::Return(crate::command::completion_from_cmd_error(
+                            self, error,
+                        ));
+                    }
+                }
+            }};
+        }
+
+        match instr.op {
+            // Variables (stack form, by name)
+            // The `*ScalarStk` opcodes share their C `TEBCresume` case with the
+            // general `*Stk` form (the compiler emits them when the name is known
+            // to carry no `(index)` part), so they are the same arm here.
+            Op::LOAD_STK | Op::LOAD_SCALAR_STK => {
+                let name = native_operand_bytes!(pop(f));
+                f.stack
+                    .push(try_op!(self.read_variable_result_bytes(&name, None)));
+            }
+            Op::STORE_STK | Op::STORE_SCALAR_STK => {
+                let value = pop(f);
+                let name = native_operand_bytes!(pop(f));
+                let stored = try_cmd!(self.store_var_result_bytes(&name, value));
+                f.stack.push(stored);
+            }
+            Op::INCR_STK_IMM | Op::INCR_SCALAR_STK_IMM => {
+                let name = native_operand_bytes!(pop(f));
+                let amount = Value::int(i64::from(imm0(instr)));
+                let updated = try_op!(self.increment_captured_bytes(&name, None, &amount));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+            Op::INCR_STK | Op::INCR_SCALAR_STK => {
+                let amount = pop(f);
+                let name = native_operand_bytes!(pop(f));
+                let updated = try_op!(self.increment_captured_bytes(&name, None, &amount));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+
+            // Variables (LVT form, proc bodies)
+            Op::LOAD_SCALAR1 | Op::LOAD_SCALAR4 => {
+                f.stack.push(try_op!(self.read_compiled_variable_result(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    None
+                )));
+            }
+            Op::STORE_SCALAR1 | Op::STORE_SCALAR4 => {
+                let value = pop(f);
+                let stored = try_op!(self.store_compiled_variable_result(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    None,
+                    value
+                ));
+                f.stack.push(stored);
+            }
+            Op::INCR_SCALAR1 => {
+                let amount = pop(f);
+                let updated = try_op!(self.increment_compiled_variable(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    None,
+                    &amount
+                ));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+            Op::INCR_SCALAR1_IMM => {
+                let amount = Value::int(i64::from(imm_at(instr, 1)));
+                let updated = try_op!(self.increment_compiled_variable(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    None,
+                    &amount
+                ));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+            Op::INCR_ARRAY_STK_IMM => {
+                let key = native_operand_bytes!(pop(f));
+                let name = native_operand_bytes!(pop(f));
+                let amount = Value::int(i64::from(imm0(instr)));
+                let updated = try_op!(self.increment_captured_bytes(&name, Some(&key), &amount));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+            Op::INCR_ARRAY_STK => {
+                let amount = pop(f);
+                let key = native_operand_bytes!(pop(f));
+                let name = native_operand_bytes!(pop(f));
+                let updated = try_op!(self.increment_captured_bytes(&name, Some(&key), &amount));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+            Op::INCR_ARRAY1 => {
+                let amount = pop(f);
+                let key = native_operand_bytes!(pop(f));
+                let updated = try_op!(self.increment_compiled_variable(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    Some(&key),
+                    &amount
+                ));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+            Op::INCR_ARRAY1_IMM => {
+                let key = native_operand_bytes!(pop(f));
+                let amount = Value::int(i64::from(imm_at(instr, 1)));
+                let updated = try_op!(self.increment_compiled_variable(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    Some(&key),
+                    &amount
+                ));
+                f.last_options = updated.options;
+                f.stack.push(updated.value);
+            }
+
+            // Arrays.
+            Op::LOAD_ARRAY_STK => {
+                let key = native_operand_bytes!(pop(f));
+                let name = native_operand_bytes!(pop(f));
+                f.stack
+                    .push(try_op!(self.read_variable_result_bytes(&name, Some(&key))));
+            }
+            Op::STORE_ARRAY_STK => {
+                let value = pop(f);
+                let key = native_operand_bytes!(pop(f));
+                let name = native_operand_bytes!(pop(f));
+                f.stack
+                    .push(try_op!(self.store_elem_result_bytes(&name, &key, value)));
+            }
+            Op::LOAD_ARRAY1 | Op::LOAD_ARRAY4 => {
+                let key = native_operand_bytes!(pop(f));
+                f.stack.push(try_op!(self.read_compiled_variable_result(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    Some(&key)
+                )));
+            }
+            Op::STORE_ARRAY1 | Op::STORE_ARRAY4 => {
+                let value = pop(f);
+                let key = native_operand_bytes!(pop(f));
+                f.stack.push(try_op!(self.store_compiled_variable_result(
+                    usize::try_from(imm0(instr)).expect("local slot index"),
+                    Some(&key),
+                    value
+                )));
+            }
+            _ => {
+                return Tick::Return(
+                    self.refuse_host_command(
+                        "variable instruction dispatch is inconsistent".into(),
+                    ),
+                );
+            }
         }
 
         Tick::Continue
@@ -8331,7 +8714,14 @@ impl Vm {
                         && self.frame_compiled_locals_named(compiled.frame_local_words, &words)
                 });
                 self.pending.release_compiled = release_compiled;
+                // A top-level statement's own command runs with no other
+                // command active; a command nested in its words does not.
+                self.pending.top_level_invocation = self.pending.bottom_activation
+                    && f.script_command
+                        .and_then(|start| f.asm.instructions.get(start))
+                        .is_none_or(|start| start.source_cmd_text == instr.source_cmd_text);
                 let dispatched = self.dispatch_words_with_entered(f, &words, entered.as_ref());
+                self.pending.top_level_invocation = false;
                 self.pending.release_compiled = None;
                 match dispatched {
                     Ok(Some(call)) => return call,
@@ -9190,73 +9580,85 @@ impl Vm {
         if let Some(refused) = self.refused_completion() {
             return Err(refused);
         }
-        // A `yield`/`yieldto` sets `coro.pending` (after its own boundary
-        // check); convert it into a suspend `Tick` that freezes the whole
-        // activation stack. The builtin's placeholder result is dropped —
-        // the resume value replaces it on the operand stack.
-        if let Some(req) = self.coro.pending.take() {
-            return Ok(Some(Tick::Suspend(req)));
-        }
-        if let Some(req) = self.pending.procedure_call.take() {
-            return Ok(Some(Tick::Call {
-                proc: Box::new(req.proc),
-                invoked: req.invoked,
-                argv: req.arguments,
-                lambda_registration: Some(req.registration),
-            }));
-        }
-        // An `eval`/`uplevel`/`apply`-style builtin defers its body to the
-        // explicit stack (yieldable): drain it into a `PushScript`, whose
-        // frame result replaces this builtin's placeholder (as for yield).
-        if let Some(req) = self.pending.eval.take() {
-            return Ok(Some(Tick::PushEval(Box::new(req))));
-        }
-        // A `catch` defers its body the same way, but into a catch frame
-        // whose completion the epilogue absorbs (see `Frame::catch`).
-        if let Some(req) = self.pending.catch.take() {
-            return Ok(Some(Tick::PushCatch(Box::new(req))));
-        }
-        // A `subst` defers to a scanner-driven subst frame, whose `[…]`
-        // bodies run yieldably as child frames (see `Frame::subst`).
-        if let Some(req) = self.pending.subst.take() {
-            return Ok(Some(Tick::PushSubst {
-                req: Box::new(req),
-                placeholder: Box::new(self.current_placeholder_unit()),
-            }));
-        }
-        // A `foreach`/`lmap` runtime-fallback loop defers to a
-        // scanner-driven each-loop frame, whose iterations run yieldably
-        // as child frames (see `Frame::each_loop`).
-        if let Some(req) = self.pending.each_loop.take() {
-            return Ok(Some(Tick::PushEachLoop {
-                req: Box::new(req),
-                placeholder: Box::new(self.current_placeholder_unit()),
-            }));
-        }
-        if let Some(req) = self.pending.expression.take() {
-            return Ok(Some(Tick::PushExpression {
-                req: Box::new(req),
-                placeholder: Box::new(self.current_placeholder_unit()),
-            }));
-        }
-        if let Some(state) = self.pending.control.take() {
-            return Ok(Some(Tick::PushControl {
-                state: Box::new(state),
-                placeholder: Box::new(self.current_placeholder_unit()),
-            }));
-        }
-        // A `try` defers its body (and, from `advance_try`, each
-        // subsequent phase) to a try-phase frame (see `Frame::try_ctx`).
-        if let Some(req) = self.pending.try_phase.take() {
-            return Ok(Some(Tick::PushTry {
-                req: Box::new(req),
-                initial_options: f.last_options.clone(),
-            }));
+        // Built out of line: the deferred-work `Tick`s are large, and
+        // `deliver_sync` below can run guest code (traces) natively.
+        if let Some(tick) = self.take_pending_dispatch_tick(f) {
+            return Ok(Some(tick));
         }
         let res = self
             .publish_native_interp_completion(res)
             .map_err(|error| crate::command::completion_from_tcl_error(self, error.into()))?;
         self.deliver_sync(f, res)
+    }
+
+    /// The deferred work a builtin left for [`Self::settle_native_dispatch`],
+    /// as the `Tick` that runs it on the explicit stack.
+    #[inline(never)]
+    fn take_pending_dispatch_tick(&mut self, f: &Frame) -> Option<Tick> {
+        // A `yield`/`yieldto` sets `coro.pending` (after its own boundary
+        // check); convert it into a suspend `Tick` that freezes the whole
+        // activation stack. The builtin's placeholder result is dropped —
+        // the resume value replaces it on the operand stack.
+        if let Some(req) = self.coro.pending.take() {
+            return Some(Tick::Suspend(req));
+        }
+        if let Some(req) = self.pending.procedure_call.take() {
+            return Some(Tick::Call {
+                proc: Box::new(req.proc),
+                invoked: req.invoked,
+                argv: req.arguments,
+                lambda_registration: Some(req.registration),
+            });
+        }
+        // An `eval`/`uplevel`/`apply`-style builtin defers its body to the
+        // explicit stack (yieldable): drain it into a `PushScript`, whose
+        // frame result replaces this builtin's placeholder (as for yield).
+        if let Some(req) = self.pending.eval.take() {
+            return Some(Tick::PushEval(Box::new(req)));
+        }
+        // A `catch` defers its body the same way, but into a catch frame
+        // whose completion the epilogue absorbs (see `Frame::catch`).
+        if let Some(req) = self.pending.catch.take() {
+            return Some(Tick::PushCatch(Box::new(req)));
+        }
+        // A `subst` defers to a scanner-driven subst frame, whose `[…]`
+        // bodies run yieldably as child frames (see `Frame::subst`).
+        if let Some(req) = self.pending.subst.take() {
+            return Some(Tick::PushSubst {
+                req: Box::new(req),
+                placeholder: Box::new(self.current_placeholder_unit()),
+            });
+        }
+        // A `foreach`/`lmap` runtime-fallback loop defers to a
+        // scanner-driven each-loop frame, whose iterations run yieldably
+        // as child frames (see `Frame::each_loop`).
+        if let Some(req) = self.pending.each_loop.take() {
+            return Some(Tick::PushEachLoop {
+                req: Box::new(req),
+                placeholder: Box::new(self.current_placeholder_unit()),
+            });
+        }
+        if let Some(req) = self.pending.expression.take() {
+            return Some(Tick::PushExpression {
+                req: Box::new(req),
+                placeholder: Box::new(self.current_placeholder_unit()),
+            });
+        }
+        if let Some(state) = self.pending.control.take() {
+            return Some(Tick::PushControl {
+                state: Box::new(state),
+                placeholder: Box::new(self.current_placeholder_unit()),
+            });
+        }
+        // A `try` defers its body (and, from `advance_try`, each
+        // subsequent phase) to a try-phase frame (see `Frame::try_ctx`).
+        if let Some(req) = self.pending.try_phase.take() {
+            return Some(Tick::PushTry {
+                req: Box::new(req),
+                initial_options: f.last_options.clone(),
+            });
+        }
+        None
     }
 
     fn retain_jim_dispatch(
@@ -10370,6 +10772,25 @@ impl Vm {
         if let Some(refused) = self.refused_completion() {
             return refused;
         }
+        // The deferred activation is built out of line (`take_native_settlement`)
+        // so none of its construction temporaries (a `Frame` is about 5 KB)
+        // stay on the native stack while the body runs: a natively settled
+        // `eval`/`catch`/`try`/lambda body can recurse back through here.
+        match self.take_native_settlement() {
+            NativeSettlement::Unchanged => res,
+            NativeSettlement::Finished(completion) => completion,
+            NativeSettlement::Run(frame) => self.run_activation(frame),
+            NativeSettlement::Catch(frame, epilogue) => {
+                let completion = self.run_activation(frame);
+                self.finish_native_catch(completion, *epilogue)
+            }
+        }
+    }
+
+    /// Take what a natively settled invocation deferred, in the order
+    /// [`Self::settle_native_invoke`] runs it, as a boxed activation.
+    #[inline(never)]
+    fn take_native_settlement(&mut self) -> NativeSettlement {
         if let Some(req) = self.pending.procedure_call.take() {
             return match self.enter_proc(
                 &req.proc.proc,
@@ -10379,23 +10800,23 @@ impl Vm {
             ) {
                 Ok(()) => {
                     self.install_native_procedure_binding(req.proc.declaration_binding);
-                    let mut frame = Frame::new(req.proc.body, true);
+                    let mut frame = Box::new(Frame::new(req.proc.body, true));
                     frame.lambda_registration = Some(req.registration);
-                    self.run_activation(Box::new(frame))
+                    NativeSettlement::Run(frame)
                 }
                 Err(completion) => {
                     self.retire_original_lambda_registration(&req.registration);
-                    completion
+                    NativeSettlement::Finished(completion)
                 }
             };
         }
         if let Some(req) = self.pending.expression.take() {
             let placeholder = self.current_placeholder_unit();
-            return self.run_activation(Box::new(Frame::new_expression(req, placeholder)));
+            return NativeSettlement::Run(Box::new(Frame::new_expression(req, placeholder)));
         }
         if let Some(state) = self.pending.control.take() {
             let placeholder = self.current_placeholder_unit();
-            return self.run_activation(Box::new(Frame::new_control(state, placeholder)));
+            return NativeSettlement::Run(Box::new(Frame::new_control(state, placeholder)));
         }
         // An `eval`/`uplevel`/`apply`-style builtin deferred its body to
         // the pending eval request. This call site is on the native Rust stack (no
@@ -10403,23 +10824,28 @@ impl Vm {
         // a `yield` inside cannot cross it, exactly like every other
         // `invoke_command` re-entry.
         if let Some(req) = self.pending.eval.take() {
-            return self.run_activation(Box::new(Frame::new_eval(req)));
+            return NativeSettlement::Run(Box::new(Frame::new_eval(req)));
         }
         // A `catch` deferred its body: run it via a nested drive (a `yield`
         // inside cannot cross this native re-entry), then absorb its
         // completion with the catch epilogue.
         if let Some(req) = self.pending.catch.take() {
-            let mut comp = self.run_activation(Box::new(Frame::new_script(req.script, None)));
-            if comp.code == Code::Ok
-                && let Some(tail) = req.fatal_tail
-            {
-                comp = self.raise_fatal_tail(tail);
-            }
-            return self.finish_catch(
-                comp,
-                req.resvar.as_ref(),
-                req.optvar.as_ref(),
-                req.ignored_codes,
+            let CatchReq {
+                script,
+                resvar,
+                optvar,
+                ignored_codes,
+                fatal_tail,
+                evaluates_word: _,
+            } = req;
+            return NativeSettlement::Catch(
+                Box::new(Frame::new_script(script, None)),
+                Box::new(NativeCatchEpilogue {
+                    resvar,
+                    optvar,
+                    ignored_codes,
+                    fatal_tail,
+                }),
             );
         }
         // A `subst` deferred: run the scanner-driven subst frame via a
@@ -10427,14 +10853,14 @@ impl Vm {
         // re-entry), returning its accumulated result.
         if let Some(req) = self.pending.subst.take() {
             let placeholder = self.current_placeholder_unit();
-            return self.run_activation(Box::new(Frame::new_subst(req, placeholder)));
+            return NativeSettlement::Run(Box::new(Frame::new_subst(req, placeholder)));
         }
         // A `foreach`/`lmap` runtime-fallback loop deferred: run the
         // scanner-driven each-loop frame via a nested drive (a `yield` in
         // its body can't cross this native re-entry either).
         if let Some(req) = self.pending.each_loop.take() {
             let placeholder = self.current_placeholder_unit();
-            return self.run_activation(Box::new(Frame::new_each_loop(req, placeholder)));
+            return NativeSettlement::Run(Box::new(Frame::new_each_loop(req, placeholder)));
         }
         // A `try` deferred its body: run it (and, via `Vm::unwind`'s own
         // `try_ctx` handling, every subsequent phase `advance_try`
@@ -10444,9 +10870,29 @@ impl Vm {
         // `run_activation` call carries the whole construct through to
         // its final completion.
         if let Some(req) = self.pending.try_phase.take() {
-            return self.run_activation(Box::new(Frame::new_try(req, Value::empty())));
+            return NativeSettlement::Run(Box::new(Frame::new_try(req, Value::empty())));
         }
-        res
+        NativeSettlement::Unchanged
+    }
+
+    /// The `catch` epilogue of [`Self::settle_native_invoke`], out of line.
+    #[inline(never)]
+    fn finish_native_catch(
+        &mut self,
+        mut completion: Completion<Value>,
+        epilogue: NativeCatchEpilogue,
+    ) -> Completion<Value> {
+        if completion.code == Code::Ok
+            && let Some(tail) = epilogue.fatal_tail
+        {
+            completion = self.raise_fatal_tail(tail);
+        }
+        self.finish_catch(
+            completion,
+            epilogue.resvar.as_ref(),
+            epilogue.optvar.as_ref(),
+            epilogue.ignored_codes,
+        )
     }
 
     fn invoke_command_value_inner(

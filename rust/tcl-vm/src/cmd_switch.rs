@@ -93,6 +93,8 @@ fn original_switch_pairs(
 }
 
 fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // A `switch` the release compiles runs its arm with no frame of its own.
+    let compiled = vm.pending.release_compiled.take().is_some();
     if let Some(protocol) = vm
         .actual_native_invocation_dialect()
         .native_jim_switch_protocol()
@@ -185,5 +187,21 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Ok(c) => c,
         Err(e) => crate::command::completion_from_tcl_error(vm, e),
     };
+    // C's `SwitchPostProc` adds the matched arm's `("PATTERN" arm line N)`
+    // frame; a compiled `switch` has none, its arm being part of the caller.
+    if completion.code == tcl_runtime_api::Code::Error {
+        if compiled {
+            vm.mark_error_logged();
+        } else {
+            let pattern =
+                match tcl_syntax::value::ValueOps::native_string_bytes(vm, &pairs[index].0) {
+                    Ok(bytes) => bytes,
+                    Err(error) => {
+                        return crate::command::completion_from_cmd_error(vm, error.into());
+                    }
+                };
+            vm.append_clause_frame_line(&core_switch::arm_frame_text(&pattern, version));
+        }
+    }
     settle_control_options(vm, completion, ControlOptionPolicy::FRESH_FORWARDED)
 }

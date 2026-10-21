@@ -314,17 +314,27 @@ fn run_file(vm: &mut Vm, path: &str, src: &str) -> i32 {
     if result.code.is_ok() {
         return 0;
     }
-    let options = vm.return_options(&result);
-    let info = options
-        .as_list()
-        .ok()
-        .and_then(|pairs| {
-            pairs
-                .chunks(2)
-                .find(|pair| pair.len() == 2 && &*pair[0].to_str() == "-errorinfo")
-                .map(|pair| pair[1].to_str().to_string())
-        })
-        .unwrap_or_else(|| result.result.to_str().to_string());
+    // `Tcl_Main` reports the interpreter's errorInfo, which `eval_file`
+    // published as it settled the file at level 0; the completion's own
+    // `-errorinfo` can predate the trace that settlement logged (8.5+
+    // `return -code error` at file level).
+    let published = (result.code == tcl_vm::Code::Error)
+        .then(|| vm.get_var("errorInfo"))
+        .flatten()
+        .map(|info| info.to_str().to_string())
+        .filter(|info| !info.is_empty());
+    let info = published.unwrap_or_else(|| {
+        vm.return_options(&result)
+            .as_list()
+            .ok()
+            .and_then(|pairs| {
+                pairs
+                    .chunks(2)
+                    .find(|pair| pair.len() == 2 && &*pair[0].to_str() == "-errorinfo")
+                    .map(|pair| pair[1].to_str().to_string())
+            })
+            .unwrap_or_else(|| result.result.to_str().to_string())
+    });
     vm.report_stderr_text(&info);
     1
 }
@@ -468,8 +478,9 @@ fn repl_loop<R: std::io::BufRead, W: Write>(
             }
             Ok(comp) => {
                 // `Tcl_Main` leaves the failure's errorInfo/errorCode for the
-                // next command, as a caught error does.
-                let _ = vm.publish_caught_error(&comp);
+                // next command, as a caught error does: `eval_interactive`
+                // already published them from the interpreter's trace, which
+                // the completion's own `-errorinfo` can predate (8.5+).
                 report_eval_error(vm, &tcl_vm::TclError::from_completion(comp));
             }
             Err(e) => {

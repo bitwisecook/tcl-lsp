@@ -5443,11 +5443,13 @@ mod tests {
     ) {
         let environment = crate::environment_ingress::resolve_environment("tcl8.6");
         let context = environment.default_context_registry();
-        let unit = CompilationUnit::build_for_profile(
+        // Explicit Standalone authoring is the dialect-blind build (see
+        // `original_reference_unit`); a profiled build is a fresh document.
+        let unit = CompilationUnit::build_for_with_config(
             "proc p {} {return ONE}; proc p {} {return TWO}",
             context.commands(),
             false,
-            environment.unit_profile(),
+            tcl_lexer::LexerConfig::from_grammar(environment.unit_profile().grammar),
         );
         (context, unit)
     }
@@ -5541,11 +5543,13 @@ mod tests {
                 .original_procedure_report_label(id, registry)
                 .is_none()
         );
-        let other = CompilationUnit::build_for_profile(
+        // The foreign owner is the same explicit Standalone authoring build
+        // (`authored_report_unit`), retained under a different unit.
+        let other = CompilationUnit::build_for_with_config(
             "proc p {} {return ONE}; proc p {} {return TWO}",
             registry,
             false,
-            environment.unit_profile(),
+            tcl_lexer::LexerConfig::from_grammar(environment.unit_profile().grammar),
         );
         let foreign_id = *other
             .ir_module
@@ -7178,11 +7182,16 @@ mod tests {
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let profile = context.commands().profile().unwrap();
+        // These fixtures pin explicit Standalone authoring (the retained
+        // `original_authored_declaration_body_units`). A profiled default
+        // build is a fresh-interpreter document (user decision
+        // 2026-10-19T14:20Z); Standalone authoring is the dialect-blind
+        // build, still profiled through its Registry and grammar.
         let unit = CompilationUnit::build_with_options(
             source,
             crate::compilation_unit::UnitBuildOptions {
                 registry: context.commands(),
-                dialect: Some(profile),
+                dialect: None,
                 config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
                 defer_top_level: false,
                 external_call_sites: None,

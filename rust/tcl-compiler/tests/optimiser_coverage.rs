@@ -987,8 +987,33 @@ fn o103_alias_resolved_proc_replacement_is_not_folded_as_the_original() {
     let src = "proc p {} {return P}\nproc q {} {return Q}\n\
                interp alias {} r {} rename\n\
                r p oldp\nr q p\nset value [p]\n";
-    assert!(opt_absent(src, TCL, "O103"));
-    assert!(optimised(src, TCL).contains("set value [p]"));
+    // tclsh 8.4.20, 8.5.19, 8.6.18, 9.0.4 and 9.1.0 all set `value` to Q:
+    // `r` is an alias of `rename`, so `[p]` runs `q`'s body. A fresh-document
+    // build that follows the alias may fold the call, but only to Q; the
+    // original `p`'s P is never a valid answer (correction 2026-10-21: the
+    // former `O103 absent` check pinned the dialect-blind build, which could
+    // not see through the alias).
+    let registry = static_context_for(TCL).commands();
+    let profile = tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile();
+    for o in optimise_with_dialect(src, registry, Some(profile))
+        .iter()
+        .filter(|o| o.code.as_str() == "O103")
+    {
+        assert_eq!(o.replacement, "Q", "{o:?}");
+    }
+    let out = optimised(src, TCL);
+    assert!(
+        out.contains("set value [p]") || out.contains("set value Q"),
+        "{out}"
+    );
+    assert!(!out.contains("set value P"), "{out}");
+    // An alias of a command that moves nothing leaves `p` the original:
+    // tclsh `interp alias {} r {} list` then `[p]` is P.
+    let listed = "proc p {} {return P}\nproc q {} {return Q}\n\
+                  interp alias {} r {} list\n\
+                  r p oldp\nr q p\nset value [p]\n";
+    let out = optimised(listed, TCL);
+    assert!(!out.contains("set value Q"), "{out}");
 }
 
 // O104 — fold string build chains

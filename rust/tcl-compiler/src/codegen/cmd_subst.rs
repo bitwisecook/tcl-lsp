@@ -2026,8 +2026,24 @@ impl CodegenCtx<'_> {
                 .get(original + 1)
                 .cloned()
         });
+        // `text` is the written word as the substituted script spells it
+        // (`{}$z`); the original word's compatibility text spells its
+        // variables `${z}`. The compiled-word convention reads a bare `$` as
+        // data, so the written spelling must never reach the word path: there
+        // `string length "{}$z"` pushed the four bytes `{}$z` unsubstituted.
+        // Use the original word only when both spellings name the same parts,
+        // and then in its own convention; otherwise the written text compiles
+        // through the substituted-script word path.
+        let word = word.filter(|word| {
+            let legacy = word.legacy_text();
+            legacy == text
+                || (!braced
+                    && parse_subst_template(&legacy, self.lexer_config()).is_some_and(|parts| {
+                        parse_subst_template(text, self.lexer_config()).as_ref() == Some(&parts)
+                    }))
+        });
         if let Some(word) = word {
-            self.emit_word_from_source(text, braced, Some(&word));
+            self.emit_word_from_source(&word.legacy_text(), braced, Some(&word));
         } else {
             self.emit_cmd_subst_arg(text, braced);
         }

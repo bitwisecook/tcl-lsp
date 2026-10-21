@@ -84,6 +84,7 @@ mod literal_pool;
 #[cfg(test)]
 mod native_fixture;
 mod native_jim_script;
+mod release_units;
 mod retained_activation;
 mod subst;
 mod vars;

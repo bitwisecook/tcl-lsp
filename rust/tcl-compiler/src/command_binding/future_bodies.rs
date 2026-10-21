@@ -251,7 +251,7 @@ impl SourceCommandBindings {
             lexer_config: Some(config),
             ..Self::default()
         };
-        let mut compilation = super::procedure_compilation(state.baseline.compilation_dialect());
+        let mut compilation = state.baseline.body_compilation();
         compilation.frame = tcl_registry::native_compilation::NativeCompilationFrame::ScriptCode;
         let outcomes = bindings.walk_source(
             &root.source,

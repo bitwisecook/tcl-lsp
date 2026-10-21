@@ -202,11 +202,12 @@ impl SourceInvocationBinding {
         let registry_key = registry.snapshot().semantic_key();
         if state.current_source_origin.as_ref() != Some(&site.source)
             || state.baseline.registry_snapshot.as_ref() != Some(&registry_key)
-            || state
+            || (state
                 .baseline
                 .execution_name_policy
                 .and_then(tcl_syntax::naming::ExecutionNamePolicy::native_recipe)
                 .is_some()
+                && !state.hosted_rule_loader_world())
         {
             return None;
         }
@@ -317,6 +318,17 @@ impl super::ModuleCommandBindings {
         if !command.is_ascii()
             || command.as_bytes().contains(&0)
             || self.unknown_namespace_paths.contains(current)
+        {
+            return None;
+        }
+        // The fresh F5 world installs document commands in original table
+        // slots, which these authored coordinates do not read: any such
+        // installation withdraws the catalogue candidate.
+        if self.hosted_rule_loader_world()
+            && self
+                .bindings
+                .keys()
+                .any(|key| matches!(key, SourceCommandKey::Slot { .. }))
         {
             return None;
         }

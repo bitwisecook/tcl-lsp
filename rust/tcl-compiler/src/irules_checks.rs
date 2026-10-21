@@ -1548,7 +1548,9 @@ fn scan_nested_collection_words(
     parent_config: tcl_lexer::LexerConfig,
     base_offset: i64,
 ) -> Option<()> {
-    let children = source.argument_calls(parent, parent_config)?;
+    let children = source.argument_calls(parent, parent_config);
+    if std::env::var_os("ZZ_SOL49").is_some() { eprintln!("ZZ nested parent={:?} children={:?}", parent.argv_texts, children.as_ref().map(|c| c.iter().map(|c| c.tokens.as_ref().map(|t| t.argv_texts.clone())).collect::<Vec<_>>())); }
+    let children = children?;
     if !source.standalone {
         state
             .source_argv
@@ -1566,7 +1568,9 @@ fn scan_nested_collection_words(
                 source.registry,
                 source.metadata(),
                 tokens,
-            )?;
+            );
+        if std::env::var_os("ZZ_SOL49").is_some() { eprintln!("ZZ nested child={:?} possible={:?}", tokens.argv_texts, possible.as_ref().map(|p| (p.candidates.len(), p.candidates.iter().map(|c| c.data_collection.is_some()).collect::<Vec<_>>(), p.unknown_residual, p.may_be_absent))); }
+        let possible = possible?;
         retain_collection_source_obligations(&possible, state);
         for (ordinal, shape) in possible.candidates.iter().enumerate() {
             if possible.candidates[..ordinal].contains(shape) {
@@ -5032,7 +5036,12 @@ mod original_collection_source_tests {
     fn unknown_collection_effects_keep_source_calls_without_certifying_absence() {
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
         let config = tcl_lexer::LexerConfig::from_grammar(environment.grammar());
-        let (mut unit, context) = supplied("when HTTP_REQUEST {HTTP::release}", config);
+        // Unknown effects need unknown prior history, which a supplied
+        // document no longer implies: a fresh rule load resolves
+        // `HTTP::release` (user decision 2026-10-21T00:10Z). The explicit
+        // unknown-history entry keeps this contract's premise.
+        let (mut unit, context) =
+            supplied_with_history("when HTTP_REQUEST {HTTP::release}", config, true);
         let query = IrulesSourceQuery::capture(&unit, context.commands()).unwrap();
         let state = collect_flow_state(&query).unwrap().0;
         assert_eq!(state.release_calls.len(), 1);
@@ -5086,6 +5095,17 @@ mod original_collection_source_tests {
         source: &str,
         config: tcl_lexer::LexerConfig,
     ) -> (CompilationUnit, Arc<tcl_registry::model::ContextRegistry>) {
+        supplied_with_history(source, config, false)
+    }
+
+    /// `unknown_history` supplies the explicit unknown-history entry; without
+    /// it a supplied document is a fresh rule load (user decision
+    /// 2026-10-21T00:10Z).
+    fn supplied_with_history(
+        source: &str,
+        config: tcl_lexer::LexerConfig,
+        unknown_history: bool,
+    ) -> (CompilationUnit, Arc<tcl_registry::model::ContextRegistry>) {
         let environment = tcl_registry::model::resolve_known_environment("f5-irules").unwrap();
         let context = environment.default_context_registry();
         let input = crate::analyser::ResolvedAnalysisInput::new(
@@ -5104,7 +5124,9 @@ mod original_collection_source_tests {
                 external_call_sites: None,
                 declared_commands: None,
             },
-            None,
+            unknown_history
+                .then(|| crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input))
+                .as_ref(),
             &input,
         );
         (unit, context)

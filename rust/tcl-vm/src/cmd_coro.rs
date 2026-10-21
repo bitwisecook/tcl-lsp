@@ -235,6 +235,10 @@ pub(crate) fn on_command_exposed(vm: &mut Vm, token: &str, new_fqn: &str) {
 /// `command arg…`, register `name` as its resume command, and run it to the
 /// first `yield` (or completion), returning that value.
 fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    // Created by a top-level statement, with no other command active, the
+    // coroutine's body completes as a top-level command does on every resume
+    // (C's `auxNumLevels`).
+    let top_level = std::mem::take(&mut vm.pending.top_level_invocation);
     let original_names =
         match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
             Ok(scope) => scope,
@@ -282,7 +286,10 @@ fn cmd_coroutine(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // separately retains the caller namespace for the first command lookup.
         let source_namespace = vm.namespace_path_for_token(tcl_core_types::ROOT_NS);
         let driver = vm.admitted_foreign_unit(asm, source_namespace);
-        let frame = Frame::new_original_invocation(driver, original);
+        let mut frame = Frame::new_original_invocation(driver, original);
+        if top_level {
+            frame.settle_as_top_level();
+        }
         // Publish the resume command before attaching its fresh coroutine state.
         // `register_command` retires any command it replaces, including an old
         // coroutine at this name; attaching first would let that replacement

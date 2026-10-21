@@ -1193,8 +1193,18 @@ mod tests {
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         let registry = tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
-        let standalone =
+        // A profiled default build is a fresh-interpreter document (user
+        // decision 2026-10-19T14:20Z); explicit Standalone authoring is the
+        // dialect-blind build, still profiled through its Registry.
+        let fresh =
             CompilationUnit::build_for_profile("set value ORIGINAL", &registry, false, profile);
+        assert!(fresh.ir_module.source_metadata_input.is_some());
+        let standalone = CompilationUnit::build_for_with_config(
+            "set value ORIGINAL",
+            &registry,
+            false,
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+        );
         let module = &standalone.ir_module;
         assert!(module.source_metadata_input.is_none());
         assert!(module.source_entry.metadata_context.is_standalone());

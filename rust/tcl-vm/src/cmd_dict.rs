@@ -927,6 +927,7 @@ pub(crate) fn recombine_dictionary_scope(
 /// Map original dictionary keys into actual caller variables and synchronize
 /// the reached subtree according to the selected native completion policy.
 fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let compiled = vm.pending.release_compiled.take().is_some();
     let original_names =
         match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
             Ok(scope) => scope,
@@ -989,6 +990,9 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         let mut outcome = vm.eval_value_at_level(vm.current_level(), body);
         if let Some(refusal) = vm.refused_completion() {
             return refusal;
+        }
+        if outcome.code == Code::Error {
+            scope_body_error(vm, compiled, b"body of \"dict with\"");
         }
         if plan.writeback == tcl_registry::dictionary_scope::DictionaryWriteback::NormalOnly
             && outcome.code != Code::Ok
@@ -1075,6 +1079,7 @@ fn native_dictionary_loop_names(
 type DictionaryIterationNames = (std::rc::Rc<[u8]>, std::rc::Rc<[u8]>);
 
 fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let compiled = vm.pending.release_compiled.take().is_some();
     let [vars, dictionary, body] = rest else {
         return crate::command::native_wrong_arguments_message(
             vm,
@@ -1103,14 +1108,43 @@ fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         match completion.code {
             Code::Ok | Code::Continue => {}
             Code::Break => break,
+            Code::Error => return each_body_error(vm, compiled, "dict for", completion),
             _ => return completion,
         }
     }
     settle_control_options(vm, ok(Value::empty()), ControlOptionPolicy::FRESH_SETTLED)
 }
 
+/// A `dict for` or `dict map` body's error: the command the release runs adds
+/// its `("dict for" body line N)` frame; one it compiled logs nothing more.
+fn each_body_error(
+    vm: &mut Vm,
+    compiled: bool,
+    command: &'static str,
+    completion: Completion<Value>,
+) -> Completion<Value> {
+    if compiled {
+        vm.mark_error_logged();
+    } else {
+        vm.append_body_frame(command);
+    }
+    completion
+}
+
+/// A `dict with` or `dict update` body's error: the command the release runs
+/// adds its `(body of "dict with")` frame (`DictWithFinish`,
+/// `FinalizeDictUpdate`); one it compiled logs nothing more.
+fn scope_body_error(vm: &mut Vm, compiled: bool, frame: &[u8]) {
+    if compiled {
+        vm.mark_error_logged();
+    } else {
+        vm.append_clause_frame(frame);
+    }
+}
+
 /// Map preserves original key objects, including a key assigned by the body.
 fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let compiled = vm.pending.release_compiled.take().is_some();
     let [vars, dictionary, body] = rest else {
         return crate::command::native_wrong_arguments_message(
             vm,
@@ -1165,6 +1199,7 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                     ControlOptionPolicy::FRESH_SETTLED,
                 );
             }
+            Code::Error => return each_body_error(vm, compiled, "dict map", completion),
             _ => return completion,
         }
     }
@@ -1177,6 +1212,7 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 
 /// Explicit original key/variable pairs surround a caller-frame body.
 fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    let compiled = vm.pending.release_compiled.take().is_some();
     let original_names =
         match crate::interp::native_name_consumers::OriginalNameConsumerScope::enter(vm) {
             Ok(scope) => scope,
@@ -1260,6 +1296,9 @@ fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         let mut outcome = vm.eval_value_at_level(vm.current_level(), body);
         if let Some(refusal) = vm.refused_completion() {
             return refusal;
+        }
+        if outcome.code == Code::Error {
+            scope_body_error(vm, compiled, b"body of \"dict update\"");
         }
         outcome.result = outcome.result.into_native_reference();
         match vm.dictionary_scope_writeback_bytes(

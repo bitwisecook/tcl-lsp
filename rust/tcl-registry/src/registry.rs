@@ -471,7 +471,9 @@ pub fn native_return_state_effect(
         return Effect::MayMaterialiseError;
     };
     // Source-only family and numeric grammar do not select a Native handler.
-    if dialect.native_name_protocol().is_none() {
+    // The authored F5 Tcl 8.4 core (TMM's interpreter, simulated) selects the
+    // Tcl 8.4 handler; its own name protocol is the authored simulation.
+    if dialect.native_name_protocol().is_none() && dialect.authored_f5_tcl84_core().is_none() {
         return Effect::MayMaterialiseError;
     }
     return_state_effect_for_source_grammar(args, dialect)
@@ -19392,6 +19394,18 @@ mod native_return_effect_ingress_tests {
                 InvocationArguments::structured(&arguments).with_dialect(unmeasured)
             ),
             ReturnStateEffect::MayMaterialiseError
+        );
+        // TMM's authored Tcl 8.4 core selects the Tcl 8.4 return handler.
+        let irules = InvocationDialect::of_profile(
+            crate::model::ingress::resolve_environment("f5-irules").unit_profile(),
+        );
+        assert!(irules.native_name_protocol().is_none());
+        assert!(irules.authored_f5_tcl84_core().is_some());
+        assert_eq!(
+            native_return_state_effect(
+                InvocationArguments::structured(&arguments).with_dialect(irules)
+            ),
+            ReturnStateEffect::ResultAndCompletion
         );
     }
 }
