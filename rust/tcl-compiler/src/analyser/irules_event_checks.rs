@@ -827,6 +827,7 @@ impl Analyser {
                     );
                     if crate::connection_scope::cell_from_place(&place)
                         .is_some_and(|cell| flags.contains(&cell))
+                        || names_static_variable(&access.original_spelling)
                         || (!place.dynamic
                             && place.is_global()
                             && tcl_registry::f5::namespace_storage_domain(
@@ -858,6 +859,7 @@ impl Analyser {
                 );
                 crate::connection_scope::cell_from_place(&place)
                     .is_some_and(|cell| flags.contains(&cell))
+                    || names_static_variable(name)
                     || (!place.dynamic
                         && place.is_global()
                         && tcl_registry::f5::namespace_storage_domain(
@@ -974,6 +976,15 @@ fn collect_event_bodies(
 /// is required. Exact setup-event definitions below use the shared Tcl cells.
 fn mentions_static_variable(word: &str) -> bool {
     word.contains("static::")
+}
+
+/// Whether a written variable name selects BIG-IP's `static::` namespace.
+/// Suppress-only advisory evidence, like [`mentions_static_variable`]: an
+/// entered event body's frame may leave the relative name's current namespace
+/// unproved, but a decision on a `static::` flag is still the gate IRULE5001
+/// prescribes, and over-suppressing a hint is the safe direction.
+fn names_static_variable(name: &str) -> bool {
+    name.trim_start_matches(':').starts_with("static::")
 }
 
 /// Possible debug flags from infrequently invoked handlers. Reuse the source
@@ -1212,6 +1223,27 @@ mod tests {
 
     fn has(source: &str, code: &str) -> bool {
         codes(source).iter().any(|(c, _)| c == code)
+    }
+
+    /// User decision 2026-10-21T00:10Z ("realm-aware command world"): the
+    /// rule loader defines a rule's `proc` at load time, so a document
+    /// supplied without an execution entry publishes it as an original
+    /// procedure declaration, which editor references and rename select.
+    #[test]
+    fn rule_procedure_is_an_original_declaration_of_the_fresh_rule_load() {
+        let source = "proc hit {} { return hit }\nwhen HTTP_REQUEST { call hit }\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "f5-irules");
+        let names = analysis
+            .original_procedure_declarations()
+            .map(|declaration| declaration.name().reported_full_name())
+            .collect::<Vec<_>>();
+        assert_eq!(names.len(), 1, "{names:?}");
+        assert!(
+            names[0]
+                .as_deref()
+                .is_some_and(|name| name.ends_with("hit")),
+            "{names:?}"
+        );
     }
 
     #[test]

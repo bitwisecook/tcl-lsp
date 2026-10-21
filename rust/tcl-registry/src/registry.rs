@@ -6855,11 +6855,10 @@ impl CommandRegistry {
             }
             Some(crate::events::IrulesTopLevelEffect::Timing) => {
                 let [value] = args else { return None };
-                let enabled = match *value {
-                    "on" | "enable" => true,
-                    "off" | "disable" => false,
-                    _ => return None,
-                };
+                if !crate::events::IRULES_TIMING_SPELLINGS.contains(value) {
+                    return None;
+                }
+                let enabled = matches!(*value, "on" | "enable");
                 Some(Declaration::Timing { enabled })
             }
             None => None,
@@ -6889,24 +6888,21 @@ impl CommandRegistry {
         &self,
         arguments: crate::events::IrulesDeclarationArguments<'_>,
     ) -> Option<crate::events::IrulesTopLevelDeclaration> {
-        use crate::events::IrulesTopLevelDeclaration as Declaration;
+        use crate::events::{
+            IRULES_PRIORITY_CLAUSE as PRIORITY, IRULES_TIMING_CLAUSE as TIMING,
+            IRULES_TIMING_SPELLINGS, IrulesTopLevelDeclaration as Declaration,
+        };
         let args = arguments.values();
         let (body_index, priority) = match args {
             [_, _] => (1, None),
-            [_, "priority", value, _] => {
-                let priority = value.parse::<u16>().ok().filter(|priority| {
-                    crate::events::BIGIP_EVENT_HANDLER_PRIORITY.accepts(*priority)
-                })?;
-                (3, Some(priority))
-            }
-            [_, "timing", value, _] => {
-                matches!(*value, "on" | "off" | "enable" | "disable").then_some((3, None))?
-            }
-            [_, "priority", priority, "timing", timing, _] => {
-                let priority = priority.parse::<u16>().ok().filter(|priority| {
-                    crate::events::BIGIP_EVENT_HANDLER_PRIORITY.accepts(*priority)
-                })?;
-                matches!(*timing, "on" | "off" | "enable" | "disable")
+            [_, PRIORITY, value, _] => (3, Some(Self::irules_event_priority(value)?)),
+            [_, TIMING, value, _] => IRULES_TIMING_SPELLINGS
+                .contains(value)
+                .then_some((3, None))?,
+            [_, PRIORITY, priority, TIMING, timing, _] => {
+                let priority = Self::irules_event_priority(priority)?;
+                IRULES_TIMING_SPELLINGS
+                    .contains(timing)
                     .then_some((5, Some(priority)))?
             }
             _ => return None,
@@ -6920,6 +6916,88 @@ impl CommandRegistry {
             body_index,
             priority,
         })
+    }
+
+    /// A `priority` clause value the BIG-IP handler priority policy accepts.
+    fn irules_event_priority(value: &str) -> Option<u16> {
+        value
+            .parse::<u16>()
+            .ok()
+            .filter(|priority| crate::events::BIGIP_EVENT_HANDLER_PRIORITY.accepts(*priority))
+    }
+
+    /// What an incomplete event declaration of `spec` takes at argument
+    /// `active` (0-based), given the words `written` before it (`None` for a
+    /// non-literal word) — the layout [`Self::irules_event_declaration_shape`]
+    /// validates, read one position at a time: the event, then each optional
+    /// clause of [`crate::events::IRULES_EVENT_CLAUSES`] at most once and in
+    /// that order, each followed by its value, then the body.
+    ///
+    /// Clause keywords are the spec's argument-1 values and timing values its
+    /// argument-2 values (the position a leading `timing` clause's value
+    /// takes), both with their version gates at `package_version`.
+    ///
+    /// `None` for a spec that is not an event handler, when a word before
+    /// `active` is non-literal or missing, or when the written words already
+    /// leave the layout. Completion advice only: no body entry, frame or
+    /// handler identity follows from it.
+    #[must_use]
+    pub fn irules_event_declaration_slot(
+        &self,
+        spec: &CommandSpec,
+        written: &[Option<&str>],
+        active: usize,
+        package_version: Option<&str>,
+    ) -> Option<crate::events::IrulesDeclarationSlot> {
+        use crate::events::{
+            IRULES_EVENT_CLAUSES, IRULES_PRIORITY_CLAUSE, IRULES_TIMING_SPELLINGS,
+            IrulesDeclarationSlot as Slot,
+        };
+        if !spec.traits.contains(Traits::IS_EVENT_HANDLER) {
+            return None;
+        }
+        let words = written
+            .get(..active)?
+            .iter()
+            .copied()
+            .collect::<Option<Vec<&str>>>()?;
+        if active == 0 {
+            return Some(Slot::Event);
+        }
+        let mut remaining: &[&str] = &IRULES_EVENT_CLAUSES;
+        let mut index = 1;
+        while index < active {
+            let keyword = words[index];
+            let at = remaining.iter().position(|clause| *clause == keyword)?;
+            let clause = remaining[at];
+            remaining = &remaining[at + 1..];
+            if index + 1 == active {
+                return Some(if clause == IRULES_PRIORITY_CLAUSE {
+                    Slot::Priority
+                } else {
+                    Slot::Timing(spec.available_arg_values_at(2, package_version))
+                });
+            }
+            let value = words[index + 1];
+            let accepted = if clause == IRULES_PRIORITY_CLAUSE {
+                Self::irules_event_priority(value).is_some()
+            } else {
+                IRULES_TIMING_SPELLINGS.contains(&value)
+            };
+            if !accepted {
+                return None;
+            }
+            index += 2;
+        }
+        if remaining.is_empty() {
+            return Some(Slot::Body);
+        }
+        Some(Slot::Clause(
+            spec.available_arg_values_at(1, package_version)
+                .into_iter()
+                .filter(|value| remaining.contains(&value.value))
+                .collect(),
+        ))
     }
 
     /// Whether `name` should appear as a notable action node in a flow

@@ -89,15 +89,24 @@ pub(super) fn items(
     if let Some(items) = option_values(&selected, floor, partial, config) {
         return Some(items);
     }
-    if spec.traits.contains(Traits::IS_EVENT_HANDLER)
-        && selected.active >= 2
-        && selected
-            .arguments
-            .get(selected.active - 1)
-            .and_then(Option::as_deref)
-            != Some("timing")
-    {
-        return None;
+    if spec.traits.contains(Traits::IS_EVENT_HANDLER) {
+        // The registry's declaration layout says what this position takes —
+        // a clause keyword not yet written, or a value after `timing`.
+        let written: Vec<Option<&str>> = selected.arguments.iter().map(Option::as_deref).collect();
+        return match current.registry().irules_event_declaration_slot(
+            spec,
+            &written,
+            selected.active,
+            floor,
+        )? {
+            tcl_registry::events::IrulesDeclarationSlot::Clause(values)
+            | tcl_registry::events::IrulesDeclarationSlot::Timing(values)
+                if !values.is_empty() =>
+            {
+                Some(super::arg_value_completions_from(values, partial, config))
+            }
+            _ => None,
+        };
     }
     let index = u8::try_from(selected.active).ok()?;
     let values = spec.available_arg_values_at(index, floor);

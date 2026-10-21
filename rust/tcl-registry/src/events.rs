@@ -420,6 +420,42 @@ pub fn closed_braced_argument_words(
     })
 }
 
+/// The optional clauses of an iRules event declaration
+/// (`when EVENT ?priority N? ?timing V? { body }`), in the only order the
+/// layout accepts. Each clause is its keyword plus one value word.
+pub const IRULES_EVENT_CLAUSES: [&str; 2] = [IRULES_PRIORITY_CLAUSE, IRULES_TIMING_CLAUSE];
+
+/// The `priority N` clause keyword of an event declaration.
+pub const IRULES_PRIORITY_CLAUSE: &str = "priority";
+
+/// The `timing V` clause keyword of an event declaration.
+pub const IRULES_TIMING_CLAUSE: &str = "timing";
+
+/// Every spelling a `timing` value accepts, in an event declaration's clause
+/// and in the file-level `timing` command alike.
+pub const IRULES_TIMING_SPELLINGS: [&str; 4] = ["on", "off", "enable", "disable"];
+
+/// What an incomplete iRules event declaration takes at one argument
+/// position, read off the same layout
+/// [`CommandRegistry::irules_event_declaration_shape`](crate::CommandRegistry::irules_event_declaration_shape)
+/// validates. Advice for completion only: it grants no body entry, frame or
+/// handler identity.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IrulesDeclarationSlot {
+    /// The event name.
+    Event,
+    /// A clause keyword not yet written (the spec's clause-keyword values,
+    /// narrowed to the clauses that may still follow), or the body.
+    Clause(Vec<&'static crate::ArgValue>),
+    /// The value of `priority`: a number under
+    /// [`BIGIP_EVENT_HANDLER_PRIORITY`]; there is no word list to offer.
+    Priority,
+    /// The value of `timing`: the spec's timing values.
+    Timing(Vec<&'static crate::ArgValue>),
+    /// Only the handler body may follow.
+    Body,
+}
+
 /// Stateful effect of an iRules-only top-level declaration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IrulesTopLevelEffect {
@@ -1411,7 +1447,7 @@ pub trait CommandHeadResolver {
 }
 
 /// The lexical fallback for consumers without document identity facts.
-struct WrittenHeadResolver;
+pub(crate) struct WrittenHeadResolver;
 
 impl CommandHeadResolver for WrittenHeadResolver {
     fn resolve<'a>(&'a self, written: &str, _offset: u32) -> Cow<'a, str> {

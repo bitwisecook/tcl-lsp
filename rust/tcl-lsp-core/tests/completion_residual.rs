@@ -640,6 +640,52 @@ fn when_value_slot_suppressed_after_priority_keyword() {
     );
 }
 
+#[test]
+fn when_clause_keywords_follow_the_registry_declaration_layout() {
+    // f5-fact: the registry's `when` layout is `EVENT ?priority N? ?timing V?
+    // { body }` — each clause at most once, `priority` before `timing`
+    // (`irules_event_declaration_shape`). After `priority N` only `timing` may
+    // follow; after `timing V` only the body, so nothing is offered.
+    let reg = irules_registry();
+    let offered = |src: &str| {
+        let analysis = analyse(src);
+        let col = u32::try_from(src.trim_end().len()).unwrap();
+        let items = completions(
+            src,
+            0,
+            col,
+            &analysis,
+            Some(&reg),
+            None,
+            tcl_dialect::DialectProfile::irules(),
+        );
+        labels(&items)
+            .into_iter()
+            .map(str::to_owned)
+            .collect::<Vec<_>>()
+    };
+    let after_priority = offered("when HTTP_REQUEST priority 10 t\n");
+    assert!(
+        after_priority.iter().any(|l| l == "timing"),
+        "{after_priority:?}"
+    );
+    let repeated = offered("when HTTP_REQUEST priority 10 p\n");
+    assert!(
+        !repeated.iter().any(|l| l == "priority"),
+        "a clause is written at most once: {repeated:?}"
+    );
+    let after_timing = offered("when HTTP_REQUEST timing enable t\n");
+    assert!(
+        !after_timing.iter().any(|l| l == "timing" || l == "priority"),
+        "only the body follows `timing V`: {after_timing:?}"
+    );
+    let second_timing = offered("when HTTP_REQUEST priority 10 timing d\n");
+    assert!(
+        second_timing.iter().any(|l| l == "disable"),
+        "{second_timing:?}"
+    );
+}
+
 // Subcommand argument-value completion — `string is <class>` exercising the
 // subcommand (not command-level) arg-value path.
 

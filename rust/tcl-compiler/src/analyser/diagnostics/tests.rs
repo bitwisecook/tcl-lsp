@@ -5950,6 +5950,30 @@ fn emit_cfg_ssa_diagnostics_w220_pkgindex_dir_var_suppressed() {
     );
 }
 
+#[test]
+fn zz_probe_w210_lowering() {
+    let registry = tcl_registry::CommandRegistry::build_default();
+    for src in [
+        "set f [file join $dir $missing]\n",
+        "set f [file join $missing]\n",
+        "set f [list $dir $missing]\n",
+        "set f \"$dir$missing\"\n",
+    ] {
+        let unit = crate::compilation_unit::CompilationUnit::build_for(src, &registry, false);
+        let mut blocks = unit.top_level.cfg.blocks.iter().collect::<Vec<_>>();
+        blocks.sort_by_key(|(id, _)| format!("{id:?}"));
+        for (id, block) in blocks {
+            for (index, statement) in block.statements.iter().enumerate() {
+                let text = format!("{statement:?}");
+                eprintln!(
+                    "PROBE-LOWER {src:?} {id:?}[{index}] {}",
+                    &text[..text.len().min(600)]
+                );
+            }
+        }
+    }
+}
+
 /// Only ``dir`` is loader-supplied: tclsh 8.6/9.0 `can't read "missing"` for
 /// the substituted read below, so W210 still reports it in pkgIndex.tcl.
 #[test]

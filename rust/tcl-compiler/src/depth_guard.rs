@@ -420,18 +420,16 @@ mod tests {
         );
     }
 
-    /// Lower `source` as a fresh-interpreter Tcl 8.6 document on a thread with
-    /// the lowering share of the stack budget, then run `inspect` on the same
-    /// thread, so post-lowering traversals of the result share that budget.
+    /// Lower `source` as a fresh-interpreter Tcl 8.6 document on a thread of
+    /// `stack` bytes, then run `inspect` on the same thread, so post-lowering
+    /// traversals of the result share that budget.
     fn lower_on_budget_thread<T: Send + 'static>(
+        stack: u32,
         source: String,
         inspect: impl FnOnce(&crate::ir::Module) -> T + Send + 'static,
     ) -> T {
         std::thread::Builder::new()
-            .stack_size(
-                usize::try_from(MIN_SOURCE_WALK_STACK - SOURCE_WALK_STACK_RESERVE)
-                    .expect("stack budget fits usize"),
-            )
+            .stack_size(usize::try_from(stack).expect("stack budget fits usize"))
             .spawn(move || {
                 let registry =
                     tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
@@ -462,7 +460,10 @@ mod tests {
             "if {1} {".repeat(levels),
             "}".repeat(levels)
         );
-        let (depth, equal) = lower_on_budget_thread(source, |module| {
+        // The whole shared budget a default test or worker thread has: native
+        // compiler preflight (`CompilerTraversal`) also descends the cap-deep
+        // bodies during lowering, at about 24 KiB per level.
+        let (depth, equal) = lower_on_budget_thread(MIN_SOURCE_WALK_STACK, source, |module| {
             let mut depth = 0;
             let mut script = &module.top_level;
             while let Some(crate::ir::Statement::If { clauses, .. }) = script.statements.first() {
@@ -494,8 +495,11 @@ mod tests {
             source
         };
         for leaf in ["proc leaf {} { return 1 }\n", "set x 1\nputs $x\n"] {
-            let statements =
-                lower_on_budget_thread(nested(leaf), |module| module.top_level.statements.len());
+            let statements = lower_on_budget_thread(
+                MIN_SOURCE_WALK_STACK - SOURCE_WALK_STACK_RESERVE,
+                nested(leaf),
+                |module| module.top_level.statements.len(),
+            );
             assert_eq!(statements, 1, "{leaf:?}: one outer namespace eval");
         }
     }
