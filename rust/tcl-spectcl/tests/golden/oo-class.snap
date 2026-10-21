@@ -8,16 +8,7 @@ co_provides []
 ambient_packages []
 environments []
 dialects []
-registrations 3
-notices 9
-notice command oo::class / subcommand create 25 presentation `world_effects` row `callback` is not yet loadable; dropped
-notice command oo::class / subcommand create 26 presentation `world_effects` row `dynamic_fallback` is not yet loadable; dropped
-notice command oo::class / subcommand create 124 presentation `state_transitions.resolver -native oo::class::create::state_transitions.resolver` names nothing this build ships; the statement installs nothing
-notice command oo::class / subcommand new 25 presentation `world_effects` row `callback` is not yet loadable; dropped
-notice command oo::class / subcommand new 26 presentation `world_effects` row `dynamic_fallback` is not yet loadable; dropped
-notice command oo::class / subcommand new 142 presentation `state_transitions.resolver -native oo::class::new::state_transitions.resolver` names nothing this build ships; the statement installs nothing
-notice command oo::class / subcommand createWithNamespace 25 presentation `world_effects` row `callback` is not yet loadable; dropped
-notice command oo::class / subcommand createWithNamespace 26 presentation `world_effects` row `dynamic_fallback` is not yet loadable; dropped
-notice command oo::class / subcommand createWithNamespace 162 presentation `state_transitions.resolver -native oo::class::createWithNamespace::state_transitions.resolver` names nothing this build ships; the statement installs nothing
+registrations 2
+notices 0
 commands 1
-command oo::class line 29 overrides false degraded false spec a12c084eecd51814 hooks c48db11365c078da grammar 715ea0deb6f6f5f9
+command oo::class line 29 overrides false degraded false spec 277a99a2c15c866d hooks df60b29fcef47fc7 grammar 715ea0deb6f6f5f9

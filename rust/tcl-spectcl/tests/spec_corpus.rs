@@ -1464,16 +1464,6 @@ const BASELINE_HEADER: &str = "\
 #       pack may, as its `alias_of` target's own. Each stamp is dropped and
 #       said on its command's row; the command loads with every other fact.
 #
-#   ``world_effects` row … is not yet loadable` (6, the `oo-class` port) —
-#       the loader's own words: the `world_effects` block's rows beside
-#       `composition` are the named, still-unimplemented tail of the schema.
-#
-#   `state_transitions.resolver -native … names nothing this build ships`
-#       (3, the `oo-class` port) — the port names the shipped `oo::class`
-#       resolvers by id, and no build ships a transition resolver by id yet;
-#       every other row of those blocks loads, and the `upvar` port's
-#       `resolver from-frame-effect` derives.
-#
 # Adding a line here is therefore an admission with a reason attached. Adding
 # one for a file under `specs/` would be a regression in the only tier that
 # ships.
