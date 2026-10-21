@@ -72,6 +72,21 @@ struct PortedCommand {
 }
 
 const NONE: &[(&str, &str)] = &[];
+
+/// Why the `oo::class` port's manufacturing subcommands carry no
+/// `world_effects` / `state_transitions`: a pack can author neither. The
+/// world-effect block loads only `composition` (the `callback` and
+/// `dynamic_fallback` rows are typed facts no pack constructs), and the
+/// shipped transitions are `CommandBinding::Define` / `ObjectDispatch::Create`
+/// facts from a native resolver: no `-native` state-transition resolver id
+/// ships, and a resolver body states variable-cell aliases only
+/// (`docs/design/spec-dsl-examples/README.md`, "What a pack cannot author").
+/// Declaring the descriptors without those facts would claim a smaller
+/// footprint than the command has, so the port leaves them out.
+const OO_CLASS_FACTORY_DESCRIPTORS: &str = "the shipped subcommand's `world_effects` and \
+     `state_transitions` descriptors, which a pack cannot author (see \
+     `OO_CLASS_FACTORY_DESCRIPTORS`); the port states the legacy `side_effect` and \
+     `defines_command_at` facts instead";
 const NO_SUBS: &[(&str, &str, &str)] = &[];
 const ALL_SUBS: &[&str] = &[];
 
@@ -225,9 +240,21 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "oo::class",
             dialect: "tcl9.1",
-            unequal: NONE,
-            unequal_subcommand: NO_SUBS,
-            subcommand_subset: ALL_SUBS,
+            unequal: &[(
+                "__unrenderable",
+                "the shipped `oo::class` carries a `native_compilation` recipe, which \
+                 SpecTcl has no surface for; the port does not transcribe it",
+            )],
+            unequal_subcommand: &[
+                ("create", "__unrenderable", OO_CLASS_FACTORY_DESCRIPTORS),
+                ("new", "__unrenderable", OO_CLASS_FACTORY_DESCRIPTORS),
+                (
+                    "createWithNamespace",
+                    "__unrenderable",
+                    OO_CLASS_FACTORY_DESCRIPTORS,
+                ),
+            ],
+            subcommand_subset: &["create", "new", "createWithNamespace"],
         }],
     },
     Port {

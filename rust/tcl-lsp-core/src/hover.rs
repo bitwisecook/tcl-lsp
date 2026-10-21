@@ -2890,9 +2890,12 @@ fn var_type_annotations(
     else {
         return (None, None);
     };
-    if registry.is_some_and(|registry| {
-        registry.snapshot().semantic_key() != current.registry().snapshot().semantic_key()
-    }) {
+    // The annotations come from the compiler pipeline, which a caller opts
+    // into by supplying its registry; it must be the analysis's own.
+    let Some(registry) = registry else {
+        return (None, None);
+    };
+    if registry.snapshot().semantic_key() != current.registry().snapshot().semantic_key() {
         return (None, None);
     }
     infer_var_type_and_taint(source, current.registry(), cursor, analysis)
