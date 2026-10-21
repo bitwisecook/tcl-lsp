@@ -1087,7 +1087,7 @@ impl ExecutionNamespace {
 ///
 /// Using `Vec` rather than a tuple because scripts are built incrementally
 /// during lowering.
-#[derive(Debug, Eq, Hash, Default)]
+#[derive(Debug, Eq, Default)]
 pub struct Script {
     /// Actual namespace owner for this retained executable body.
     pub namespace_context: Option<Box<crate::command_binding::SourceNamespaceKey>>,
@@ -1151,6 +1151,23 @@ impl PartialEq for Script {
                 && self.native_compilation_failure == other.native_compilation_failure
                 && self.native_compilation_admission == other.native_compilation_admission
         })
+    }
+}
+
+// Hashes exactly the fields `PartialEq` compares. A `Hasher` need not be
+// `Send`, so this traversal stays on the caller's stack, as the derived
+// implementation did.
+impl std::hash::Hash for Script {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.namespace_context.hash(state);
+        self.executed_source.hash(state);
+        self.implicit_math_invocations.hash(state);
+        self.expression_preparations.hash(state);
+        self.statements.hash(state);
+        self.command_binding_sites.hash(state);
+        self.procedure_binding_requirements.hash(state);
+        self.native_compilation_failure.hash(state);
+        self.native_compilation_admission.hash(state);
     }
 }
 

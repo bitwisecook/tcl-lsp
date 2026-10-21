@@ -86,3 +86,35 @@ fn zz_probe() {
         }
     }
 }
+
+// Writes every shipped pack's `golden::render` beside its golden name, exactly
+// as `cargo xtask pack-goldens` renders it.
+#[test]
+fn zz_goldens() {
+    use tcl_spectcl::golden;
+    let Some(out) = std::env::var_os("ZZ_OUT") else { return };
+    let out = std::path::PathBuf::from(out);
+    let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    std::fs::create_dir_all(&out).unwrap();
+    for path in golden::shipped_packs(&root) {
+        let source = std::fs::read_to_string(&path).unwrap();
+        let fresh = golden::render(&tcl_spectcl::evaluate_pack(&source));
+        let golden_path = golden::golden_path(&root, &path);
+        std::fs::write(out.join(golden_path.file_name().unwrap()), &fresh).unwrap();
+        let pack = tcl_spectcl::evaluate_pack(&source);
+        let recorded = std::fs::read_to_string(&golden_path).unwrap_or_default();
+        let mut renders = String::new();
+        for (a, b) in recorded.lines().zip(fresh.lines()) {
+            if a != b
+                && let Some(cmd) = b.strip_prefix("command ").and_then(|r| r.split(' ').next())
+                && let Some(r) = golden::spec_rendering(&pack, cmd)
+            {
+                renders.push_str(cmd);
+                renders.push('\t');
+                renders.push_str(&r);
+                renders.push('\n');
+            }
+        }
+        std::fs::write(out.join(golden_path.file_name().unwrap()).with_extension("renders"), renders).unwrap();
+    }
+}

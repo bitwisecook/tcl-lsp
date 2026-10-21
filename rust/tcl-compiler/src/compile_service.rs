@@ -3537,8 +3537,8 @@ mod tests {
                 !module.top_level.instructions.iter().any(|instruction| matches!(
                     instruction.op,
                     tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
-                ) && (instruction.source_cmd_text.starts_with("set ")
-                    || instruction.source_cmd_text.starts_with("lassign "))),
+                ) && (instruction.source_cmd_text.bytes().starts_with(b"set ")
+                    || instruction.source_cmd_text.bytes().starts_with(b"lassign "))),
                 "{dialect}: {:?}",
                 module.top_level.instructions
             );
