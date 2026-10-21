@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-21T08:20Z",
+  "source": "AskUserQuestion answer in chat",
+  "decisions": {
+    "uncalled_procedure_bodies": {
+      "choice": "World after load",
+      "meaning": "A procedure body with no call in the document is analysed as if called after the document has finished running at top level: its commands resolve in the procedure's namespace against the command world as it stands at the end of the script. Later renames/aliases in the file are honoured; genuinely dynamic changes stay opaque.",
+      "evidence": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/sol-47-NOTES.md (task 1d; 4 interprocedural C6 blockers)"
+    }
+  }
+}
