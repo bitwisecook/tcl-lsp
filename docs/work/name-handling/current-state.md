@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 21 October 2026, 14:27 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
+Updated 21 October 2026, 14:34 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
 
 ## Scope
 
@@ -40,7 +40,7 @@ Counts live in [audit-status.json](audit-status.json); per-unit sites in [reposi
 | 10 | `resolution-oracles` workflow | **FAIL**, confirmed 21 Oct on `f6c4694f14`. [Run 39615734200](https://github.com/bitwisecook/tcl-lsp/actions/runs/39615734200) has zero jobs. Explicit `gh workflow run resolution-oracles.yml --repo bitwisecook/tcl-lsp --ref work` is rejected with HTTP 422: `Unrecognized named-value: 'runner'` for `runner.temp` at line 33 column 28 and line 34 column 25. This confirms the previously suspected workflow-file rejection; no oracle tests executed. | Implementation owner must repair the two job-level environment expressions and revalidate before a PR. No workflow changes made by the validation agent. | Unassigned implementation owner; diagnosis complete |
 | 11 | Python lint (`lint-py`) | 650 files to reformat and 1,937 ruff errors, almost all in evidence scripts. | Re-check once evidence is excluded from the PR tree. | Unassigned |
 | 12 | Test fixtures for the PR | [Fixture review](handoff/reviews/fixture-review-20261021/REVIEW.md): 2,514 of 29,092 added test files are read by tests. 208 captured per-release expectations are not asserted. | Carry `keep-paths.txt`; merge duplicate sets; convert 51 sets to tables; add the 208 assertions. | After Sol-48/49 land |
-| 13 | Repository gates never run on the merged tree | Integration targets, an actual server process, editor hosts, proofs, generated-file drift, `make rust-check`, `make prep-pr`. | Run after CI is close to green. | Coordinator |
+| 13 | Repository gates on the merged tree | **Partial validation, FAIL**: 21 Oct on `1e910cd3d3` (product source `f6c4694f14`), `cargo fmt --all -- --check` exits 1: 36 formatting hunks in 11 files (10 Compiler source files and `tcl-spectcl/tests/eval_loader.rs`). This checkpoint includes committed in-progress implementation work; no formatter was applied and no migration regression is inferred. Integration targets, actual server/editor hosts, proofs, generated-file drift, `make rust-check` and `make prep-pr` remain unexecuted. | Implementation owners must address formatting; validate the remaining gates after CI is close to green. The validation agent will not run mutating format/codegen recipes. | Coordinator; validation-only measurement |
 
 ### Carried from the 17 October state (not re-checked since the merge)
 
