@@ -485,8 +485,10 @@ fn original_lambda_parameters_match(
         return None;
     }
     original_list_values_match(original.first()?, proposed.first()?.as_ref())?;
-    (original.get(2).map(|namespace| namespace.bytes())
-        == proposed.get(2).map(|namespace| namespace.as_ref()))
+    (original
+        .get(2)
+        .map(tcl_compiler::signature_scan::scope::SignatureSourceNameInput::bytes)
+        == proposed.get(2).map(std::convert::AsRef::as_ref))
     .then_some(())
 }
 
@@ -909,8 +911,7 @@ fn identify_body_args(
                     if arg.is_braced
                         && word
                             .content_span()
-                            .ok()
-                            .is_some_and(|span| original.has_script(span))
+                            .is_ok_and(|span| original.has_script(span))
                     {
                         arg.kind = ArgKind::Body;
                         roles.push((written, ArgRole::Body));
@@ -982,9 +983,7 @@ fn identify_body_args(
         // of whether the selected schema assigns that operand a source role.
         for (ordinal, operand) in selected.operands.iter().enumerate() {
             let Some(tcl_compiler::registry_invocation::InvocationWordOrigin::Written(written)) =
-                selected
-                    .origins
-                    .get(ordinal.checked_add(1).unwrap_or(usize::MAX))
+                selected.origins.get(ordinal.saturating_add(1))
             else {
                 continue;
             };
@@ -1013,7 +1012,8 @@ fn identify_body_args(
                 ArgRole::Body
                     if arg.is_braced
                         && presentations.iter().any(|(index, presentation)| {
-                            *index == ordinal && presentation.is_some_and(|style| style.is_block())
+                            *index == ordinal
+                                && presentation.is_some_and(tcl_registry::ArgPresentation::is_block)
                         }) =>
                 {
                     ArgKind::Body
@@ -2330,7 +2330,7 @@ pub(crate) fn formatting_range_region(
 // Main entry points
 
 /// Local parsing belongs to the genuine selected region. Original source
-/// joins continue to use the complete parent FormatterConfig and layout.
+/// joins continue to use the complete parent `FormatterConfig` and layout.
 pub(crate) struct FormattingRegion {
     source_offset: u32,
     indent_level: usize,
@@ -2496,7 +2496,7 @@ pub(crate) fn format_body(
                             lambda_body_source_offset(source, source_offset, tok)
                         }
                     },
-                    |span| span.start(),
+                    tcl_lexer::Span::start,
                 );
                 let presented_text = identities
                     .original
@@ -3394,11 +3394,13 @@ mod tests {
             Some(crate::original_invocation::OriginalRegistrySource::SourceTransitions(advice))
                 if advice.logical_source_input() == Some(&identities.input))
         );
-        let mut foreign = FormatterConfig::default();
-        foreign.lexer_config_override = Some(tcl_lexer::LexerConfig {
-            strict_quoting: true,
-            ..config.lexer_config()
-        });
+        let foreign = FormatterConfig {
+            lexer_config_override: Some(tcl_lexer::LexerConfig {
+                strict_quoting: true,
+                ..config.lexer_config()
+            }),
+            ..FormatterConfig::default()
+        };
         let mut command = parse_commands(source, &map, &tokens, config.lexer_config())
             .unwrap()
             .0

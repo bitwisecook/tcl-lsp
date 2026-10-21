@@ -185,17 +185,13 @@ pub fn logical_implementation_advice(
     let mut targets = Vec::new();
     descendants.push(root);
     for class in descendants {
-        let Some(owner) = analysis.logical_source_class_declaration(class) else {
-            return None;
-        };
+        let owner = analysis.logical_source_class_declaration(class)?;
         let methods = match member.side() {
             tcl_compiler::analyser::MemberSide::Instance => &class.methods,
             tcl_compiler::analyser::MemberSide::ClassObject => &class.class_methods,
         };
         for method in methods.values() {
-            let Some(candidate) = owner.member(member.side(), method) else {
-                return None;
-            };
+            let candidate = owner.member(member.side(), method)?;
             if candidate
                 .original_name_word()
                 .and_then(tcl_syntax::word_rules::original_static_word_unicode_value)
@@ -894,7 +890,7 @@ mod conditional_source_implementation_tests {
         assert_eq!(advice.classes.len(), 1);
         assert!(std::ptr::eq(
             advice.classes[0],
-            &analysis.all_classes["::Child"]
+            &raw const analysis.all_classes["::Child"]
         ));
         let at = LineIndex::new_lsp(source)
             .position_at_utf16(u32::try_from(source.find("run").unwrap()).unwrap(), source);

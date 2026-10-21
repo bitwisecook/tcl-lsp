@@ -33,7 +33,7 @@ fn is_variable(data: &[u32], source: &str, value: &str) -> bool {
     let offset = u32::try_from(source.find(value).unwrap()).unwrap();
     let mut line = 0;
     let mut column = 0;
-    data.chunks_exact(5).any(|token| {
+    data.as_chunks::<5>().0.iter().any(|token| {
         line += token[0];
         column = if token[0] == 0 {
             column + token[1]
@@ -1721,16 +1721,16 @@ fn pack_notice_range_uses_retained_source_utf16_and_whole_file_unavailability() 
         "unknown property",
         tcl_spectcl::pack::Severity::Warning,
     );
-    assert_eq!(whole_line_range(&notice), Default::default());
+    assert_eq!(whole_line_range(&notice), Range::default());
     notice.line = 2;
     notice.subject = Some(subject);
     let range = whole_line_range(&notice);
     assert_eq!(range.start, tower_lsp_server::ls_types::Position::new(1, 0));
     assert_eq!(range.end, tower_lsp_server::ls_types::Position::new(1, 7));
     notice.line = 3;
-    assert_eq!(whole_line_range(&notice), Default::default());
+    assert_eq!(whole_line_range(&notice), Range::default());
     notice.line = 0;
-    assert_eq!(whole_line_range(&notice), Default::default());
+    assert_eq!(whole_line_range(&notice), Range::default());
 }
 
 #[test]

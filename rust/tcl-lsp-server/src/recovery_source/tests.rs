@@ -66,14 +66,14 @@ async fn recover_for_input(
         text: source,
         dialect: tcl_lsp_core::profile_for_dialect("tcl8.6"),
     };
-    let ControlFlow::Continue(result) = compute_base_analysis(
+    let ControlFlow::Continue(result) = Box::pin(compute_base_analysis(
         &backend.client,
         &context,
         &disabled,
         &extra,
         mode,
         &recovery,
-    )
+    ))
     .await
     else {
         panic!("the real malformed-document path did not settle");

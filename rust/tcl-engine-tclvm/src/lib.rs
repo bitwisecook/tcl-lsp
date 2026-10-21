@@ -3143,9 +3143,11 @@ mod tests {
         assert!(matches!(error, EngineError::Script { .. }), "{error:?}");
     }
 
-    /// A loop the compiler inlines dispatches nothing, so the command budget
-    /// never fires on it — the wall clock is what contains that case, and the
-    /// two together are why the host sets both.
+    /// A loop the compiler inlines dispatches nothing. Its commands still count
+    /// against the command budget at each command's start, as C's
+    /// `INST_START_CMD` counts them, but a budget sized for real work is far
+    /// from spent when the wall clock runs out. The wall clock is what contains
+    /// that case, and the two together are why the host sets both.
     #[test]
     fn the_wall_clock_budget_stops_a_loop_the_command_budget_cannot_see() {
         let mut engine = TclVmEngine::new();

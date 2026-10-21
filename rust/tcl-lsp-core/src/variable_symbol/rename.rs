@@ -160,7 +160,7 @@ pub fn original_variable_rename_edits(
     let edits = if analysis
         .resolved_input
         .as_ref()
-        .is_some_and(|input| input.has_logical_source_name_context())
+        .is_some_and(tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context)
     {
         LogicalVariableSourceRenameIntent::capture(source, analysis, symbol, &tail, edits)
             .and_then(|intent| intent.into_edits(source, analysis))
@@ -171,9 +171,31 @@ pub fn original_variable_rename_edits(
     let index = LineIndex::new(source);
     Ok(edits
         .into_iter()
-        .map(|edit| TextEdit {
-            range: crate::definition::span_to_range(source, &index, edit.span()),
-            new_text: edit.text().to_owned(),
+        .map(|edit| {
+            let span = edit.span();
+            // A plain `$name` read is rewritten as the whole `$name` token, so
+            // the edit reads as the substitution it replaces (`$x` -> `$y`).
+            // The resulting text is identical; braced `${name}` and
+            // qualified tails keep their minimal edit.
+            let dollar = span
+                .start()
+                .checked_sub(1)
+                .filter(|start| source.as_bytes().get(*start as usize) == Some(&b'$'))
+                .filter(|_| source.as_bytes().get(span.start() as usize) != Some(&b'{'));
+            match dollar {
+                Some(start) => TextEdit {
+                    range: crate::definition::span_to_range(
+                        source,
+                        &index,
+                        tcl_lexer::Span::new(start, span.end()),
+                    ),
+                    new_text: format!("${}", edit.text()),
+                },
+                None => TextEdit {
+                    range: crate::definition::span_to_range(source, &index, span),
+                    new_text: edit.text().to_owned(),
+                },
+            }
         })
         .collect())
 }

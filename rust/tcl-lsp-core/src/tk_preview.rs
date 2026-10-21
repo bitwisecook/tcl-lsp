@@ -1460,11 +1460,8 @@ fn effective_geometry_container(
     options: &BTreeMap<String, TkLiteralOption>,
     uncertainties: &mut Vec<TkUiUncertainty>,
 ) -> Option<String> {
-    let Some(parent) =
-        tcl_registry::tk_geometry::widget_path_parent_depth(target).and_then(|path| path.parent)
-    else {
-        return None;
-    };
+    let parent =
+        tcl_registry::tk_geometry::widget_path_parent_depth(target).and_then(|path| path.parent)?;
     let Some(container_option) = container_option else {
         return Some(parent.to_owned());
     };

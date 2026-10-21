@@ -578,7 +578,7 @@ impl<'a> FrameWalk<'a> {
                 for part in arena.all_parts() {
                     match part.part {
                         tcl_lexer::ExecutablePart::Command { body } => {
-                            regions.push((body.start() as usize, body.end() as usize))
+                            regions.push((body.start() as usize, body.end() as usize));
                         }
                         tcl_lexer::ExecutablePart::ParseError(_)
                         | tcl_lexer::ExecutablePart::Expression { .. } => return None,
@@ -1144,6 +1144,9 @@ fn body_words_with_owner(
         return Vec::new();
     };
     let context = owner.editing_input().context_registry();
+    // The closure is required: the method path is not general enough
+    // over the schema borrow's higher-ranked lifetime.
+    #[allow(clippy::redundant_closure_for_method_calls)]
     let Some(Some(roles)) = words.with_source_schema(&context, |schema| schema.arg_roles()) else {
         return Vec::new();
     };
@@ -1525,10 +1528,14 @@ mod original_frame_walk_tests {
         let source = "proc p {x} {expr {$x + [string length VALUE]}}\np 2\n";
         let mut analyser = tcl_compiler::analyser::Analyser::new();
         let mut analysis = analyser.analyse(source, "tcl8.6").clone();
-        let selected_registry = analysis.resolved_registry().unwrap() as *const CommandRegistry;
+        let selected_registry =
+            std::ptr::from_ref::<CommandRegistry>(analysis.resolved_registry().unwrap());
         analysis.dialect = "f5-irules".to_owned();
         let walk = FrameWalk::new(source, &analysis).unwrap();
-        assert_eq!(walk.nesting as *const CommandRegistry, selected_registry);
+        assert_eq!(
+            std::ptr::from_ref::<CommandRegistry>(walk.nesting),
+            selected_registry
+        );
         assert_eq!(walk.config, analysis.body_lexer_config.unwrap());
         assert!(std::ptr::eq(
             walk.identities,

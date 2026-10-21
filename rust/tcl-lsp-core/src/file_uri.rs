@@ -289,7 +289,7 @@ pub enum SourceFileUriNamespace {
 /// Strict file-URI data for an explicitly selected virtual or guest source
 /// namespace. Authority is retained as a counted `//authority/path`; there is
 /// no host-OS inference, drive conversion, canonicalisation or existence claim.
-/// The actual SourceStore selects the namespace and owns resource lookup.
+/// The actual `SourceStore` selects the namespace and owns resource lookup.
 ///
 /// # Errors
 /// Returns the same strict URI/data refusals as the native document recipe.

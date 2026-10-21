@@ -185,12 +185,12 @@ fn project_source_is_complete(
     };
     let text = file.text(db);
     let analysis = tcl_lsp_db::file_analysis_incremental(db, file, config);
-    let Some(coverage) = tcl_lsp_core::SourceSyntaxCoverage::capture(&text, &analysis) else {
+    let Some(coverage) = tcl_lsp_core::SourceSyntaxCoverage::capture(text, &analysis) else {
         return false;
     };
-    if coverage.commands(&text, &analysis).is_none()
+    if coverage.commands(text, &analysis).is_none()
         || !matches!(
-            coverage.applicability(&text, &analysis),
+            coverage.applicability(text, &analysis),
             Some(tcl_lsp_core::SourceSyntaxCoverageApplicability::Complete)
         )
     {
@@ -211,7 +211,7 @@ pub(super) async fn recompute_class_factories(projection: &mut Projection) -> bo
         let factories = crate::rt::spawn_blocking(move || {
             if files.iter().any(|(uri, file)| {
                 !members.contains(uri)
-                    || !project_source_is_complete(&*snapshot, *file, project, &configurations)
+                    || !project_source_is_complete(&snapshot, *file, project, &configurations)
                     || tcl_lsp_db::file_source_targets_for_inputs(&*snapshot, *file, project)
                         .is_none()
             }) {
@@ -265,7 +265,7 @@ pub(super) async fn recompute_call_site_evidence(projection: &mut Projection) ->
         let mut covered = HashSet::new();
         for (uri, file) in &files {
             if !members.contains(uri)
-                || !project_source_is_complete(&*snapshot, *file, project, &configurations)
+                || !project_source_is_complete(&snapshot, *file, project, &configurations)
             {
                 return None;
             }
@@ -359,9 +359,7 @@ pub(super) async fn update_subclass_methods_from_index(
     })
     .await
     .ok();
-    let Some(planned) = planned else {
-        return None;
-    };
+    let planned = planned?;
     let mut db = projection.db.lock().await;
     let mut changed = false;
     for (file, next, needs_update) in planned {

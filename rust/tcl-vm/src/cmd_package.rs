@@ -859,7 +859,7 @@ fn pkg_require(
             return ok(vm.package_version_object(&name));
         }
         ProvidedStatus::Conflicts(version) => {
-            return version_conflict(vm, discover, &name, &version, &requested, exact);
+            return version_conflict(vm, discover, &name, &version, &requested, exact, release);
         }
         ProvidedStatus::Absent => {}
     }
@@ -1057,7 +1057,7 @@ fn after_package_unknown(
             return ok(vm.package_version_object(&name));
         }
         ProvidedStatus::Conflicts(version) => {
-            return version_conflict(vm, true, &name, &version, &reqs, exact);
+            return version_conflict(vm, true, &name, &version, &reqs, exact, release);
         }
         ProvidedStatus::Absent => {}
     }
@@ -1151,6 +1151,7 @@ fn version_conflict(
     have: &NameBytes,
     requested: &[NameBytes],
     exact: bool,
+    release: tcl_dialect::TclVersion,
 ) -> Completion<Value> {
     let protocol = match package_protocol(vm) {
         Ok(protocol) => protocol,
@@ -1160,7 +1161,9 @@ fn version_conflict(
     // (8.5.19: NONE; 8.6.18: `TCL PACKAGE VERSIONCONFLICT`).
     let _ = discover;
     let code = protocol.conflict_error_code_update();
-    let need = requirement_text(requested, exact, vm.runtime_version());
+    // The requirement is spelled as the selected package protocol's release
+    // spells it, not as the runtime's own version.
+    let need = requirement_text(requested, exact, release);
     package_error(
         &[
             b"version conflict for package \"",

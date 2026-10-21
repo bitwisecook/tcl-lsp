@@ -2,8 +2,17 @@
 #
 # Exercises: a definition-body grammar referenced by name, manufacturer-method
 # rows, an argument-role resolver DERIVED from those rows instead of written
-# as code, subcommand-level world-effect and state-transition descriptors, a
-# non-closed argument-value table, and allow_unknown_subcommands.
+# as code, a non-closed argument-value table, and allow_unknown_subcommands.
+#
+# The shipped command's subcommand-level `world_effects` (a SCRIPT callback
+# and a conservative dynamic fallback) and `state_transitions` (typed
+# CommandBinding::Define and ObjectDispatch::Create facts from a native
+# resolver) are not ported: a pack can author neither the typed world-effect
+# rows nor those transition facts, and no `-native` state-transition resolver
+# id ships (README, "What a pack cannot author"). Writing the descriptors
+# without them would claim a smaller footprint than the command has, so the
+# port states the legacy facts only: `side_effect InterpState -writes` and
+# `defines_command_at`.
 
 speclib tcl 2.1 {
 
@@ -15,15 +24,6 @@ values class-methods {
     value create -detail {Create a new instance named name, passing the optional definition script to oo::define. Returns the fully qualified object name.}
     value new    -detail {Create a new instance with an automatically generated unique name. Not exported on oo::class itself — new classes should be made with create.}
     value createWithNamespace -detail {Non-exported: like create, but the instance's internal namespace is explicitly named nsName instead of being auto-generated.}
-}
-
-# Shared by all three manufacturing subcommands.  A definition body runs while
-# the new class is visible, but any non-OK completion rolls the class,
-# command, and private namespace back before it escapes from the factory.
-descriptor world_effects class-factory-effects {
-    composition Extend
-    callback -kinds {SCRIPT} -reentrancy CurrentInterpreter
-    dynamic_fallback ConservativeUnknownInvocation
 }
 
 command oo::class {
@@ -114,18 +114,6 @@ $b eat    ;# error "unknown command"}
         body_kind Structural
         return_type String
         defines_command_at 0
-        world_effects class-factory-effects
-        state_transitions {
-            composition    Extend
-            argument_shape Positional
-            # Emits CommandBinding::Define{name, Object} for a literal,
-            # non-empty name plus ObjectDispatch::Create{Named(name), Fresh,
-            # Class}.  Not authorable as data in v1 — see README.
-            resolver -native oo::class::create::state_transitions.resolver
-            widen  -operands {Indices 1} -domains {CommandBindings Namespaces ObjectDispatch}
-            covers {LegacySideEffect InterpState} -domains {InterpreterPolicy}
-            commit OnOkOnly
-        }
     }
 
     subcommand new {
@@ -135,14 +123,6 @@ $b eat    ;# error "unknown command"}
         arg 0 -role Body
         body_kind Structural
         return_type String
-        world_effects class-factory-effects
-        state_transitions {
-            composition    Extend
-            argument_shape Independent
-            resolver -native oo::class::new::state_transitions.resolver
-            covers {LegacySideEffect InterpState} -domains {InterpreterPolicy}
-            commit OnOkOnly
-        }
     }
 
     subcommand createWithNamespace {
@@ -155,16 +135,6 @@ $b eat    ;# error "unknown command"}
         body_kind Structural
         return_type String
         defines_command_at 0
-        world_effects class-factory-effects
-        state_transitions {
-            composition    Extend
-            argument_shape Positional
-            resolver -native oo::class::createWithNamespace::state_transitions.resolver
-            widen  -operands {Indices 1} -domains {CommandBindings Namespaces ObjectDispatch}
-            widen  -operands {Indices 2} -domains {Namespaces VariableCells ObjectDispatch}
-            covers {LegacySideEffect InterpState} -domains {InterpreterPolicy}
-            commit OnOkOnly
-        }
     }
 }
 

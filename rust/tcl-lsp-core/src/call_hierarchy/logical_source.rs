@@ -593,7 +593,7 @@ impl<'a> Inventory<'a> {
                 OriginalDeclaredSourceBodyFrame::Lambda => return None,
                 OriginalDeclaredSourceBodyFrame::Namespace
                 | OriginalDeclaredSourceBodyFrame::Global => {
-                    scope = scope.parent_source_context()?
+                    scope = scope.parent_source_context()?;
                 }
             }
         }
@@ -1005,12 +1005,10 @@ pub fn prepare_logical_from_inventory(
         &SourceImage::document(document.source),
         document.analysis.body_lexer_config?,
         position.offset(),
-    ) {
-        if let Some(identity) =
-            LogicalCallIdentity::capture(document, Selection::Member(Box::new(member)))
-        {
-            selected.push(identity);
-        }
+    ) && let Some(identity) =
+        LogicalCallIdentity::capture(document, Selection::Member(Box::new(member)))
+    {
+        selected.push(identity);
     }
     let mut preparations = Vec::new();
     if selected.is_empty() {

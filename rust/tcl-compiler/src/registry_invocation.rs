@@ -1746,7 +1746,6 @@ impl NormalTransferInvocation {
         }
         self.with_arguments(|arguments| {
             if state.execution_name_policy.is_some() {
-                if std::env::var_os("ZZ_SOL49").is_some() { eprintln!("ZZ mutplaces cmd={:?} operands={:?}", self.invocation.facts.canonical_command, self.original_operands.as_deref().map(|o| format!("{o:?}").chars().take(300).collect::<String>())); }
                 return self.original_operands.as_deref().map_or_else(
                     || vec![crate::place::unknown_top()],
                     |operands| crate::variable_bindings::source_variable_write_places_with_output_order_and_original_operands(
@@ -9090,7 +9089,12 @@ mod tests {
                     external_call_sites: None,
                     declared_commands: None,
                 },
-                None,
+                // Hosted catalogue advice answers where prior history is
+                // unknown. A supplied document is a fresh rule load whose
+                // original table answers first (user decision
+                // 2026-10-21T00:10Z), so this contract supplies the explicit
+                // unknown-history entry.
+                Some(&crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input)),
                 &input,
             );
             let metadata =

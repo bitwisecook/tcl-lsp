@@ -259,8 +259,7 @@ pub(crate) fn offset_in_data_brace_in_analysis(
         .filter(|(index, _)| *index == argument)
     {
         result &= match role {
-            ArgRole::Body => return None,
-            ArgRole::Expr => return None,
+            ArgRole::Body | ArgRole::Expr => return None,
             ArgRole::LambdaLiteral => lambda_data_at(word, off)?,
             _ => true,
         };

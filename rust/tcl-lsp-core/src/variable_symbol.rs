@@ -22,7 +22,6 @@ pub use rename::original_variable_rename_edits;
 /// Select an authentic current-source variable occurrence. A retained but
 /// unavailable original operand is definitive and blocks display-name lookup.
 /// `Continue` permits the separate authored metadata consumer.
-#[must_use]
 pub fn select<'a>(
     source: &str,
     analysis: &'a AnalysisResult,

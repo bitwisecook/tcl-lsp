@@ -1134,4 +1134,30 @@ mod tests {
             assert_eq!(calls[0].bytes(), b"abs");
         }
     }
+
+    #[test]
+    fn original_math_occurrences_cover_expressions_in_command_substitutions() {
+        // Implementation contract: naming.expression.original-function-navigation
+        // docs/design/analysis/name-resolution-proofs/original-function-navigation.md
+        // tclsh 8.5-9.1 call `tcl::mathfunc::custom` once for each nested
+        // `expr` below (`hit=4`).
+        for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            for nested in [
+                "set x [expr {custom(3)}]",
+                "puts [expr {custom(3)}]",
+                "set y \"a[expr {custom(3)}]b\"",
+                "set z [list [expr {custom(3)}]]",
+            ] {
+                let source = format!("proc ::tcl::mathfunc::custom {{x}} {{return $x}}; {nested}");
+                let (_, registry, image, config, calls) = functions(&source, name);
+                let start = u32::try_from(source.rfind("custom(").unwrap()).unwrap();
+                let [call] = calls.as_slice() else {
+                    panic!("{name}: {nested}: {calls:?}");
+                };
+                assert_eq!(call.bytes(), b"custom", "{name}: {nested}");
+                assert_eq!(call.span(), Span::new(start, start + 6), "{name}: {nested}");
+                assert!(call.matches_source(&image, config, &registry));
+            }
+        }
+    }
 }

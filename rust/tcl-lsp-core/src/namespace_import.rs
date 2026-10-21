@@ -151,7 +151,7 @@ use crate::source_graph::{RunOrder, RunPoint};
 use tcl_syntax::glob::string_match;
 
 /// Temporal interpretation private to the namespace source-report owner.
-/// A SourceHorizon result is conditional advice, never an alias liveness fact.
+/// A `SourceHorizon` result is conditional advice, never an alias liveness fact.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum NamespaceStatementPurpose {
     Modeled,
@@ -202,7 +202,7 @@ impl NamespaceStatementPurpose {
     /// removal's document completes normally is read: the removal applies
     /// when that document's end is admitted and the removal is a sequence
     /// position before it; otherwise none applies, which is the conditional
-    /// answer. Constructed models and SourceHorizon keep [`Self::in_effect`].
+    /// answer. Constructed models and `SourceHorizon` keep [`Self::in_effect`].
     fn removal_in_effect(
         self,
         order: &RunOrder,
@@ -786,7 +786,7 @@ pub(crate) fn alias_for_purpose(
 /// at `query` or known to have run before that install (which the install
 /// then undoes). A removal in another document, a deferred body or a
 /// conditional branch therefore leaves the alias possibly dead, and no
-/// install Tcl would perform is dropped. Constructed models and SourceHorizon
+/// install Tcl would perform is dropped. Constructed models and `SourceHorizon`
 /// keep [`alias_for_purpose`].
 pub(crate) fn alias_certainly_live(
     events: &mut dyn Iterator<Item = AliasEvent<'_>>,

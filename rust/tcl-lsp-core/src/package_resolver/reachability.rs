@@ -314,7 +314,7 @@ pub struct Reached<'t> {
     /// What must hold for the interpreter to run it.
     pub conditions: Conditions,
     /// Actual complete original words in their retained source image. Entered
-    /// decoded bodies keep their NativeValue channel; this field alone supplies
+    /// decoded bodies keep their `NativeValue` channel; this field alone supplies
     /// no Document coordinate map, current-input or package-identity grant.
     pub original_words: Option<Vec<NativeWord>>,
 }
@@ -508,7 +508,7 @@ impl Guard {
 }
 
 /// Constant source-guard interpretation only. Target-release queries are
-/// issued independently by the retained OriginalPackageIndexTargetGuard owner.
+/// issued independently by the retained `OriginalPackageIndexTargetGuard` owner.
 fn constant_guard(expr: &str, _config: LexerConfig) -> Guard {
     let mut expr = expr.trim();
     let mut negated = false;
@@ -534,7 +534,7 @@ mod source_survey_owner_tests {
         let registry = CommandRegistry::build_default();
         let mut found = Vec::new();
         scan(source, &registry, &mut |reached| {
-            found.push(reached.conditions)
+            found.push(reached.conditions);
         });
         assert_eq!(found.len(), 1);
         assert!(found[0].has_source_advertisement_premise());
@@ -602,7 +602,7 @@ mod source_survey_owner_tests {
             );
             let mut found = Vec::new();
             scan(&source, &registry, &mut |reached| {
-                found.push(reached.conditions)
+                found.push(reached.conditions);
             });
             assert!(found.iter().all(|conditions| {
                 !conditions
@@ -656,7 +656,7 @@ mod source_clause_selection_tests {
         let registry = CommandRegistry::build_default();
         let mut out = Vec::new();
         scan(source, &registry, &mut |reached| {
-            out.push(reached.conditions)
+            out.push(reached.conditions);
         });
         out
     }

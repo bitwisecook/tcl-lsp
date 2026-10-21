@@ -359,9 +359,20 @@ impl SourceInvocationBinding {
         key: &SignatureSourceNameKey,
     ) -> Option<Vec<&super::declaration_layout::DeclarationLayoutObservation>> {
         let site = self.invocation_site()?;
-        if site.source.source_image() != key.source_image()
-            || site.offset != key.original_word().group().span.start()
-        {
+        if site.offset != key.original_word().group().span.start() {
+            return None;
+        }
+        self.original_site_name_rows(key)
+    }
+
+    /// Original declaration rows of this consuming command, independently of
+    /// which of its own written words carries the name.
+    fn original_site_name_rows(
+        &self,
+        key: &SignatureSourceNameKey,
+    ) -> Option<Vec<&super::declaration_layout::DeclarationLayoutObservation>> {
+        let site = self.invocation_site()?;
+        if site.source.source_image() != key.source_image() {
             return None;
         }
         let rows = super::declaration_layout::original_declaration_layouts(
@@ -678,6 +689,41 @@ impl SourceInvocationBinding {
             policy,
         )?;
         self.original_command_lookup(tokens, &SignatureSourceNameInput::OriginalWord(key))
+    }
+
+    /// Original command-name operand consumed by this same invocation's
+    /// handler (`info body NAME`, `rename NAME …`). The name is looked up in
+    /// the consuming command's own retained table after its argv; the operand
+    /// must be a later complete written word of exactly this original vector.
+    /// This supplies lookup geometry only, never an invocation or dispatch.
+    #[must_use]
+    pub fn original_consumed_command_lookup(
+        &self,
+        key: &SignatureSourceNameKey,
+    ) -> Option<OriginalCommandLookup> {
+        let site = self.invocation_site()?;
+        if key.original_word().group().span.start() <= site.offset {
+            return None;
+        }
+        let rows = self.original_site_name_rows(key)?;
+        // Every observation must hold this exact written operand word.
+        if rows.iter().any(|row| {
+            crate::registry_invocation::original_native_compiler_words(
+                site.source.source_image(),
+                &row.words,
+                site.offset,
+                row.config,
+            )
+            .is_none_or(|native| {
+                !native
+                    .iter()
+                    .skip(1)
+                    .any(|word| word == key.original_word())
+            })
+        }) {
+            return None;
+        }
+        self.original_lookup_from_rows(&SignatureSourceNameInput::OriginalWord(key.clone()), rows)
     }
 
     /// Original static head lookup without manufacturing a command vector.

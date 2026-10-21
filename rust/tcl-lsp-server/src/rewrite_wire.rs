@@ -4,6 +4,9 @@
 
 //! Original optimiser report/source association for diagnostic presentation.
 
+// This file is a split-out part of its parent module: it, and the test
+// modules nested under it, share the parent's whole import set.
+#[allow(clippy::wildcard_imports)]
 use super::*;
 
 /// The actual report producer's source purpose, never decoded from wire data.
@@ -100,18 +103,17 @@ pub(super) fn original_rewrite_payloads(
             })
             .collect::<Option<Vec<_>>>();
         let Some(edits) = edits else { continue };
-        let payload = match rewrite.group {
-            Some(group) => serde_json::json!({
+        let payload = if let Some(group) = rewrite.group {
+            serde_json::json!({
                 "group": group,
                 "edits": edits,
                 "sourceAssociation": association,
-            }),
-            None => {
-                let [edit] = edits.as_slice() else { continue };
-                let mut edit = edit.clone();
-                edit["sourceAssociation"] = association.clone();
-                edit
-            }
+            })
+        } else {
+            let [edit] = edits.as_slice() else { continue };
+            let mut edit = edit.clone();
+            edit["sourceAssociation"] = association.clone();
+            edit
         };
         payloads.extend(
             rewrite

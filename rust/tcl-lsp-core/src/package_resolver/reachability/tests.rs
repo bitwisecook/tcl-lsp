@@ -561,7 +561,8 @@ fn configured_body_values_and_command_children_keep_distinct_original_grammar() 
                 found.is_empty(),
                 "{dialect}: decoded return stops the original script"
             );
-            let source = r#"if 1 {set kept {{literal}}}; package ifneeded retained 1.0 {source retained.tcl}"#;
+            let source =
+                r"if 1 {set kept {{literal}}}; package ifneeded retained 1.0 {source retained.tcl}";
             let mut found = Vec::new();
             super::scan_with_config(source, context.commands(), config, &mut |reached| {
                 found.push(reached.conditions.availability(None));

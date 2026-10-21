@@ -4,6 +4,9 @@
 
 //! Conditional parser recognition for incomplete documents.
 
+// This file is a split-out part of its parent module: it, and the test
+// modules nested under it, share the parent's whole import set.
+#[allow(clippy::wildcard_imports)]
 use super::*;
 use provider_source::{ProviderCaptureInputs, ProviderSourceUnavailable};
 use tcl_compiler::analyser::ResolvedAnalysisInput;
@@ -116,7 +119,7 @@ pub(super) async fn compute_recovery_analysis(
                 .analyse(&text, dialect.name),
             Err(miss) => {
                 let mut refused = AnalysisResult::default();
-                refused.dialect = dialect.name.to_owned();
+                dialect.name.clone_into(&mut refused.dialect);
                 refused.analysis_context_unavailable = Some(miss);
                 refused
             }
@@ -133,7 +136,7 @@ pub(super) async fn compute_recovery_analysis(
     if preview.analysis_context_unavailable.is_some() {
         return ControlFlow::Continue(Arc::new(preview));
     }
-    let Some(input) = preview.resolved_input.as_ref().cloned() else {
+    let Some(input) = preview.resolved_input.clone() else {
         return ControlFlow::Continue(Arc::new(preview));
     };
     let widened = widen_recovery_extra_commands(recovery, extra, ctx.text, &preview).await;

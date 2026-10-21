@@ -632,6 +632,9 @@ fn format_args(
         return Vec::new();
     };
     let context = input.context_registry();
+    // The closure is required: the method path is not general enough
+    // over the schema borrow's higher-ranked lifetime.
+    #[allow(clippy::redundant_closure_for_method_calls)]
     let Some(formats) = selected
         .with_source_schema(&context, |schema| schema.authored_source_format_arguments())
         .flatten()
@@ -3006,6 +3009,9 @@ mod retained_hint_context_tests {
             selected_original_words(source, &older, &segment, older.resolved_registry().unwrap())
                 .expect("original words exist independently of unavailable format option");
         let context = older.resolved_input.as_ref().unwrap().context_registry();
+        // The closure is required: the method path is not general enough
+        // over the schema borrow's higher-ranked lifetime.
+        #[allow(clippy::redundant_closure_for_method_calls)]
         let formats = selected
             .with_source_schema(&context, |schema| schema.authored_source_format_arguments())
             .expect("the actual context still admits clock scan source metadata");

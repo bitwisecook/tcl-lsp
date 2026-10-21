@@ -3721,53 +3721,7 @@ impl CompilationUnit {
         cache: Option<&mut ProcLatticeCache<'_>>,
         body_cache: Option<&BodyLoweringCache<'_>>,
     ) -> Self {
-        // A whole source with a known dialect is a document `tclsh file.tcl`
-        // runs in a fresh interpreter, where `proc f` defines `::f`. It takes
-        // the same supplied-source entry as a whole-document analysis
-        // (`SourceAnalysisEntry::for_supplied_source`); a dialect-blind or
-        // foreign command store keeps the standalone authoring purpose.
-        if let Some(input) = Self::fresh_document_input(&options) {
-            return Self::build_with_retained_entry(
-                source,
-                options,
-                cache,
-                body_cache,
-                None,
-                None,
-                Some(&input),
-            );
-        }
         Self::build_with_entry(source, options, cache, body_cache, None, None)
-    }
-
-    /// The complete source input of a dialect-bearing standalone build: its
-    /// profile, the dialect's default availability over the caller's exact
-    /// command store, and its lexer configuration. Inputs whose metadata does
-    /// not correspond (no dialect, a mismatched profile/config, or a store
-    /// the availability context cannot carry) return `None`.
-    fn fresh_document_input(
-        options: &UnitBuildOptions<'_>,
-    ) -> Option<crate::analyser::ResolvedAnalysisInput> {
-        let profile = options.dialect?;
-        let environment = tcl_registry::model::ingress::resolve_environment(profile.name);
-        let mut context = environment.default_context_registry();
-        if context.commands().snapshot().semantic_key()
-            != options.registry.snapshot().semantic_key()
-        {
-            context = std::sync::Arc::new(
-                tcl_registry::model::ingress::static_context_for_profile(profile)
-                    .with_command_store(options.registry.snapshot().shared_registry()),
-            );
-        }
-        let input =
-            crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, options.config);
-        crate::registry_invocation::InvocationMetadataContext::for_source_input(
-            options.registry,
-            &input,
-            options.config,
-            Some(profile),
-        )?;
-        Some(input)
     }
 
     /// Build conditional source diagnostics under the caller's complete
@@ -6596,17 +6550,6 @@ mod tests {
             declared_commands: None,
         };
         let source = "proc local {value} {set result $value; return $result}";
-        // A dialect-bearing default build is a whole document in a fresh
-        // interpreter of that dialect (user decision 2026-10-19T14:20Z):
-        // `tclsh8.6` defines `::local`, so the unit publishes it.
-        let fresh = CompilationUnit::build_with_options(source, options);
-        assert!(fresh.ir_module.source_metadata_input.is_some());
-        assert!(fresh.function("::local").is_some());
-        // Explicit Standalone authoring remains the dialect-blind build.
-        let options = UnitBuildOptions {
-            dialect: None,
-            ..options
-        };
         let unit = CompilationUnit::build_with_options(source, options);
         let module = &unit.ir_module;
         assert!(module.source_entry.metadata_context.is_standalone());

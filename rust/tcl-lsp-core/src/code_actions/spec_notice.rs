@@ -91,6 +91,8 @@ impl SpecPackNoticeSubject {
                 let head = command.words.first()?;
                 let head_text = plain(head);
                 for (ordinal, word) in command.words.iter().enumerate() {
+                    // A notice's line is counted once; no `bytecount` dependency is warranted.
+                    #[allow(clippy::naive_bytecount)]
                     let word_line = 1 + image
                         .bytes()
                         .get(..word.span().start() as usize)?

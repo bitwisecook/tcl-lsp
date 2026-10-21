@@ -28,6 +28,9 @@
 
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
+// Long linear fail-closed guard chains and scenario tests; splitting them is
+// tracked as follow-up debt (Luna-41 notes) rather than done mid-merge.
+#![allow(clippy::too_many_lines)]
 
 /// Cap on [`tcl_compiler::analyser::Scope`]-tree walking depth shared by
 /// every LSP feature provider that recurses over `scope.children`

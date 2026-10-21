@@ -60,7 +60,7 @@ fn has_variable(tokens: &SemanticTokens, source: &str, value: &str) -> bool {
     let offset = u32::try_from(source.find(value).unwrap()).unwrap();
     let mut line = 0;
     let mut column = 0;
-    tokens.data.chunks_exact(5).any(|token| {
+    tokens.data.as_chunks::<5>().0.iter().any(|token| {
         line += token[0];
         column = if token[0] == 0 {
             column + token[1]
@@ -262,7 +262,7 @@ fn tracked_document_input_keeps_keyed_availability_on_the_same_command_store() {
         older
             .availability_context()
             .placement_floor("f5-irules-cmds")
-            .map(|version| version.as_str()),
+            .map(tcl_dialect::model::Version::as_str),
         Some("15.0.0")
     );
     assert!(
@@ -285,7 +285,7 @@ fn tracked_document_input_keeps_keyed_availability_on_the_same_command_store() {
         current
             .availability_context()
             .placement_floor("f5-irules-cmds")
-            .map(|version| version.as_str()),
+            .map(tcl_dialect::model::Version::as_str),
         Some("21.1.0")
     );
     assert_eq!(

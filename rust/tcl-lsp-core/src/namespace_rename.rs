@@ -513,7 +513,7 @@ fn namespace_rename_hazard(
         let roles = words
             .as_ref()
             .filter(|words| words.roles().is_some())
-            .map(|words| words.written_argument_roles());
+            .map(tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords::written_argument_roles);
         for (idx, word) in cmd.texts.iter().skip(1).enumerate() {
             if !word.contains(['$', '[']) {
                 continue;

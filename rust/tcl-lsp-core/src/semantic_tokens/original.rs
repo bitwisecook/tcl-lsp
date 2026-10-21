@@ -591,10 +591,8 @@ pub(super) fn registry_overrides(
     };
     match &words.source {
         crate::original_invocation::OriginalRegistrySource::Selected => {}
-        crate::original_invocation::OriginalRegistrySource::ConditionalNativeSource(_) => {
-            return overrides;
-        }
-        crate::original_invocation::OriginalRegistrySource::DefinitionMember(_) => {
+        crate::original_invocation::OriginalRegistrySource::ConditionalNativeSource(_)
+        | crate::original_invocation::OriginalRegistrySource::DefinitionMember(_) => {
             return overrides;
         }
         crate::original_invocation::OriginalRegistrySource::Scoped(scoped) => {
@@ -1159,10 +1157,10 @@ fn push_original_extent(
     true
 }
 
-fn source_operand_word<'a>(
-    ctx: ScriptCtx<'a>,
+fn source_operand_word(
+    ctx: ScriptCtx<'_>,
     tok: tcl_lexer::Token,
-) -> Option<&'a tcl_lexer::NativeWord> {
+) -> Option<&tcl_lexer::NativeWord> {
     let analysis = ctx.analysis?;
     let input = analysis.resolved_input.as_ref()?;
     if input.lexer_config() != ctx.config || input.context_registry().context() != ctx.context {
@@ -1199,7 +1197,7 @@ pub(super) fn collect_loop_variables(
     if let Some(children) = ctx
         .operand
         .and_then(|operand| operand.input.as_ref())
-        .and_then(|input| input.original_list_elements_with_source_spans())
+        .and_then(tcl_compiler::signature_scan::scope::SignatureSourceNameInput::original_list_elements_with_source_spans)
     {
         let mut emitted = children.is_empty();
         for (_, span) in children {
@@ -1248,7 +1246,7 @@ fn collect_source_parameter_fields(
 ) -> bool {
     let Some(parameters) = fields
         .iter()
-        .map(|field| field.elements())
+        .map(tcl_syntax::word_rules::OriginalSourceListElement::elements)
         .collect::<Option<Vec<_>>>()
     else {
         return false;

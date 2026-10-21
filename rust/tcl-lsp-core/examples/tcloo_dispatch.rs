@@ -21,6 +21,8 @@
 // Coverage-stat arithmetic: counts cast to f64 for percentages and to u32 for
 // LSP positions; the magnitudes are tiny, so truncation/precision loss is moot.
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+// A diagnostic example reads top to bottom as one scenario.
+#![allow(clippy::too_many_lines)]
 
 use std::collections::HashMap;
 use std::path::Path;

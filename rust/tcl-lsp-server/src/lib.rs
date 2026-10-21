@@ -30,6 +30,9 @@
 #![recursion_limit = "256"]
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
+// Long linear fail-closed guard chains and scenario tests; splitting them is
+// tracked as follow-up debt (Luna-41 notes) rather than done mid-merge.
+#![allow(clippy::too_many_lines)]
 
 /// The INI parse and the three-layer merge, shared with every surface
 /// through `tcl-lsp-core`.
@@ -472,14 +475,14 @@ impl DocumentPathAdmission {
                         cause: vfs::SourceUriPathUnavailable::PathOriginMismatch,
                     });
                 }
-                *analyser_spelling = origin
+                origin
                     .path()
                     .to_str()
                     .ok_or_else(|| DocumentSourceUnavailable::Path {
                         uri: uri.clone(),
                         cause: uri_norm::DocumentFilePathUnavailable::InvalidUnicode,
                     })?
-                    .to_owned();
+                    .clone_into(analyser_spelling);
                 *source_origin = Some(origin);
             }
         }
@@ -1276,7 +1279,7 @@ impl ScannedDocument {
         let analysis = match self.seed.analysis.analysis_context_unavailable.as_ref() {
             Some(miss) => {
                 let mut result = AnalysisResult::default();
-                result.dialect = self.dialect.clone();
+                result.dialect.clone_from(&self.dialect);
                 result.analysis_context_unavailable = Some(miss.clone());
                 result
             }
@@ -4559,12 +4562,11 @@ impl DiagnosticPublisher {
         let mut studio_inputs_available = true;
         for notice in &matching {
             if let PackNoticeSourceOwner::Studio(admission) = &notice.owner {
-                match admission.current_saved_source_path(store) {
-                    Ok(path) => studio_sources.push((path, notice.source.as_bytes())),
-                    Err(_) => {
-                        studio_inputs_available = false;
-                        break;
-                    }
+                if let Ok(path) = admission.current_saved_source_path(store) {
+                    studio_sources.push((path, notice.source.as_bytes()));
+                } else {
+                    studio_inputs_available = false;
+                    break;
                 }
             }
         }
@@ -5966,7 +5968,7 @@ async fn reindex_unopened_factory_consumers(
                             .analyse(&text, &dialect),
                         Err(miss) => {
                             let mut result = AnalysisResult::default();
-                            result.dialect = dialect.clone();
+                            result.dialect.clone_from(&dialect);
                             result.analysis_context_unavailable = Some(miss.clone());
                             result
                         }
@@ -8223,7 +8225,7 @@ fn unindexed_open_documents(
 }
 
 /// Workspace command-header read horizon returned by the actual diagnostic
-/// producers. NoRead says only that those producers made no command-header
+/// producers. `NoRead` says only that those producers made no command-header
 /// query; it says nothing about executable bodies or runtime command absence.
 #[derive(Clone, Copy, Debug, Default)]
 enum WorkspaceCommandQueries {
@@ -8762,7 +8764,9 @@ async fn publish_diagnostics_result_with_sources(
         }
         if let Some(document) = docs.get_mut(delivery.uri) {
             // Missing/unavailable producers withdraw any older bounded roster.
-            document.orphan_command_dependencies = command_dependencies.clone();
+            document
+                .orphan_command_dependencies
+                .clone_from(&command_dependencies);
         }
         index.retag("publish_diagnostics_result: replace_document");
         // A buffer whose backing file has been deleted (an out-of-band rename /
@@ -9571,7 +9575,7 @@ pub struct Backend {
     /// Per-URI salsa `SourceFile` input handles — the input-of-record the
     /// query graph reads.  Kept current by `did_open` / `did_change`.
     db_files: Arc<TrackedMutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
-    /// Original provider receipt paired with the actual published SourceFile.
+    /// Original provider receipt paired with the actual published `SourceFile`.
     source_path_admissions: Arc<PublishedSourcePaths>,
     /// Retired `SourceFile` handles, keyed by the URI they belonged to.
     ///
@@ -10968,7 +10972,7 @@ impl Backend {
         Self {
             client,
             diagnostic_publisher,
-            document_transforms: std::sync::Mutex::new(Default::default()),
+            document_transforms: std::sync::Mutex::new(TransformLedger::default()),
             documents: Arc::new(DocumentStore::default()),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new(DEFAULT_SESSION_DIALECT.to_owned()),
@@ -10987,7 +10991,7 @@ impl Backend {
             diagnostics_exclude: Mutex::new(Vec::new()),
             policy_layers: Mutex::new(PolicyLayers::default()),
             workspace_index: Arc::new(TrackedRwLock::new("workspace_index", new_workspace_index())),
-            original_declaration_registry: Mutex::new(Default::default()),
+            original_declaration_registry: Mutex::new(OriginalDeclarationRegistry::default()),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             recovery_names: Arc::new(Mutex::new(RecoveryNameCache::default())),
             workspace_scan_gate: tokio::sync::Mutex::new(()),
@@ -11006,7 +11010,7 @@ impl Backend {
             workspace_trust: Mutex::new(tcl_dialect::model::WorkspaceTrust::default()),
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(None)),
-            studio_sources: Mutex::new(Default::default()),
+            studio_sources: Mutex::new(StudioSources::default()),
             spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             pack_source_extensions: Arc::new(Mutex::new(Vec::new())),
@@ -11221,7 +11225,7 @@ impl Backend {
         let mut members = self.db_project_members.lock().await;
         let member_added = members.insert(uri.clone());
         drop(tombstones);
-        Ok(if membership_changed || member_added {
+        let _: () = if membership_changed || member_added {
             // Membership changed — re-set the `Project` file set. A text-only
             // edit leaves it untouched (and does not backdate its aggregates).
             let mut project = self.db_project.lock().await;
@@ -11235,7 +11239,8 @@ impl Backend {
                 global_config,
                 &folder_configs,
             );
-        })
+        };
+        Ok(())
     }
 
     /// Invalidate every tracked analysis after a sidecar-stub change. A source
@@ -11439,10 +11444,10 @@ impl Backend {
             tombstones,
             project_members,
             project,
-            global_config,
-            folder_configs,
             index,
             seeds,
+            global_config,
+            folder_configs,
         })
     }
 
@@ -11931,20 +11936,19 @@ impl Backend {
             .iter()
             .map(|uri| DocumentPathAdmission::capture(uri, self.store.as_ref()).map(Arc::new))
             .collect::<DocumentSourceResult<Vec<_>>>()?;
-        Ok(self
-            .publish_admitted_disk_results_while_rehoming_locked(
-                _disk_publication,
-                rehoming_guard,
-                replacements,
-                &admissions,
-                removals,
-                &removal_admissions,
-                None,
-                None,
-                removal_policy,
-                site,
-            )
-            .await?)
+        self.publish_admitted_disk_results_while_rehoming_locked(
+            _disk_publication,
+            rehoming_guard,
+            replacements,
+            &admissions,
+            removals,
+            &removal_admissions,
+            None,
+            None,
+            removal_policy,
+            site,
+        )
+        .await
     }
 
     async fn publish_admitted_disk_results_while_rehoming_locked<'a>(
@@ -12227,9 +12231,10 @@ impl Backend {
         if !doc.matches_open_publication(text, dialect, version) {
             return Ok(false);
         }
-        let admission = doc.path_admission.clone().map(Ok).unwrap_or_else(|| {
-            DocumentPathAdmission::capture(uri, self.store.as_ref()).map(Arc::new)
-        })?;
+        let admission = doc.path_admission.clone().map_or_else(
+            || DocumentPathAdmission::capture(uri, self.store.as_ref()).map(Arc::new),
+            Ok,
+        )?;
         admission.check_uri(uri)?;
         DocumentPathAdmission::with_current(&[admission.as_ref()], self.store.as_ref(), || {
             doc.publication = DocumentPublication::Salsa;
@@ -12397,9 +12402,8 @@ impl Backend {
         let seed = self
             .fresh_analysis_seed(uri, Arc::clone(text), dialect.to_owned())
             .await?;
-        Ok(self
-            .publish_live_index_if_current(uri, text, dialect, revision, seed)
-            .await?)
+        self.publish_live_index_if_current(uri, text, dialect, revision, seed)
+            .await
     }
 
     /// Publish an edited source and, when it superseded a missing cold-open
@@ -12418,9 +12422,8 @@ impl Backend {
         {
             return Ok(false);
         }
-        Ok(self
-            .restore_missing_live_index(uri, text, dialect, revision, index_needs_seed)
-            .await?)
+        self.restore_missing_live_index(uri, text, dialect, revision, index_needs_seed)
+            .await
     }
 
     /// Publish one already-visible editor buffer to Salsa and then seed its
@@ -12453,15 +12456,14 @@ impl Backend {
         dialect: &str,
         version: i32,
     ) -> DocumentSourceResult<bool> {
-        Ok(self
-            .commit_open_document_with_seed(
-                uri,
-                text,
-                dialect,
-                version,
-                self.fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned()),
-            )
-            .await?)
+        self.commit_open_document_with_seed(
+            uri,
+            text,
+            dialect,
+            version,
+            self.fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned()),
+        )
+        .await
     }
 
     /// Commit the source tier, release its serialisation gate, then await the
@@ -12588,9 +12590,8 @@ impl Backend {
         // released, so a newer edit can publish and make this seed obsolete.
         // The diagnostics worker may later replace it with its refined view.
         let seed = seed.await?;
-        Ok(self
-            .publish_open_index_if_current(uri, text, dialect, version, seed)
-            .await?)
+        self.publish_open_index_if_current(uri, text, dialect, version, seed)
+            .await
     }
 
     /// Publish the Salsa source for one already-visible live revision.
@@ -12838,9 +12839,9 @@ impl Backend {
             let seed = self
                 .fresh_analysis_seed(uri, Arc::clone(&text), dialect.to_owned())
                 .await?;
-            return Ok(self
+            return self
                 .publish_live_index_if_current(uri, &text, dialect, revision, seed)
-                .await?);
+                .await;
         }
     }
 
@@ -13212,12 +13213,12 @@ impl Backend {
                     self.store.as_ref(),
                     || {
                         doc.resolved_dialect_generation = generation;
-                        if new_dialect != old_dialect {
+                        if new_dialect == old_dialect {
+                            None
+                        } else {
                             doc.dialect.clone_from(&new_dialect);
                             doc.bump_analysis_generation();
                             Some((doc.text.clone(), doc.revision))
-                        } else {
-                            None
                         }
                     },
                 )?
@@ -13295,10 +13296,11 @@ impl Backend {
             })?;
             docs.keys().cloned().collect::<Vec<Uri>>()
         };
-        Ok(for uri in uris {
+        let _: () = for uri in uris {
             self.resolve_dirty_open_document_dialect(&uri, "reresolve_open_document_dialects")
                 .await?;
-        })
+        };
+        Ok(())
     }
 
     /// Mirror the editor analyser config (disabled diagnostics + non-ASCII
@@ -14750,27 +14752,23 @@ impl Backend {
         &self,
         item: core_call_hierarchy::CallHierarchyItem,
     ) -> DocumentSourceResult<Option<CallHierarchyItem>> {
-        let identity = match item.identity.as_ref() {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        let Some(identity) = item.identity.as_ref() else {
+            return Ok(None);
         };
-        let uri = match identity.uri().parse::<Uri>().ok() {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        let Some(uri) = identity.uri().parse::<Uri>().ok() else {
+            return Ok(None);
         };
-        let doc = match self.read_document(&uri).await? {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        let Some(doc) = self.read_document(&uri).await? else {
+            return Ok(None);
         };
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect)
             .await?;
-        let data = match self
+        let Some(data) = self
             .retain_original_declaration_data(&uri, &doc.text, &analysis, Some(identity))
             .await
-        {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        else {
+            return Ok(None);
         };
         let kind = match identity.role() {
             tcl_lsp_core::original_declaration::OriginalDeclarationRole::Class => SymbolKind::CLASS,
@@ -14885,9 +14883,8 @@ impl Backend {
     ) -> DocumentSourceResult<Option<tcl_lsp_core::original_declaration::OriginalDeclarationIdentity>>
     {
         let inputs_epoch = self.diag_inputs_epoch();
-        let config = match analysis.body_lexer_config {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        let Some(config) = analysis.body_lexer_config else {
+            return Ok(None);
         };
         if !analysis
             .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)
@@ -14908,9 +14905,8 @@ impl Backend {
             return Ok(None);
         }
         let documents = self.original_declaration_documents(uri).await?;
-        let selected = match documents.iter().find(|(owner, _, _)| owner == uri.as_str()) {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        let Some(selected) = documents.iter().find(|(owner, _, _)| owner == uri.as_str()) else {
+            return Ok(None);
         };
         if selected.1.as_ref() != source || selected.2.body_lexer_config != Some(config) {
             return Ok(None);
@@ -14934,14 +14930,13 @@ impl Backend {
             Some(&workspace),
         )
         .into_iter();
-        let identity = match (match selected.next() {
+        let Some(identity) = (match selected.next() {
             Some(__source_value) => __source_value,
             None => return Ok(None),
         })
         .identity
-        {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        else {
+            return Ok(None);
         };
         Ok(
             (selected.next().is_none() && self.diag_inputs_epoch() == inputs_epoch)
@@ -15371,11 +15366,12 @@ impl Backend {
         // Clear the Problems / File-Explorer badge of any removed-folder file
         // that still carried one — it is no longer part of the workspace,
         // so a retained closed-file badge would be stale.
-        Ok(for uri in &removed_urls {
+        let _: () = for uri in &removed_urls {
             if self.pull_diag_cache.lock().await.contains_key(uri) {
                 self.clear_closed_diagnostics(uri).await;
             }
-        })
+        };
+        Ok(())
     }
 
     /// Read `uri` from disk, resolve its dialect and run a full uncached
@@ -15579,7 +15575,7 @@ impl Backend {
             driver,
         )
         .await;
-        Ok(match scanned {
+        let _: () = match scanned {
             DiskScanOutcome::Unavailable(error) => return Err(error),
             DiskScanOutcome::Available(scanned) => {
                 let rows = self.current_scanned_rows(vec![scanned]).await?;
@@ -15606,7 +15602,8 @@ impl Backend {
                 )
                 .await?;
             }
-        })
+        };
+        Ok(())
     }
 
     /// Compute and publish a **closed** workspace file's diagnostics from its
@@ -16155,9 +16152,8 @@ impl Backend {
             .with_analysis(&analysis)
             .with_open_documents(&open)
             .with_plugins(&plugins);
-        let call = match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        let Some(call) = core_ilx::method_call_at(document, ctx, pos.line, pos.character) else {
+            return Ok(None);
         };
         let target = core_ilx::definition(document, ctx, &call);
         Ok(Some((call, target)))
@@ -16235,15 +16231,15 @@ impl Backend {
             plugins: &plugins,
         };
         let found = if js_end {
-            let registration = match core_ilx::registration_at(document, pos.line, pos.character) {
-                Some(__source_value) => __source_value,
-                None => return Ok(None),
+            let Some(registration) = core_ilx::registration_at(document, pos.line, pos.character)
+            else {
+                return Ok(None);
             };
             core_ilx::references_from_registration(document, ctx, &registration)
         } else {
-            let call = match core_ilx::method_call_at(document, ctx, pos.line, pos.character) {
-                Some(__source_value) => __source_value,
-                None => return Ok(None),
+            let Some(call) = core_ilx::method_call_at(document, ctx, pos.line, pos.character)
+            else {
+                return Ok(None);
             };
             core_ilx::references(document, ctx, &call)
         };
@@ -16348,9 +16344,8 @@ impl Backend {
             None => return Ok(None),
         })
         .into_owned();
-        let (_, target) = match self.ilx_method_at(uri, doc, &path, pos).await? {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        let Some((_, target)) = self.ilx_method_at(uri, doc, &path, pos).await? else {
+            return Ok(None);
         };
         Ok(Some(match target {
             core_ilx::IlxTarget::Resolved(location) => {
@@ -16461,11 +16456,9 @@ impl Backend {
         // extends the same namespace, so a local block does not make a
         // sibling document's block any less of a definition.
         if let Some(symbol) = Self::original_namespace_symbol(&doc.text, &analysis, pos) {
-            if analysis
-                .resolved_input
-                .as_ref()
-                .is_some_and(|input| input.has_logical_source_name_context())
-            {
+            if analysis.resolved_input.as_ref().is_some_and(
+                tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+            ) {
                 return Ok(self
                     .logical_namespace_locations_for_snapshot(
                         (uri.clone(), doc.clone(), source_generation),
@@ -16562,22 +16555,18 @@ impl Backend {
         {
             return Ok(Vec::new());
         }
-        if analysis
-            .resolved_input
-            .as_ref()
-            .is_some_and(|input| input.has_logical_source_name_context())
+        if analysis.resolved_input.as_ref().is_some_and(
+            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+        ) && let Some(locations) = self
+            .logical_class_member_locations_for_snapshot(
+                (uri.clone(), doc.clone(), source_generation),
+                &analysis,
+                pos,
+                source_epoch,
+            )
+            .await?
         {
-            if let Some(locations) = self
-                .logical_class_member_locations_for_snapshot(
-                    (uri.clone(), doc.clone(), source_generation),
-                    &analysis,
-                    pos,
-                    source_epoch,
-                )
-                .await?
-            {
-                return Ok(locations);
-            }
+            return Ok(locations);
         }
         // Cross-file TclOO method definition: a `$obj method` / `my method`
         // call (or a method-name cursor in a class body) whose defining class
@@ -16591,8 +16580,7 @@ impl Backend {
             .resolved_input
             .as_ref()
             .is_some_and(|input| tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::for_environment(&input.borrowed_context_registry().context().environment.id).is_some_and(tcl_dialect::model::bigip_execution_context::BigIpExecutionContext::is_appliance_hosted))
-        {
-            if let Some((class_q, method, is_classmethod, access)) = self
+            && let Some((class_q, method, is_classmethod, access)) = self
                 .resolve_method_target(
                     uri,
                     &doc.text,
@@ -16609,17 +16597,14 @@ impl Backend {
                     return Ok(method_defs);
                 }
             }
-        }
         // Cross-file namespace variable: `$::NS::var` whose declaring
         // `namespace eval NS { variable var }` is in another document.
         // Not gated on `on_command_head` — a `$var`
         // site never is one — and safe without that gate because the cell is
         // named exactly, not matched by simple name.
-        let cross_var = if analysis
-            .resolved_input
-            .as_ref()
-            .is_some_and(|input| input.has_logical_source_name_context())
-        {
+        let cross_var = if analysis.resolved_input.as_ref().is_some_and(
+            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+        ) {
             self.logical_variable_locations_for_snapshot(
                 (uri.clone(), doc.clone(), source_generation),
                 &analysis,
@@ -16650,11 +16635,9 @@ impl Backend {
                 )
                 .await?);
         }
-        if analysis
-            .resolved_input
-            .as_ref()
-            .is_some_and(|input| input.has_logical_source_name_context())
-        {
+        if analysis.resolved_input.as_ref().is_some_and(
+            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+        ) {
             return Ok(self
                 .logical_definition_locations_for_snapshot(
                     (uri.clone(), doc.clone(), source_generation),
@@ -17113,11 +17096,11 @@ impl Backend {
         analysis: &AnalysisResult,
         symbol: &core_namespace_symbol::OriginalNamespaceSymbol,
     ) -> DocumentSourceResult<Option<CoreHover>> {
-        let context =
-            match core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis) {
-                Some(__source_value) => __source_value,
-                None => return Ok(None),
-            };
+        let Some(context) =
+            core_workspace_index::WorkspaceDiagnosticSourceContext::for_analysis(analysis)
+        else {
+            return Ok(None);
+        };
         let capture = |owner: &str,
                        context: &core_workspace_index::WorkspaceDiagnosticSourceContext,
                        row: &tcl_compiler::analyser::types::NamespaceRef| {
@@ -17165,15 +17148,14 @@ impl Backend {
             documents.insert(target.uri().to_owned());
         }
         facts.documents = documents.len();
-        let label = match symbol.source_word(
+        let Some(label) = symbol.source_word(
             tcl_lexer::SourceChannel::Document,
             match analysis.body_lexer_config {
                 Some(__source_value) => __source_value,
                 None => return Ok(None),
             },
-        ) {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        ) else {
+            return Ok(None);
         };
         Ok(
             core_namespace_symbol::namespace_hover_markdown(&label, facts).map(|value| CoreHover {
@@ -17267,7 +17249,7 @@ impl Backend {
             }
         }
         dedup_span_targets(&mut targets);
-        Ok(self.resolve_target_locations(targets).await?)
+        self.resolve_target_locations(targets).await
     }
 
     /// Hover for the namespace `cell`, counted over the local document **and**
@@ -17372,7 +17354,7 @@ impl Backend {
         }
         drop(rehoming_guard);
         dedup_span_targets(&mut targets);
-        Ok(self.resolve_target_locations(targets).await?)
+        self.resolve_target_locations(targets).await
     }
 
     /// Cross-document go-to-definition for a namespace variable: the
@@ -17409,7 +17391,7 @@ impl Backend {
                     .collect()
             };
             drop(rehoming_guard);
-            return Ok(self.resolve_original_indexed_locations(targets).await?);
+            return self.resolve_original_indexed_locations(targets).await;
         }
         let Some(cell) = Self::qualified_variable_cell(
             source,
@@ -17431,7 +17413,7 @@ impl Backend {
                 .collect()
         };
         drop(rehoming_guard);
-        Ok(self.resolve_target_locations(targets).await?)
+        self.resolve_target_locations(targets).await
     }
 
     /// Autoload-tier go-to-definition: resolve a command head that the
@@ -17622,7 +17604,7 @@ impl Backend {
             let resolver = self.package_resolver.read().await;
             resolver.resolve_auto_command(word, namespace)
         };
-        Ok(self.merge_library_files(word, namespace, files).await?)
+        self.merge_library_files(word, namespace, files).await
     }
 
     async fn required_library_files(&self, uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf> {
@@ -17660,7 +17642,8 @@ impl Backend {
                 self.default_package_prefer().await
             }
         };
-        let files = {
+
+        {
             let resolver = self.package_resolver.read().await;
             let mut files: Vec<PathBuf> = Vec::new();
             for req in &analysis.package_requires {
@@ -17692,8 +17675,7 @@ impl Backend {
                 }
             }
             files
-        };
-        files
+        }
     }
 
     /// Merge `files` (library / package implementation files) into the shared
@@ -17803,7 +17785,8 @@ impl Backend {
             }
             for source in std::iter::once(caller).chain(analysed.iter().map(|(source, _)| source)) {
                 if source.open_revision.is_none() {
-                    let Some(path) = source.uri.to_file_path().map(|path| path.into_owned()) else {
+                    let Some(path) = source.uri.to_file_path().map(std::borrow::Cow::into_owned)
+                    else {
                         return false;
                     };
                     let store = Arc::clone(&self.store);
@@ -17940,13 +17923,11 @@ impl Backend {
         &self,
         identity: &tcl_lsp_core::original_declaration::OriginalDeclarationIdentity,
     ) -> DocumentSourceResult<Option<CoreHover>> {
-        let owner = match identity.uri().parse::<Uri>().ok() {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        let Some(owner) = identity.uri().parse::<Uri>().ok() else {
+            return Ok(None);
         };
-        let document = match self.read_document(&owner).await? {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        let Some(document) = self.read_document(&owner).await? else {
+            return Ok(None);
         };
         let current = self
             .analysis_for(&owner, document.text.clone(), document.dialect)
@@ -17988,14 +17969,13 @@ impl Backend {
         analysis: &AnalysisResult,
     ) -> DocumentSourceResult<Option<CoreHover>> {
         if !analysis.allows_retained_logical_declaration_advice() {
-            let identity = match self
+            let Some(identity) = self
                 .original_declaration_identity_at(uri, source, analysis, pos)
                 .await?
-            {
-                Some(__source_value) => __source_value,
-                None => return Ok(None),
+            else {
+                return Ok(None);
             };
-            return Ok(self.hover_for_original_declaration(&identity).await?);
+            return self.hover_for_original_declaration(&identity).await;
         }
         // Cross-document tier: a proc / class defined in a sibling document
         // the workspace index knows about.
@@ -18162,14 +18142,13 @@ impl Backend {
                 ),
             }));
         }
-        let cell = match Self::qualified_variable_cell(
+        let Some(cell) = Self::qualified_variable_cell(
             source,
             tcl_lsp_core::profile_for_dialect(&analysis.dialect),
             analysis,
             pos,
-        ) {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        ) else {
+            return Ok(None);
         };
         let rehoming_guard = self.rehomed_index_guard().await?;
         let target_uris: Vec<String> = {
@@ -19545,16 +19524,15 @@ impl Backend {
         pos: Position,
         include_declaration: bool,
     ) -> DocumentSourceResult<Vec<Location>> {
-        Ok(self
-            .gather_reference_targets(
-                uri,
-                source,
-                analysis,
-                pos,
-                include_declaration,
-                uri.as_str(),
-            )
-            .await?)
+        self.gather_reference_targets(
+            uri,
+            source,
+            analysis,
+            pos,
+            include_declaration,
+            uri.as_str(),
+        )
+        .await
     }
 
     /// Consumer-document references fallback, mirroring the autoload-tier
@@ -19576,9 +19554,8 @@ impl Backend {
         pos: Position,
         include_declaration: bool,
     ) -> DocumentSourceResult<Vec<Location>> {
-        Ok(self
-            .gather_reference_targets(uri, source, analysis, pos, include_declaration, "")
-            .await?)
+        self.gather_reference_targets(uri, source, analysis, pos, include_declaration, "")
+            .await
     }
 
     /// Shared core of [`Self::cross_document_references`] /
@@ -19639,7 +19616,7 @@ impl Backend {
             t
         };
         drop(rehoming_guard);
-        Ok(self.resolve_target_locations(targets).await?)
+        self.resolve_target_locations(targets).await
     }
 
     /// Every reference [`Location`] for the symbol at `position`: the
@@ -19665,7 +19642,7 @@ impl Backend {
         // would otherwise route the query to `workspace_resolved_references`,
         // the proc/class tier.
         if let Some(symbol) = Self::original_namespace_symbol(&doc.text, analysis, position) {
-            return Ok(self
+            return self
                 .original_namespace_locations(
                     uri,
                     &doc.text,
@@ -19674,15 +19651,15 @@ impl Backend {
                     include_declaration,
                     false,
                 )
-                .await?);
+                .await;
         }
         if Self::original_namespace_cursor_retained(&doc.text, analysis, position) {
             return Ok(Vec::new());
         }
         if let Some(cell) = Self::namespace_cell(&doc.text, analysis, position) {
-            return Ok(self
+            return self
                 .namespace_reference_locations(uri, analysis, &cell, include_declaration)
-                .await?);
+                .await;
         }
         if let std::ops::ControlFlow::Break(locations) = self
             .readonly_original_method_reference_locations_at(
@@ -19881,7 +19858,7 @@ impl Backend {
                     .collect()
             };
             drop(rehoming_guard);
-            return Ok(self.resolve_original_indexed_locations(targets).await?);
+            return self.resolve_original_indexed_locations(targets).await;
         }
         let Some(cell) = Self::qualified_variable_cell(
             source,
@@ -19913,7 +19890,7 @@ impl Backend {
             t
         };
         drop(rehoming_guard);
-        Ok(self.resolve_target_locations(targets).await?)
+        self.resolve_target_locations(targets).await
     }
 
     /// Analyse current source with workspace class hints and its complete
@@ -20529,12 +20506,11 @@ impl Backend {
         {
             return Ok(None);
         }
-        let (seed_class, method, is_classmethod) = match self
+        let Some((seed_class, method, is_classmethod)) = self
             .resolve_method_rename_target(uri, doc, analysis, pos)
             .await?
-        {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        else {
+            return Ok(None);
         };
         let changes = self
             .cross_file_method_rename(uri, doc, &seed_class, &method, new_name, is_classmethod)
@@ -20947,12 +20923,11 @@ impl Backend {
         pos: Position,
         new_name: &str,
     ) -> DocumentSourceResult<Option<core_rename_safety::RenameRefusal>> {
-        let (seed_class, method, is_classmethod) = match self
+        let Some((seed_class, method, is_classmethod)) = self
             .resolve_method_rename_target(uri, doc, analysis, pos)
             .await?
-        {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        else {
+            return Ok(None);
         };
         let plan = self
             .consumer_scan_plan(
@@ -21463,9 +21438,7 @@ impl Backend {
                     a.get(method).or_else(|| b.get(method))
                 }
             {
-                return Ok(self
-                    .resolve_target_locations(vec![(u, m.name_span)])
-                    .await?);
+                return self.resolve_target_locations(vec![(u, m.name_span)]).await;
             }
         }
         Ok(Vec::new())
@@ -21512,7 +21485,7 @@ impl Backend {
         ) {
             return Ok(None);
         }
-        let (class_q, method, is_classmethod, access) = match self
+        let Some((class_q, method, is_classmethod, access)) = self
             .resolve_method_target(
                 uri,
                 &doc.text,
@@ -21521,9 +21494,8 @@ impl Backend {
                 pos,
             )
             .await?
-        {
-            Some(__source_value) => __source_value,
-            None => return Ok(None),
+        else {
+            return Ok(None);
         };
         let chain: Vec<(String, String)> = {
             let index = self.workspace_index.read().await;
@@ -22064,7 +22036,7 @@ impl Backend {
             return Ok(false);
         }
         if !local_rejected {
-            return Ok(self
+            return self
                 .add_cross_document_rename_edits(
                     ctx.uri,
                     ctx.source,
@@ -22073,7 +22045,7 @@ impl Backend {
                     ctx.new_name,
                     changes,
                 )
-                .await?);
+                .await;
         }
         self.add_workspace_resolved_rename_edits(
             ctx.uri,
@@ -22096,7 +22068,7 @@ impl Backend {
         intents: Vec<core_rename::WorkspaceTextEdit>,
         changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
     ) -> DocumentSourceResult<()> {
-        Ok(for intent in intents {
+        let _: () = for intent in intents {
             let Ok(parsed) = Uri::from_str(&intent.uri) else {
                 continue;
             };
@@ -22123,7 +22095,8 @@ impl Backend {
             if !bucket.iter().any(|e| e.range == edit.range) {
                 bucket.push(edit);
             }
-        })
+        };
+        Ok(())
     }
 
     /// Conditional incoming source calls in sibling documents. The actual
@@ -24346,7 +24319,7 @@ impl Backend {
             let _analyser_inputs_guard = self.analyser_inputs_gate.write().await;
             let mut default_dialect = self.default_dialect.lock().await;
             if *default_dialect != dialect {
-                *default_dialect = dialect.to_owned();
+                dialect.clone_into(&mut default_dialect);
                 self.invalidate_diag_inputs();
             }
             *self.default_dialect_explicit.lock().await = true;
@@ -24670,12 +24643,12 @@ impl Backend {
             }))
         })
         .await;
-        if let Some(bound) = &bound {
-            if !self.explorer_document_input_is_current(bound).await {
-                return Ok(Some(serde_json::json!({
-                    "error": "compiler explorer source document changed during analysis",
-                })));
-            }
+        if let Some(bound) = &bound
+            && !self.explorer_document_input_is_current(bound).await
+        {
+            return Ok(Some(serde_json::json!({
+                "error": "compiler explorer source document changed during analysis",
+            })));
         }
         match value {
             Ok(Ok(v)) => Ok(Some(v)),
@@ -24756,12 +24729,12 @@ impl Backend {
             }))
         })
         .await;
-        if let Some(bound) = &bound {
-            if !self.explorer_document_input_is_current(bound).await {
-                return Ok(Some(serde_json::json!({
-                    "error": "compiler explorer source document changed during analysis",
-                })));
-            }
+        if let Some(bound) = &bound
+            && !self.explorer_document_input_is_current(bound).await
+        {
+            return Ok(Some(serde_json::json!({
+                "error": "compiler explorer source document changed during analysis",
+            })));
         }
         match value {
             Ok(Ok(v)) => Ok(Some(v)),
@@ -24899,7 +24872,7 @@ impl Backend {
         // global `config.ini` and that folder's `.tcl-lsp.ini`, and store it for
         // longest-prefix resolution at read time.  A single-root / no-folder
         // session skips this — the global pull above is the whole story.
-        Ok(if !folders.is_empty() {
+        let _: () = if !folders.is_empty() {
             let primary_folder = folders.first().cloned();
             let items: Vec<ConfigurationItem> = folders
                 .iter()
@@ -24952,7 +24925,8 @@ impl Backend {
                 )
                 .await;
             }
-        })
+        };
+        Ok(())
     }
 
     /// Adopt `layers` as the session's configuration: the diagnostic policy
@@ -25156,9 +25130,10 @@ impl Backend {
         self.invalidate_diag_inputs();
         drop(analyser_inputs_guard);
         self.warn_configured_dialect(dialect_warning).await;
-        Ok(if rescan_workspace {
+        let _: () = if rescan_workspace {
             self.scan_workspace_folders().await?;
-        })
+        };
+        Ok(())
     }
 
     /// `tclLsp.libraryPaths` — the editor layer of the package database's
@@ -26441,14 +26416,14 @@ impl Backend {
             let published = self.spec_packs.lock().await;
             (published.seq, Arc::clone(&published.packs))
         };
-        let registry = if !pack_set.is_empty() {
-            tcl_spectcl::install::registry_for_dialect_with_packs(dialect.name, &pack_set)
-        } else {
+        let registry = if pack_set.is_empty() {
             Arc::clone(
                 tcl_lsp_core::environment_for_dialect(dialect.name)
                     .default_context_registry()
                     .commands(),
             )
+        } else {
+            tcl_spectcl::install::registry_for_dialect_with_packs(dialect.name, &pack_set)
         };
         let xc_diagnostics = self.xc_diagnostics_enabled(uri).await;
         let cross_file_resolution = self.cross_file_resolution_enabled(uri).await;
@@ -26881,9 +26856,9 @@ impl Backend {
         let registry = self.registry_for_dialect(&dialect).await;
         Ok(self.diagnostic_publisher.with_pack_notices(
             PackNoticeContext {
-                uri: uri,
+                uri,
                 source: &text,
-                pack_seq: pack_seq,
+                pack_seq,
                 packs: &pack_set,
                 registry: &registry,
                 store: self.store.as_ref(),
@@ -27800,7 +27775,7 @@ impl Backend {
         )
         .await?;
 
-        Ok(if changed {
+        let _: () = if changed {
             let commands: usize = packs.packs.iter().map(|p| p.commands.len()).sum();
             let environments = registration.map_or_else(String::new, |r| {
                 format!(
@@ -27823,7 +27798,8 @@ impl Backend {
                     ),
                 )
                 .await;
-        })
+        };
+        Ok(())
     }
 
     /// A [`tcl_spectcl::PackNotice`] on each pack file whose environments
@@ -28318,14 +28294,13 @@ impl Backend {
                 }
                 (PackNoticeSourceOwner::Studio(admission), source)
             };
-            if let Some(subject) = &notice.subject {
-                if !subject
+            if let Some(subject) = &notice.subject
+                && !subject
                     .image()
                     .try_text()
                     .is_ok_and(|image| image == source.as_ref())
-                {
-                    continue;
-                }
+            {
+                continue;
             }
             let notice_data = if let Some(subject) = &notice.subject {
                 if let Ok(source) = subject.image().try_text() {
@@ -29482,7 +29457,8 @@ impl Backend {
             let store = Arc::clone(&self.store);
             tasks.spawn(async move {
                 let _permit = permit;
-                let outcome = crate::rt::spawn_blocking(move || {
+
+                crate::rt::spawn_blocking(move || {
                     if open.contains(&uri) {
                         return WorkspaceScanCandidate::Open;
                     }
@@ -29564,8 +29540,7 @@ impl Backend {
                             cause: error.to_string(),
                         },
                     ))
-                });
-                outcome
+                })
             });
         }
         let mut files_count = 0usize;
@@ -29579,8 +29554,8 @@ impl Backend {
                 ))
             });
             match item {
-                WorkspaceScanCandidate::Open => continue,
-                WorkspaceScanCandidate::Scanned(DiskScanOutcome::Absent(_)) => continue,
+                WorkspaceScanCandidate::Open
+                | WorkspaceScanCandidate::Scanned(DiskScanOutcome::Absent(_)) => continue,
                 WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(_error)) => {
                     coverage_complete = false;
                     continue;
@@ -29591,7 +29566,7 @@ impl Backend {
                         // performed no declaration walk certify absence.
                         coverage_complete = false;
                     }
-                    batch.push(item)
+                    batch.push(item);
                 }
             }
             if batch.len() >= SCAN_MERGE_BATCH_SIZE {
@@ -30556,7 +30531,7 @@ impl LanguageServer for Backend {
                     .await;
                 return;
             }
-        };
+        }
         // Ask the client to watch Tcl source files so external edits
         // (`git checkout`, generated files, deletions) reach
         // `did_change_watched_files` and refresh the cross-document index.
@@ -30591,7 +30566,7 @@ impl LanguageServer for Backend {
                     .await;
                 return;
             }
-        };
+        }
         // `initialized` fires concurrently with any `textDocument/didOpen` the
         // client already queued for its restored tabs (`buffer_unordered`, see
         // `edit_serialize`'s doc comment) — a document's first debounced
@@ -30837,15 +30812,15 @@ impl LanguageServer for Backend {
             let Some(entry) = docs.get_mut(&uri) else {
                 return;
             };
-            if let Some(retained) = &entry.path_admission {
-                if let Err(error) = retained.check_for(&uri, self.store.as_ref()) {
-                    drop(docs);
-                    drop(turn);
-                    self.client
-                        .log_message(MessageType::WARNING, error.to_string())
-                        .await;
-                    return;
-                }
+            if let Some(retained) = &entry.path_admission
+                && let Err(error) = retained.check_for(&uri, self.store.as_ref())
+            {
+                drop(docs);
+                drop(turn);
+                self.client
+                    .log_message(MessageType::WARNING, error.to_string())
+                    .await;
+                return;
             }
             let retained = entry
                 .path_admission
@@ -30968,9 +30943,8 @@ impl LanguageServer for Backend {
                     self.client
                         .log_message(MessageType::WARNING, error.to_string())
                         .await;
-                    return;
                 }
-            };
+            }
         }
     }
 
@@ -31073,9 +31047,8 @@ impl LanguageServer for Backend {
                 self.client
                     .log_message(MessageType::WARNING, error.to_string())
                     .await;
-                return;
             }
-        };
+        }
     }
 
     async fn did_close(&self, params: DidCloseTextDocumentParams) {
@@ -31172,7 +31145,7 @@ impl LanguageServer for Backend {
                     .await;
                 return;
             }
-        };
+        }
         // Keep the file's Problems / File-Explorer badge after its editor tab
         // closes.  An unconditional empty publish would make a
         // closed-but-on-disk workspace file lose its diagnostics until it was
@@ -31245,7 +31218,7 @@ impl LanguageServer for Backend {
                         .await;
                     return;
                 }
-            };
+            }
         }
         // Pick up files under any newly-added folder.  `scan_workspace_folders`
         // walks the *current* folder list and skips open documents, so it is
@@ -31259,7 +31232,7 @@ impl LanguageServer for Backend {
                         .await;
                     return;
                 }
-            };
+            }
         }
         // A folder add/remove shifts the salsa `Project`, `workspace_index` and
         // `package_resolver` (the cross-file resolution domain *and* the
@@ -31282,9 +31255,8 @@ impl LanguageServer for Backend {
                 self.client
                     .log_message(MessageType::WARNING, error.to_string())
                     .await;
-                return;
             }
-        };
+        }
     }
 
     async fn did_change_watched_files(&self, params: DidChangeWatchedFilesParams) {
@@ -31482,7 +31454,7 @@ impl LanguageServer for Backend {
                     .await;
                 return;
             }
-        };
+        }
         // An open buffer whose path was previously orphaned remains the source
         // of truth when that path reappears. Restore both its live Salsa input
         // and standalone index view; a racing edit/close/delete wins through
@@ -31535,7 +31507,7 @@ impl LanguageServer for Backend {
                         .await;
                     return;
                 }
-            };
+            }
             match self.scan_workspace_folders().await {
                 Ok(value) => value,
                 Err(error) => {
@@ -31544,7 +31516,7 @@ impl LanguageServer for Backend {
                         .await;
                     return;
                 }
-            };
+            }
             // `tclLsp.specPacks` is part of what was just re-applied, so the
             // pack set may point somewhere else now.
             match self.reload_spec_packs(ReloadTrigger::Config).await {
@@ -32209,11 +32181,9 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await?;
-        if analysis
-            .resolved_input
-            .as_ref()
-            .is_some_and(|input| input.has_logical_source_name_context())
-            && Self::original_namespace_symbol(&doc.text, &analysis, pos).is_some()
+        if analysis.resolved_input.as_ref().is_some_and(
+            tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+        ) && Self::original_namespace_symbol(&doc.text, &analysis, pos).is_some()
         {
             let locations = self
                 .logical_namespace_locations_for_snapshot(
@@ -33703,23 +33673,20 @@ impl LanguageServer for Backend {
             return Ok(None);
         }
         core_code_actions::retarget_newlines(&mut actions, &line_ending);
-        let lifted = match &source {
-            Some(source) => {
-                let Some(lifted) = self
-                    .finish_code_action_response(source, actions, params.context.only.as_ref())
-                    .await?
-                else {
-                    return Ok(None);
-                };
-                lifted
+        let lifted = if let Some(source) = &source {
+            let Some(lifted) = self
+                .finish_code_action_response(source, actions, params.context.only.as_ref())
+                .await?
+            else {
+                return Ok(None);
+            };
+            lifted
+        } else {
+            let mut lifted = lift_code_actions(actions, &uri, params.context.only.as_ref());
+            for action in &mut lifted {
+                attach_source_action_data(action, serde_json::json!({"kind": "legacy-bigip"}));
             }
-            None => {
-                let mut lifted = lift_code_actions(actions, &uri, params.context.only.as_ref());
-                for action in &mut lifted {
-                    attach_source_action_data(action, serde_json::json!({"kind": "legacy-bigip"}));
-                }
-                lifted
-            }
+            lifted
         };
         if lifted.is_empty() {
             return Ok(None);
@@ -37249,11 +37216,10 @@ fn refine_original_w123_diagnostics(
     let commands = resolver.requirement_advice_defined_commands(
         &closure.into_iter().collect::<Vec<_>>(),
         target,
-        &|path| match sources.inventory(path, target, resolver) {
-            Ok(inventory) => {
+        &|path| {
+            if let Ok(inventory) = sources.inventory(path, target, resolver) {
                 defined_original_commands_from_analysis(&inventory.text, &inventory.analysis)
-            }
-            Err(_) => {
+            } else {
                 incomplete.set(true);
                 Vec::new()
             }
@@ -37433,7 +37399,7 @@ fn settle_cross_file_calls(
                     candidate
                         .procedure_declaration()?
                         .formal_count_projection()
-                        .map(|projection| projection.arity())
+                        .map(tcl_compiler::signature_scan::formal_count::SourceFormalCountProjection::arity)
                 })
                 .collect::<Option<Vec<_>>>();
             if let Some(ranges) = ranges {
@@ -37916,7 +37882,12 @@ impl ConstructedFileUri {
 
 fn constructed_file_uri(path: &Path) -> Option<ConstructedFileUri> {
     // Preserve the original absolute/no-existence and relative/canonicalise policy.
-    let selected = if path.is_absolute() {
+    // A browser worker (wasm32-unknown-unknown) has neither `Path::is_absolute`
+    // for a rooted path nor a filesystem to canonicalise against; its store's
+    // virtual paths are rooted, so a rooted path is the absolute spelling there.
+    let rooted_without_os =
+        cfg!(all(target_family = "wasm", target_os = "unknown")) && path.has_root();
+    let selected = if path.is_absolute() || rooted_without_os {
         std::borrow::Cow::Borrowed(path)
     } else {
         std::borrow::Cow::Owned(std::fs::canonicalize(path).ok()?)
@@ -38438,12 +38409,9 @@ fn collect_tcl_files(
         if out.len() >= cap {
             return false;
         }
-        let entries = match store.read_dir(&dir) {
-            Ok(entries) => entries,
-            Err(_) => {
-                complete = false;
-                continue;
-            }
+        let Ok(entries) = store.read_dir(&dir) else {
+            complete = false;
+            continue;
         };
         for entry in entries {
             if entry.is_dir {
@@ -47139,7 +47107,7 @@ info exists ::N::v\uD800";
         Backend {
             client,
             diagnostic_publisher,
-            document_transforms: std::sync::Mutex::new(Default::default()),
+            document_transforms: std::sync::Mutex::new(TransformLedger::default()),
             documents: Arc::new(DocumentStore::default()),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
@@ -47158,7 +47126,7 @@ info exists ::N::v\uD800";
             diagnostics_exclude: Mutex::new(Vec::new()),
             policy_layers: Mutex::new(PolicyLayers::default()),
             workspace_index: Arc::new(TrackedRwLock::new("workspace_index", new_workspace_index())),
-            original_declaration_registry: Mutex::new(Default::default()),
+            original_declaration_registry: Mutex::new(OriginalDeclarationRegistry::default()),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             recovery_names: Arc::new(Mutex::new(RecoveryNameCache::default())),
             workspace_scan_gate: tokio::sync::Mutex::new(()),
@@ -47177,7 +47145,7 @@ info exists ::N::v\uD800";
             workspace_trust: Mutex::new(tcl_dialect::model::WorkspaceTrust::default()),
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(None)),
-            studio_sources: Mutex::new(Default::default()),
+            studio_sources: Mutex::new(StudioSources::default()),
             spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             pack_source_extensions: Arc::new(Mutex::new(Vec::new())),
@@ -66618,8 +66586,7 @@ proc p {} {
                 .await
                 .is_none()
         );
-        let forged =
-            serde_json::json!({"originalDeclaration":{"schema":1,"token":18446744073709551615u64}});
+        let forged = serde_json::json!({"originalDeclaration":{"schema":1,"token":18_446_744_073_709_551_615_u64}});
         assert!(
             backend
                 .resolve_original_declaration_data(Some(&forged), &uri, source, &analysis)
@@ -66637,8 +66604,8 @@ proc p {} {
         let lenses = backend
             .code_lens(CodeLensParams {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
-                work_done_progress_params: Default::default(),
-                partial_result_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
             })
             .await
             .unwrap()
@@ -67388,7 +67355,7 @@ mod pack_configuration_input_gate_tests {
         let merged = backend.diagnostic_publisher.with_pack_notices(
             PackNoticeContext {
                 uri: &uri,
-                source: source,
+                source,
                 pack_seq: 7,
                 packs: &packs,
                 registry: &registry,
@@ -67420,7 +67387,7 @@ mod pack_configuration_input_gate_tests {
             backend.diagnostic_publisher.with_pack_notices(
                 PackNoticeContext {
                     uri: &uri,
-                    source: source,
+                    source,
                     pack_seq: 7,
                     packs: &packs,
                     registry: &registry,
@@ -67452,7 +67419,7 @@ mod pack_configuration_input_gate_tests {
                 .with_pack_notices(
                     PackNoticeContext {
                         uri: &uri,
-                        source: source,
+                        source,
                         pack_seq: 8,
                         packs: &packs,
                         registry: &registry,
@@ -67469,7 +67436,7 @@ mod pack_configuration_input_gate_tests {
                 .with_pack_notices(
                     PackNoticeContext {
                         uri: &uri,
-                        source: source,
+                        source,
                         pack_seq: 7,
                         packs: &replacement,
                         registry: &registry,
@@ -67486,7 +67453,7 @@ mod pack_configuration_input_gate_tests {
                 .with_pack_notices(
                     PackNoticeContext {
                         uri: &uri,
-                        source: source,
+                        source,
                         pack_seq: 7,
                         packs: &packs,
                         registry: &other_registry,
@@ -67504,7 +67471,7 @@ mod pack_configuration_input_gate_tests {
                 .with_pack_notices(
                     PackNoticeContext {
                         uri: &uri,
-                        source: source,
+                        source,
                         pack_seq: 7,
                         packs: &packs,
                         registry: &registry,
@@ -67790,13 +67757,12 @@ mod original_method_final_source_batch_tests {
         assert!(
             matches!(first, std::ops::ControlFlow::Break(ref locations) if locations.len() == 1)
         );
-        let target = match backend
+        let std::ops::ControlFlow::Break(Some(target)) = backend
             .original_method_source_target(&caller, &analysis, position)
             .await
             .unwrap()
-        {
-            std::ops::ControlFlow::Break(Some(target)) => target,
-            _ => panic!("actual original Native declaration source candidate"),
+        else {
+            panic!("actual original Native declaration source candidate")
         };
         backend
             .documents

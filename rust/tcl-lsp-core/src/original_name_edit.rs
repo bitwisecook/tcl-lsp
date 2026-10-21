@@ -292,16 +292,12 @@ fn render_container_literal(
             image,
             Span::new(0, u32::try_from(candidate.len()).ok()?),
             word.config(),
-        ) {
-            if let [command] = plan.commands.as_slice() {
-                if let [selected] = command.words.as_slice() {
-                    if !selected.group().expand
-                        && literal(selected, policy).as_deref() == Some(wanted)
-                    {
-                        return Some(candidate);
-                    }
-                }
-            }
+        ) && let [command] = plan.commands.as_slice()
+            && let [selected] = command.words.as_slice()
+            && !selected.group().expand
+            && literal(selected, policy).as_deref() == Some(wanted)
+        {
+            return Some(candidate);
         }
     }
     tcl_syntax::backslash::native_literal_source_word(
@@ -363,7 +359,7 @@ pub fn original_name_input_edits(
         let rendered = render_container_literal(source, group.word, &wanted, group.policy)?;
         let marker_extent = Span::new(group.word.span().start(), group.word.word_span().start());
         let markers = source.bytes().get(marker_extent.as_range())?;
-        if group.word.group().expand != !markers.is_empty()
+        if group.word.group().expand == markers.is_empty()
             || (!markers.is_empty()
                 && (!group.word.config().expand_syntax
                     || markers.chunks(3).any(|marker| marker != b"{*}")))
@@ -641,7 +637,7 @@ mod tests {
         assert_eq!(
             values
                 .iter()
-                .map(|value| value.as_ref())
+                .map(std::convert::AsRef::as_ref)
                 .collect::<Vec<_>>(),
             [b"first".as_slice(), b"middle value", b"third"]
         );
@@ -716,8 +712,10 @@ mod original_edit_presentation_tests {
     #[test]
     fn original_edit_preserves_verified_plain_and_braced_container_presentations() {
         let policy = NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_6);
-        let mut config = tcl_lexer::LexerConfig::default();
-        config.escapes = policy.string_protocol().escape_syntax();
+        let config = tcl_lexer::LexerConfig {
+            escapes: policy.string_protocol().escape_syntax(),
+            ..tcl_lexer::LexerConfig::default()
+        };
         for (source, wanted, expected) in [
             ("list old", b"new".as_slice(), "new"),
             ("list {old keep}", b"new keep".as_slice(), "{new keep}"),

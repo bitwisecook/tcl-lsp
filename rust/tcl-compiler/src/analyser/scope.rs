@@ -1631,8 +1631,12 @@ impl Analyser {
             };
             let point = self.head_identities.invocation_at_source("", offset);
             let reference = match invocation.lookup {
-                crate::signature_scan::types::SignatureCommandLookup::ConsumedName { .. }
-                | crate::signature_scan::types::SignatureCommandLookup::PossibleConsumedName {
+                // A unanimously consumed name is looked up by this consuming
+                // command's handler, so the receipt is issued at its site.
+                crate::signature_scan::types::SignatureCommandLookup::ConsumedName { .. } => {
+                    point.command_reference(&invocation.name)
+                }
+                crate::signature_scan::types::SignatureCommandLookup::PossibleConsumedName {
                     ..
                 } => point
                     .lookup_command_word(&invocation.name)
@@ -1677,14 +1681,26 @@ impl Analyser {
                     .original_source_name_key_at_span(invocation.range, config, rules, policy)
                     .map(crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord);
             }
-            if invocation.original_lookup.is_none() && invocation.lookup.is_execution_site() {
-                invocation.original_lookup = invocation
-                    .original_name_input
-                    .as_ref()
-                    .and_then(
-                        crate::signature_scan::scope::SignatureSourceNameInput::original_word_key,
-                    )
-                    .and_then(|key| binding.original_static_command_lookup(key));
+            if invocation.original_lookup.is_none() {
+                let key = invocation.original_name_input.as_ref().and_then(
+                    crate::signature_scan::scope::SignatureSourceNameInput::original_word_key,
+                );
+                // A head is looked up at its own invocation; a unanimously
+                // consumed name operand at its consuming command, after argv.
+                invocation.original_lookup = match invocation.lookup {
+                    crate::signature_scan::types::SignatureCommandLookup::InvocationHead => {
+                        key.and_then(|key| binding.original_static_command_lookup(key))
+                    }
+                    crate::signature_scan::types::SignatureCommandLookup::ConsumedName {
+                        ..
+                    } => key.and_then(|key| binding.original_consumed_command_lookup(key)),
+                    crate::signature_scan::types::SignatureCommandLookup::PossibleConsumedName {
+                        ..
+                    }
+                    | crate::signature_scan::types::SignatureCommandLookup::DeferredReference => {
+                        None
+                    }
+                };
             }
         }
     }

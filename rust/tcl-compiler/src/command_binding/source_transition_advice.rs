@@ -79,7 +79,8 @@ pub use registered_instance::{
     OriginalSourceRegisteredInstanceWords,
 };
 pub use source_class::{
-    OriginalSourceClassDeclaration, OriginalSourceConstructorCall, OriginalSourceConstructorShape,
+    OriginalSourceClassDeclaration, OriginalSourceClassProcCall, OriginalSourceConstructorCall,
+    OriginalSourceConstructorShape,
 };
 pub use source_instance::{
     OriginalSourceClassHandleBinding, OriginalSourceClassInstance, OriginalSourceClassInstanceWords,
@@ -851,6 +852,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     class_declarations: BTreeMap<u32, Option<Arc<OriginalSourceClassDeclaration>>>,
     class_declaration_facets: BTreeMap<u32, Vec<source_class::SourceClassDeclarationFacet>>,
     constructor_calls: BTreeMap<u32, Option<OriginalSourceConstructorCall>>,
+    class_proc_calls: BTreeMap<u32, Option<source_class::OriginalSourceClassProcCall>>,
     class_references: BTreeMap<
         u32,
         Vec<(
@@ -1403,6 +1405,7 @@ impl OriginalSourceTransitionAdviceTape {
         self.interpreter_bodies.extend(other.interpreter_bodies);
         self.interpreter_paths.extend(other.interpreter_paths);
         self.extend_class_inventory(other.class_declarations, other.constructor_calls);
+        self.extend_class_proc_calls(other.class_proc_calls);
         for (_, facets) in other.class_declaration_facets {
             for facet in facets {
                 self.retain_class_declaration_facet(facet);

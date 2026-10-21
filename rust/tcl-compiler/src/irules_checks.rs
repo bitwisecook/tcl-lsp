@@ -1548,9 +1548,7 @@ fn scan_nested_collection_words(
     parent_config: tcl_lexer::LexerConfig,
     base_offset: i64,
 ) -> Option<()> {
-    let children = source.argument_calls(parent, parent_config);
-    if std::env::var_os("ZZ_SOL49").is_some() { eprintln!("ZZ nested parent={:?} children={:?}", parent.argv_texts, children.as_ref().map(|c| c.iter().map(|c| c.tokens.as_ref().map(|t| t.argv_texts.clone())).collect::<Vec<_>>())); }
-    let children = children?;
+    let children = source.argument_calls(parent, parent_config)?;
     if !source.standalone {
         state
             .source_argv
@@ -1568,9 +1566,7 @@ fn scan_nested_collection_words(
                 source.registry,
                 source.metadata(),
                 tokens,
-            );
-        if std::env::var_os("ZZ_SOL49").is_some() { eprintln!("ZZ nested child={:?} possible={:?}", tokens.argv_texts, possible.as_ref().map(|p| (p.candidates.len(), p.candidates.iter().map(|c| c.data_collection.is_some()).collect::<Vec<_>>(), p.unknown_residual, p.may_be_absent))); }
-        let possible = possible?;
+            )?;
         retain_collection_source_obligations(&possible, state);
         for (ordinal, shape) in possible.candidates.iter().enumerate() {
             if possible.candidates[..ordinal].contains(shape) {

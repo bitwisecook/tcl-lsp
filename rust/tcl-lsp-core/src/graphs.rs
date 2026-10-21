@@ -1185,8 +1185,8 @@ fn function_dataflow_json(
         .collect();
     json!({
         "name": f.function_name,
-        "bodyId": f.body_id.map(|id| id.ordinal()),
-        "bodyKey": f.body_id.map(|id| id.reporting_key()).or_else(|| f.is_top_level.then(|| format!("{}:root", module.procedure_ids.reporting_scope()))),
+        "bodyId": f.body_id.map(tcl_core_types::ProcedureId::ordinal),
+        "bodyKey": f.body_id.map(tcl_core_types::ProcedureId::reporting_key).or_else(|| f.is_top_level.then(|| format!("{}:root", module.procedure_ids.reporting_scope()))),
         "isTopLevel": f.is_top_level,
         "nodes": nodes,
         "edges": edges,
@@ -1308,10 +1308,13 @@ fn memory_function_json(
     module: &IrModule,
 ) -> Value {
     let name = &fu.name;
-    let body_id = fu.body_id.map(|id| id.ordinal());
-    let body_key = fu.body_id.map(|id| id.reporting_key()).or_else(|| {
-        is_top_level.then(|| format!("{}:root", module.procedure_ids.reporting_scope()))
-    });
+    let body_id = fu.body_id.map(tcl_core_types::ProcedureId::ordinal);
+    let body_key = fu
+        .body_id
+        .map(tcl_core_types::ProcedureId::reporting_key)
+        .or_else(|| {
+            is_top_level.then(|| format!("{}:root", module.procedure_ids.reporting_scope()))
+        });
     let Some(mem) = mem else {
         return json!({ "name": name, "bodyId": body_id, "bodyKey": body_key, "alias_sets": [], "memory_ops": 0,
             "has_wildcard_aliasing": true });

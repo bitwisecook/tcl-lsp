@@ -149,7 +149,7 @@ impl<'a> IndexLoader<'a> {
         out: &mut Vec<PathBuf>,
         depth: u32,
     ) {
-        self.collect_word_with_plan(word, None, directory, out, depth)
+        self.collect_word_with_plan(word, None, directory, out, depth);
     }
 
     /// Same explicit standalone traversal using the genuine parent's recursive
@@ -163,7 +163,7 @@ impl<'a> IndexLoader<'a> {
         out: &mut Vec<PathBuf>,
         depth: u32,
     ) {
-        self.collect_word_with_plan(word, Some(plan), directory, out, depth)
+        self.collect_word_with_plan(word, Some(plan), directory, out, depth);
     }
 
     fn collect_word_with_plan(
@@ -182,20 +182,20 @@ impl<'a> IndexLoader<'a> {
         {
             return;
         }
-        if word.group().kind != tcl_lexer::WordKind::Bare {
-            if let Some(value) = self.loader_value(word, directory) {
-                let Ok(length) = u32::try_from(value.len()) else {
-                    return;
-                };
-                self.collect_script(
-                    SourceImage::from_bytes(value, word.image().channel()),
-                    Span::new(0, length),
-                    directory,
-                    out,
-                    depth + 1,
-                );
+        if word.group().kind != tcl_lexer::WordKind::Bare
+            && let Some(value) = self.loader_value(word, directory)
+        {
+            let Ok(length) = u32::try_from(value.len()) else {
                 return;
-            }
+            };
+            self.collect_script(
+                SourceImage::from_bytes(value, word.image().channel()),
+                Span::new(0, length),
+                directory,
+                out,
+                depth + 1,
+            );
+            return;
         }
         if let Some(file) = self.filename_with_plan(word, directory, checked_parent) {
             out.push(file);

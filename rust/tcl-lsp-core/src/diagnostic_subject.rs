@@ -1288,8 +1288,11 @@ impl DiagnosticSubjectData {
                     "IRULE2004"
                 )
                 | (SubjectDescription::RequiredPackage { .. }, "W120")
-                | (SubjectDescription::UnresolvedCommand { .. }, "W123")
-                | (SubjectDescription::UnresolvedMathFunction { .. }, "W123")
+                | (
+                    SubjectDescription::UnresolvedCommand { .. }
+                        | SubjectDescription::UnresolvedMathFunction { .. },
+                    "W123"
+                )
                 | (
                     SubjectDescription::ConditionalInterpreterVisibility { .. },
                     "W129"

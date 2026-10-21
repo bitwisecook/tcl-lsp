@@ -582,7 +582,6 @@ fn source_class_call_query(
 /// Select a genuine current-source declaration or selector. A retained OO
 /// operand with unavailable provenance is terminal. Non-OO arguments continue
 /// through their own providers after workspace command occupation is checked.
-#[must_use]
 pub fn select(
     source: &str,
     analysis: &AnalysisResult,
@@ -808,7 +807,6 @@ enum Header {
 /// Select a document-owned source candidate through exact original command
 /// occupation. Earlier proc headers, duplicate class owners, missing relation
 /// coverage and unavailable own ledgers cannot donate a later member.
-#[must_use]
 pub fn candidate(
     index: &crate::workspace_index::WorkspaceIndex,
     caller_uri: &str,
@@ -962,7 +960,6 @@ fn candidate_for_records(
     procedures: &[&SourceDeclarationMetadata<ProcDef>],
 ) -> ControlFlow<Option<OriginalMethodCandidate>> {
     match &query.target {
-        Target::OwnObject(_) => ControlFlow::Break(None),
         Target::Declaration {
             class,
             method,
@@ -1019,7 +1016,7 @@ fn candidate_for_records(
         // A local call with no authentic source-class owner cannot select a
         // canonical header. Sibling source suggestions use the separate
         // workspace current-publication inventory above.
-        Target::ClassLookup { .. } => ControlFlow::Break(None),
+        Target::OwnObject(_) | Target::ClassLookup { .. } => ControlFlow::Break(None),
     }
 }
 
@@ -1053,30 +1050,125 @@ fn metadata_candidate(
     else {
         return None;
     };
-    // Class-object own metadata supplies no maker or object-mixin order.
-    let order = match side {
-        MemberSide::ClassObject => vec![root],
-        MemberSide::Instance => tcl_compiler::analyser::class_hierarchy::original_metadata::
-            original_instance_metadata_order_for_inventory(
-                &records.iter().map(|(_, record)| *record).collect::<Vec<_>>(),
-                root,
-                &procedures.iter().map(|record| record.name()).collect::<Vec<_>>(),
-            )?,
+    let selects = |method: &OriginalSourceMethodMetadata| {
+        method.original_name_input().policy() == selector.policy()
+            && method.original_name_input().bytes() == selector.bytes()
+            && method
+                .name_purpose()
+                .admits(selector.policy().recipe(), selector.bytes())
     };
+    if side == MemberSide::ClassObject {
+        return class_object_metadata_candidate(procedures, records, root, &selects);
+    }
+    let order = tcl_compiler::analyser::class_hierarchy::original_metadata::
+        original_instance_metadata_order_for_inventory(
+            &records.iter().map(|(_, record)| *record).collect::<Vec<_>>(),
+            root,
+            &procedures.iter().map(|record| record.name()).collect::<Vec<_>>(),
+        )?;
     for position in order {
         let (uri, record) = *records.get(position)?;
         let methods = record.metadata().original_members.methods(side)?;
-        if let Some(method) = methods.into_iter().find(|method| {
-            method.original_name_input().policy() == selector.policy()
-                && method.original_name_input().bytes() == selector.bytes()
-                && method
-                    .name_purpose()
-                    .admits(selector.policy().recipe(), selector.bytes())
-        }) {
+        if let Some(method) = methods.into_iter().find(&selects) {
             return Some(owned_candidate(uri, record, method, false));
         }
     }
     None
+}
+
+/// Class-object lookup. A Registry-described `classmethod` (Tcl 9.0+) lives
+/// on the class's delegate, which C Tcl mixes into the class object and whose
+/// superclasses are the delegates of the class's superclasses
+/// (`SetDelegateSuperclasses`, tclOOBasic.c). tclsh 9.0.4 / 9.1.0: after
+/// `oo::class create SubFactory {superclass Factory}`, `SubFactory make`
+/// runs `Factory`'s classmethod, and a class's own `self method m` loses to
+/// its classmethod `m` (the delegate is an object mixin). So delegate members
+/// are looked up first along the superclass-only linearisation; the class
+/// object's other own members follow, and are never inherited (`self method`
+/// on a superclass is `unknown method` on the subclass). A profile without
+/// `classmethod` retains no delegate member, so the order is the own table.
+/// Unresolved superclass relations stay terminal once an ancestor matters.
+fn class_object_metadata_candidate(
+    procedures: &[&SourceDeclarationMetadata<ProcDef>],
+    records: &[(&str, &SourceDeclarationMetadata<ClassDef>)],
+    root: usize,
+    selects: &impl Fn(&OriginalSourceMethodMetadata) -> bool,
+) -> Option<OriginalMethodCandidate> {
+    let own = |position: usize, delegate: bool| -> Option<Option<OriginalMethodCandidate>> {
+        let (uri, record) = *records.get(position)?;
+        let methods = record
+            .metadata()
+            .original_members
+            .methods(MemberSide::ClassObject)?;
+        Some(
+            methods
+                .into_iter()
+                .find(|method| method.native_class_delegate() == delegate && selects(method))
+                .map(|method| owned_candidate(uri, record, method, false)),
+        )
+    };
+    if let Some(candidate) = own(root, true)? {
+        return Some(candidate);
+    }
+    if delegate_chain_may_apply(records) {
+        for position in class_delegate_order(procedures, records, root)?
+            .into_iter()
+            .skip(1)
+        {
+            if let Some(candidate) = own(position, true)? {
+                return Some(candidate);
+            }
+        }
+    }
+    own(root, false)?
+}
+
+/// Whether any class record carries a Registry `classmethod` delegate member.
+fn delegate_chain_may_apply(records: &[(&str, &SourceDeclarationMetadata<ClassDef>)]) -> bool {
+    records.iter().any(|(_, record)| {
+        record
+            .metadata()
+            .original_members
+            .declarations()
+            .any(|method| {
+                method.side() == MemberSide::ClassObject && method.native_class_delegate()
+            })
+    })
+}
+
+/// The superclass-only `TclOO` linearisation of the class delegates, starting at
+/// `root`. Object and class mixins never reach a delegate's superclasses.
+fn class_delegate_order(
+    procedures: &[&SourceDeclarationMetadata<ProcDef>],
+    records: &[(&str, &SourceDeclarationMetadata<ClassDef>)],
+    root: usize,
+) -> Option<Vec<usize>> {
+    use tcl_compiler::analyser::class_hierarchy::original_metadata::original_direct_metadata_relations_for_records;
+    use tcl_compiler::analyser::types::OriginalSourceClassRelationKind;
+    let records = records
+        .iter()
+        .map(|(_, record)| *record)
+        .collect::<Vec<_>>();
+    let occupied = procedures
+        .iter()
+        .map(|record| record.name())
+        .collect::<Vec<_>>();
+    let mut supers = std::collections::HashMap::new();
+    let mut pending = vec![root];
+    while let Some(index) = pending.pop() {
+        if supers.contains_key(&index) {
+            continue;
+        }
+        let parents = original_direct_metadata_relations_for_records(
+            &records,
+            index,
+            OriginalSourceClassRelationKind::Superclass,
+            &occupied,
+        )?;
+        pending.extend(parents.iter().copied());
+        supers.insert(index, parents);
+    }
+    tcl_syntax::mro::tcloo_linearise(&root, &supers, &std::collections::HashMap::new()).ok()
 }
 
 /// Explicit source-declaration advice for an independently selected class and
@@ -1109,7 +1201,6 @@ pub fn member_metadata_candidate(
 /// Select a local readonly candidate directly from genuine analysis
 /// inventories. This shares the Workspace kernel without constructing an index
 /// or reconstructing a class/selector from a reporting string.
-#[must_use]
 pub fn local_candidate(
     source: &str,
     analysis: &AnalysisResult,
@@ -1433,7 +1524,7 @@ mod tests {
                 .value
                 .contains("Possible source declaration")
         );
-        let stale = source.replacen("N", "M", 1);
+        let stale = source.replacen('N', "M", 1);
         assert!(matches!(
             local_candidate(&stale, &result, 0, cursor),
             ControlFlow::Break(None)

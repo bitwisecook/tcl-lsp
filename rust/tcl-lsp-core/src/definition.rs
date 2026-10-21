@@ -1645,7 +1645,8 @@ pub(crate) fn proc_declaration_at(
     let retained_source = std::str::from_utf8(image.bytes()).ok()?;
     crate::original_context::CurrentSourceContext::capture(retained_source, analysis)?;
     if analysis.allows_retained_logical_declaration_advice() {
-        return logical_procedure_header_at(analysis, cursor_off).map(|header| header.metadata());
+        return logical_procedure_header_at(analysis, cursor_off)
+            .map(tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::metadata);
     }
     let covers = |span: tcl_lexer::Span| span.start() <= cursor_off && cursor_off < span.end();
     if let Some(proc_def) = analysis.all_procs.values().find(|p| covers(p.name_span)) {
@@ -1873,7 +1874,7 @@ pub(crate) fn resolved_indirect_head_proc(
 /// pair in `source`. `character` is a UTF-16 code-unit offset.
 ///
 /// Clamped geometry for compatibility/presentation callers. Exact source
-/// selection uses CurrentSourcePosition instead. A returned offset alone
+/// selection uses `CurrentSourcePosition` instead. A returned offset alone
 /// supplies no current-source, declaration or edit authority.
 /// Takes a pre-built index so repeated presentation conversions can share it.
 pub(crate) fn byte_offset_at(
@@ -1983,14 +1984,15 @@ fn logical_variable_write_coordinate(
     let mut coordinate = None;
     for advice in &analysis.original_variable_write_advice {
         let span = advice.span();
-        if !(span.start() <= cursor && cursor < span.end())
-            || !advice.matches_context(&context)
-            || !crate::original_name_edit::original_input_matches_source(
+        if !(span.start() <= cursor
+            && cursor < span.end()
+            && advice.matches_context(&context)
+            && crate::original_name_edit::original_input_matches_source(
                 source,
                 analysis,
                 advice.original_name_input(),
                 span,
-            )
+            ))
         {
             continue;
         }
@@ -2431,7 +2433,7 @@ pub struct OriginalAutoloadRequest {
 }
 
 impl OriginalAutoloadRequest {
-    /// Files selected by genuine auto_index entries and the retained caller scope.
+    /// Files selected by genuine `auto_index` entries and the retained caller scope.
     #[must_use]
     pub fn files(
         &self,
@@ -3154,12 +3156,12 @@ fn original_export_command<'a>(
     let names = analysis
         .original_procedure_declarations()
         .filter(|record| record.metadata().qualified_name == label)
-        .map(|record| record.name())
+        .map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name)
         .chain(
             analysis
                 .original_class_declarations()
                 .filter(|record| record.metadata().qualified_name == label)
-                .map(|record| record.name()),
+                .map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name),
         );
     let mut found = None;
     for name in names {
@@ -3676,7 +3678,7 @@ fn slot_events<'a>(
                 invocation
                     .original_lookup
                     .as_ref()
-                    .map(|lookup| lookup.name_input())
+                    .map(tcl_compiler::command_binding::OriginalCommandLookup::name_input)
             })
             .collect::<Vec<_>>();
         let verdict = if let (Some(original), Some(first)) = (original, input.first()) {
@@ -3695,12 +3697,10 @@ fn slot_events<'a>(
             // publication tails; they cannot produce native name bytes.
             let names = analysis
                 .original_procedure_declarations()
-                .map(|record| record.name())
-                .chain(
-                    analysis
-                        .original_class_declarations()
-                        .map(|record| record.name()),
-                )
+                .map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name)
+                .chain(analysis.original_class_declarations().map(
+                    tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name,
+                ))
                 .filter(|name| name.slot().simple.try_utf8().ok() == Some(word))
                 .collect::<Vec<_>>();
             let Some(first) = names.first() else {
@@ -3933,7 +3933,7 @@ pub(crate) fn resolve_called_proc<'a>(
     }
     if analysis.allows_retained_logical_declaration_advice() {
         return logical_called_procedure_at(analysis, source, call_off)
-            .map(|header| header.metadata());
+            .map(tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::metadata);
     }
     if let Some(reference) = invocation_head_at(analysis, call_off)
         .and_then(|invocation| invocation.resolved_command_reference.as_ref())
@@ -4313,7 +4313,7 @@ pub(crate) fn fallback_proc_by_simple_name<'a>(
                             .cmp(&right.metadata().name_span.start())
                     })
             })
-            .map(|header| header.metadata());
+            .map(tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::metadata);
     }
     analysis
         .all_procs
@@ -4402,7 +4402,7 @@ pub(crate) fn scope_body_spans_at(
     let advice =
         analysis.logical_variable_scope_advice(&image, position.context().config(), offset)?;
     let root = advice.root();
-    if !std::ptr::eq(root, &analysis.global_scope)
+    if !std::ptr::eq(root, &raw const analysis.global_scope)
         || root.kind != ScopeKind::Global
         || root.body_span.is_some()
     {
@@ -8855,8 +8855,10 @@ mod configured_receiver_head_tests {
             .unwrap();
             instance_method_at_cursor(&source, 0, character, config)
         };
-        let mut first = tcl_lexer::LexerConfig::default();
-        first.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        let first = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::default()
+        };
         let mut nested = first;
         nested.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
         for config in [first, nested] {

@@ -309,10 +309,10 @@ async fn current_published_codes(
                     ));
                 }
                 for field in ["dialectId", "revision", "inputsEpoch", "resultId"] {
-                    if !report
+                    if report
                         .get(field)
                         .and_then(serde_json::Value::as_str)
-                        .is_some_and(|value| !value.is_empty())
+                        .is_none_or(|value| value.is_empty())
                     {
                         return Err(format!(
                             "current-diagnostics response lacks {field}: {report}"

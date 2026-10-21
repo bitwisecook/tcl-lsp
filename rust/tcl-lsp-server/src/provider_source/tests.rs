@@ -513,8 +513,15 @@ async fn actual_recovery_and_cache_hit_provider_receipts_survive_empty_deep_capt
     };
     let mut recovered = None;
     for _ in 0..2 {
-        let ControlFlow::Continue(analysis) =
-            compute_base_analysis(&backend.client, &ctx, &disabled, &extra, mode, &recovery).await
+        let ControlFlow::Continue(analysis) = Box::pin(compute_base_analysis(
+            &backend.client,
+            &ctx,
+            &disabled,
+            &extra,
+            mode,
+            &recovery,
+        ))
+        .await
         else {
             panic!("the actual incomplete-source recovery pass must settle");
         };

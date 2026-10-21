@@ -272,7 +272,7 @@ fn select(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Select
             let span = operand
                 .word
                 .as_ref()
-                .map_or(operand.span, |word| word.span());
+                .map_or(operand.span, tcl_lexer::NativeWord::span);
             (span.start() <= cursor && cursor <= span.end()).then_some(index)
         })
         .or_else(|| {

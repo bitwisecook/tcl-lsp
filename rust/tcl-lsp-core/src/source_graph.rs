@@ -74,7 +74,7 @@ pub fn resolve_source_target(parent_file: &Path, raw_path: &str) -> PathBuf {
     )
 }
 
-/// Associate a genuine original SourceLoad path under the declared project
+/// Associate a genuine original `SourceLoad` path under the declared project
 /// script-directory policy. This is neither a reached load nor runtime cwd.
 /// Dynamic paths and unsupported host-path forms preserve unknown topology.
 #[must_use]
@@ -91,8 +91,8 @@ pub fn conditional_project_source_target(
         return None;
     }
     let raw = Path::new(&literal);
-    if raw.is_absolute() && !project_source_action_path(raw)
-        || !raw.is_absolute() && matches!(raw.components().next(), Some(Component::Prefix(_)))
+    if host_absolute(raw) && !project_source_action_path(raw)
+        || !host_absolute(raw) && matches!(raw.components().next(), Some(Component::Prefix(_)))
     {
         return None;
     }
@@ -107,7 +107,7 @@ pub fn conditional_project_source_target(
 #[must_use]
 pub fn resolve_under(base_dir: &Path, raw_path: &str) -> PathBuf {
     let raw = Path::new(raw_path);
-    let joined = if raw.is_absolute() {
+    let joined = if host_absolute(raw) {
         raw.to_path_buf()
     } else {
         base_dir.join(raw)
@@ -186,7 +186,7 @@ pub fn project_source_association(
     }
     let old = lexically_normalise(old_path);
     let raw = Path::new(literal);
-    if raw.is_absolute() {
+    if host_absolute(raw) {
         project_source_action_path(raw).then_some(())?;
         return (lexically_normalise(raw) == old)
             .then_some(ProjectSourceAssociation { base: None });
@@ -214,18 +214,26 @@ pub fn project_source_association(
     })
 }
 
+/// `Path::is_absolute`, plus a rooted path in a browser worker
+/// (wasm32-unknown-unknown), where std reports no path as absolute and every
+/// source-store path is a rooted virtual path.
+fn host_absolute(path: &Path) -> bool {
+    path.is_absolute()
+        || cfg!(all(target_family = "wasm", target_os = "unknown")) && path.has_root()
+}
+
 fn project_source_action_path(path: &Path) -> bool {
     // POSIX double-leading slash may select an implementation-defined root.
-    path.is_absolute()
+    host_absolute(path)
         && path
             .to_str()
-            .is_some_and(|text| !text.contains('\0') && !(cfg!(unix) && text.starts_with("//")))
+            .is_some_and(|text| !(text.contains('\0') || cfg!(unix) && text.starts_with("//")))
 }
 
 /// Relative spelling in the same host path domain; different roots decline.
 #[must_use]
 pub fn relative_source_path(target: &Path, base: &Path) -> Option<PathBuf> {
-    if !target.is_absolute() || !base.is_absolute() {
+    if !host_absolute(target) || !host_absolute(base) {
         return None;
     }
     let target = lexically_normalise(target);
@@ -1234,7 +1242,7 @@ impl DocumentSequence {
             SequenceCapture::may_run_unretained_script(words, flow, &self.regions)
         });
         if flow.is_some_and(|flow| flow.terminates) || (straight && unretained) {
-            let exit = straight_ancestor.map_or(at, |span| span.end());
+            let exit = straight_ancestor.map_or(at, tcl_lexer::Span::end);
             self.cutoff = Some(self.cutoff.map_or(exit, |cutoff| cutoff.min(exit)));
         }
         self.end_withheld |= unretained
@@ -1542,7 +1550,7 @@ type UriSet = rustc_hash::FxHashSet<String>;
 /// `docs/design/analysis/import-order-source-graph.md` §6).
 ///
 /// The coordinate explanation below describes the constructed hypothesis.
-/// Actual WorkspaceIndex results keep Conditional purpose even when its
+/// Actual `WorkspaceIndex` results keep Conditional purpose even when its
 /// relative coordinates are unique; they do not authorize event suppression.
 /// The one exception is two straight-line positions of the same indexed
 /// document, which that document's own sequence orders
@@ -3188,7 +3196,7 @@ mod original_source_navigation_order_tests {
             relation.purpose(),
             SourceNavigationOrderPurpose::DocumentSequence
         );
-        assert_eq!(*relation.conditional_relation(), true);
+        assert!(*relation.conditional_relation());
         assert_eq!(relation.modeled_source_exclusion(), Some(true));
         assert_eq!(order.has_run(before, after), None);
         assert_eq!(order.cmp_run(before, after), None);
@@ -3588,13 +3596,13 @@ mod original_source_navigation_order_tests {
             )),
             kind: RunEdgeKind::Source,
         };
-        let order = RunOrder::for_source_navigation(&[edge.clone()], contexts());
+        let order = RunOrder::for_source_navigation(std::slice::from_ref(&edge), contexts());
         // Supplied report body geometry cannot replace the genuine root point.
         assert_eq!(order.paths.get("child").unwrap()[0].enclosing_body, None);
         let relation = order
             .navigation_precedence(point("parent", 0), point("child", 0))
             .unwrap();
-        assert_eq!(*relation.conditional_relation(), true);
+        assert!(*relation.conditional_relation());
         assert_eq!(relation.modeled_source_exclusion(), None);
         let re_source = RunEdge {
             at: u32::try_from(parent.rfind("source child").unwrap()).unwrap(),
@@ -3657,7 +3665,7 @@ mod original_package_alternative_owner_tests {
         let dynamic_at = u32::try_from(child_source.find("$head").unwrap()).unwrap();
         assert!(child_context.site(dynamic_at).is_none());
         let order = RunOrder::for_source_navigation(
-            &[edge.clone()],
+            std::slice::from_ref(&edge),
             [
                 ("parent".into(), parent_context.clone()),
                 ("child".into(), child_context),
@@ -3668,7 +3676,7 @@ mod original_package_alternative_owner_tests {
         let owned = point("child", 0);
         assert!(!order.alternatives(owned).is_empty());
         let positive = order.navigation_precedence(owned, parent_point).unwrap();
-        assert_eq!(*positive.conditional_relation(), true);
+        assert!(*positive.conditional_relation());
         assert_eq!(
             positive.purpose(),
             SourceNavigationOrderPurpose::Conditional
@@ -3691,7 +3699,7 @@ mod original_package_alternative_owner_tests {
         let context = SourceOrderContext::capture(&deferred).unwrap();
         assert!(context.site(deferred_at).is_none());
         let order = RunOrder::for_source_navigation(
-            &[edge.clone()],
+            std::slice::from_ref(&edge),
             [
                 ("parent".into(), parent_context.clone()),
                 ("child".into(), context),

@@ -931,6 +931,12 @@ fn logical_source_options(
 /// Retain the exact hosted editing input without borrowing the command
 /// catalogue's C-compatible name recipe. Runtime entry and storage remain
 /// separate from this source-only domain.
+///
+/// A document supplied without an execution entry is a freshly loaded rule
+/// (user decision 2026-10-21T00:10Z, "realm-aware command world"): when the
+/// dialect admits the authored F5 naming simulation, the document takes the
+/// same rule-loader entry as every other supplied-source consumer
+/// ([`crate::command_binding::SourceAnalysisEntry::for_fresh_hosted_source`]).
 pub(crate) fn document_vendor_realm_with_resolved_input(
     source: &str,
     input: &crate::analyser::ResolvedAnalysisInput,
@@ -943,7 +949,7 @@ pub(crate) fn document_vendor_realm_with_resolved_input(
     dialect.lexer_grammar = input.lexer_config().grammar_over(dialect.lexer_grammar);
     dialect.word_values =
         tcl_syntax::word_rules::WordValueRules::from_grammar(&dialect.lexer_grammar);
-    let options = crate::command_binding::SourceAnalysisOptions {
+    let mut options = crate::command_binding::SourceAnalysisOptions {
         metadata_context: crate::registry_invocation::InvocationMetadataInput::SuppliedSource(
             Some(input),
         ),
@@ -952,6 +958,14 @@ pub(crate) fn document_vendor_realm_with_resolved_input(
         native_compilation: crate::environment_ingress::authoring_native_compilation(),
         ..crate::command_binding::SourceAnalysisOptions::default()
     };
+    if let Some(fresh) = crate::command_binding::SourceAnalysisEntry::for_fresh_hosted_source(input)
+        .filter(|entry| !entry.unknown_entry)
+    {
+        options.unknown_entry = false;
+        options.invocation_realm = fresh.invocation_realm;
+        options.execution_name_policy = fresh.execution_name_policy;
+        options.native_compilation = fresh.native_compilation;
+    }
     let bindings = SourceCommandBindings::analyse_with_options(
         source,
         input.lexer_config(),
@@ -1953,6 +1967,27 @@ mod original_resolved_realm_input_tests {
             );
             assert!(realm.matches_resolved_analysis_input(&input), "{label}");
         }
+    }
+
+    /// User decision 2026-10-21T00:10Z ("realm-aware command world"): an
+    /// iRule supplied without an execution entry is a freshly loaded rule, so
+    /// the editor's document realm retains its declarations instead of an
+    /// unknown-history world in which no `proc` is an original declaration.
+    #[test]
+    fn hosted_document_without_entry_is_a_fresh_rule_load() {
+        let source = "proc hit {} { return hit }\nwhen HTTP_REQUEST { call hit }\n";
+        let analysis = crate::analyser::Analyser::new()
+            .analyse(source, "f5-irules")
+            .clone();
+        let mut declarations = analysis.original_procedure_declarations();
+        let declaration = declarations
+            .next()
+            .expect("the rule's procedure declaration");
+        assert!(declarations.next().is_none());
+        assert_eq!(
+            declaration.name().reported_full_name().as_deref(),
+            Some("::hit")
+        );
     }
 }
 

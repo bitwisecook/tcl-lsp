@@ -739,12 +739,11 @@ pub(crate) fn logical_implementation_classes<'a>(
         .classes
         .iter()
         .enumerate()
-        .map(|(index, _)| match inventory.direct(index) {
-            Some((parents, debt)) => {
+        .map(|(index, _)| {
+            if let Some((parents, debt)) = inventory.direct(index) {
                 incomplete |= debt;
                 Some(parents)
-            }
-            None => {
+            } else {
                 incomplete = true;
                 None
             }
@@ -1462,7 +1461,7 @@ mod conditional_local_hierarchy_tests {
         let selected = logical_class_at("", source, &analysis, cursor).unwrap();
         assert!(std::ptr::eq(
             selected.class(source, &analysis).unwrap(),
-            &analysis.all_classes["::N::Base"]
+            &raw const analysis.all_classes["::N::Base"]
         ));
         assert!(
             logical_class_at(

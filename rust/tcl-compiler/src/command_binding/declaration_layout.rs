@@ -2487,7 +2487,17 @@ impl SourceCommandBindings {
         {
             (entry, context.namespace_identity())
         } else {
-            if context.source_purpose != tcl_lexer::SourceSegmentationPurpose::WholeInput {
+            // A nested parser issues no frame. An immediately selected nested
+            // original script (a command substitution, an `expr` operand's
+            // `[…]`) still runs in this root frame and namespace, so it keeps
+            // the root entry only for its own genuine original vector.
+            // Conditional/future bodies and materialised text never qualify.
+            if context.source_purpose != tcl_lexer::SourceSegmentationPurpose::WholeInput
+                && (context.body_entry != super::SourceBodyEntryPurpose::Selected
+                    || origin
+                        .original_lexical_command(words.words(), offset, context.config)
+                        .is_none())
+            {
                 return;
             }
             let Some(namespace) = root_diagnostic_namespace(state, &context.namespace_identity())
@@ -5585,6 +5595,42 @@ mod authored_source_parent_tests {
                     .original_authored_declaration_source_tokens(tokens, scope, registry,)
                     .is_none()
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod zz_probe_body_layout_tests {
+    use super::*;
+
+    #[test]
+    fn zz_probe_called_body_layout_rows() {
+        for use_site in ["", "greet\n", "greet\ngreet\n", "set a [greet]\n", "puts [greet]\n"] {
+            let source = format!("proc greet {{}} {{ return hi }}\n{use_site}");
+            let result = crate::analyser::Analyser::new().analyse(&source, "tcl8.6");
+            let realm = result.retained_command_realm().unwrap();
+            let bindings = realm.source_bindings_ref();
+            let offset = u32::try_from(source.find("return").unwrap()).unwrap();
+            let rows = bindings
+                .declaration_layouts
+                .iter()
+                .filter(|(site, _)| site.offset == offset)
+                .flat_map(|(_, rows)| rows.iter())
+                .map(|row| {
+                    format!(
+                        "{:?}/{:?}/{:?}",
+                        row.issuer,
+                        row.entry.frame().layout(),
+                        row.namespace
+                    )
+                })
+                .collect::<Vec<_>>();
+            let original = bindings
+                .declaration_layouts
+                .iter()
+                .find(|(site, _)| site.offset == offset)
+                .map(|(_, rows)| original_declaration_layouts(rows).map(Iterator::count));
+            eprintln!("PROBE-BODY {use_site:?} rows={rows:?} original={original:?}");
         }
     }
 }

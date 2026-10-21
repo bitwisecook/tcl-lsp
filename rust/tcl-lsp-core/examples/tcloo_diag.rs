@@ -23,6 +23,8 @@
 // Coverage-stat arithmetic: counts cast to f64 for percentages and to u32 for
 // LSP positions; the magnitudes are tiny, so truncation/precision loss is moot.
 #![allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
+// A diagnostic example reads top to bottom as one scenario.
+#![allow(clippy::too_many_lines)]
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -101,7 +103,7 @@ fn main() {
 
         // Var-binding category map over the whole CU (name-keyed, object-
         // insensitive — the same economy the provenance passes use).
-        let bindings = binding_categories(&cu, &registry);
+        let bindings = binding_categories(&cu, registry);
         // Parameter names (proc + method).
         let params = param_names(&cu);
 

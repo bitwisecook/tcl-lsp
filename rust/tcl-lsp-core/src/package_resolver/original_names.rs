@@ -480,7 +480,7 @@ impl PackageResolver {
 
     /// Retain original static tclIndex registrations for each C loader release.
     /// The source parser and value producer retain their own input/configuration;
-    /// authored compatibility AutoIndexEntry strings supply no original keys.
+    /// authored compatibility `AutoIndexEntry` strings supply no original keys.
     pub fn add_original_tcl_index(
         &mut self,
         content: &str,
@@ -507,7 +507,7 @@ impl PackageResolver {
         }
     }
 
-    /// Original auto_load candidates at the command's retained caller point.
+    /// Original `auto_load` candidates at the command's retained caller point.
     /// Native byte identity is independent of its optional diagnostic rendering.
     #[must_use]
     pub fn resolve_original_auto_command(
@@ -799,9 +799,8 @@ fn original_index_entries(
     let Ok(plan) = tcl_lexer::native_script_words_in(image, Span::new(0, length), config) else {
         return Vec::new();
     };
-    let version = match policy.recipe() {
-        tcl_syntax::naming::NativeNameProtocol::C(version) => version,
-        _ => return entries,
+    let tcl_syntax::naming::NativeNameProtocol::C(version) = policy.recipe() else {
+        return entries;
     };
     let profile =
         tcl_dialect::DialectProfile::find(version.dialect_name()).expect("C loader release");
@@ -810,7 +809,7 @@ fn original_index_entries(
     let Some(context) = analysis
         .resolved_input
         .as_ref()
-        .map(|input| input.context_registry())
+        .map(tcl_compiler::analyser::ResolvedAnalysisInput::context_registry)
     else {
         return entries;
     };
@@ -978,8 +977,10 @@ mod tests {
                 vec![PathBuf::from("/library/major.tcl")]
             );
             let dependency = require("dep", &["1.0"], true, super::super::PackagePrefer::Stable);
-            let available =
-                resolver.transitive_requirement_advice(&[latest.clone()], Some(version), &|file| {
+            let available = resolver.transitive_requirement_advice(
+                std::slice::from_ref(&latest),
+                Some(version),
+                &|file| {
                     if file == Path::new("/library/beta.tcl") {
                         vec![dependency.clone()]
                     } else if file == Path::new("/library/dep-old.tcl") {
@@ -989,7 +990,8 @@ mod tests {
                     } else {
                         panic!("constraints must not visit {file:?}")
                     }
-                });
+                },
+            );
             assert_eq!(available, HashSet::from([latest, dependency, exact]));
             let foreign_key = tcl_registry::native_package::NativePackageNameKey::from_native_units(
                 b"dep",
@@ -1002,18 +1004,21 @@ mod tests {
                 super::super::PackagePrefer::Latest,
             );
             let unknown = foreign.clone().unknown();
-            let available =
-                resolver.transitive_requirement_advice(&[stable.clone()], Some(version), &|file| {
+            let available = resolver.transitive_requirement_advice(
+                std::slice::from_ref(&stable),
+                Some(version),
+                &|file| {
                     assert_eq!(file, Path::new("/library/stable.tcl"));
                     vec![foreign.clone()]
-                });
+                },
+            );
             assert_eq!(available, HashSet::from([stable, unknown]));
 
             let root = require("w", &["1.0"], false, super::super::PackagePrefer::Stable);
             let raised = require("dep", &["1.0"], true, super::super::PackagePrefer::Latest);
             let after_raise = require("w", &["1.0"], false, super::super::PackagePrefer::Latest);
             let available = resolver.transitive_requirement_advice_with_context(
-                &[root.clone()],
+                std::slice::from_ref(&root),
                 Some(version),
                 &|file, parent| {
                     if file == Path::new("/library/stable.tcl") {
@@ -1141,7 +1146,7 @@ mod tests {
         );
         let source = "set {auto_index(p\0tail)} [list source [file join $dir p.tcl]]\nset {auto_index( spaced )} [list source [file join $dir q.tcl]]";
         let entries = original_index_entries(
-            &source,
+            source,
             Path::new("/library"),
             &|_| true,
             config,
@@ -1292,7 +1297,7 @@ mod original_index_filename_data_tests {
             );
             for (loader, filename) in [
                 (
-                    r#"[list source [file join $dir { spaced.tcl }]]"#,
+                    r"[list source [file join $dir { spaced.tcl }]]",
                     " spaced.tcl ",
                 ),
                 (
@@ -1300,27 +1305,24 @@ mod original_index_filename_data_tests {
                     "\"quoted\".tcl",
                 ),
                 (
-                    r#"[list source [file join $dir {cash$name.tcl}]]"#,
+                    r"[list source [file join $dir {cash$name.tcl}]]",
                     "cash$name.tcl",
                 ),
                 (
-                    r#"[list source [file join $dir -literal.tcl]]"#,
+                    r"[list source [file join $dir -literal.tcl]]",
                     "-literal.tcl",
                 ),
-                (
-                    r#"[list source [file join $dir {} empty.tcl]]"#,
-                    "empty.tcl",
-                ),
+                (r"[list source [file join $dir {} empty.tcl]]", "empty.tcl"),
                 (
                     r#"[list source [file join $dir {a b} {part".tcl}]]"#,
                     "a b/part\".tcl",
                 ),
-                (r#"{source { spaced.tcl }}"#, " spaced.tcl "),
+                (r"{source { spaced.tcl }}", " spaced.tcl "),
                 (r#"{source {"quoted".tcl}}"#, "\"quoted\".tcl"),
-                (r#"{source a\ b.tcl}"#, "a b.tcl"),
+                (r"{source a\ b.tcl}", "a b.tcl"),
                 (r#"{source "$dir/ spaced.tcl "}"#, " spaced.tcl "),
                 (r#"[list source "$dir/\"quoted\".tcl"]"#, "\"quoted\".tcl"),
-                (r#"{source {$literal.tcl}}"#, "$literal.tcl"),
+                (r"{source {$literal.tcl}}", "$literal.tcl"),
             ] {
                 let source = format!("set {{auto_index( spaced key )}} {loader}");
                 let expected = Path::new("/library").join(filename);

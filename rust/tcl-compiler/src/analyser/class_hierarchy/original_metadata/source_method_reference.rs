@@ -591,6 +591,46 @@ mod tests {
     }
 
     #[test]
+    fn readonly_self_selectors_follow_nested_potential_evaluation_bodies() {
+        // naming.editor.original-method-candidates
+        // tclsh 8.6.18 / 9.0.4: every body below dispatches `my ping` in the
+        // method frame (`get a` reaches `ping` once for each form).
+        let mut failures = Vec::new();
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            for body in [
+                "switch -- $k a {my ping $k}",
+                "switch -- $k {a {my ping $k}}",
+                "if {1} {my ping $k}",
+                "if {0} {} elseif {1} {my ping $k}",
+                "if {0} {} else {my ping $k}",
+                "set i 0; while {$i < 1} {incr i; my ping $k}",
+                "for {set i 0} {$i < 1} {incr i} {my ping $k}",
+                "foreach i {1} {my ping $k}",
+                "catch {my ping $k}",
+                "try {my ping $k} finally {}",
+                "eval {my ping $k}",
+                "switch -glob -- $k {a* {if {1} {catch {my ping $k}}}}",
+            ] {
+                let source = format!(
+                    "oo::class create C {{\n method ping {{k}} {{ return $k }}\n method get {{k}} {{\n  {body}\n }}\n}}\n"
+                );
+                let analysis = Analyser::new().analyse(&source, dialect);
+                let references = original_source_self_method_references(&source, &analysis)
+                    .expect("current partial source catalogue");
+                let selector = source.rfind("ping $k").unwrap();
+                let actual = references
+                    .iter()
+                    .map(|reference| reference.selector_span().as_range())
+                    .collect::<Vec<_>>();
+                if actual != vec![selector..selector + 4] {
+                    failures.push(format!("{dialect}: {body}: {actual:?}"));
+                }
+            }
+        }
+        assert!(failures.is_empty(), "{failures:#?}");
+    }
+
+    #[test]
     fn readonly_self_selectors_refuse_unowned_wrong_context_and_ambiguous_sources() {
         // naming.editor.original-method-candidates
         // docs/design/analysis/name-resolution-proofs/original-method-candidates.md

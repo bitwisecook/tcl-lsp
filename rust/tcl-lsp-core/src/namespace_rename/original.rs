@@ -445,13 +445,13 @@ pub fn original_namespace_rename_edits(
         };
         let reissued = match publication.publication() {
             SourceCommandPublication::NamedCommand => {
-                SignatureSourceCommand::procedure_from_key(&current, input)
+                SignatureSourceCommand::procedure_from_key(current, input)
             }
             SourceCommandPublication::TclOoObject => {
-                SignatureSourceCommand::object_from_key(&current, input)
+                SignatureSourceCommand::object_from_key(current, input)
             }
             SourceCommandPublication::ProviderAdvice => {
-                SignatureSourceCommand::provider_advice_from_key(&current, input)
+                SignatureSourceCommand::provider_advice_from_key(current, input)
             }
         };
         if reissued.as_ref() != Some(publication) {
@@ -594,7 +594,7 @@ pub fn original_namespace_rename_edits(
             if let Some(target) = publication.alias_target() {
                 match target.lookup() {
                     tcl_registry::AliasTargetLookup::Global => {
-                        plan.record_alias_target(target.name_input())?
+                        plan.record_alias_target(target.name_input())?;
                     }
                     tcl_registry::AliasTargetLookup::CallerNamespace => {
                         if target.name_input().bytes().starts_with(b"::") {
@@ -754,10 +754,10 @@ fn literal_may_name_namespace(
                     symbol.policy().string_protocol(),
                 ) {
                     for ordinal in 0..command.words.len() {
-                        if let Some(word) = words.literal(ordinal) {
-                            if word != value {
-                                pending.push((word.to_vec(), depth + 1));
-                            }
+                        if let Some(word) = words.literal(ordinal)
+                            && word != value
+                        {
+                            pending.push((word.to_vec(), depth + 1));
                         }
                     }
                 }
@@ -919,10 +919,9 @@ fn word_may_contain_namespace(
     if let Ok(words) = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
         std::slice::from_ref(word),
         symbol.policy().string_protocol(),
-    ) {
-        if let Some(value) = words.literal(0) {
-            return literal_may_name_namespace(value, symbol, config);
-        }
+    ) && let Some(value) = words.literal(0)
+    {
+        return literal_may_name_namespace(value, symbol, config);
     }
     word.executable_parts()
         .all_parts()
@@ -951,22 +950,21 @@ fn word_may_select_namespace(
     if let Ok(words) = tcl_registry::native_compiler_words::NativeCompilerWords::capture(
         std::slice::from_ref(word),
         symbol.policy().string_protocol(),
-    ) {
-        if let Some(value) = words.literal(0) {
-            let Some(wanted) = symbol.scope().context() else {
-                return true;
-            };
-            if !value.starts_with(b"::") {
-                return true;
-            }
-            return tcl_syntax::naming::native_written_namespace_prefix_extent(
-                symbol.policy().recipe(),
-                NativeNameContext::root(),
-                value,
-                wanted,
-            )
-            .is_some();
+    ) && let Some(value) = words.literal(0)
+    {
+        let Some(wanted) = symbol.scope().context() else {
+            return true;
+        };
+        if !value.starts_with(b"::") {
+            return true;
         }
+        return tcl_syntax::naming::native_written_namespace_prefix_extent(
+            symbol.policy().recipe(),
+            NativeNameContext::root(),
+            value,
+            wanted,
+        )
+        .is_some();
     }
     let arena = word.executable_parts();
     let mut prefix = Vec::new();

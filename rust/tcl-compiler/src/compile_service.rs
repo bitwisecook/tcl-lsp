@@ -277,7 +277,15 @@ impl BytecodeCompileService {
         source: &str,
         plain_command_dispatch: bool,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = self.registry.registry()?;
+        // A profile-less service compiles for the permissive fallback
+        // profile its modules run under, over that profile's view of its
+        // owned registry.
+        let registry = match self.profile {
+            Some(_) => self.registry.registry()?,
+            None => self
+                .registry
+                .registry_for_profile(DialectProfile::plain_tcl())?,
+        };
         Self::compile_target_with(
             ScriptCompileTarget {
                 source,
@@ -335,34 +343,34 @@ impl BytecodeCompileService {
         // fresh interpreter of its profile runs, as `tclsh file.tcl` does
         // (user decision 2026-10-19T14:20Z): it takes the supplied-source
         // entry whole-document analysis takes, over the profile's complete
-        // input. A supplied runtime entry keeps its own facts; without a
-        // corresponding complete input the module keeps refusing.
+        // input; a profile-less service's module is the permissive
+        // fallback profile's, which the VM runs it as. A supplied runtime
+        // entry keeps its own facts; without a corresponding complete input
+        // the module keeps refusing.
+        let fresh_profile = profile.unwrap_or_else(DialectProfile::plain_tcl);
         let fresh_input = (native_entry.is_none()
             && policy.scope == ModuleEmissionScope::WholeModule)
-            .then(|| fresh_document_input(registry, config, profile?))
+            .then(|| fresh_document_input(registry, config, fresh_profile))
             .flatten();
-        let fresh_entry = fresh_input.as_ref().map(|input| {
-            crate::command_binding::SourceAnalysisEntry::for_supplied_source(
-                registry, input, config, profile,
-            )
-        });
-        let options = match &fresh_entry {
-            Some(entry) => {
-                let mut options = entry.options();
-                options.compilation_scope = policy.scope;
-                Some(options)
-            }
-            None => Self::source_analysis_options(policy, registry, config, profile),
+        let ir = match fresh_input {
+            Some(input) => Self::lower_fresh_document(
+                target,
+                registry,
+                config,
+                fresh_profile,
+                plain_command_dispatch,
+                input,
+            ),
+            None => lower_script_module_for_bytecode_with_options(
+                target.source,
+                target.namespace,
+                registry,
+                config,
+                profile,
+                plain_command_dispatch,
+                Self::source_analysis_options(policy, registry, config, profile),
+            ),
         };
-        let ir = lower_script_module_for_bytecode_with_options(
-            target.source,
-            target.namespace,
-            registry,
-            config,
-            profile,
-            plain_command_dispatch,
-            options,
-        );
         let mut ir = crate::inlining::inline_reference_bodies(ir, registry, config, profile);
         ir.top_level_evaluation = target.evaluation;
         let prepared = prepare_cfg_context_bundle(&ir, registry);
@@ -385,6 +393,43 @@ impl BytecodeCompileService {
         }
         validate_native_function(&module.top_level)?;
         Ok(module)
+    }
+
+    /// Lower a whole document for a fresh interpreter of `profile`: the
+    /// supplied-source entry over the complete `input`, retained as the
+    /// lowering's own metadata so the procedures the document defines are
+    /// published as it runs them.
+    fn lower_fresh_document(
+        target: ScriptCompileTarget<'_>,
+        registry: &CommandRegistry,
+        config: LexerConfig,
+        profile: &'static DialectProfile,
+        plain_command_dispatch: bool,
+        input: crate::analyser::ResolvedAnalysisInput,
+    ) -> crate::ir::Module {
+        let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+            registry,
+            &input,
+            config,
+            Some(profile),
+        );
+        let mut options = entry.options();
+        options.compilation_scope = ModuleEmissionScope::WholeModule;
+        // `tclsh file.tcl` compiles the file as one script object
+        // (`Tcl_EvalObjEx` without `TCL_EVAL_DIRECT`): its commands take
+        // their release's compilers rather than direct evaluation.
+        options.native_compilation.mode =
+            tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject;
+        let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
+            .with_dialect(Some(profile))
+            .for_bytecode_backend();
+        if plain_command_dispatch {
+            lowerer = lowerer.trace_visible();
+        }
+        let mut lowerer = lowerer.with_resolved_analysis_input(input.clone());
+        lowerer.set_source_analysis_options(options);
+        lowerer.lower_script_target(target.source, target.namespace);
+        lowerer.finish_module(target.source)
     }
 
     /// Translate a live runtime entry into the shared source-analysis contract.
@@ -3418,5 +3463,139 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// A profile-less service compiles a plain script for the fallback
+    /// profile's fresh interpreter, which the VM runs such a module as: an
+    /// admitted entry, with `set` compiled by its release's compiler.
+    #[test]
+    fn a_profile_less_whole_module_compiles_for_a_fresh_interpreter() {
+        for source in ["set x 1", "set x 1\nlist $x", "proc p {} {return 1}\np"] {
+            for plain in [false, true] {
+                let service = BytecodeCompileService::default();
+                let module = if plain {
+                    service.compile_traced(source)
+                } else {
+                    service.compile(source)
+                }
+                .unwrap_or_else(|error| panic!("{source:?} plain={plain}: {error:?}"));
+                assert_eq!(
+                    module.top_level.native_compilation_preflight,
+                    tcl_runtime_api::NativeCompilationPreflight::NotRequired,
+                    "{source:?} plain={plain}"
+                );
+                assert!(module.top_level.validate_native_compilation_entry().is_ok());
+                assert!(std::ptr::eq(module.profile, DialectProfile::plain_tcl()));
+            }
+        }
+        let module = BytecodeCompileService::default().compile("set x 1").unwrap();
+        assert!(
+            module
+                .top_level
+                .instructions
+                .iter()
+                .all(|instruction| !matches!(
+                    instruction.op,
+                    tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
+                )),
+            "a fresh interpreter's `set` is compiled: {:?}",
+            module.top_level.instructions
+        );
+    }
+
+    /// A whole document compiled for a fresh interpreter of its profile has
+    /// the procedures it defines, each with its provenance, and the commands
+    /// the profile compiles specialised and bound, as `tclsh file.tcl`
+    /// compiles the file as one script object.
+    #[test]
+    fn a_fresh_whole_module_defines_its_procedures_and_specialises_its_commands() {
+        let source = "set x 1\nlassign {1 2} a b\nproc caller {n} {set y [llength $n]; return $y}\nlist $a $b [caller $x]\n";
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let profile = tcl_dialect::DialectProfile::find(dialect).expect("catalogue profile");
+            let module = BytecodeCompileService::for_profile(profile)
+                .compile_for_profile(source, profile)
+                .unwrap_or_else(|error| panic!("{dialect}: {error:?}"));
+            assert_eq!(
+                module.top_level.native_compilation_preflight,
+                tcl_runtime_api::NativeCompilationPreflight::NotRequired,
+                "{dialect}"
+            );
+            let caller = fixture_id(&module.procedures, "::caller");
+            assert_eq!(module.procedure_provenance[&caller].name, "::caller");
+            for command in ["set", "lassign"] {
+                assert!(
+                    module
+                        .top_level
+                        .command_bindings
+                        .iter()
+                        .any(|binding| binding.name == command && binding.identity == command),
+                    "{dialect}: {command} is bound: {:?}",
+                    module.top_level.command_bindings
+                );
+            }
+            assert!(
+                !module.top_level.instructions.iter().any(|instruction| matches!(
+                    instruction.op,
+                    tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
+                ) && (instruction.source_cmd_text.starts_with("set ")
+                    || instruction.source_cmd_text.starts_with("lassign "))),
+                "{dialect}: {:?}",
+                module.top_level.instructions
+            );
+        }
+    }
+
+    /// The raw lowering pipeline with no entry is the same fresh
+    /// interpreter, so its module is admitted; an explicitly unknown entry
+    /// keeps the chunk's compiler provider unresolved.
+    #[test]
+    fn an_entry_less_pipeline_is_admitted_and_an_unknown_entry_is_not() {
+        let profile = tcl_dialect::DialectProfile::find("tcl9.0").expect("catalogue profile");
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+        let config = LexerConfig::default();
+        let source = "set l {1 2 3}\nlassign $l a b\nlist $a $b\n";
+        let ir = crate::lowering::lower_script_module_for_bytecode(
+            source, "", registry, config, None, false,
+        );
+        let cfg = crate::cfg_builder::build_cfg_codegen_with_registry_and_config(
+            &ir, false, registry, config,
+        );
+        let module = codegen_module(&cfg, &ir, registry).expect("original source namespace");
+        assert_eq!(
+            module.top_level.native_compilation_preflight,
+            tcl_runtime_api::NativeCompilationPreflight::NotRequired
+        );
+        assert!(
+            module
+                .top_level
+                .command_bindings
+                .iter()
+                .any(|binding| binding.identity == "lassign"),
+            "{:?}",
+            module.top_level.command_bindings
+        );
+
+        let config = LexerConfig::from_grammar(profile.grammar);
+        let input = fresh_document_input(registry, config, profile).expect("fresh input");
+        let entry = crate::command_binding::SourceAnalysisEntry::unknown_history_for_test(&input);
+        let mut options = entry.options();
+        options.native_compilation.mode =
+            tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject;
+        let ir = lower_script_module_for_bytecode_with_options(
+            source,
+            "",
+            registry,
+            config,
+            Some(profile),
+            false,
+            Some(options),
+        );
+        assert!(
+            ir.top_level
+                .native_compilation_admission
+                .as_ref()
+                .is_some_and(|admission| admission.provider_required),
+            "an unknown entry's compiler table is not the profile's"
+        );
     }
 }

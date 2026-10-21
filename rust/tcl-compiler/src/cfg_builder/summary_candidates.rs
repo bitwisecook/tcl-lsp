@@ -61,22 +61,17 @@ impl OriginalProcedureSummaryOwners {
             crate::registry_invocation::EffectiveCommandWords,
         )>,
     > {
-        let zz = std::env::var_os("ZZ_SOL49").is_some();
-        let zzh = tokens.argv_texts.first().cloned().unwrap_or_default();
-        let Some(binding) = tokens.source_binding.as_ref() else { if zz { eprintln!("ZZ calls {zzh}: no binding"); } return None; };
+        let binding = tokens.source_binding.as_ref()?;
         let module = self.module(registry);
-        if zz { eprintln!("ZZ calls {zzh}: module={}", module.is_some()); }
         let metadata = match module {
             Some(module) => {
-                let Some(m) = binding.original_invocation_metadata_for_module(tokens, module, registry) else { if zz { eprintln!("ZZ calls {zzh}: no metadata for module"); } return None; }; m
+                binding.original_invocation_metadata_for_module(tokens, module, registry)?
             }
             None => binding
                 .original_source_metadata_for_advice(tokens, registry)
                 .ok()??,
         };
-        let zzp = binding.original_invocation_source_purpose(tokens, metadata, registry);
-        if zz { eprintln!("ZZ calls {zzh}: purpose={zzp:?}"); }
-        if zzp?
+        if binding.original_invocation_source_purpose(tokens, metadata, registry)?
             == crate::command_binding::OriginalInvocationSourcePurpose::Logical
         {
             if crate::registry_invocation::original_logical_operation_invocation_with_metadata_context(
@@ -90,7 +85,6 @@ impl OriginalProcedureSummaryOwners {
         }
         let head = original_head(tokens)?;
         let lookup = binding.lookup_command_word(&head);
-        if zz { eprintln!("ZZ calls {zzh}: lookup unknown={} absent={} targets={}", lookup.unknown, lookup.may_be_absent, lookup.targets.len()); }
         if lookup.unknown || lookup.may_be_absent || lookup.targets.is_empty() {
             return None;
         }

@@ -52,8 +52,8 @@ pub(super) fn procedure_view(
             .and_then(|(_, interproc)| body_id.and_then(|id| interproc.procedures.get(&id)));
         nodes.push(json!({
             "id": format!("declaration-{ordinal}"),
-            "bodyId": body_id.map(|id| id.ordinal()),
-            "bodyKey": body_id.map(|id| id.reporting_key()),
+            "bodyId": body_id.map(tcl_core_types::ProcedureId::ordinal),
+            "bodyKey": body_id.map(tcl_core_types::ProcedureId::reporting_key),
             "name": labels[ordinal],
             "params": proc.params.iter().map(|param| &param.name).collect::<Vec<_>>(),
             "line": super::line0(&index, identity.span().start()),

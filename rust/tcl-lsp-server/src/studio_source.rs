@@ -4,6 +4,9 @@
 
 //! Backend-owned publication of exact live Studio source images.
 
+// This file is a split-out part of its parent module: it, and the test
+// modules nested under it, share the parent's whole import set.
+#[allow(clippy::wildcard_imports)]
 use super::*;
 use tcl_lsp_core::wire_session::EditorWireSession;
 #[cfg(test)]

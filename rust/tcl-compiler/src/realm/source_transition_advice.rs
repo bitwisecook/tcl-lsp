@@ -596,6 +596,31 @@ impl super::CommandBindingRealm {
             .then(|| receipt.clone())
     }
 
+    /// Whole original `Class::proc` call joined to its [incr Tcl] source class.
+    pub(crate) fn original_source_class_proc_call(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        original: &[tcl_lexer::NativeWord],
+    ) -> Option<crate::command_binding::OriginalSourceClassProcCall> {
+        self.matches_resolved_analysis_input(input).then_some(())?;
+        let image = self.original_source_image()?;
+        let config = input.lexer_config();
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let context = input.context_registry();
+        let prepared = self.source_advice.get_or_prepare(&context, || {
+            self.bindings
+                .original_source_transition_advice_tape(&context)
+        });
+        let receipt = prepared
+            .as_ref()
+            .as_ref()?
+            .class_proc_call(original.first()?.span().start())?;
+        (receipt.matches_source_context(image, config, &context)
+            && receipt.original_words() == original)
+            .then(|| receipt.clone())
+    }
+
     /// Whole immutable source-class receiver and original constructor lineage.
     pub(crate) fn original_source_class_instance_words(
         &self,

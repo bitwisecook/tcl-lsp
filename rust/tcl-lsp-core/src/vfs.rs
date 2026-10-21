@@ -327,7 +327,7 @@ impl SourcePathOrigin {
     }
 }
 
-/// Immutable original URI/path data selected by an actual SourceStore.
+/// Immutable original URI/path data selected by an actual `SourceStore`.
 /// Native, virtual and guest paths remain distinct. Retention grants no file
 /// identity, existence, source freshness or native host file-action authority.
 #[derive(Debug, Clone)]
@@ -499,7 +499,7 @@ pub trait SourceStore: std::fmt::Debug + Send + Sync {
     }
 
     /// Reborrow the actual selected saved images before one bounded synchronous
-    /// publication. MemoryStore holds mappings and bytes throughout; Native/WASI
+    /// publication. `MemoryStore` holds mappings and bytes throughout; Native/WASI
     /// reobserves actual saved bytes immediately before the callback, without
     /// excluding external writers or granting a physical snapshot/Native role.
     /// The callback must not await, perform I/O or reenter this store.
@@ -517,7 +517,7 @@ pub trait SourceStore: std::fmt::Debug + Send + Sync {
     }
 
     /// Reborrow saved inputs selected by original URI and native path callers.
-    /// No URI is invented for a source-path origin. MemoryStore retains its
+    /// No URI is invented for a source-path origin. `MemoryStore` retains its
     /// provider/mapping and byte locks; Native/WASI reobserve expected bytes
     /// immediately before the callback without excluding external writers.
     /// The synchronous callback must not await, perform I/O or reenter this store.
@@ -1012,7 +1012,7 @@ impl MemoryStore {
     }
 
     /// The exact path the host registered, without deriving URI/path identity.
-    /// The typed SourceStore operation also retains its issuer and current binding.
+    /// The typed `SourceStore` operation also retains its issuer and current binding.
     #[must_use]
     pub fn path_for_uri(&self, uri: &str) -> Option<PathBuf> {
         self.registered_uri_binding(uri)
@@ -1100,13 +1100,13 @@ impl SourceStore for MemoryStore {
                 current_revision,
             };
         }
-        if receipt.source_revision != current_revision {
+        if receipt.source_revision == current_revision {
+            WorkspaceSourceInventoryObservation::Current(receipt)
+        } else {
             WorkspaceSourceInventoryObservation::Stale {
                 receipt,
                 current_revision,
             }
-        } else {
-            WorkspaceSourceInventoryObservation::Current(receipt)
         }
     }
     fn document_uri_path(
@@ -1735,7 +1735,7 @@ mod mixed_saved_input_tests {
         foreign.upsert("/ordinary/requested.tclspec", b"ordinary".to_vec());
         assert_eq!(
             foreign.with_current_saved_source_inputs(&[], &[(&path, b"ordinary")], &mut || {
-                published += 1
+                published += 1;
             }),
             Err(SourceUriPathUnavailable::ForeignProvider)
         );

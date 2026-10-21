@@ -79,7 +79,7 @@ impl<'a> DiagnosticEditSource<'a> {
     }
 
     /// Exact worker-issued rewrite group and original source inputs. Policy
-    /// visibility is checked separately by Report::applicable_rewrites.
+    /// visibility is checked separately by `Report::applicable_rewrites`.
     #[must_use]
     pub fn matches_optimiser_rewrite_group(
         &self,

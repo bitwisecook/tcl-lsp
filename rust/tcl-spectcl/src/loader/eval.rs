@@ -1669,10 +1669,11 @@ fn drive_static(
                 stage_subcommand(drive.reborrow(), state, name, stmt.line, &block)?;
             }
             "default" => {
-                let args: Vec<String> = stmt.words.iter().skip(1).map(|w| w.text.clone()).collect();
+                let row = static_row(stmt);
+                let args: Vec<String> = row.words.iter().skip(1).map(|w| w.text.clone()).collect();
                 let mut st = state.borrow_mut();
-                track_declared_support(&mut st, &args, stmt.line);
-                st.push_node(Node::Row(stmt.clone()));
+                track_declared_support(&mut st, &args, row.line);
+                st.push_node(Node::Row(row));
             }
             "include" if at_pack => {
                 let words: Vec<&str> = stmt.words.iter().skip(1).map(|w| w.text.as_str()).collect();
@@ -1721,10 +1722,49 @@ fn drive_static(
                 };
                 stage_block(drive.reborrow(), state, word, head_words, stmt.line, &block)?;
             }
-            _ => state.borrow_mut().push_node(Node::Row(stmt.clone())),
+            _ => state.borrow_mut().push_node(Node::Row(static_row(stmt))),
         }
     }
     Ok(())
+}
+
+/// A static row as evaluating it captures it.
+///
+/// A braced word's value is its text with each backslash-newline (and the
+/// whitespace after it) folded to one space — Tcl's one substitution inside
+/// braces, which every release from 8.4 to 9.1 applies at any brace depth. The
+/// CST keeps the continuation in the word's text, so a row whose braced word
+/// holds one is captured from its values, exactly as the interpreter captures
+/// it: [`VerbatimIndex::row`] matches no source statement whose text differs
+/// from the value, so that route falls back to [`capture_stmt`] too. Bodies
+/// are still re-read from the verbatim text, which is what keeps their lines.
+fn static_row(stmt: &Stmt) -> Stmt {
+    fn value(word: &Word) -> std::borrow::Cow<'_, str> {
+        if word.braced {
+            tcl_syntax::backslash::collapse_brace_continuations_str_for(
+                &word.text,
+                tcl_dialect::BraceBackslashNewline::Folds,
+            )
+        } else {
+            std::borrow::Cow::Borrowed(word.text.as_str())
+        }
+    }
+    if stmt
+        .words
+        .iter()
+        .all(|word| matches!(value(word), std::borrow::Cow::Borrowed(_)))
+    {
+        return stmt.clone();
+    }
+    let values: Vec<String> = stmt
+        .words
+        .iter()
+        .map(|word| value(word).into_owned())
+        .collect();
+    let Some((head, args)) = values.split_first() else {
+        return stmt.clone();
+    };
+    capture_stmt(head, args, stmt.line)
 }
 
 /// The `available?` query (E-R1): answers against the union of the pack's

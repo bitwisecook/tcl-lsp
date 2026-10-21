@@ -291,12 +291,13 @@ fn requests(
             let selected = walk
                 .structure(document.source, &command)
                 .ok_or(OriginalMemberRenameRefusal::IncompleteCoverage)?;
-            registry_coverage(&selected).map_err(|refusal| {
+            registry_coverage(&selected).inspect_err(|&refusal| {
                 #[cfg(test)]
                 if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_MEMBER_RENAME").is_some() {
                     eprintln!("ORIGINAL_MEMBER_RENAME_REFUSAL site={command_offset} facts={:?} refusal={refusal:?}", selected.facts);
                 }
-                refusal
+                // Read only by the test-build trace above.
+                let _ = refusal;
             })?;
             for (a, b) in walk
                 .same_frame_regions(document.source, &command)

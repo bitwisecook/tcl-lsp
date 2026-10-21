@@ -272,7 +272,7 @@ fn configured_command(
     }
     let name = name_index
         .and_then(|index| words.original_argument_word(index))
-        .and_then(|word| tcl_syntax::word_rules::original_static_word_unicode_value(word))
+        .and_then(tcl_syntax::word_rules::original_static_word_unicode_value)
         .and_then(|bytes| String::from_utf8(bytes).ok())
         .filter(|value| !value.is_empty());
     Some(BlockDeclaration {

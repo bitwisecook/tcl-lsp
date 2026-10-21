@@ -28,7 +28,7 @@ fn uri(raw: &str) -> Uri {
 }
 
 fn native_uri(name: &str) -> Uri {
-    canonical_file_uri(&std::env::temp_dir().join(name)).unwrap()
+    canonical_file_uri(std::env::temp_dir().join(name)).unwrap()
 }
 
 fn opened(uri: &Uri, text: &str) -> DidOpenTextDocumentParams {

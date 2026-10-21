@@ -1,0 +1,210 @@
+--- a/rust/tcl-compiler/src/registry_invocation/original_word_data.rs
++++ b/rust/tcl-compiler/src/registry_invocation/original_word_data.rs
+@@ -202,6 +202,16 @@
+     if let Some(syntax) = matches(tokens) {
+         return Some(syntax);
+     }
++    // A structured command's condition (`if`, `while`, `for`) is one selected
++    // expression slot among its written words; that slot owns the AST.
++    let mut slots = (1..tokens.words().len()).filter_map(|written| {
++        let operand =
++            super::original_expression_operand_advice_for_word(registry, tokens, written)?;
++        (operand.expression_base == base && &operand.expression == expression).then_some(())
++    });
++    if slots.next().is_some() && slots.next().is_none() {
++        return original_variable_reference_syntax(tokens);
++    }
+     let metadata = binding
+         .original_source_metadata_for_advice(tokens, registry)
+         .ok()??;
+--- a/rust/tcl-compiler/src/command_binding/origin_inventory.rs
++++ b/rust/tcl-compiler/src/command_binding/origin_inventory.rs
+@@ -59,6 +59,10 @@
+     pub namespace: Option<super::SourceNamespaceKey>,
+     pub receiver_context:
+         Option<Arc<super::original_receiver_body_context::OriginalReceiverBodyContext>>,
++    /// Namespace of the invoking command for a body that runs in that same
++    /// frame but whose entry is conditional (a loop that may not iterate).
++    /// It names where the body would run, never that it ran.
++    pub conditional_namespace: Option<super::SourceNamespaceKey>,
+ }
+ 
+ impl SourceInvocationBinding {
+@@ -786,6 +790,22 @@
+                 .all(|key| key.as_ref() == Some(&first))
+                 .then_some(first);
+         }
++        let mut conditional = self.entered_scripts.values().flat_map(|arguments| {
++            arguments.values().flatten().filter_map(|observation| {
++                (&observation.source == source && observation.frame.is_none())
++                    .then(|| observation.conditional_namespace.clone())
++            })
++        });
++        if let Some(first) = conditional.next().flatten() {
++            let mut declared = self.deferred.values().filter(|body| {
++                body.executed_script
++                    .as_ref()
++                    .is_some_and(|(_, _, retained)| retained == source)
++            });
++            if declared.next().is_none() && conditional.all(|key| key.as_ref() == Some(&first)) {
++                return Some(first);
++            }
++        }
+         let mut declared = self.deferred.values().filter_map(|body| {
+             let (_, _, retained) = body.executed_script.as_ref()?;
+             (retained == source).then(|| {
+@@ -926,6 +946,34 @@
+             frame: frame.cloned(),
+             namespace: frame.and(namespace).cloned(),
+             receiver_context: None,
++            conditional_namespace: None,
++        };
++        if !scripts.contains(&observation) {
++            scripts.push(observation);
++        }
++    }
++
++    /// A body operand that runs in the invoking command's own frame under a
++    /// conditional entry retains that frame's namespace, never an entry.
++    pub(super) fn record_conditional_in_frame_script(
++        &mut self,
++        invocation: CommandAllocationSite,
++        argument: usize,
++        script: ExecutedScriptSource,
++        namespace: Option<&super::SourceNamespaceKey>,
++    ) {
++        let scripts = self
++            .entered_scripts
++            .entry(invocation)
++            .or_default()
++            .entry(argument)
++            .or_default();
++        let observation = EnteredScriptObservation {
++            source: script,
++            frame: None,
++            namespace: None,
++            receiver_context: None,
++            conditional_namespace: namespace.cloned(),
+         };
+         if !scripts.contains(&observation) {
+             scripts.push(observation);
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -7261,7 +7261,8 @@
+                 {
+                     continue;
+                 }
+-                self.walk_deferred_entry(&root, &entry, config, registry);
++                let after_load = self.uncalled_body_after_load(&root, &entry);
++                self.walk_deferred_entry_with(&root, &entry, config, registry, after_load);
+             }
+             if root_count == self.deferred.len() {
+                 break;
+@@ -7382,6 +7383,28 @@
+             .collect::<Vec<_>>()
+     }
+ 
++    /// An uncalled procedure body is analysed as if called after the
++    /// document finished running at top level (user decision
++    /// 2026-10-21T08:20Z, "world after load"): its commands resolve in the
++    /// procedure's namespace against the command world at the end of the
++    /// script. That needs a normal completion of the whole document and this
++    /// very end-of-script state; event handlers, receiver methods, future
++    /// frames and bodies first installed by deferred outcomes keep their own
++    /// conditional entries.
++    fn uncalled_body_after_load(
++        &self,
++        root: &DeferredSourceBody,
++        incoming: &ModuleCommandBindings,
++    ) -> bool {
++        root.event.is_none()
++            && !root.receiver_method
++            && root.future_frame.is_none()
++            && self
++                .original_completed_root_state
++                .as_deref()
++                .is_some_and(|completed| completed.same_state(incoming))
++    }
++
+     fn walk_deferred_entry(
+         &mut self,
+         root: &DeferredSourceBody,
+@@ -7389,6 +7412,17 @@
+         config: tcl_lexer::LexerConfig,
+         registry: &CommandRegistry,
+     ) {
++        self.walk_deferred_entry_with(root, incoming, config, registry, false);
++    }
++
++    fn walk_deferred_entry_with(
++        &mut self,
++        root: &DeferredSourceBody,
++        incoming: &ModuleCommandBindings,
++        config: tcl_lexer::LexerConfig,
++        registry: &CommandRegistry,
++        after_load: bool,
++    ) {
+         #[cfg(any(test, debug_assertions))]
+         let _timing = root_owner_work::Timing::at(root_owner_work::Query::DeferredEntry);
+         use crate::var_resolve::VariableExecutionFrame;
+@@ -7458,13 +7492,18 @@
+         // Preview ownership does not mark a document call as reached.
+         let implementation = root.implementation_id();
+         let activated = self.active_calls.insert(implementation.clone());
+-        self.declaration_preview_depth += 1;
++        let preview = usize::from(!after_load);
++        self.declaration_preview_depth += preview;
+         let outcomes = self.walk_source(
+             &root.source,
+             root.offset,
+             &mut branch,
+             &SourceExecutionContext {
+-                body_entry: SourceBodyEntryPurpose::Conditional,
++                body_entry: if after_load {
++                    SourceBodyEntryPurpose::Selected
++                } else {
++                    SourceBodyEntryPurpose::Conditional
++                },
+                 source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
+                 realm: root.realm,
+                 compilation,
+@@ -7490,7 +7529,7 @@
+                 expression_source: None,
+             },
+         );
+-        self.declaration_preview_depth -= 1;
++        self.declaration_preview_depth -= preview;
+         if activated {
+             self.active_calls.remove(&implementation);
+         }
+@@ -11932,13 +11971,23 @@
+         if let Some(word) = operands.written_word(index) {
+             self.record_executed_word(&parent.source, word.source().span, None, script.clone());
+         }
+-        self.record_executed_script(
+-            parent,
+-            index,
+-            script.clone(),
+-            context.entered_frame(),
+-            state.source_variables.namespace_identity.as_ref(),
+-        );
++        if context.entered_frame().is_some() {
++            self.record_executed_script(
++                parent,
++                index,
++                script.clone(),
++                context.entered_frame(),
++                state.source_variables.namespace_identity.as_ref(),
++            );
++        } else {
++            // The selected body context names the namespace it would run in.
++            self.record_conditional_in_frame_script(
++                parent,
++                index,
++                script.clone(),
++                Some(&context.namespace_identity()),
++            );
++        }
+         let previous_origin = state
+             .current_source_origin
+             .replace(Arc::clone(&script.origin));

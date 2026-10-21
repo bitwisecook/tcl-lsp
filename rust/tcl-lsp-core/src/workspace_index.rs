@@ -1526,7 +1526,9 @@ impl DocumentRecords {
             original_publications: self
                 .original_command_world
                 .iter()
-                .flat_map(|world| world.declarations())
+                .flat_map(
+                    tcl_compiler::command_binding::OriginalCompletedCommandWorld::declarations,
+                )
                 .map(|publication| {
                     let site = publication
                         .definition()
@@ -1937,7 +1939,7 @@ impl DocumentRecords {
     fn index_document(&mut self, uri: &str, analysis: &AnalysisResult) {
         let had_source_view = !self.uri.is_empty();
         let source_order_context = crate::source_graph::SourceOrderContext::capture(analysis);
-        self.uri = uri.to_owned();
+        uri.clone_into(&mut self.uri);
         self.dialect.clone_from(&analysis.dialect);
         self.diagnostic_source = WorkspaceDiagnosticSourceContext::for_analysis(analysis);
         // Accumulated source-site views cannot replace an incompatible
@@ -1988,17 +1990,17 @@ impl DocumentRecords {
             }));
         self.original_namespace_patterns
             .extend(analysis.original_namespace_patterns().cloned());
-        if let Some(context) = self.diagnostic_source.as_ref() {
-            if let Ok(source) = std::str::from_utf8(context.image().bytes()) {
-                self.original_vendor_declarations.extend(
-                    crate::vendor_declaration::retained_declarations(source, analysis)
-                        .unwrap_or_default(),
-                );
-                self.original_symbols
-                    .extend(crate::workspace_symbols::original_symbols(
-                        uri, source, analysis, context,
-                    ));
-            }
+        if let Some(context) = self.diagnostic_source.as_ref()
+            && let Ok(source) = std::str::from_utf8(context.image().bytes())
+        {
+            self.original_vendor_declarations.extend(
+                crate::vendor_declaration::retained_declarations(source, analysis)
+                    .unwrap_or_default(),
+            );
+            self.original_symbols
+                .extend(crate::workspace_symbols::original_symbols(
+                    uri, source, analysis, context,
+                ));
         }
         self.original_method_queries
             .extend(crate::method_symbol::source_queries(analysis));
@@ -2398,7 +2400,7 @@ impl DocumentRecords {
             self.variable_aliases.extend(
                 templates
                     .into_iter()
-                    .filter(|template| template.is_declaration())
+                    .filter(tcl_compiler::signature_scan::variable_symbol::OriginalVariableAliasTemplate::is_declaration)
                     .map(|source| WorkspaceVariableAlias {
                         uri: uri.to_owned(),
                         source,
@@ -4048,7 +4050,7 @@ impl WorkspaceIndex {
     pub fn source_inventory_roots(&self) -> Vec<std::path::PathBuf> {
         self.source_inventory_observations
             .iter()
-            .map(|observation| match observation {
+            .filter_map(|observation| match observation {
                 crate::vfs::WorkspaceSourceInventoryObservation::NotTracked => None,
                 crate::vfs::WorkspaceSourceInventoryObservation::Missing { root, .. } => {
                     Some(root.clone())
@@ -4058,7 +4060,6 @@ impl WorkspaceIndex {
                     Some(receipt.root.clone())
                 }
             })
-            .flatten()
             .collect()
     }
 
@@ -4625,11 +4626,10 @@ impl WorkspaceIndex {
                 let Some(coordinate) = declaration.source_candidate_coordinate() else {
                     continue;
                 };
-                if coordinates.contains(&coordinate) {
-                    if let Some(target) = crate::original_indexed_location::LogicalIndexedDeclarationLocation::procedure(&document.uri, context, input, declaration) {
+                if coordinates.contains(&coordinate)
+                    && let Some(target) = crate::original_indexed_location::LogicalIndexedDeclarationLocation::procedure(&document.uri, context, input, declaration) {
                         targets.push(target);
                     }
-                }
             }
             for declaration in document
                 .classes
@@ -4639,17 +4639,15 @@ impl WorkspaceIndex {
                 if declaration
                     .source_candidate_coordinate()
                     .is_some_and(|coordinate| coordinates.contains(coordinate))
-                {
-                    if let Some(target) =
+                    && let Some(target) =
                         crate::original_indexed_location::LogicalIndexedDeclarationLocation::class(
                             &document.uri,
                             context,
                             input,
                             declaration,
                         )
-                    {
-                        targets.push(target);
-                    }
+                {
+                    targets.push(target);
                 }
             }
         }
@@ -5137,7 +5135,7 @@ impl WorkspaceIndex {
 
     /// Current Logical procedure source cards for one exact original
     /// math-function occurrence. The occurrence must reborrow from the caller's
-    /// actual AnalysisResult; candidate labels and report names cannot create
+    /// actual `AnalysisResult`; candidate labels and report names cannot create
     /// this query. Positive cards grant no loaded function or dispatch result.
     #[must_use]
     pub fn logical_math_source_candidates(
@@ -6384,10 +6382,9 @@ impl WorkspaceIndex {
                 if uri != exclude_uri
                     && self.logical_request_matches_document_input(request, uri)
                     && declaration.source_candidate_coordinate().as_ref() == Some(coordinate)
+                    && let Some(candidate) = self.logical_procedure_candidate(uri, declaration)
                 {
-                    if let Some(candidate) = self.logical_procedure_candidate(uri, declaration) {
-                        candidates.push(candidate);
-                    }
+                    candidates.push(candidate);
                 }
             }
             for class in self
@@ -8278,8 +8275,8 @@ impl<'a> WildcardImportIndex<'a> {
             .flat_map(|doc| {
                 doc.original_procs
                     .iter()
-                    .map(|record| record.name())
-                    .chain(doc.original_classes.iter().map(|record| record.name()))
+                    .map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name)
+                    .chain(doc.original_classes.iter().map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name))
             })
             .collect::<Vec<_>>();
         let mut rows_by_ns: std::collections::HashMap<&str, Vec<GlobImportRow<'a>>> =

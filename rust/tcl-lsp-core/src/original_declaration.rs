@@ -587,7 +587,7 @@ impl OriginalDeclarationIdentity {
     pub fn owned_by(&self, uri: &str, source: &str, analysis: &AnalysisResult) -> Option<Self> {
         self.is_current(self.uri(), source, analysis).then(|| {
             let mut owned = self.clone();
-            owned.uri = uri.to_owned();
+            uri.clone_into(&mut owned.uri);
             owned
         })
     }
@@ -631,8 +631,7 @@ impl OriginalDeclarationIdentity {
             || !self
                 .image
                 .try_text()
-                .ok()
-                .is_some_and(|source| self.is_current(self.uri(), source, analysis))
+                .is_ok_and(|source| self.is_current(self.uri(), source, analysis))
         {
             return false;
         }
@@ -674,16 +673,15 @@ impl OriginalDeclarationIdentity {
             }
             .to_owned();
         }
-        self.input
-            .as_ref()
-            .map(|input| tcl_syntax::native_string::resident_name_label(input.bytes()))
-            .unwrap_or_else(|| "<top-level>".to_owned())
+        self.input.as_ref().map_or_else(
+            || "<top-level>".to_owned(),
+            |input| tcl_syntax::native_string::resident_name_label(input.bytes()),
+        )
     }
 }
 
 /// Byte-offset adapter for the same current readonly cursor selection.
 /// Offsets are source geometry and supply no naming or dispatch authority.
-#[must_use]
 pub fn select_at_offset(
     uri: &str,
     source: &str,
@@ -705,7 +703,6 @@ pub fn select_at_offset(
 
 /// Select a current original declaration at a cursor. Missing retained
 /// original lookup is terminal; display-word matching is never a fallback.
-#[must_use]
 pub fn select(
     uri: &str,
     source: &str,
@@ -1119,12 +1116,12 @@ fn complete_member_source_census(
     walked.sort_by_key(|span| (span.start(), span.end()));
     let Some(mut recorded) = methods
         .iter()
-        .map(|reference| reference.command_span())
+        .map(tcl_compiler::analyser::class_hierarchy::original_metadata::OriginalSourceSelfMethodReference::command_span)
         .collect::<Option<Vec<_>>>()
     else {
         return false;
     };
-    recorded.extend(properties.iter().map(|reference| reference.command_span()));
+    recorded.extend(properties.iter().map(tcl_compiler::analyser::class_hierarchy::original_metadata::OriginalSourceSelfPropertyReference::command_span));
     recorded.sort_by_key(|span| (span.start(), span.end()));
     walked == recorded && !recorded.windows(2).any(|pair| pair[0] == pair[1])
 }
@@ -2502,7 +2499,7 @@ mod tests {
                 .is_none()
         );
         let forged =
-            serde_json::from_value(serde_json::json!({"schema":1,"token":999999})).unwrap();
+            serde_json::from_value(serde_json::json!({"schema":1,"token":999_999})).unwrap();
         assert!(
             registry
                 .resolve(forged, "file:///a.tcl", source, &analysis)
@@ -2596,8 +2593,10 @@ mod logical_session_tests {
                 .unwrap();
         let identity = advice.possible_source_items()[0].identity().clone();
         let publication = LogicalCallHostPublication::retain(());
-        let mut registry = OriginalDeclarationRegistry::default();
-        registry.session = None;
+        let mut registry = OriginalDeclarationRegistry {
+            session: None,
+            ..OriginalDeclarationRegistry::default()
+        };
         assert!(
             registry
                 .issue_logical_call(identity.clone(), publication.clone())

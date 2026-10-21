@@ -198,7 +198,7 @@ impl<'a> FileCandidateScanner<'a> {
             }
             let Some(grammar) = schema
                 .dialect()
-                .and_then(|dialect| dialect.source_file_grammar())
+                .and_then(tcl_registry::InvocationDialect::source_file_grammar)
             else {
                 continue;
             };
@@ -349,7 +349,7 @@ mod tests {
                 entry
                     .file_candidates()
                     .iter()
-                    .map(|file| file.path())
+                    .map(super::OriginalPackageFileCandidate::path)
                     .collect::<Vec<_>>(),
                 [Path::new("/library/actual.tcl")],
                 "{version:?}"

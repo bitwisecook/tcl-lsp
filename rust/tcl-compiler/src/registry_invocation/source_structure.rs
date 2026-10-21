@@ -2379,6 +2379,19 @@ pub fn source_constructor_call_at(
     realm.original_source_constructor_call(input, &native)
 }
 
+/// Actual whole `Class::proc` call and the [incr Tcl] source class its
+/// qualifier names. Source advice only: member declaration and execution
+/// remain the consumer's facts.
+#[must_use]
+pub fn source_class_proc_call_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<crate::command_binding::OriginalSourceClassProcCall> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_source_class_proc_call(input, &native)
+}
+
 /// Conditional named or symbolic source-class receiver with whole original argv.
 /// This supplies no allocation, stored value, Native dispatch or lifetime grant.
 #[must_use]

@@ -218,7 +218,7 @@ impl OriginalIndexedSourceLocation {
     #[must_use]
     pub fn validated_span(&self, source: &str, analysis: &AnalysisResult) -> Option<Span> {
         let current = WorkspaceDiagnosticSourceContext::for_analysis(analysis)?;
-        (&current == &self.context
+        (current == self.context
             && current.uses_original_names()
             && current.image() == &SourceImage::document(source))
             .then_some(())?;

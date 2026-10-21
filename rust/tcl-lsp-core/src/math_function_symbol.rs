@@ -154,7 +154,6 @@ pub fn at(
 /// Advisory recorded function regions are May barriers only; they never mint
 /// a target if the genuine expression producer is unavailable. Explicit lexical
 /// analysis keeps its separate function advice after complete source currency.
-#[must_use]
 pub fn select_at_offset<'a>(
     source: &str,
     analysis: &'a AnalysisResult,

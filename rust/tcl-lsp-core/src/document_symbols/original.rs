@@ -315,7 +315,10 @@ pub(super) fn source_outline(
                     .original_name_input()
                     .original_word_key()
                     .filter(|key| key.source_image() == &image && key.lexer_config() == config)
-                    .map_or(original.span(), |key| key.span());
+                    .map_or(
+                        original.span(),
+                        tcl_compiler::signature_scan::original_name::SignatureSourceNameKey::span,
+                    );
                 let selection = span_to_range(source, &index, name_span);
                 let parameters = format_param_list(&method.params);
                 let detail = if side == tcl_compiler::analyser::types::MemberSide::ClassObject {
@@ -569,12 +572,11 @@ fn place_by_selection(
             return None;
         }
         let range = carried.range;
-        match place_by_selection(&mut node.children, destination, carried) {
-            Some(unplaced) => carried = unplaced,
-            None => {
-                node.range = merge_ranges(node.range, range);
-                return None;
-            }
+        if let Some(unplaced) = place_by_selection(&mut node.children, destination, carried) {
+            carried = unplaced;
+        } else {
+            node.range = merge_ranges(node.range, range);
+            return None;
         }
     }
     Some(carried)

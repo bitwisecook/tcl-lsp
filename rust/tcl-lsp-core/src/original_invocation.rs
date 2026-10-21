@@ -395,7 +395,7 @@ mod source_words_tests {
                 panic!("direct invocation acquired conditional case-only syntax")
             }
             OriginalRegistrySource::Conditional(metadata) => {
-                assert_eq!(metadata.original_words().len(), 3)
+                assert_eq!(metadata.original_words().len(), 3);
             }
             OriginalRegistrySource::SourceTransitions(_) => {
                 panic!("direct literal borrowed transition advice")

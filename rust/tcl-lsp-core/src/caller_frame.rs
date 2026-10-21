@@ -397,7 +397,7 @@ fn collect_bindings_in_region(
 }
 
 /// Local script purpose is selected by the actual enclosing frame or body.
-/// The parent BindingScan config remains unchanged for original token joins.
+/// The parent `BindingScan` config remains unchanged for original token joins.
 fn binding_region_commands(
     source: &str,
     start: usize,
@@ -445,10 +445,10 @@ fn bindings_from_call(
                 declared.is_some(),
             );
         }
-        if let Some(template) = declared {
-            if template.invocation().matches_registry(registry) {
-                bindings_from_declared_self_dispatch(ctx, cmd, &template, out);
-            }
+        if let Some(template) = declared
+            && template.invocation().matches_registry(registry)
+        {
+            bindings_from_declared_self_dispatch(ctx, cmd, &template, out);
         }
         return;
     };

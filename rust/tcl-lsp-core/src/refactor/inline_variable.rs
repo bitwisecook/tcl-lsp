@@ -150,7 +150,7 @@ pub fn inline_variable(
 }
 
 /// Conditional source-authoring intent, independently of a completed store or
-/// physical value motion. Like LogicalVariableExtractionRecipe, this owner
+/// physical value motion. Like `LogicalVariableExtractionRecipe`, this owner
 /// offers an explicitly authored source operation, not runtime equivalence.
 /// Unresolved observer/runtime/frame obligations are retained by purpose; no
 /// Native Normal, source-cell erasure or completed RHS value is manufactured.
@@ -470,7 +470,7 @@ fn source_read_follows_setter(
         let child = plan.reborrow_command_substitution_plan(word, child?).ok()?;
         // The inner read cannot borrow a later command after an intervening
         // statement in this substitution. Repeated descent retains each owner.
-        words = child.commands.first()?.words.clone();
+        words.clone_from(&child.commands.first()?.words);
         plan = child;
     }
 }

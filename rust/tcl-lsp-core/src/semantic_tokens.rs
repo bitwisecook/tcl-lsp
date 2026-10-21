@@ -3458,9 +3458,9 @@ fn collect_script(
         // its physical escape tokens form several lexical fragments.
         let computed_head = member_head.is_none()
             && head_is_computed(&seg)
-            && !original
+            && original
                 .as_ref()
-                .is_some_and(|words| original::original_logical_head(ctx, words).is_some());
+                .is_none_or(|words| original::original_logical_head(ctx, words).is_none());
         let static_head_extent = member_head.map_or(head_tok.span, |(word, _)| word.word_span());
         if !computed_head {
             if ctx.lexical && original.is_none() && member_head.is_none() {
@@ -3608,7 +3608,7 @@ fn collect_script(
                     seg.span.start(),
                 )
             })
-            .map(|body| body.environment())
+            .map(tcl_compiler::registry_invocation::OriginalSourceScopedBody::environment)
             .or(ctx.scoped_env);
         let body_ctx = ScriptCtx {
             oo_grammar: next_oo,
@@ -3644,7 +3644,7 @@ fn collect_script(
 
         let mut expanded_roles = original
             .as_ref()
-            .map_or_else(Vec::new, |words| original::expanded_role_extents(words));
+            .map_or_else(Vec::new, original::expanded_role_extents);
         expanded_roles.extend(procedure_role_extents);
         for tok in &seg.all_tokens {
             if original::emit_expanded_role_extents(ctx, *tok, &expanded_roles, entries) {
@@ -3910,10 +3910,7 @@ fn insert_original_procedure_argument_role_geometry(
                 FormalByteArgumentBinding::Default { .. }
                 | FormalByteArgumentBinding::Rest { .. } => continue,
             };
-            if !u32::try_from(parameter)
-                .ok()
-                .is_some_and(|index| parameters.contains(&index))
-            {
+            if !u32::try_from(parameter).is_ok_and(|index| parameters.contains(&index)) {
                 continue;
             }
             let Some(operand) = operands.get(argument).and_then(Option::as_ref) else {
@@ -11246,8 +11243,10 @@ mod configured_semantic_receiver_tests {
             "a{b}c".to_owned(),
             std::collections::HashSet::from(["::Element".to_owned()]),
         )]);
-        let mut config = tcl_lexer::LexerConfig::default();
-        config.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        let mut config = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::Tcl9Nesting,
+            ..tcl_lexer::LexerConfig::default()
+        };
         let current = analyse(source, config, false);
         let mut handles = ObjectClassMap::default();
         augment_loop_var_handles(source, &current, &collections, &mut handles);

@@ -274,7 +274,11 @@ fn enclosing_body_spans(
         }
         Some(())
     };
-    if !analysis.allows_lexical_declaration_advice() {
+    if analysis.allows_lexical_declaration_advice() {
+        // Explicit logical compatibility, independently selected at ingress.
+        // A missing original/native inventory cannot enable this branch.
+        retain_logical_body_spans(analysis, &mut retain)?;
+    } else {
         use crate::original_declaration::OriginalDeclarationIdentity;
         for declaration in analysis.original_procedure_declarations() {
             OriginalDeclarationIdentity::for_procedure("", source, analysis, declaration)?;
@@ -319,10 +323,6 @@ fn enclosing_body_spans(
                 &mut retain,
             )?;
         }
-    } else {
-        // Explicit logical compatibility, independently selected at ingress.
-        // A missing original/native inventory cannot enable this branch.
-        retain_logical_body_spans(analysis, &mut retain)?;
     }
     // Innermost first — sort by span width ascending.
     spans.sort_by_key(|s| s.end() - s.start());

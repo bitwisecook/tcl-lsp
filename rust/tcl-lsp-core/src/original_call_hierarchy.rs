@@ -41,7 +41,7 @@ pub fn item(
         } else {
             identity.label()
         },
-        detail: Some("Source declaration".to_owned()),
+        detail: original_item_detail(identity, document.analysis),
         range: crate::definition::span_to_range(
             document.source,
             &index,
@@ -53,6 +53,33 @@ pub fn item(
         selection_range: crate::definition::span_to_range(document.source, &index, identity.span()),
         identity: Some(identity.clone()),
     })
+}
+
+/// The item detail the lexical provider renders for the same declaration:
+/// `(N params)` for a procedure with parameters (none without), and
+/// `KIND of CLASS (N params)` for a class member. A declaration whose
+/// current metadata is unavailable keeps the generic source label.
+fn original_item_detail(
+    identity: &OriginalDeclarationIdentity,
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> Option<String> {
+    if let Some(procedure) = identity.procedure_metadata(analysis) {
+        let params = procedure.metadata().params.len();
+        return (params > 0).then(|| format!("({params} params)"));
+    }
+    if let (Some(method), Some(class)) = (
+        identity.method_metadata(analysis),
+        identity.class_metadata(analysis),
+    ) {
+        let method = method.metadata();
+        return Some(format!(
+            "{} of {} ({} params)",
+            method.kind,
+            class.metadata().qualified_name,
+            method.params.len(),
+        ));
+    }
+    Some("Source declaration".to_owned())
 }
 
 /// Prepare a readonly source item using independent current document owners.
@@ -260,7 +287,7 @@ impl<'a> OriginalProcedureCalls<'a> {
     fn at_cursor(&self, cursor: u32) -> Option<&tcl_compiler::segmenter::SegmentedCommand> {
         let mut selected = self.commands.iter().filter(|command| {
             crate::refactor::FrameWalk::native_words(&self.walk, self.document.source, command)
-                .and_then(|words| words.first().map(|word| word.span()))
+                .and_then(|words| words.first().map(tcl_lexer::NativeWord::span))
                 .is_some_and(|span| span.start() <= cursor && cursor < span.end())
         });
         let command = selected.next()?;
@@ -1235,7 +1262,7 @@ mod positioned_procedure_strong_reference_tests {
                 actual
                     .as_ref()
                     .and_then(|identity| identity.input())
-                    .map(|input| input.bytes()),
+                    .map(tcl_compiler::signature_scan::scope::SignatureSourceNameInput::bytes),
                 selected,
                 "{source}"
             );

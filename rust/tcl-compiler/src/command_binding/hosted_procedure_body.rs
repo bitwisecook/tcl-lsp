@@ -347,6 +347,16 @@ impl SourceCommandBindings {
 mod tests {
     use super::*;
     fn fixture(source: &str) -> (SourceCommandBindings, ResolvedAnalysisInput) {
+        fixture_with_history(source, false)
+    }
+
+    /// `unknown_history` supplies the explicit unknown-history entry; without
+    /// it a supplied document is a fresh rule load (user decision
+    /// 2026-10-21T00:10Z), whose loader `proc` is resolved.
+    fn fixture_with_history(
+        source: &str,
+        unknown_history: bool,
+    ) -> (SourceCommandBindings, ResolvedAnalysisInput) {
         let environment = tcl_registry::model::ingress::resolve_environment("f5-irules");
         let profile = environment.unit_profile();
         let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
@@ -357,12 +367,17 @@ mod tests {
             config,
         );
         let registry = input.borrowed_context_registry().commands();
-        let entry = super::super::SourceAnalysisEntry::for_supplied_source(
-            registry,
-            &input,
-            config,
-            Some(profile),
-        );
+        let entry = if unknown_history {
+            super::super::SourceAnalysisEntry::for_hosted_source(&input)
+                .expect("hosted F5 input")
+        } else {
+            super::super::SourceAnalysisEntry::for_supplied_source(
+                registry,
+                &input,
+                config,
+                Some(profile),
+            )
+        };
         let bindings =
             SourceCommandBindings::analyse_with_options(source, config, registry, entry.options());
         (bindings, input)
@@ -397,7 +412,9 @@ mod tests {
     #[test]
     fn hosted_declaration_body_keeps_real_words_scope_and_unknown_handlers() {
         let source = "proc ordinary {value {fallback DEFAULT}} {set static::counter 1; return $value}\nwhen HTTP_REQUEST {puts request}\n";
-        let (bindings, input) = fixture(source);
+        // Unknown declaration alternatives need unknown prior history; a
+        // fresh rule load resolves the loader's `proc`.
+        let (bindings, input) = fixture_with_history(source, true);
         let registry = input.borrowed_context_registry().commands();
         let cards = bindings.original_hosted_procedure_body_cards(&input, registry);
         assert_eq!(cards.len(), 1);

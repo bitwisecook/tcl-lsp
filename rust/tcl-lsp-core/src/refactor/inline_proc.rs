@@ -523,7 +523,7 @@ fn single_command_body(
         native_input
             .as_ref()
             .and_then(|input| input.original_word_key())
-            .map(|key| key.original_word())
+            .map(tcl_compiler::signature_scan::original_name::SignatureSourceNameKey::original_word)
     }
     .filter(|word| {
         word.image() == &image
@@ -937,15 +937,9 @@ fn literal_substitution_container(
 ) -> Option<String> {
     let mut admitted = Vec::new();
     for command in std::iter::once(&body.command).chain(nested) {
-        let Some(words) = walk.native_words(source, command) else {
-            return None;
-        };
-        let Some(schema) = walk.source_words(source, command) else {
-            return None;
-        };
-        if schema.roles().is_none() {
-            return None;
-        }
+        let words = walk.native_words(source, command)?;
+        let schema = walk.source_words(source, command)?;
+        schema.roles()?;
         let roles = schema.written_argument_roles();
         for (ordinal, word) in words.iter().enumerate() {
             if word.span().start() > reference.start() || reference.end() > word.span().end() {
@@ -955,9 +949,7 @@ fn literal_substitution_container(
                 .checked_sub(1)
                 .is_some_and(|argument| roles.contains(&(argument, ArgRole::Expr)));
             let matches = if expression {
-                let Some(profile) = analysis.resolved_profile() else {
-                    return None;
-                };
+                let profile = analysis.resolved_profile()?;
                 // Quoted Tcl arguments may transform expression source before
                 // expr sees it. No decoded value is invented for that language.
                 if word.group().kind == tcl_lexer::WordKind::Quoted {

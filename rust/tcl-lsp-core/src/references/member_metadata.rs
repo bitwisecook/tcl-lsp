@@ -50,9 +50,7 @@ fn inventory(
 ) -> Option<(Vec<Span>, bool)> {
     // naming.core.original-member-reference-hazard
     // docs/design/analysis/name-resolution-proofs/core-original-member-reference-hazard.md
-    let Some(input) = analysis.resolved_input.as_ref() else {
-        return None;
-    };
+    let input = analysis.resolved_input.as_ref()?;
     let config = input.lexer_config();
     if analysis
         .resolved_profile()

@@ -306,12 +306,14 @@ impl CodegenCtx<'_> {
                 literal: word.simple(),
             })
             .collect();
-        let compiled = tcl_registry::release_compilation::compiles_control(
+        let Some(compiled) = tcl_registry::release_compilation::compiles_control(
             self.vm_release(),
             command,
             &compile_words,
             true,
-        )?;
+        ) else {
+            return self.release_compiles_dict_scope(command, &compile_words);
+        };
         if !compiled {
             return None;
         }
@@ -326,6 +328,72 @@ impl CodegenCtx<'_> {
         if let Some(body) = words.last() {
             self.intern_script_locals(body.text);
         }
+        Some(0)
+    }
+
+    /// `dict update` (`TclCompileDictUpdateCmd`, from 8.5) and `dict with`
+    /// (`TclCompileDictWithCmd`, from 8.6) the release compiles in a procedure
+    /// body, where the command then logs no body frame of its own. Measured
+    /// with `::tcl::unsupported::disassemble` on tclsh 8.5.19, 8.6.18 and
+    /// 9.0.4: `dict update` needs a literal body and its dictionary and
+    /// update variables literal local scalars (`LocalScalarFromToken`), so
+    /// `::d` or `a(1)` leave it to the command; `dict with` needs only a
+    /// literal body, its variable a local when it is a local scalar name.
+    /// 8.5 has no `dict with` compiler. Apart from a procedure body neither
+    /// compiles a body that can fail: an update needs the procedure's
+    /// locals, and a non-empty `dict with` body its local table.
+    fn release_compiles_dict_scope(
+        &mut self,
+        command: &str,
+        words: &[CompileWord<'_>],
+    ) -> Option<u8> {
+        let (sub, rest) = match command.strip_prefix("::").unwrap_or(command) {
+            "dict" => {
+                let (sub, rest) = words.split_first()?;
+                (sub.literal.then_some(sub.text)?, rest)
+            }
+            "tcl::dict::update" => ("update", words),
+            "tcl::dict::with" => ("with", words),
+            _ => return None,
+        };
+        let local_scalar = |word: &CompileWord<'_>| {
+            word.literal && !is_qualified(word.text) && !super::values::is_array_ref(word.text)
+        };
+        let (body, scope) = rest.split_last()?;
+        if !body.literal {
+            return None;
+        }
+        let locals: Vec<&str> = match sub {
+            "update" if self.vm_release() >= tcl_dialect::TclVersion::V8_5 => {
+                let (variable, pairs) = scope.split_first()?;
+                if !local_scalar(variable)
+                    || pairs.is_empty()
+                    || pairs.len() % 2 != 0
+                    || !pairs.chunks(2).all(|pair| local_scalar(&pair[1]))
+                {
+                    return None;
+                }
+                std::iter::once(variable.text)
+                    .chain(pairs.chunks(2).map(|pair| pair[1].text))
+                    .collect()
+            }
+            "with" if self.vm_release() >= tcl_dialect::TclVersion::V8_6 => {
+                let variable = scope.first()?;
+                if local_scalar(variable) {
+                    vec![variable.text]
+                } else {
+                    Vec::new()
+                }
+            }
+            _ => return None,
+        };
+        if !self.compiles_locals() {
+            return Some(0);
+        }
+        for name in locals {
+            self.intern_compiled_local(name);
+        }
+        self.intern_script_locals(body.text);
         Some(0)
     }
 
@@ -2632,6 +2700,74 @@ mod tests {
             "the expansion marker must not enter argv: {:?}",
             ctx.literals.entries()
         );
+    }
+
+    /// `dict update` and `dict with` run as commands here, and the VM logs
+    /// their body frame only where the release would not have compiled them.
+    /// Measured with `::tcl::unsupported::disassemble`: 8.5.19 compiles
+    /// `dict update d k v {}` in a procedure body (`dictUpdateStart`) and
+    /// leaves `dict with` and a `::d` or `a(1)` update to the command; 8.6.18
+    /// and 9.0.4 also compile `dict with d {...}` and `dict with ::d {...}`
+    /// in one, but not `dict update` at the top level.
+    #[test]
+    fn the_release_compiles_dict_update_and_dict_with_in_a_procedure_body() {
+        let registry = CommandRegistry::build_default();
+        let compiled = |release: &str, is_proc: bool, args: &[(&str, bool)]| {
+            let mut ctx = CodegenCtx::new(is_proc, &[], &registry);
+            ctx.dialect = Some(
+                tcl_registry::model::ingress::resolve_environment(release).analyser_profile(),
+            );
+            ctx.release_compiled("dict", args)
+        };
+        let update = [
+            ("update", false),
+            ("d", false),
+            ("k", false),
+            ("v", false),
+            ("set v 2", true),
+        ];
+        let with = [("with", false), ("d", false), ("set a 1", true)];
+        let in_procedure = Some(tcl_bytecode::ReleaseCompiled {
+            script_word: None,
+            frame_local_words: 0,
+            in_procedure_only: false,
+        });
+        for release in ["tcl8.5", "tcl8.6", "tcl9.0"] {
+            assert_eq!(compiled(release, true, &update), in_procedure, "{release}");
+            assert_eq!(
+                compiled(release, false, &update).map(|c| c.in_procedure_only),
+                Some(true),
+                "{release}"
+            );
+            for (variable, key) in [("::d", "v"), ("d", "a(1)")] {
+                let args = [
+                    ("update", false),
+                    (variable, false),
+                    ("k", false),
+                    (key, false),
+                    ("set x 1", true),
+                ];
+                assert_eq!(compiled(release, true, &args), None, "{release} {args:?}");
+            }
+            assert_eq!(
+                compiled(release, true, &[("update", false), ("d", false), ("k", false), ("v", false), ("$body", false)]),
+                None,
+                "{release}: a substituted body is left to the command"
+            );
+        }
+        assert_eq!(compiled("tcl8.5", true, &with), None);
+        for release in ["tcl8.6", "tcl9.0"] {
+            assert_eq!(compiled(release, true, &with), in_procedure, "{release}");
+            assert_eq!(
+                compiled(
+                    release,
+                    true,
+                    &[("with", false), ("::d", false), ("set x 1", true)]
+                ),
+                in_procedure,
+                "{release}"
+            );
+        }
     }
 
     /// C 8.6 compiles a substituted script word of `catch`, `try` and `for`

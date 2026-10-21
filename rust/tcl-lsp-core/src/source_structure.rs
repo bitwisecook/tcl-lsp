@@ -113,7 +113,7 @@ impl DefinitionCursorRegion {
             .flat_map(|command| &command.words)
             .any(|word| {
                 matches!(word.group().kind, WordKind::Braced | WordKind::Quoted)
-                    && word.content_span().ok().is_some_and(contains)
+                    && word.content_span().is_ok_and(contains)
             });
         if unrepresented {
             return if self.depth == 0 {
@@ -1098,12 +1098,11 @@ impl SourceStructure {
 
         let image = SourceImage::document(source);
         let end = u32::try_from(source.len()).ok()?;
-        if let Some(analysis) = analysis {
-            if analysis.body_lexer_config != Some(config)
-                || !analysis.matches_original_source_image(&image, config)
-            {
-                return None;
-            }
+        if let Some(analysis) = analysis
+            && (analysis.body_lexer_config != Some(config)
+                || !analysis.matches_original_source_image(&image, config))
+        {
+            return None;
         }
         let mut structure = Self {
             root_commands: Vec::new(),
@@ -1215,10 +1214,10 @@ impl SourceStructure {
         }
         let original_plan =
             tcl_lexer::native_script_words_in(capture.image.clone(), region, config);
-        if let Some(census) = &mut self.package_census {
-            if !matches!(&original_plan, Ok(plan) if plan.fatal_tail.is_none()) {
-                census.unavailable.push(region);
-            }
+        if let Some(census) = &mut self.package_census
+            && !matches!(&original_plan, Ok(plan) if plan.fatal_tail.is_none())
+        {
+            census.unavailable.push(region);
         }
         if purpose == CapturePurpose::DefinitionCursor {
             let members = analysis.and_then(|analysis| {
@@ -1237,10 +1236,10 @@ impl SourceStructure {
             for command in &plan.commands {
                 for word in &command.words {
                     for part in word.executable_parts().all_parts() {
-                        if matches!(part.part, ExecutablePart::ParseError(_)) {
-                            if let Some(census) = &mut self.package_census {
-                                census.unavailable.push(word.span());
-                            }
+                        if matches!(part.part, ExecutablePart::ParseError(_))
+                            && let Some(census) = &mut self.package_census
+                        {
+                            census.unavailable.push(word.span());
                         }
                         if let ExecutablePart::Command { body } = part.part {
                             queue.push_back((body, depth + 1, definition_parent.cloned()));

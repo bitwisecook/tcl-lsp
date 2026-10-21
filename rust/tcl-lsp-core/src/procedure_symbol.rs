@@ -24,7 +24,7 @@ pub fn declarations<'a>(source: &str, analysis: &'a AnalysisResult) -> Option<Ve
         analysis
             .checked_logical_source_procedure_declarations(&image, config)?
             .into_iter()
-            .map(|declaration| declaration.metadata())
+            .map(tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::metadata)
             .collect::<Vec<_>>()
     } else {
         let mut declarations = Vec::new();

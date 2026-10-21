@@ -1445,7 +1445,7 @@ mod original_schema_tests {
                 .contains("?missing?")
         );
         let foreign = tcl_registry::model::ingress::static_context_for("tcl8.6");
-        assert!(words.with_source_schema(&foreign, |_| ()).is_none());
+        assert!(words.with_source_schema(foreign, |_| ()).is_none());
     }
 
     #[test]
@@ -1503,7 +1503,7 @@ mod original_schema_tests {
             );
         }
         let foreign = tcl_registry::model::ingress::static_context_for("tcl8.6");
-        assert!(words.with_source_schema(&foreign, |_| ()).is_none());
+        assert!(words.with_source_schema(foreign, |_| ()).is_none());
         assert!(help(&source.replace("value", "other"), &analysis, source.len()).is_none());
     }
 }

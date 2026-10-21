@@ -18,6 +18,9 @@
 //! Actual source declarations consulted by the workspace diagnostic refinement.
 //! These inputs are not runtime command lookup or a complete declaration census.
 
+// This file is a split-out part of its parent module: it, and the test
+// modules nested under it, share the parent's whole import set.
+#[allow(clippy::wildcard_imports)]
 use super::*;
 
 pub(super) struct WorkspaceDiagnosticSource {

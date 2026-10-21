@@ -5950,6 +5950,47 @@ fn emit_cfg_ssa_diagnostics_w220_pkgindex_dir_var_suppressed() {
     );
 }
 
+/// Only ``dir`` is loader-supplied: tclsh 8.6/9.0 `can't read "missing"` for
+/// the substituted read below, so W210 still reports it in pkgIndex.tcl.
+#[test]
+fn w210_pkgindex_reports_other_reads_inside_command_substitutions() {
+    for (path, source, names) in [
+        (
+            "/proj/pkgIndex.tcl",
+            "set f [file join $dir $missing]\nsource $f\n",
+            &["missing"][..],
+        ),
+        (
+            "/proj/other.tcl",
+            "set f [file join $dir $missing]\nsource $f\n",
+            &["dir", "missing"][..],
+        ),
+        (
+            "/proj/pkgIndex.tcl",
+            "set f [file join $missing]\n",
+            &["missing"][..],
+        ),
+        ("/proj/pkgIndex.tcl", "set f $missing\n", &["missing"][..]),
+    ] {
+        let mut analyser = Analyser::new().with_file_path(Some(path.to_owned()));
+        let result = analyser.analyse(source, "tcl8.6");
+        let w210 = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::W210)
+            .map(|diagnostic| diagnostic.message.clone())
+            .collect::<Vec<_>>();
+        eprintln!("PROBE W210 {path} {source:?}: {w210:?}");
+        for name in names {
+            assert!(
+                w210.iter()
+                    .any(|message| message.contains(&format!("'{name}'"))),
+                "{path}: {source:?}: {name}: {w210:?}"
+            );
+        }
+    }
+}
+
 /// W220-IR-paths.  Outside ``pkgIndex.tcl``, ``$dir`` is
 /// just a regular variable — no special suppression.
 /// Negative control for the pkgIndex special-case.

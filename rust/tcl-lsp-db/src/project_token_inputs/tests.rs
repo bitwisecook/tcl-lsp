@@ -41,7 +41,7 @@ fn is_variable(tokens: &SemanticTokens, source: &str, value: &str) -> bool {
     let target = tcl_lexer::LineIndex::new(source).position_at_utf16(offset, source);
     let mut line = 0;
     let mut column = 0;
-    tokens.data.chunks_exact(5).any(|token| {
+    tokens.data.as_chunks::<5>().0.iter().any(|token| {
         line += token[0];
         column = if token[0] == 0 {
             column + token[1]
@@ -536,7 +536,7 @@ fn is_method(tokens: &SemanticTokens, source: &str, word: &str) -> bool {
     )
     .unwrap();
     let (mut line, mut column) = (0, 0);
-    tokens.data.chunks_exact(5).any(|token| {
+    tokens.data.as_chunks::<5>().0.iter().any(|token| {
         line += token[0];
         column = if token[0] == 0 {
             column + token[1]

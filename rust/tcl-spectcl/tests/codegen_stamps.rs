@@ -46,9 +46,14 @@ use tcl_compiler::compile_service::BytecodeCompileService;
 use tcl_dialect::DialectProfile;
 use tcl_dialect::model::DependencyTier;
 use tcl_registry::CommandRegistry;
+use tcl_runtime_api::native_substitution::{
+    NativeSubstitutionCompilationEntry, NativeSubstitutionTarget,
+};
 use tcl_runtime_api::{
-    BackingKind, CommandBindingIdentity, CompileError, PackFactStamp, ProcedureBindingIdentity,
-    ProcedureCompileTarget, ProcedureDispatch, ScriptCommandPlan, ScriptCompileTarget, SiteClaim,
+    BackingKind, CommandBindingIdentity, CompileError, CompileFailure, CompileUnit,
+    NativeCompilationEntry, PackFactStamp, ProcedureBindingIdentity, ProcedureCompileTarget,
+    ProcedureCompileTargetBytes, ProcedureDispatch, ScriptCommandPlan, ScriptCompileTarget,
+    ScriptCompileTargetBytes, SiteClaim, SourceImage,
 };
 use tcl_spectcl::PackSet;
 use tcl_vm::{Code, CompileService, Vm};
@@ -231,6 +236,146 @@ impl CompileService for PlainCounting {
         self.inner
             .compile_procedure_for_profile(target, profile, dispatch)
             .map(|module| self.forge(module))
+    }
+
+    // The entry-aware and byte-ingress compiles the VM asks for: forwarded to
+    // the inner service exactly, so the wrapper changes nothing but the count
+    // (a defaulted method here would refuse, or silently compile plain).
+
+    fn compile_script_with_entry(
+        &self,
+        target: ScriptCompileTarget<'_>,
+        profile: &'static DialectProfile,
+        entry: &NativeCompilationEntry,
+    ) -> Result<ModuleAsm, CompileError> {
+        self.inner
+            .compile_script_with_entry(target, profile, entry)
+            .map(|module| self.forge(module))
+    }
+
+    fn compile_procedure_with_entry(
+        &self,
+        target: ProcedureCompileTarget<'_>,
+        profile: &'static DialectProfile,
+        entry: &NativeCompilationEntry,
+        dispatch: ProcedureDispatch,
+    ) -> Result<ModuleAsm, CompileError> {
+        if dispatch == ProcedureDispatch::Plain {
+            self.count();
+        }
+        self.inner
+            .compile_procedure_with_entry(target, profile, entry, dispatch)
+            .map(|module| self.forge(module))
+    }
+
+    fn compile_substitution_with_entry(
+        &self,
+        target: NativeSubstitutionTarget<'_>,
+        profile: &'static DialectProfile,
+        entry: NativeSubstitutionCompilationEntry<'_>,
+    ) -> Result<ModuleAsm, CompileError> {
+        self.inner
+            .compile_substitution_with_entry(target, profile, entry)
+            .map(|module| self.forge(module))
+    }
+
+    fn compile_script_bytes_for_profile(
+        &self,
+        target: ScriptCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+    ) -> Result<ModuleAsm, CompileError> {
+        self.inner
+            .compile_script_bytes_for_profile(target, profile)
+            .map(|module| self.forge(module))
+    }
+
+    fn compile_script_bytes_with_entry(
+        &self,
+        target: ScriptCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+        entry: &NativeCompilationEntry,
+    ) -> Result<ModuleAsm, CompileError> {
+        self.inner
+            .compile_script_bytes_with_entry(target, profile, entry)
+            .map(|module| self.forge(module))
+    }
+
+    fn compile_plain_script_bytes_for_profile(
+        &self,
+        target: ScriptCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+    ) -> Result<ModuleAsm, CompileError> {
+        self.count();
+        self.inner
+            .compile_plain_script_bytes_for_profile(target, profile)
+    }
+
+    fn compile_plain_script_bytes_with_entry(
+        &self,
+        target: ScriptCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+        entry: &NativeCompilationEntry,
+    ) -> Result<ModuleAsm, CompileError> {
+        self.count();
+        self.inner
+            .compile_plain_script_bytes_with_entry(target, profile, entry)
+    }
+
+    fn compile_procedure_bytes_for_profile(
+        &self,
+        target: ProcedureCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+        dispatch: ProcedureDispatch,
+    ) -> Result<ModuleAsm, CompileError> {
+        if dispatch == ProcedureDispatch::Plain {
+            self.count();
+        }
+        self.inner
+            .compile_procedure_bytes_for_profile(target, profile, dispatch)
+            .map(|module| self.forge(module))
+    }
+
+    fn compile_procedure_bytes_with_entry(
+        &self,
+        target: ProcedureCompileTargetBytes<'_>,
+        profile: &'static DialectProfile,
+        entry: &NativeCompilationEntry,
+        dispatch: ProcedureDispatch,
+    ) -> Result<ModuleAsm, CompileError> {
+        if dispatch == ProcedureDispatch::Plain {
+            self.count();
+        }
+        self.inner
+            .compile_procedure_bytes_with_entry(target, profile, entry, dispatch)
+            .map(|module| self.forge(module))
+    }
+
+    fn script_command_plan_bytes_for_profile(
+        &self,
+        source: &SourceImage,
+        profile: &'static DialectProfile,
+    ) -> Result<ScriptCommandPlan, CompileError> {
+        self.inner
+            .script_command_plan_bytes_for_profile(source, profile)
+    }
+
+    fn script_command_plan_bytes_with_entry(
+        &self,
+        source: &SourceImage,
+        profile: &'static DialectProfile,
+        entry: &NativeCompilationEntry,
+    ) -> Result<ScriptCommandPlan, CompileError> {
+        self.inner
+            .script_command_plan_bytes_with_entry(source, profile, entry)
+    }
+
+    fn compile_failure_for_profile(
+        &self,
+        src: &str,
+        profile: &'static DialectProfile,
+        unit: CompileUnit,
+    ) -> Option<CompileFailure> {
+        self.inner.compile_failure_for_profile(src, profile, unit)
     }
 }
 

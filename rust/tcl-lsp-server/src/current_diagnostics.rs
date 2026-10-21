@@ -17,6 +17,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Source-associated completion of the existing push diagnostic pipeline.
 
+// This file is a split-out part of its parent module: it, and the test
+// modules nested under it, share the parent's whole import set.
+#[allow(clippy::wildcard_imports)]
 use super::*;
 use serde::{Deserialize, Serialize};
 
@@ -848,14 +851,14 @@ impl Backend {
         };
         let mut subclass_settled = false;
         for _ in 0..CLASS_FACTORY_SYNC_ROUNDS {
-            let analysis = compute_base_analysis(
+            let analysis = Box::pin(compute_base_analysis(
                 &inputs.client,
                 &salsa_ctx,
                 &inputs.disabled,
                 &inputs.extra_commands,
                 inputs.non_ascii_mode,
                 &recovery,
-            )
+            ))
             .await;
             let analysis = match analysis {
                 ControlFlow::Continue(analysis) => analysis,
@@ -899,20 +902,20 @@ impl Backend {
             style_line_length: inputs.style_line_length,
             xc_diagnostics: inputs.toggles.xc.xc_diagnostics,
         };
-        let base = compute_base_analysis(
+        let base = Box::pin(compute_base_analysis(
             &inputs.client,
             &salsa_ctx,
             &inputs.disabled,
             &inputs.extra_commands,
             inputs.non_ascii_mode,
             &recovery,
-        );
+        ));
         let project = inputs
             .toggles
             .xc
             .cross_file_resolution
             .then_some(projection.project);
-        let produced = match compute_deep_diagnostic_report(
+        let produced = match Box::pin(compute_deep_diagnostic_report(
             &expected.uri,
             &self.documents,
             &salsa_ctx,
@@ -920,7 +923,7 @@ impl Backend {
             &path_inputs,
             project,
             base,
-        )
+        ))
         .await
         {
             ControlFlow::Continue(produced) => produced,
@@ -1105,7 +1108,7 @@ impl Backend {
                 if self.diag_inputs_epoch() != currentness.inputs_epoch
                     || tcl_registry::pack_hooks::evaluator_epoch() != currentness.evaluator_epoch
                     || tcl_registry::overlay_epoch() != currentness.overlay_epoch
-                    || !provider_sources.proposal_is_current(&resolver, &*db, &files, &*published)
+                    || !provider_sources.proposal_is_current(&resolver, &*db, &files, &published)
                 {
                     return Err(DiagnosticUnavailable::Stale);
                 }
@@ -1166,10 +1169,10 @@ impl Backend {
             return Err(DiagnosticUnavailable::Stale);
         }
         DocumentPathAdmission::with_current(&[admission.as_ref()], self.store.as_ref(), || {
-            if self.diag_inputs_epoch() != inputs_epoch {
-                Err(DiagnosticUnavailable::Stale)
-            } else {
+            if self.diag_inputs_epoch() == inputs_epoch {
                 Ok(())
+            } else {
+                Err(DiagnosticUnavailable::Stale)
             }
         })
         .map_err(|_| DiagnosticUnavailable::Context)?
@@ -1761,20 +1764,20 @@ impl Backend {
                 provider_capture: &path.provider_capture,
                 prefer: path.package_prefer,
             };
-            let base = compute_base_analysis(
+            let base = Box::pin(compute_base_analysis(
                 &inputs.client,
                 &salsa_ctx,
                 &inputs.disabled,
                 &inputs.extra_commands,
                 inputs.non_ascii_mode,
                 &recovery,
-            );
+            ));
             let project = if path.cross_file_resolution {
                 *path.db_project.lock().await
             } else {
                 None
             };
-            let produced = match compute_deep_diagnostic_report(
+            let produced = match Box::pin(compute_deep_diagnostic_report(
                 uri,
                 &self.documents,
                 &salsa_ctx,
@@ -1782,7 +1785,7 @@ impl Backend {
                 &path,
                 project,
                 base,
-            )
+            ))
             .await
             {
                 ControlFlow::Continue(produced) => produced,
@@ -1811,7 +1814,7 @@ impl Backend {
             },
             diagnostics: self.diagnostic_publisher.with_pack_notices(
                 PackNoticeContext {
-                    uri: uri,
+                    uri,
                     source: source.source.as_ref(),
                     pack_seq: inputs.pack_seq,
                     packs: &inputs.pack_set,

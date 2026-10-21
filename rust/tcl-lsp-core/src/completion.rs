@@ -1177,17 +1177,6 @@ fn strip_instance_var(cmd: &str, config: tcl_lexer::LexerConfig) -> Option<Strin
     (!name.is_empty()).then(|| name.to_owned())
 }
 
-/// Complete the methods/subcommands callable on a receiver whose class
-/// (`class_q`) is already resolved — a user-defined class walks the whole
-/// MRO, a registry-modelled one reads its instance table (see
-/// [`method_items`]).  Returns `None` when the class is unknown to both or
-/// nothing prefix-matches, so the caller falls through to plain command
-/// completion — a typo'd fragment is deliberately *not* fuzzy-matched
-/// here, because the command/proc path this falls through to still offers
-/// its own prefix matches; the response-level [`fuzzy_command_fallback`]
-/// re-ranks these methods together with command candidates only once the
-/// whole response would otherwise be empty.
-
 /// Class-command declaration candidates. This does not select an executed
 /// method provider or model a maker/default delegate's native attachment.
 fn original_class_method_items(
@@ -1560,12 +1549,12 @@ fn method_items(
     let exports = object_members
         .as_ref()
         .into_iter()
-        .flat_map(|members| members.export_names())
+        .flat_map(tcl_compiler::analyser::LogicalSourceObjectMembers::export_names)
         .collect::<FxHashSet<_>>();
     let unexports = object_members
         .as_ref()
         .into_iter()
-        .flat_map(|members| members.unexport_names())
+        .flat_map(tcl_compiler::analyser::LogicalSourceObjectMembers::unexport_names)
         .collect::<FxHashSet<_>>();
     let hierarchy = analysis.class_hierarchy();
     let mro = hierarchy
@@ -2222,7 +2211,7 @@ fn boolean_value_completions(partial: &str, config: tcl_lexer::LexerConfig) -> V
     let mut items: Vec<CompletionItem> = candidates
         .into_iter()
         .filter_map(|value| {
-            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(*value, config)?;
+            let insert_text = tcl_syntax::word_rules::lexical_unicode_source_word(value, config)?;
             Some(CompletionItem {
                 label: (*value).to_owned(),
                 insert_text,
@@ -7459,8 +7448,10 @@ mod configured_receiver_completion_tests {
     fn configured_scalar_completion_projection_keeps_array_and_brace_boundaries() {
         // naming.consumer.original-receiver-completion-domain
         // docs/design/analysis/name-resolution-proofs/original-receiver-completion-domain.md
-        let mut first = tcl_lexer::LexerConfig::default();
-        first.braced_var = tcl_dialect::BracedVarStyle::FirstClose;
+        let first = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::FirstClose,
+            ..tcl_lexer::LexerConfig::default()
+        };
         let mut nested = first;
         nested.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
         assert_eq!(strip_instance_var("${箱}", first), Some("箱".to_owned()));
@@ -7876,7 +7867,10 @@ mod inherited_registry_roster_completion_tests {
         let surface_owner = registry
             .get_for_surface("coroutine", Some(context.authoring_query()))
             .unwrap();
-        assert!(std::ptr::eq(surface_owner.object_class.unwrap(), &PARENT));
+        assert!(std::ptr::eq(
+            surface_owner.object_class.unwrap(),
+            &raw const PARENT
+        ));
         assert!(context.spec_available(surface_owner));
         assert!(context.resolve_spec(&registry, "coroutine").is_none());
         assert!(registry_method_items(&analysis, &registry, "RosterChild", profile).is_none());

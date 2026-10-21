@@ -1050,7 +1050,7 @@ fn classify_command_words(
                 roles.read.entry(name.to_owned()).or_insert(command_start);
             }
             ArgRole::VarWrite => {
-                record_write(roles, carriable_written_name(head, name)?, command_end)
+                record_write(roles, carriable_written_name(head, name)?, command_end);
             }
             ArgRole::LoopVarList => {
                 let names = tcl_syntax::word_rules::WordValueRules::from_grammar(

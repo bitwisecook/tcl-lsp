@@ -882,7 +882,7 @@ struct MinifyEnv<'a> {
     identities: &'a tcl_compiler::realm::CommandBindingRealm,
 }
 
-impl<'a> MinifyEnv<'a> {
+impl MinifyEnv<'_> {
     /// Only an actual subslice of the complete held input retains coordinates.
     /// Decoded or generated text cannot recapture a source-body occurrence.
     fn original_region(self, source: &str) -> Option<Span> {
@@ -5827,7 +5827,12 @@ mod original_formal_name_geometry_tests {
         let fields = lexical_metadata::parameter_name_sources(source, &analysis, procedure)
             .expect("actual Logical header, ordered formal fields and body card");
         assert_eq!(
-            fields.iter().map(|field| field.name()).collect::<Vec<_>>(),
+            fields
+                .iter()
+                .map(
+                    tcl_compiler::signature_scan::formal_parameters::OriginalSourceFormalName::name
+                )
+                .collect::<Vec<_>>(),
             [
                 b"longName".as_slice(),
                 b"otherName".as_slice(),
@@ -5947,9 +5952,11 @@ mod authored_compact_candidate_tests {
             "::c".to_owned(),
             "é".to_owned(),
         ]);
-        let mut config = LexerConfig::default();
-        config.strict_quoting = true;
-        config.leading_bom = tcl_lexer::LeadingBom::Skip;
+        let config = LexerConfig {
+            strict_quoting: true,
+            leading_bom: tcl_lexer::LeadingBom::Skip,
+            ..LexerConfig::default()
+        };
         let (rewritten, aliases) = alias_by_uses(&source, &order, &uses, &mut claimed, config);
         assert_eq!(aliases.get(word).map(String::as_str), Some("c"));
         assert_eq!(rewritten, format!("set c {word}\n$c $c $c"));

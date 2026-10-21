@@ -257,6 +257,66 @@ pub struct OriginalSourceConstructorCall {
     source_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
     obligations: Vec<SourceCommandTransitionObligation>,
 }
+/// Whole original `Class::proc` call whose qualifier names an exact original
+/// [incr Tcl] source class (user contract D: a registry-dispatched definer
+/// publishes its class procs as `::Class::proc` commands). Itcl installs each
+/// class-scoped `proc` as an ordinary command in the class's namespace, so the
+/// qualified spelling dispatches it; the two-word `Class name` form is
+/// instance creation instead. This joins source syntax to the declaration
+/// only: whether the class body declares that member, and whether the call
+/// executes, remain the consumer's and the runtime's facts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalSourceClassProcCall {
+    site: super::super::CommandAllocationSite,
+    original: Arc<[NativeWord]>,
+    class: Arc<OriginalSourceClassDeclaration>,
+    member: Box<[u8]>,
+    member_span: tcl_lexer::Span,
+}
+impl OriginalSourceClassProcCall {
+    /// Exact written call including its head.
+    #[must_use]
+    pub fn original_words(&self) -> &[NativeWord] {
+        &self.original
+    }
+    /// Original occurrence, without a fabricated runtime lookup point.
+    #[must_use]
+    pub const fn site(&self) -> &super::super::CommandAllocationSite {
+        &self.site
+    }
+    /// Canonical original class definer and naming operand of the qualifier.
+    #[must_use]
+    pub fn class_declaration(&self) -> &OriginalSourceClassDeclaration {
+        &self.class
+    }
+    /// The written member name: the head's final `::` segment.
+    #[must_use]
+    pub fn member_name(&self) -> &[u8] {
+        &self.member
+    }
+    /// Source span of [`Self::member_name`] inside the written head.
+    #[must_use]
+    pub const fn member_span(&self) -> tcl_lexer::Span {
+        self.member_span
+    }
+    /// Full immutable image, grammar, Registry and availability all agree.
+    #[must_use]
+    pub fn matches_source_context(
+        &self,
+        image: &SourceImage,
+        config: LexerConfig,
+        context: &ContextRegistry,
+    ) -> bool {
+        self.site.source.source_image() == image
+            && self
+                .original
+                .iter()
+                .all(|word| word.image() == image && word.config() == config)
+            && self.class.factory.matches_source(image, config)
+            && self.class.factory.matches_context(context)
+    }
+}
+
 impl OriginalSourceConstructorCall {
     /// Exact written call including its head, grouping and expansions.
     #[must_use]
@@ -542,7 +602,14 @@ impl AdviceGraph {
         &self,
         head: &SourceAdviceNameInput,
     ) -> Option<(Arc<OriginalSourceClassDeclaration>, Vec<SourceAdviceWord>)> {
-        let mut key = self.selected_head_key(head.bytes())?;
+        self.resolve_source_class_bytes(head.bytes())
+    }
+
+    fn resolve_source_class_bytes(
+        &self,
+        head: &[u8],
+    ) -> Option<(Arc<OriginalSourceClassDeclaration>, Vec<SourceAdviceWord>)> {
+        let mut key = self.selected_head_key(head)?;
         let mut seen = Vec::new();
         let mut prefix = Vec::new();
         let mut lineage = Vec::new();
@@ -621,6 +688,9 @@ impl OriginalSourceTransitionAdviceTape {
     pub(crate) fn constructor_call(&self, offset: u32) -> Option<&OriginalSourceConstructorCall> {
         self.constructor_calls.get(&offset)?.as_ref()
     }
+    pub(crate) fn class_proc_call(&self, offset: u32) -> Option<&OriginalSourceClassProcCall> {
+        self.class_proc_calls.get(&offset)?.as_ref()
+    }
     pub(super) fn extend_class_inventory(
         &mut self,
         declarations: BTreeMap<u32, Option<Arc<OriginalSourceClassDeclaration>>>,
@@ -631,6 +701,14 @@ impl OriginalSourceTransitionAdviceTape {
         }
         for (offset, receipt) in calls {
             merge_receipt(&mut self.constructor_calls, offset, receipt);
+        }
+    }
+    pub(super) fn extend_class_proc_calls(
+        &mut self,
+        calls: BTreeMap<u32, Option<OriginalSourceClassProcCall>>,
+    ) {
+        for (offset, receipt) in calls {
+            merge_receipt(&mut self.class_proc_calls, offset, receipt);
         }
     }
 }
@@ -982,6 +1060,73 @@ impl AdviceInvocationContext<'_> {
         };
         merge_receipt(
             &mut tape.constructor_calls,
+            receipt.site.offset,
+            Some(receipt),
+        );
+        true
+    }
+
+    /// Join a static `Qualifier::member` head to the [incr Tcl] source class
+    /// its qualifier names. The qualifier resolves as an ordinary command
+    /// name, exactly as Tcl resolves the namespace part of a qualified command
+    /// (current namespace, then global); an alias prefix or a non-Itcl class
+    /// supplies no class-proc dispatch.
+    pub(super) fn retain_source_class_proc_call(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+        native: &[NativeWord],
+        written: &[SourceAdviceWord],
+    ) -> bool {
+        let Some(head) = written.first().and_then(|word| word.input.as_ref()) else {
+            return false;
+        };
+        let Some(word) = native.first() else {
+            return false;
+        };
+        let bytes = head.bytes();
+        // The member span is a byte suffix of the head only when the written
+        // word is its own unescaped, unquoted value.
+        if word.group().expand
+            || usize::try_from(word.span().end() - word.span().start()).ok() != Some(bytes.len())
+        {
+            return false;
+        }
+        let Some(separator) = bytes.windows(2).rposition(|pair| pair == b"::") else {
+            return false;
+        };
+        let member = &bytes[separator + 2..];
+        let qualifier = bytes[..separator]
+            .strip_suffix(b":")
+            .unwrap_or(&bytes[..separator]);
+        if member.is_empty() || member.contains(&b':') || qualifier.is_empty() {
+            return false;
+        }
+        let Some((class, prefix)) = graph.resolve_source_class_bytes(qualifier) else {
+            return false;
+        };
+        if !prefix.is_empty()
+            || class
+                .grammar(self.context)
+                .is_none_or(|grammar| grammar.family != DefinerFamily::Itcl)
+        {
+            return false;
+        }
+        let Ok(member_len) = u32::try_from(member.len()) else {
+            return false;
+        };
+        let receipt = OriginalSourceClassProcCall {
+            site: super::super::CommandAllocationSite {
+                source: Arc::clone(self.origin),
+                offset: word.span().start(),
+            },
+            original: Arc::from(native),
+            class,
+            member: member.into(),
+            member_span: tcl_lexer::Span::new(word.span().end() - member_len, word.span().end()),
+        };
+        merge_receipt(
+            &mut tape.class_proc_calls,
             receipt.site.offset,
             Some(receipt),
         );
@@ -1944,6 +2089,97 @@ mod tests {
             );
         }
     }
+
+    fn class_object_member_names(analysis: &crate::analyser::AnalysisResult) -> Vec<Vec<u8>> {
+        let mut records = analysis.original_class_declarations();
+        let record = records.next().expect("one source class");
+        assert!(records.next().is_none());
+        record
+            .metadata()
+            .original_members
+            .methods(crate::analyser::MemberSide::ClassObject)
+            .expect("complete class-object member inventory")
+            .iter()
+            .map(|method| method.original_name_input().bytes().to_vec())
+            .collect()
+    }
+
+    /// Contract D: snit's type command is published with its class-side
+    /// `typemethod` as the dispatch target, as `oo::class create` publishes a
+    /// class. `Factory make` joins the source class whose class-object member
+    /// table declares `make`, so it is that typemethod's dispatch, not an
+    /// instance construction.
+    #[test]
+    fn snit_type_command_dispatches_its_typemethod_through_the_source_class() {
+        let source = "snit::type Factory {\n    typemethod make {} {\n        return [Factory create x]\n    }\n}\nFactory make\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        let offset = u32::try_from(source.rfind("Factory make").unwrap()).unwrap();
+        let call = source_constructor_call_at(source, &analysis, offset)
+            .expect("the type command joins its source class");
+        assert!(call.class_declaration().source_class(&analysis).is_some());
+        assert_eq!(class_object_member_names(&analysis), vec![b"make".to_vec()]);
+        assert!(
+            call.constructor_shape(&analysis).is_none(),
+            "a declared typemethod is a dispatch, not a bare-word construction"
+        );
+    }
+
+    /// Contract D: [incr Tcl] publishes each class-scoped `proc` as the
+    /// command `Class::proc` in the class's namespace. A qualified call joins
+    /// the source class its qualifier names, with the written member as its
+    /// class-side target; the same text where the class is unreachable, and
+    /// the two-word `Factory make` instance creation, join nothing.
+    #[test]
+    fn itcl_class_proc_calls_join_the_qualifying_source_class() {
+        use crate::registry_invocation::source_structure::source_class_proc_call_at;
+        let source = concat!(
+            "namespace eval ::app {\n",
+            "    itcl::class Factory {\n",
+            "        proc make {} { return 1 }\n",
+            "    }\n",
+            "}\n",
+            "::app::Factory::make\n",
+            "app::Factory::make\n",
+            "Factory::make\n",
+        );
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        assert_eq!(class_object_member_names(&analysis), vec![b"make".to_vec()]);
+        for spelling in ["::app::Factory::make\n", "app::Factory::make\n"] {
+            let offset = u32::try_from(source.find(spelling).unwrap()).unwrap();
+            let call = source_class_proc_call_at(source, &analysis, offset)
+                .unwrap_or_else(|| panic!("{spelling:?} dispatches the class proc"));
+            assert_eq!(call.member_name(), b"make");
+            let end = offset + u32::try_from(spelling.len() - 1).unwrap();
+            assert_eq!(call.member_span(), tcl_lexer::Span::new(end - 4, end));
+            assert!(call.class_declaration().source_class(&analysis).is_some());
+        }
+        // tclsh 8.6 + Itcl: `Factory::make` at the global level is
+        // `invalid command name`; the class lives in `::app`.
+        let offset = u32::try_from(source.rfind("Factory::make\n").unwrap()).unwrap();
+        assert!(source.as_bytes()[usize::try_from(offset).unwrap() - 1] == b'\n');
+        assert!(source_class_proc_call_at(source, &analysis, offset).is_none());
+    }
+
+    /// Itcl's two-word `Class name` form constructs an object called `name`
+    /// even when the class declares a class-scoped `proc name`; that proc is
+    /// reachable only as `Class::name`.
+    #[test]
+    fn itcl_two_word_form_is_construction_even_over_a_class_proc_name() {
+        use crate::registry_invocation::source_structure::source_class_proc_call_at;
+        let source =
+            "itcl::class Factory {\n    proc make {} {\n        return 1\n    }\n}\nFactory make\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+        let offset = u32::try_from(source.rfind("Factory make").unwrap()).unwrap();
+        assert!(source_class_proc_call_at(source, &analysis, offset).is_none());
+        let call = source_constructor_call_at(source, &analysis, offset)
+            .expect("the class command joins its source class");
+        assert!(matches!(
+            call.constructor_shape(&analysis),
+            Some(super::OriginalSourceConstructorShape::BareWord {
+                constructor_args_from: 1
+            })
+        ));
+    }
 }
 
 impl OriginalSourceClassDeclaration {
@@ -1964,7 +2200,10 @@ impl OriginalSourceClassDeclaration {
         let grammar = self.grammar(context)?;
         if self.name_input().logical_input().is_some() {
             selector.logical_input()?;
-            if class.class_methods.contains_key(word) {
+            // Itcl class-scoped procs dispatch only as `Class::proc`; the
+            // two-word form constructs even when the word names one
+            // (`DefinitionBodyGrammar::conditional_construction_name_at`).
+            if grammar.family != DefinerFamily::Itcl && class.class_methods.contains_key(word) {
                 return None;
             }
             if let Some(method) = grammar.manufacturer(word) {
@@ -1996,7 +2235,7 @@ impl OriginalSourceClassDeclaration {
             .iter()
             .map(|method| method.original_name_input().bytes())
             .collect::<Vec<_>>();
-        if names.iter().any(|name| *name == bytes) {
+        if grammar.family != DefinerFamily::Itcl && names.iter().any(|name| *name == bytes) {
             return None;
         }
         if let Some(method) = grammar.manufacturer(word) {

@@ -300,7 +300,12 @@ pub(super) fn preflight_image(
             failure.math_table_prerequisite = Some(required.clone());
         }
     }
-    let native_entry_unavailable = state.baseline.native_entry.is_none();
+    // An entry-less compile is a fresh interpreter of its profile (user
+    // decision 2026-10-19T14:20Z): its compiler table is the profile's own,
+    // which the module's command bindings guard at run time. Only an
+    // explicit unknown entry leaves the chunk's compiler provider unresolved.
+    let native_entry_unavailable =
+        state.baseline.native_entry.is_none() && state.baseline.unknown_entry;
     if (scanner.possible_error || native_entry_unavailable)
         && let Some(failure) = &mut failure
     {

@@ -157,7 +157,7 @@ fn command_words_at(source: &str, probe: usize) -> Option<(Vec<String>, usize)> 
 ///
 /// Legacy nominal authoring geometry only. Current expression completion uses
 /// the configured expression lexer; parameter-list extents use the original
-/// token grouper and NativeWord geometry rather than this compatibility scan.
+/// token grouper and `NativeWord` geometry rather than this compatibility scan.
 pub(crate) fn word_end(source: &str, start: usize, limit: usize) -> usize {
     let bytes = source.as_bytes();
     let (open, close) = match bytes[start] {
@@ -326,13 +326,13 @@ pub(crate) fn source_expression_operand_at(
                 .checked_add(1)?;
             let word = shape.original_words().get(index)?;
             let span = word.content_span().ok()?;
-            if span.start() <= offset && offset <= span.end() {
-                if selected
+            if span.start() <= offset
+                && offset <= span.end()
+                && selected
                     .replace(SourceExpressionOperand { word: word.clone() })
                     .is_some()
-                {
-                    return None;
-                }
+            {
+                return None;
             }
         }
         return selected;
@@ -449,7 +449,7 @@ pub(crate) fn source_expr_arg_context_at(
     let profile = analysis
         .resolved_input
         .as_ref()
-        .map(|input| input.unit_profile());
+        .map(tcl_compiler::analyser::ResolvedAnalysisInput::unit_profile);
     let Some(profile) = profile else {
         return false;
     };

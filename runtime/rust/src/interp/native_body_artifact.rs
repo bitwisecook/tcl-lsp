@@ -9,7 +9,6 @@ use super::*;
 mod native_dictionary;
 #[path = "native_body_artifact/native_dictionary_mutation.rs"]
 mod native_dictionary_mutation;
-#[path = "native_body_artifact/native_dictionary_scope.rs"]
 mod native_dictionary_scope;
 #[path = "native_body_artifact/native_error.rs"]
 mod native_error;

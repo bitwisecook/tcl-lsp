@@ -39,7 +39,7 @@ struct ReadonlySourceDocument {
 }
 
 /// One request's checked analysis for an actual workspace-symbol URI. A
-/// missing database SourceFile is not missing source or missing declarations.
+/// missing database `SourceFile` is not missing source or missing declarations.
 pub(super) struct WorkspaceSymbolSourceAnalysis {
     kind: WorkspaceSymbolAnalysisKind,
 }
@@ -555,7 +555,7 @@ impl Backend {
                     .await?
             }
             FreshSourceAnalysisPurpose::SemanticStructure => {
-                let Some(admission) = snapshot.path_admission.as_ref().cloned() else {
+                let Some(admission) = snapshot.path_admission.clone() else {
                     return Ok(None);
                 };
                 admission.check_for(uri, self.store.as_ref())?;
@@ -571,7 +571,7 @@ impl Backend {
                     .map_err(|_| super::DocumentSourceUnavailable::Worker { uri: original_uri })??
             }
         };
-        let Some(input) = seed.analysis.resolved_input.as_ref().cloned().map(Arc::new) else {
+        let Some(input) = seed.analysis.resolved_input.clone().map(Arc::new) else {
             return Ok(None);
         };
         if !original_readonly_analysis_matches_input(&snapshot.text, &seed.analysis, &input) {
@@ -720,7 +720,7 @@ impl Backend {
                     ))
                 .then_some(())
             },
-            |_, _| {
+            |_, ()| {
                 let index = self.workspace_index.try_read().ok()?;
                 if index.generation() != source.index_generation {
                     return None;
@@ -1682,7 +1682,7 @@ impl Backend {
     }
 
     /// Source-only occurrences join the original declaration in its real URI.
-    /// All participants retain their actual SourceFile and full checked input;
+    /// All participants retain their actual `SourceFile` and full checked input;
     /// this report cannot be consumed as call edges or editable occurrences.
     pub(super) async fn readonly_original_declaration_reference_report(
         &self,
@@ -2261,8 +2261,8 @@ mod tests {
         let lenses = backend
             .code_lens(CodeLensParams {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
-                work_done_progress_params: Default::default(),
-                partial_result_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
             })
             .await
             .unwrap()
@@ -2313,8 +2313,8 @@ mod tests {
         let lenses = backend
             .code_lens(CodeLensParams {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
-                work_done_progress_params: Default::default(),
-                partial_result_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
             })
             .await
             .unwrap()
@@ -3097,8 +3097,8 @@ mod logical_lens_wire_tests {
         backend
             .code_lens(CodeLensParams {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
-                work_done_progress_params: Default::default(),
-                partial_result_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
             })
             .await
             .unwrap()
@@ -3153,7 +3153,7 @@ mod logical_lens_wire_tests {
         );
         let mut unknown = lens.clone();
         unknown.data.as_mut().unwrap()["logicalSourceLens"] =
-            serde_json::json!({"schema": 4, "token": 18446744073709551615_u64});
+            serde_json::json!({"schema": 4, "token": 18_446_744_073_709_551_615_u64});
         assert!(
             backend
                 .code_lens_resolve(unknown)
@@ -3334,8 +3334,8 @@ mod workspace_symbol_input_lease_tests {
         let response = backend
             .symbol(WorkspaceSymbolParams {
                 query: query.to_owned(),
-                work_done_progress_params: Default::default(),
-                partial_result_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
             })
             .await
             .unwrap();
@@ -3569,8 +3569,8 @@ mod workspace_symbol_original_admission_tests {
         let response = backend
             .symbol(WorkspaceSymbolParams {
                 query: "symbol".to_owned(),
-                work_done_progress_params: Default::default(),
-                partial_result_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
             })
             .await
             .unwrap();
@@ -3812,8 +3812,8 @@ mod code_action_source_version_tests {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
                 range: Range::new(Position::new(0, 0), Position::new(0, 8)),
                 context: CodeActionContext::default(),
-                work_done_progress_params: Default::default(),
-                partial_result_params: Default::default(),
+                work_done_progress_params: WorkDoneProgressParams::default(),
+                partial_result_params: PartialResultParams::default(),
             })
             .await
             .unwrap()

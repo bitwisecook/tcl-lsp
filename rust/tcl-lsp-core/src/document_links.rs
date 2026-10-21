@@ -692,7 +692,7 @@ fn original_logical_link_anchor(
 ///
 /// A pack's `include` row is the one statement in the `SpecTcl` vocabulary
 /// that names another file, and the link has to land where the *loader* reads
-/// if that row is evaluated. The shared SpecTcl source facet retains the actual
+/// if that row is evaluated. The shared `SpecTcl` source facet retains the actual
 /// row/name extent and applies the same sibling-path rule as the loader's
 /// `IncludeContext::for_file`, without IO, evaluation or an availability claim. The general `source <path>` resolver does
 /// both, and `include ~` under it linked to the user's home directory while the
@@ -814,7 +814,7 @@ fn link_anchor_with_config(
 }
 
 /// The shared host navigation policy owns base/home resolution and URI encoding.
-/// This remains independent of source-role selection and SpecTcl sibling links.
+/// This remains independent of source-role selection and `SpecTcl` sibling links.
 fn resolve_path(path: &str, workspace_root: Option<&str>, home: Option<&str>) -> Option<String> {
     crate::file_uri::document_link_target(
         path,

@@ -419,4 +419,84 @@ mod tests {
              result past the cap, not an empty one"
         );
     }
+
+    /// Lower `source` as a fresh-interpreter Tcl 8.6 document on a thread with
+    /// the lowering share of the stack budget, then run `inspect` on the same
+    /// thread, so post-lowering traversals of the result share that budget.
+    fn lower_on_budget_thread<T: Send + 'static>(
+        source: String,
+        inspect: impl FnOnce(&crate::ir::Module) -> T + Send + 'static,
+    ) -> T {
+        std::thread::Builder::new()
+            .stack_size(
+                usize::try_from(MIN_SOURCE_WALK_STACK - SOURCE_WALK_STACK_RESERVE)
+                    .expect("stack budget fits usize"),
+            )
+            .spawn(move || {
+                let registry =
+                    tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+                let module = crate::lowering::lower_to_ir_with_dialect(
+                    &source,
+                    registry,
+                    tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+                    Some(tcl_dialect::DialectProfile::find("tcl8.6").expect("profile")),
+                );
+                inspect(&module)
+            })
+            .expect("spawn budget-sized thread")
+            .join()
+            .expect("lowering and IR traversal must return rather than overflow")
+    }
+
+    /// A fresh-interpreter `if` is the original builtin, so nested literal
+    /// `if` bodies lower to structured IR down to the depth cap. Cloning or
+    /// comparing that IR must fit the same budget: a derived `Clone` of the
+    /// cap-deep IR (`Lowerer::extract_oo_methods_pass`,
+    /// `OriginalProcedureSummaryOwners::for_module`) overflowed a 2 MiB thread.
+    #[test]
+    fn cap_deep_structured_if_ir_clones_and_compares_within_the_budget() {
+        // Past the cap, so lowering descends to its deepest admitted level.
+        let levels = MAX_SOURCE_NEST_DEPTH.0 as usize + 8;
+        let source = format!(
+            "{}set leaf 1{}",
+            "if {1} {".repeat(levels),
+            "}".repeat(levels)
+        );
+        let (depth, equal) = lower_on_budget_thread(source, |module| {
+            let mut depth = 0;
+            let mut script = &module.top_level;
+            while let Some(crate::ir::Statement::If { clauses, .. }) = script.statements.first() {
+                depth += 1;
+                script = &clauses[0].body;
+            }
+            let copy = module.top_level.clone();
+            (depth, copy == module.top_level)
+        });
+        assert!(
+            depth + 2 >= MAX_SOURCE_NEST_DEPTH.0 as usize,
+            "the fixture must reach the structured depth cap, got {depth} levels"
+        );
+        assert!(equal, "a cloned script compares equal to its original");
+    }
+
+    /// Nested `namespace eval` bodies walk the namespace and body lowering
+    /// chain once per level; that chain must fit the per-level budget.
+    #[test]
+    fn deep_namespace_eval_lowering_fits_the_budget() {
+        let depth = MAX_SOURCE_NEST_DEPTH.0 as usize + 16;
+        let nested = |leaf: &str| {
+            let mut source = String::new();
+            for level in 0..depth {
+                source.push_str(&format!("namespace eval ns{level} {{\n"));
+            }
+            source.push_str(leaf);
+            source.push_str(&"}\n".repeat(depth));
+            source
+        };
+        for leaf in ["proc leaf {} { return 1 }\n", "set x 1\nputs $x\n"] {
+            let statements =
+                lower_on_budget_thread(nested(leaf), |module| module.top_level.statements.len());
+            assert_eq!(statements, 1, "{leaf:?}: one outer namespace eval");
+        }
+    }
 }

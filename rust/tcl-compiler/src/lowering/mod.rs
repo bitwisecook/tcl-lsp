@@ -2817,6 +2817,10 @@ impl<'r> Lowerer<'r> {
     /// Gated on `proc_depth > 0` — globals / namespace vars at
     /// top-level or inside `namespace eval` cannot be safely
     /// const-propagated.
+    ///
+    /// Kept out of [`Self::lower_segmented`]'s frame: its carrier locals are
+    /// several KiB, and that frame recurs once per nested body level.
+    #[inline(never)]
     fn update_const_map(&mut self, seg: &SegmentedCommand, stmt: &Statement) {
         if self.proc_depth == 0 {
             return;
@@ -3927,13 +3931,37 @@ impl<'r> Lowerer<'r> {
         if seg.texts.is_empty() {
             return None;
         }
+        // Only the structured dispatch below recurses into nested bodies, so
+        // every other selection runs in its own out-of-line frame: this frame
+        // recurs once per nested body level under the depth guard's budget.
+        match self.lower_command_selection(seg, namespace) {
+            CommandLoweringSelection::Lowered(statement) => Some(statement),
+            CommandLoweringSelection::Structured(resolved_name) => {
+                if let Some(stmt) =
+                    self.try_dispatch_structured_hook(&resolved_name, seg, namespace)
+                {
+                    return Some(stmt);
+                }
+                Some(self.lower_default_boxed(seg, namespace))
+            }
+        }
+    }
 
+    /// Every non-recursive selection of [`Self::lower_command`]: a finished
+    /// statement, or the resolved label of a possible structured form.
+    #[inline(never)]
+    fn lower_command_selection(
+        &mut self,
+        seg: &SegmentedCommand,
+        namespace: &str,
+    ) -> CommandLoweringSelection {
+        use CommandLoweringSelection::Lowered;
         // Analysis uses the selected logical handler in its owned source scope.
         // Bytecode separately requires original native compiler admission.
         let tokens = self.cmd_tokens_boxed(seg);
         self.record_namespace_directives(&tokens, namespace);
         if let Some(declaration) = self.try_lower_rule_loader_declaration(seg, namespace, &tokens) {
-            return Some(declaration);
+            return Lowered(declaration);
         }
         if self.target.is_bytecode()
             && crate::registry_invocation::proved_native_admitted_inline_operation(&tokens)
@@ -3947,14 +3975,14 @@ impl<'r> Lowerer<'r> {
                 .try_lower_authored_procedure_declaration(seg, namespace, &tokens)
                 .or_else(|| self.try_lower_logical_procedure_declaration(seg, namespace, &tokens))
         {
-            return Some(Box::new(statement));
+            return Lowered(Box::new(statement));
         }
         if !self.target.is_bytecode()
             && !self.target.is_trace_visible()
             && let Some(statement) =
                 self.try_lower_original_operand_evaluation_update(seg, namespace, &tokens)
         {
-            return Some(statement);
+            return Lowered(statement);
         }
         let resolved_name = if self.target.is_bytecode() {
             let target = tokens
@@ -3971,7 +3999,7 @@ impl<'r> Lowerer<'r> {
                 .filter(|target| target.prepended.is_empty())
                 .is_none()
             {
-                return Some(self.lower_default_boxed(seg, namespace));
+                return Lowered(self.lower_default_boxed(seg, namespace));
             }
             if let Some(admitted) = crate::registry_invocation::admitted_native_compiler_invocation(
                 self.registry,
@@ -3982,11 +4010,11 @@ impl<'r> Lowerer<'r> {
             } else if let Some(label) = self.retained_metadata_descriptor_label(&tokens) {
                 label
             } else {
-                return Some(self.lower_default_boxed(seg, namespace));
+                return Lowered(self.lower_default_boxed(seg, namespace));
             }
         } else {
             let Some(logical) = self.logical_structured_invocation(&tokens) else {
-                return Some(self.lower_default_boxed(seg, namespace));
+                return Lowered(self.lower_default_boxed(seg, namespace));
             };
             logical.descriptor_key().label().to_owned()
         };
@@ -4006,7 +4034,7 @@ impl<'r> Lowerer<'r> {
 
         // Trace-visible compilation retains runtime dispatch at every site.
         if self.target.is_trace_visible() {
-            return Some(self.lower_default_boxed(seg, namespace));
+            return Lowered(self.lower_default_boxed(seg, namespace));
         }
 
         if self.target.is_bytecode()
@@ -4023,13 +4051,13 @@ impl<'r> Lowerer<'r> {
                 && let Some(statement) =
                     self.try_lower_proc_declaration_boxed(seg, namespace, resolved_name)
             {
-                return Some(statement);
+                return Lowered(statement);
             }
-            return Some(self.lower_default_boxed(seg, namespace));
+            return Lowered(self.lower_default_boxed(seg, namespace));
         }
 
         if let Some(statement) = self.try_registered_lowering_hook(resolved_name, seg, namespace) {
-            return Some(statement);
+            return Lowered(statement);
         }
 
         // Registry-driven hook-ID dispatch covers all 17
@@ -4040,12 +4068,8 @@ impl<'r> Lowerer<'r> {
         // [`try_dispatch_structured_hook`], which also raises the
         // `{*}`-expansion barrier for them.  Commands that
         // aren't in the registry, or whose hook is `None`, fall
-        // through to [`lower_default`] below.
-        if let Some(stmt) = self.try_dispatch_structured_hook(resolved_name, seg, namespace) {
-            return Some(stmt);
-        }
-
-        Some(self.lower_default_boxed(seg, namespace))
+        // through to [`lower_default`] in [`Self::lower_command`].
+        CommandLoweringSelection::Structured(resolved_name.to_owned())
     }
 
     /// Retain an attempted update's original read plan without admitting its
@@ -5771,26 +5795,38 @@ impl<'r> Lowerer<'r> {
     pub fn extract_oo_methods_pass(&mut self) {
         let retained = self.module_source_bindings.take();
         let enclosing = self.exchange_boxed_source_bindings(retained);
-        let top_level = self.module.top_level.clone();
+        // The walk borrows each script out of the module rather than cloning
+        // it: the derived `Clone` of cap-deep structured IR recurses several
+        // frames per nesting level, which overflowed a 2 MiB thread at the
+        // structured-lowering depth cap. No member extraction reads these
+        // scripts back from the module.
+        let top_level = std::mem::take(&mut self.module.top_level);
         let top_namespace = if self.module.top_level_namespace.is_empty() {
             "::".to_owned()
         } else {
             self.module.top_level_namespace.clone()
         };
         self.walk_for_oo_methods(&top_level.statements, &top_namespace);
-        let procs: Vec<(String, Script)> = self
+        self.module.top_level = top_level;
+        let procs: Vec<(crate::ir::ProcedureId, String)> = self
             .module
             .procedures
             .iter()
-            .filter_map(|(_, p)| {
-                Some((
-                    p.body.namespace_context.as_deref()?.advisory_key()?,
-                    p.body.clone(),
-                ))
-            })
+            .filter_map(|(id, p)| Some((*id, p.body.namespace_context.as_deref()?.advisory_key()?)))
             .collect();
-        for (namespace, body) in &procs {
+        for (id, namespace) in &procs {
+            let Some(body) = self
+                .module
+                .procedures
+                .get_mut(id)
+                .map(|procedure| std::mem::take(&mut procedure.body))
+            else {
+                continue;
+            };
             self.walk_for_oo_methods(&body.statements, namespace);
+            if let Some(procedure) = self.module.procedures.get_mut(id) {
+                procedure.body = body;
+            }
         }
         // Every definition block for every class has now been walked, so the
         // per-class instance-variable union is complete.  Merge it into each
@@ -7598,30 +7634,48 @@ fn populate_trace_facts(module: &mut Module, registry: &CommandRegistry, standal
             })
             .flatten()
     });
-    let top_level = module.top_level.clone();
-    walk_for_trace(&top_level, module, registry, context);
+    // Borrow every retained body instead of cloning it: a derived `Clone` of
+    // cap-deep structured IR overflows a 2 MiB thread. The facts collect
+    // separately and are applied once the walk has finished.
+    let mut facts = TraceFacts::default();
+    walk_for_trace(&module.top_level, &mut facts, registry, context);
     // Every statically-known frame, not just named procedures: a `trace`
     // call inside a `namespace eval` / `apply` body (`Module::body_units`)
     // or a `TclOO` method (`Module::methods`) is just as live as one inside
     // a `proc` — omitting either class here would silently under-populate
     // `traced_variables` the moment an optimiser pass starts reaching into
     // those bodies (`CompilationUnit::all_body_function_units`).
-    let bodies: Vec<Script> = module
+    for body in module
         .procedures
         .values()
-        .map(|p| p.body.clone())
-        .chain(module.body_lowerings().map(|(_, p)| p.body.clone()))
-        .chain(module.methods.values().map(|m| m.body.clone()))
-        .collect();
-    for body in &bodies {
-        walk_for_trace(body, module, registry, context);
+        .map(|p| &p.body)
+        .chain(module.body_lowerings().map(|(_, p)| &p.body))
+        .chain(module.methods.values().map(|m| &m.body))
+    {
+        walk_for_trace(body, &mut facts, registry, context);
     }
+    module.traced_variables.extend(facts.variables);
+    module.traced_commands.extend(facts.commands);
+    module.has_dynamic_variable_trace |= facts.dynamic_variable;
+    module.has_dynamic_trace |= facts.dynamic;
+}
+
+/// Trace facts one retained-body walk collects for its [`Module`].
+#[derive(Default)]
+struct TraceFacts {
+    variables: std::collections::BTreeSet<String>,
+    commands: std::collections::BTreeSet<String>,
+    dynamic_variable: bool,
+    dynamic: bool,
 }
 
 /// Possible variable registrations are observer hazards even when receiver
 /// lookup cannot select a unique normal handler. Execution traces retain their
 /// stricter dispatch proof in the separate path below.
-fn record_possible_variable_trace(transition: &tcl_registry::TraceTransition, module: &mut Module) {
+fn record_possible_variable_trace(
+    transition: &tcl_registry::TraceTransition,
+    module: &mut TraceFacts,
+) {
     use tcl_registry::{TraceTarget, TraceTransition};
     let (TraceTransition::Add { target, .. } | TraceTransition::Remove { target, .. }) = transition;
     let TraceTarget::Variable(subject) = target else {
@@ -7629,16 +7683,16 @@ fn record_possible_variable_trace(transition: &tcl_registry::TraceTransition, mo
     };
     if let Some(target) = subject.literal() {
         let name = crate::variable_observation_names::module_observation_key(target);
-        module.traced_variables.insert(name.to_owned());
+        module.variables.insert(name.to_owned());
     } else {
-        module.has_dynamic_variable_trace = true;
+        module.dynamic_variable = true;
     }
 }
 
 /// Collect typed trace transitions through the shared retained-body visitor.
 fn walk_for_trace(
     script: &Script,
-    module: &mut Module,
+    module: &mut TraceFacts,
     registry: &CommandRegistry,
     context: Option<crate::registry_invocation::InvocationMetadataContext<'_>>,
 ) {
@@ -7648,8 +7702,8 @@ fn walk_for_trace(
         }
         let Some(context) = context else {
             // Missing source metadata cannot close either observer-hazard inventory.
-            module.has_dynamic_variable_trace = true;
-            module.has_dynamic_trace = true;
+            module.dynamic_variable = true;
+            module.dynamic = true;
             return;
         };
         if let Some(possible) = stmt.tokens().and_then(|tokens| {
@@ -7663,8 +7717,8 @@ fn walk_for_trace(
                 record_possible_variable_trace(transition, module);
             }
             if possible.metadata_unavailable() {
-                module.has_dynamic_variable_trace = true;
-                module.has_dynamic_trace = true;
+                module.dynamic_variable = true;
+                module.dynamic = true;
             }
         }
         let Some(invocation) =
@@ -7696,9 +7750,9 @@ fn walk_for_trace(
                         )
                     });
                     if let Some(keys) = keys {
-                        module.traced_commands.extend(keys);
+                        module.commands.extend(keys);
                     } else {
-                        module.has_dynamic_trace = true;
+                        module.dynamic = true;
                     }
                 }
                 TraceTarget::Variable(_) | TraceTarget::Command(_) | TraceTarget::Execution(_) => {}
@@ -12457,4 +12511,13 @@ mod original_script_purpose_tests {
             assert!(module.oo_evidence.unretained_executable_roots);
         }
     }
+}
+
+/// What [`Lowerer::lower_command`] does after its out-of-line selection.
+enum CommandLoweringSelection {
+    /// A finished statement, built outside the recursive descent frame.
+    Lowered(Box<Statement>),
+    /// The resolved label of a possible structured form, whose hook may
+    /// recurse into nested bodies.
+    Structured(String),
 }

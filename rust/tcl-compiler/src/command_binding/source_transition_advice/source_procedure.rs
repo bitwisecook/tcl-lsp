@@ -406,6 +406,10 @@ impl AdviceInvocationContext<'_> {
             Self::install_source_class_instance(graph, instance);
             return true;
         }
+        if self.retain_source_class_proc_call(tape, graph, native, written) {
+            graph.widen(native);
+            return true;
+        }
         if self.retain_original_procedure_call(tape, graph, native, written) {
             graph.widen(native);
             return true;

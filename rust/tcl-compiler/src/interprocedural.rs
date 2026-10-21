@@ -2589,15 +2589,13 @@ fn original_parameter_expression_config(
     base: Option<u32>,
     ctx: ScanCtx<'_>,
 ) -> Option<tcl_lexer::LexerConfig> {
-    let zz = std::env::var_os("ZZ_SOL49").is_some();
-    let Some(tokens) = ctx.current_tokens else { if zz { eprintln!("ZZ pexpr: no tokens"); } return None; };
-    let Some((config, words)) = crate::registry_invocation::original_command_words_for_module(
+    let tokens = ctx.current_tokens?;
+    let (config, words) = crate::registry_invocation::original_command_words_for_module(
         ctx.registry,
         ctx.source_module,
         tokens,
-    ) else { if zz { eprintln!("ZZ pexpr: no words {:?}", tokens.argv_texts); } return None; };
+    )?;
     let binding = tokens.source_binding.as_ref()?;
-    if zz { eprintln!("ZZ pexpr: authored={} layout={}", binding.has_original_authored_source_body_name_role_owner(), binding.has_original_source_layout_owner()); }
     if binding.has_original_authored_source_body_name_role_owner()
         && !binding.has_original_source_layout_owner()
     {
@@ -2659,11 +2657,9 @@ fn original_parameter_expression_config(
         operands.next()?;
         operands.next().is_none().then_some(config)
     } else {
-        let o = crate::registry_invocation::original_lowered_expression_syntax(
+        let (original, _) = crate::registry_invocation::original_lowered_expression_syntax(
             expression, base, tokens,
-        );
-        if zz { eprintln!("ZZ pexpr: lowered={:?} eq={}", o.is_some(), o.as_ref().is_some_and(|(x, _)| *x == config)); }
-        let (original, _) = o?;
+        )?;
         (original == config).then_some(config)
     }
 }
@@ -5447,13 +5443,11 @@ mod tests {
     ) {
         let environment = crate::environment_ingress::resolve_environment("tcl8.6");
         let context = environment.default_context_registry();
-        // Explicit Standalone authoring is the dialect-blind build (see
-        // `original_reference_unit`); a profiled build is a fresh document.
-        let unit = CompilationUnit::build_for_with_config(
+        let unit = CompilationUnit::build_for_profile(
             "proc p {} {return ONE}; proc p {} {return TWO}",
             context.commands(),
             false,
-            tcl_lexer::LexerConfig::from_grammar(environment.unit_profile().grammar),
+            environment.unit_profile(),
         );
         (context, unit)
     }
@@ -5547,13 +5541,11 @@ mod tests {
                 .original_procedure_report_label(id, registry)
                 .is_none()
         );
-        // The foreign owner is the same explicit Standalone authoring build
-        // (`authored_report_unit`), retained under a different unit.
-        let other = CompilationUnit::build_for_with_config(
+        let other = CompilationUnit::build_for_profile(
             "proc p {} {return ONE}; proc p {} {return TWO}",
             registry,
             false,
-            tcl_lexer::LexerConfig::from_grammar(environment.unit_profile().grammar),
+            environment.unit_profile(),
         );
         let foreign_id = *other
             .ir_module
@@ -7186,16 +7178,11 @@ mod tests {
         let context =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
         let profile = context.commands().profile().unwrap();
-        // These fixtures pin explicit Standalone authoring (the retained
-        // `original_authored_declaration_body_units`). A profiled default
-        // build is a fresh-interpreter document (user decision
-        // 2026-10-19T14:20Z); Standalone authoring is the dialect-blind
-        // build, still profiled through its Registry and grammar.
         let unit = CompilationUnit::build_with_options(
             source,
             crate::compilation_unit::UnitBuildOptions {
                 registry: context.commands(),
-                dialect: None,
+                dialect: Some(profile),
                 config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
                 defer_top_level: false,
                 external_call_sites: None,

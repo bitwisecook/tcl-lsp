@@ -1351,10 +1351,11 @@ impl BodyWalk<'_, '_> {
         if self.expressions(graph, &advice, &schema, depth).is_none() {
             graph.widen(&native.words);
         }
-        if immediate
-            && self
-                .regions(graph, &advice, &schema, depth.checked_add(1)?)
-                .is_none()
+        if !immediate {
+            self.member_catalogue_possible_bodies(graph, &advice, &schema, depth.checked_add(1)?);
+        } else if self
+            .regions(graph, &advice, &schema, depth.checked_add(1)?)
+            .is_none()
         {
             // A `TclOO` definition script runs in a new frame in its definer's
             // namespace (`::oo::define`, `::oo::objdefine` or a configurable
@@ -1376,6 +1377,88 @@ impl BodyWalk<'_, '_> {
         }
         Some(())
     }
+    /// A readonly member-body catalogue also follows possible same-invocation
+    /// bodies whose complete role layout is unavailable (a `switch` with a
+    /// computed subject or option). The parent operation keeps its recorded
+    /// uncertainty; every candidate runs on its own branch, so no candidate
+    /// effect reaches the parent walk. Deferred, frame-shifting, other-
+    /// interpreter and declaration bodies are never followed.
+    fn member_catalogue_possible_bodies(
+        &mut self,
+        graph: &AdviceGraph,
+        advice: &OriginalSourceCommandTransitionAdvice,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        depth: usize,
+    ) {
+        if self.member_catalogue_body.is_none()
+            || self.inventory.is_some()
+            || self.source_body.is_some()
+            || depth > MAX_DEPTH
+            || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+            || schema.semantics.frame_effect.is_some()
+            || schema.semantics.traits.intersects(
+                tcl_registry::Traits::DEFERS_BODY | tcl_registry::Traits::DEFINES_PROCEDURE,
+            )
+            || schema.authored_source_procedure_arguments().is_some()
+            || schema.authored_source_definition_body_grammar().is_some()
+        {
+            return;
+        }
+        let Some(words) = boxed_region_words(self.context, advice) else {
+            return;
+        };
+        let interpreter = schema.semantics.body_interpreter.resolve_with(|ordinal| {
+            std::str::from_utf8(words.arguments().get(ordinal)?.literal_bytes()?).ok()
+        });
+        if interpreter != tcl_registry::world_effect::InterpreterScope::Current {
+            return;
+        }
+        let context = self.context.context;
+        let mut bodies = words
+            .conditional_source_case_bodies(context)
+            .filter(|case| {
+                case.matches_source(self.context.origin.source_image(), self.context.config)
+            })
+            .map(|case| case.bodies().to_vec())
+            .unwrap_or_default();
+        bodies.extend(words.source_script_bodies_for(
+            context,
+            crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
+        ));
+        bodies.sort_by_key(|body| (body.content_span().start(), body.content_span().end()));
+        bodies.dedup_by_key(|body| body.content_span());
+        for body in bodies {
+            // Each candidate's own written operand must run before the
+            // invocation returns; a stored callback body never qualifies.
+            let same_invocation = words
+                .operands()
+                .iter()
+                .position(|operand| {
+                    operand.as_ref().and_then(
+                        crate::registry_invocation::source_structure::OriginalOperandSource::word,
+                    ) == Some(body.original_container())
+                })
+                .and_then(|argument| {
+                    words
+                        .with_source_schema(context, |schema| {
+                            schema.authored_source_script_timing_at(argument)
+                        })
+                        .flatten()
+                })
+                == Some(tcl_registry::ScriptTiming::SameInvocation);
+            if !same_invocation
+                || !body.matches_source(self.context.origin.source_image(), self.context.config)
+                || !body.matches_context(context)
+            {
+                continue;
+            }
+            let mut branch = graph.clone();
+            branch.record_uncertainty(advice.original_words());
+            // A malformed or over-deep candidate only withholds its own rows.
+            let _ = self.script(&mut branch, body.content_span(), depth);
+        }
+    }
+
     fn original_body_class_handle(
         &self,
         graph: &AdviceGraph,

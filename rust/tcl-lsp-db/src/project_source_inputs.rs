@@ -4,6 +4,9 @@
 
 //! Body-free project source headers and factories from checked document inputs.
 
+// This file is a split-out part of its parent module: it, and the test
+// modules nested under it, share the parent's whole import set.
+#[allow(clippy::wildcard_imports)]
 use super::*;
 
 /// Structure-only declaration inventory under this file's complete source input.

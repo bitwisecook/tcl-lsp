@@ -232,28 +232,27 @@ pub fn minify_with_analysis(
             refusals: vec![refusal],
             ..MinifyResult::default()
         });
-    } else {
-        let mut scalar_alpha = false;
-        if options.tier != MinifyTier::Default {
-            match scalar_alpha_compaction(source, analysis, registry) {
-                Ok(plan) => {
-                    result.source = plan.source;
-                    result.symbol_map = plan.symbol_map;
-                    result.optimisations_applied = plan.renamed_symbols;
-                    scalar_alpha = true;
-                }
-                Err(MinifyRefusal::MissingAlphaRenameContract) => {}
-                Err(refusal) => result.refusals.push(refusal),
-            }
-        }
-        result
-            .refusals
-            .extend(naming_refusals(options, scalar_alpha));
     }
+    let mut scalar_alpha = false;
+    if options.tier != MinifyTier::Default {
+        match scalar_alpha_compaction(source, analysis, registry) {
+            Ok(plan) => {
+                result.source = plan.source;
+                result.symbol_map = plan.symbol_map;
+                result.optimisations_applied = plan.renamed_symbols;
+                scalar_alpha = true;
+            }
+            Err(MinifyRefusal::MissingAlphaRenameContract) => {}
+            Err(refusal) => result.refusals.push(refusal),
+        }
+    }
+    result
+        .refusals
+        .extend(naming_refusals(options, scalar_alpha));
     match syntax_compaction(&result.source, analysis) {
         Ok(compacted) => result.source = compacted,
         Err(refusal) => {
-            result.source = source.to_owned();
+            source.clone_into(&mut result.source);
             result.symbol_map = SymbolMap::default();
             result.optimisations_applied = 0;
             result.refusals.push(refusal);

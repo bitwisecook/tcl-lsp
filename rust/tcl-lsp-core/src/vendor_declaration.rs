@@ -168,7 +168,6 @@ pub fn declarations<'a>(
 
 /// Direct declaration cursor selection only. An owned unsupported input stays
 /// terminal at its header; missing runtime lookup is never supplied by a label.
-#[must_use]
 pub fn select_at_offset<'a>(
     source: &str,
     analysis: &'a AnalysisResult,

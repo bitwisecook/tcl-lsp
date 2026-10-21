@@ -61,7 +61,7 @@ fn uri_to_path(uri: &str) -> Option<String> {
         .authority()
         .map(|authority| authority.as_str())
         .unwrap_or_default();
-    if !authority.is_empty() && !(cfg!(unix) && authority.eq_ignore_ascii_case("localhost")) {
+    if !(authority.is_empty() || cfg!(unix) && authority.eq_ignore_ascii_case("localhost")) {
         return None;
     }
     let decoded = uri.path().decode().to_string().ok()?;

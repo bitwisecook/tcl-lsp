@@ -679,6 +679,9 @@ fn original_pattern_format_hover(
         };
         return Some(Hover::markdown(text));
     }
+    // The closure is required: the method path is not general enough
+    // over the schema borrow's higher-ranked lifetime.
+    #[allow(clippy::redundant_closure_for_method_calls)]
     let formats = words
         .with_source_schema(&context, |schema| schema.authored_source_format_arguments())
         .flatten()?;
@@ -717,7 +720,7 @@ fn original_pattern_format_hover(
                     })
                     .collect::<Vec<_>>();
                 binary_format_hover_text(&BinaryContext {
-                    text: text.to_owned(),
+                    text: text.clone(),
                     subcmd: arguments.first().copied().flatten()?.to_owned(),
                     args: arguments
                         .get(format.index.checked_add(1)?..)?
@@ -1176,8 +1179,9 @@ fn builtin_command_hover_text(
     let release = analysis
         .resolved_input
         .as_ref()
-        .map(|input| EventRelease::of(input.availability_context()))
-        .unwrap_or(EventRelease::Unconfigured);
+        .map_or(EventRelease::Unconfigured, |input| {
+            EventRelease::of(input.availability_context())
+        });
     append_command_event_metadata(&mut out, spec, release);
     Some(out)
 }
@@ -3306,7 +3310,7 @@ fn infer_var_type_and_taint(
         let declaration = analysis
             .original_variable_symbol_at_offset(cursor)
             .filter(|occurrence| occurrence.is_declaration())
-            .map(|occurrence| occurrence.span())
+            .map(tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence::span)
             .or_else(|| {
                 crate::definition::var_def_at_declaration_offset(&analysis.global_scope, cursor)
                     .map(|definition| definition.definition_span)

@@ -356,7 +356,7 @@ fn document_requests(
                 }
             }
             if let Some(selected) = walk.structure(document.source, &command) {
-                reject_link_obligations(&selected).map_err(|refusal| {
+                reject_link_obligations(&selected).inspect_err(|refusal| {
                     coverage_trace(command_offset, "registry-name-link-or-effect-coverage");
                     #[cfg(test)]
                     if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_RENAME").is_some() {
@@ -366,7 +366,8 @@ fn document_requests(
                             selected.written_argument_roles(), selected.facts.state_transitions,
                             selected.facts.effects);
                     }
-                    refusal
+                    // Read only by the test-build trace above.
+                    let _ = refusal;
                 })?;
                 for (a, b) in walk
                     .same_frame_regions(document.source, &command)
@@ -520,10 +521,10 @@ fn original_command_rename_units(
         .input()
         .ok_or(OriginalCommandRenameRefusal::UneditableInput)?;
     let policy = declaration.name().policy();
-    if policy.recipe().command_tail_extent(&tail) != Some(0..tail.len()) {
+    if policy.recipe().command_tail_extent(tail) != Some(0..tail.len()) {
         return Err(OriginalCommandRenameRefusal::InvalidTail);
     }
-    let destination = renamed_slot(declaration.name().slot(), policy, &tail)?;
+    let destination = renamed_slot(declaration.name().slot(), policy, tail)?;
     let publication = owner
         .analysis
         .original_completed_command_world()
@@ -538,7 +539,7 @@ fn original_command_rename_units(
     }
     let replacement = policy
         .recipe()
-        .replace_command_tail(original.bytes(), &tail)
+        .replace_command_tail(original.bytes(), tail)
         .ok_or(OriginalCommandRenameRefusal::InvalidTail)?;
     let scope = owner
         .analysis
@@ -583,7 +584,7 @@ fn original_command_rename_units(
             }
         }
         let mut requests =
-            document_requests(document, documents, &declaration, &destination, &tail)?;
+            document_requests(document, documents, &declaration, &destination, tail)?;
         if document.uri == owner.uri {
             requests.push((original.clone(), NameBytes::from(replacement.clone())));
         }
@@ -613,7 +614,6 @@ fn original_command_rename_units(
 /// owner or an actual positioned command reference in another document.
 /// This readonly selection supplies no rename, lookup or publication grant;
 /// the atomic planner must independently close every edit obligation.
-#[must_use]
 pub fn select_in_documents(
     documents: &[OriginalDeclarationDocument<'_>],
     cursor_uri: &str,

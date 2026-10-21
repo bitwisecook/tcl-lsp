@@ -8,6 +8,9 @@
 // docs/design/analysis/name-resolution-proofs/source-current-document-transforms.md
 
 use super::current_diagnostics::CurrentDiagnosticInput;
+// This file is a split-out part of its parent module: it, and the test
+// modules nested under it, share the parent's whole import set.
+#[allow(clippy::wildcard_imports)]
 use super::*;
 use std::collections::VecDeque;
 use tcl_lsp_core::wire_session::EditorWireSession;
@@ -43,7 +46,7 @@ impl TransformRequest {
 }
 
 /// The actual input and complete source used by one existing worker pass.
-/// A document worker must join the captured SourceFile input. The separately
+/// A document worker must join the captured `SourceFile` input. The separately
 /// configured safe-fix purpose instead retains its actual parameter producer.
 pub(super) struct TransformWorkerSource {
     source: Arc<str>,

@@ -214,8 +214,8 @@ pub fn method_rename_hazard(
             &class.methods
         }
         .get(target.method);
-        if let Some(method) = method {
-            if tcl_compiler::analyser::types::original_source_linked_member_reference_spans(
+        if let Some(method) = method
+            && tcl_compiler::analyser::types::original_source_linked_member_reference_spans(
                 analysis,
                 source,
                 class,
@@ -227,14 +227,13 @@ pub fn method_rename_hazard(
                 },
             )
             .is_none()
-            {
-                return Some(RenameRefusal::new(
-                    "cannot prove every original link target and coupled alias edit".to_owned(),
-                    source,
-                    line_index,
-                    Some(method.name_span),
-                ));
-            }
+        {
+            return Some(RenameRefusal::new(
+                "cannot prove every original link target and coupled alias edit".to_owned(),
+                source,
+                line_index,
+                Some(method.name_span),
+            ));
         }
     }
     unlocatable_member_reference(source, dialect, analysis, target, line_index)
@@ -260,7 +259,7 @@ fn unproved_definition_member_reference(
     line_index: &LineIndex,
 ) -> Option<RenameRefusal> {
     let mut unproved = None;
-    for name in target.family.iter() {
+    for name in target.family {
         let inventory = analysis.all_classes.get(name).and_then(|class| {
             crate::references::member_reference_inventory(
                 source,
@@ -2334,8 +2333,10 @@ mod configured_dispatch_receiver_tests {
         // naming.core.original-source-instance-completion
         // docs/design/analysis/name-resolution-proofs/core-original-source-instance-completion.md
         let source = format!("{CLASSES}set {{a{{b}}c}} [Other new]\n${{a{{b}}c}} m\n");
-        let mut config = tcl_lexer::LexerConfig::default();
-        config.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        let mut config = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::Tcl9Nesting,
+            ..tcl_lexer::LexerConfig::default()
+        };
         let nested = analyse(&source, config);
         assert!(hazard(&source, &nested).is_none());
         config.braced_var = tcl_dialect::BracedVarStyle::FirstClose;

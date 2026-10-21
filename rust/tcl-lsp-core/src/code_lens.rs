@@ -129,8 +129,8 @@ pub fn code_lenses(
                 let report = crate::original_declaration::readonly_reference_report(&identity, source, analysis, true)?;
                 let mut count = report.spans().len();
                 if let Some(workspace) = workspace {
-                    let declaration = identity.procedure_metadata(analysis).map(|row| row.name())
-                        .or_else(|| identity.class_metadata(analysis).filter(|_| identity.role() == crate::original_declaration::OriginalDeclarationRole::Class).map(|row| row.name()));
+                    let declaration = identity.procedure_metadata(analysis).map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name)
+                        .or_else(|| identity.class_metadata(analysis).filter(|_| identity.role() == crate::original_declaration::OriginalDeclarationRole::Class).map(tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::name));
                     if let Some(name) = declaration {
                         let owners = workspace.original_procedure_declarations().map(|(_, row)| row.name())
                             .chain(workspace.original_class_declarations().map(|(_, row)| row.name()))

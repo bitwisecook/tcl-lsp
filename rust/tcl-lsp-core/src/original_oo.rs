@@ -195,12 +195,10 @@ pub(crate) fn class_completion_context<'a>(
         if selector.word_span().end() < cursor {
             return ControlFlow::Continue(());
         }
-    } else {
-        if cursor != span.end()
-            && !instance_completion::completion_gap(source, span.end(), cursor, config)
-        {
-            return ControlFlow::Continue(());
-        }
+    } else if cursor != span.end()
+        && !instance_completion::completion_gap(source, span.end(), cursor, config)
+    {
+        return ControlFlow::Continue(());
     }
     if let Some(call) =
         tcl_compiler::registry_invocation::source_structure::source_constructor_call_at(

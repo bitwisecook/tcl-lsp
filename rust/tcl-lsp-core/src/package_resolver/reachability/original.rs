@@ -461,7 +461,7 @@ impl Walker<'_, '_> {
                 if self.survey.is_some() {
                     match words.original_lambda_body_geometry(self.context) {
                         Some(body) if body.matches_source(&self.image, self.config) => {
-                            bodies.push(body.content_span())
+                            bodies.push(body.content_span());
                         }
                         _ => complete = false,
                     }
@@ -602,13 +602,13 @@ impl Walker<'_, '_> {
 
     fn guard(&self, control: &Control, argument: usize) -> Guard {
         let words = &control.words;
-        if let Some(survey) = self.survey.filter(|_| !self.syntax_only) {
-            if let Some(receipt) = survey.target_guard(&control.original, argument) {
-                return Guard::SourceTarget(super::SourceTargetCondition {
-                    receipt: std::sync::Arc::new(receipt),
-                    expect: true,
-                });
-            }
+        if let Some(survey) = self.survey.filter(|_| !self.syntax_only)
+            && let Some(receipt) = survey.target_guard(&control.original, argument)
+        {
+            return Guard::SourceTarget(super::SourceTargetCondition {
+                receipt: std::sync::Arc::new(receipt),
+                expect: true,
+            });
         }
         let Some(body) = self.body(words, argument) else {
             return Guard::Unknown;

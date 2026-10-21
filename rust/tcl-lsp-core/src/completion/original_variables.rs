@@ -516,7 +516,10 @@ fn reference_matches(
     if !root.is_separate_array_root() {
         let selected = policy.recipe().combined_variable_input(root.bytes());
         return selected.root().selected() == wanted
-            && selected.element().map(|element| element.selected()) == element;
+            && selected
+                .element()
+                .map(tcl_syntax::naming::NativeNameProjection::selected)
+                == element;
     }
     if root.bytes() != wanted {
         return false;

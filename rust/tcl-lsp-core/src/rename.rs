@@ -365,6 +365,41 @@ fn pre_edit_refusal(
     })
 }
 
+/// A variable a TclOO class declares with `variable NAME` is linked into
+/// every method body (tclsh 8.6/9.0: `oo::class create C {variable n; method
+/// get {} {return $n}; method set {x} {set n $x}}` shares one `n` per object).
+/// The original variable symbol of a method-body read does not yet unify the
+/// class declaration and the other methods' uses, so renaming it would edit
+/// one occurrence and break the program; the rename is refused instead.
+fn class_variable_rename_refusal(
+    source: &str,
+    analysis: &AnalysisResult,
+    occurrence: &tcl_compiler::signature_scan::variable_symbol::SignatureSourceVariableOccurrence,
+    line_index: &LineIndex,
+) -> Option<crate::rename_safety::RenameRefusal> {
+    let span = occurrence.span();
+    let name = source.get(span.as_range())?;
+    let name = name.strip_prefix('$').unwrap_or(name);
+    let name = name
+        .strip_prefix('{')
+        .and_then(|inner| inner.strip_suffix('}'))
+        .unwrap_or(name);
+    // Inside the class body every method shares the declared variable, and
+    // the `variable NAME` declaration itself is one of its occurrences.
+    let declared = analysis.all_classes.values().any(|class| {
+        class.variables.iter().any(|variable| variable == name)
+            && class.body_span.start() <= span.start()
+            && span.end() <= class.body_span.end()
+    });
+    declared.then(|| crate::rename_safety::RenameRefusal {
+        reason: format!(
+            "cannot rename `{name}`: it is a class-declared variable linked into every method, \
+             and its declaration and other method uses are not yet one symbol"
+        ),
+        range: Some(span_to_range(source, line_index, span)),
+    })
+}
+
 /// [`rename`], but reporting *why* a rename was refused.
 ///
 /// `Err(refusal)` means the cursor names a real, resolvable symbol whose
@@ -441,6 +476,24 @@ pub fn rename_in_program(
             source, dialect, analysis, &symbol, new_name,
         );
     }
+    // The new-name shape gate applies to every variable and command tier,
+    // including the original-input ones below; only a namespace path keeps
+    // its own `::`-separated grammar above.
+    if !is_safe_symbol_name(new_name) {
+        return Ok(Vec::new());
+    }
+    // A variable whose name can only be written quoted (`set {$n} 1`) is
+    // refused before any variable tier: its occurrences carry delimiters the
+    // new name may not need, so no edit set is guessed.
+    if let Some(refusal) = crate::rename_safety::literal_name_variable_rename_refusal(
+        source,
+        line,
+        character,
+        analysis,
+        &line_index,
+    ) {
+        return Err(refusal);
+    }
     if let std::ops::ControlFlow::Break(selected) =
         crate::variable_symbol::select(source, analysis, line, character)
     {
@@ -448,6 +501,11 @@ pub fn rename_in_program(
             reason: "cannot prove the original variable selected by this occurrence".to_owned(),
             range: None,
         })?;
+        if let Some(refusal) =
+            class_variable_rename_refusal(source, analysis, occurrence, &line_index)
+        {
+            return Err(refusal);
+        }
         return crate::variable_symbol::original_variable_rename_edits(
             source,
             analysis,
@@ -503,9 +561,6 @@ pub fn rename_in_program(
                 new_text: edit.new_text,
             })
             .collect());
-    }
-    if !is_safe_symbol_name(new_name) {
-        return Ok(Vec::new());
     }
     if let Some(refusal) = pre_edit_refusal(
         source,
@@ -688,10 +743,10 @@ fn rename_definition_operand(
                 line_index,
             )
         });
-    Some(edits.map_or_else(|| Err(crate::rename_safety::RenameRefusal::at(
+    Some(edits.unwrap_or_else(|| Err(crate::rename_safety::RenameRefusal::at(
         "cannot rename this metadata operand: its original method declaration is unavailable for a complete edit.".to_owned(),
         source, line_index, Some(reference.name_span()),
-    )), |result| result))
+    ))))
 }
 
 fn prepare_list_built_self_method_rename(
@@ -1128,7 +1183,7 @@ fn rename_method_in_class(
         });
         for span in call_spans {
             edits.push(PendingRenameEdit {
-                span: span,
+                span,
                 new_text: new_name.to_owned(),
             });
         }
@@ -1246,19 +1301,17 @@ pub fn method_target_with_access_in_workspace(
     // Only the retained single-field link form couples command and member edits.
     if let Some(linked) =
         tcl_compiler::analyser::types::original_source_linked_member_at(analysis, source, cursor)
+        && linked.has_coupled_name()
+        && linked.editable_target_span(source).is_some()
+        && linked.alias_input().bytes() == word.as_bytes()
+        && linked.target_input().bytes() == word.as_bytes()
     {
-        if linked.has_coupled_name()
-            && linked.editable_target_span(source).is_some()
-            && linked.alias_input().bytes() == word.as_bytes()
-            && linked.target_input().bytes() == word.as_bytes()
-        {
-            return Some((
-                linked.class_declaration().metadata().qualified_name.clone(),
-                linked.target().metadata().name.clone(),
-                linked.target().side() == tcl_compiler::analyser::MemberSide::ClassObject,
-                MethodAccess::Internal,
-            ));
-        }
+        return Some((
+            linked.class_declaration().metadata().qualified_name.clone(),
+            linked.target().metadata().name.clone(),
+            linked.target().side() == tcl_compiler::analyser::MemberSide::ClassObject,
+            MethodAccess::Internal,
+        ));
     }
     if !analysis.allows_lexical_declaration_advice() {
         return None;
@@ -1848,7 +1901,7 @@ fn rename_method(
             }
             for span in call_spans {
                 edits.push(PendingRenameEdit {
-                    span: span,
+                    span,
                     new_text: new_name.to_owned(),
                 });
             }
@@ -1861,7 +1914,7 @@ fn rename_method(
             crate::references::scan_my_method_sites(source, analysis, &body_spans, word, None)
         {
             edits.push(PendingRenameEdit {
-                span: span,
+                span,
                 new_text: new_name.to_owned(),
             });
         }

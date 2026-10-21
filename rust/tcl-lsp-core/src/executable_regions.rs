@@ -472,25 +472,24 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
             return false;
         };
         let context = input.context_registry();
-        if let Some(members) = definition_members {
-            if let Some(words) = command
+        if let Some(members) = definition_members
+            && let Some(words) = command
                 .argv
                 .first()
                 .and_then(|head| members.original_command_words_at(head.span.start()))
-                && let Some(bodies) = members.script_bodies(words)
-            {
-                for body in bodies {
-                    if self.original_region(
-                        body.content_span(),
-                        depth + 1,
-                        body.definition_parent().cloned(),
-                        ExecutableContext::PotentialBody,
-                    ) {
-                        return true;
-                    }
+            && let Some(bodies) = members.script_bodies(words)
+        {
+            for body in bodies {
+                if self.original_region(
+                    body.content_span(),
+                    depth + 1,
+                    body.definition_parent().cloned(),
+                    ExecutableContext::PotentialBody,
+                ) {
+                    return true;
                 }
-                return false;
             }
+            return false;
         }
         if let Some(words) =
             tcl_compiler::registry_invocation::source_structure::source_registry_words(
@@ -556,6 +555,9 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
         context: &tcl_registry::model::ContextRegistry,
         depth: u32,
     ) -> bool {
+        // The closure is required: the method path is not general enough
+        // over the schema borrow's higher-ranked lifetime.
+        #[allow(clippy::redundant_closure_for_method_calls)]
         let executable = words
             .with_source_schema(context, |schema| schema.authored_source_script_arguments())
             .flatten()

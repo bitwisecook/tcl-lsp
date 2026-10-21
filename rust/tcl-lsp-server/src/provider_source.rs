@@ -4,6 +4,9 @@
 
 //! Each package implementation keeps its own configured source owner.
 
+// This file is a split-out part of its parent module: it, and the test
+// modules nested under it, share the parent's whole import set.
+#[allow(clippy::wildcard_imports)]
 use super::*;
 use tcl_compiler::analyser::ResolvedAnalysisInput;
 use tcl_registry::model::OverlayMiss;
@@ -110,7 +113,7 @@ pub(super) enum ProviderSourceUnavailable {
     /// The original selected resource cannot supply its old provider schema
     /// to a hypothetical-source report. No proposal provider overlay is issued.
     ProposalSelectedSource,
-    /// SourceStore supplies no retained byte-version lease for this disk input.
+    /// `SourceStore` supplies no retained byte-version lease for this disk input.
     ProposalDiskSource,
 }
 
@@ -420,7 +423,7 @@ impl ConfiguredProviderSources {
 
     /// Strict currency predicate for proposed-source reports. Indexed
     /// providers are checked against the retained live Salsa handles and
-    /// admissions. A disk provider has no byte-version lease in SourceStore,
+    /// admissions. A disk provider has no byte-version lease in `SourceStore`,
     /// so a report which consumed one cannot claim currentness.
     pub(super) fn proposal_is_current(
         &self,
@@ -620,8 +623,7 @@ impl ProviderSourceAccess<'_> {
                     .analyse(&text, target.dialect_name());
                 let input = analysis
                     .resolved_input
-                    .as_ref()
-                    .cloned()
+                    .clone()
                     .ok_or(ProviderSourceUnavailable::SourceCurrency)?;
                 Ok(Arc::new(ProviderSourceInventory {
                     text: Arc::from(text),

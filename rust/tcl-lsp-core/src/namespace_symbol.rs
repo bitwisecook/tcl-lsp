@@ -223,7 +223,6 @@ pub fn original_namespace_at_offset(
 /// Select an original namespace operand without conflating an unavailable
 /// retained identity with an authored lookup. The complete current document
 /// and grammar must correspond before any original occurrence can be used.
-#[must_use]
 pub fn select_at_offset(
     source: &str,
     analysis: &AnalysisResult,

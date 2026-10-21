@@ -4350,6 +4350,9 @@ pub(crate) fn frame_shifted_dispatch_regions(
                 (span.start() as usize, span.end() as usize)
             }));
     }
+    // The closure is required: the method path is not general enough
+    // over the schema borrow's higher-ranked lifetime.
+    #[allow(clippy::redundant_closure_for_method_calls)]
     let executable = words
         .with_source_schema(&context, |schema| schema.authored_source_script_arguments())
         .flatten()
@@ -9387,8 +9390,10 @@ mod configured_callback_variable_tests {
         // naming.core.original-dispatch-region-context
         // docs/design/analysis/name-resolution-proofs/core-original-dispatch-region-context.md
         let source = source("a{b}c", "${a{b}c}");
-        let mut config = tcl_lexer::LexerConfig::default();
-        config.braced_var = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+        let mut config = tcl_lexer::LexerConfig {
+            braced_var: tcl_dialect::BracedVarStyle::Tcl9Nesting,
+            ..tcl_lexer::LexerConfig::default()
+        };
         let nested = analyse(&source, config);
         assert!(has_stored_target(&source, &nested));
         config.braced_var = tcl_dialect::BracedVarStyle::FirstClose;

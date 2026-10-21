@@ -1087,7 +1087,7 @@ impl ExecutionNamespace {
 ///
 /// Using `Vec` rather than a tuple because scripts are built incrementally
 /// during lowering.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Eq, Hash, Default)]
 pub struct Script {
     /// Actual namespace owner for this retained executable body.
     pub namespace_context: Option<Box<crate::command_binding::SourceNamespaceKey>>,
@@ -1115,6 +1115,81 @@ pub struct Script {
     /// Target-neutral chunk admission, preserving unresolved compiler paths.
     pub native_compilation_admission:
         Option<std::sync::Arc<crate::native_compilation_admission::NativeCompilationAdmission>>,
+}
+
+// A derived `Clone` or `PartialEq` of structured IR recurses several native
+// frames per nesting level (`Script` -> `Vec<Statement>` -> `Statement` ->
+// `IfClause` -> `Script`), which overflowed a 2 MiB thread at the
+// structured-lowering depth cap. Each nested `Script` therefore continues on
+// a fresh stack segment once a bounded number of levels share one stack.
+impl Clone for Script {
+    fn clone(&self) -> Self {
+        with_structured_ir_stack(|| Self {
+            namespace_context: self.namespace_context.clone(),
+            executed_source: self.executed_source.clone(),
+            implicit_math_invocations: self.implicit_math_invocations.clone(),
+            expression_preparations: self.expression_preparations.clone(),
+            statements: self.statements.clone(),
+            command_binding_sites: self.command_binding_sites.clone(),
+            procedure_binding_requirements: self.procedure_binding_requirements.clone(),
+            native_compilation_failure: self.native_compilation_failure.clone(),
+            native_compilation_admission: self.native_compilation_admission.clone(),
+        })
+    }
+}
+
+impl PartialEq for Script {
+    fn eq(&self, other: &Self) -> bool {
+        with_structured_ir_stack(|| {
+            self.namespace_context == other.namespace_context
+                && self.executed_source == other.executed_source
+                && self.implicit_math_invocations == other.implicit_math_invocations
+                && self.expression_preparations == other.expression_preparations
+                && self.statements == other.statements
+                && self.command_binding_sites == other.command_binding_sites
+                && self.procedure_binding_requirements == other.procedure_binding_requirements
+                && self.native_compilation_failure == other.native_compilation_failure
+                && self.native_compilation_admission == other.native_compilation_admission
+        })
+    }
+}
+
+/// Nested [`Script`] levels a derived traversal may stack on one native
+/// stack before it continues on a fresh segment. One level costs about
+/// 30 KiB in a `dev`-profile build.
+const STRUCTURED_IR_LEVELS_PER_STACK: u32 = 8;
+
+/// Native stack of one continuation segment.
+const STRUCTURED_IR_SEGMENT_STACK: usize = 8 * 1024 * 1024;
+
+std::thread_local! {
+    static STRUCTURED_IR_LEVEL: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Run one nested-script step of a recursive IR traversal, moving to a fresh
+/// stack segment after [`STRUCTURED_IR_LEVELS_PER_STACK`] levels.
+fn with_structured_ir_stack<T: Send>(work: impl FnOnce() -> T + Send) -> T {
+    struct Restore(u32);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            STRUCTURED_IR_LEVEL.with(|level| level.set(self.0));
+        }
+    }
+    let level = STRUCTURED_IR_LEVEL.with(std::cell::Cell::get);
+    if level >= STRUCTURED_IR_LEVELS_PER_STACK {
+        return std::thread::scope(|scope| {
+            std::thread::Builder::new()
+                .name("structured-ir".into())
+                .stack_size(STRUCTURED_IR_SEGMENT_STACK)
+                .spawn_scoped(scope, work)
+                .expect("spawn a structured IR stack segment")
+                .join()
+                .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+        });
+    }
+    let _restore = Restore(level);
+    STRUCTURED_IR_LEVEL.with(|current| current.set(level + 1));
+    work()
 }
 
 /// Compact storage for the uncommon typed-lowering dependency sidecar.

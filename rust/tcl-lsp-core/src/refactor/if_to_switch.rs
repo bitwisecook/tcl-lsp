@@ -86,6 +86,9 @@ pub fn if_to_switch(
     let args: Vec<&str> = texts[1..].iter().map(String::as_str).collect();
     let context = current.context();
     let original = crate::original_invocation::source_registry_words(source, analysis, &cmd)?;
+    // The closure is required: the method path is not general enough
+    // over the schema borrow's higher-ranked lifetime.
+    #[allow(clippy::redundant_closure_for_method_calls)]
     let plan = original.with_source_schema(&context, |schema| schema.clause_plan())??;
     if plan.defect.is_some() {
         return None;
@@ -467,11 +470,11 @@ mod shared_expression_equality_tests {
             let context = tcl_syntax::expr::parser::ExprParseContext::for_profile(profile);
             for (condition, value, negated) in [
                 (r#"$x eq "a||b""#, "a||b", false),
-                (r#"$x eq {$value}"#, "$value", false),
-                (r#"$x eq {{a}}"#, "{a}", false),
+                (r"$x eq {$value}", "$value", false),
+                (r"$x eq {{a}}", "{a}", false),
                 (r#""a" eq "$x""#, "a", false),
-                (r#"!($x ne {a})"#, "a", false),
-                (r#"$x ne {a}"#, "a", true),
+                (r"!($x ne {a})", "a", false),
+                (r"$x ne {a}", "a", true),
                 (r#"$x == "GET""#, "GET", false),
                 (r#"$x != "GET""#, "GET", true),
             ] {
@@ -487,8 +490,8 @@ mod shared_expression_equality_tests {
                 assert_eq!(values[0].as_ref(), value);
             }
             for condition in [
-                r#"$x == 1"#,
-                r#"$x != 1"#,
+                r"$x == 1",
+                r"$x != 1",
                 r#"$x == "01""#,
                 r#"$x == " 1 ""#,
                 r#"$x == "1e0""#,

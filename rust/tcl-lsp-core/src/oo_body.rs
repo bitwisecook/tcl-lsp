@@ -997,7 +997,7 @@ mod original_definition_grammar_cursor_tests {
         assert!(selection.for_selected_source(source, &analysis).is_some());
         assert!(
             selection
-                .for_selected_source(&source.replace("C", "D"), &analysis)
+                .for_selected_source(&source.replace('C', "D"), &analysis)
                 .is_none()
         );
         let input = analysis.resolved_input.take().unwrap();

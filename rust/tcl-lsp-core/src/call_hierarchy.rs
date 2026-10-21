@@ -619,11 +619,14 @@ fn logical_method_procedure_at<'a>(
         let mut selected: Option<&ProcDef> = None;
         let mut occupied = false;
         let mut ambiguous = false;
-        for procedure in analysis.all_procs.values().chain(
+        for procedure in
             analysis
-                .original_procedure_declarations()
-                .map(|declaration| declaration.metadata()),
-        ) {
+                .all_procs
+                .values()
+                .chain(analysis.original_procedure_declarations().map(
+                tcl_compiler::signature_scan::original_name::SourceDeclarationMetadata::metadata,
+            ))
+        {
             if analysis.logical_source_procedure_declaration(procedure)
                 .and_then(tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::source_candidate_coordinate)
                 .as_ref() != Some(coordinate)
