@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 21 October 2026, 14:45 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
+Updated 21 October 2026, 14:48 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
 
 ## Scope
 
@@ -43,6 +43,8 @@ Counts live in [audit-status.json](audit-status.json); per-unit sites in [reposi
 
 | 14 | Python typechecking and native binding tests | **FAIL**, 21 Oct on `f6c4694f14`: [Python job 119280405813](https://github.com/bitwisecook/tcl-lsp/actions/runs/39616304947/job/119280405813) reports **26 `ty` errors** in executable tooling, including proof-checker/import and BIG-IP probe scripts. `pyright` and native engine binding tests are skipped after the failing command. Python lint independently passes (row 11). | Implementation owners must address type errors before the remaining Python checks execute; no tool code changes in this validation pass. | Unassigned implementation owner |
 
+| 15 | Browser WASM and web extension-host LSP validation | **FAIL**, 21 Oct on `f6c4694f14`: [WASM smoke job 119280405748](https://github.com/bitwisecook/tcl-lsp/actions/runs/39616304947/job/119280405748) reaches the server and reports six failed checks: pack-property hover, workspace scan finding files, sourced-sibling definition, closed-file workspace symbols, tclIndex autoload definition and shipped-pack notice count. Separately, [web extension job 119280405797](https://github.com/bitwisecook/tcl-lsp/actions/runs/39616304947/job/119280405797) stops at TS6133 in `extension.ts:927`, `extension.ts:977` and `currentDiagnostics.test.ts:970`; editor-host assertions do not execute there. | Investigate actual server/store/provider failures separately from the extension compilation blocker. Keep original assertions; no fixes applied. | Implementation owners; validation agent records only |
+
 ### Carried from the 17 October state (not re-checked since the merge)
 
 - Core `nextto` selector 256 fails.
@@ -56,6 +58,9 @@ Counts live in [audit-status.json](audit-status.json); per-unit sites in [reposi
 | # | Validation | Evidence and scope |
 | --- | --- | --- |
 | 11 | Python lint (`lint-py`) | **PASS**, 21 Oct on `f6c4694f14`: `make lint-py` in [Python job 119280405813](https://github.com/bitwisecook/tcl-lsp/actions/runs/39616304947/job/119280405813), completed `ruff (format --check + check)` step confirms 81 files formatted and all lint checks passed. Current Makefile excludes exact evidence under `experiments/`, `docs/` and authored/native fixtures; the earlier 650-file / 1,937-error evidence-script result does not describe this tooling gate. Python typechecking fails separately (row 14), and native-binding tests are skipped. |
+
+| 13a | Native LSP build and e2e archive preparation | **PASS**, 21 Oct on `f6c4694f14`: [native build job 119280405679](https://github.com/bitwisecook/tcl-lsp/actions/runs/39616304947/job/119280405679) and [e2e archive job 119280405766](https://github.com/bitwisecook/tcl-lsp/actions/runs/39616304947/job/119280405766) complete successfully. This is build/archive preparation only; actual e2e partitions are still active. |
+| 13b | Shared report and Spec Studio web frontends | **PASS**, 21 Oct on `f6c4694f14`: [web-frontends job 119280405827](https://github.com/bitwisecook/tcl-lsp/actions/runs/39616304947/job/119280405827) completes its checks. This grants no browser LSP or editor-host acceptance. |
 
 ## Where results live
 
