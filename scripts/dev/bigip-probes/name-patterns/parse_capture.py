@@ -124,7 +124,7 @@ def parse_capture(paths, context, run_id=None, root=ROOT):
         value_hex = None
         text = None
         decoding_error = None
-        if not errors:
+        if not errors and count is not None:
             value_hex = "".join(
                 by_index[index][0]["chunk_hex"] for index in range(count)
             )

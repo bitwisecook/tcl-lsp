@@ -667,6 +667,17 @@ PY_FILES = $(shell git -C $(ROOT) ls-files '*.py' \
 	':(exclude,glob)experiments/**/*.py' \
 	':(exclude,glob)docs/**/*.py')
 
+# Work-only evidence tooling whose exact bytes are pinned by retained receipts:
+# the proof-source-currency receipts under experiments/name-handling record the
+# index merger's SHA-256, and resolution-2286's CURRENT_TRANSPORT_SHA256SUMS
+# records the follow-up control generator's. Editing them for typing would
+# invalidate those receipts, and this evidence stays on `work` rather than
+# entering the PR to `rust` (user decision 2026-10-21T12:05Z). ruff still lints
+# them; only the type checkers skip them.
+PY_TYPECHECK_EXCLUDED = scripts/dev/update-name-resolution-proof-index.py \
+	scripts/dev/bigip-probes/resolution-2286/generate-followup-controls.py
+PY_TYPECHECK_FILES = $(filter-out $(PY_TYPECHECK_EXCLUDED),$(PY_FILES))
+
 .PHONY: lint-py format-py typecheck-py test-py-engine py-venv python-engine-source-hash
 
 lint-py: ## Lint + format-check every tracked Python file (ruff)
@@ -720,7 +731,7 @@ typecheck-py: py-venv ## Type-check every tracked Python file (ty + pyright)
 	@echo "==> Type-checking Python (ty)"
 	@cd $(ROOT) && uvx ty@$(TY_VERSION) check \
 	    --python $(PY_VENV) --extra-search-path typings \
-	    --extra-search-path .claude/skills/lsp-client $(PY_FILES)
+	    --extra-search-path .claude/skills/lsp-client $(PY_TYPECHECK_FILES)
 	@echo "==> Type-checking Python (pyright)"
 	@cd $(ROOT) && uvx pyright@$(PYRIGHT_VERSION)
 

@@ -2214,6 +2214,7 @@ fn xtask_dispatches(main: &str, command: &str) -> bool {
         "command-backing" => "WasmBacking",
         "diag-tables" => "DiagTables",
         "gen-ai-diagnostics" => "GenAiDiagnostics",
+        "gen-editor-catalogs" => "GenEditorCatalogs",
         "gen-editor-extensions" => "GenEditorExtensions",
         "owner-resolution" => "OwnerResolution",
         "sslictcl-data" => "SslictclData",
@@ -2583,6 +2584,13 @@ mod tests {
         let main = "        Command::SslictclData {\n            operation,\n        } => sslictcl_data::run(&operation),\n";
         assert!(xtask_dispatches(main, "sslictcl-data"));
         assert!(!xtask_dispatches(main, "owner-resolution"));
+    }
+
+    #[test]
+    fn the_editor_catalog_gate_resolves_to_its_dispatch_arm() {
+        let main = "        Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),\n";
+        assert!(xtask_dispatches(main, "gen-editor-catalogs"));
+        assert!(!xtask_dispatches(main, "gen-editor-extensions"));
     }
 
     #[test]

@@ -30,9 +30,14 @@ import shlex
 import subprocess
 import tarfile
 import time
+from collections.abc import Callable
 from pathlib import Path
 
-TRAFFIC_HOOK = None
+# Optional per-request callback a driver installs before `run_job`; it is
+# called as hook(dest, remote_root, context, name, index).
+TRAFFIC_HOOK: Callable[..., None] | None = None
+# Run identifier set by `main` or by a driver before `run_job` (declared only).
+TAG: str
 
 ROOT = Path(__file__).resolve().parents[4]
 DOCUMENTATION_ADDRESS = "192.0.2.10"
@@ -508,7 +513,10 @@ echo 0 > "$E/destination-check.exit"
                 path = Path(member.name)
                 if path.is_absolute() or ".." in path.parts:
                     raise RuntimeError("Invalid evidence path")
-                data = tar.extractfile(member).read()
+                handle = tar.extractfile(member)
+                if handle is None:
+                    raise RuntimeError("Unreadable evidence member")
+                data = handle.read()
                 if path.name == "runtime-logs.stdout":
                     data = probe_log_bytes(data)
                 elif path.name.startswith("applied-") and path.name.endswith(".stdout"):

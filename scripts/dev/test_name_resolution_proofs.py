@@ -13,6 +13,8 @@ from pathlib import Path
 
 SCRIPT = Path(__file__).with_name("check-name-resolution-proofs.py")
 SPEC = importlib.util.spec_from_file_location("proof_gate", SCRIPT)
+if SPEC is None or SPEC.loader is None:
+    raise ImportError(f"cannot load {SCRIPT}")
 gate = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(gate)
 REPOSITORY = SCRIPT.resolve().parents[2]
@@ -550,6 +552,8 @@ class ProofGateTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location(
             "proof_merge", SCRIPT.with_name("update-name-resolution-proof-index.py")
         )
+        if spec is None or spec.loader is None:
+            self.fail("cannot load update-name-resolution-proof-index.py")
         merger = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(merger)
         with tempfile.TemporaryDirectory() as temporary:

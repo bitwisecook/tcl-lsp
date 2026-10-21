@@ -190,7 +190,8 @@ def main():
                 invoke,
             )
 
-        capture.make_config = config_override
+        # Deliberate override of capture's config builder for this context.
+        capture.make_config = config_override  # ty: ignore[invalid-assignment]
 
         def mutate(job, staging, ctx, n, index, base=base, other=other):
             if index not in [8, 12]:

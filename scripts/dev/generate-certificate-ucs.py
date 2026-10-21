@@ -189,7 +189,10 @@ def generate(template, output, chain):
                 if member.isfile():
                     data = replacements.get(member.name)
                     if data is None:
-                        data = source.extractfile(member).read()
+                        handle = source.extractfile(member)
+                        if handle is None:
+                            raise RuntimeError(f"unreadable member {member.name}")
+                        data = handle.read()
                     member.size = len(data)
                     target.addfile(member, io.BytesIO(data))
                 else:

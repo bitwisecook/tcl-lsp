@@ -1,0 +1,3219 @@
+{
+ "generated": "2026-10-21, gates agent, working tree of work at e1117ebcd1 plus gates.patch",
+ "total_diagnostics": 310,
+ "entry_point_failures": [
+  {
+   "surface": "Actual archive member path selection",
+   "entry": "extract_tar",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-pkg/src/fetchers.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Actual archive member path selection",
+   "entry": "extract_zip",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-pkg/src/fetchers.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Actual archive member path selection",
+   "entry": "safe_join",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-pkg/src/fetchers.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "C8.4 quiet CString global error-code publication",
+   "entry": "store_original_c84_global_error_code",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-vm/src/interp/native_variable_names.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Canonical Logical lambda source declaration",
+   "entry": "OriginalLogicalLambdaBody",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Canonical package path identity",
+   "entry": "canonical_name",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-pkg/src/cas.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Command closed-value prefix metadata",
+   "entry": "emit_w127_closed_value_args",
+   "actual": "non-pub:pub(in crate::analyser)",
+   "declared_in": [
+    "rust/tcl-compiler/src/analyser/diagnostics/security.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Conditional authored scalar SSA source",
+   "entry": "authored_scalar_source_variable",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/ssa.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Conditional lambda lexical source frames",
+   "entry": "LogicalSourceFormalParameters",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/signature_scan/formal_parameters.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Conditional lambda lexical source frames",
+   "entry": "from_logical_lambda_source",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Conditional lambda lexical source frames",
+   "entry": "source_region_cursor_is_direct",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Conditional original authored declaration geometry",
+   "entry": "OriginalAuthoredProcedureSourceGeometry",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Conditional original authored declaration geometry",
+   "entry": "OriginalConditionalProcedureDeclaration",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Conditional original authored declaration geometry",
+   "entry": "OriginalConditionalProcedureDeclarationMemo",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Conditional original authored declaration geometry",
+   "entry": "conditional_procedure_declaration_selections",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Conditional original authored declaration geometry",
+   "entry": "original_authored_procedure_source_geometry",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Conditional original authored declaration geometry",
+   "entry": "original_conditional_procedure_declaration",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Conditional original authored declaration geometry",
+   "entry": "source_procedure_declaration",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Conditional project source paths",
+   "entry": "capture_original_project_source_load_at",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Configured bounds variable reference geometry",
+   "entry": "loop_termination_candidate",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/analyser/bounds_checks.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Configured single-command lexical projection",
+   "entry": "has_command_separator_with_config",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/codegen/cmd_subst.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Configured single-command lexical projection",
+   "entry": "is_pure_cmd_subst_with_config",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-compiler/src/codegen/cmd_subst.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Entered original Jim Import completion observations",
+   "entry": "OriginalJimImportEachLoop",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_import.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Entered original Jim Import completion observations",
+   "entry": "OriginalJimImportTraversal",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_import.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Entered original Jim Import completion observations",
+   "entry": "OriginalJimImportWhile",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_import.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Explicit Standalone source authoring ingress",
+   "entry": "Lowerer::for_standalone_source_with_input",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/lowering/mod.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "INI library path source projection",
+   "entry": "parse_ini",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-lsp-core/src/config_ini.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "INI library path source projection",
+   "entry": "parse_path_list",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-lsp-core/src/config_ini.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "INI library path source projection",
+   "entry": "section_value",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-lsp-core/src/config_ini.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Interprocedural source option-write summaries",
+   "entry": "OriginalLinkedOptionWrite",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/ssa.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Interprocedural source option-write summaries",
+   "entry": "direct_instance_option_writes",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/interprocedural.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Interprocedural source option-write summaries",
+   "entry": "original_command_taint_option_writes",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/ssa.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Interprocedural source option-write summaries",
+   "entry": "original_instance_option_writes",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/ssa.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Logical lambda formal source fields",
+   "entry": "formal_name_field",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Logical lambda source namespace",
+   "entry": "LogicalSourceListNameInput",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/signature_scan/name_value.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Logical lambda source namespace",
+   "entry": "OriginalInterpreterLambdaBody",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-compiler/src/analyser/interp_visibility.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Logical lambda source namespace",
+   "entry": "from_logical_lambda_list",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/signature_scan/scope.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Logical lambda source namespace",
+   "entry": "logical_list_inputs",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/signature_scan/original_name.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Logical object-fact report correspondence",
+   "entry": "ObjectHandleFacts::analysis_report_eq",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/object_types/report_comparison.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Native host path transport and diagnostic glob ingress",
+   "entry": "NativeFs::copy_path",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-host-native/src/lib.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Native source warning candidates",
+   "entry": "native_source_taint_invocation",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/registry_invocation/source_taint.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Once-captured Jim error metadata",
+   "entry": "OriginalJimErrorCodeCapture",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_error_variables.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Once-captured Jim error metadata",
+   "entry": "jim_option_pairs_with_captured_error_code",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Ordered venv configuration source",
+   "entry": "activation",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-pkg/src/venv/posix_source.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Ordered venv configuration source",
+   "entry": "decode",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-pkg/src/venv/config.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Ordered venv configuration source",
+   "entry": "encode",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-pkg/src/venv/config.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Ordered venv configuration source",
+   "entry": "path_value",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-pkg/src/venv/config.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Ordered venv configuration source",
+   "entry": "replace_selected",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-pkg/src/venv/config.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Authored declaration and child source bodies",
+   "entry": "OriginalAuthoredProcedureSourceGeometry",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Authored declaration and child source bodies",
+   "entry": "SourceInvocationBinding::retain_original_authored_source_body_scope",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Authored scalar source grammar",
+   "entry": "SourceInvocationBinding::retain_original_authored_scalar_body_scope",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original C compiled-stack body purpose",
+   "entry": "eval_compiled_stack_control_body",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "runtime/rust/src/interp.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Hosted event operand geometry",
+   "entry": "Lowerer::original_when_event_word",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/lowering/mod.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Hosted event operand geometry",
+   "entry": "VendorSourceLiteralPurpose::EventName",
+   "actual": "absent-everywhere",
+   "declared_in": [],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Hosted event operand geometry",
+   "entry": "original_hosted_source_registry_metadata",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/registry_invocation/source_taint.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim command reset and unknown header",
+   "entry": "Interp::dispatch_missing_command",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "runtime/rust/src/interp.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Original Jim command reset and unknown header",
+   "entry": "Interp::dispatch_prebound_inner",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "runtime/rust/src/interp.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Original Jim existence queries",
+   "entry": "install",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/cmd_jim_exists.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Original Jim info forwarding scripts",
+   "entry": "eval_native_jim_source_bytes",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/interp.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim local namespace-info dictionary projection",
+   "entry": "CapturedJimDictionaryCell::same_place",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/frame/jim_lookup.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim local namespace-info dictionary projection",
+   "entry": "EnteredNativeDictionary::set_member_observed",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/dict.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim local namespace-info dictionary projection",
+   "entry": "OriginalDictionaryMutation",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/dict.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim local namespace-info dictionary projection",
+   "entry": "OriginalDictionarySet",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/dict.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim local namespace-info dictionary projection",
+   "entry": "OriginalNamespaceInfoDictionaryPath",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_namespace_info/local.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim namespace helper provider and diagnostic dispatch",
+   "entry": "Vm::namespace_unknown_subcommand",
+   "actual": "absent-everywhere",
+   "declared_in": [],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim namespace helper provider and diagnostic dispatch",
+   "entry": "Vm::refresh_native_jim_namespace_helpers",
+   "actual": "absent-everywhere",
+   "declared_in": [],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim namespace-info projection data",
+   "entry": "OriginalJimStringCatConstruction",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/value_ops/native_jim_cat.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim namespace-info projection data",
+   "entry": "OriginalNamespaceInfoCompletion",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_namespace_info.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim namespace-info projection data",
+   "entry": "OriginalNamespaceInfoEachLoop",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_namespace_info.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim namespace-info projection data",
+   "entry": "OriginalNamespaceInfoFrame",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_namespace_info.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim namespace-info projection data",
+   "entry": "original_namespace_info_each_loop",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_namespace_info.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim namespace-info projection data",
+   "entry": "record_original_namespace_info_cat",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_namespace_info.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim retiring resident-result observation",
+   "entry": "RetiringResultHeader",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/obj.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Original Jim retiring resident-result observation",
+   "entry": "RetiringResultHeader::capture",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/obj.rs",
+    "runtime/rust/src/obj.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Original Jim retiring resident-result observation",
+   "entry": "RetiringResultHeader::resident_bytes",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/obj.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Original Jim selected command and tailcall transport",
+   "entry": "Interp::retain_active_jim_command",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_lookup.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Original Jim selected command and tailcall transport",
+   "entry": "Interp::retained_jim_command_reference",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_tailcall.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Original Jim variable inventory objects",
+   "entry": "OriginalJimVariableInventory",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/frame/native_variable_names.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Jim variable inventory objects",
+   "entry": "OriginalJimVariableInventoryKey",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/frame/native_variable_names.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Logical alias source occurrences",
+   "entry": "SignatureSourceVariableOccurrence::from_logical_alias_input",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/signature_scan/variable_symbol.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Logical callback source candidates",
+   "entry": "LogicalNamespaceScope::body_scope",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Original Logical source operand and outer-write inventories",
+   "entry": "GlobalWriteInfo::original_source_writes",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/cfg_builder/global_write_info.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original Logical source operand and outer-write inventories",
+   "entry": "OriginalLogicalVariableOperands",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/registry_invocation/source_structure/logical_variable_operands.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original NativeLowering descriptor queries",
+   "entry": "OriginalInvocations::substitution",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-compiler/src/native_lowering/original_invocations.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Original OO list operand templates",
+   "entry": "scalar_parameter_splice",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/analyser/types/original_members.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original autoload index filename data",
+   "entry": "IndexLoader::collect_word",
+   "actual": "non-pub:pub(in crate::package_resolver)",
+   "declared_in": [
+    "rust/tcl-lsp-core/src/package_resolver/original_names/index_loader.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Original branch child operand source",
+   "entry": "ExpressionMathBindings::original_expression_child_operand",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/math_function_binding.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original branch child operand source",
+   "entry": "SourceInvocationBinding::original_expression_child_word",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/expression_preparation.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original class member source association",
+   "entry": "OriginalSourceMethodNameBody",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/analyser/types/original_members.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original class member source association",
+   "entry": "original_definition_members_for_class",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original class member source association",
+   "entry": "original_parameter_names_and_body",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/analyser/types/original_members.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original executable word effect geometry",
+   "entry": "original_word_evaluation_runs_commands",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/world_state_ssa.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original linked command source spelling",
+   "entry": "OriginalLinkedSourceSpelling::spans",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-lsp-core/src/original_command_rename/linked_authoring.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original linked command source spelling",
+   "entry": "OriginalLinkedSourceSpelling::text",
+   "actual": "pub-decl-present(owner/impl/nesting mismatch)",
+   "declared_in": [
+    "rust/tcl-lsp-core/src/original_command_rename/linked_authoring.rs",
+    "rust/tcl-lsp-core/src/original_name_edit.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original method caller-frame source correspondence",
+   "entry": "RetainedSourceModuleBindings::matches_original_method_summary",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/retained_source.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Original rendered result properties",
+   "entry": "propagate_rendered_props_with_config",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/rendered_properties.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Original source argv inventory disposition",
+   "entry": "RegistryInvocationShape::source_argument_words",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/registry_invocation.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original source outer-place summaries",
+   "entry": "OriginalSourceVariableAliasOperands",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/registry_invocation/declaration_assistance.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original source outer-place summaries",
+   "entry": "SourceSummaryContext",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-compiler/src/interprocedural/transfer/source_context.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original source procedure formal topology for taint summaries",
+   "entry": "ProcTaintSummary::unknown_for_source",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/taint_interproc.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original source procedure formal topology for taint summaries",
+   "entry": "ProcTaintSummary::untainted_for_source",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/taint_interproc.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original source warning read operands",
+   "entry": "OriginalSourceTaintReadOperands",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/registry_invocation/source_taint.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original source warning read operands",
+   "entry": "original_source_taint_read_operands",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/registry_invocation/source_taint.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original structured-expression command effects",
+   "entry": "FunctionBuilder::retain_expression_command_effect",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/executable_ir.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Original structured-expression command effects",
+   "entry": "executable_expr_intents_with_source",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/world_state_ssa.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "POSIX literal source rendering",
+   "entry": "PosixLiteral",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-pkg/src/venv/posix_source.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Physical original condition direct reads",
+   "entry": "ExpressionMathBindings::physical_condition_reads",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/math_function_binding/physical_condition.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Physical original condition direct reads",
+   "entry": "OriginalPhysicalConditionReads::cells",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/math_function_binding/physical_condition.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Physical original condition direct reads",
+   "entry": "SourceExpressionPreparation::original_variable_source_with_config",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/expression_preparation.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Prepared BPF source and generated command origins",
+   "entry": "BpfPreparedFunction",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/bpf-tcl-ir/src/source/phase.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Prepared BPF source and generated command origins",
+   "entry": "BpfSourceScript",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/bpf-tcl-ir/src/source/phase.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Prepared BPF source and generated command origins",
+   "entry": "lower_prepared_function",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/bpf-tcl-ir/src/lower.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Prepared BPF source and generated command origins",
+   "entry": "prepare_function",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/bpf-tcl-ir/src/source/phase.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Reached original Jim Try names and message getters",
+   "entry": "OriginalNumericOps::list_with_original_caller_check",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/interp/native_numeric_ops.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Reached original Jim Try names and message getters",
+   "entry": "bind_original_jim_handler_vars",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-vm/src/cmd_try.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Reached original Jim Try names and message getters",
+   "entry": "capture_original_jim_try_variables",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-vm/src/cmd_try.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Registered legacy stock-list descriptor identity",
+   "entry": "stock_list_input_class",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/obj.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Retained original source-option write advice",
+   "entry": "SourceInvocationBinding::original_source_advice_purpose",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Retained original source-option write advice",
+   "entry": "original_command_option_writes",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/ssa.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Retained original source-option write advice",
+   "entry": "original_instance_option_writes",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/ssa.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Runtime command registration and identity",
+   "entry": "Interp::attested_command_identity",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "runtime/rust/src/interp.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Runtime command registration and identity",
+   "entry": "Interp::register_stock_builtin",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Scoped nested expression source projection",
+   "entry": "ExpressionMathBindings::nested_numeric_normalisation_source",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/math_function_binding.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Scoped nested expression source projection",
+   "entry": "SourceInvocationBinding::nested_expression_normalisation_source",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/expression_preparation.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Selected lowering descriptor transport",
+   "entry": "ModuleCommandMutations::trusts_unobserved_descriptor",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Selected lowering descriptor transport",
+   "entry": "SourceInvocationBinding::original_conditional_logical_scalar_store",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/logical_operation.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Selected try list grammar",
+   "entry": "parse_selected_try_control_invocation",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-registry/src/registry.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Selected try list grammar",
+   "entry": "selected_try_control_arms",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-registry/src/registry.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Source descriptor picker vocabularies",
+   "entry": "SOURCE_PRESENTATION",
+   "actual": "pub-decl-present(owner/impl/nesting mismatch)",
+   "declared_in": [
+    "rust/tcl-registry/src/hooks.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Source-only SSA identities and location projections",
+   "entry": "OriginalSourceCallMayWrites",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/cfg_builder/global_write_info/source_may.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Source-owned analysis cache correspondence",
+   "entry": "RetainedSourceModuleBindings::original_logical_source_slot_for_body",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/retained_source.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Standalone typed IR and source-word write coverage",
+   "entry": "standalone_typed_statement_writes_are_covered",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/ir_helpers.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Typed codegen list iteration correspondence",
+   "entry": "matches_foreach_header",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/cfg_builder/cfg_lower.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "VM actual native invocation argv view",
+   "entry": "NativeInvocationState::arguments",
+   "actual": "moved-elsewhere",
+   "declared_in": [
+    "experiments/name-handling/patterns/composed-callback-prefix/results/composed-callback-consumer/source-only-central-projection-diagnostic-1/source_structure.rs",
+    "experiments/name-handling/results/c-source-namespace-advice/source-snapshot-v3/rust/tcl-compiler/src/command_binding/source_transition_advice.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "VM actual native invocation argv view",
+   "entry": "NativeListItems::invocation_view",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/native_list_backing.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "VM actual native invocation argv view",
+   "entry": "invoke_resolved_command_with_entry",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-vm/src/exec.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "VM original quiet global and captured Jim options",
+   "entry": "OriginalJimErrorCodeCapture",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/interp/native_jim_lookup.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "VM original quiet global and captured Jim options",
+   "entry": "current_jim_options_for_exit_code_with_error_code",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/interp.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "VM original quiet global and captured Jim options",
+   "entry": "read_original_jim_global_error_code",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/interp/native_jim_lookup.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "WAT textual artifact names",
+   "entry": "escape_wat_bytes",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/codegen/wasm/ir.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "Whole source variable-reference shapes",
+   "entry": "LatticeDriver::source_reference_lexer_config",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/value_transfer.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Workspace-symbol request source and input currency",
+   "entry": "Backend::capture_coarse_semantic_source",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-lsp-server/src/readonly_reference_reports.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "Workspace-symbol request source and input currency",
+   "entry": "Backend::finish_workspace_symbol_response",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-lsp-server/src/readonly_reference_reports.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "active VM artifact identity",
+   "entry": "Vm::run_compiled_unit",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/exec.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "captured Runtime byte storage",
+   "entry": "CapturedByteStore",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/vars.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "captured Runtime byte storage",
+   "entry": "EnteredVariablePlace",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/vars/entered_container.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "captured Runtime byte storage",
+   "entry": "Interp::store_native_compiled_temporary_checked",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "captured Runtime byte storage",
+   "entry": "capture_native_compiled_temporary_receiver",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/frame/native_variable_names.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "captured Runtime variable removal",
+   "entry": "EnteredVariablePlace::remove",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/vars/entered_container.rs",
+    "runtime/rust/src/frame/destruction.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "captured Runtime variable removal",
+   "entry": "VarTable::publish_remove_after_default",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/frame.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "captured Runtime variable removal",
+   "entry": "VarTable::publish_remove_elem",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/frame.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "captured Runtime variable removal",
+   "entry": "finish_destruction_with_check",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/frame/destruction.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "captured Runtime variable removal",
+   "entry": "publish_array_destruction",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/frame/destruction.rs",
+    "runtime/rust/src/frame/rmw.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "checked original numeric stages",
+   "entry": "native_number_probe_checked_with_string",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/value.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "checked original numeric stages",
+   "entry": "native_scalar_getter_checked_with_string",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/value.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "checked original numeric stages",
+   "entry": "native_scalar_probe_checked_with_string",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/value.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "complete retained Module source correspondence",
+   "entry": "RetainedSourceModuleBindings::matches_module",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/retained_source.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "complete supplied SSA metadata scans",
+   "entry": "SsaInvocationContext",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/ssa.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "complete supplied SSA metadata scans",
+   "entry": "switch_must_defines_with_source_input",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/cfg_builder/mod.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "conditional declared overwrite advice",
+   "entry": "Analyser::emit_cfg_ssa_diagnostics_for_function_full",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/analyser/diagnostics.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "conditional literal body name ownership",
+   "entry": "DeclarationLayoutObservation::source_body_name_ownership",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/declaration_body_ownership.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "conditional literal body name ownership",
+   "entry": "OriginalSourceMaterializedFootprint::deferred_namespace",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/materialized_footprint.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "conditional literal body name ownership",
+   "entry": "Scan::lambda",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/deferred_writes.rs",
+    "rust/tcl-compiler/src/deferred_writes/supplied.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "conditional literal body name ownership",
+   "entry": "SourceInvocationBinding::original_materialized_footprint_for_module",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/materialized_footprint.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "conditional literal body name ownership",
+   "entry": "SourceScan::lambda",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/deferred_writes.rs",
+    "rust/tcl-compiler/src/deferred_writes/supplied.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "conditional literal body name ownership",
+   "entry": "SourceScan::original_registration",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/deferred_writes/supplied.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "current source refactor and CLI reduction metadata",
+   "entry": "collect_rename_edits",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-cli/src/commands/minimize.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "current structural diagram source metadata",
+   "entry": "DiagramContext::metadata_context",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-diagram/src/data.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "diagnostic source and overwrite advice",
+   "entry": "Analyser::emit_cfg_ssa_diagnostics_for_function_full",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/analyser/diagnostics.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "dictionary scope binding",
+   "entry": "dictionary_scope_variable_read",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_dictionary.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "installed embedding handles and typed settlement",
+   "entry": "Interp::install_proc_original_storage",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "installed embedding handles and typed settlement",
+   "entry": "Vm::begin_embedding_call",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-vm/src/embed.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "installed embedding handles and typed settlement",
+   "entry": "Vm::finish_embedding_result",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-vm/src/embed.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "intrinsic original stock class creation",
+   "entry": "closed_definition_member",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/deferred_method.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "native automatic Jim error capture",
+   "entry": "NativeJimScriptState::current_script_location",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/native_jim_script.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "native automatic Jim error capture",
+   "entry": "NativeJimScriptState::new_for_evaluation_frame",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/native_jim_script.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "native deferred Jim namespace and invocation context",
+   "entry": "CallMeta::original_frame_arguments",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "native deferred Jim namespace and invocation context",
+   "entry": "Interp::materialize_jim_namespace",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_namespace.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "native deferred Jim namespace and invocation context",
+   "entry": "Interp::original_alias_prefix_value_at",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "native deferred Jim namespace and invocation context",
+   "entry": "Namespaces::record_jim_namespace_materialized",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/namespace.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "native deferred Jim namespace and invocation context",
+   "entry": "OriginalJimLookupNamespace",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_lookup.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "native original Jim key producer handoff",
+   "entry": "original_jim_command_enumeration_keys",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/namespace.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "native string materialisation",
+   "entry": "native_string_bytes_checked_for_value",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/value.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original C9 class-variable links",
+   "entry": "Interp::prepare_original_c_namespace_link_target",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_variable_names.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "original Logical procedure completion and no-error source calls",
+   "entry": "CompletionWalk",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/interprocedural/completion.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original Logical procedure completion and no-error source calls",
+   "entry": "RaiseProof::calls_complete",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/optimiser/elimination.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original declaration navigation",
+   "entry": "OriginalSourceVariableAliasOperands::namespace_target_scope",
+   "actual": "absent-everywhere",
+   "declared_in": [],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original declaration read metadata",
+   "entry": "LogicalProcedureDeclaration",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original declaration read metadata",
+   "entry": "OriginalProcedureReadDeclaration",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original declaration read metadata",
+   "entry": "original_procedure_read_declaration",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original declared argument read bridge",
+   "entry": "OriginalDeclaredProcedureArgumentSlots::incoming_source_read",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/var_escape/original_slots.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original diagnostic protocol peers",
+   "entry": "Analyser::dispatch_protocol_signatures",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "original diagnostic protocol peers",
+   "entry": "Analyser::original_dispatch_peers",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "original diagnostic protocol peers",
+   "entry": "SignatureSourceCommand::body_scope",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/signature_scan/scope.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original dictionary path publication",
+   "entry": "CapturedJimDictionaryCell",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/frame/jim_lookup.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original dictionary path publication",
+   "entry": "EnteredNativeDictionary::prepare_original",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/dict.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original dictionary path publication",
+   "entry": "Interp::mutate_original_jim_dictionary_path",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_increment.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original dictionary path publication",
+   "entry": "OriginalJimDictionaryRoot",
+   "actual": "non-pub:pub(in crate::interp)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_jim_increment.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original dictionary path publication",
+   "entry": "Vm::jim_dictionary_path_update_bytes",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/interp/native_dictionary.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original embedding publication and lossless fact transport",
+   "entry": "PublicationService",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_host_publication.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original embedding publication and lossless fact transport",
+   "entry": "RuntimeEngine::command_publication_service",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "runtime/rust/src/engine.rs",
+    "runtime/rust/src/engine.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original embedding publication and lossless fact transport",
+   "entry": "RuntimeEngine::restrict_commands",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "runtime/rust/src/engine.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original embedding publication and lossless fact transport",
+   "entry": "authenticate",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "runtime/rust/src/interp/native_host_publication.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original embedding publication and lossless fact transport",
+   "entry": "capture_answer",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "runtime/rust/src/engine.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original embedding publication and lossless fact transport",
+   "entry": "consume",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "runtime/rust/src/interp/native_host_publication.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original embedding publication and lossless fact transport",
+   "entry": "fail",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "runtime/rust/src/engine.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original embedding publication and lossless fact transport",
+   "entry": "host_command_proc",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "runtime/rust/src/engine.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original embedding publication and lossless fact transport",
+   "entry": "snapshot_value",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "runtime/rust/src/engine.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original embedding publication and lossless fact transport",
+   "entry": "to_obj",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "runtime/rust/src/engine.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original per-point CFG lookup metadata",
+   "entry": "CfgLookupContexts",
+   "actual": "non-pub:pub(super)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original per-point CFG lookup metadata",
+   "entry": "original_argument_metadata_for_module",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/materialized_footprint.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original per-point CFG lookup metadata",
+   "entry": "original_invocation_metadata_for_module",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/command_binding/materialized_footprint.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "original selected Core dispatch and namespace hazards",
+   "entry": "scan_my_method_sites",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-lsp-core/src/references.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "reached original error-context ownership",
+   "entry": "NativeListItems::owns_native_header",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-vm/src/native_list_backing.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "retained expression assistance and unavailable callback source joins",
+   "entry": "Analyser::original_expression_parser_context",
+   "actual": "non-pub:pub(in crate::analyser)",
+   "declared_in": [
+    "rust/tcl-compiler/src/analyser/diagnostics/usage.rs"
+   ],
+   "source_registration": "registered-row-fails"
+  },
+  {
+   "surface": "retained source taint metadata",
+   "entry": "RetainedSourceModuleBindings::matches_module",
+   "actual": "pub-decl-present(owner/impl/nesting mismatch)",
+   "declared_in": [
+    "rust/tcl-compiler/src/taint.rs",
+    "rust/tcl-compiler/src/command_binding/retained_source.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "retained source taint metadata",
+   "entry": "TaintSourceContext",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/taint/source_context.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "retained source taint metadata",
+   "entry": "TaintSourceContext::for_module_function",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/taint/source_context.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "retained source taint metadata",
+   "entry": "global_instance_class_source",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/interprocedural.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "supplied document compiler findings and unindexed tokens",
+   "entry": "Backend::semantic_tokens_core_data",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-lsp-server/src/lib.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "supplied document compiler findings and unindexed tokens",
+   "entry": "code_action_report",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-lsp-server/src/lib.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "supplied document compiler findings and unindexed tokens",
+   "entry": "unindexed_semantic_tokens",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-lsp-server/src/lib.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "supplied unindexed viewport and deep compiler input",
+   "entry": "compute_compiler_diags",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-lsp-server/src/lib.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "supplied unindexed viewport and deep compiler input",
+   "entry": "compute_compiler_diags_after_base",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-lsp-server/src/lib.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "supplied unindexed viewport and deep compiler input",
+   "entry": "unindexed_semantic_tokens_for_range",
+   "actual": "non-pub:private",
+   "declared_in": [
+    "rust/tcl-lsp-server/src/lib.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "temporal contents folding and existence",
+   "entry": "ConditionReading",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/tcl_expr_eval.rs"
+   ],
+   "source_registration": "unregistered"
+  },
+  {
+   "surface": "temporal contents folding and existence",
+   "entry": "QueryReading",
+   "actual": "non-pub:pub(crate)",
+   "declared_in": [
+    "rust/tcl-compiler/src/existence_query.rs"
+   ],
+   "source_registration": "unregistered"
+  }
+ ],
+ "source_registration_failures": [
+  {
+   "surface": "Original whole-document transform source currency",
+   "entry": "Backend::configured_analyser",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/lib.rs",
+     "visibility": "private",
+     "consumer": "rust/tcl-lsp-server/src/document_transform.rs::FixAllWorkerConfiguration::analyse",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Original whole-document transform source currency",
+   "entry": "Backend::capture_transform_source",
+   "reason": "owner type not resolvable from owner module (owner module uses a glob import, which the checker refuses)",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/document_transform.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::minify_document_command",
+     "route": "self"
+    },
+    {
+     "source": "rust/tcl-lsp-server/src/document_transform.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::optimise_document_command",
+     "route": "self"
+    },
+    {
+     "source": "rust/tcl-lsp-server/src/document_transform.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::fix_all_safe_issues_command",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Original whole-document transform source currency",
+   "entry": "Backend::finish_document_transform",
+   "reason": "owner type not resolvable from owner module (owner module uses a glob import, which the checker refuses)",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/document_transform.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::minify_document_command",
+     "route": "self"
+    },
+    {
+     "source": "rust/tcl-lsp-server/src/document_transform.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::optimise_document_command",
+     "route": "self"
+    },
+    {
+     "source": "rust/tcl-lsp-server/src/document_transform.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::fix_all_safe_issues_command",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Original whole-document transform source currency",
+   "entry": "Backend::validate_document_transform_command",
+   "reason": "owner type not resolvable from owner module (owner module uses a glob import, which the checker refuses)",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/document_transform.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::execute_command",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Original whole-document transform source currency",
+   "entry": "Backend::current_diagnostic_input_parts",
+   "reason": "owner type not resolvable from owner module (owner module uses a glob import, which the checker refuses)",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/document_transform.rs::Backend::capture_transform_source",
+     "route": "self"
+    },
+    {
+     "source": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/document_transform.rs::Backend::with_current_transform_source",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Standalone typed IR and source-word write coverage",
+   "entry": "standalone_typed_statement_writes_are_covered",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/ir_helpers.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/ssa.rs::nested_writes",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "conditional declared overwrite advice",
+   "entry": "Analyser::emit_cfg_ssa_diagnostics_for_function_full",
+   "reason": "owner type not resolvable from owner module (owner module uses a glob import, which the checker refuses)",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/analyser/diagnostics.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/analyser/diagnostics.rs::Analyser::emit_cfg_ssa_diagnostics_for_function",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "diagnostic source and overwrite advice",
+   "entry": "Analyser::emit_cfg_ssa_diagnostics_for_function_full",
+   "reason": "owner type not resolvable from owner module (owner module uses a glob import, which the checker refuses)",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/analyser/diagnostics.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/analyser/diagnostics.rs::Analyser::emit_cfg_ssa_diagnostics_for_function",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Source-owned analysis cache correspondence",
+   "entry": "RetainedSourceModuleBindings::original_logical_source_slot_for_body",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/body_analysis_capsule.rs::BodyLatticeInputs::retain",
+     "route": "parameter-field:request:module.retained_source_bindings"
+    }
+   ]
+  },
+  {
+   "surface": "Runtime command registration and identity",
+   "entry": "Interp::register_stock_builtin",
+   "reason": "route matched but an ambiguous/shadowed/conditional reference invalidates it",
+   "rows": [
+    {
+     "source": "runtime/rust/src/interp.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/builtins.rs::install_for_bootstrap",
+     "route": "parameter:interp"
+    }
+   ]
+  },
+  {
+   "surface": "Runtime command registration and identity",
+   "entry": "Interp::attested_command_identity",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "runtime/rust/src/interp.rs",
+     "visibility": "private",
+     "consumer": "runtime/rust/src/interp.rs::Interp::attested_identities",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "captured Runtime byte storage",
+   "entry": "CapturedByteStore",
+   "reason": "signature-type reference absent",
+   "rows": [
+    {
+     "source": "runtime/rust/src/vars.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/vars/entered_container.rs::capture_byte_store_entered",
+     "route": "signature-type"
+    }
+   ]
+  },
+  {
+   "surface": "captured Runtime variable removal",
+   "entry": "VarTable::publish_remove_after_default",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "runtime/rust/src/frame.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/frame.rs::VarTable::remove",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "captured Runtime variable removal",
+   "entry": "VarTable::publish_remove_elem",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "runtime/rust/src/frame.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/frame.rs::VarTable::remove_elem",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "original C9 class-variable links",
+   "entry": "Interp::prepare_original_c_namespace_link_target",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "runtime/rust/src/interp/native_variable_names.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/interp/native_variable_names.rs::Interp::link_original_c_namespace_objects",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "active VM artifact identity",
+   "entry": "Vm::run_compiled_unit",
+   "reason": "owner type not resolvable from owner module",
+   "rows": [
+    {
+     "source": "rust/tcl-vm/src/exec.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-vm/src/exec.rs::Vm::run_admitted_function",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Original source procedure formal topology for taint summaries",
+   "entry": "Module::original_source_formal_topology",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/ir.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/taint_interproc.rs::infer_proc_summary",
+     "route": "parameter-field:cu:ir_module"
+    },
+    {
+     "source": "rust/tcl-compiler/src/ir.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/taint_interproc.rs::converge_summaries_with",
+     "route": "parameter-field:cu:ir_module"
+    }
+   ]
+  },
+  {
+   "surface": "original diagnostic protocol peers",
+   "entry": "Analyser::original_dispatch_peers",
+   "reason": "owner type not resolvable from owner module (owner module uses a glob import, which the checker refuses)",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+     "visibility": "private",
+     "consumer": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs::Analyser::emit_unused_param_diagnostics",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "original diagnostic protocol peers",
+   "entry": "Analyser::dispatch_protocol_signatures",
+   "reason": "owner type not resolvable from owner module (owner module uses a glob import, which the checker refuses)",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+     "visibility": "private",
+     "consumer": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs::Analyser::emit_unused_param_diagnostics",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Whole source variable-reference shapes",
+   "entry": "LatticeDriver::source_reference_lexer_config",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/value_transfer.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/sccp.rs::fold_assign_value",
+     "route": "parameter:driver"
+    },
+    {
+     "source": "rust/tcl-compiler/src/value_transfer.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/value_transfer.rs::LatticeDriver::evaluate_loop_header",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Original source value components",
+   "entry": "original_name_role_values",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/lowering/structured.rs::Lowerer::lower_foreach",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/lowering/structured.rs::Lowerer::lower_foreach_line",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/lowering/structured.rs::Lowerer::lower_dict",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/lowering/mod.rs::Lowerer::lower_array_for",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-compiler/src/registry_invocation/source_name_roles.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/executable_ir.rs::original_list_iterator_names",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "retained expression assistance and unavailable callback source joins",
+   "entry": "Analyser::original_expression_parser_context",
+   "reason": "owner type not resolvable from owner module (owner module uses a glob import, which the checker refuses)",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/analyser/diagnostics/usage.rs",
+     "visibility": "pub(in crate::analyser)",
+     "consumer": "rust/tcl-compiler/src/analyser/diagnostics/usage.rs::Analyser::emit_w110_string_eq_ne",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Original rendered result properties",
+   "entry": "propagate_rendered_props_with_config",
+   "reason": "route matched but an ambiguous/shadowed/conditional reference invalidates it",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/rendered_properties.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/compilation_unit.rs::FunctionUnit::build_full",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "native deferred Jim namespace and invocation context",
+   "entry": "Namespaces::record_jim_namespace_materialized",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "runtime/rust/src/namespace.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/interp/native_jim_namespace.rs::Interp::materialize_jim_namespace",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "native deferred Jim namespace and invocation context",
+   "entry": "Interp::materialize_jim_namespace",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "runtime/rust/src/interp/native_jim_namespace.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/interp/native_jim_lookup.rs::Interp::resolve_original_jim_command",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "native deferred Jim namespace and invocation context",
+   "entry": "OriginalJimLookupNamespace",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "runtime/rust/src/interp/native_jim_lookup.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/interp/native_jim_lookup.rs::Interp::resolve_original_jim_command",
+     "route": "type"
+    }
+   ]
+  },
+  {
+   "surface": "native deferred Jim namespace and invocation context",
+   "entry": "OriginalJimLookupNamespace::capture",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "runtime/rust/src/interp/native_jim_lookup.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/interp/native_jim_lookup.rs::Interp::resolve_original_jim_command",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "native deferred Jim namespace and invocation context",
+   "entry": "OriginalJimLookupNamespace::check",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "runtime/rust/src/interp/native_jim_lookup.rs",
+     "visibility": "pub(super)",
+     "consumer": "runtime/rust/src/interp/native_jim_lookup.rs::Interp::resolve_original_jim_command",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "native deferred Jim namespace and invocation context",
+   "entry": "CallMeta::original_frame_arguments",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "runtime/rust/src/interp.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/interp/native_compilation.rs::Interp::enter_native_procedure_frame",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Original refactor command geometry",
+   "entry": "FrameWalk::command_span_offsets",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-core/src/refactor/mod.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/refactor/extract_proc.rs::classify_command",
+     "route": "parameter:walk"
+    },
+    {
+     "source": "rust/tcl-lsp-core/src/refactor/mod.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/refactor/if_to_switch.rs::if_to_switch",
+     "route": "producer:crate::refactor::FrameWalk::new"
+    },
+    {
+     "source": "rust/tcl-lsp-core/src/refactor/mod.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/refactor/switch_to_dict.rs::switch_to_dict",
+     "route": "producer:crate::refactor::FrameWalk::new"
+    },
+    {
+     "source": "rust/tcl-lsp-core/src/refactor/mod.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/refactor/datagroup.rs::extract_to_datagroup_with_analysis",
+     "route": "producer:crate::refactor::FrameWalk::new"
+    }
+   ]
+  },
+  {
+   "surface": "Native source warning candidates",
+   "entry": "native_source_taint_invocation",
+   "reason": "route matched but an ambiguous/shadowed/conditional reference invalidates it",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/registry_invocation/source_taint.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/taint.rs::emit_retained_invocation_warnings",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Original Jim selected command and tailcall transport",
+   "entry": "JimCommandReference::same_reference",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "runtime/rust/src/interp/native_jim_tailcall.rs",
+     "visibility": "pub(super)",
+     "consumer": "runtime/rust/src/interp/native_jim_lookup.rs::JimActiveCommandScope::drop",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Original Jim selected command and tailcall transport",
+   "entry": "Interp::retained_jim_command_reference",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "runtime/rust/src/interp/native_jim_tailcall.rs",
+     "visibility": "pub(super)",
+     "consumer": "runtime/rust/src/interp/native_jim_lookup.rs::Interp::resolve_original_jim_command",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Original Jim selected command and tailcall transport",
+   "entry": "Interp::retain_active_jim_command",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "runtime/rust/src/interp/native_jim_lookup.rs",
+     "visibility": "pub(super)",
+     "consumer": "runtime/rust/src/interp.rs::Interp::invoke_bound_with_jim_reference",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Original Jim command reset and unknown header",
+   "entry": "Interp::dispatch_prebound_inner",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "runtime/rust/src/interp.rs",
+     "visibility": "private",
+     "consumer": "runtime/rust/src/interp.rs::Interp::dispatch_selection_with_entry",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Original Jim command reset and unknown header",
+   "entry": "Interp::dispatch_missing_command",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "runtime/rust/src/interp.rs",
+     "visibility": "private",
+     "consumer": "runtime/rust/src/interp.rs::Interp::dispatch_inner_at",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Original NativeLowering descriptor queries",
+   "entry": "OriginalInvocations::substitution",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/native_lowering/original_invocations.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-compiler/src/native_lowering/lower.rs::Lowerer::substitution_is_native_expression",
+     "route": "field:self.original_invocations"
+    }
+   ]
+  },
+  {
+   "surface": "Original method caller-frame source correspondence",
+   "entry": "RetainedSourceModuleBindings::matches_original_method_summary",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/cfg_builder/upvar_info.rs::method_reaches_caller_frame",
+     "route": "parameter-field:module:retained_source_bindings"
+    }
+   ]
+  },
+  {
+   "surface": "Original Logical callback source candidates",
+   "entry": "LogicalNamespaceScope::body_scope",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs::LogicalBodyWalk::prepare_namespace",
+     "route": "producer:crate::command_binding::source_transition_advice::AdviceInvocationContext::logical_namespace_scope"
+    },
+    {
+     "source": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs::BodyWalk::prepare_region_branch",
+     "route": "producer:crate::command_binding::source_transition_advice::AdviceInvocationContext::logical_namespace_scope"
+    }
+   ]
+  },
+  {
+   "surface": "Original Jim retiring resident-result observation",
+   "entry": "RetiringResultHeader",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "runtime/rust/src/obj.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/interp/native_jim_result.rs::JimResultRetirement::enter",
+     "route": "type"
+    }
+   ]
+  },
+  {
+   "surface": "Original Jim retiring resident-result observation",
+   "entry": "RetiringResultHeader::capture",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "runtime/rust/src/obj.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/interp/native_jim_result.rs::JimResultRetirement::enter",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Original Jim retiring resident-result observation",
+   "entry": "RetiringResultHeader::resident_bytes",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "runtime/rust/src/obj.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/interp/native_jim_result.rs::Interp::retiring_jim_result_bytes",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Original Jim retiring resident-result observation",
+   "entry": "Interp::native_string_primary_admission",
+   "reason": "owner type not resolvable from owner module (owner module uses a glob import, which the checker refuses)",
+   "rows": [
+    {
+     "source": "runtime/rust/src/value_ops.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/value_ops.rs::Interp::native_object_string_bytes_with_stage",
+     "route": "self"
+    },
+    {
+     "source": "runtime/rust/src/value_ops.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/interp/native_jim_result.rs::JimResultRetirement::enter",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Explicit Standalone source authoring ingress",
+   "entry": "Lowerer::for_standalone_source",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/lowering/mod.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/compilation_unit.rs::lower_and_build_cfg",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-compiler/src/lowering/mod.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/lowering/mod.rs::Lowerer::for_standalone_source_with_input",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-compiler/src/lowering/mod.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/lowering/mod.rs::lower_proc_body_isolated",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Explicit Standalone source authoring ingress",
+   "entry": "Lowerer::for_standalone_source_with_input",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/lowering/mod.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/compilation_unit.rs::lower_and_build_cfg",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Original Jim existence queries",
+   "entry": "install",
+   "reason": "route matched but an ambiguous/shadowed/conditional reference invalidates it",
+   "rows": [
+    {
+     "source": "runtime/rust/src/cmd_jim_exists.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/builtins.rs::install_for_bootstrap",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Original autoload index filename data",
+   "entry": "IndexLoader::collect_word",
+   "reason": "owner declaration not found (renamed/removed entry)",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-core/src/package_resolver/original_names/index_loader.rs",
+     "visibility": "pub(in crate::package_resolver)",
+     "consumer": "rust/tcl-lsp-core/src/package_resolver.rs::collect_source_targets",
+     "route": "producer:crate::package_resolver::original_names::index_loader::IndexLoader::standalone"
+    }
+   ]
+  },
+  {
+   "surface": "Original refactor command geometry",
+   "entry": "configured_command_words",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-core/src/refactor/mod.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/refactor/mod.rs::configured_command_span_offsets",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-lsp-core/src/refactor/mod.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/refactor/datagroup.rs::parse_set_or_return",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-lsp-core/src/refactor/mod.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/refactor/mod.rs::body_words",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Original method hierarchy presentation",
+   "entry": "OriginalDeclarationIdentity::reporting_key",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-core/src/original_declaration.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/original_call_hierarchy.rs::item",
+     "route": "parameter:identity"
+    },
+    {
+     "source": "rust/tcl-lsp-core/src/original_declaration.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/code_lens.rs::code_lenses",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Original variable declaration source joins",
+   "entry": "AnalysisResult::original_variable_alias_coverage",
+   "reason": "route matched but an ambiguous/shadowed/conditional reference invalidates it",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/analyser/types.rs",
+     "visibility": "private",
+     "consumer": "rust/tcl-compiler/src/analyser/types.rs::AnalysisResult::original_variable_rename_is_complete",
+     "route": "self"
+    },
+    {
+     "source": "rust/tcl-compiler/src/analyser/types.rs",
+     "visibility": "private",
+     "consumer": "rust/tcl-compiler/src/analyser/types.rs::AnalysisResult::original_variable_alias_source_is_complete",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Original Jim namespace scripted helpers",
+   "entry": "original_source_info",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "runtime/rust/src/native_source.rs",
+     "visibility": "pub(crate)",
+     "consumer": "runtime/rust/src/interp/native_procedure_resources.rs::OriginalJimImportSource::capture",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Original autoload index filename data",
+   "entry": "select_in_plan",
+   "reason": "owner declaration not found (renamed/removed entry)",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-core/src/package_resolver/registration.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-core/src/package_resolver/reachability.rs::ScriptWalker::walk_script",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Current editor source inventory",
+   "entry": "CurrentSourcePosition::capture",
+   "reason": "route matched but an ambiguous/shadowed/conditional reference invalidates it",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-core/src/original_context.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/definition.rs::definition_with",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-lsp-core/src/original_context.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/declaration.rs::declaration",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-lsp-core/src/original_context.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/type_hierarchy.rs::prepare_for_document",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-lsp-core/src/original_context.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/implementation.rs::implementation",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-lsp-core/src/original_context.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/implementation.rs::logical_implementation_advice",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-lsp-core/src/original_context.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/type_hierarchy.rs::prepare_logical_advice_for_document",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-lsp-core/src/original_context.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/original_call_hierarchy.rs::prepare",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-lsp-core/src/original_context.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/call_hierarchy/logical_source.rs::prepare_logical_from_inventory",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-lsp-core/src/original_context.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-lsp-core/src/signature_help.rs::command_context_with_args",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Workspace-symbol request source and input currency",
+   "entry": "Backend::capture_coarse_semantic_source",
+   "reason": "route matched but an ambiguous/shadowed/conditional reference invalidates it",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::semantic_tokens_core_data",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Workspace-symbol request source and input currency",
+   "entry": "CoarseSemanticTokenSource::analysis",
+   "reason": "route matched but an ambiguous/shadowed/conditional reference invalidates it",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::semantic_tokens_core_data",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Workspace-symbol request source and input currency",
+   "entry": "WorkspaceSymbolSourceAnalysis::matches_current_state",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+     "visibility": "private",
+     "consumer": "rust/tcl-lsp-server/src/readonly_reference_reports.rs::Backend::with_current_coarse_semantic_source",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Workspace-symbol request source and input currency",
+   "entry": "Backend::capture_workspace_symbol_analysis",
+   "reason": "route matched but an ambiguous/shadowed/conditional reference invalidates it",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::open_but_unindexed_symbols",
+     "route": "self"
+    },
+    {
+     "source": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::symbol",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Workspace-symbol request source and input currency",
+   "entry": "WorkspaceSymbolSourceAnalysis::analysis",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::open_but_unindexed_symbols",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::symbol",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Workspace-symbol request source and input currency",
+   "entry": "Backend::finish_workspace_symbol_response",
+   "reason": "route matched but an ambiguous/shadowed/conditional reference invalidates it",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::symbol",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Workspace-symbol request source and input currency",
+   "entry": "ReadonlySourceState",
+   "reason": "consumer entry not found (consumer renamed/removed)",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+     "visibility": "private",
+     "consumer": "rust/tcl-lsp-server/src/readonly_reference_reports.rs::Backend::with_current_readonly_source_state",
+     "route": "type"
+    },
+    {
+     "source": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+     "visibility": "private",
+     "consumer": "rust/tcl-lsp-server/src/readonly_reference_reports.rs::WorkspaceSymbolSourceAnalysis::matches_current_state",
+     "route": "type"
+    }
+   ]
+  },
+  {
+   "surface": "Workspace-symbol request source and input currency",
+   "entry": "Backend::fresh_analysis_seed",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/lib.rs",
+     "visibility": "private",
+     "consumer": "rust/tcl-lsp-server/src/readonly_reference_reports.rs::Backend::capture_workspace_symbol_analysis",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Source-owned analysis cache correspondence",
+   "entry": "OriginalLatticeRequestSeal::capture",
+   "reason": "route matched but an ambiguous/shadowed/conditional reference invalidates it",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-compiler/src/compilation_unit.rs::build_procedure_units",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-compiler/src/compilation_unit.rs::CompilationUnit::build_body_units",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Source-owned analysis cache correspondence",
+   "entry": "LatticeRequest::accepts_original_worker_result",
+   "reason": "route matched but an ambiguous/shadowed/conditional reference invalidates it",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-compiler/src/compilation_unit.rs::build_procedure_units",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-compiler/src/compilation_unit/original_lattice_worker.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-compiler/src/compilation_unit.rs::CompilationUnit::build_body_units",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Source-store document path admission and publication",
+   "entry": "Backend::dialect_for_closed",
+   "reason": "route matched but an ambiguous/shadowed/conditional reference invalidates it",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/lib.rs",
+     "visibility": "private",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::read_document_at",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Explicit lambda body source geometry",
+   "entry": "OriginalSourceTransitionAdviceTape::decoded_lambda_formatting_phase",
+   "reason": "owner type not resolvable from owner module (owner module uses a glob import, which the checker refuses)",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/realm/source_transition_advice.rs::CommandBindingRealm::original_conditional_lambda_formatting_body",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Explicit lambda body source geometry",
+   "entry": "AdviceInvocationContext::retain_logical_lambda_formatting_phase",
+   "reason": "owner type not resolvable from owner module (owner module uses a glob import, which the checker refuses)",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs::AdviceInvocationContext::retain_logical_procedure_body",
+     "route": "self"
+    },
+    {
+     "source": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs::LogicalBodyWalk::children",
+     "route": "field:self.context"
+    }
+   ]
+  },
+  {
+   "surface": "Explicit lambda body source geometry",
+   "entry": "OriginalSourceTransitionAdviceTape::prefix_catalogue_advice",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/realm/source_transition_advice.rs::CommandBindingRealm::original_catalogue_advice",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs::AdviceInvocationContext::logical_lambda_formatting_phase",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Explicit lambda body source geometry",
+   "entry": "AdviceInvocationContext::logical_lambda_formatting_phase",
+   "reason": "owner type not resolvable from owner module (owner module uses a glob import, which the checker refuses)",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+     "visibility": "private",
+     "consumer": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs::AdviceInvocationContext::retain_logical_lambda_formatting_phase",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Explicit lambda body source geometry",
+   "entry": "OriginalConditionalLambdaFormattingBody::matches_parent",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+     "visibility": "private",
+     "consumer": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs::OriginalConditionalLambdaFormattingBody::child",
+     "route": "static"
+    },
+    {
+     "source": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+     "visibility": "private",
+     "consumer": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs::OriginalSourceTransitionAdviceTape::decoded_lambda_formatting_phase",
+     "route": "static"
+    }
+   ]
+  },
+  {
+   "surface": "Live Studio source publication",
+   "entry": "Backend::studio_source_command",
+   "reason": "owner type not resolvable from owner module (owner module uses a glob import, which the checker refuses)",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/studio_source.rs",
+     "visibility": "pub(super)",
+     "consumer": "rust/tcl-lsp-server/src/lib.rs::Backend::execute_command",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Live Studio source publication",
+   "entry": "Backend::reload_spec_packs",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "rust/tcl-lsp-server/src/lib.rs",
+     "visibility": "private",
+     "consumer": "rust/tcl-lsp-server/src/studio_source.rs::Backend::studio_source_command",
+     "route": "self"
+    }
+   ]
+  },
+  {
+   "surface": "Live Studio source publication",
+   "entry": "load_sources_unpublished",
+   "reason": "consumer body does not reach entry via registered route",
+   "rows": [
+    {
+     "source": "rust/tcl-spectcl/src/pack.rs",
+     "visibility": "pub(crate)",
+     "consumer": "rust/tcl-spectcl/src/bundled.rs::load_selected_sources_in",
+     "route": "static"
+    }
+   ]
+  }
+ ],
+ "other": [
+  "package consumer `rust/tcl-vm/src/cmd_package.rs` bypasses native byte/original selection with `.runtime_version()`"
+ ]
+}

@@ -228,7 +228,7 @@ def paired_requests(dest, _remote, _context, name, index):
     if index != 8:
         return
     connections = []
-    observations = []
+    observations: list[dict[str, object]] = []
 
     def request(conn, invocation, action="read"):
         conn.request(
@@ -347,7 +347,8 @@ def execute(plan, dest):
     original_hook = capture.TRAFFIC_HOOK
     job = dest / "tmm-traffic-event-0"
     try:
-        capture.make_config = lambda _c, _n, _s, port=19912: (
+        # Deliberate override of capture's config builder for this job.
+        capture.make_config = lambda _c, _n, _s, port=19912: (  # ty: ignore[invalid-assignment]
             plan["config"],
             plan["objects"],
             None,

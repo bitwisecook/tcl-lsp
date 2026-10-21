@@ -17,6 +17,7 @@ import re
 import sys
 from functools import lru_cache
 from pathlib import Path
+from typing import cast
 
 DIRECTORY = Path("docs/design/analysis/name-resolution-proofs")
 PROVIDERS = {"tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim", "bigip"}
@@ -72,7 +73,7 @@ def schema_errors(value: object, schema: dict, document: dict, label: str) -> li
     """Validate the deliberately small, checked-in JSON Schema vocabulary."""
     if "$ref" in schema:
         return schema_errors(
-            value, pointer(document, schema["$ref"][1:]), document, label
+            value, cast(dict, pointer(document, schema["$ref"][1:])), document, label
         )
     errors = []
     kinds = {

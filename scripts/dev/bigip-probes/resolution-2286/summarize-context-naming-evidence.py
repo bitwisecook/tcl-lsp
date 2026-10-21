@@ -19,6 +19,7 @@ import json
 import re
 import tkinter
 from pathlib import Path
+from typing import Any
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--primary-appliance", required=True, type=Path)
@@ -68,7 +69,7 @@ def marker_result(line: str) -> dict[str, object]:
     return result
 
 
-def traffic_summary(directory: Path) -> dict[str, object]:
+def traffic_summary(directory: Path) -> dict[str, Any]:
     phases = {}
     for path in sorted(directory.glob("traffic-*.jsonl")):
         units = collections.Counter()
@@ -141,7 +142,7 @@ chunk_pattern = re.compile(
 )
 
 
-def chunked_event_results(path: Path) -> dict[str, object]:
+def chunked_event_results(path: Path) -> dict[str, Any]:
     chunks = collections.defaultdict(
         lambda: collections.defaultdict(collections.Counter)
     )
@@ -193,7 +194,7 @@ trace_pattern = re.compile(
 )
 
 
-def trace_results(path: Path) -> dict[str, object]:
+def trace_results(path: Path) -> dict[str, Any]:
     counts = collections.Counter()
     for line in path.read_text(errors="replace").splitlines():
         match = trace_pattern.search(line)
