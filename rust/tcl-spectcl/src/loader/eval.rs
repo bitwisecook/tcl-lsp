@@ -506,12 +506,32 @@ impl VerbatimBody {
         args: &[String],
         actual_body: &str,
     ) -> Option<tcl_compiler::parsing::spectcl_source::OriginalPackSourceWord> {
+        // The evaluated body is the braced word's value, in which each
+        // backslash-newline has folded to one space; the verbatim text keeps
+        // it, and with it the line count (C keeps the lines of a folded
+        // continuation for nested bodies, TIP 280's `ContLineLoc`). The two
+        // correspond when folding the verbatim text gives the value.
+        let verbatim = self.original.as_ref()?.captured_text();
+        let folded = tcl_syntax::backslash::collapse_brace_continuations_str_for(
+            verbatim,
+            tcl_dialect::BraceBackslashNewline::Folds,
+        );
+        if folded != actual_body {
+            return None;
+        }
+        let args: Vec<String> = args
+            .iter()
+            .map(|arg| {
+                if arg == actual_body {
+                    verbatim.to_owned()
+                } else {
+                    arg.clone()
+                }
+            })
+            .collect();
         self.original
             .as_ref()
-            .filter(|original| {
-                original.matches_literal_statement_capture(head, args)
-                    && original.captured_text() == actual_body
-            })
+            .filter(|original| original.matches_literal_statement_capture(head, &args))
             .cloned()
     }
 }
