@@ -1,52 +1,58 @@
 # Current LSP naming migration state
 
-**RESUMED, 17 October 2026 at 19:23 UTC** from `2a3928bc6`. Checkpoint09 verified: archive SHA and size, member index hash and all 1,041 member hashes match; no pending patch admitted. Build36 (same six library test targets) passed with zero warnings and identical pre/post source (114,247 files) and provider snapshots. The full 1,085 direct-LSP capture is running on that frozen source; see the latest `progress-report-*.json`. Integration36 independent review: HOLD as composed (db042 and roster setup source-clear; hazard and census held) — receipt `handoff/reviews/integration-36-luna/`. User decisions at 20:30 UTC (receipt `handoff/reviews/resume-20261017-diagnosis/user-decisions-20261017T2030Z.json`): method census Complete wins once a sound census exists; document_links 124/140 follow tclsh (136 stays fail-closed); same-document source order orders removals (test-400); tests contradicting tclsh get narrow documented corrections. Still open: Compiler221, DB921 identity, Server102/103 freshness, Server108 cost. Reports every 30 minutes.
+Updated 21 October 2026, 13:55 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
 
-Paused state (17:45 UTC) retained below for the record: all implementation agents and test processes had stopped at the user's request; no new source was admitted after35.
+## Scope
 
-Finish and verify LSP itself first, including direct Studio/DB consumers and required compiler/lexer/registry prerequisites. Only then complete and verify the remaining compiler dependencies. VM/runtime migrations remain paused; dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics are deferred. Unknown BIG-IP is assumed Tcl8.4 without evidence credit. Reports stay in chat and repository; the external naming guide is unchanged.
+User decision 2026-10-21T13:10Z ([record](handoff/reviews/resume-20261017-diagnosis/user-decisions-20261021T1310Z.json)): focus entirely on
 
-Source adoption is570/2158 baseline (405 full-scope pending,165 partial),70/71 annex and640/2229 effective. There are1589 effective units without integration. The original LSP area is290/325 (228 implemented pending verification,62 partial;35 dedicated BIG-IP deferred). **Zero verified complete.**25 existing Studio NONE rows are additional direct LSP-facing obligations, not closed by the original-area count. The audit JSON files retain exact unit mappings and outstanding proof obligations.
+1. the LSP (`tcl-lsp-core`, `tcl-lsp-db`, `tcl-lsp-server`);
+2. the compiler, registry, syntax and lexer paths the LSP requires;
+3. VM and runtime execution of SpecTcl code.
 
-## Current validation
+General tclvm parity is parked: upstream ports not needed for SpecTcl, TclOO per-call recompile and frame sizes, `command_mutation_deopt` cluster P, the remaining native `string`/`format`/`regsub`/`encoding` compilers (unless SpecTcl needs them) and compiler lowering cost (unless on an LSP path).
 
-Actual admissions34/35 are implemented.34 includes typed next-member hierarchy/source metadata and shared SpecTcl source constructors, plus a narrow Registry test argument-lifetime setup repair.35 corrects the expected Rust type in a new, previously unexecuted SpecTcl control; the intended PURE predicate is unchanged. Details are in the ledger and compact checkpoint.
+Merge contents (decision 2026-10-21T12:05Z): evidence stays on `work`; the PR to `rust` carries product source, design docs and the test fixtures tests actually read, reviewed and reduced.
 
-Ordinary33 failed before tests with Registry libtest E0716. LSP34 then failed before tests with the new SpecTcl control's E0308. LSP35 rejected unsupported `cargo test --keep-going` before compilation. The distinct supported35r2 command passed for Core/DB/Server/Registry/SpecTcl/Studio library test targets. Actual Cargo profiles, ELFs, source and providers were checked. No compiler libtest, integration test, standalone process-server or host acceptance follows from that build.
+## Counts
 
-The user stopped the planned1085 direct-LSP capture after790 completed selectors:
+| Area | Integrated | Verified complete |
+| --- | --- | --- |
+| Original LSP area | 290 / 325 (35 dedicated BIG-IP deferred) | 0 |
+| Baseline units | 570 / 2,158 | 0 |
+| Effective (with annex) | 640 / 2,229 | 0 |
 
-| Original subgroup | Completed / selected | Pass | Fail | Timeouts included in failures |
+Counts live in [audit-status.json](audit-status.json); per-unit sites in [repository-consumer-audit-final.json](repository-consumer-audit-final.json). No unit is marked verified: captures have not yet been mapped onto audit units.
+
+## Outstanding validations
+
+| # | Validation | Last result | Needed | Owner |
 | --- | --- | --- | --- | --- |
-| Core |664/664|525|139|1|
-| DB |11/11|7|4|0|
-| Server |115/175|104|11|2|
-| Total completed |790/850 original LSP selectors|636|154|3|
+| 1 | Full workspace CI (`ci.yml`) | [Run 5201](https://github.com/bitwisecook/tcl-lsp/actions/runs/39304840863), 19 Oct on `efc58507c`: 3,634 failing tests (compiler 1,712, VM 1,022, `tcl-lsp-core` 257, explorer 75, bpf-tcl 58, cli 56, spectcl 47, cshim 43, `tcl-lsp-db` 39, others). Predates Sol-41 to Sol-49. | Re-dispatch once the current agents' work is committed; drive the in-scope crates to zero. | Coordinator |
+| 2 | Direct-LSP 1,085-selector capture | Capture48, 19 Oct on `82617ee15` (pre-merge): 870 pass, 215 fail, 2 server timeouts; zero pass-to-fail against capture46. | Re-run on the merged tree with the same guards and 180 s budget. | Coordinator |
+| 3 | LSP crate tests against CI 5201 | Being measured. | Fix LSP-side causes; send compiler-side causes to Sol-49. | Luna-41 |
+| 4 | 18 October user decisions (DB921 merged unit, survey option a, forced-import offsets, test-only helpers, Server102/103, Server108) | DB921, survey and workspace-symbol snapshot landed in integration45 (`aff99dc7e`, `82617ee15`); the rest unconfirmed. | Confirm each on HEAD. | Luna-41 |
+| 5 | Clippy `-D warnings` | Sol-43 count: compiler 1,177, `tcl-lsp-server` 587, VM 517, `tcl-lsp-core` 414, `tcl-lsp-db` 58. | Clean the LSP crates (Luna-41) and the compiler paths they use. | Luna-41, Sol-49 |
+| 6 | Fresh-entry analysis and C6 | Sol-47 fixed false S100/T100/T105 and `if {0}` removal. C6 unapplied with 6 blockers (4 uncalled procedure bodies, `fp_sh_21`, `fp_tnt_03`). | Implement "world after load", clear the blockers, apply C6 with zero pass-to-fail. | Sol-49 |
+| 7 | iRules LSP diagnostics | 23 `irules_event_checks` tests fail; iRules documents get unknown runtime history. | Realm-aware command world (decision 2026-10-21T00:10Z). | Sol-49 |
+| 8 | Miscompile | `string length "{}$z"` gives 4; tclsh gives 3 (`word_value_resolution_e2e`). | Root-cause fix plus regression test. | Sol-49 |
+| 9 | SpecTcl execution | `eval_loader` 24/28 and `codegen_stamps` 1/29 (Sol-44); `spectcl-compat` CI job red. | Fix VM/runtime causes; send compiler repros. | Sol-48 |
+| 10 | `resolution-oracles` workflow | Every push to `work` records a failed run with zero jobs (probable workflow-file rejection); it also runs on PRs. | Diagnose and fix before a PR. | Unassigned |
+| 11 | Python lint (`lint-py`) | 650 files to reformat and 1,937 ruff errors, almost all in evidence scripts. | Re-check once evidence is excluded from the PR tree. | Unassigned |
+| 12 | Test fixtures for the PR | [Fixture review](handoff/reviews/fixture-review-20261021/REVIEW.md): 2,514 of 29,092 added test files are read by tests. 208 captured per-release expectations are not asserted. | Carry `keep-paths.txt`; merge duplicate sets; convert 51 sets to tables; add the 208 assertions. | After Sol-48/49 land |
+| 13 | Repository gates never run on the merged tree | Integration targets, an actual server process, editor hosts, proofs, generated-file drift, `make rust-check`, `make prep-pr`. | Run after CI is close to green. | Coordinator |
 
-Server test116 was interrupted and has no counted result. The230 additive LSP selectors and5 separately introduced controls were unstarted. This is not full1085, full original1024 or additive314 acceptance. Post-stop checks passed exact52,881 source files, six providers, six test ELF hashes, completed selector order/prefix membership and every completed raw-log hash. No semantic-green result is claimed.
+### Carried from the 17 October state (not re-checked since the merge)
 
-[Checkpoint09](../../../experiments/name-handling/results/owner-adoption-20261017/lsp-generic-consumers-09/capture.json) pins the1,060,094-byte archive, SHA`48dddad17e0e08fb85d3ecec1c97e1fa1a2e9c803a085fb808b1917982b76b83`. It retains admitted patches34/35, actual build/test logs, guard receipts, replay sources and separately labelled pending proposals. No binaries or full source/provider trees. Large repeated local inventories are hash-pinned rather than duplicated. Earlier canonical captures06–08 and frozen reports remain unchanged.
+- Core `nextto` selector 256 fails.
+- Reference completeness is partial for external receivers and unknown bare calls.
+- Two server tests time out at 180 s: `startup_index_and_factory_reindex_keep_checked_document_roles` and `workspace_symbol_caps_its_answer`.
+- Optimiser proof holds O101, O127 and the Logical quoting O100 path.
+- Document-link disagreements 124, 136 and 140.
 
-Historical full capture21 was826 PASS/198 FAIL for original1024 (3 timeouts), plus214 PASS/100 FAIL for additive314. All1338 final source/provider/ELF guards passed on that older source. Those results do not validate admissions22–35. The last full proof checker reported2093 errors:1106 evidence-hash drifts,952 BIG-IP census-digest drifts,35 missing explicit not-tested answers. Metadata repairs were admitted22; a fresh full proof run is still owed. Do not rewrite historical evidence hashes to manufacture a pass.
+## Where results live
 
-## Pending source work
-
-Composition36 remains **outside Main**: five applications/eight paths, all bounded source reviewed. It contains the DB structural class-factory producer, Core Syntax-purpose member hazards, member source-censusV1→V2, and genuine shipped-roster test setup. Static review preserved400/401 old test bodies byte-exact; the sole exception adds the real roster initializer before the same fixture, with every assertion/value unchanged. The actual full Core dependency-graph build and selector execution are owed.
-
-Pending Studio chains are preserved under `pending/` in checkpoint09, never admitted or counted. Refine→native-ID→header→semantic-argv→sizeV2 rendering requires the real declaration-ownerV1→V2 and store API companions. Store removal preservation is bounded source-clear; source-edits still needs concrete owner-route contract additions and whole review. Notice-ownerV1 needs its newly sealed availability Log initializer companion and a paired review. Availability producerV2 is **cumulative from Main**, not a V1→V2 delta. Pair it with Rust surfaceV1→V2 and SpecTcl availabilityV1→V2. StubV2 and Rust pure-literalV2 corrections are mandatory. Generated complete Rust positive compilation and explicit unavailable `compile_error!` negative diagnostics are unrun. Source clearance is not execution or semantic acceptance.
-
-Sample source is bounded clear. Corpus remains partial and its independent review was interrupted. Broader Rust expression/path/struct semantics and version/source inventory remain open. The bare definer-hint SourceRecipe/OpaqueCallback design is an **unsealed incomplete draft**, containing initial Definer/registry edits only; loader/draft/render/coverage/test adapters are unfinished. Never admit that draft.
-
-C/TU A4/B4 remains **HOLD**. Review found a brace-index reset error, nested parameter/call occurrences misidentified as top-level static declarations, external root uniqueness polluted by unrelated internal same-name functions, and C phase-2 line splices hiding `static`. No A5/B5 is sealed. The original malformed incomplete-hex C test assertion remains unchanged; its one-line correction proposal is separate and unadmitted. Once corrected source is fully reviewed, obtain a narrow user exception if changing that original assertion remains necessary, because the original handoff requires preserving assertions.
-
-## Unresolved LSP failures and gates
-
-Core nextto selector256 still fails despite34; first-producer diagnosis was incomplete. Core reference completeness remains partial for external receivers and unknown bare calls. The DB memo921–923 probe is prepared but never compiled/executed; bind actual current normal rlibs from Cargo JSON and use a separate diagnostic output. Do not drop parallel body identities, weaken equality, erase Source SSA identity or grant Native physical correspondence.
-
-The nested package-index wrapper hit its unchanged180-second limit. Static investigation traces repeated full child-body lexing in parse-cut/native-word construction, but no profiling has established the measured cause and no safe bounded patch exists. A shared checked nested-plan design must preserve exact source/config/geometry, first-cut ordering and nested syntax validation. Do not switch to a mode that suppresses nested validation. Two Server tests also timed out; raw logs identify them.
-
-Five optimiser proof holds remain: O101 genuine result allocation/protocol equivalence, O127 physical read/store/effect/motion, and the separate Logical quoting O100 path. Document-link124/136/140 disagreements remain unresolved. No missing-provider fallback, hardcoded semantics, source-to-Native grant or assertion waiver is an accepted fix.
-
-Required next gates include fresh original/additive/new controls on actual current artifacts with unchanged180-second test/30-second listing budgets and final guards; genuine `references_rename`, Server e2e and preview integration targets; an actual non-test native server executable; real Emacs/VSCode/JetBrains/browser-WASM hosts; owner/proof/generated drift; `make rust-check`; and `make prep-pr`. The historical34 native-selection reconstruction is source-derived, with original membership/order unrecovered, not accepted historical evidence. In-process tower tests do not substitute for the real server process.
-
-General compiler-only packets remain parked. Compiler221 has locked same-input constructor/dialect tests with opposite Some/None completed-world expectations; receipt is retained in earlier canonical evidence. No assertion has been changed. After LSP verification, resolve genuine compiler dependencies and that contradiction without artificial global state. Rebase on current `origin/rust` before a green PR. No PR/merge/#2286 closure exists for this checkpoint. Required repository-wide development-chaff cleanup remains a final-PR obligation; preserve reproducible experiments/provenance.
+- Agent notes and patches since the merge: [handoff/reviews/merge-inventory-20261019/](handoff/reviews/merge-inventory-20261019/) (`sol-4x-NOTES.md`, `luna-4x-NOTES.md`).
+- User decisions: [handoff/reviews/resume-20261017-diagnosis/](handoff/reviews/resume-20261017-diagnosis/) (`user-decisions-*.json`).
+- Progress reports: `progress-report-<UTC>.json` in this directory.
+- Latest LSP capture: `experiments/name-handling/results/owner-adoption-20261018/lsp-generic-consumers-14/capture.json`.

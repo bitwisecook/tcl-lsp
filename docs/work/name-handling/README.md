@@ -1,6 +1,6 @@
 # Centralised name handling on work
 
-**User-paused at 17:45 UTC on 17 October 2026.** All source work, agents and the active test capture have stopped. There is no active progress-report deadline.
+**Active since the origin/rust merge (19 October 2026).** Scope is the LSP, the compiler stack it requires, and VM/runtime execution of SpecTcl; progress reports run every 30 minutes. [current-state.md](current-state.md) is the single list of outstanding validations. The paragraphs below describe the 17 October checkpoint.
 
 Resume with [continue-prompt.md](continue-prompt.md). [current-state.md](current-state.md) records current validation and blockers; [implementation-ledger.md](implementation-ledger.md) identifies the latest admitted changes. The authoritative per-unit audit remains [audit-status.json](audit-status.json) and [repository-consumer-audit-final.json](repository-consumer-audit-final.json).
 
