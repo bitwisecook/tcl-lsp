@@ -1307,6 +1307,17 @@ pub fn readonly_local_reference_report(
         target,
         include_declaration,
     ));
+    // `next` / `nextto` written inside this declaration's own body are
+    // polymorphic references to it. They are keywords that never spell the
+    // member name, so they are reported here only and never enter the edit
+    // inventory above. The body must belong to this current document.
+    if target.declaration_image() == &SourceImage::document(source) {
+        report.extend(crate::references::scan_next_dispatch_sites(
+            source,
+            analysis,
+            target.method().metadata().body_span,
+        ));
+    }
     Some(report)
 }
 

@@ -99,35 +99,74 @@ pub struct BigipToken {
 }
 
 /// The tmsh top-level modules that open a stanza.
-const MODULES: &[&str] = &[
-    "apm", "asm", "auth", "cli", "cm", "gtm", "ilx", "ltm", "net", "pem", "security", "sys", "wom",
+///
+/// Every module the generated configuration schema dispatches an object kind
+/// under (`model::gen::dispatch::dispatch_minimal`) — the same set the
+/// `tcl-bigip-query` projection exposes at its root. The static editor
+/// grammars project this list (`cargo xtask gen-bigip-grammars`) to paint a
+/// stanza header's module word; that is lexical display only.
+pub const MODULES: &[&str] = &[
+    "analytics",
+    "apm",
+    "api-protection",
+    "asm",
+    "auth",
+    "cli",
+    "cm",
+    "gtm",
+    "ilx",
+    "ltm",
+    "net",
+    "pem",
+    "security",
+    "sys",
+    "vcmp",
+    "wom",
+];
+
+/// Property keys whose value names an object of a known kind, with that kind.
+///
+/// The one owner of the key → kind presentation rule: the lexer below reads
+/// it, and the static editor grammars project it (`cargo xtask
+/// gen-bigip-grammars`). A match grants the value no object identity — it is
+/// the same lexical display the semantic tokens give it.
+pub const KEYED_REFERENCES: &[(&str, BigipTokenKind)] = &[
+    ("pool", BigipTokenKind::Pool),
+    ("last-hop-pool", BigipTokenKind::Pool),
+    ("snatpool", BigipTokenKind::Pool),
+    ("default-pool", BigipTokenKind::Pool),
+    ("monitor", BigipTokenKind::Monitor),
+    ("monitors", BigipTokenKind::Monitor),
+    ("profile", BigipTokenKind::Profile),
+    ("profiles", BigipTokenKind::Profile),
+    ("defaults-from", BigipTokenKind::Profile),
+    ("vlan", BigipTokenKind::Vlan),
+    ("vlans", BigipTokenKind::Vlan),
+    ("vlan-group", BigipTokenKind::Vlan),
+    ("rule", BigipTokenKind::Object),
+    ("rules", BigipTokenKind::Object),
+    ("policy", BigipTokenKind::Object),
+    ("policies", BigipTokenKind::Object),
+    ("persist", BigipTokenKind::Object),
+    ("fallback-persistence", BigipTokenKind::Object),
+    ("snat-translation", BigipTokenKind::Object),
+    ("traffic-group", BigipTokenKind::Object),
+    ("device-group", BigipTokenKind::Object),
+    ("gateway", BigipTokenKind::Object),
+    ("destination", BigipTokenKind::Object),
+    ("virtual-address", BigipTokenKind::Object),
+    ("route-domain", BigipTokenKind::Object),
+    ("default-route-domain", BigipTokenKind::Object),
+    ("node", BigipTokenKind::Object),
+    ("members", BigipTokenKind::Object),
 ];
 
 /// Property keys whose value names an object of a known kind.
 fn keyed_ref_kind(key: &str) -> Option<BigipTokenKind> {
-    Some(match key {
-        "pool" | "last-hop-pool" | "snatpool" | "default-pool" => BigipTokenKind::Pool,
-        "monitor" | "monitors" => BigipTokenKind::Monitor,
-        "profile" | "profiles" | "defaults-from" => BigipTokenKind::Profile,
-        "vlan" | "vlans" | "vlan-group" => BigipTokenKind::Vlan,
-        "rule"
-        | "rules"
-        | "policy"
-        | "policies"
-        | "persist"
-        | "fallback-persistence"
-        | "snat-translation"
-        | "traffic-group"
-        | "device-group"
-        | "gateway"
-        | "destination"
-        | "virtual-address"
-        | "route-domain"
-        | "default-route-domain"
-        | "node"
-        | "members" => BigipTokenKind::Object,
-        _ => return None,
-    })
+    KEYED_REFERENCES
+        .iter()
+        .find(|(known, _)| *known == key)
+        .map(|&(_, kind)| kind)
 }
 
 /// The object-type word in a stanza header → the type its *name* should carry.
@@ -738,6 +777,36 @@ mod tests {
             ]
         );
         assert_no_overlap("ltm pool /Common/web_pool {\n}\n");
+    }
+
+    /// A module the configuration schema dispatches object kinds under opens a
+    /// stanza header like any other — `vcmp guest` was read as a property
+    /// line, its module word a property key.
+    #[test]
+    fn every_schema_module_opens_a_stanza_header() {
+        for (src, module, kind) in [
+            ("vcmp guest /Common/g1 {\n}\n", "vcmp", "guest"),
+            ("analytics settings {\n}\n", "analytics", "settings"),
+            ("api-protection response /Common/r {\n}\n", "api-protection", "response"),
+        ] {
+            let tokens = toks(src);
+            assert_eq!(tokens[0], (module, K::Keyword), "{src:?}: {tokens:?}");
+            assert_eq!(tokens[1], (kind, K::Keyword), "{src:?}: {tokens:?}");
+            assert_no_overlap(src);
+        }
+    }
+
+    /// The key table is the lexer's rule: a keyed bare value takes the kind.
+    #[test]
+    fn a_keyed_bare_value_takes_its_table_kind() {
+        for &(key, kind) in KEYED_REFERENCES {
+            let src = format!("ltm virtual /C/v {{\n    {key} target\n}}\n");
+            let tokens = toks(&src);
+            assert!(
+                tokens.contains(&(key, K::Property)) && tokens.contains(&("target", kind)),
+                "{key}: {tokens:?}"
+            );
+        }
     }
 
     /// The separators are deliberately uncovered — that is what keeps the

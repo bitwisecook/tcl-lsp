@@ -3554,7 +3554,7 @@ fn original_self_receiver_word(ctx: MyMethodScan<'_>, head: tcl_lexer::Token) ->
 /// reference purely by presence, never MRO-resolved, so the target is
 /// irrelevant here (unlike the constructor/destructor next-chain resolvers,
 /// which need it to disambiguate `nextto`).
-fn scan_next_dispatch_sites(
+pub(crate) fn scan_next_dispatch_sites(
     source: &str,
     analysis: &AnalysisResult,
     body: tcl_lexer::Span,
