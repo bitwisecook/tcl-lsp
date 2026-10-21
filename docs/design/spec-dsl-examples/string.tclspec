@@ -113,6 +113,17 @@ if {[string first "World" $s] >= 0} {
         # DCE/CSE silently drop or reorder a real variable write.
         side_effect Variable -writes
 
+        # The two-word call `string is class string` has no -failindex, so
+        # that one shape IS a pure, referentially transparent value test.
+        refine value {
+            arity 2
+            side_effects none
+            world_effects none
+            state_transitions {}
+            result_stability ReferentiallyTransparent
+            traits {PURE CSE_CANDIDATE}
+        }
+
         option -strict -detail {Treat the empty string as not matching the class (by default the empty string matches every class).}
         option -failindex -takes varname -role VarWrite -detail {Variable to receive the index where the class test failed. Left unset when string matches the class; on failure its exact contents are class-specific (e.g. -1 for a numeric overflow, the parse-failure index for list/dict, always 0 for boolean/true/false).}
 

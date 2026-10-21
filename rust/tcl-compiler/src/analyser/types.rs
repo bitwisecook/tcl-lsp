@@ -5781,10 +5781,9 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
     #[test]
     fn zz_probe_crlf_body_text() {
         let source = "oo::class create Widget {\r\n    method render {} {\r\n        puts \"widget $label\"\r\n    }\r\n}";
-        let config = crate::analyser::Analyser::new()
-            .analyse(source, "tcl8.6")
-            .body_lexer_config
-            .unwrap();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(
+            tcl_dialect::DialectProfile::find("tcl8.6").unwrap().grammar,
+        );
         let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
         let command = &commands[0];
         let token = command.argv[3];

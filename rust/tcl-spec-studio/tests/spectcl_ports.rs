@@ -88,6 +88,18 @@ const OO_CLASS_FACTORY_DESCRIPTORS: &str = "the shipped subcommand's `world_effe
      `OO_CLASS_FACTORY_DESCRIPTORS`); the port states the legacy `side_effect` and \
      `defines_command_at` facts instead";
 const NO_SUBS: &[(&str, &str, &str)] = &[];
+
+/// Why a port leaves out a shipped `successful_handler`: the DSL recognises
+/// `successful_handler -native …`, but deliberately excludes it from
+/// pack-authored strong analysis — a catalogue pack cannot certify the
+/// converged runtime implementation identity, storage and observer
+/// boundaries it asserts, so the loader reports a semantic exclusion
+/// (`docs/design/spec-dsl-examples/README.md`). Writing it in the port would
+/// exclude the command rather than reproduce the field.
+const SUCCESSFUL_HANDLER: &str = "the shipped spec's `successful_handler` engine contract, which a pack may not author for strong analysis (see `SUCCESSFUL_HANDLER`); the port does not transcribe it";
+
+/// Why a port leaves out a shipped `native_compilation` recipe.
+const NATIVE_COMPILATION: &str = "the shipped spec carries a `native_compilation` recipe (its native compileProc registration), which SpecTcl has no surface for; the port does not transcribe it";
 const ALL_SUBS: &[&str] = &[];
 
 struct Port {
@@ -101,7 +113,7 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "lsort",
             dialect: "tcl9.1",
-            unequal: NONE,
+            unequal: &[("__unrenderable", NATIVE_COMPILATION)],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],
@@ -111,14 +123,17 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "foreach",
             dialect: "tcl9.1",
-            unequal: &[(
-                "__unrenderable",
-                "the shipped spec declares its value-transfer `semantics` (the \
+            unequal: &[
+                (
+                    "__unrenderable",
+                    "the shipped spec declares its value-transfer `semantics` (the \
                  explicit iteration declaration of \
                  `docs/design/compiler/value-transfers.md`); the port does \
                  not transcribe it, so it stays on the unrenderable list. \
                  Every field the port does carry matches",
-            )],
+                ),
+                ("successful_handler", SUCCESSFUL_HANDLER),
+            ],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],
@@ -128,7 +143,10 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "switch",
             dialect: "tcl9.1",
-            unequal: NONE,
+            unequal: &[
+                ("__unrenderable", NATIVE_COMPILATION),
+                ("successful_handler", SUCCESSFUL_HANDLER),
+            ],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],
@@ -138,14 +156,17 @@ const PORTS: &[Port] = &[
         commands: &[PortedCommand {
             name: "if",
             dialect: "tcl9.1",
-            unequal: &[(
-                "__unrenderable",
-                "the shipped spec carries the compiler-owned `native_lowering` \
-                 descriptor (the native-tier shape stamped beside the lowering \
-                 hook); SpecTcl has no surface for it, so it stays on the \
-                 unrenderable list and the port does not transcribe it. Every \
-                 field the port does carry matches",
-            )],
+            unequal: &[
+                (
+                    "__unrenderable",
+                    "the shipped spec carries the compiler-owned `native_lowering` \
+                     descriptor (the native-tier shape stamped beside the lowering \
+                     hook); SpecTcl has no surface for it, so it stays on the \
+                     unrenderable list and the port does not transcribe it. Every \
+                     field the port does carry matches",
+                ),
+                ("successful_handler", SUCCESSFUL_HANDLER),
+            ],
             unequal_subcommand: NO_SUBS,
             subcommand_subset: ALL_SUBS,
         }],
@@ -203,8 +224,28 @@ const PORTS: &[Port] = &[
                  installing into the iRules registry applies the same wrapper \
                  policy, exactly like the tcllib dialect fill above",
             )],
-            unequal_subcommand: NO_SUBS,
-            subcommand_subset: ALL_SUBS,
+            unequal_subcommand: &[
+                ("value", "successful_handler", SUCCESSFUL_HANDLER),
+                ("values", "successful_handler", SUCCESSFUL_HANDLER),
+            ],
+            // Every subcommand, compared field by field, so the two
+            // `successful_handler` rows above are the only ones excused.
+            subcommand_subset: &[
+                "at",
+                "count",
+                "exists",
+                "insert",
+                "insert_modssl_fields",
+                "is_keepalive",
+                "is_redirect",
+                "lws",
+                "names",
+                "remove",
+                "replace",
+                "sanitize",
+                "value",
+                "values",
+            ],
         }],
     },
     Port {
@@ -281,6 +322,17 @@ const PORTS: &[Port] = &[
                     "the same five descriptors, declared per-subcommand on \
                      `string length`; unrenderable for the same reason",
                 ),
+                ("length", "successful_handler", SUCCESSFUL_HANDLER),
+                (
+                    "map",
+                    "__unrenderable",
+                    "the shipped `string map` declares the same `completion`, \
+                     `world_effects`, `state_transitions`, `dispatch_dependencies` \
+                     and `result_stability` descriptors as `string length`; \
+                     unrenderable for the same reason",
+                ),
+                ("map", "successful_handler", SUCCESSFUL_HANDLER),
+                ("range", "successful_handler", SUCCESSFUL_HANDLER),
                 (
                     "range",
                     "__unrenderable",

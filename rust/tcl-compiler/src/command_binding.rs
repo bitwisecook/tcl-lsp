@@ -9558,6 +9558,14 @@ impl SourceCommandBindings {
         };
         let incoming = boxed_source_branch(state);
         if binding.unknown {
+            #[cfg(test)]
+            if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+                eprintln!(
+                    "ZZ_UNKNOWN_BINDING command={:?} namespace={:?}",
+                    segment.texts,
+                    context.namespace_identity()
+                );
+            }
             let mut residual = incoming.clone();
             residual.mark_opaque_binding_mutation();
             residual.loader_handler_unknown = true;
@@ -19592,6 +19600,13 @@ fn apply_namespace_transition(
                     break;
                 };
                 if !import_pattern(state, &name, pattern, *force) {
+                    #[cfg(test)]
+                    if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+                        eprintln!(
+                            "ZZ_IMPORT_FAILED destination={name:?} pattern={:?}",
+                            String::from_utf8_lossy(pattern)
+                        );
+                    }
                     break;
                 }
             }

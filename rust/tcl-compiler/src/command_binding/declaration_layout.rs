@@ -2492,6 +2492,12 @@ impl SourceCommandBindings {
             // `[…]`) still runs in this root frame and namespace, so it keeps
             // the root entry only for its own genuine original vector.
             // Conditional/future bodies and materialised text never qualify.
+            #[cfg(test)]
+            if context.source_purpose != tcl_lexer::SourceSegmentationPurpose::WholeInput
+                && std::env::var_os("ZZ_DISABLE_NESTED_LAYOUT").is_some()
+            {
+                return;
+            }
             if context.source_purpose != tcl_lexer::SourceSegmentationPurpose::WholeInput
                 && (context.body_entry != super::SourceBodyEntryPurpose::Selected
                     || origin
