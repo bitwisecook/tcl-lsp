@@ -1,0 +1,488 @@
+[
+ {
+  "id": "lsp-server-xc-diagnostic-input",
+  "family": "translation.document-input-transport",
+  "purpose": [
+   "Opt-in XC diagnostics over actual current document push/pull/code-action analysis."
+  ],
+  "effort": "M",
+  "required_change": [
+   "published_findings\u2192xc_findings discards actual AnalysisResult full input/context/config/Registry and reparses text with fixed-default get_xc_diagnostics. Needs actual retained document ingress; this is distinct from legitimate source-only standalone translation."
+  ],
+  "sites": [
+   "rust/tcl-lsp-server/src/lib.rs:6496"
+  ]
+ },
+ {
+  "id": "lsp-editor-xc-document-context",
+  "family": "translation.document-input-transport",
+  "purpose": [
+   "Document/attachment/inline source XC translation and AI gap guidance."
+  ],
+  "effort": "M",
+  "required_change": [
+   "resolveIruleCode flattens actual document/attachment ownership to String then command transports no current URI/version/dialect context. Source-only standalone inputs are legitimate; actual document semantics need source snapshot and resolved input purpose. Prompt mappings are declared recommendations, not observed outcomes."
+  ],
+  "sites": [
+   "editors/vscode/src/chat/commands/xc.ts:24"
+  ]
+ },
+ {
+  "id": "lsp-editor-ai-create-clean-report",
+  "family": "lsp-editor-ai-create-clean-report",
+  "purpose": [
+   "Explicit new iRule authoring with AI/fallback and diagnostics iteration."
+  ],
+  "effort": "M",
+  "required_change": [
+   "No existing-name identity/edit authority from new template. Validated-clean report inherits URI-only diagnostics/generation gap in loop; no oracle acceptance. Fixed HTTP descriptors/version guidance retained as unvalidated authored recommendation."
+  ],
+  "sites": [
+   "editors/vscode/src/chat/commands/create.ts:42"
+  ]
+ },
+ {
+  "id": "lsp-zed-tmsh-context-routing",
+  "family": "lsp-zed-tmsh-context-routing",
+  "purpose": [
+   "Actual .tmsh editor grammar/languageId\u2192analysis context transport."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Declared unresolved mismatch: .tmsh extension from f5-tmsh context is routed to BIG-IP configuration grammar/tcl-bigip to match current bundled parser. Needs distinct script/config language target and authentic context routing; avoid claiming Tcl script names analysed correctly by current config context."
+  ],
+  "sites": [
+   "editors/zed/extension.toml:60"
+  ]
+ },
+ {
+  "id": "lsp-zed-iapps-variable-catalogue",
+  "family": "lsp-zed-iapps-variable-catalogue",
+  "purpose": [
+   "Lexical variable/defaultLibrary presentation, no physical cell identity."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Builtin variable roster remains generator-local rather than shared Registry/Syntax variable metadata/purpose. Move metadata ownership/adopt existing central variable catalogue; maintain coarse lexical purpose and do not use it as lookup/current cell proof."
+  ],
+  "sites": [
+   "editors/zed/languages/iapps/highlights.scm:32"
+  ]
+ },
+ {
+  "id": "lsp-zed-irules-variable-catalogue",
+  "family": "lsp-zed-irules-variable-catalogue",
+  "purpose": [
+   "Lexical variable/defaultLibrary presentation, no physical cell identity."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Builtin variable roster remains generator-local rather than shared Registry/Syntax variable metadata/purpose. Move metadata ownership/adopt existing central variable catalogue; maintain coarse lexical purpose and do not use it as lookup/current cell proof."
+  ],
+  "sites": [
+   "editors/zed/languages/irules/highlights.scm:32"
+  ]
+ },
+ {
+  "id": "lsp-zed-apl-static-name-presentation",
+  "family": "lsp-zed-apl-static-name-presentation",
+  "purpose": [
+   "Lexical APL/BIG-IP name/type/validator/object partition presentation under pinned foreign syntax grammar."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Local APL built-in field/validator and BIG-IP typed property vocabulary remain duplicate metadata rather than shared dialect/schema-generated projection. Needs central source vocabulary projection with explicit lexical display purpose; no object/namespace identity/availability/lookup inferred from matches."
+  ],
+  "sites": [
+   "editors/zed/languages/apl/highlights.scm:10"
+  ]
+ },
+ {
+  "id": "lsp-zed-tmsh-static-name-presentation",
+  "family": "lsp-zed-tmsh-static-name-presentation",
+  "purpose": [
+   "Lexical APL/BIG-IP name/type/validator/object partition presentation under pinned foreign syntax grammar."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Local APL built-in field/validator and BIG-IP typed property vocabulary remain duplicate metadata rather than shared dialect/schema-generated projection. Needs central source vocabulary projection with explicit lexical display purpose; no object/namespace identity/availability/lookup inferred from matches."
+  ],
+  "sites": [
+   "editors/zed/languages/tmsh/highlights.scm:12"
+  ]
+ },
+ {
+  "id": "lsp-completion-event-clause-template",
+  "family": "lsp-completion-event-clause-template",
+  "purpose": [
+   "Event-handler argument-value source completion advice."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Consumer-local timing selector/active ordinal rule remains instead of actual existing Registry when count/role/layout metadata. Migrate through the shared selected source event declaration layout; do not infer body/frame entry from advisory roles."
+  ],
+  "sites": [
+   "rust/tcl-lsp-core/src/completion/original_context.rs:97"
+  ]
+ },
+ {
+  "id": "lsp-editor-workspace-edit-command-wire",
+  "family": "lsp-editor-workspace-edit-command-wire",
+  "purpose": [
+   "BIG-IP partition rename command result\u2192actual editor replacement."
+  ],
+  "effort": "M",
+  "required_change": [
+   "LspWorkspaceEdit models only changes, has no current version/snapshot owner and immediately packages ranges. Need action-specific server+host currency receipt/versioned documentChanges integration; client adapter alone cannot recover it. Actual Node/Browser renamePartition async input/request/apply callers inspected, no intervening source-version join."
+  ],
+  "sites": [
+   "editors/vscode/src/clientCore.ts:114"
+  ]
+ },
+ {
+  "id": "lsp-editor-event-skeleton-construction",
+  "family": "lsp-editor-event-skeleton-construction",
+  "purpose": [
+   "Explicit NEW authoring event scaffold, not existing handler identity/dispatch."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Consumer trim+uppercase accepts arbitrary string, interpolates generic event source raw, ignores actual target lifecycle/full configured source constructor; production picker currently supplies generated canonical labels so bounded ordinary input is fixed. Need shared EventRegistry/new-event source purpose and target context; do not classify new-name normalization itself as existing identity inverse."
+  ],
+  "sites": [
+   "editors/vscode/src/iruleSkeleton.ts:198"
+  ]
+ },
+ {
+  "id": "lsp-server-write-rule-back-currency",
+  "family": "host.original-rule-source-action",
+  "purpose": [
+   "Actual source action writes scratch iRule body into original BIG-IP config host document."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Client-supplied original bodyStart/bodyEnd not rejoined to original source/version/rule identity; current reread and inbounds offsets alone allow stale but valid geometry. Emits unversioned changes through apply_edit. Need action-specific retained extraction owner, current original config/rule identity/span/document version and source proposal at publication; generic source parser not edit authority."
+  ],
+  "sites": [
+   "rust/tcl-lsp-server/src/lib.rs:19449"
+  ]
+ },
+ {
+  "id": "lsp-semantic-embedded-bigip-body-owner",
+  "family": "bigip.original-embedded-rule-body",
+  "purpose": [
+   "BIG-IP config embedded rule span\u2192Tcl semantic source region."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Presentation lexer body extents are not authentic source body owners; Auditor conf_tokens full read found bare escaped closing-brace miscount can truncate body. Need shared actual config parser/source-body geometry and configured purpose, not lexer colour brackets as executable source boundaries. Actual outer input/config context absent in this public ingress."
+  ],
+  "sites": [
+   "rust/tcl-lsp-core/src/semantic_tokens.rs:802"
+  ]
+ },
+ {
+  "id": "lsp-ai-event-new-scaffold",
+  "family": "lsp-ai-event-new-scaffold",
+  "purpose": [
+   "Explicit new authored iRule source from user natural-language event query."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Local prompt uppercasing is fixed query grammar, not existing name inverse. Actual BIGIP/version context absent from common catalogue filtering and generated template selection; agentic clean status still inherits missing diagnostic source-version/completion. New-source target must be retained/explicit; no source filename collision or existing doc edits granted here."
+  ],
+  "sites": [
+   "editors/vscode/src/chat/commands/scaffold.ts:40"
+  ]
+ },
+ {
+  "id": "lsp-ai-event-command-query-context",
+  "family": "lsp-ai-event-command-query-context",
+  "purpose": [
+   "Standalone natural-language event/command reference query, possibly with ambient document context."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Name-only queries do not retain explicit target floor/config/package context; valid/known/event claims cannot stand in for actual ambient document selection. Standalone default reference itself legitimate if declared; need preserve provider/context in answer and actual document variant where used. Regexp misses arbitrary valid names but is explicitly natural-language heuristic, no runtime namespace/cell grant."
+  ],
+  "sites": [
+   "editors/vscode/src/chat/commands/event.ts:69"
+  ]
+ },
+ {
+  "id": "lsp-ai-diagram-source-purpose",
+  "family": "lsp-ai-diagram-source-purpose",
+  "purpose": [
+   "Source-only iRules diagram metadata\u2192model report, no executable symbol or edits."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Original document URI/version/config lost at resolveIruleCode; fixed standalone source ingress legitimate if declared but cannot claim actual document semantics. Prompt calls IR data authoritative and firing/event order connected without retaining conditional source/runtime obligations; diagram producer source MAY roster not execution ordering proof. Need actual source context/typed report purpose for document route and preserve conditional limitations in guidance."
+  ],
+  "sites": [
+   "editors/vscode/src/chat/commands/diagram.ts:108"
+  ]
+ },
+ {
+  "id": "lsp-generated-editor-event-catalogue",
+  "family": "lsp-generated-editor-event-catalogue",
+  "purpose": [
+   "Offline standalone editor event catalogue used by skeleton/new-authoring and AI prompt metadata."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Exact baseline generated drift: committed HTTP_REQUEST lacks introducedVersion, while Root independently attested cc24 Registry events.rs2411 lifecycle introduced_in(\"9.0.0\"). Generator directly serializes that lifecycle. No generated-drift command executed, so this is static parity evidence; consumers target/lifecycle adoption is separate. Generated descriptions are owner-projected data, no compiler/dispatch code here."
+  ],
+  "sites": [
+   "editors/vscode/src/generated/iruleEvents.json:3"
+  ]
+ },
+ {
+  "id": "lsp-vscode-apl-static-name-projection",
+  "family": "lsp-vscode-apl-static-name-projection",
+  "purpose": [
+   "Static APL field/type/validator/member and embedded Tcl display."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Handwritten field/validator/attribute/vocabulary and dotted field/variable name grammar duplicate actual APL owner and Zed/semantic presentation. No generator source found for this file in xtask; need explicit static source-display projection from actual APL/shared name grammar with bounded capabilities. Rendering remains approximate, no validation/type/field existence/runtime Tcl phase grant."
+  ],
+  "sites": [
+   "editors/vscode/syntaxes/apl.tmLanguage.json:147"
+  ]
+ },
+ {
+  "id": "lsp-vscode-bigip-static-name-projection",
+  "family": "lsp-vscode-bigip-static-name-projection",
+  "purpose": [
+   "Static BIGIP object/partition/member/monitor and embedded iRule name display."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Fixed module/object-kind/reference-key/monitor keyword lists and partition/path grammar duplicate shared schema/value owners. iRule rule ends at column0 closing brace by formatting convention, not actual rule source geometry (gtm also absent static prefix). Need bounded static syntax/schema projection and explicit approximate source-display limits; no graph identity/reachability or edit/body execution proof from regex."
+  ],
+  "sites": [
+   "editors/vscode/syntaxes/bigip.tmLanguage.json:86"
+  ]
+ },
+ {
+  "id": "lsp-bigip-basename-uri-consumer",
+  "family": "lsp-bigip-basename-uri-consumer",
+  "purpose": [
+   "Server lib.rs12067 passes raw Uri.as_str to basename classification, influencing document dialect/analyser route."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Raw URI rsplit slash/backslash and ASCIIlowercase bypass actual decoded URI basename/platform purpose. Percent-encoded canonical basenames and POSIX literal backslash are distinct data; move basename selection through existing actual URI/virtual path source owner then shared dialect detection, preserving remote/virtual host purposes."
+  ],
+  "sites": [
+   "rust/tcl-lsp-core/src/bigip.rs:60"
+  ]
+ },
+ {
+  "id": "lsp-datagroup-command-and-name-source-construction",
+  "family": "lsp-datagroup-command-and-name-source-construction",
+  "purpose": [
+   "Authored class match/lookup and set/return/if templates interpolate decoded supplied DG names and selected target variable String. Original subject variable references use genuine shared source constructor; generated suggestions use shared suggested_data_group_name."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Supplied DG names must remain verbatim data, but emitted source operands need exact configured intended-value construction. Same target_var report spelling can contain escape/grouping/metacharacters; one complete generated command only checks syntax/count, not intended operand value/operation. Extend existing shared source constructor and actual source-action/selected insertion proof; do not sanitize supplied identities or infer execution from proposal metadata."
+  ],
+  "sites": [
+   "rust/tcl-lsp-core/src/refactor/datagroup.rs:353"
+  ]
+ },
+ {
+  "id": "lsp-browser-rule-scratch-source-and-byte-currency",
+  "family": "host.original-rule-source-action",
+  "purpose": [
+   "Scratch source rule tracks URI/body byte offsets/original body only; later save passes cached offsets/new text to server. Successful response mutates end offset using newBody.length (UTF16 code units), while original body offsets are server UTF8 source bytes. Concurrent saves/current config edits have no exact original rule identity/version join."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Transport authentic original host rule/body/document version/current source/action identity through extraction and writeback, rejoin current parser owner before edits and publish updated actual byte geometry. Do not fix stale offsets by local text arithmetic or infer current identity from URI/bounds. Server writeRuleBack live sink has separate row/cross-owner finding."
+  ],
+  "sites": [
+   "editors/vscode/src/extensionBrowser.ts:1108"
+  ]
+ },
+ {
+  "id": "lsp-browser-xc-document-input-transport",
+  "family": "translation.document-input-transport",
+  "purpose": [
+   "Document-facing browser XC translation captures source only and sends fixed standalone xcTranslate command; actual document URI/config/placement/custom resolved input are omitted. Output opens new documents, so stale replacement is not asserted here."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Provide distinct document translation ingress retaining actual source URI/full input/context/Registry and result provenance while preserving standalone source-only API default. Do not fabricate Native execution/provider or conflate documentation/catalogue target advice with runtime feasibility."
+  ],
+  "sites": [
+   "editors/vscode/src/extensionBrowser.ts:823"
+  ]
+ },
+ {
+  "id": "lsp-node-rule-scratch-source-byte-and-lifetime",
+  "family": "host.original-rule-source-action",
+  "purpose": [
+   "Actual source rule extraction returns UTF8 body spans. Scratch map retains URI/offsets/originalBody only and later save sends old offsets; success computes delta from JS UTF16 newBody.length. Listener lifetime is top-level rather than captured source/server action generation; concurrent saves/config edits can invalidate owner."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Retain actual original source image/rule identity/config/document version and pending-save action generation; server must rejoin current rule owner before edits and return new authentic geometry. No local offset arithmetic or bounds-only proof. Lifecycle cleanup cannot borrow current global client for retired source action."
+  ],
+  "sites": [
+   "editors/vscode/src/extension.ts:2227"
+  ]
+ },
+ {
+  "id": "lsp-node-browser-bigip-cursor-byte-boundary",
+  "family": "lsp-node-browser-bigip-cursor-byte-boundary",
+  "purpose": [
+   "VSCode document.offsetAt is UTF16 text offset. Custom BIG-IP extractRule/extractLinkedObjects wire consumes numeric offsets as UTF8 byte source positions; Server extract_rule_command19395\u201319435 and linked payload19550 retain them directly."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Transport typed source positions/current source/version through shared coordinate owner at provider boundary, not naked numeric offset. Both Node and Browser have same actual custom wire mismatch; no package/source name identity from numeric range alone."
+  ],
+  "sites": [
+   "editors/vscode/src/extension.ts:2027"
+  ]
+ },
+ {
+  "id": "lsp-node-xc-document-full-input-transport",
+  "family": "translation.document-input-transport",
+  "purpose": [
+   "Document-facing Node XC commands send source+format only to standalone translator; current URI/resolved input/Registry/full placement config are omitted. New HCL/JSON output docs are authored results, no stale in-place edit claim."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Add distinct document ingress retaining actual original source/input/context/provider; preserve standalone source-only default legitimate purpose. Shared selected-source descriptors do not fix discarded input before construction, and no Native/runtime feasibility follows."
+  ],
+  "sites": [
+   "editors/vscode/src/extension.ts:1260"
+  ]
+ },
+ {
+  "id": "lsp-node-irule-skeleton-source-inference",
+  "family": "lsp-node-irule-skeleton-source-inference",
+  "purpose": [
+   "Manual new iRule skeleton picker uses common-event catalogue and regex when EVENT matches over raw current source to preselect events; no existing event identity is edited, but matches in inert/comment/quoted data can be presented as source inference."
+  ],
+  "effort": "M",
+  "required_change": [
+   "If presenting inferred source event selection, consume actual retained event declaration inventory/current config instead of local raw when regex. Keep manual remembered menu choice and explicit new-source template catalogue separate; no event activation/install/Native entry grant. Static common subset and generated lifecycle metadata drift separately audited."
+  ],
+  "sites": [
+   "editors/vscode/src/extension.ts:1641"
+  ]
+ },
+ {
+  "id": "lsp-ilx-navigation-sibling-input-transport",
+  "family": "lsp-ilx-navigation-sibling-input-transport",
+  "purpose": [
+   "Sibling rule text comes from open buffer/store but current_method_calls receives same ctx.analysis as initiating document; genuine source owner correctly refuses foreign image. OpenDocuments supplies only Arc<str>, not per-document resolved full input/config/analysis. Reverse JS route uses explicit standalone capture from Registry."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Retain actual sibling document source owner/input/currentness before invoking the shared scanner. Never weaken source equality or silently replace present stale analysis with standalone defaults; reverse actual open Tcl documents also need their own input. Missing source carrier is not no related call sites."
+  ],
+  "sites": [
+   "rust/tcl-lsp-core/src/ilx_navigation.rs:621"
+  ]
+ },
+ {
+  "id": "lsp-server-ilx-per-document-source-and-candidate-ingress",
+  "family": "lsp-server-ilx-per-document-source-and-candidate-ingress",
+  "purpose": [
+   "Tcl initiating document gets genuine analysis_for Registry+input, open text snapshot and declared plugins. JavaScript entrypoint is independently gated then explicit source-only EXTENSION_RULE_DIALECT Registry route; registration_at same original snapshot. Actual Server calls identity references API, not source_candidates variants."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Transport each sibling Tcl document actual source/input/config/Registry instead of text-only map or initiating analysis; independently opt into typed conditional source candidate relation where intended. No use of fixed standalone reverse profile as actual document input or equal-label handle inference. Actual request source/version final currency also separate host concern."
+  ],
+  "sites": [
+   "rust/tcl-lsp-server/src/lib.rs:14053"
+  ]
+ },
+ {
+  "id": "lsp-hover-configured-valid-event-guidance",
+  "family": "lsp-hover-configured-valid-event-guidance",
+  "purpose": [
+   "Actual selected CommandSpec reaches original_registry renderer then append metadata. valid_events builds EventRegistry.all_event_names and event_satisfies/profile requirements but accepts no actual target release/context floor; result printed Valid events."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Transport real owning F5 target version into generated event-name guidance and apply existing lifecycle/availability owner. Event requirements compatibility alone does not admit introduced/retired events at configured release; preserve actual descriptor selection. Shared events.rs whole audit still pending DB, no observed tooltip execution."
+  ],
+  "sites": [
+   "rust/tcl-lsp-core/src/hover.rs:1186"
+  ]
+ },
+ {
+  "id": "lsp-semantic-irules-original-input-overlay",
+  "family": "lsp-semantic-irules-original-input-overlay",
+  "purpose": [
+   "Logical-only declaration overlay unions actual Registry with process-wide memoized f5-irules Registry, reparses procedure candidates under default f5 grammar; current declaration roles use this set. Object overlay calls object_ref_spans(source,registry) rather than actual analysis/config/context."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Transport actual document fullinput/config/Registry/event availability into both overlays. Explicit generic-Tcl event visual convention must have distinct display purpose, not donate selected current registry schema or source execution phase. Do not recreate actual document input from process-default iRules metadata."
+  ],
+  "sites": [
+   "rust/tcl-lsp-core/src/semantic_tokens.rs:1207"
+  ]
+ },
+ {
+  "id": "lsp-code-actions-bigip-rename-command-routing",
+  "family": "lsp-code-actions-bigip-rename-command-routing",
+  "purpose": [
+   "BIG-IP non-Tcl stanza source selects UI rename command, with URI and bare partition argument."
+  ],
+  "effort": "M",
+  "required_change": [
+   "No edit here: actual source stanza\u2192deferred command selection must retain exact source/version/object identity through host command invocation. Partition trim_start_matches strips all slashes locally; actual query path/partition admission owns identifier semantics. Existing Common prohibition is policy shared with query owner."
+  ],
+  "sites": [
+   "rust/tcl-lsp-core/src/code_actions.rs:564"
+  ]
+ },
+ {
+  "id": "lsp-server-irules-metadata-commands",
+  "family": "lsp-server-irules-metadata-commands",
+  "purpose": [
+   "Explicit metadata-name standalone command, fixed iRules catalogue; exact/case advice shared context and union catalogue no document ownership."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Standalone catalogue default itself intentional. Document event UI must retain actual current version/input if claiming applicable events (editor/codeaction caller gaps separately recorded). deprecated=false is deliberate existing output contract conflicting with real F5 lifecycle data; accurate catalogue presentation should use explicit metadata purpose or label that field honestly, not imply actual deprecation."
+  ],
+  "sites": [
+   "rust/tcl-lsp-server/src/lib.rs:19275"
+  ]
+ },
+ {
+  "id": "lsp-server-bigip-linked-object-report",
+  "family": "lsp-server-bigip-linked-object-report",
+  "purpose": [
+   "Actual read requested BIGIP config sources/cursor byte offsets; parser default partition Common, shared graph ObjectNode IDs and BFS cutoff report."
+  ],
+  "effort": "M",
+  "required_change": [
+   "Graph source/parser naming owners belong BIGIP audit. Host drops source image/version from returned graph while clients may navigate current document; carry report currentness for downstream actions/highlight. SourceOrigin correctly null, not invented. BFS keyed shared node_id does not reconstruct Tcl command identity."
+  ],
+  "sites": [
+   "rust/tcl-lsp-server/src/lib.rs:19529"
+  ]
+ },
+ {
+  "id": "lsp.validation.00.00.fn0",
+  "family": "lsp-irules-golden-control-census",
+  "purpose": "Fixed original input/golden control bijection",
+  "effort": "S",
+  "required_change": "No equal-length/nonempty/id bijection assertion before zip, so shorter fixture side could silently drop controls. Preserve all existing fixtures/expected assertions and add fail-closed fixture census via actual source-control owner; no evidence of current dropped controls claimed. Decoded JSON source retains literal backslash-n sequences, which must not be treated as original line terminators without retained intended-input/oracle evidence.",
+  "sites": [
+   "rust/tcl-irules/tests/walker.rs:39"
+  ]
+ }
+]
