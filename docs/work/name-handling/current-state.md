@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 21 October 2026, 15:17 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
+Updated 21 October 2026, 15:24 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
 
 ## Scope
 
@@ -22,15 +22,15 @@ Merge contents (decision 2026-10-21T12:05Z): evidence stays on `work`; the PR to
 | Baseline units | 570 / 2,158 | 0 |
 | Effective (with annex) | 640 / 2,229 | 0 |
 
-Counts live in [audit-status.json](audit-status.json); per-unit sites in [repository-consumer-audit-final.json](repository-consumer-audit-final.json). No unit is marked verified: captures have not yet been mapped onto audit units.
+Counts live in [audit-status.json](audit-status.json); per-unit sites in [repository-consumer-audit-final.json](repository-consumer-audit-final.json). No unit is marked verified. The latest guarded capture has three pass-to-fail observations and has not been admitted against named audit units; its passing-test count cannot become a verified-unit count.
 
 ## Outstanding validations
 
 | # | Validation | Last result | Needed | Owner |
 | --- | --- | --- | --- | --- |
 | 1 | Full workspace CI (`ci.yml`) | 21 Oct, [run 39616304947](https://github.com/bitwisecook/tcl-lsp/actions/runs/39616304947) on `f6c4694f14` is active and **FAILS**. All five Rust shards, doctests and standalone runtime tests stop at E0004: missing `NativeInstructionPlan::StringOperand(_)` arm, `runtime/rust/src/interp/native_body_artifact.rs:1081`. No shard test cases execute, so comparison with run 5201's 3,634 failures is blocked, not a zero-failure improvement. WASM real-link reports 1 pass / 24 fail, with the same runtime-build blocker in failed tests. Formatting, SpecTcl compatibility, Python typechecking and four cargo-deny advisories also fail; native LSP e2e jobs remain active. The completed heavy job executes 349 tests: 298 pass / 51 fail; all 56 run-5201 failures are matched, with 5 now passing and 51 persisting, no unobserved old failures or additional failed identities. Those improvements are in the parked iRules-test scope and grant no LSP admission. | Collect remaining completed jobs; keep build-blocked test sets separate from executed failures. Local decoded job receipts: `handoff/reviews/merge-inventory-20261019/ci-39616304947/`; each GitHub job log remains remote authority. No fixes in this validation pass. | Validation agent; existing reporter owns scheduled reports |
-| 2 | Direct-LSP 1,085-selector capture | 21 Oct on `1e910cd3d3` (product source `f6c4694f14`), `lsp-validation-20261021T1431Z`: original 850 selectors complete **717 pass / 133 fail**, including 2 timeouts, versus capture48's **719 / 131** on those same 850 identities. There are 2 pass-to-fail changes and no gains so far. All completed groups pass post-group source/provider/artifact guards; six-target build passed. The additive 230 and separately labelled 5 controls are running; whole-capture acceptance remains pending. | Finish the unchanged remaining 235 selectors at 180 s each and require final whole-capture guards. Local evidence: `tmp/name-handling-validation/lsp-validation-20261021T1431Z/`; build receipts: `lsp-build-20261021T1431Z/` in the same parent. | Validation agent; existing reporter retains scheduled reports |
-| 3 | LSP crate tests against CI 5201 | 21 Oct on `1e910cd3d3`: original Core group completes **551 pass / 113 fail / 664**, versus capture48's **552 / 112 / 664**; DB completes **7 / 4 / 11**, versus **8 / 3 / 11**. Each group has one pass-to-fail and zero gains. Core loss: `executable_regions::checked_potential_source_tests::checked_potential_source_retains_depth_exhaustion_as_incomplete` aborts with stack overflow (SIGABRT, not timeout), `original-tcl_lsp_core/test-462.log`. DB loss: `original_optimiser_memo_transport_tests::body_optimiser_memo_retains_the_actual_optional_worker_dialect` unwraps a missing body entry at `lib.rs:11927`. Post-group source, all six providers and six artifacts match the build. Server is **159 pass / 16 fail / 175**, including the two known timeouts, byte-for-byte selector verdict parity with capture48. Server post-group source/provider/artifact guards also pass. Additive selections and whole-capture guards remain pending. | Finish the unchanged remaining selections and whole-capture guards. Implementation owners must investigate both losses; no assertions, stack settings or tests changed. This is bounded selector execution, not full-crate or audit-unit acceptance. | Validation agent; implementation owners retain fixes |
+| 2 | Direct-LSP 1,085-selector capture | **FAIL**, complete 21 Oct on `1e910cd3d3` (product source `f6c4694f14`): **874 pass / 211 fail / 1,085**, including 2 timeouts. Against capture48 (870/215): **7 fail-to-pass and 3 pass-to-fail**, net +4 passes. All 1,085 identities match, selections complete, and final source/provider/artifact guards pass with zero drift. Three of five extra controls have source-pin drift and retain the separate source-changed label. Exact comparison and hashes are below. | Investigate all three losses and the remaining 211 failures; do not admit verified units through a capture with pass-to-fail changes. Preserve the original 180 s budget and assertions. | Validation agent; existing reporter retains scheduled reports |
+| 3 | LSP crate tests against CI 5201 | 21 Oct guarded direct-LSP groups: original Core **551/113/664** (capture48 552/112), DB **7/4/11** (8/3), original Server **159/16/175** (unchanged, 2 timeouts); additive Core **139/77/216** (133/83), additive Server **14/0/14** (unchanged), separately labelled controls **4/1/5** (unchanged). Two nested-depth Core cases abort with stack overflow; the DB optional-worker-dialect case unwraps a missing body entry. All source/provider/artifact guards pass. These are bounded selections, not whole-crate acceptance; main CI shards remain build-blocked. | Investigate the three observed losses; keep all executed failures distinct from missing test execution. Exact selectors are in the capture section below. No assertions, stack settings or tests changed. | Validation agent; implementation owners retain fixes |
 | 4 | 18 October user decisions (DB921 merged unit, survey option a, forced-import offsets, test-only helpers, Server102/103, Server108) | DB921, survey and workspace-symbol snapshot landed in integration45 (`aff99dc7e`, `82617ee15`); the rest unconfirmed. | Confirm each on HEAD. | Luna-41 |
 | 5 | Clippy `-D warnings` | **FAIL**, 21 Oct on `1e910cd3d3`: `cargo clippy --locked -p tcl-lsp-core --lib --message-format=json -- -D warnings` exits 101 in the necessary Compiler dependency with **776 error diagnostics**. Core itself is not reached; DB and Server were not redundantly rerun through the same blocker. CI rust-check separately stops at formatting before Clippy. Older Sol-43 per-crate counts are not current measurements. | Implementation owners must clear the Compiler dependency before whole LSP Clippy acceptance can be measured. Receipt: local `/tmp/name-validation-clippy-core.jsonl` (bounded diagnostic records, no fixes). | Luna-41, Sol-49; validation agent measures only |
 | 6 | Fresh-entry analysis and C6 | Sol-47 fixed false S100/T100/T105 and `if {0}` removal. C6 unapplied with 6 blockers (4 uncalled procedure bodies, `fp_sh_21`, `fp_tnt_03`). | Implement "world after load", clear the blockers, apply C6 with zero pass-to-fail. | Sol-49 |
@@ -62,9 +62,39 @@ Counts live in [audit-status.json](audit-status.json); per-unit sites in [reposi
 | C124 | Original selected source navigation (carried link selector 124) | **PASS**, same guarded Core run: `document_links::tests::original_source_links_use_actual_selected_navigation_and_decline_shadows_or_stale_input`, `test-124.log`; same pass as capture48. |
 | C140 | Source-link `--` terminator (carried link selector 140) | **PASS**, same guarded Core run: `document_links::tests::double_dash_terminator_skipped`, `test-140.log`; same pass as capture48. |
 
+## Latest guarded direct-LSP capture
+
+Completed 21 October, 15:21 UTC, using `validation-tools/capture.sh 20261021T1431Z lsp-validation-20261021T1431Z`. Source commit: `1e910cd3d39145d8c08ab3213a886e5f2ed0ba4d`; product source is `f6c4694f14` (later changes before this run were tracking-only). Frozen input: 103,065 materialised source files, five exact C Tcl releases and the pinned Jim provider, six fresh library-test artifacts. Source, all providers and artifacts are unchanged before/after build and execution. Every selector runs exactly once with the original 180 s budget. Two timeouts are included in the 211 failures; they are not additional failures.
+
+Pass-to-fail relative to capture48:
+
+- Core `executable_regions::checked_potential_source_tests::checked_potential_source_retains_depth_exhaustion_as_incomplete`: stack overflow / SIGABRT, `original-tcl_lsp_core/test-462.log`.
+- Core `refactor::inline_variable::tests::deeply_nested_namespaces_survive_scope_walk`: stack overflow / SIGABRT, `additive21-tcl_lsp_core/test-185.log`.
+- DB `original_optimiser_memo_transport_tests::body_optimiser_memo_retains_the_actual_optional_worker_dialect`: missing body entry unwrapped at `rust/tcl-lsp-db/src/lib.rs:11927`, `original-tcl_lsp_db/test-008.log`.
+
+Fail-to-pass, all in Core `refactor::inline_variable::tests`:
+
+- `does_not_inline_braced_literal_with_subst_into_quotes`
+- `inline_braced_reference`
+- `inline_into_command_substitution`
+- `inline_into_nested_command_substitution`
+- `inline_preserves_following_line_without_trailing_newline`
+- `inline_single_use`
+- `original_inline_variable_requires_exact_definition_and_unobserved_read_without_ui_maps`
+
+| Receipt | SHA-256 |
+| --- | --- |
+| Frozen source inputs | `82d302ce8ba5995f9fb348a6e4001215e484562a701c96b6a7fb7521b2dd43ff` |
+| Six providers | `6ef7f0abc98b4e9d54fa52cd27cf77b4f36d8c995cbbc77d81d010cb4f84062b` |
+| Six test artifacts manifest | `4bc4d82423f6635288deb30a8779ffe80bd7d98073323dd70c469f31f6277d74` |
+| Final `summary.json` | `58aa46c567bdcfd06aabc2f78581d06934dea227320ab1fbfa5a599ea7f20a6d` |
+| `comparison-to-capture48.json` | `85a13e9a99c7741bb30bdf03140959d018e297515981df36dcfca9945212c972` |
+
+Local full logs/receipts: `tmp/name-handling-validation/lsp-validation-20261021T1431Z/` and sibling `lsp-build-20261021T1431Z/`. This is direct-LSP original850/additive230/extra5 execution only. It is not full original1024/additive314 coverage, integration/editor-host acceptance, Compiler verification, VM/runtime migration, or an audit-unit admission. Three extra-control source pins changed; the five controls remain under `additional33-source-changed`, not pinned-source acceptance. No implementation or test source changed in this validation pass.
+
 ## Where results live
 
 - Agent notes and patches since the merge: [handoff/reviews/merge-inventory-20261019/](handoff/reviews/merge-inventory-20261019/) (`sol-4x-NOTES.md`, `luna-4x-NOTES.md`).
 - User decisions: [handoff/reviews/resume-20261017-diagnosis/](handoff/reviews/resume-20261017-diagnosis/) (`user-decisions-*.json`).
 - Progress reports: `progress-report-<UTC>.json` in this directory.
-- Latest LSP capture: `experiments/name-handling/results/owner-adoption-20261018/lsp-generic-consumers-14/capture.json`.
+- Previous retained capture48: `experiments/name-handling/results/owner-adoption-20261018/lsp-generic-consumers-14/capture.json`; current guarded run and comparison are identified above.
