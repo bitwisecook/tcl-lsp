@@ -1,19 +1,41 @@
-# Continue the LSP naming migration
+# Brief: validation and state-keeping agent
 
-Continue centralised naming work in `bitwisecook/tcl-lsp`, branch `work`, from the user-paused17 October2026 checkpoint. Read `AGENTS.md`, `docs/work/name-handling/current-state.md`, both audit JSON files, and canonical `experiments/name-handling/results/owner-adoption-20261017/lsp-generic-consumers-09/{capture.json,checkpoint.json}`. Verify/extract the compact archive safely and check every `members.json` hash. It contains admitted34/35, actual logs/guards, and separately marked UNADMITTED proposals; do not apply all patches blindly. Local `/workspace/naming-work` may survive; archive helper paths require re-rooting elsewhere. A shallow checkout is fine; do not recreate large source/provider/binary evidence trees.
+You own validation for the LSP naming migration on `bitwisecook/tcl-lsp`, branch `work`, and keep the record of outstanding validations current. Read `AGENTS.md` first, then `docs/work/name-handling/current-state.md`.
 
-User scope/order: finish and verify LSP itself, including direct Studio/DB consumers and genuine compiler/lexer/registry prerequisites; then migrate and verify remaining compiler dependencies. VM/runtime migrations remain paused. Dedicated BIG-IP/iRules/ILX/XC/APL/tmsh can wait; unknown BIG-IP is assumed Tcl8.4 without measured evidence credit. Use Luna and Sol subagents in parallel as appropriate; Terra was unavailable in the prior tool roster. Report progress against the audit every30 minutes in chat and repository only; do not edit the external naming guide. All agents/tests are stopped; no deadline is active until work resumes.
+## Scope (user decisions)
 
-Counts:570/2158 baseline source adoption,640/2229 effective,290/325 original LSP area; zero verified complete.25 existing Studio NONE rows remain additional direct-consumer obligations. No helper, pending proposal or source-only review earns completion credit.
+- Focus entirely on the LSP (`tcl-lsp-core`, `tcl-lsp-db`, `tcl-lsp-server`), the compiler, registry, syntax and lexer paths it requires, and VM/runtime execution of SpecTcl code. General tclvm parity is parked (`handoff/reviews/resume-20261017-diagnosis/user-decisions-20261021T1310Z.json`).
+- Evidence stays on `work`. The PR to `rust` carries product source, design docs and only the test fixtures tests read, reviewed and reduced (`user-decisions-20261021T1205Z.json`, `handoff/reviews/fixture-review-20261021/`).
+- All recorded decisions are `user-decisions-*.json` in `handoff/reviews/resume-20261017-diagnosis/`. Never re-open one; when a genuine new design choice comes up, ask the user and record the answer there as a new JSON file.
 
-Current actual source admissions end35. Supported35r2 built six selected library test targets successfully. The user stopped the1085 direct-LSP capture after790 completed:636 PASS/154 FAIL including3 timeouts. Core664 completed525/139; DB11 completed7/4; Server115/175 completed104/11, interrupted116 excluded. Additive230/new5 unstarted. Exact52881-source/six-provider/six-test-ELF/order/raw-log post-stop guards passed. This is a partial failed run, not full1085/original1024/additive314 or semantic acceptance. No compiler libtest, integration, real-process server or editor-host acceptance.
+## The record you maintain
 
-Resume by reviewing/admitting the small outside-Main composition36: DB structural class factory, Core Syntax-purpose hazards and source censusV1→V2, real shipped roster initializer/dev dependency setup. Static review preserved400/401 old bodies byte-exact; the one initializer-only setup adapter preserves all assertions/values. Full Core graph build still owed. Then compose the reviewed Studio chains with mandatory header/declaration/store companions and concrete owner-route contracts. Availability producerV2 is cumulative from Main: apply V2 alone. Rust surface and SpecTcl availability adapters require their V1→V2 deltas; stubV2 and pure-literalV2 are mandatory. Notice requires the new Log initializer companion. Actual generated complete Rust positive compilation and intended compile_error negative diagnostics remain owed. Source clear is not semantic acceptance.
+1. **`current-state.md`**: the outstanding-validation table. Every time a validation runs or its status changes, update its row with the date, the commit or run ID, the numbers, and the comparison with the previous result, and update the "Updated" line. Remove a row only when its validation passes; move it under a "Passed" heading with the evidence link rather than deleting it.
+2. **`audit-status.json`** and **`progress-report-<UTC>.json`**: counts. Every 30 minutes while work is active, write a report with `validation-tools/write-report.py <delta.json>`. The delta holds `scheduled`, `change_since_previous_report`, and any `admissions`, `committed`, `in_progress` and `next_report_utc`. Change `integrated` or `verified_complete` counts only with admission evidence: a guarded capture or CI run with zero pass-to-fail and the audit units it closes named. Today nothing is verified complete, because no capture has yet been mapped onto audit units.
+3. Commit and push only these docs (`git add docs/work/name-handling/progress-report-*.json docs/work/name-handling/current-state.md`), and post a short summary in chat.
 
-Never admit C/TU A4/B4: brace-coordinate reset, nested-declarator confusion, internal-name root pollution and outside-literal phase-2 splices are outstanding review holds. No corrected successor exists. Preserve the original malformed incomplete-hex C assertion; its separate correction proposal has no approval. Finish corrected whole-source review before requesting any narrow exception to the original preserve-assertions instruction. The Definer SourceRecipe/OpaqueCallback draft is unsealed/incomplete; finish all true loader/draft/render/coverage consumers and review it first. Corpus review was interrupted; broad Rust expression/version/source inventory work remains partial.
+## Running validations
 
-Investigate Core nextto selector256 still red despite34, genuine reference completeness, DB memo921–923 (prepared probe never executed; use exact current normal Cargo rlibs in separate diagnostic output), and package-index/Server timeouts. Package-index static trace suggests repeated nested parse-cut re-lexing; profile before redesign, preserve nested validation and first-cut ordering. O101/O127 and Logical O100 optimiser proofs plus document-link124/136/140 remain unresolved. Do not erase Source SSA identities, drop dual bodies, weaken equality, infer completeness from absence, hardcode command semantics, or donate report/source data to Native identity.
+- **Full workspace CI**: dispatch `ci.yml` on `work` (workflow_dispatch). It takes about six hours. Store each shard's failing tests under `handoff/reviews/merge-inventory-20261019/ci-<run>/` like `ci-5201/`, compare with run 5201 per test, and update rows 1, 3, 5 and 9 to 11 of the table. `validation-tools/ci-jobs.py` summarises failing jobs.
+- **Direct-LSP capture**: `validation-tools/capture.sh <N>`. Read `validation-tools/README.md`. Compare per selector with capture48 (870 pass, 215 fail, 2 timeouts) and report pass-to-fail and fail-to-pass. The guards fail if any file changes during the run, so capture only while no other agent is editing.
+- **Local test runs**: `CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 TCL_LSP_REQUIRE_TCLSH=9.0,8.6 TCL_LSP_JIMSH=$PWD/tmp/jimtcl-oracle/jimsh`. Run one test target at a time and never the whole `tcl-compiler` lib at once. Never build in the plain dev profile with full debuginfo.
 
-Preserve original selectors, fixture values, assertions,180-second singleton and30-second listing budgets, fail-closed source/provider/artifact guards. Explicit genuine API setup adapters are narrowly documented; never claim blanket old-body byte-exact preservation. No new allow attributes. Historical full21 capture and old proof failures are preserved, not current-source validation. Keep unknowns explicit rather than refreshing hashes into fake evidence.
+## Disk and logs
 
-Build fresh artifacts and capture exact original/additive/separate controls on a frozen current source with final guards. Then run genuine references_rename, Server e2e/preview targets, an actual non-test server executable, real Emacs/VSCode/JetBrains/browser-WASM hosts, owner/proof/generated drift, make rust-check and make prep-pr. Original native34 membership/order remains unrecovered; source-derived candidates and in-process tower tests do not substitute. After LSP verification, address parked compiler packets and locked Compiler221 contradictory same-input Some/None tests. Runtime/VM still paused. Rebase origin/rust before a green PR; regular reviewed development commits/pushes before green are authorised, merge and issue closure are not. Update tracking truthfully and finish the work rather than stopping at a plan.
+The disk is shared and tight (about 3 GB free). An unbounded test log once filled it completely.
+
+- Check `df -h /` before every build. Stop building below 2 GB.
+- Pipe test output through a filter that keeps only test, panic and assert lines, capped at 20 MB.
+- Delete test executables when done.
+- Safe to remove: `target/debug/incremental` directories older than 30 minutes, and superseded `target/debug/deps` rlibs. Keep the newest of each crate; cargo rebuilds what it needs.
+
+## Working alongside implementation agents
+
+Other agents edit the same working tree. Never stash, reset, checkout or `checkout -p`, and never commit someone else's uncommitted edits unless the user asks. Their notes and patches are in `handoff/reviews/merge-inventory-20261019/` (`sol-4x-NOTES.md`, `luna-4x-NOTES.md`): read them to update the table. If a validation fails because of in-progress edits, record it as such rather than as a regression.
+
+## Rules for judging results
+
+- C Tcl (tclsh 8.4–9.1 on PATH) decides Tcl semantics.
+- Never weaken an assertion. A test correction is acceptable only where the test contradicts tclsh or a recorded user decision, and must be narrow and documented.
+- A failure on `origin/rust` too is not this branch's, but record it.
+- "Flake" is not a root cause.
