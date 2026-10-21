@@ -1,0 +1,1336 @@
+diff --git a/rust/tcl-vm/src/cmd_oo.rs b/rust/tcl-vm/src/cmd_oo.rs
+index fa16147c20..a465efec00 100644
+--- a/rust/tcl-vm/src/cmd_oo.rs
++++ b/rust/tcl-vm/src/cmd_oo.rs
+@@ -1968,7 +1968,18 @@ fn run_step(
+     cleanup.finish_completion(vm, result)
+ }
+ 
+-#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // A method activation genuinely carries this context and persistence seam.
++/// A method step after [`prepare_method_step`]: either it already finished
++/// (an intrinsic, property or forward method, or a preparation failure), or it
++/// is a procedure-bodied method ready to run with its instance-variable links.
++enum MethodStep {
++    Finished(Completion<Value>),
++    Procedure(
++        Box<crate::command::PreparedProcedureActivation>,
++        Vec<(NameBytes, NameBytes)>,
++    ),
++}
++
++#[allow(clippy::too_many_arguments)] // A method activation genuinely carries this context.
+ fn run_step_inner(
+     vm: &mut Vm,
+     obj_key: OoId,
+@@ -1981,134 +1992,116 @@ fn run_step_inner(
+     usage_prefix: Vec<Value>,
+     call_identity: Vec<Value>,
+ ) -> Completion<Value> {
++    // A procedure-bodied method recurses natively through this frame (see
++    // `interp::OO_DISPATCH_DEPTH_LIMIT`), so all the work that finishes before
++    // its body runs is kept in `prepare_method_step`'s frame, not this one.
++    let (proc, link_vars) = match prepare_method_step(
++        vm,
++        obj_key,
++        chain,
++        index,
++        &method,
++        args,
++        external,
++        &invoked,
++        &usage_prefix,
++        call_identity,
++    ) {
++        MethodStep::Finished(completion) => return completion,
++        MethodStep::Procedure(proc, link_vars) => (proc, link_vars),
++    };
++    let frame = OoFrame {
++        context_birth: Rc::new(()),
++        name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
++        activation: None,
++        object: obj_key,
++        chain: chain.clone(),
++        index,
++        method,
++        external,
++        invoked,
++        usage_prefix,
++    };
++    vm.oo_run_method(proc, args, &link_vars, frame)
++}
++
++/// Everything [`run_step_inner`] does before a procedure-bodied method's body
++/// runs: intrinsic, property and forward methods finish here; a procedure
++/// method gets its compiled body and instance-variable links.
++#[inline(never)]
++#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // A method activation genuinely carries this context and persistence seam.
++fn prepare_method_step(
++    vm: &mut Vm,
++    obj_key: OoId,
++    chain: &native_method_cache::ReachedMethodChain,
++    index: usize,
++    method: &str,
++    args: &[Value],
++    external: bool,
++    invoked: &Value,
++    usage_prefix: &[Value],
++    call_identity: Vec<Value>,
++) -> MethodStep {
+     let step = chain[index].clone();
+     // Only the originally entered record can supply this implementation.
+     // An ownerless descriptive context cannot acquire a mutable table record.
+     let Some(owner) = &step.method_owner else {
+-        return crate::command::completion_from_cmd_error(
++        return MethodStep::Finished(crate::command::completion_from_cmd_error(
+             vm,
+             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                 "original TclOO selected method record",
+             )
+             .into(),
+-        );
++        ));
+     };
+     let m = owner.borrow().clone();
+ 
+     if let Some(intrinsic) = m.intrinsic {
+-        use tcl_runtime_api::native_oo::NativeOoIntrinsicMethod;
+-        return match intrinsic {
+-            NativeOoIntrinsicMethod::Destroy => {
+-                if !args.is_empty() {
+-                    let header = match vm.native_argument_usage_header(&usage_prefix) {
+-                        Ok(header) => header,
+-                        Err(error) => return error,
+-                    };
+-                    return crate::command::native_wrong_args_bytes(vm, &header);
+-                }
+-                oo_destroy(vm, obj_key)
+-            }
+-            NativeOoIntrinsicMethod::Create | NativeOoIntrinsicMethod::New => {
+-                let Some(original_method) = usage_prefix.get(1) else {
+-                    return vm.refuse_host_command(
+-                        "original factory method invocation is unavailable".into(),
+-                    );
+-                };
+-                factory(
+-                    vm,
+-                    obj_key,
+-                    &invoked,
+-                    original_method,
+-                    intrinsic == NativeOoIntrinsicMethod::New,
+-                    args,
+-                )
+-            }
+-            NativeOoIntrinsicMethod::Configure => configure_method(vm, obj_key, args),
+-            NativeOoIntrinsicMethod::ClassConstructor
+-            | NativeOoIntrinsicMethod::ConfigurableConstructor => {
+-                if args.len() > 1 {
+-                    return definition_wrong_args(vm, "?definitionScript?");
+-                }
+-                args.first().map_or_else(
+-                    || ok(Value::empty()),
+-                    |body| evaluate_class_definition(vm, obj_key, body),
+-                )
+-            }
+-        };
++        return MethodStep::Finished(run_intrinsic_method(
++            vm,
++            obj_key,
++            intrinsic,
++            args,
++            invoked,
++            usage_prefix,
++        ));
+     }
+-
+     if let Some(property) = &m.property {
+-        let mut active = crate::interp::oo_cleanup::OriginalOoActivation::enter(vm);
+-        let frame = OoFrame {
+-            context_birth: Rc::new(()),
+-            name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
+-            activation: None,
+-            object: obj_key,
+-            chain: chain.clone(),
++        return MethodStep::Finished(run_property_method(
++            vm,
++            obj_key,
++            chain,
+             index,
+-            method: method.clone(),
++            method,
++            property,
++            args,
+             external,
+             invoked,
+             usage_prefix,
+-        };
+-        if let Err(error) = active.push_method(vm, frame) {
+-            return crate::command::completion_from_cmd_error(vm, error);
+-        }
+-        let result = native_properties::invoke_default(vm, obj_key, property, args, &call_identity);
+-        active.retire_method(vm);
+-        return active.finish(vm, result);
++            &call_identity,
++        ));
+     }
+-
+-    // A forward: evaluate `prefix args…` with the OBJECT's namespace current,
+-    // so the target resolves object-ns → global exactly as C TclOO does —
+-    // never in the dispatch site's namespace (tclsh 8.6.16 / 9.0.4-pinned:
+-    // `$obj fw` called from a namespace that has its own same-named proc
+-    // still dispatches the global target).
+     if let Some(prefix) = &m.forward {
+-        let mut active = crate::interp::oo_cleanup::OriginalOoActivation::enter(vm);
+-        let mut words: Vec<Value> = prefix.clone();
+-        words.extend_from_slice(args);
+-        let ns = vm.oo.objects.get(&obj_key).map(|o| o.ns.clone());
+-        let frame = OoFrame {
+-            context_birth: Rc::new(()),
+-            name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
+-            activation: None,
+-            object: obj_key,
+-            chain: chain.clone(),
++        return MethodStep::Finished(run_forward_method(
++            vm,
++            obj_key,
++            chain,
+             index,
+-            method: method.clone(),
++            method,
++            prefix,
++            args,
+             external,
+-            invoked: invoked.clone(),
+-            usage_prefix: usage_prefix.clone(),
+-        };
+-        if let Err(error) = active.push_method(vm, frame) {
+-            return crate::command::completion_from_cmd_error(vm, error);
+-        }
+-        vm.push_ns(ns.unwrap_or_default());
+-        if let Err(error) = active.capture_namespace(vm) {
+-            crate::interp::oo_cleanup::retain_error(vm, &error);
+-            active.retire_namespace(vm, false);
+-            active.retire_method(vm);
+-            let result = crate::command::completion_from_cmd_error(vm, error);
+-            return active.finish(vm, result);
+-        }
+-        let context = vm.current_ns_id();
+-        let res = vm.invoke_command_value_at(
+-            context,
+-            &words[0],
+-            &words[1..],
+-            &[],
+-            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+-        );
+-        active.retire_namespace(vm, false);
+-        active.retire_method(vm);
+-        return active.finish(vm, res);
++            invoked,
++            usage_prefix,
++        ));
+     }
+ 
+     let preparation =
+         match method_preparation::OriginalMethodPreparation::enter(vm, obj_key, chain, index) {
+             Ok(preparation) => preparation,
+-            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
++            Err(error) => {
++                return MethodStep::Finished(crate::command::completion_from_cmd_error(vm, error));
++            }
+         };
+     let obj_ns = vm
+         .oo
+@@ -2190,7 +2183,7 @@ fn run_step_inner(
+         statics: None,
+         body,
+         body_src: m.body_src.clone(),
+-        usage_name: Some(usage_prefix.clone()),
++        usage_name: Some(usage_prefix.to_vec()),
+         call_identity: Some(call_identity),
+         lambda_term: None,
+     };
+@@ -2200,7 +2193,9 @@ fn run_step_inner(
+     let reached = vm.ensure_proc_traced(crate::command::NativeProcedureCommand::new(proc));
+     let proc = match preparation.settle(vm, reached) {
+         Ok(proc) => proc,
+-        Err(error) => return crate::command::completion_from_tcl_error(vm, error),
++        Err(error) => {
++            return MethodStep::Finished(crate::command::completion_from_tcl_error(vm, error));
++        }
+     };
+     let cache_is_current = m.compiled_body.as_ref().is_some_and(|(namespace, cached)| {
+         namespace == &obj_ns
+@@ -2225,12 +2220,127 @@ fn run_step_inner(
+         };
+         drop(retired);
+         if let Err(error) = preparation.check(vm) {
+-            return crate::command::completion_from_cmd_error(vm, error);
++            return MethodStep::Finished(crate::command::completion_from_cmd_error(vm, error));
+         }
+     }
+     if let Err(error) = preparation.finish(vm) {
++        return MethodStep::Finished(crate::command::completion_from_cmd_error(vm, error));
++    }
++    MethodStep::Procedure(Box::new(proc), link_vars)
++}
++
++/// An intrinsic method step (`destroy`, `create`/`new`, `configure`, a
++/// class constructor), out of line from [`prepare_method_step`].
++#[inline(never)]
++fn run_intrinsic_method(
++    vm: &mut Vm,
++    obj_key: OoId,
++    intrinsic: tcl_runtime_api::native_oo::NativeOoIntrinsicMethod,
++    args: &[Value],
++    invoked: &Value,
++    usage_prefix: &[Value],
++) -> Completion<Value> {
++    use tcl_runtime_api::native_oo::NativeOoIntrinsicMethod;
++    match intrinsic {
++        NativeOoIntrinsicMethod::Destroy => {
++            if !args.is_empty() {
++                let header = match vm.native_argument_usage_header(usage_prefix) {
++                    Ok(header) => header,
++                    Err(error) => return error,
++                };
++                return crate::command::native_wrong_args_bytes(vm, &header);
++            }
++            oo_destroy(vm, obj_key)
++        }
++        NativeOoIntrinsicMethod::Create | NativeOoIntrinsicMethod::New => {
++            let Some(original_method) = usage_prefix.get(1) else {
++                return vm.refuse_host_command(
++                    "original factory method invocation is unavailable".into(),
++                );
++            };
++            factory(
++                vm,
++                obj_key,
++                invoked,
++                original_method,
++                intrinsic == NativeOoIntrinsicMethod::New,
++                args,
++            )
++        }
++        NativeOoIntrinsicMethod::Configure => configure_method(vm, obj_key, args),
++        NativeOoIntrinsicMethod::ClassConstructor
++        | NativeOoIntrinsicMethod::ConfigurableConstructor => {
++            if args.len() > 1 {
++                return definition_wrong_args(vm, "?definitionScript?");
++            }
++            args.first().map_or_else(
++                || ok(Value::empty()),
++                |body| evaluate_class_definition(vm, obj_key, body),
++            )
++        }
++    }
++}
++
++/// A property accessor method step, out of line from [`prepare_method_step`].
++#[allow(clippy::too_many_arguments)] // A method activation genuinely carries this context.
++#[inline(never)]
++fn run_property_method(
++    vm: &mut Vm,
++    obj_key: OoId,
++    chain: &native_method_cache::ReachedMethodChain,
++    index: usize,
++    method: &str,
++    property: &native_properties::NativePropertyAccessor,
++    args: &[Value],
++    external: bool,
++    invoked: &Value,
++    usage_prefix: &[Value],
++    call_identity: &[Value],
++) -> Completion<Value> {
++    let mut active = crate::interp::oo_cleanup::OriginalOoActivation::enter(vm);
++    let frame = OoFrame {
++        context_birth: Rc::new(()),
++        name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
++        activation: None,
++        object: obj_key,
++        chain: chain.clone(),
++        index,
++        method: method.to_owned(),
++        external,
++        invoked: invoked.clone(),
++        usage_prefix: usage_prefix.to_vec(),
++    };
++    if let Err(error) = active.push_method(vm, frame) {
+         return crate::command::completion_from_cmd_error(vm, error);
+     }
++    let result = native_properties::invoke_default(vm, obj_key, property, args, call_identity);
++    active.retire_method(vm);
++    active.finish(vm, result)
++}
++
++// A forward: evaluate `prefix args…` with the OBJECT's namespace current,
++// so the target resolves object-ns → global exactly as C TclOO does —
++// never in the dispatch site's namespace (tclsh 8.6.16 / 9.0.4-pinned:
++// `$obj fw` called from a namespace that has its own same-named proc
++// still dispatches the global target).
++#[allow(clippy::too_many_arguments)] // A method activation genuinely carries this context.
++#[inline(never)]
++fn run_forward_method(
++    vm: &mut Vm,
++    obj_key: OoId,
++    chain: &native_method_cache::ReachedMethodChain,
++    index: usize,
++    method: &str,
++    prefix: &[Value],
++    args: &[Value],
++    external: bool,
++    invoked: &Value,
++    usage_prefix: &[Value],
++) -> Completion<Value> {
++    let mut active = crate::interp::oo_cleanup::OriginalOoActivation::enter(vm);
++    let mut words: Vec<Value> = prefix.to_vec();
++    words.extend_from_slice(args);
++    let ns = vm.oo.objects.get(&obj_key).map(|o| o.ns.clone());
+     let frame = OoFrame {
+         context_birth: Rc::new(()),
+         name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
+@@ -2238,12 +2348,33 @@ fn run_step_inner(
+         object: obj_key,
+         chain: chain.clone(),
+         index,
+-        method,
++        method: method.to_owned(),
+         external,
+-        invoked,
+-        usage_prefix,
++        invoked: invoked.clone(),
++        usage_prefix: usage_prefix.to_vec(),
+     };
+-    vm.oo_run_method(proc, args, &link_vars, frame)
++    if let Err(error) = active.push_method(vm, frame) {
++        return crate::command::completion_from_cmd_error(vm, error);
++    }
++    vm.push_ns(ns.unwrap_or_default());
++    if let Err(error) = active.capture_namespace(vm) {
++        crate::interp::oo_cleanup::retain_error(vm, &error);
++        active.retire_namespace(vm, false);
++        active.retire_method(vm);
++        let result = crate::command::completion_from_cmd_error(vm, error);
++        return active.finish(vm, result);
++    }
++    let context = vm.current_ns_id();
++    let res = vm.invoke_command_value_at(
++        context,
++        &words[0],
++        &words[1..],
++        &[],
++        tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
++    );
++    active.retire_namespace(vm, false);
++    active.retire_method(vm);
++    active.finish(vm, res)
+ }
+ 
+ /// The object built-in methods `variable name…`, `varname name`, `eval script`.
+diff --git a/rust/tcl-vm/src/exec.rs b/rust/tcl-vm/src/exec.rs
+index fed45e6528..f929e2539f 100644
+--- a/rust/tcl-vm/src/exec.rs
++++ b/rust/tcl-vm/src/exec.rs
+@@ -1117,6 +1117,24 @@ fn build_off2idx(asm: &FunctionAsm) -> HashMap<i32, usize> {
+         .collect()
+ }
+ 
++/// The instructions [`Vm::tick_invoke`] executes: those that run a command
++/// (and so may recurse natively into a TclOO method) while their frame is live.
++fn is_invoke_op(op: Op) -> bool {
++    matches!(
++        op,
++        Op::INVOKE_STK1
++            | Op::INVOKE_STK4
++            | Op::INVOKE_EXPANDED
++            | Op::INVOKE_REPLACE
++            | Op::TCLOO_NEXT
++            | Op::TCLOO_NEXT4
++            | Op::TCLOO_NEXT_CLASS
++            | Op::TCLOO_NEXT_CLASS4
++            | Op::TCLOO_NEXT_LIST
++            | Op::TCLOO_NEXT_CLASS_LIST
++    )
++}
++
+ fn imm0(instr: &Instruction) -> i32 {
+     match instr.operands.first() {
+         Some(Operand::Imm(n)) => *n,
+@@ -1729,7 +1747,7 @@ impl Vm {
+                 "compiled artifact identity or pack claims are no longer available".into(),
+             );
+         }
+-        self.run_activation(Frame::new(unit, false))
++        self.run_activation(Box::new(Frame::new(unit, false)))
+     }
+ 
+     /// Run a retained canonical object body through the ordinary control driver.
+@@ -1740,7 +1758,7 @@ impl Vm {
+     ) -> Completion<Value> {
+         let state = crate::cmd_control::ControlState::object_body_eval(original, words);
+         let placeholder = self.current_placeholder_unit();
+-        self.run_activation(Frame::new_control(state, placeholder))
++        self.run_activation(Box::new(Frame::new_control(state, placeholder)))
+     }
+ 
+     /// Run one activation stack to completion (the ordinary, non-coroutine path).
+@@ -1748,9 +1766,13 @@ impl Vm {
+     /// call (so `unwind` pops a call-frame + namespace and absorbs `return`):
+     /// `false` for a module top-level,
+     /// `true` for [`invoke_command`](Self::invoke_command) running a proc body.
+-    fn run_activation(&mut self, initial: Frame) -> Completion<Value> {
++    ///
++    /// The frame is boxed so no copy of it stays in this frame (or the
++    /// caller's) while the activation runs: a TclOO method call recurses
++    /// natively through here (see `OO_DISPATCH_DEPTH_LIMIT`).
++    fn run_activation(&mut self, initial: Box<Frame>) -> Completion<Value> {
+         let mut acts = Vec::new();
+-        self.push_frame(&mut acts, initial);
++        self.push_boxed_frame(&mut acts, initial);
+         match self.drive(&mut acts, DriveMode::Plain) {
+             RunExit::Done(c) => c,
+             // A `yield` reached at top level (outside a coroutine driver) is
+@@ -1830,6 +1852,11 @@ impl Vm {
+         }
+     }
+ 
++    #[inline(never)]
++    fn push_boxed_frame(&mut self, acts: &mut Vec<Frame>, frame: Box<Frame>) {
++        self.push_frame(acts, *frame);
++    }
++
+     fn push_frame(&mut self, acts: &mut Vec<Frame>, mut frame: Frame) {
+         frame.original_target =
+             Some(crate::interp::native_operation_currency::SavedExecutionTarget::capture(self));
+@@ -5273,11 +5300,33 @@ impl Vm {
+         if f.each_loop.is_some() {
+             return self.tick_each_loop(f);
+         }
++        let asm = match self.tick_bytecode_prologue(f) {
++            Ok(asm) => asm,
++            Err(tick) => return tick,
++        };
++        let instr = &asm.instructions[f.pc - 1];
++        // Command invocation recurses natively for a TclOO method call (see
++        // `OO_DISPATCH_DEPTH_LIMIT`), so it runs in its own small frame rather
++        // than in the frame of the whole opcode match.
++        if is_invoke_op(instr.op) {
++            return self.tick_invoke(f, &asm, instr);
++        }
++        self.tick_instruction(f, &asm, instr)
++    }
++
++    /// The bytecode-instruction prologue of [`Self::tick_in_original_scope`]:
++    /// command-boundary bookkeeping, stale-command replay, and the debugger seams.
++    /// Returns the frame's function with `f.pc` already past the instruction to
++    /// execute, or the tick that ends this step early. Kept out of line so its
++    /// locals are not on the native stack while the instruction runs (a TclOO
++    /// method call recurses natively through the INVOKE path).
++    #[inline(never)]
++    fn tick_bytecode_prologue(&mut self, f: &mut Frame) -> Result<Rc<FunctionAsm>, Tick> {
+         if !f.native_bytecode_entered {
+             if let Err(refusal) = self.reset_native_ensemble_rewrite(
+                 tcl_registry::native_ensemble_rewrite::EnsembleRewriteResetEvent::BytecodeEntry,
+             ) {
+-                return Tick::Return(refusal);
++                return Err(Tick::Return(refusal));
+             }
+             f.native_bytecode_entered = true;
+         }
+@@ -5293,24 +5342,24 @@ impl Vm {
+             .retain(|operation| operation.start <= f.pc && f.pc < operation.end);
+         let asm = Rc::clone(&f.asm);
+         if f.pc >= asm.instructions.len() {
+-            return self.finish_frame_result(f);
++            return Err(self.finish_frame_result(f));
+         }
+         let instr = &asm.instructions[f.pc];
+         if let Some(tick) = self.enter_native_operations(f, &asm, instr) {
+-            return tick;
++            return Err(tick);
+         }
+         if let Some(tick) = self.enter_native_compiler_selection(f, &asm, instr) {
+-            return tick;
++            return Err(tick);
+         }
+         // Each source command resets the interpreter's result owner. Frame
+         // mirrors preserve lifetime without introducing native references.
+         if instr.source_command_boundary.is_start() {
+             f.last_result = None;
+             if let Err(error) = self.reset_native_jim_result() {
+-                return Tick::Return(crate::command::completion_from_tcl_error(
++                return Err(Tick::Return(crate::command::completion_from_tcl_error(
+                     self,
+                     error.into(),
+-                ));
++                )));
+             }
+         }
+         if instr.op != Op::START_CMD
+@@ -5332,7 +5381,9 @@ impl Vm {
+                     .resolve_compiled_namespace_context(&instr.source_namespace_context())
+                     .is_none()
+                 {
+-                    return Tick::Return(err("native replay namespace context is unavailable"));
++                    return Err(Tick::Return(err(
++                        "native replay namespace context is unavailable",
++                    )));
+                 }
+                 let child = match self.compile_plain_function_cached_bytes(
+                     tcl_runtime_api::ScriptCompileTargetBytes {
+@@ -5342,9 +5393,9 @@ impl Vm {
+                 ) {
+                     Ok(asm) => asm,
+                     Err(error) => {
+-                        return Tick::Return(crate::command::completion_from_tcl_error(
++                        return Err(Tick::Return(crate::command::completion_from_tcl_error(
+                             self, error,
+-                        ));
++                        )));
+                     }
+                 };
+                 let mut after = f.pc + 1;
+@@ -5378,7 +5429,7 @@ impl Vm {
+                 } else {
+                     after
+                 };
+-                return Tick::PushScript {
++                return Err(Tick::PushScript {
+                     script: Box::new(
+                         self.compiled_unit(child, instr.source_command_namespace.clone()),
+                     ),
+@@ -5386,13 +5437,13 @@ impl Vm {
+                     cleanup_proc: None,
+                     fatal_tail: None,
+                     namespace: ScriptNamespace::CommandBoundary(instr.source_namespace_context()),
+-                };
++                });
+             }
+         }
+         if let Err(completion) =
+             self.capture_entered_command(f, &asm, instr, f.pc.saturating_add(1))
+         {
+-            return Tick::Return(completion);
++            return Err(Tick::Return(completion));
+         }
+         if instr
+             .completion_option_scope
+@@ -5408,12 +5459,24 @@ impl Vm {
+         #[allow(clippy::redundant_closure_for_method_calls)] // Span isn't named in this crate.
+         let span_start = instr.source_span.map(|s| s.start());
+         if self.debug_step(instr.source_line, span_start, &instr.source_cmd_text) {
+-            return Tick::Return(Completion::new(
++            return Err(Tick::Return(Completion::new(
+                 Code::Error,
+                 Value::string("debug: terminated"),
+                 Value::empty(),
+-            ));
++            )));
+         }
++        Ok(asm)
++    }
++
++    /// Execute one non-invoking instruction (`f.pc` is already past it).
++    #[inline(never)]
++    #[allow(clippy::too_many_lines)] // One match over every opcode; the VM's central dispatch is clearer whole.
++    fn tick_instruction(
++        &mut self,
++        f: &mut Frame,
++        asm: &Rc<FunctionAsm>,
++        instr: &Instruction,
++    ) -> Tick {
+         let lits = asm.literals.entries();
+         let lvt = asm.lvt.entries();
+ 
+@@ -7486,46 +7549,6 @@ impl Vm {
+                     return Tick::Return(completion);
+                 }
+             }
+-            Op::INVOKE_STK1 | Op::INVOKE_STK4 => {
+-                let argc = usize::try_from(imm0(instr)).unwrap_or(0);
+-                if f.stack.len() < argc || argc == 0 {
+-                    return Tick::Return(err("invoke: stack underflow"));
+-                }
+-                let words = crate::NativeListItems::invocation_view(Rc::new(
+-                    f.stack.split_off(f.stack.len() - argc),
+-                ));
+-                let entered = f.take_entered_command();
+-                // How the release compiles this command where the VM runs it
+-                // (C's compiled `catch`/`try`/`for`/`switch`/`dict`): only in
+-                // a procedure body where its form requires one, and only where
+-                // the words it binds name the frame's compiled locals.
+-                let release_compiled = instr.release_compiled.filter(|compiled| {
+-                    (f.is_proc || !compiled.in_procedure_only)
+-                        && self.frame_compiled_locals_named(compiled.frame_local_words, &words)
+-                });
+-                self.pending.release_compiled = release_compiled;
+-                let dispatched = self.dispatch_words_with_entered(f, &words, entered.as_ref());
+-                self.pending.release_compiled = None;
+-                match dispatched {
+-                    Ok(Some(call)) => return call,
+-                    Ok(None) => {}
+-                    Err(c) => {
+-                        if c.code == Code::Error {
+-                            let (cmd_text, line, enclosing) = logged_command(instr);
+-                            let msg = c.result.string_bytes();
+-                            self.log_command_with_enclosing(
+-                                &cmd_text,
+-                                invoke_inner_context(self, instr, &words, &cmd_text),
+-                                &enclosing,
+-                                &msg,
+-                                line,
+-                            );
+-                        }
+-                        return Tick::Return(c);
+-                    }
+-                }
+-            }
+-
+             // {*} argument expansion.
+             // `EXPAND_START` records the current stack depth: every word pushed
+             // after it belongs to the command being built. `EXPAND_STKTOP`
+@@ -7565,39 +7588,6 @@ impl Vm {
+                     f.stack.truncate(marker);
+                 }
+             }
+-            Op::INVOKE_EXPANDED => {
+-                let marker = f.expand_markers.pop().unwrap_or(f.stack.len());
+-                if f.stack.len() < marker {
+-                    return Tick::Return(err("invoke: stack underflow"));
+-                }
+-                let words =
+-                    crate::NativeListItems::invocation_view(Rc::new(f.stack.split_off(marker)));
+-                if words.is_empty() {
+-                    if let Err(c) = self.deliver_sync(f, ok(Value::empty())) {
+-                        return Tick::Return(c);
+-                    }
+-                } else {
+-                    let entered = f.take_entered_command();
+-                    match self.dispatch_words_with_entered(f, &words, entered.as_ref()) {
+-                        Ok(Some(call)) => return call,
+-                        Ok(None) => {}
+-                        Err(c) => {
+-                            if c.code == Code::Error {
+-                                let (cmd_text, line, enclosing) = logged_command(instr);
+-                                let msg = c.result.string_bytes();
+-                                self.log_command_with_enclosing(
+-                                    &cmd_text,
+-                                    invoke_inner_context(self, instr, &words, &cmd_text),
+-                                    &enclosing,
+-                                    &msg,
+-                                    line,
+-                                );
+-                            }
+-                            return Tick::Return(c);
+-                        }
+-                    }
+-                }
+-            }
+             // Ensemble-rewrite invoke (C Tcl `INST_INVOKE_REPLACE`): operands are
+             // `(objc, opnd)` — `objc` words sit on the stack with the resolved
+             // implementation word on top. The first `opnd` original words (e.g.
+@@ -7605,56 +7595,6 @@ impl Vm {
+             // (`::tcl::string::equal`); the effective command is
+             // `impl + words[opnd..]`. The same selected prefix rewrite supplies
+             // native wrong-argument presentation without recompiling argv.
+-            Op::INVOKE_REPLACE => {
+-                let objc = usize::try_from(imm0(instr)).unwrap_or(0);
+-                let opnd = usize::try_from(imm_at(instr, 1)).unwrap_or(0);
+-                let repl = pop(f);
+-                if f.stack.len() < objc {
+-                    return Tick::Return(err("invokeReplace: stack underflow"));
+-                }
+-                let words = f.stack.split_off(f.stack.len() - objc);
+-                // The entered outer ensemble protects this specialised range
+-                // from replay after argument-time mutation, but it is not the
+-                // command this opcode invokes. Tcl resolves the rewritten
+-                // implementation word after substitution, so an argument may
+-                // replace `::tcl::string::equal` for this very invocation.
+-                let _entered_range = f.take_entered_command();
+-                let mut rewritten = Vec::with_capacity(objc.saturating_sub(opnd) + 1);
+-                rewritten.push(repl);
+-                if opnd < words.len() {
+-                    rewritten.extend_from_slice(&words[opnd..]);
+-                }
+-                let usage = vec![crate::command::NativeArgumentUsageRewrite {
+-                    original_prefix: words[..opnd.min(words.len())].to_vec(),
+-                    removed_words: 1,
+-                }];
+-                let rewritten = crate::NativeListItems::invocation_view(Rc::new(rewritten));
+-                match self.dispatch_words_entry_at(
+-                    f,
+-                    &rewritten,
+-                    None,
+-                    self.current_ns_id(),
+-                    &usage,
+-                    false,
+-                ) {
+-                    Ok(Some(call)) => return call,
+-                    Ok(None) => {}
+-                    Err(c) => {
+-                        if c.code == Code::Error {
+-                            let (cmd_text, line, enclosing) = logged_command(instr);
+-                            let msg = c.result.string_bytes();
+-                            self.log_command_with_enclosing(
+-                                &cmd_text,
+-                                invoke_inner_context(self, instr, &rewritten, &cmd_text),
+-                                &enclosing,
+-                                &msg,
+-                                line,
+-                            );
+-                        }
+-                        return Tick::Return(c);
+-                    }
+-                }
+-            }
+             Op::EXPR_STK => {
+                 let source = pop(f);
+                 return match self.prepare_original_expression_value(&source) {
+@@ -8344,14 +8284,166 @@ impl Vm {
+                     Err(completion) => return Tick::Return(completion),
+                 }
+             }
++            Op::INVOKE_STK1
++            | Op::INVOKE_STK4
++            | Op::INVOKE_EXPANDED
++            | Op::INVOKE_REPLACE
++            | Op::TCLOO_NEXT
++            | Op::TCLOO_NEXT4
++            | Op::TCLOO_NEXT_CLASS
++            | Op::TCLOO_NEXT_CLASS4
++            | Op::TCLOO_NEXT_LIST
++            | Op::TCLOO_NEXT_CLASS_LIST => return self.tick_invoke(f, asm, instr),
++        }
++
++        Tick::Continue
++    }
++
++    /// Execute one command-invoking instruction (`f.pc` is already past it):
++    /// `INVOKE_*` and the compiled `next`/`nextto` forms. Its frame is on the
++    /// native stack for the whole invoked command, so it holds only these arms.
++    #[inline(never)]
++    fn tick_invoke(&mut self, f: &mut Frame, asm: &Rc<FunctionAsm>, instr: &Instruction) -> Tick {
++        macro_rules! try_op {
++            ($e:expr) => {
++                match $e {
++                    Ok(v) => v,
++                    Err(c) => return Tick::Return(c),
++                }
++            };
++        }
++        match instr.op {
++            Op::INVOKE_STK1 | Op::INVOKE_STK4 => {
++                let argc = usize::try_from(imm0(instr)).unwrap_or(0);
++                if f.stack.len() < argc || argc == 0 {
++                    return Tick::Return(err("invoke: stack underflow"));
++                }
++                let words = crate::NativeListItems::invocation_view(Rc::new(
++                    f.stack.split_off(f.stack.len() - argc),
++                ));
++                let entered = f.take_entered_command();
++                // How the release compiles this command where the VM runs it
++                // (C's compiled `catch`/`try`/`for`/`switch`/`dict`): only in
++                // a procedure body where its form requires one, and only where
++                // the words it binds name the frame's compiled locals.
++                let release_compiled = instr.release_compiled.filter(|compiled| {
++                    (f.is_proc || !compiled.in_procedure_only)
++                        && self.frame_compiled_locals_named(compiled.frame_local_words, &words)
++                });
++                self.pending.release_compiled = release_compiled;
++                let dispatched = self.dispatch_words_with_entered(f, &words, entered.as_ref());
++                self.pending.release_compiled = None;
++                match dispatched {
++                    Ok(Some(call)) => return call,
++                    Ok(None) => {}
++                    Err(c) => {
++                        if c.code == Code::Error {
++                            let (cmd_text, line, enclosing) = logged_command(instr);
++                            let msg = c.result.string_bytes();
++                            self.log_command_with_enclosing(
++                                &cmd_text,
++                                invoke_inner_context(self, instr, &words, &cmd_text),
++                                &enclosing,
++                                &msg,
++                                line,
++                            );
++                        }
++                        return Tick::Return(c);
++                    }
++                }
++            }
++
++            Op::INVOKE_EXPANDED => {
++                let marker = f.expand_markers.pop().unwrap_or(f.stack.len());
++                if f.stack.len() < marker {
++                    return Tick::Return(err("invoke: stack underflow"));
++                }
++                let words =
++                    crate::NativeListItems::invocation_view(Rc::new(f.stack.split_off(marker)));
++                if words.is_empty() {
++                    if let Err(c) = self.deliver_sync(f, ok(Value::empty())) {
++                        return Tick::Return(c);
++                    }
++                } else {
++                    let entered = f.take_entered_command();
++                    match self.dispatch_words_with_entered(f, &words, entered.as_ref()) {
++                        Ok(Some(call)) => return call,
++                        Ok(None) => {}
++                        Err(c) => {
++                            if c.code == Code::Error {
++                                let (cmd_text, line, enclosing) = logged_command(instr);
++                                let msg = c.result.string_bytes();
++                                self.log_command_with_enclosing(
++                                    &cmd_text,
++                                    invoke_inner_context(self, instr, &words, &cmd_text),
++                                    &enclosing,
++                                    &msg,
++                                    line,
++                                );
++                            }
++                            return Tick::Return(c);
++                        }
++                    }
++                }
++            }
++            Op::INVOKE_REPLACE => {
++                let objc = usize::try_from(imm0(instr)).unwrap_or(0);
++                let opnd = usize::try_from(imm_at(instr, 1)).unwrap_or(0);
++                let repl = pop(f);
++                if f.stack.len() < objc {
++                    return Tick::Return(err("invokeReplace: stack underflow"));
++                }
++                let words = f.stack.split_off(f.stack.len() - objc);
++                // The entered outer ensemble protects this specialised range
++                // from replay after argument-time mutation, but it is not the
++                // command this opcode invokes. Tcl resolves the rewritten
++                // implementation word after substitution, so an argument may
++                // replace `::tcl::string::equal` for this very invocation.
++                let _entered_range = f.take_entered_command();
++                let mut rewritten = Vec::with_capacity(objc.saturating_sub(opnd) + 1);
++                rewritten.push(repl);
++                if opnd < words.len() {
++                    rewritten.extend_from_slice(&words[opnd..]);
++                }
++                let usage = vec![crate::command::NativeArgumentUsageRewrite {
++                    original_prefix: words[..opnd.min(words.len())].to_vec(),
++                    removed_words: 1,
++                }];
++                let rewritten = crate::NativeListItems::invocation_view(Rc::new(rewritten));
++                match self.dispatch_words_entry_at(
++                    f,
++                    &rewritten,
++                    None,
++                    self.current_ns_id(),
++                    &usage,
++                    false,
++                ) {
++                    Ok(Some(call)) => return call,
++                    Ok(None) => {}
++                    Err(c) => {
++                        if c.code == Code::Error {
++                            let (cmd_text, line, enclosing) = logged_command(instr);
++                            let msg = c.result.string_bytes();
++                            self.log_command_with_enclosing(
++                                &cmd_text,
++                                invoke_inner_context(self, instr, &rewritten, &cmd_text),
++                                &enclosing,
++                                &msg,
++                                line,
++                            );
++                        }
++                        return Tick::Return(c);
++                    }
++                }
++            }
+             Op::TCLOO_NEXT | Op::TCLOO_NEXT4 => try_op!(self.tcloo_next(f, instr, false)),
+             Op::TCLOO_NEXT_CLASS | Op::TCLOO_NEXT_CLASS4 => {
+                 try_op!(self.tcloo_next(f, instr, true));
+             }
+             Op::TCLOO_NEXT_LIST => try_op!(self.tcloo_next_list(f, false)),
+             Op::TCLOO_NEXT_CLASS_LIST => try_op!(self.tcloo_next_list(f, true)),
++            _ => return self.tick_instruction(f, asm, instr),
+         }
+-
+         Tick::Continue
+     }
+ 
+@@ -9320,34 +9412,87 @@ impl Vm {
+     ) -> Result<Option<Tick>, Completion<Value>> {
+         let original = &words[0];
+         match command {
+-            Some(Command::Proc(p)) => {
+-                if let Some(result) = self.early_procedure_activation(&p, &words[1..])? {
+-                    self.deliver_sync(f, result)?;
+-                    return Ok(None);
+-                }
+-                let p = self.prepare_dispatch_procedure(
+-                    p,
+-                    dispatch.entered,
+-                    dispatch.sidecar_handle,
+-                    dispatch
+-                        .selected_key
+-                        .clone()
+-                        .map(CommandSidecarKey::visible),
+-                )?;
+-                Ok(Some(Tick::Call {
+-                    proc: Box::new(p),
+-                    invoked: words[0].clone(),
+-                    argv: words[1..].to_vec(),
+-                    lambda_registration: None,
+-                }))
+-            }
++            Some(Command::Proc(p)) => self.dispatch_procedure_words(f, words, p, dispatch),
+             Some(Command::Builtin(bf)) => {
+                 self.dispatch_builtin_words(f, words, bf, dispatch.entered, dispatch.context)
+             }
+             Some(Command::Native(cmd)) => {
+                 self.dispatch_native_words(f, words, cmd.as_ref(), dispatch)
+             }
+-            Some(Command::CallerAlias(original_prefix)) => {
++            Some(
++                command @ (Command::CallerAlias(_)
++                | Command::Alias { .. }
++                | Command::CrossAlias { .. }),
++            ) => self.dispatch_alias_command_words(f, words, command, dispatch),
++            Some(Command::ChildInterp(child)) => {
++                let res = self.dispatch_child(original, child, &words[1..]);
++                self.settle_native_dispatch(f, res)
++            }
++            Some(Command::Ensemble(e)) => {
++                let res = self.dispatch_ensemble("", &e, &words[1..]);
++                self.settle_native_dispatch(f, res)
++            }
++            Some(Command::Object(key)) => {
++                let res = crate::cmd_oo::oo_dispatch(self, key, original, &words[1..]);
++                self.settle_native_dispatch(f, res)
++            }
++            None => {
++                let result = self.invoke_missing_command_value_in_context(
++                    dispatch.context,
++                    original,
++                    &words[1..],
++                    tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
++                );
++                self.settle_native_dispatch(f, result)
++            }
++        }
++    }
++
++    /// The procedure arm of [`Self::dispatch_selected_words`], out of line so
++    /// its locals are not in the frame a native command dispatch recurses
++    /// through (a TclOO method call; see `OO_DISPATCH_DEPTH_LIMIT`).
++    #[inline(never)]
++    fn dispatch_procedure_words(
++        &mut self,
++        f: &mut Frame,
++        words: &crate::NativeListItems,
++        p: crate::command::NativeProcedureCommand,
++        dispatch: NativeWordDispatch<'_>,
++    ) -> Result<Option<Tick>, Completion<Value>> {
++        if let Some(result) = self.early_procedure_activation(&p, &words[1..])? {
++            self.deliver_sync(f, result)?;
++            return Ok(None);
++        }
++        let p = self.prepare_dispatch_procedure(
++            p,
++            dispatch.entered,
++            dispatch.sidecar_handle,
++            dispatch
++                .selected_key
++                .clone()
++                .map(CommandSidecarKey::visible),
++        )?;
++        Ok(Some(Tick::Call {
++            proc: Box::new(p),
++            invoked: words[0].clone(),
++            argv: words[1..].to_vec(),
++            lambda_registration: None,
++        }))
++    }
++
++    /// The alias arms of [`Self::dispatch_selected_words`], out of line for the
++    /// same reason as [`Self::dispatch_procedure_words`].
++    #[inline(never)]
++    fn dispatch_alias_command_words(
++        &mut self,
++        f: &mut Frame,
++        words: &crate::NativeListItems,
++        command: Command,
++        dispatch: NativeWordDispatch<'_>,
++    ) -> Result<Option<Tick>, Completion<Value>> {
++        let original = &words[0];
++        match command {
++            Command::CallerAlias(original_prefix) => {
+                 let target = original_prefix
+                     .native_object_list_elements(
+                         tcl_syntax::native_string::NativeStringProtocol::Jim084,
+@@ -9365,7 +9510,7 @@ impl Vm {
+                     &usage,
+                 )
+             }
+-            Some(Command::Alias { words: target, .. }) => {
++            Command::Alias { words: target, .. } => {
+                 let mut argv = (*target).clone();
+                 argv.extend_from_slice(&words[1..]);
+                 let usage = self.alias_usage_rewrites_value(original, target.len(), dispatch.usage);
+@@ -9378,12 +9523,12 @@ impl Vm {
+                     &usage,
+                 )
+             }
+-            Some(Command::CrossAlias {
++            Command::CrossAlias {
+                 target: target_interp,
+                 words: target,
+                 original_jim_prefix,
+                 ..
+-            }) => {
++            } => {
+                 if let Some(prefix) = original_jim_prefix {
+                     let result =
+                         self.invoke_original_jim_parent_alias(target_interp, &prefix, &words[1..]);
+@@ -9402,27 +9547,8 @@ impl Vm {
+                     self.settle_native_dispatch(f, res)
+                 }
+             }
+-            Some(Command::ChildInterp(child)) => {
+-                let res = self.dispatch_child(original, child, &words[1..]);
+-                self.settle_native_dispatch(f, res)
+-            }
+-            Some(Command::Ensemble(e)) => {
+-                let res = self.dispatch_ensemble("", &e, &words[1..]);
+-                self.settle_native_dispatch(f, res)
+-            }
+-            Some(Command::Object(key)) => {
+-                let res = crate::cmd_oo::oo_dispatch(self, key, original, &words[1..]);
+-                self.settle_native_dispatch(f, res)
+-            }
+-            None => {
+-                let result = self.invoke_missing_command_value_in_context(
+-                    dispatch.context,
+-                    original,
+-                    &words[1..],
+-                    tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+-                );
+-                self.settle_native_dispatch(f, result)
+-            }
++            _ => Err(self
++                .refuse_host_command("native alias dispatch selected a non-alias command".into())),
+         }
+     }
+ 
+@@ -10255,7 +10381,7 @@ impl Vm {
+                     self.install_native_procedure_binding(req.proc.declaration_binding);
+                     let mut frame = Frame::new(req.proc.body, true);
+                     frame.lambda_registration = Some(req.registration);
+-                    self.run_activation(frame)
++                    self.run_activation(Box::new(frame))
+                 }
+                 Err(completion) => {
+                     self.retire_original_lambda_registration(&req.registration);
+@@ -10265,11 +10391,11 @@ impl Vm {
+         }
+         if let Some(req) = self.pending.expression.take() {
+             let placeholder = self.current_placeholder_unit();
+-            return self.run_activation(Frame::new_expression(req, placeholder));
++            return self.run_activation(Box::new(Frame::new_expression(req, placeholder)));
+         }
+         if let Some(state) = self.pending.control.take() {
+             let placeholder = self.current_placeholder_unit();
+-            return self.run_activation(Frame::new_control(state, placeholder));
++            return self.run_activation(Box::new(Frame::new_control(state, placeholder)));
+         }
+         // An `eval`/`uplevel`/`apply`-style builtin deferred its body to
+         // the pending eval request. This call site is on the native Rust stack (no
+@@ -10277,13 +10403,13 @@ impl Vm {
+         // a `yield` inside cannot cross it, exactly like every other
+         // `invoke_command` re-entry.
+         if let Some(req) = self.pending.eval.take() {
+-            return self.run_activation(Frame::new_eval(req));
++            return self.run_activation(Box::new(Frame::new_eval(req)));
+         }
+         // A `catch` deferred its body: run it via a nested drive (a `yield`
+         // inside cannot cross this native re-entry), then absorb its
+         // completion with the catch epilogue.
+         if let Some(req) = self.pending.catch.take() {
+-            let mut comp = self.run_activation(Frame::new_script(req.script, None));
++            let mut comp = self.run_activation(Box::new(Frame::new_script(req.script, None)));
+             if comp.code == Code::Ok
+                 && let Some(tail) = req.fatal_tail
+             {
+@@ -10301,14 +10427,14 @@ impl Vm {
+         // re-entry), returning its accumulated result.
+         if let Some(req) = self.pending.subst.take() {
+             let placeholder = self.current_placeholder_unit();
+-            return self.run_activation(Frame::new_subst(req, placeholder));
++            return self.run_activation(Box::new(Frame::new_subst(req, placeholder)));
+         }
+         // A `foreach`/`lmap` runtime-fallback loop deferred: run the
+         // scanner-driven each-loop frame via a nested drive (a `yield` in
+         // its body can't cross this native re-entry either).
+         if let Some(req) = self.pending.each_loop.take() {
+             let placeholder = self.current_placeholder_unit();
+-            return self.run_activation(Frame::new_each_loop(req, placeholder));
++            return self.run_activation(Box::new(Frame::new_each_loop(req, placeholder)));
+         }
+         // A `try` deferred its body: run it (and, via `Vm::unwind`'s own
+         // `try_ctx` handling, every subsequent phase `advance_try`
+@@ -10318,7 +10444,7 @@ impl Vm {
+         // `run_activation` call carries the whole construct through to
+         // its final completion.
+         if let Some(req) = self.pending.try_phase.take() {
+-            return self.run_activation(Frame::new_try(req, Value::empty()));
++            return self.run_activation(Box::new(Frame::new_try(req, Value::empty())));
+         }
+         res
+     }
+@@ -10488,7 +10614,7 @@ impl Vm {
+                     match self.enter_proc(&p.proc, &p.body, original, argv) {
+                         Ok(()) => {
+                             self.install_native_procedure_binding(p.declaration_binding);
+-                            self.run_activation(Frame::new(p.body, true))
++                            self.run_activation(Box::new(Frame::new(p.body, true)))
+                         }
+                         Err(c) => c,
+                     }
+@@ -10585,24 +10711,50 @@ impl Vm {
+     /// `next` consult while the body runs.
+     pub(crate) fn oo_run_method(
+         &mut self,
+-        activation: crate::command::PreparedProcedureActivation,
++        activation: Box<crate::command::PreparedProcedureActivation>,
+         argv: &[Value],
+         link_vars: &[(tcl_core_types::NameBytes, tcl_core_types::NameBytes)],
+         frame: crate::cmd_oo::OoFrame,
+     ) -> Completion<Value> {
+         let mut active = crate::interp::oo_cleanup::OriginalOoActivation::enter(self);
++        // The method body recurses natively through this frame, so its entry
++        // work runs in `enter_oo_method`'s frame, which has returned by then.
++        let body = match self.enter_oo_method(&mut active, activation, argv, link_vars, frame) {
++            Ok(body) => body,
++            Err(result) => return active.finish(self, result),
++        };
++        let result = self.run_activation(body);
++        active.retire_call(self, true);
++        active.retire_namespace(self, true);
++        active.retire_method(self);
++        active.finish(self, result)
++    }
++
++    /// [`Self::oo_run_method`]'s entry: enter the procedure frame, link the
++    /// instance variables and push the OO call context. Returns the body's
++    /// activation, or the completion `active` must finish with.
++    #[inline(never)]
++    fn enter_oo_method(
++        &mut self,
++        active: &mut crate::interp::oo_cleanup::OriginalOoActivation,
++        activation: Box<crate::command::PreparedProcedureActivation>,
++        argv: &[Value],
++        link_vars: &[(tcl_core_types::NameBytes, tcl_core_types::NameBytes)],
++        frame: crate::cmd_oo::OoFrame,
++    ) -> Result<Box<Frame>, Completion<Value>> {
++        let activation = *activation;
+         let proc = &activation.proc;
+         let invoked =
+             Value::from_native_string_bytes(proc.actual_command_slot().simple.as_bytes().to_vec());
+         if let Err(c) = self.enter_proc(proc, &activation.body, &invoked, argv) {
+-            return active.finish(self, c);
++            return Err(c);
+         }
+         if let Err(error) = active.capture_call_and_namespace(self) {
+             crate::interp::oo_cleanup::retain_error(self, &error);
+             active.retire_call(self, false);
+             active.retire_namespace(self, false);
+             let result = crate::command::completion_from_cmd_error(self, error);
+-            return active.finish(self, result);
++            return Err(result);
+         }
+         if let Some(layout) = &activation.body.compiled_local_layout {
+             let protocol = self
+@@ -10627,7 +10779,7 @@ impl Vm {
+                             ));
+                             active.retire_call(self, false);
+                             active.retire_namespace(self, false);
+-                            return active.finish(self, result);
++                            return Err(result);
+                         }
+                     }
+                     if let Err(error) = self.add_tcloo_compiled_instance_link(
+@@ -10642,7 +10794,7 @@ impl Vm {
+                         );
+                         active.retire_call(self, false);
+                         active.retire_namespace(self, false);
+-                        return active.finish(self, result);
++                        return Err(result);
+                     }
+                     break;
+                 }
+@@ -10656,15 +10808,11 @@ impl Vm {
+             active.retire_call(self, false);
+             active.retire_namespace(self, false);
+             let result = crate::command::completion_from_cmd_error(self, error);
+-            return active.finish(self, result);
++            return Err(result);
+         }
+-        let mut body = Frame::new(activation.body, true);
++        let mut body = Box::new(Frame::new(activation.body, true));
+         body.oo_call_exit = active.saved_call_exit();
+-        let result = self.run_activation(body);
+-        active.retire_call(self, true);
+-        active.retire_namespace(self, true);
+-        active.retire_method(self);
+-        active.finish(self, result)
++        Ok(body)
+     }
+ 
+     fn tick_original_invocation(&mut self, frame: &mut Frame, original: Value) -> Tick {
+diff --git a/rust/tcl-vm/src/exec/native_jim_script.rs b/rust/tcl-vm/src/exec/native_jim_script.rs
+index 782fd0a922..8aac5161d9 100644
+--- a/rust/tcl-vm/src/exec/native_jim_script.rs
++++ b/rust/tcl-vm/src/exec/native_jim_script.rs
+@@ -459,7 +459,7 @@ impl Vm {
+             },
+         };
+         let placeholder = self.current_placeholder_unit();
+-        self.run_activation(Frame::new_subst(req, placeholder))
++        self.run_activation(Box::new(Frame::new_subst(req, placeholder)))
+     }
+ 
+     #[cfg(test)]
+diff --git a/rust/tcl-vm/tests/cmd_oo_e2e.rs b/rust/tcl-vm/tests/cmd_oo_e2e.rs
+index deac9e8d47..ffe1d3b302 100644
+--- a/rust/tcl-vm/tests/cmd_oo_e2e.rs
++++ b/rust/tcl-vm/tests/cmd_oo_e2e.rs
+@@ -1478,6 +1478,34 @@ fn deeply_recursive_method_errors_instead_of_crashing() {
+     );
+ }
+ 
++/// Method recursion right at `OO_DISPATCH_DEPTH_LIMIT` (20) on an explicit
++/// 2 MiB thread, so `RUST_MIN_STACK` cannot hide a regression. One level used
++/// to cost about 196 KB of native stack in a debug build (the whole opcode
++/// match's frame and the method-preparation locals stayed live across the
++/// nested call), so depth 10 overflowed before the limit could fire. Exactly
++/// 20 nested method calls complete; the 21st is the catchable error.
++#[test]
++fn recursion_at_the_oo_dispatch_limit_fits_a_two_mib_thread() {
++    let outcome = std::thread::Builder::new()
++        .stack_size(2 * 1024 * 1024)
++        .spawn(|| {
++            result(
++                "oo::class create C { \
++                   method go {n} { if {$n <= 1} { return done }; return [my go [expr {$n-1}]] } \
++                 }; \
++                 C create obj; \
++                 list [catch {obj go 20} a] $a [catch {obj go 21} b] $b",
++            )
++        })
++        .expect("spawn a 2 MiB thread")
++        .join()
++        .expect("recursion to the limit must not overflow a 2 MiB stack");
++    assert_eq!(
++        outcome,
++        "0 done 1 {too many nested evaluations (infinite loop?)}"
++    );
++}
++
+ /// A moderately recursive method (well under `OO_DISPATCH_DEPTH_LIMIT`)
+ /// still runs normally — the safety net must not fire on realistic
+ /// recursion depths.

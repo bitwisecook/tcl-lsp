@@ -459,7 +459,7 @@ impl Vm {
             },
         };
         let placeholder = self.current_placeholder_unit();
-        self.run_activation(Frame::new_subst(req, placeholder))
+        self.run_activation(Box::new(Frame::new_subst(req, placeholder)))
     }
 
     #[cfg(test)]

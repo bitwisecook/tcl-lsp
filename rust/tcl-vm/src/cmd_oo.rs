@@ -1968,7 +1968,18 @@ fn run_step(
     cleanup.finish_completion(vm, result)
 }
 
-#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // A method activation genuinely carries this context and persistence seam.
+/// A method step after [`prepare_method_step`]: either it already finished
+/// (an intrinsic, property or forward method, or a preparation failure), or it
+/// is a procedure-bodied method ready to run with its instance-variable links.
+enum MethodStep {
+    Finished(Completion<Value>),
+    Procedure(
+        Box<crate::command::PreparedProcedureActivation>,
+        Vec<(NameBytes, NameBytes)>,
+    ),
+}
+
+#[allow(clippy::too_many_arguments)] // A method activation genuinely carries this context.
 fn run_step_inner(
     vm: &mut Vm,
     obj_key: OoId,
@@ -1981,134 +1992,116 @@ fn run_step_inner(
     usage_prefix: Vec<Value>,
     call_identity: Vec<Value>,
 ) -> Completion<Value> {
+    // A procedure-bodied method recurses natively through this frame (see
+    // `interp::OO_DISPATCH_DEPTH_LIMIT`), so all the work that finishes before
+    // its body runs is kept in `prepare_method_step`'s frame, not this one.
+    let (proc, link_vars) = match prepare_method_step(
+        vm,
+        obj_key,
+        chain,
+        index,
+        &method,
+        args,
+        external,
+        &invoked,
+        &usage_prefix,
+        call_identity,
+    ) {
+        MethodStep::Finished(completion) => return completion,
+        MethodStep::Procedure(proc, link_vars) => (proc, link_vars),
+    };
+    let frame = OoFrame {
+        context_birth: Rc::new(()),
+        name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
+        activation: None,
+        object: obj_key,
+        chain: chain.clone(),
+        index,
+        method,
+        external,
+        invoked,
+        usage_prefix,
+    };
+    vm.oo_run_method(proc, args, &link_vars, frame)
+}
+
+/// Everything [`run_step_inner`] does before a procedure-bodied method's body
+/// runs: intrinsic, property and forward methods finish here; a procedure
+/// method gets its compiled body and instance-variable links.
+#[inline(never)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)] // A method activation genuinely carries this context and persistence seam.
+fn prepare_method_step(
+    vm: &mut Vm,
+    obj_key: OoId,
+    chain: &native_method_cache::ReachedMethodChain,
+    index: usize,
+    method: &str,
+    args: &[Value],
+    external: bool,
+    invoked: &Value,
+    usage_prefix: &[Value],
+    call_identity: Vec<Value>,
+) -> MethodStep {
     let step = chain[index].clone();
     // Only the originally entered record can supply this implementation.
     // An ownerless descriptive context cannot acquire a mutable table record.
     let Some(owner) = &step.method_owner else {
-        return crate::command::completion_from_cmd_error(
+        return MethodStep::Finished(crate::command::completion_from_cmd_error(
             vm,
             tcl_syntax::value::ValueError::CommandProtocolUnavailable(
                 "original TclOO selected method record",
             )
             .into(),
-        );
+        ));
     };
     let m = owner.borrow().clone();
 
     if let Some(intrinsic) = m.intrinsic {
-        use tcl_runtime_api::native_oo::NativeOoIntrinsicMethod;
-        return match intrinsic {
-            NativeOoIntrinsicMethod::Destroy => {
-                if !args.is_empty() {
-                    let header = match vm.native_argument_usage_header(&usage_prefix) {
-                        Ok(header) => header,
-                        Err(error) => return error,
-                    };
-                    return crate::command::native_wrong_args_bytes(vm, &header);
-                }
-                oo_destroy(vm, obj_key)
-            }
-            NativeOoIntrinsicMethod::Create | NativeOoIntrinsicMethod::New => {
-                let Some(original_method) = usage_prefix.get(1) else {
-                    return vm.refuse_host_command(
-                        "original factory method invocation is unavailable".into(),
-                    );
-                };
-                factory(
-                    vm,
-                    obj_key,
-                    &invoked,
-                    original_method,
-                    intrinsic == NativeOoIntrinsicMethod::New,
-                    args,
-                )
-            }
-            NativeOoIntrinsicMethod::Configure => configure_method(vm, obj_key, args),
-            NativeOoIntrinsicMethod::ClassConstructor
-            | NativeOoIntrinsicMethod::ConfigurableConstructor => {
-                if args.len() > 1 {
-                    return definition_wrong_args(vm, "?definitionScript?");
-                }
-                args.first().map_or_else(
-                    || ok(Value::empty()),
-                    |body| evaluate_class_definition(vm, obj_key, body),
-                )
-            }
-        };
+        return MethodStep::Finished(run_intrinsic_method(
+            vm,
+            obj_key,
+            intrinsic,
+            args,
+            invoked,
+            usage_prefix,
+        ));
     }
-
     if let Some(property) = &m.property {
-        let mut active = crate::interp::oo_cleanup::OriginalOoActivation::enter(vm);
-        let frame = OoFrame {
-            context_birth: Rc::new(()),
-            name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
-            activation: None,
-            object: obj_key,
-            chain: chain.clone(),
+        return MethodStep::Finished(run_property_method(
+            vm,
+            obj_key,
+            chain,
             index,
-            method: method.clone(),
+            method,
+            property,
+            args,
             external,
             invoked,
             usage_prefix,
-        };
-        if let Err(error) = active.push_method(vm, frame) {
-            return crate::command::completion_from_cmd_error(vm, error);
-        }
-        let result = native_properties::invoke_default(vm, obj_key, property, args, &call_identity);
-        active.retire_method(vm);
-        return active.finish(vm, result);
+            &call_identity,
+        ));
     }
-
-    // A forward: evaluate `prefix args…` with the OBJECT's namespace current,
-    // so the target resolves object-ns → global exactly as C TclOO does —
-    // never in the dispatch site's namespace (tclsh 8.6.16 / 9.0.4-pinned:
-    // `$obj fw` called from a namespace that has its own same-named proc
-    // still dispatches the global target).
     if let Some(prefix) = &m.forward {
-        let mut active = crate::interp::oo_cleanup::OriginalOoActivation::enter(vm);
-        let mut words: Vec<Value> = prefix.clone();
-        words.extend_from_slice(args);
-        let ns = vm.oo.objects.get(&obj_key).map(|o| o.ns.clone());
-        let frame = OoFrame {
-            context_birth: Rc::new(()),
-            name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
-            activation: None,
-            object: obj_key,
-            chain: chain.clone(),
+        return MethodStep::Finished(run_forward_method(
+            vm,
+            obj_key,
+            chain,
             index,
-            method: method.clone(),
+            method,
+            prefix,
+            args,
             external,
-            invoked: invoked.clone(),
-            usage_prefix: usage_prefix.clone(),
-        };
-        if let Err(error) = active.push_method(vm, frame) {
-            return crate::command::completion_from_cmd_error(vm, error);
-        }
-        vm.push_ns(ns.unwrap_or_default());
-        if let Err(error) = active.capture_namespace(vm) {
-            crate::interp::oo_cleanup::retain_error(vm, &error);
-            active.retire_namespace(vm, false);
-            active.retire_method(vm);
-            let result = crate::command::completion_from_cmd_error(vm, error);
-            return active.finish(vm, result);
-        }
-        let context = vm.current_ns_id();
-        let res = vm.invoke_command_value_at(
-            context,
-            &words[0],
-            &words[1..],
-            &[],
-            tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
-        );
-        active.retire_namespace(vm, false);
-        active.retire_method(vm);
-        return active.finish(vm, res);
+            invoked,
+            usage_prefix,
+        ));
     }
 
     let preparation =
         match method_preparation::OriginalMethodPreparation::enter(vm, obj_key, chain, index) {
             Ok(preparation) => preparation,
-            Err(error) => return crate::command::completion_from_cmd_error(vm, error),
+            Err(error) => {
+                return MethodStep::Finished(crate::command::completion_from_cmd_error(vm, error));
+            }
         };
     let obj_ns = vm
         .oo
@@ -2190,7 +2183,7 @@ fn run_step_inner(
         statics: None,
         body,
         body_src: m.body_src.clone(),
-        usage_name: Some(usage_prefix.clone()),
+        usage_name: Some(usage_prefix.to_vec()),
         call_identity: Some(call_identity),
         lambda_term: None,
     };
@@ -2200,7 +2193,9 @@ fn run_step_inner(
     let reached = vm.ensure_proc_traced(crate::command::NativeProcedureCommand::new(proc));
     let proc = match preparation.settle(vm, reached) {
         Ok(proc) => proc,
-        Err(error) => return crate::command::completion_from_tcl_error(vm, error),
+        Err(error) => {
+            return MethodStep::Finished(crate::command::completion_from_tcl_error(vm, error));
+        }
     };
     let cache_is_current = m.compiled_body.as_ref().is_some_and(|(namespace, cached)| {
         namespace == &obj_ns
@@ -2225,12 +2220,84 @@ fn run_step_inner(
         };
         drop(retired);
         if let Err(error) = preparation.check(vm) {
-            return crate::command::completion_from_cmd_error(vm, error);
+            return MethodStep::Finished(crate::command::completion_from_cmd_error(vm, error));
         }
     }
     if let Err(error) = preparation.finish(vm) {
-        return crate::command::completion_from_cmd_error(vm, error);
+        return MethodStep::Finished(crate::command::completion_from_cmd_error(vm, error));
     }
+    MethodStep::Procedure(Box::new(proc), link_vars)
+}
+
+/// An intrinsic method step (`destroy`, `create`/`new`, `configure`, a
+/// class constructor), out of line from [`prepare_method_step`].
+#[inline(never)]
+fn run_intrinsic_method(
+    vm: &mut Vm,
+    obj_key: OoId,
+    intrinsic: tcl_runtime_api::native_oo::NativeOoIntrinsicMethod,
+    args: &[Value],
+    invoked: &Value,
+    usage_prefix: &[Value],
+) -> Completion<Value> {
+    use tcl_runtime_api::native_oo::NativeOoIntrinsicMethod;
+    match intrinsic {
+        NativeOoIntrinsicMethod::Destroy => {
+            if !args.is_empty() {
+                let header = match vm.native_argument_usage_header(usage_prefix) {
+                    Ok(header) => header,
+                    Err(error) => return error,
+                };
+                return crate::command::native_wrong_args_bytes(vm, &header);
+            }
+            oo_destroy(vm, obj_key)
+        }
+        NativeOoIntrinsicMethod::Create | NativeOoIntrinsicMethod::New => {
+            let Some(original_method) = usage_prefix.get(1) else {
+                return vm.refuse_host_command(
+                    "original factory method invocation is unavailable".into(),
+                );
+            };
+            factory(
+                vm,
+                obj_key,
+                invoked,
+                original_method,
+                intrinsic == NativeOoIntrinsicMethod::New,
+                args,
+            )
+        }
+        NativeOoIntrinsicMethod::Configure => configure_method(vm, obj_key, args),
+        NativeOoIntrinsicMethod::ClassConstructor
+        | NativeOoIntrinsicMethod::ConfigurableConstructor => {
+            if args.len() > 1 {
+                return definition_wrong_args(vm, "?definitionScript?");
+            }
+            args.first().map_or_else(
+                || ok(Value::empty()),
+                |body| evaluate_class_definition(vm, obj_key, body),
+            )
+        }
+    }
+}
+
+/// A property accessor method step, out of line from [`prepare_method_step`].
+#[allow(clippy::too_many_arguments)] // A method activation genuinely carries this context.
+#[inline(never)]
+fn run_property_method(
+    vm: &mut Vm,
+    obj_key: OoId,
+    chain: &native_method_cache::ReachedMethodChain,
+    index: usize,
+    method: &str,
+    property: &native_properties::NativePropertyAccessor,
+    args: &[Value],
+    external: bool,
+    invoked: &Value,
+    usage_prefix: &[Value],
+    call_identity: &[Value],
+) -> Completion<Value> {
+    let mut active = crate::interp::oo_cleanup::OriginalOoActivation::enter(vm);
     let frame = OoFrame {
         context_birth: Rc::new(()),
         name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
@@ -2238,12 +2305,76 @@ fn run_step_inner(
         object: obj_key,
         chain: chain.clone(),
         index,
-        method,
+        method: method.to_owned(),
         external,
-        invoked,
-        usage_prefix,
+        invoked: invoked.clone(),
+        usage_prefix: usage_prefix.to_vec(),
     };
-    vm.oo_run_method(proc, args, &link_vars, frame)
+    if let Err(error) = active.push_method(vm, frame) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    let result = native_properties::invoke_default(vm, obj_key, property, args, call_identity);
+    active.retire_method(vm);
+    active.finish(vm, result)
+}
+
+// A forward: evaluate `prefix args…` with the OBJECT's namespace current,
+// so the target resolves object-ns → global exactly as C TclOO does —
+// never in the dispatch site's namespace (tclsh 8.6.16 / 9.0.4-pinned:
+// `$obj fw` called from a namespace that has its own same-named proc
+// still dispatches the global target).
+#[allow(clippy::too_many_arguments)] // A method activation genuinely carries this context.
+#[inline(never)]
+fn run_forward_method(
+    vm: &mut Vm,
+    obj_key: OoId,
+    chain: &native_method_cache::ReachedMethodChain,
+    index: usize,
+    method: &str,
+    prefix: &[Value],
+    args: &[Value],
+    external: bool,
+    invoked: &Value,
+    usage_prefix: &[Value],
+) -> Completion<Value> {
+    let mut active = crate::interp::oo_cleanup::OriginalOoActivation::enter(vm);
+    let mut words: Vec<Value> = prefix.to_vec();
+    words.extend_from_slice(args);
+    let ns = vm.oo.objects.get(&obj_key).map(|o| o.ns.clone());
+    let frame = OoFrame {
+        context_birth: Rc::new(()),
+        name_owner: Rc::clone(&vm.oo.objects[&obj_key].cached_name),
+        activation: None,
+        object: obj_key,
+        chain: chain.clone(),
+        index,
+        method: method.to_owned(),
+        external,
+        invoked: invoked.clone(),
+        usage_prefix: usage_prefix.to_vec(),
+    };
+    if let Err(error) = active.push_method(vm, frame) {
+        return crate::command::completion_from_cmd_error(vm, error);
+    }
+    vm.push_ns(ns.unwrap_or_default());
+    if let Err(error) = active.capture_namespace(vm) {
+        crate::interp::oo_cleanup::retain_error(vm, &error);
+        active.retire_namespace(vm, false);
+        active.retire_method(vm);
+        let result = crate::command::completion_from_cmd_error(vm, error);
+        return active.finish(vm, result);
+    }
+    let context = vm.current_ns_id();
+    let res = vm.invoke_command_value_at(
+        context,
+        &words[0],
+        &words[1..],
+        &[],
+        tcl_registry::command_lookup::CommandLookupOrigin::Ordinary,
+    );
+    active.retire_namespace(vm, false);
+    active.retire_method(vm);
+    active.finish(vm, res)
 }
 
 /// The object built-in methods `variable name…`, `varname name`, `eval script`.

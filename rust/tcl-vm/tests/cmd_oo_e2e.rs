@@ -1478,6 +1478,34 @@ fn deeply_recursive_method_errors_instead_of_crashing() {
     );
 }
 
+/// Method recursion right at `OO_DISPATCH_DEPTH_LIMIT` (20) on an explicit
+/// 2 MiB thread, so `RUST_MIN_STACK` cannot hide a regression. One level used
+/// to cost about 196 KB of native stack in a debug build (the whole opcode
+/// match's frame and the method-preparation locals stayed live across the
+/// nested call), so depth 10 overflowed before the limit could fire. Exactly
+/// 20 nested method calls complete; the 21st is the catchable error.
+#[test]
+fn recursion_at_the_oo_dispatch_limit_fits_a_two_mib_thread() {
+    let outcome = std::thread::Builder::new()
+        .stack_size(2 * 1024 * 1024)
+        .spawn(|| {
+            result(
+                "oo::class create C { \
+                   method go {n} { if {$n <= 1} { return done }; return [my go [expr {$n-1}]] } \
+                 }; \
+                 C create obj; \
+                 list [catch {obj go 20} a] $a [catch {obj go 21} b] $b",
+            )
+        })
+        .expect("spawn a 2 MiB thread")
+        .join()
+        .expect("recursion to the limit must not overflow a 2 MiB stack");
+    assert_eq!(
+        outcome,
+        "0 done 1 {too many nested evaluations (infinite loop?)}"
+    );
+}
+
 /// A moderately recursive method (well under `OO_DISPATCH_DEPTH_LIMIT`)
 /// still runs normally — the safety net must not fire on realistic
 /// recursion depths.
