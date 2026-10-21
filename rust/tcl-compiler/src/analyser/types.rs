@@ -5659,6 +5659,7 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                 ("puts [list [greet] x]\n", 1),
                 ("set a \"<[greet]>\"\n", 1),
                 ("info body greet\n", 1),
+                ("puts [info body greet]\n", 1),
             ] {
                 let source = format!("{declaration}{use_site}");
                 let result = crate::analyser::Analyser::new().analyse(&source, dialect);
@@ -5701,6 +5702,51 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                         ))
                         .count(),
                     count,
+                    "{dialect}: {use_site:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups() {
+        // naming.source.closed-leaf-handler-completion
+        // The completed command world is the world after the document runs
+        // to normal completion: a command that may raise (`puts`, `list`
+        // arity) only adds a path that never reaches it. `exit` or an
+        // unknown command keeps it withheld.
+        let declaration = "proc greet {} { return hi }\n";
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            for (use_site, completed) in [
+                ("", true),
+                ("greet\ngreet\n", true),
+                ("puts hi\n", true),
+                ("puts [greet]\nputs [greet]\n", true),
+                ("set a [list [greet]]\n", true),
+                ("set a [string length x]\n", true),
+                ("missing_command\n", false),
+                ("puts [missing_command]\n", false),
+                ("exit 0\n", false),
+            ] {
+                let source = format!("{declaration}{use_site}");
+                let result = crate::analyser::Analyser::new().analyse(&source, dialect);
+                assert_eq!(
+                    result
+                        .retained_command_realm()
+                        .and_then(crate::realm::CommandBindingRealm::original_completed_command_world)
+                        .is_some(),
+                    completed,
+                    "{dialect}: {use_site:?}"
+                );
+                // Every command of the body keeps its own original lookup
+                // however often, and from wherever, the body is entered.
+                assert!(
+                    result
+                        .command_invocations
+                        .iter()
+                        .filter(|invocation| invocation.name == "return"
+                            && invocation.range.start() < declaration.len() as u32)
+                        .all(|invocation| invocation.original_lookup.is_some()),
                     "{dialect}: {use_site:?}"
                 );
             }

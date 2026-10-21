@@ -726,15 +726,31 @@ impl CompilerTraversal<'_> {
                 return Some(failure);
             }
         }
-        let evaluation_known = self
-            .state
-            .baseline
-            .native_entry
-            .as_ref()
-            .is_some_and(|entry| {
-                tcl_registry::native_expression_program::expression_program_emission(program, entry)
-                != tcl_registry::native_expression_program::ExpressionProgramEmission::Unavailable
-            });
+        use tcl_registry::native_expression_program::{
+            ExpressionProgramEmission, expression_program_emission,
+            expression_program_emission_for_policy, native_expression_evaluation_policy,
+        };
+        let baseline = &self.state.baseline;
+        let emission = match baseline.native_entry.as_ref() {
+            Some(entry) => expression_program_emission(program, entry),
+            // An entry-less compile is a fresh interpreter of its profile,
+            // whose expression policy is that release's own.
+            None if !baseline.unknown_entry => baseline
+                .dialect
+                .and_then(|dialect| dialect.execution_point())
+                .and_then(|point| {
+                    let profile = context.registry.profile()?;
+                    let policy = native_expression_evaluation_policy(profile, point)?;
+                    Some(expression_program_emission_for_policy(
+                        program,
+                        Some(&policy),
+                        tcl_registry::InvocationDialect::of_point(point),
+                    ))
+                })
+                .unwrap_or(ExpressionProgramEmission::Unavailable),
+            None => ExpressionProgramEmission::Unavailable,
+        };
+        let evaluation_known = emission != ExpressionProgramEmission::Unavailable;
         if !evaluation_known {
             self.require_provider();
         }

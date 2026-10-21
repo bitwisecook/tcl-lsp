@@ -1747,6 +1747,8 @@ mod tests {
             text: RULE,
         };
         let own = analyse(RULE);
+        let closed_text = format!("# closed sibling\n{RULE}");
+        store.upsert(sibling, closed_text.as_bytes().to_vec());
         let none = OpenBuffers::default();
         let ctx = IlxContext::new(context.commands(), &store)
             .with_analysis(&own)
@@ -1772,7 +1774,6 @@ mod tests {
         // Byte-identical to the initiating rule: its analysis still describes
         // another file, so nothing is borrowed from it.
         assert_eq!(sibling_sites(RULE, &none), 0, "no borrowed initiating facts");
-        let closed_text = format!("# closed sibling\n{RULE}");
         assert_eq!(sibling_sites(&closed_text, &none), 0, "no host input");
         let supplied = AnalysedBuffer {
             path: PathBuf::from(sibling),

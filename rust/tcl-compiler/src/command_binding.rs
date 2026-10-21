@@ -6435,6 +6435,30 @@ impl SourceOutcomes {
         self.normal_rhs_read = None;
     }
 
+    /// The completed command world is the world on the normal-completion
+    /// path of the whole document. A possible error never reaches it, so it
+    /// does not withhold that world; any other abrupt route (a top-level
+    /// `return`, `break`, exit or an unknown code) may also finish the
+    /// document elsewhere and keeps it withheld. Unknown normal-return
+    /// effects stay withheld by the opaque and observer premises.
+    fn completed_normal_world(&self) -> Option<Arc<ModuleCommandBindings>> {
+        let normal = self.normal.as_ref()?;
+        let errors_only = self.abrupt.iter().all(|(route, _)| {
+            *route
+                == tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
+                    tcl_registry::completion::CompletionCode::Error,
+                )
+        });
+        // `original_completed_command_world` separately refuses a withdrawn
+        // command world and unknown entry.
+        let closed = (self.normal_completion.is_some() && self.abrupt.is_empty())
+            || (errors_only
+                && !normal.has_opaque_domain()
+                && !normal.source_step_observed()
+                && !normal.source_execution_observed(None));
+        closed.then(|| Arc::new((**normal).clone()))
+    }
+
     fn retain_complete_normal_evaluation(&mut self) {
         self.normal_completion =
             (self.normal.is_some() && self.abrupt.is_empty()).then_some(SourceNormalCompletion);
@@ -7181,12 +7205,7 @@ impl SourceCommandBindings {
         trace_source_original_queries(query_start, "walk", source.len());
         #[cfg(any(test, debug_assertions))]
         trace_source_lookup(lookup_start, "walk", source.len());
-        if root_outcomes.normal_completion.is_some() && root_outcomes.abrupt.is_empty() {
-            bindings.original_completed_root_state = root_outcomes
-                .normal
-                .as_ref()
-                .map(|normal| Arc::new((**normal).clone()));
-        }
+        bindings.original_completed_root_state = root_outcomes.completed_normal_world();
         if let Some(normal) = root_outcomes.normal {
             state = *normal;
         }
@@ -8381,12 +8400,7 @@ impl SourceCommandBindings {
                 expression_source: None,
             },
         );
-        if root_outcomes.normal_completion.is_some() && root_outcomes.abrupt.is_empty() {
-            bindings.original_completed_root_state = root_outcomes
-                .normal
-                .as_ref()
-                .map(|normal| Arc::new((**normal).clone()));
-        }
+        bindings.original_completed_root_state = root_outcomes.completed_normal_world();
         if let Some(normal) = root_outcomes.normal {
             state = *normal;
         }

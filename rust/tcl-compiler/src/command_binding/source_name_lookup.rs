@@ -1328,6 +1328,17 @@ mod zz_probe_import_lookup_tests {
                 for layout in rows.into_iter().flatten() {
                     let scope = original_input_scope(&point, layout, &input);
                     let state = &layout.snapshot.state;
+                    let world = &state.original_command_world;
+                    eprintln!(
+                        "PROBE-IMP   world_a={} world_root={} opaque={}",
+                        world
+                            .scope(&SourceNamespaceKey::Authored("::a".into()), input.policy())
+                            .is_some(),
+                        world
+                            .scope(&SourceNamespaceKey::Authored("::".into()), input.policy())
+                            .is_some(),
+                        state.has_opaque_domain(),
+                    );
                     eprintln!(
                         "PROBE-IMP   ns={:?} scope={} unknown_lookup={} unknown_paths={} paths={:?} candidates={:?}",
                         layout.namespace,

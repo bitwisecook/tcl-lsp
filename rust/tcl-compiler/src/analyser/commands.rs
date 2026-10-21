@@ -4938,6 +4938,9 @@ impl Analyser {
         // completion/hover/definition and read-before-set, just as the
         // top-level `process_command` path does.
         self.handle_var_binding_command(cmd_tok, arg_tokens, scope_path);
+        // A `CommandName` operand of a substituted command (`puts [info body
+        // greet]`) names the command exactly as the top-level form does.
+        self.record_command_name_invocations(args, arg_tokens, scope_path, cmd_tok.span.start());
         // Record the nested command's variable-/command-substitution-as-command
         // call site too (`puts [$obj method]`, `if {[$obj ok]} …`).  The main
         // walk treats `[…]` as a value, so without this the W307 multi-dispatch

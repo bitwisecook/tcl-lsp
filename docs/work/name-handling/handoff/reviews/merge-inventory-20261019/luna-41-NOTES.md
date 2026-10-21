@@ -5,7 +5,10 @@ Agent: Luna-41 (LSP). Owned paths: `rust/tcl-lsp-core`, `rust/tcl-lsp-db`,
 `docs/design/analysis/name-resolution-proofs/original-method-candidates.md`.
 I committed nothing; the coordinator's WIP snapshots (6afd791002 … da22e0cb25 and later)
 carry my edits as they stood. `luna-41.patch` = `git diff f3aed2a40e -- <my paths>`
-(everything of mine after the BIG-IP commit); the hunks of mine that went *into*
+(everything of mine after the BIG-IP commit). It excludes Luna-42's ilx_navigation.rs,
+tests/bigip_code_actions.rs, tests/file_ops_bigip_residual.rs and
+e2e/issue1707_ilx_methods.rs. Edits other agents made to these crates in the same window are
+not separated out. The hunks of mine that went *into*
 f3aed2a40e are listed under "Changes" (tcl-lsp-server/src/lib.rs).
 
 Run conditions: `CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0`,
@@ -48,16 +51,22 @@ counts identical to before. The remaining modules are not re-measured after my e
 
 | target | CI 5201 fail | before my edits (this tree) | now | fixed since CI | still failing from CI | new vs CI |
 |---|---|---|---|---|---|---|
-| name_resolution | 31 | 46/75 (29 fail) | 65/77 (12 fail) | 19 | 12 | 0 |
+| name_resolution | 31 | 46/75 (29 fail) | 69/77 (8 fail) | 23 | 8 | 0 |
 | references_rename | (not in CI lists) | 59/98 | 70/98 | – | – | – |
 | force_import_shadow_consumers | 9 | 1/10 | 2/10 | 1 | 8 | 0 |
 | hover_completion | 6 | 50/56 | 50/56 | 0 | 6 | 0 |
 | hover_residual | 9 | 27/36 | 27/36 | 1 | 8 | 1 (`residual_hover_var_without_registry_omits_intrep`, fixed afterwards — not yet re-run) |
 | references_residual | (not in CI lists) | 11/23 (coordinator) | 16/23 | – | – | – |
 
-name_resolution "now" was taken after the classmethod correction, E and the iRules
-correction were partly in; a final re-run with every edit is in
-`scratchpad/luna41/run-it-name_resolution-final.log` if it completed.
+name_resolution "now" is the final run (2026-10-21 ~21:50, every edit of mine plus the
+compiler tree of that moment). Of the 8 remaining failures, 7 are compiler-side: itcl
+`Class::proc` dispatch ×5 (C7), `fn_to_tp_an_explicit_namespace_import_is_followed` (C6),
+`pkgindex_dir::fp_other_undefined_var_in_pkgindex_still_fires` (C9). The eighth is
+`tn_object_command_dispatch_is_scoped_to_its_creation_namespace`. That last one is
+undiagnosed: two `rex` objects created in `::a` and `::b`. It most likely comes from the
+receiver entries keyed by the bare object name, but I didn't confirm that.
+`irules_switch_glob_body_is_followed` (expects `[0]`) and the two `next_dispatch` tests
+now pass. C14 was red in one intermediate run and green in the final one.
 
 Not measured (disk/CPU): the other 28 lsp-core integration targets, tcl-lsp-db
 integration targets, tcl-lsp-server lib/e2e/smoke.
@@ -97,6 +106,15 @@ LSP-side, fixed (see Changes):
 - L9 browser (wasm32-unknown-unknown) workspace scan found 0 files: std `Path::is_absolute` is false for every path on that target; `constructed_file_uri` then called `fs::canonicalize` and dropped every store path (origin/rust had a browser fallback). Same trap in source_graph's path admission.
 - L10 DB test inputs that contradict the fresh-interpreter decision (2 tests).
 - L11 iRules bare call to a rule proc (BIG-IP probe).
+- L12 `next` / `nextto` sites inside a method's own body were missing from find-references
+  on that method (`next_dispatch::tp_next_dispatch_nested_in_if`,
+  `tp_nextto_dispatch_top_level`). The original member path
+  (`method_symbol::readonly_local_reference_report`) never added them, and the legacy
+  `references::method_next_dispatch_spans` is gated off by
+  `allows_lexical_declaration_advice()` (false for every analysis). Fix: the readonly report
+  adds `scan_next_dispatch_sites` over the selected declaration's own body (registry
+  `TCLOO_NEXT_CHAIN` trait, nested control bodies included). These spans are reporting-only.
+  They never enter `local_reference_spans`, so rename never rewrites the `next` keyword.
 
 Compiler-side (sent to the coordinator with repros; routed to compiler-names / compiler):
 - C1 invocations inside command substitutions lose `original_lookup`/`original_name_input`
@@ -118,6 +136,15 @@ Compiler-side (sent to the coordinator with repros; routed to compiler-names / c
 - C11 CRLF method bodies trip the lexer's `scan_var_ref` debug assertion
   (`Analyser::analyse(crlf class with method body)`, folding/document_symbols tests).
 - C12 `derived_hash_with_manual_eq` deny in tcl-compiler/src/ir.rs:1090 blocks clippy on all dependents (checked with `-A`).
+- C14 itcl two-word `Factory make` (instance creation) now resolves to the class-scoped
+  `proc make` (`fp_itcl_bare_two_word_text_is_not_confused_with_class_proc_dispatch`,
+  refs [1,5] vs [1]). `source_constructor_call_at` returns a constructor call for it, and the
+  itcl proc is a ClassObject-side member, so the LSP's `source_class_call_query` selects it.
+  The LSP lookup is unchanged since f3aed2a40e. Contract: a non-TclOO class's `Class word`
+  is instance creation. Either don't publish itcl procs as two-word-dispatchable ClassObject
+  members, or mark the call/class so consumers can tell. Class procs dispatch only via
+  `Class::proc` (OriginalSourceClassProcCall). It was red in one run while the itcl D work was landing
+  and green again in the final run. Keep the contract.
 - C13 run_all_checks returns nothing for logical-source entries (`set x [gets stdin]; subst $x` → no T100; IRULE1005/3001/5002, S100 missing) — code_actions diagnostic_context tests.
 
 Needs a decision / larger LSP work (not done):
@@ -152,6 +179,8 @@ tcl-lsp-core
 - `src/original_call_hierarchy.rs`: `original_item_detail` (lexical detail format).
 - `src/hover.rs`: intrep/taint annotations only with a caller-supplied registry.
 - `src/source_graph.rs`: `host_absolute` (rooted = absolute in a browser worker).
+- `src/method_symbol.rs` `readonly_local_reference_report`: `next`/`nextto` sites in the
+  declaration's own body (L12); `references::scan_next_dispatch_sites` made `pub(crate)`.
 - `src/completion.rs`: removed a stale orphan doc comment.
 - `src/original_command_rename.rs`, `src/original_member_rename.rs`: test-trace binding
   read in non-test builds.
