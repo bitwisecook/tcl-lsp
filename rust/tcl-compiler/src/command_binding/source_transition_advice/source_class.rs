@@ -2143,7 +2143,15 @@ mod tests {
             "Factory::make\n",
         );
         let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
-        assert_eq!(class_object_member_names(&analysis), vec![b"make".to_vec()]);
+        // The class proc is declared, but never in the class object's
+        // two-word dispatch table.
+        assert!(class_object_member_names(&analysis).is_empty());
+        assert!(
+            analysis
+                .original_class_declarations()
+                .flat_map(|record| record.metadata().original_members.declarations())
+                .any(|method| method.original_name_input().bytes() == b"make")
+        );
         for spelling in ["::app::Factory::make\n", "app::Factory::make\n"] {
             let offset = u32::try_from(source.find(spelling).unwrap()).unwrap();
             let call = source_class_proc_call_at(source, &analysis, offset)

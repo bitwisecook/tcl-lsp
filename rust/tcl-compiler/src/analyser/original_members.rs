@@ -1211,18 +1211,22 @@ impl Producer<'_> {
         let delegate = self
             .grammar
             .native_classmethod_declaration(member, self.dialect.surface);
-        // A Registry type-object method (snit `typemethod`, itcl class-scoped
-        // `proc`) lives in the class object's own table, as the class model's
-        // `class_methods` files it; only a Tcl 9 `classmethod` delegate has the
-        // separate instance-side forward declared above.
-        let type_object_method = matches!(
-            member.effect,
-            tcl_registry::definer::MemberEffect::Callable {
-                receiver: tcl_registry::definer::MemberReceiver::TypeObject,
-                role: tcl_registry::definer::CallableRole::Method,
-                ..
-            }
-        );
+        // A Registry type-object method (snit `typemethod`) lives in the class
+        // object's own table, as the class model's `class_methods` files it,
+        // because the type command's two-word form dispatches it. An Itcl
+        // class-scoped `proc` is not two-word dispatchable: `Class name` always
+        // constructs (`DefinitionBodyGrammar::conditional_construction_name_at`)
+        // and the proc is reached only as `Class::proc`
+        // (`OriginalSourceClassProcCall`), so it stays out of that table.
+        let type_object_method = self.grammar.family != DefinerFamily::Itcl
+            && matches!(
+                member.effect,
+                tcl_registry::definer::MemberEffect::Callable {
+                    receiver: tcl_registry::definer::MemberReceiver::TypeObject,
+                    role: tcl_registry::definer::CallableRole::Method,
+                    ..
+                }
+            );
         let side = if delegate || type_object_method {
             MemberSide::ClassObject
         } else {
