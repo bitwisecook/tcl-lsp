@@ -2286,21 +2286,6 @@ impl Analyser {
         // ``self`` so per-command handlers (registry-driven body
         // iteration in ``process_command``) reuse it.
         self.registry = Some(self.profile_registry());
-        // A hosted F5 document supplied without an execution entry is a
-        // freshly loaded rule (user decision 2026-10-21T00:10Z, "realm-aware
-        // command world"): every consumer of this walk takes the same
-        // rule-loader entry as compilation does, so the loader's `proc` is an
-        // original declaration. A supplied entry stays authoritative, and a
-        // reused analyser does not keep this per-document default.
-        let supplied_entry = self.source_analysis_entry.is_some();
-        if !supplied_entry {
-            self.source_analysis_entry =
-                crate::command_binding::SourceAnalysisEntry::for_fresh_hosted_source(
-                    &self.resolved_analysis_input(),
-                )
-                .filter(|entry| !entry.unknown_entry)
-                .map(Arc::new);
-        }
         #[cfg(debug_assertions)]
         trace_phase("realm-start");
         self.head_identities = self.document_command_realm(source);
@@ -2404,9 +2389,6 @@ impl Analyser {
 
         let result = std::mem::take(&mut self.result);
         self.clear_run_state();
-        if !supplied_entry {
-            self.source_analysis_entry = None;
-        }
         #[cfg(debug_assertions)]
         trace_phase("complete");
         result

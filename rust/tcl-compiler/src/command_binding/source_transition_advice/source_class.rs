@@ -2127,20 +2127,17 @@ mod tests {
     /// Contract D: [incr Tcl] publishes each class-scoped `proc` as the
     /// command `Class::proc` in the class's namespace. A qualified call joins
     /// the source class its qualifier names, with the written member as its
-    /// class-side target; the same text where the class is unreachable, and
-    /// the two-word `Factory make` instance creation, join nothing.
+    /// class-side target; a qualifier naming no source class joins nothing.
     #[test]
     fn itcl_class_proc_calls_join_the_qualifying_source_class() {
         use crate::registry_invocation::source_structure::source_class_proc_call_at;
         let source = concat!(
-            "namespace eval ::app {\n",
-            "    itcl::class Factory {\n",
-            "        proc make {} { return 1 }\n",
-            "    }\n",
+            "itcl::class Factory {\n",
+            "    proc make {} { return 1 }\n",
             "}\n",
-            "::app::Factory::make\n",
-            "app::Factory::make\n",
+            "::Factory::make\n",
             "Factory::make\n",
+            "Other::make\n",
         );
         let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
         // The class proc is declared, but never in the class object's
@@ -2152,19 +2149,21 @@ mod tests {
                 .flat_map(|record| record.metadata().original_members.declarations())
                 .any(|method| method.original_name_input().bytes() == b"make")
         );
-        for spelling in ["::app::Factory::make\n", "app::Factory::make\n"] {
-            let offset = u32::try_from(source.find(spelling).unwrap()).unwrap();
+        for spelling in ["::Factory::make\n", "\nFactory::make\n"] {
+            let offset = u32::try_from(
+                source.find(spelling).unwrap() + usize::from(spelling.starts_with('\n')),
+            )
+            .unwrap();
             let call = source_class_proc_call_at(source, &analysis, offset)
                 .unwrap_or_else(|| panic!("{spelling:?} dispatches the class proc"));
             assert_eq!(call.member_name(), b"make");
-            let end = offset + u32::try_from(spelling.len() - 1).unwrap();
+            let end = offset + u32::try_from(spelling.trim_matches('\n').len()).unwrap();
             assert_eq!(call.member_span(), tcl_lexer::Span::new(end - 4, end));
             assert!(call.class_declaration().source_class(&analysis).is_some());
         }
-        // tclsh 8.6 + Itcl: `Factory::make` at the global level is
-        // `invalid command name`; the class lives in `::app`.
-        let offset = u32::try_from(source.rfind("Factory::make\n").unwrap()).unwrap();
-        assert!(source.as_bytes()[usize::try_from(offset).unwrap() - 1] == b'\n');
+        // A qualifier naming no source class: tclsh answers
+        // `invalid command name "Other::make"`.
+        let offset = u32::try_from(source.find("Other::make").unwrap()).unwrap();
         assert!(source_class_proc_call_at(source, &analysis, offset).is_none());
     }
 

@@ -827,7 +827,6 @@ impl Analyser {
                     );
                     if crate::connection_scope::cell_from_place(&place)
                         .is_some_and(|cell| flags.contains(&cell))
-                        || names_static_variable(&access.original_spelling)
                         || (!place.dynamic
                             && place.is_global()
                             && tcl_registry::f5::namespace_storage_domain(
@@ -859,7 +858,6 @@ impl Analyser {
                 );
                 crate::connection_scope::cell_from_place(&place)
                     .is_some_and(|cell| flags.contains(&cell))
-                    || names_static_variable(name)
                     || (!place.dynamic
                         && place.is_global()
                         && tcl_registry::f5::namespace_storage_domain(
@@ -976,15 +974,6 @@ fn collect_event_bodies(
 /// is required. Exact setup-event definitions below use the shared Tcl cells.
 fn mentions_static_variable(word: &str) -> bool {
     word.contains("static::")
-}
-
-/// Whether a written variable name selects BIG-IP's `static::` namespace.
-/// Suppress-only advisory evidence, like [`mentions_static_variable`]: an
-/// entered event body's frame may leave the relative name's current namespace
-/// unproved, but a decision on a `static::` flag is still the gate IRULE5001
-/// prescribes, and over-suppressing a hint is the safe direction.
-fn names_static_variable(name: &str) -> bool {
-    name.trim_start_matches(':').starts_with("static::")
 }
 
 /// Possible debug flags from infrequently invoked handlers. Reuse the source

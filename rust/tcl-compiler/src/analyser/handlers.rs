@@ -1457,7 +1457,21 @@ impl Analyser {
                     )
             })
         {
-            return None;
+            // A hosted document supplied without an entry is a fresh rule
+            // load (user decision 2026-10-21T00:10Z, "realm-aware command
+            // world"): its loader defines each `proc` at load time under the
+            // authored naming recipe of that entry.
+            if self.source_analysis_entry.is_some() {
+                return None;
+            }
+            return crate::command_binding::SourceAnalysisEntry::for_fresh_hosted_source(
+                &self.resolved_analysis_input(),
+            )
+            .filter(|entry| !entry.unknown_entry)
+            .and_then(|entry| match entry.execution_name_policy {
+                Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(policy)) => Some(policy),
+                _ => None,
+            });
         }
         match self.source_analysis_entry.as_deref() {
             Some(entry) => match entry.native_entry.as_deref() {

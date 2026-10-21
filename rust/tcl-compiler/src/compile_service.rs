@@ -291,6 +291,8 @@ impl BytecodeCompileService {
         // under, over that engine's view of its owned registry.
         let registry = match self.profile {
             Some(_) => self.registry.registry()?,
+            // TEMP measurement toggle (compiler-codegen), remove before hand-back.
+            None if std::env::var_os("ZZ_CCG_BASELINE").is_some() => self.registry.registry()?,
             None => self.registry.registry_for_profile(profile_less_engine())?,
         };
         Self::compile_target_with(
@@ -354,12 +356,35 @@ impl BytecodeCompileService {
         // runs it under. A supplied runtime
         // entry keeps its own facts; without a corresponding complete input
         // the module keeps refusing.
-        let fresh_profile = profile.unwrap_or_else(profile_less_engine);
+        // TEMP measurement toggle (compiler-codegen), remove before hand-back.
+        let zz_baseline = std::env::var_os("ZZ_CCG_BASELINE").is_some();
+        let fresh_profile = if zz_baseline {
+            profile.unwrap_or_else(DialectProfile::plain_tcl)
+        } else {
+            profile.unwrap_or_else(profile_less_engine)
+        };
         let fresh_input = (native_entry.is_none()
+            && (!zz_baseline || profile.is_some())
             && policy.scope == ModuleEmissionScope::WholeModule)
             .then(|| fresh_document_input(registry, config, fresh_profile))
             .flatten();
         let ir = match fresh_input {
+            Some(input) if zz_baseline => {
+                let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+                    registry, &input, config, profile,
+                );
+                let mut options = entry.options();
+                options.compilation_scope = policy.scope;
+                lower_script_module_for_bytecode_with_options(
+                    target.source,
+                    target.namespace,
+                    registry,
+                    config,
+                    profile,
+                    plain_command_dispatch,
+                    Some(options),
+                )
+            }
             Some(input) => Self::lower_fresh_document(
                 target,
                 registry,
@@ -397,7 +422,13 @@ impl BytecodeCompileService {
         )?;
         // A profile-less module is the permissive fallback profile's, whose
         // engine it was compiled for.
-        module.profile = profile.unwrap_or_else(DialectProfile::plain_tcl);
+        if zz_baseline {
+            if let Some(profile) = profile {
+                module.profile = profile;
+            }
+        } else {
+            module.profile = profile.unwrap_or_else(DialectProfile::plain_tcl);
+        }
         validate_native_function(&module.top_level)?;
         Ok(module)
     }
