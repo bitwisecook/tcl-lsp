@@ -77,6 +77,16 @@ fn fresh_document_input(
     Some(input)
 }
 
+/// The native engine a profile-less module runs under: the permissive
+/// fallback profile pins its modules to its runtime release's interpreter,
+/// whose fresh command world the module is compiled for.
+fn profile_less_engine() -> &'static DialectProfile {
+    tcl_registry::model::ingress::resolve_environment(
+        DialectProfile::plain_tcl().vm_runtime_version.dialect_name(),
+    )
+    .unit_profile()
+}
+
 fn validate_native_function(function: &tcl_bytecode::FunctionAsm) -> Result<(), CompileError> {
     function
         .validate_native_compilation_entry()
@@ -277,14 +287,11 @@ impl BytecodeCompileService {
         source: &str,
         plain_command_dispatch: bool,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        // A profile-less service compiles for the permissive fallback
-        // profile its modules run under, over that profile's view of its
-        // owned registry.
+        // A profile-less service compiles for the engine its modules run
+        // under, over that engine's view of its owned registry.
         let registry = match self.profile {
             Some(_) => self.registry.registry()?,
-            None => self
-                .registry
-                .registry_for_profile(DialectProfile::plain_tcl())?,
+            None => self.registry.registry_for_profile(profile_less_engine())?,
         };
         Self::compile_target_with(
             ScriptCompileTarget {
@@ -343,11 +350,11 @@ impl BytecodeCompileService {
         // fresh interpreter of its profile runs, as `tclsh file.tcl` does
         // (user decision 2026-10-19T14:20Z): it takes the supplied-source
         // entry whole-document analysis takes, over the profile's complete
-        // input; a profile-less service's module is the permissive
-        // fallback profile's, which the VM runs it as. A supplied runtime
+        // input; a profile-less module is compiled for the engine the VM
+        // runs it under. A supplied runtime
         // entry keeps its own facts; without a corresponding complete input
         // the module keeps refusing.
-        let fresh_profile = profile.unwrap_or_else(DialectProfile::plain_tcl);
+        let fresh_profile = profile.unwrap_or_else(profile_less_engine);
         let fresh_input = (native_entry.is_none()
             && policy.scope == ModuleEmissionScope::WholeModule)
             .then(|| fresh_document_input(registry, config, fresh_profile))
@@ -417,9 +424,12 @@ impl BytecodeCompileService {
         options.compilation_scope = ModuleEmissionScope::WholeModule;
         // `tclsh file.tcl` compiles the file as one script object
         // (`Tcl_EvalObjEx` without `TCL_EVAL_DIRECT`): its commands take
-        // their release's compilers rather than direct evaluation.
-        options.native_compilation.mode =
-            tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject;
+        // their release's compilers rather than direct evaluation. A hosted
+        // (F5) rule keeps the fresh rule loader's own unmeasured protocol.
+        if options.vendor_source_input.is_none() {
+            options.native_compilation.mode =
+                tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject;
+        }
         let mut lowerer = crate::lowering::Lowerer::with_config(registry, config)
             .with_dialect(Some(profile))
             .for_bytecode_backend();
@@ -3597,5 +3607,26 @@ mod tests {
                 .is_some_and(|admission| admission.provider_required),
             "an unknown entry's compiler table is not the profile's"
         );
+    }
+
+    #[test]
+    fn zz_ccg_release_probe() {
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "f5-irules"] {
+            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
+            let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
+            let config = LexerConfig::from_grammar(profile.grammar);
+            for source in ["expr {1 + 2}", "set x 1", "catch {error x} msg", "proc p {} {return 1}"] {
+                let input = fresh_document_input(registry, config, profile);
+                let ir = input.map(|input| BytecodeCompileService::lower_fresh_document(
+                    ScriptCompileTarget { source, namespace: "", evaluation: CommandEvaluation::Compiled },
+                    registry, config, profile, false, input));
+                eprintln!(
+                    "RELPROBE {dialect} {source:?}: admission={:?} failure={:?} result={:?}",
+                    ir.as_ref().map(|ir| ir.top_level.native_compilation_admission.as_ref().map(|a| (a.provider_required, a.failure.is_some()))),
+                    ir.as_ref().map(|ir| ir.top_level.native_compilation_failure.is_some()),
+                    BytecodeCompileService::for_profile(profile).compile_for_profile(source, profile).map(|m| m.top_level.native_compilation_preflight),
+                );
+            }
+        }
     }
 }

@@ -143,11 +143,16 @@ pub trait OpenDocuments: Send + Sync {
     /// The editor's current text for `path`, or `None` when it holds none.
     fn text(&self, path: &Path) -> Option<Arc<str>>;
 
-    /// The host's own analysis of the open document at `path`, retained with
-    /// its complete input and configuration; `None` when it supplies none.
-    /// A sibling rule file is scanned under this analysis, never under the
-    /// initiating document's, and the scanner still refuses it unless it
-    /// describes exactly the text [`Self::text`] returns.
+    /// The host's own analysis of the document at `path`, retained with its
+    /// complete input and configuration; `None` when it supplies none.
+    ///
+    /// The host answers for an open buffer, and for a closed rule file it read
+    /// and analysed for this request (see [`sibling_rule_files`]) — in which
+    /// case [`Self::text`] answers with exactly the text it analysed, so the
+    /// scan and the analysis see the same bytes. A sibling rule file is
+    /// scanned under this analysis, never under the initiating document's,
+    /// and the scanner still refuses it unless it describes exactly the text
+    /// [`Self::text`] returns.
     fn analysis(&self, _path: &Path) -> Option<Arc<tcl_compiler::analyser::AnalysisResult>> {
         None
     }
@@ -688,15 +693,68 @@ fn current_method_calls(doc: IlxDocument<'_>, ctx: IlxContext<'_>) -> Vec<IlxMet
 
 /// The method calls of a rule file other than the initiating document.
 ///
-/// An open sibling the host analysed is scanned under that analysis — its own
-/// source, input and configuration — whatever route started the request.
-/// Anything else keeps the route's rule: the explicit standalone source API
-/// when no document analysis is supplied, and no borrowed facts otherwise.
+/// A sibling the host analysed — open, or closed and read for this request —
+/// is scanned under that analysis: its own source, input and configuration,
+/// whatever route started the request. Without one, a route that carries a
+/// document analysis has no facts for the sibling (that analysis describes
+/// another file, so nothing is borrowed from it, even for identical bytes);
+/// only the explicit standalone source API, which carries none, manufactures
+/// its own input.
 fn sibling_method_calls(doc: IlxDocument<'_>, ctx: IlxContext<'_>) -> Vec<IlxMethodCall> {
     if let Some(analysis) = ctx.files.open_analysis(doc.path) {
         return tcl_irules::ilx::ilx_method_calls_from_analysis(doc.text, &analysis);
     }
-    current_method_calls(doc, ctx)
+    if ctx.analysis.is_some() {
+        return Vec::new();
+    }
+    ilx_method_calls(doc.text, ctx.registry)
+}
+
+/// The rule files other than `doc` that [`references`] and
+/// [`source_candidates`] read for `call` — every Tcl source the call's
+/// extension site associates with it.
+///
+/// A host that supplies per-document input asks this first, reads and
+/// analyses each file it does not hold open, and then answers for them
+/// through [`OpenDocuments`], so a closed sibling is scanned under its own
+/// input rather than reported as having no call sites. Empty when the call is
+/// not current or names no locatable extension.
+#[must_use]
+pub fn sibling_rule_files(
+    doc: IlxDocument<'_>,
+    ctx: IlxContext<'_>,
+    call: &IlxMethodCall,
+) -> Vec<PathBuf> {
+    if !current_source_call(doc, ctx, call) {
+        return Vec::new();
+    }
+    let mut out = Vec::new();
+    for target in [call.target.as_ref(), call.source_target.as_ref()]
+        .into_iter()
+        .flatten()
+    {
+        let Ok(site) = locate_extension(doc.path, target, ctx) else {
+            continue;
+        };
+        for rule in rule_files(&site.workspace, &site.extra_rules, ctx.files.store) {
+            if rule != doc.path {
+                push_unique(&mut out, rule);
+            }
+        }
+    }
+    out
+}
+
+/// The rule files [`references_from_registration`] and
+/// [`source_candidates_from_registration`] read for the extension entry point
+/// at `path` — the JavaScript end's counterpart of [`sibling_rule_files`].
+#[must_use]
+pub fn sibling_rule_files_from_registration(path: &Path, ctx: IlxContext<'_>) -> Vec<PathBuf> {
+    let Some((workspace, _)) = extension_of_entry(path) else {
+        return Vec::new();
+    };
+    let extra = ctx.extra_rules_for_workspace(&workspace);
+    rule_files(&workspace, &extra, ctx.files.store)
 }
 
 fn current_source_call(doc: IlxDocument<'_>, ctx: IlxContext<'_>, call: &IlxMethodCall) -> bool {
@@ -1661,6 +1719,79 @@ mod tests {
             ..analysed
         };
         assert_eq!(sibling_sites(&stale), 0, "a stale sibling analysis");
+    }
+
+    /// A closed sibling is reported by [`super::sibling_rule_files`], and once
+    /// the host reads and analyses it — answering with exactly that text and
+    /// that analysis — it is scanned under its own input. Without the host's
+    /// input a document route borrows nothing, even for byte-identical text.
+    #[test]
+    fn a_closed_sibling_rule_is_scanned_under_the_input_the_host_supplies() {
+        let profile = tcl_dialect::DialectProfile::irules();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let analyse = |source: &str| {
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::clone(&context),
+                tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            );
+            tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, profile.name)
+        };
+        let store = workspace_store();
+        let sibling = "/w/my_plugin/rules/rule2.tcl";
+        let doc = IlxDocument {
+            path: Path::new("/w/my_plugin/rules/rule1.tcl"),
+            text: RULE,
+        };
+        let own = analyse(RULE);
+        let none = OpenBuffers::default();
+        let ctx = IlxContext::new(context.commands(), &store)
+            .with_analysis(&own)
+            .with_open_documents(&none);
+        let call = method_fixture_call(doc, ctx);
+        assert_eq!(
+            super::sibling_rule_files(doc, ctx, &call),
+            vec![PathBuf::from(sibling)],
+            "the closed sibling the request reads, and never the document itself"
+        );
+
+        let sibling_sites = |sibling_text: &str, open: &dyn super::OpenDocuments| {
+            store.upsert(sibling, sibling_text.as_bytes().to_vec());
+            let ctx = IlxContext::new(context.commands(), &store)
+                .with_analysis(&own)
+                .with_open_documents(open);
+            let call = method_fixture_call(doc, ctx);
+            super::source_candidates(doc, ctx, &call)
+                .iter()
+                .filter(|candidate| candidate.location.path.ends_with("rule2.tcl"))
+                .count()
+        };
+        // Byte-identical to the initiating rule: its analysis still describes
+        // another file, so nothing is borrowed from it.
+        assert_eq!(sibling_sites(RULE, &none), 0, "no borrowed initiating facts");
+        let closed_text = format!("# closed sibling\n{RULE}");
+        assert_eq!(sibling_sites(&closed_text, &none), 0, "no host input");
+        let supplied = AnalysedBuffer {
+            path: PathBuf::from(sibling),
+            text: Arc::from(closed_text.as_str()),
+            analysis: Arc::new(analyse(&closed_text)),
+        };
+        assert_eq!(
+            sibling_sites(&closed_text, &supplied),
+            2,
+            "both sites, under the sibling's own input"
+        );
+
+        // The JavaScript end lists the same rule files from the entry point.
+        let entry = Path::new("/w/my_plugin/extensions/my_extension/index.js");
+        let js_ctx = IlxContext::new(context.commands(), &store);
+        assert_eq!(
+            super::sibling_rule_files_from_registration(entry, js_ctx),
+            vec![PathBuf::from("/w/my_plugin/rules/rule1.tcl"), PathBuf::from(sibling)],
+        );
     }
 
     #[test]
