@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-21T12:05Z",
+  "source": "User message in chat",
+  "decisions": {
+    "merge_contents_evidence": {
+      "choice": "Evidence stays on the work branch",
+      "meaning": "experiments/name-handling evidence, docs/work/name-handling working records and docs/design/analysis/name-resolution-proofs validation output are not carried into rust; the PR to rust carries product source, design docs and needed test fixtures only."
+    },
+    "merge_contents_test_fixtures": {
+      "choice": "Review fixtures for performance, completeness and overlap; reduce in number where possible",
+      "meaning": "Test fixtures added on work (about 27,000 files, mostly rust/tcl-registry/tests/data, runtime/rust/tests/data, rust/tcl-syntax/tests/data) are reviewed before the PR: measure their test cost, confirm each covers a distinct behaviour, merge overlapping cases, and reduce file count without losing coverage."
+    }
+  }
+}
