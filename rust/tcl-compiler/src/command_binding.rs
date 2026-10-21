@@ -6466,7 +6466,10 @@ impl SourceOutcomes {
             eprintln!(
                 "ORIGINAL_COMPLETED_NORMAL_WORLD complete={} routes={:?} opaque={} step={} observed={}",
                 self.normal_completion.is_some(),
-                self.abrupt.iter().map(|(route, _)| route).collect::<Vec<_>>(),
+                self.abrupt
+                    .iter()
+                    .map(|(route, _)| route)
+                    .collect::<Vec<_>>(),
                 normal.has_opaque_domain(),
                 normal.source_step_observed(),
                 normal.source_execution_observed(None),
@@ -9558,14 +9561,6 @@ impl SourceCommandBindings {
         };
         let incoming = boxed_source_branch(state);
         if binding.unknown {
-            #[cfg(test)]
-            if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
-                eprintln!(
-                    "ZZ_UNKNOWN_BINDING command={:?} namespace={:?}",
-                    segment.texts,
-                    context.namespace_identity()
-                );
-            }
             let mut residual = incoming.clone();
             residual.mark_opaque_binding_mutation();
             residual.loader_handler_unknown = true;
@@ -14633,14 +14628,6 @@ impl ModuleCommandBindings {
     /// mutation. Namespace lookup changes are relevant to source-safe
     /// resolution but do not by themselves invalidate optimiser trust.
     fn mark_opaque_resolution(&mut self) {
-        #[cfg(test)]
-        if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
-            eprintln!(
-                "ZZ_OPAQUE {}\n{}",
-                stringify!(mark_opaque_resolution),
-                std::backtrace::Backtrace::force_capture()
-            );
-        }
         Arc::make_mut(&mut self.original_command_world).withdraw();
         self.opaque_domain = true;
     }
@@ -14648,14 +14635,6 @@ impl ModuleCommandBindings {
     /// Widen both command resolution and the optimiser's command-trust
     /// projection because an unbounded command-binding effect may occur.
     fn mark_opaque_binding_mutation(&mut self) {
-        #[cfg(test)]
-        if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
-            eprintln!(
-                "ZZ_OPAQUE {}\n{}",
-                stringify!(mark_opaque_binding_mutation),
-                std::backtrace::Backtrace::force_capture()
-            );
-        }
         Arc::make_mut(&mut self.original_command_world).withdraw();
         self.ordinary_literal_pool = None;
         Arc::make_mut(&mut self.object_instances).invalidate_dispatch(true);
@@ -19600,13 +19579,6 @@ fn apply_namespace_transition(
                     break;
                 };
                 if !import_pattern(state, &name, pattern, *force) {
-                    #[cfg(test)]
-                    if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
-                        eprintln!(
-                            "ZZ_IMPORT_FAILED destination={name:?} pattern={:?}",
-                            String::from_utf8_lossy(pattern)
-                        );
-                    }
                     break;
                 }
             }

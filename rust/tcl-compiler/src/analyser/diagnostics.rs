@@ -521,17 +521,6 @@ impl Analyser {
         cu: &crate::compilation_unit::CompilationUnit,
         registry: &tcl_registry::CommandRegistry,
     ) {
-        #[cfg(test)]
-        if std::env::var_os("ZZ_PROBE_LOWER").is_some() {
-            let mut blocks = cu.top_level.cfg.blocks.iter().collect::<Vec<_>>();
-            blocks.sort_by_key(|(id, _)| format!("{id:?}"));
-            for (id, block) in blocks {
-                for (index, statement) in block.statements.iter().enumerate() {
-                    let text = format!("{statement:?}");
-                    eprintln!("ZZ_LOWER {id:?}[{index}] {}", &text[..text.len().min(700)]);
-                }
-            }
-        }
         #[cfg(any(test, debug_assertions))]
         let phase_start = std::env::var_os("TCL_LSP_TRACE_SOURCE_PHASES")
             .is_some()

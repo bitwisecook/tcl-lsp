@@ -2167,6 +2167,63 @@ mod tests {
         assert!(source_class_proc_call_at(source, &analysis, offset).is_none());
     }
 
+    #[test]
+    fn zz_sol49_itcl_matrix() {
+        use crate::registry_invocation::source_structure::{
+            source_class_declaration_at, source_class_proc_call_at,
+        };
+        let sources = [
+            concat!(
+                "namespace eval ::app {\n",
+                "    itcl::class Factory {\n",
+                "        proc make {} { return 1 }\n",
+                "        proc other {} { return [make] }\n",
+                "        method inst {} { return [Factory::make] }\n",
+                "    }\n",
+                "    proc caller {} { return [Factory::make] }\n",
+                "}\n",
+                "::app::Factory::make\n",
+                "app::Factory::make\n",
+            ),
+            concat!(
+                "namespace eval ::app {\n",
+                "    itcl::class Factory {\n",
+                "        proc make {} { return 1 }\n",
+                "    }\n",
+                "    Factory::make\n",
+                "}\n",
+            ),
+        ];
+        for source in sources {
+            let analysis = Analyser::new().analyse(source, "tcl8.6").clone();
+            eprintln!("SRC {source:?}");
+            eprintln!(
+                "  class decls {} decl_at={}",
+                analysis.original_class_declarations().count(),
+                source_class_declaration_at(
+                    source,
+                    &analysis,
+                    u32::try_from(source.find("itcl::class").unwrap()).unwrap()
+                )
+                .is_some()
+            );
+            for (index, _) in source.match_indices("make") {
+                let mut start = index;
+                while start > 0 && !b" [\n".contains(&source.as_bytes()[start - 1]) {
+                    start -= 1;
+                }
+                let offset = u32::try_from(start).unwrap();
+                eprintln!(
+                    "  {:?}@{offset} proc_call={:?} ctor={}",
+                    &source[start..index + 4],
+                    source_class_proc_call_at(source, &analysis, offset)
+                        .map(|call| String::from_utf8_lossy(call.member_name()).into_owned()),
+                    source_constructor_call_at(source, &analysis, offset).is_some()
+                );
+            }
+        }
+    }
+
     /// Itcl's two-word `Class name` form constructs an object called `name`
     /// even when the class declares a class-scoped `proc name`; that proc is
     /// reachable only as `Class::name`.

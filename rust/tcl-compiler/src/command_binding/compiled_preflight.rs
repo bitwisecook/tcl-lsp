@@ -380,6 +380,29 @@ pub(super) fn materialise_error_storage(
     }
 }
 
+/// What [`CompilerTraversal::command`] visits once the command is resolved.
+enum CommandVisit {
+    /// Only the command's own word substitutions.
+    Substitutions,
+    /// Resolution decided the outcome; nothing more is visited.
+    Finished(Option<SourceNativeCompilationFailure>),
+    /// An actual ensemble's selected operation.
+    Ensemble(Box<tcl_registry::native_instruction_plan::NativeInstructionPlan>),
+    /// A selected compiler's recipe and visits.
+    Compiled(Box<CompiledCommandVisit>),
+}
+
+/// The resolved command a selected compiler visits, kept off the stack of
+/// the traversal's descent.
+struct CompiledCommandVisit {
+    target: super::SourceCommandTarget,
+    head: String,
+    preparation: Option<crate::registry_invocation::OriginalNativeCompilerPreparation>,
+    selection: NativeCompilationSelection,
+    spec: tcl_registry::native_compilation::NativeCompilationSpec,
+    steps: NativeCompilationSteps,
+}
+
 struct CompilerTraversal<'a> {
     state: &'a ModuleCommandBindings,
     snapshot: &'a mut NativeCompilationSnapshot,
@@ -628,24 +651,47 @@ impl CompilerTraversal<'_> {
         targets.targets.into_iter().next()
     }
 
+    /// Visit one command's compilation. Resolving it ([`Self::command_visit`])
+    /// keeps large locals — its target, facts, word shapes and recipe — so it
+    /// returns a boxed plan before the traversal descends into the command's
+    /// words and bodies: each nesting level then costs only this frame and
+    /// [`Self::compiled_command`]'s, which the source depth guard bounds.
     fn command(
         &mut self,
         words: &[WordExpr],
         offset: u32,
         context: SourceExecutionContext<'_>,
     ) -> Option<SourceNativeCompilationFailure> {
+        match self.command_visit(words, offset, context) {
+            CommandVisit::Substitutions => self.substitutions(words, context),
+            CommandVisit::Finished(failure) => failure,
+            CommandVisit::Ensemble(recipe) => {
+                self.structured_compilation(words, offset, &recipe, context)
+            }
+            CommandVisit::Compiled(visit) => self.compiled_command(words, offset, context, visit),
+        }
+    }
+
+    /// Resolve what [`Self::command`] visits, without descending.
+    #[inline(never)]
+    fn command_visit(
+        &mut self,
+        words: &[WordExpr],
+        offset: u32,
+        context: SourceExecutionContext<'_>,
+    ) -> CommandVisit {
         if !self.original_head_has_compilation(words) {
-            return self.substitutions(words, context);
+            return CommandVisit::Substitutions;
         }
         let written = super::source_effective_words(words, self.state.baseline.dialect, None);
         let Some(head) = written
             .first()
             .and_then(|word| word.as_registry_word().literal())
         else {
-            return self.substitutions(words, context);
+            return CommandVisit::Substitutions;
         };
         let Some(target) = self.command_target(head, &context.namespace_identity()) else {
-            return self.substitutions(words, context);
+            return CommandVisit::Substitutions;
         };
         self.retain_command_head_dependency(&target, head, context);
         let arguments = written
@@ -653,26 +699,18 @@ impl CompilerTraversal<'_> {
             .skip(1)
             .map(|word| word.as_registry_word())
             .collect::<Vec<_>>();
-        if let Some((visit_substitutions, failure)) =
-            self.command_without_body(&target, words, head, offset, context)
-        {
-            return failure.or_else(|| {
-                if visit_substitutions {
-                    self.substitutions(words, context)
-                } else {
-                    None
-                }
-            });
+        if let Some(visit) = self.command_without_body(&target, words, head, offset, context) {
+            return visit;
         }
         let Some((invocation, mut facts)) = self.command_facts(&target, &arguments, context) else {
             // No retained compiler descriptor represents attempted local
             // allocations for this target. Its ordinary words still compile.
             self.locals = None;
-            return self.substitutions(words, context);
+            return CommandVisit::Substitutions;
         };
         let Some(spec) = self.original_compilation_spec(words, head, offset, &mut facts, context)
         else {
-            return self.substitutions(words, context);
+            return CommandVisit::Substitutions;
         };
         let (shapes, selection, preparation) =
             compilation_selection(spec, invocation, &facts, words, offset, self.state, context);
@@ -681,23 +719,56 @@ impl CompilerTraversal<'_> {
         if self.incomplete_compiler_preparation(selection, spec, preparation.as_ref()) {
             self.locals = None;
         }
-
-        if let Some(recipe) = preparation.as_ref().and_then(|recipe| recipe.structured()) {
-            let failure = self.structured_compilation(words, offset, recipe, context);
-            return self.with_command_dependency(failure, &target, head, context);
-        }
-        if let Some(failure) =
-            self.selected_failure(spec, selection, invocation, &facts, words, head)
+        let structured = preparation
+            .as_ref()
+            .is_some_and(|recipe| recipe.structured().is_some());
+        if !structured
+            && let Some(failure) =
+                self.selected_failure(spec, selection, invocation, &facts, words, head)
         {
-            return Some(self.failure_at(
+            return CommandVisit::Finished(Some(self.failure_at(
                 offset,
                 failure,
                 vec![self.command_dependency(&target, head, context)],
-            ));
+            )));
+        }
+        // The compiler's visits are a function of its selection alone; they
+        // are read here, ahead of the visits that precede them, so that the
+        // descent keeps none of what selected them.
+        let steps = spec.compilation_steps(
+            selection,
+            invocation,
+            &shapes,
+            &facts,
+            self.state.baseline.compilation_dialect(),
+        );
+        CommandVisit::Compiled(Box::new(CompiledCommandVisit {
+            target,
+            head: head.to_owned(),
+            preparation,
+            selection,
+            spec,
+            steps,
+        }))
+    }
+
+    /// Visit a resolved compiler's recipe in its original order.
+    #[inline(never)]
+    fn compiled_command(
+        &mut self,
+        words: &[WordExpr],
+        offset: u32,
+        context: SourceExecutionContext<'_>,
+        mut visit: Box<CompiledCommandVisit>,
+    ) -> Option<SourceNativeCompilationFailure> {
+        let preparation = visit.preparation.take();
+        if let Some(recipe) = preparation.as_ref().and_then(|recipe| recipe.structured()) {
+            let failure = self.structured_compilation(words, offset, recipe, context);
+            return self.with_command_dependency(failure, &visit.target, &visit.head, context);
         }
         if let Some(recipe) = preparation.as_ref().and_then(|recipe| recipe.switch()) {
             let failure = self.switch_compilation(words, offset, recipe, context);
-            return self.with_command_dependency(failure, &target, head, context);
+            return self.with_command_dependency(failure, &visit.target, &visit.head, context);
         }
         let namespace_bindings = preparation
             .as_ref()
@@ -712,22 +783,23 @@ impl CompilerTraversal<'_> {
         })) && let Some(failure) = self.substitutions(words, context) {
             return Some(failure);
         }
-        let NativeCompilationSteps::Known(steps) = spec.compilation_steps(
-            selection,
-            invocation,
-            &shapes,
-            &facts,
-            self.state.baseline.compilation_dialect(),
-        ) else {
+        let NativeCompilationSteps::Known(steps) =
+            std::mem::replace(&mut visit.steps, NativeCompilationSteps::Unknown)
+        else {
             self.require_provider();
             return None;
         };
-        let mut failure =
-            self.visit_compilation_steps(words, offset, steps, context, (selection, spec))?;
-        if matches!(selection, NativeCompilationSelection::Inline { .. }) {
+        let mut failure = self.visit_compilation_steps(
+            words,
+            offset,
+            steps,
+            context,
+            (visit.selection, visit.spec),
+        )?;
+        if matches!(visit.selection, NativeCompilationSelection::Inline { .. }) {
             failure
                 .dependencies
-                .push(self.command_dependency(&target, head, context));
+                .push(self.command_dependency(&visit.target, &visit.head, context));
         }
         Some(failure)
     }
@@ -870,7 +942,7 @@ impl CompilerTraversal<'_> {
         head: &str,
         offset: u32,
         context: SourceExecutionContext<'_>,
-    ) -> Option<(bool, Option<SourceNativeCompilationFailure>)> {
+    ) -> Option<CommandVisit> {
         if self
             .state
             .runtime_noop_header(
@@ -882,7 +954,7 @@ impl CompilerTraversal<'_> {
             )
             .is_some()
         {
-            return Some((true, None));
+            return Some(CommandVisit::Substitutions);
         }
 
         let plan = self.snapshot.table.state.actual_ensemble_plan(
@@ -907,17 +979,22 @@ impl CompilerTraversal<'_> {
             )),
         )?;
         match plan {
-            super::ensemble_compilation::ActualEnsemblePlan::Operation { recipe, .. } => Some((
-                false,
-                self.structured_compilation(words, offset, &recipe, context),
-            )),
+            super::ensemble_compilation::ActualEnsemblePlan::Operation { recipe, .. } => {
+                Some(CommandVisit::Ensemble(recipe))
+            }
             super::ensemble_compilation::ActualEnsemblePlan::Generic => {
                 // A public generic fallback does not retain whether a worker
                 // hook attempted local allocations before declining.
                 self.locals = None;
-                Some((true, None))
+                Some(CommandVisit::Substitutions)
             }
-            super::ensemble_compilation::ActualEnsemblePlan::Named { preparations, .. } => Some((false, self.structured_compilation(words, offset, &tcl_registry::native_instruction_plan::NativeInstructionPlan::GenericPreparation(preparations), context))),
+            super::ensemble_compilation::ActualEnsemblePlan::Named { preparations, .. } => {
+                Some(CommandVisit::Ensemble(Box::new(
+                    tcl_registry::native_instruction_plan::NativeInstructionPlan::GenericPreparation(
+                        preparations,
+                    ),
+                )))
+            }
             super::ensemble_compilation::ActualEnsemblePlan::Unknown => {
                 // A registered recipe can describe the delegated compiler
                 // only after the original map and every private compiler
@@ -938,7 +1015,7 @@ impl CompilerTraversal<'_> {
                 {
                     self.require_provider();
                 }
-                (!target.registry_backed).then_some((true, None))
+                (!target.registry_backed).then_some(CommandVisit::Substitutions)
             }
         }
     }

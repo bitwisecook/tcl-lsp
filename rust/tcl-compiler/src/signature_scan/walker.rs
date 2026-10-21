@@ -1227,57 +1227,6 @@ mod tests {
     }
 
     #[test]
-    fn zz_probe_multiple_handlers() {
-        for source in [
-            "proc bar {} {}",
-            "source /abs/path.tcl\nproc bar {} {}",
-            "package require Tcl 8.6\nproc bar {} {}",
-            "package require Tcl 8.6\nsource /abs/path.tcl\nproc bar {} {}",
-        ] {
-            let mut ctx = registry_ctx();
-            ctx.registry =
-                Some(tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
-            scan(source, None, "", false, &HashSet::new(), &mut ctx);
-            let mut probe = registry_ctx();
-            probe.registry =
-                Some(tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
-            probe.original_image = Some(tcl_lexer::SourceImage::document(source));
-            let offset = source.find("proc bar").unwrap();
-            let command = crate::segmenter::segment_commands_with_offset_and_config(
-                &source[offset..],
-                u32::try_from(offset).unwrap(),
-                probe.config,
-            )
-            .into_iter()
-            .next()
-            .unwrap();
-            probe.original_words = probe.original_command_words(&command).unwrap_or_default();
-            let key = probe.original_name_key(command.argv[1].span);
-            let namespace = probe.current_namespace("");
-            eprintln!(
-                "PROBE-SCAN-KEY {source:?} words={} word={} key={} in_context={}",
-                probe.original_words.len(),
-                probe.original_name_word(command.argv[1].span).is_some(),
-                key.is_some(),
-                namespace.as_ref().is_some_and(|namespace| probe
-                    .procedure_name_in_context(namespace, "bar", key.as_ref())
-                    .is_some()),
-            );
-            eprintln!(
-                "PROBE-SCAN {source:?} procs={:?} invocations={:?} policy={:?} namespace={:?}",
-                ctx.result.procs.keys().collect::<Vec<_>>(),
-                ctx.result
-                    .command_invocations
-                    .iter()
-                    .map(|invocation| invocation.name.clone())
-                    .collect::<Vec<_>>(),
-                ctx.name_policy(),
-                ctx.current_namespace("").is_some(),
-            );
-        }
-    }
-
-    #[test]
     fn multiple_handlers_dispatch_correctly() {
         let mut ctx = registry_ctx();
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();

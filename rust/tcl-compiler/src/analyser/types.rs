@@ -5675,31 +5675,13 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                             && invocation.range.start() >= declaration.len() as u32
                     })
                     .collect::<Vec<_>>();
-                for row in &rows {
-                    eprintln!(
-                        "PROBE {dialect} {use_site:?} at={} lookup={:?} input={} original={} reference={} target={}",
-                        row.range.start(),
-                        row.lookup,
-                        row.original_name_input.is_some(),
-                        row.original_lookup.is_some(),
-                        row.resolved_command_reference.is_some(),
-                        crate::source_graph::invocation_targets_declaration_in(
-                            &source, &result, &source, &result, row, target, false
-                        )
-                    );
-                }
-                let returns = result
-                    .command_invocations
-                    .iter()
-                    .filter(|invocation| invocation.name == "return")
-                    .map(|invocation| invocation.original_lookup.is_some())
-                    .collect::<Vec<_>>();
-                eprintln!("PROBE {dialect} {use_site:?} return lookups={returns:?}");
                 assert_eq!(
                     rows.iter()
-                        .filter(|row| crate::source_graph::invocation_targets_declaration_in(
-                            &source, &result, &source, &result, row, target, false
-                        ))
+                        .filter(
+                            |row| crate::source_graph::invocation_targets_declaration_in(
+                                &source, &result, &source, &result, row, target, false
+                            )
+                        )
                         .count(),
                     count,
                     "{dialect}: {use_site:?}"
@@ -5733,7 +5715,9 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                 assert_eq!(
                     result
                         .retained_command_realm()
-                        .and_then(crate::realm::CommandBindingRealm::original_completed_command_world)
+                        .and_then(
+                            crate::realm::CommandBindingRealm::original_completed_command_world
+                        )
                         .is_some(),
                     completed,
                     "{dialect}: {use_site:?}"
@@ -5774,191 +5758,6 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
             for text in [source.clone(), format!("{source}\r\n")] {
                 let result = crate::analyser::Analyser::new().analyse(&text, dialect);
                 assert!(result.all_classes.contains_key("::Widget"), "{dialect}");
-            }
-        }
-    }
-
-    #[test]
-    fn zz_probe_crlf_body_text() {
-        let source = "oo::class create Widget {\r\n    method render {} {\r\n        puts \"widget $label\"\r\n    }\r\n}";
-        let config = tcl_lexer::LexerConfig::for_file_grammar(
-            tcl_dialect::DialectProfile::find("tcl8.6").unwrap().grammar,
-        );
-        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
-        let command = &commands[0];
-        let token = command.argv[3];
-        let start = (token.span.start() + u32::from(token.content_offset)) as usize;
-        let text = &command.texts[3];
-        eprintln!(
-            "PROBE-CRLF class text_len={} region={:?} equal={} text={:?}",
-            text.len(),
-            &source[start..token.span.end() as usize],
-            source.get(start..start + text.len()) == Some(text.as_str()),
-            text
-        );
-        let inner = crate::segmenter::segment_commands_with_offset_and_config(
-            text,
-            u32::try_from(start).unwrap(),
-            config.nested(),
-        );
-        for command in &inner {
-            for (index, token) in command.argv.iter().enumerate() {
-                eprintln!(
-                    "PROBE-CRLF member argv[{index}] span={:?} text={:?} source={:?}",
-                    token.span,
-                    command.texts.get(index),
-                    source.get(token.span.start() as usize..token.span.end() as usize)
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn zz_probe_completed_world_and_body_lookups() {
-        for use_site in [
-            "",
-            "greet\n",
-            "greet\ngreet\n",
-            "puts hi\n",
-            "puts [greet]\n",
-            "set a [greet]\n",
-            "set a [greet]\nset b [greet]\n",
-            "set a [list [greet]]\n",
-            "set a [string length x]\n",
-            "greet\nset a [greet]\n",
-        ] {
-            let source = format!("proc greet {{}} {{ return hi }}\n{use_site}");
-            let result = crate::analyser::Analyser::new().analyse(&source, "tcl8.6");
-            let world = result
-                .retained_command_realm()
-                .and_then(crate::realm::CommandBindingRealm::original_completed_command_world)
-                .is_some();
-            let returns = result
-                .command_invocations
-                .iter()
-                .filter(|invocation| invocation.name == "return")
-                .map(|invocation| {
-                    (
-                        invocation.original_name_input.is_some(),
-                        invocation.original_lookup.is_some(),
-                    )
-                })
-                .collect::<Vec<_>>();
-            let realm = result.retained_command_realm().unwrap();
-            let offset = u32::try_from(source.find("return").unwrap()).unwrap();
-            let point = realm.invocation_at_source("", offset);
-            eprintln!(
-                "PROBE-WORLD {use_site:?} world={world} returns={returns:?} unknown={} site={} known={}",
-                point.unknown,
-                point.invocation_site().is_some(),
-                point.variable_context.namespace_known,
-            );
-        }
-    }
-
-    #[test]
-    fn zz_probe_next_words() {
-        for (source, needles) in [
-            (
-                "oo::class create Base {\n    method getOptions {key} { return $key }\n}\noo::class create Bar {\n    superclass Base\n    method getOptions {key} {\n        if {1} {\n            next $key\n        }\n    }\n}\n",
-                &["if {1}", "next $key"][..],
-            ),
-            (
-                "oo::class create Base {\n    method getOptions {key} { return $key }\n}\noo::class create Bar {\n    superclass Base\n    method getOptions {key} {\n        nextto Base $key\n    }\n}\n",
-                &["nextto Base"][..],
-            ),
-            (
-                "oo::class create Base {\n    method getOptions {key} { return $key }\n}\noo::class create Bar {\n    superclass Base\n    method getOptions {key} {\n        next $key\n    }\n}\n",
-                &["next $key"][..],
-            ),
-        ] {
-            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
-            let config = analysis.body_lexer_config.unwrap();
-            let context = analysis.resolved_input.as_ref().unwrap().context_registry();
-            for needle in needles {
-                let offset = source.find(needle).unwrap();
-                let segment = crate::segmenter::segment_commands_with_offset_and_config(
-                    &source[offset..],
-                    offset as u32,
-                    config.nested(),
-                )
-                .into_iter()
-                .next()
-                .unwrap();
-                let words = crate::registry_invocation::source_structure::source_registry_words(
-                    source, &analysis, &segment,
-                );
-                eprintln!(
-                    "PROBE-NEXT {needle:?} words={} command={:?} roles={:?} defparent={} bodies={:?} args={:?}",
-                    words.is_some(),
-                    words.as_ref().map(|words| words.command().to_owned()),
-                    words.as_ref().and_then(|words| words.roles().map(<[_]>::to_vec)),
-                    words.as_ref().is_some_and(|words| words.definition_parent().is_some()),
-                    words.as_ref().map(|words| words
-                        .source_script_bodies_for(
-                            &context,
-                            crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation
-                        )
-                        .iter()
-                        .map(|body| body.content_span())
-                        .collect::<Vec<_>>()),
-                    words.as_ref().map(|words| words.with_source_schema(&context, |schema| {
-                        (
-                            schema.semantics.traits.contains(tcl_registry::Traits::TCLOO_NEXT_CHAIN),
-                            schema.semantics.argument_offset,
-                            (0..4)
-                                .map(|index| schema.words.arguments().get(index).and_then(|word| word.literal().map(str::to_owned)))
-                                .collect::<Vec<_>>(),
-                        )
-                    })),
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn zz_probe_imported_heads() {
-        for (dialect, source, head) in [
-            (
-                "tcl8.6",
-                "namespace eval ::a {proc p {} {}; namespace export p}\nnamespace eval ::b {namespace import ::a::p; p}\n",
-                "p",
-            ),
-            (
-                "tcl8.6",
-                "namespace eval ::a {proc p {} {}; namespace export p}\nnamespace import ::a::p\np\n",
-                "p",
-            ),
-            (
-                "tcl9.0",
-                "namespace eval ::a {\n    oo::class create Factory {\n        classmethod make {} { return 1 }\n    }\n    namespace export Factory\n}\nnamespace eval ::b {\n    namespace import ::a::Factory\n    Factory make\n}\n",
-                "Factory",
-            ),
-            (
-                "tcl9.0",
-                "namespace eval ::a {\n    oo::class create Factory {}\n    namespace export Factory\n}\nnamespace eval ::b {\n    namespace import ::a::Factory\n    Factory new\n}\n",
-                "Factory",
-            ),
-        ] {
-            let result = crate::analyser::Analyser::new().analyse(source, dialect);
-            for row in result
-                .command_invocations
-                .iter()
-                .filter(|invocation| invocation.name == head)
-            {
-                eprintln!(
-                    "PROBE-IMPORT {dialect} at={} lookup={:?} input={} original={} reference={:?} definition={}",
-                    row.range.start(),
-                    row.lookup,
-                    row.original_name_input.is_some(),
-                    row.original_lookup.is_some(),
-                    row.resolved_command_reference.as_ref().map(|reference| (
-                        reference.is_direct_definition(),
-                        reference.definition().is_some(),
-                        reference.linked_definition().is_some()
-                    )),
-                    row.resolved_definition.is_some(),
-                );
             }
         }
     }
