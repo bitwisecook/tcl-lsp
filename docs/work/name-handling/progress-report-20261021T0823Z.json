@@ -1,0 +1,69 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-21T08:23:29.434144+00:00",
+  "scheduled_report_utc": "2026-10-20T22:44:00Z (delivered 08:23Z after container restart)",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "committed": {
+    "0e14a5722c": "Sol-45: string compare/index/first/last/toupper/tolower/totitle compiled as C does (cmd_string_e2e 6 -> 13/51); legacy fixtures through analyse; 0 regressions",
+    "aa94c39f13": "Sol-46: TclOO recursion ~196 KB -> ~26 KB stack per level; cmd_oo_e2e no longer aborts (62/74)",
+    "e34d8a427e": "Sol-47: fresh-entry gaps (false S100/T100/T105 on top-level constants, if {0} removal); entry-less module compile takes fresh entry (compile_service 16 -> 20/48, tcl-debugger lib 17/17, mathfunc_derivation 2 -> 7/9); lowering memoisation; 0 regressions",
+    "7b41058056": "user decision: realm-aware command world for iRules",
+    "92ae5c0b4d": "user decision: uncalled procedure bodies resolve in the world after load"
+  },
+  "open_findings": [
+    "miscompile: string length \"{}$z\" gives 4, tclsh 3 (Sol-49 task 1)",
+    "C6 unapplied: 6 blockers (4 uncalled-body, dict for body frame, interp eval list head)",
+    "each TclOO method call recompiles its body",
+    "lowering still quadratic in nesting depth"
+  ],
+  "in_progress": {
+    "sol-48": "tclvm: cluster P, method compile cache, large frames, upstream ports",
+    "sol-49": "compiler: miscompile, iRules realm-aware world, uncalled-body decision + C6, cluster C rest, lowering cost"
+  },
+  "disk_free_gb": 3.4,
+  "next_report_utc": "2026-10-21T08:48:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
