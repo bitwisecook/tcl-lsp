@@ -46,6 +46,50 @@ impl Default for BodyProjectionMemo {
     }
 }
 
+/// Exact-offset original invocation projections of one completed inventory
+/// (`naming.source.original-invocation-projection-memo`). Lowering stamps every
+/// command's descendant points again for each enclosing token vector, so a
+/// nested body would otherwise re-derive each inner point once per enclosing
+/// level. The complete derived result is shared, never another interpretation.
+#[derive(Default)]
+struct InvocationProjectionMemo {
+    entries: Mutex<HashMap<u32, Arc<super::SourceInvocationBinding>>>,
+}
+
+/// Bound on retained point projections per completed body inventory.
+const MAX_RETAINED_INVOCATIONS: usize = 4096;
+
+impl InvocationProjectionMemo {
+    fn get_or_prepare(
+        &self,
+        offset: u32,
+        prepare: impl FnOnce() -> super::SourceInvocationBinding,
+    ) -> Arc<super::SourceInvocationBinding> {
+        // Implementation contract: naming.source.original-invocation-projection-memo
+        // docs/design/analysis/name-resolution-proofs/original-invocation-projection-memo.md
+        if let Some(retained) = self
+            .entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&offset)
+        {
+            return Arc::clone(retained);
+        }
+        let prepared = Arc::new(prepare());
+        let mut entries = self
+            .entries
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(retained) = entries.get(&offset) {
+            return Arc::clone(retained);
+        }
+        if entries.len() < MAX_RETAINED_INVOCATIONS {
+            entries.insert(offset, Arc::clone(&prepared));
+        }
+        prepared
+    }
+}
+
 /// A completed inventory used read-only by lowering. There is no mutable
 /// projection or borrowed builder escape: every changed source interpretation
 /// must construct a new owner, even when its text or namespace label is equal.
@@ -54,6 +98,7 @@ pub(crate) struct RetainedSourceBodyInventory {
     bindings: Arc<SourceCommandBindings>,
     projections: Arc<BodyProjectionMemo>,
     logical_realm: Arc<OnceLock<Option<crate::realm::CommandBindingRealm>>>,
+    invocations: Arc<InvocationProjectionMemo>,
 }
 
 impl std::fmt::Debug for RetainedSourceBodyInventory {
@@ -70,6 +115,7 @@ impl From<SourceCommandBindings> for RetainedSourceBodyInventory {
             bindings: Arc::new(bindings),
             projections: Arc::default(),
             logical_realm: Arc::default(),
+            invocations: Arc::default(),
         }
     }
 }
@@ -90,7 +136,14 @@ impl RetainedSourceBodyInventory {
             crate::realm::original_logical_realm_from_source_bindings(&self.bindings)
         }) {
             Some(realm) => realm.stamp_original_tokens(tokens),
-            None => self.bindings.stamp_original_tokens(tokens),
+            None => self
+                .bindings
+                .stamp_original_tokens_with_bindings(tokens, |offset| {
+                    self.invocations
+                        .get_or_prepare(offset, || self.bindings.invocation_at_source("", offset))
+                        .as_ref()
+                        .clone()
+                }),
         }
     }
 

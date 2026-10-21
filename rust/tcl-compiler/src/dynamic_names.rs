@@ -799,6 +799,33 @@ fn scan_call(
         return;
     };
     if let Some(tokens) = tokens {
+        if !commands.standalone && tokens.carries_proved_names() {
+            // A definition point whose producer proved every name it writes
+            // (`CommandTokens::carries_proved_names`): iteration bindings,
+            // `[…]` word effects, condition kill-sets, upvar invalidation and
+            // arm writes. It runs no command of its own; the commands that
+            // produce its effects are scanned at their own statements.
+            return;
+        }
+        if !commands.standalone
+            && tokens.synthetic == Some(crate::ir::SyntheticMarker::EvaluatedArguments)
+        {
+            // A structured command's argument evaluation: its own head and
+            // bodies are separate statements and phases, so what it can do
+            // to names is what its written words' substitutions do, read
+            // under the argument-evaluation word owner.
+            if tokens
+                .source_binding
+                .as_ref()
+                .and_then(|binding| binding.original_argument_lexer_config(tokens))
+                .is_none_or(|original| original.normalized() != config.normalized())
+            {
+                *barrier = barrier.union(DynamicNameBarrier::OPAQUE_SCRIPT);
+                return;
+            }
+            scan_original_substitutions(tokens, commands, barrier, config);
+            return;
+        }
         if !commands.standalone
             && tokens
                 .source_binding

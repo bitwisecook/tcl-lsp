@@ -183,13 +183,16 @@ fn localise(tok: Token, base: u32) -> Token {
 }
 
 /// Keep the typed expression component's full written extent in the bare run.
+/// The caller's map is reused: widening reads only its bytes, so building a
+/// fresh whole-buffer line index per word would cost the buffer's size for
+/// every word of every command.
 fn original_run_end(
-    source: &str,
+    sm: &SourceMap<'_>,
     last: Token,
-    base: u32,
     config: LexerConfig,
 ) -> Result<usize, &'static str> {
-    let last_local = localise(last, base);
+    let source = sm.source();
+    let last_local = localise(last, sm.base_offset());
     if last.kind == TokenType::ExprSugar {
         Ok(tcl_lexer::word_parts::scan_expression_sugar(
             source.as_bytes(),
@@ -202,7 +205,7 @@ fn original_run_end(
         let span = if last.kind == TokenType::Var {
             tcl_lexer::word_span_at(source, last_local.span)
         } else {
-            tcl_lexer::word_span(&SourceMap::new(source), last_local)
+            tcl_lexer::word_span(sm, last_local)
         };
         Ok(span.end() as usize)
     }
@@ -217,7 +220,7 @@ fn original_word_span(
     last: Token,
 ) -> Result<Span, &'static str> {
     let base = sm.base_offset();
-    let mut end = original_run_end(sm.source(), last, base, config)?;
+    let mut end = original_run_end(sm, last, config)?;
     let start = (first.span.start() - base) as usize;
     if first.kind == TokenType::Esc
         && first.content_offset == 1
@@ -310,7 +313,7 @@ fn build(
         i += 1;
     }
     if let Some(start) = run_start {
-        let end = original_run_end(source, last, base, config)?;
+        let end = original_run_end(sm, last, config)?;
         flush_run(&mut regions, source, config, Some(start), end)?;
     }
 

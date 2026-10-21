@@ -50,6 +50,33 @@ use tcl_runtime_api::{
     ScriptCompileTargetBytes,
 };
 
+/// The complete source input a fresh interpreter of `profile` gives a whole
+/// document: the profile's default availability over the caller's exact
+/// command store and its lexer configuration. `None` when the store's
+/// metadata cannot correspond to that profile's availability.
+fn fresh_document_input(
+    registry: &CommandRegistry,
+    config: LexerConfig,
+    profile: &'static DialectProfile,
+) -> Option<crate::analyser::ResolvedAnalysisInput> {
+    let environment = tcl_registry::model::ingress::resolve_environment(profile.name);
+    let mut context = environment.default_context_registry();
+    if context.commands().snapshot().semantic_key() != registry.snapshot().semantic_key() {
+        context = Arc::new(
+            tcl_registry::model::ingress::static_context_for_profile(profile)
+                .with_command_store(registry.snapshot().shared_registry()),
+        );
+    }
+    let input = crate::analyser::ResolvedAnalysisInput::new(profile, profile, context, config);
+    crate::registry_invocation::InvocationMetadataContext::for_source_input(
+        registry,
+        &input,
+        config,
+        Some(profile),
+    )?;
+    Some(input)
+}
+
 fn validate_native_function(function: &tcl_bytecode::FunctionAsm) -> Result<(), CompileError> {
     function
         .validate_native_compilation_entry()
@@ -304,6 +331,29 @@ impl BytecodeCompileService {
         {
             return Err(CompileError::Message(cut.message.into()));
         }
+        // A whole module compiled with no explicit entry is a document a
+        // fresh interpreter of its profile runs, as `tclsh file.tcl` does
+        // (user decision 2026-10-19T14:20Z): it takes the supplied-source
+        // entry whole-document analysis takes, over the profile's complete
+        // input. A supplied runtime entry keeps its own facts; without a
+        // corresponding complete input the module keeps refusing.
+        let fresh_input = (native_entry.is_none()
+            && policy.scope == ModuleEmissionScope::WholeModule)
+            .then(|| fresh_document_input(registry, config, profile?))
+            .flatten();
+        let fresh_entry = fresh_input.as_ref().map(|input| {
+            crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+                registry, input, config, profile,
+            )
+        });
+        let options = match &fresh_entry {
+            Some(entry) => {
+                let mut options = entry.options();
+                options.compilation_scope = policy.scope;
+                Some(options)
+            }
+            None => Self::source_analysis_options(policy, registry, config, profile),
+        };
         let ir = lower_script_module_for_bytecode_with_options(
             target.source,
             target.namespace,
@@ -311,7 +361,7 @@ impl BytecodeCompileService {
             config,
             profile,
             plain_command_dispatch,
-            Self::source_analysis_options(policy, registry, config, profile),
+            options,
         );
         let mut ir = crate::inlining::inline_reference_bodies(ir, registry, config, profile);
         ir.top_level_evaluation = target.evaluation;

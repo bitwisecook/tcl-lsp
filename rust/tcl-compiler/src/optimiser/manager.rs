@@ -269,6 +269,7 @@ fn elim_target_vars(
     cu: &CompilationUnit,
     registry: &CommandRegistry,
     deletion: tcl_lexer::Span,
+    dead_structure: bool,
 ) -> Option<Vec<String>> {
     let module = &cu.ir_module;
     if module.source.try_text().ok()? != cu.source
@@ -276,20 +277,32 @@ fn elim_target_vars(
     {
         return None;
     }
+    // A dead structure's removal (O112: a constant-false `if`, `while` or
+    // `for`) deletes a body the structure never enters. A statement the solver
+    // proves never runs defines nothing, so only reachable statements name
+    // the definitions such a removal withdraws.
     let first = cu
         .all_body_function_units()
         .flat_map(|unit| {
-            unit.cfg.blocks.iter().flat_map(move |(&block, data)| {
-                data.statements
-                    .iter()
-                    .enumerate()
-                    .filter_map(move |(index, _)| {
-                        let span =
-                            unit.abs_span(unit.cfg.statement_source_edit_span(block, index)?);
-                        (deletion.start() <= span.start() && span.end() <= deletion.end())
-                            .then_some((span, unit, block, index))
-                    })
-            })
+            unit.cfg
+                .blocks
+                .iter()
+                .filter(move |(block, _)| {
+                    !dead_structure
+                        || unit.complexity_guarded
+                        || unit.sccp.executable_blocks.contains(block)
+                })
+                .flat_map(move |(&block, data)| {
+                    data.statements
+                        .iter()
+                        .enumerate()
+                        .filter_map(move |(index, _)| {
+                            let span =
+                                unit.abs_span(unit.cfg.statement_source_edit_span(block, index)?);
+                            (deletion.start() <= span.start() && span.end() <= deletion.end())
+                                .then_some((span, unit, block, index))
+                        })
+                })
         })
         .min_by_key(|(span, _, _, _)| (span.start(), std::cmp::Reverse(span.len())));
     let Some((_, unit, block, index)) = first else {
@@ -378,11 +391,13 @@ fn drop_def_elims_resurrected_by_replacements(
         .enumerate()
         .filter(|(_, o)| o.replacement.trim().is_empty())
         .map(|(i, o)| {
-            let names = elim_target_vars(cu, registry, o.span).and_then(|names| {
-                (!names.is_empty()
-                    || !matches!(o.code, DiagCode::O109 | DiagCode::O125 | DiagCode::O126))
-                .then_some(names)
-            });
+            let names = elim_target_vars(cu, registry, o.span, o.code == DiagCode::O112).and_then(
+                |names| {
+                    (!names.is_empty()
+                        || !matches!(o.code, DiagCode::O109 | DiagCode::O125 | DiagCode::O126))
+                    .then_some(names)
+                },
+            );
             (i, names)
         })
         .collect();
@@ -1892,18 +1907,18 @@ mod tests {
         );
         let span = Span::new(0, u32::try_from(source.trim_end().len()).unwrap());
         assert!(
-            elim_target_vars(&cu, registry, span)
+            elim_target_vars(&cu, registry, span, false)
                 .unwrap()
                 .contains(&"b c".to_owned())
         );
         let mut stale = cu.clone();
         stale.source.replace_range(..3, "put");
-        assert_eq!(elim_target_vars(&stale, registry, span), None);
+        assert_eq!(elim_target_vars(&stale, registry, span, false), None);
         let foreign = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
-        assert_eq!(elim_target_vars(&cu, foreign, span), None);
+        assert_eq!(elim_target_vars(&cu, foreign, span, false), None);
         stale = cu.clone();
         stale.ir_module.lexer_config.strict_quoting ^= true;
-        assert_eq!(elim_target_vars(&stale, registry, span), None);
+        assert_eq!(elim_target_vars(&stale, registry, span, false), None);
         stale = cu;
         stale.top_level.cfg.command_binding_sites.clear();
         for block in stale.top_level.cfg.blocks.values_mut() {
@@ -1913,6 +1928,6 @@ mod tests {
                 }
             }
         }
-        assert_eq!(elim_target_vars(&stale, registry, span), None);
+        assert_eq!(elim_target_vars(&stale, registry, span, false), None);
     }
 }

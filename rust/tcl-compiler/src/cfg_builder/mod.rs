@@ -1400,9 +1400,14 @@ impl<'a> CfgBuilder<'a> {
     /// ([`CODE_RUNNING_TRAITS`]), which the graph never lowers. A head whose
     /// namespace the builder does not know is taken to.
     fn head_is_unseen(&self, bindings: &ModuleCommandBindings, head: &str, args: &[&str]) -> bool {
-        let Some(namespace) = self.invocation_namespace.for_head(head) else {
+        // The same identity-aware selector the frame projection reads
+        // ([`Self::variable_write_projection`]): a source-context frame (the
+        // fresh-interpreter entry's authored `::`) names its heads as an
+        // exact one does; only a receiver-selected relative head is unnamed.
+        let Some(namespace) = self.invocation_namespace.for_head_context(head) else {
             return true;
         };
+        let namespace = namespace.as_ref();
         if bindings.has_unnameable_rebinding_subject()
             || bindings.may_dispatch_unresolved(head, namespace)
             || bindings.target_resolution_may_be_unknown(head, namespace)

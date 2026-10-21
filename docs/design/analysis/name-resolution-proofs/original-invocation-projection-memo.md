@@ -16,7 +16,7 @@ One immutable realm owns a bounded cache of the shared original invocation query
 
 ## Scope
 
-At most256 point results are retained. Same immutable realm clones share; replacement realms start fresh. Derived cache state is excluded from equality. Mutable SourceBindings builders keep ordinary querying and no projection cache. Original token correspondence and current Input/lookup/CPP/Normal/frame obligations remain unchanged. Existing80/defaultstack selector is unchanged; timing/pass claims require actual execution.
+At most256 point results are retained per realm. A completed, read-only lowering body inventory (`RetainedSourceBodyInventory`) keeps the same exact-offset memo over its own complete inventory, bounded at 4096 point results, so stamping a nested body does not re-derive each inner point once per enclosing level; a selected child inventory owns a separate memo. Same immutable realm clones share; replacement realms start fresh. Derived cache state is excluded from equality. Mutable SourceBindings builders keep ordinary querying and no projection cache. Original token correspondence and current Input/lookup/CPP/Normal/frame obligations remain unchanged. Existing80/defaultstack selector is unchanged; timing/pass claims require actual execution.
 
 ## Provider answers
 

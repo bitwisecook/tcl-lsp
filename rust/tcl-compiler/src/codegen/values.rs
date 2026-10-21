@@ -747,29 +747,47 @@ impl CodegenCtx<'_> {
             return;
         }
         let config = self.lexer_config();
-        let ir = crate::lowering::lower_proc_body_module_for_bytecode(
-            script,
-            "",
-            self.registry,
-            config,
-            self.dialect,
-            false,
-        );
-        let cfg = crate::cfg_builder::build_cfg_codegen_with_registry_and_config(
-            &ir,
-            false,
-            self.registry,
-            config,
-        );
-        let asm = super::emitter::codegen_function(&cfg.top_level, &[], true, self.registry);
-        for name in asm.lvt.entries() {
+        let key = (script.to_owned(), config.normalized());
+        let retained = self.script_locals_memo.borrow().get(&key).cloned();
+        let names = if let Some(names) = retained {
+            names
+        } else {
+            let ir = crate::lowering::lower_proc_body_module_for_bytecode(
+                script,
+                "",
+                self.registry,
+                config,
+                self.dialect,
+                false,
+            );
+            let cfg = crate::cfg_builder::build_cfg_codegen_with_registry_and_config(
+                &ir,
+                false,
+                self.registry,
+                config,
+            );
+            // The body's own compile shares this memo: its nested bodies'
+            // locals are the same ones this compile's nested bodies intern.
+            let mut nested = super::CodegenCtx::new(true, &[], self.registry);
+            nested.script_locals_memo = std::rc::Rc::clone(&self.script_locals_memo);
+            let asm = super::emitter::generate::generate(&mut nested, &cfg.top_level);
             // Native local names need not be Unicode; such a local has no
             // text spelling to intern here.
-            if asm.lvt.is_source_local_bytes(name.as_bytes())
-                && let Ok(name) = std::str::from_utf8(name.as_bytes())
-            {
-                self.intern_compiled_local(name);
-            }
+            let names: std::rc::Rc<[String]> = asm
+                .lvt
+                .entries()
+                .iter()
+                .filter(|name| asm.lvt.is_source_local_bytes(name.as_bytes()))
+                .filter_map(|name| std::str::from_utf8(name.as_bytes()).ok())
+                .map(str::to_owned)
+                .collect();
+            self.script_locals_memo
+                .borrow_mut()
+                .insert(key, std::rc::Rc::clone(&names));
+            names
+        };
+        for name in names.iter() {
+            self.intern_compiled_local(name);
         }
     }
 

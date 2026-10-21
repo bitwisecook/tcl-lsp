@@ -117,6 +117,15 @@ struct InlineLoopRegion {
     break_target: String,
 }
 
+/// The compiled locals of a script body's own compile, keyed by its text and
+/// re-lex configuration ([`CodegenCtx::intern_script_locals`]). One compile
+/// shares it with the nested compiles it makes for that purpose, so a body
+/// nested `n` deep is compiled for its locals once rather than once per
+/// enclosing level.
+pub(crate) type ScriptLocalsMemo = std::rc::Rc<
+    std::cell::RefCell<HashMap<(String, tcl_lexer::LexerConfig), std::rc::Rc<[String]>>>,
+>;
+
 /// Mutable context for bytecode emission.
 ///
 /// Replaces `_Emitter` class-level state (`self.asm`,
@@ -219,6 +228,8 @@ pub struct CodegenCtx<'r> {
     pub(crate) label_positions: HashMap<String, usize>,
     /// Monotonic counter for generating unique label names.
     label_counter: u32,
+    /// [`ScriptLocalsMemo`] of this compile and the nested ones it makes.
+    script_locals_memo: ScriptLocalsMemo,
     /// Whether we are compiling a proc body (affects LVT vs stack ops).
     ///
     /// This is the *function's* shape. It is not the same question as "may a
@@ -458,6 +469,7 @@ impl<'r> CodegenCtx<'r> {
             instructions: Vec::new(),
             label_positions: HashMap::new(),
             label_counter: 0,
+            script_locals_memo: ScriptLocalsMemo::default(),
             is_proc,
             same_frame_eval_spans: Vec::new(),
             cmd_index: 0,
