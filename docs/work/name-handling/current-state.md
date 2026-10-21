@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 21 October 2026, 14:34 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
+Updated 21 October 2026, 14:36 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
 
 ## Scope
 
@@ -29,7 +29,7 @@ Counts live in [audit-status.json](audit-status.json); per-unit sites in [reposi
 | # | Validation | Last result | Needed | Owner |
 | --- | --- | --- | --- | --- |
 | 1 | Full workspace CI (`ci.yml`) | Dispatched 21 Oct on `f6c4694f14`: [run 39616304947](https://github.com/bitwisecook/tcl-lsp/actions/runs/39616304947), queued when checked. Comparison baseline remains [run 5201](https://github.com/bitwisecook/tcl-lsp/actions/runs/39304840863): 3,634 failing tests. No new test verdict yet. | Collect completed shard failures and compare per test with run 5201; retain in-scope failures without fixing them in this validation pass. | Validation agent; existing reporter retains the 30-minute reports |
-| 2 | Direct-LSP 1,085-selector capture | Capture48, 19 Oct on `82617ee15` (pre-merge): 870 pass, 215 fail, 2 server timeouts; zero pass-to-fail against capture46. | Re-run on the merged tree with the same guards and 180 s budget. | Coordinator |
+| 2 | Direct-LSP 1,085-selector capture | 21 Oct on `1e910cd3d3` (product source `f6c4694f14`): build `20261021T1431Z` **PASS**, six library test targets compiled, exit 0; 103,065 source files and all six C/Jim providers match byte-exact before/after build. Artifacts SHA-256 `4bc4d82423f6635288deb30a8779ffe80bd7d98073323dd70c469f31f6277d74`. Capture `lsp-validation-20261021T1431Z` is running; no test acceptance yet. Previous capture48: 870 pass, 215 fail, 2 timeouts. | Finish the unchanged 1,085 selectors at 180 s each, require final source/provider/artifact guards, then compare every selector with capture48. Local receipts: `tmp/name-handling-validation/lsp-build-20261021T1431Z/`. | Validation agent; existing reporter retains scheduled reports |
 | 3 | LSP crate tests against CI 5201 | Being measured. | Fix LSP-side causes; send compiler-side causes to Sol-49. | Luna-41 |
 | 4 | 18 October user decisions (DB921 merged unit, survey option a, forced-import offsets, test-only helpers, Server102/103, Server108) | DB921, survey and workspace-symbol snapshot landed in integration45 (`aff99dc7e`, `82617ee15`); the rest unconfirmed. | Confirm each on HEAD. | Luna-41 |
 | 5 | Clippy `-D warnings` | Sol-43 count: compiler 1,177, `tcl-lsp-server` 587, VM 517, `tcl-lsp-core` 414, `tcl-lsp-db` 58. | Clean the LSP crates (Luna-41) and the compiler paths they use. | Luna-41, Sol-49 |
