@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 21 October 2026, 13:55 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
+Updated 21 October 2026, 14:16 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
 
 ## Scope
 

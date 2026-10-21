@@ -1,0 +1,62 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-21T14:15:18.206011+00:00",
+  "scheduled_report_utc": "2026-10-21T14:05:00Z (fired 14:14Z)",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "committed": {
+    "0fd92a22b6": "WIP snapshot at user request (not green)",
+    "05e5ce024b": "current-state.md rewritten as the outstanding-validation list",
+    "363a9f89de": "WIP snapshot at user request (not green)"
+  },
+  "in_progress": {
+    "sol-48": "SpecTcl execution, active",
+    "sol-49": "miscompile / C6 / iRules realm, active",
+    "luna-41": "LSP crates measurement and fixes, active"
+  },
+  "disk": "fell to 2.2 GB free; removed four superseded tcl-compiler/tcl-registry rlibs (newest kept) -> 3.4 GB; Sol-49 asked to trim its 742 MB scratch",
+  "next_report_utc": "2026-10-21T14:46:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
