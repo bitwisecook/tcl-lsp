@@ -2261,8 +2261,9 @@ mod tests {
         let lenses = backend
             .code_lens(CodeLensParams {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
+                work_done_progress_params:
+                    tower_lsp_server::ls_types::WorkDoneProgressParams::default(),
+                partial_result_params: tower_lsp_server::ls_types::PartialResultParams::default(),
             })
             .await
             .unwrap()
@@ -2313,8 +2314,9 @@ mod tests {
         let lenses = backend
             .code_lens(CodeLensParams {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
+                work_done_progress_params:
+                    tower_lsp_server::ls_types::WorkDoneProgressParams::default(),
+                partial_result_params: tower_lsp_server::ls_types::PartialResultParams::default(),
             })
             .await
             .unwrap()
@@ -3097,8 +3099,9 @@ mod logical_lens_wire_tests {
         backend
             .code_lens(CodeLensParams {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
+                work_done_progress_params:
+                    tower_lsp_server::ls_types::WorkDoneProgressParams::default(),
+                partial_result_params: tower_lsp_server::ls_types::PartialResultParams::default(),
             })
             .await
             .unwrap()
@@ -3334,8 +3337,9 @@ mod workspace_symbol_input_lease_tests {
         let response = backend
             .symbol(WorkspaceSymbolParams {
                 query: query.to_owned(),
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
+                work_done_progress_params:
+                    tower_lsp_server::ls_types::WorkDoneProgressParams::default(),
+                partial_result_params: tower_lsp_server::ls_types::PartialResultParams::default(),
             })
             .await
             .unwrap();
@@ -3569,8 +3573,9 @@ mod workspace_symbol_original_admission_tests {
         let response = backend
             .symbol(WorkspaceSymbolParams {
                 query: "symbol".to_owned(),
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
+                work_done_progress_params:
+                    tower_lsp_server::ls_types::WorkDoneProgressParams::default(),
+                partial_result_params: tower_lsp_server::ls_types::PartialResultParams::default(),
             })
             .await
             .unwrap();
@@ -3812,8 +3817,9 @@ mod code_action_source_version_tests {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
                 range: Range::new(Position::new(0, 0), Position::new(0, 8)),
                 context: CodeActionContext::default(),
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
+                work_done_progress_params:
+                    tower_lsp_server::ls_types::WorkDoneProgressParams::default(),
+                partial_result_params: tower_lsp_server::ls_types::PartialResultParams::default(),
             })
             .await
             .unwrap()

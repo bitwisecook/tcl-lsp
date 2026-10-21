@@ -10972,7 +10972,9 @@ impl Backend {
         Self {
             client,
             diagnostic_publisher,
-            document_transforms: std::sync::Mutex::new(TransformLedger::default()),
+            document_transforms: std::sync::Mutex::new(
+                document_transform::TransformLedger::default(),
+            ),
             documents: Arc::new(DocumentStore::default()),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new(DEFAULT_SESSION_DIALECT.to_owned()),
@@ -10991,7 +10993,9 @@ impl Backend {
             diagnostics_exclude: Mutex::new(Vec::new()),
             policy_layers: Mutex::new(PolicyLayers::default()),
             workspace_index: Arc::new(TrackedRwLock::new("workspace_index", new_workspace_index())),
-            original_declaration_registry: Mutex::new(OriginalDeclarationRegistry::default()),
+            original_declaration_registry: Mutex::new(
+                tcl_lsp_core::original_declaration::OriginalDeclarationRegistry::default(),
+            ),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             recovery_names: Arc::new(Mutex::new(RecoveryNameCache::default())),
             workspace_scan_gate: tokio::sync::Mutex::new(()),
@@ -11010,7 +11014,7 @@ impl Backend {
             workspace_trust: Mutex::new(tcl_dialect::model::WorkspaceTrust::default()),
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(None)),
-            studio_sources: Mutex::new(StudioSources::default()),
+            studio_sources: Mutex::new(studio_source::StudioSources::default()),
             spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             pack_source_extensions: Arc::new(Mutex::new(Vec::new())),
@@ -47107,7 +47111,9 @@ info exists ::N::v\uD800";
         Backend {
             client,
             diagnostic_publisher,
-            document_transforms: std::sync::Mutex::new(TransformLedger::default()),
+            document_transforms: std::sync::Mutex::new(
+                document_transform::TransformLedger::default(),
+            ),
             documents: Arc::new(DocumentStore::default()),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
@@ -47126,7 +47132,9 @@ info exists ::N::v\uD800";
             diagnostics_exclude: Mutex::new(Vec::new()),
             policy_layers: Mutex::new(PolicyLayers::default()),
             workspace_index: Arc::new(TrackedRwLock::new("workspace_index", new_workspace_index())),
-            original_declaration_registry: Mutex::new(OriginalDeclarationRegistry::default()),
+            original_declaration_registry: Mutex::new(
+                tcl_lsp_core::original_declaration::OriginalDeclarationRegistry::default(),
+            ),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
             recovery_names: Arc::new(Mutex::new(RecoveryNameCache::default())),
             workspace_scan_gate: tokio::sync::Mutex::new(()),
@@ -47145,7 +47153,7 @@ info exists ::N::v\uD800";
             workspace_trust: Mutex::new(tcl_dialect::model::WorkspaceTrust::default()),
             spec_packs: Arc::new(Mutex::new(PublishedPackSet::default())),
             spec_pack_reload: Arc::new(Mutex::new(None)),
-            studio_sources: Mutex::new(StudioSources::default()),
+            studio_sources: Mutex::new(studio_source::StudioSources::default()),
             spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             pack_source_extensions: Arc::new(Mutex::new(Vec::new())),
