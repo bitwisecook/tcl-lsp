@@ -278,10 +278,15 @@ mod tests {
             &arena, &image, config, part.span, rules, policy,
         )
         .expect("authentic Logical lexical root");
-        assert_eq!(root.bytes(), "::ns::café".as_bytes());
+        // C Tcl's `$` scan stops at the first non-ASCII byte: tclsh 8.6.18,
+        // 9.0.4 and 9.1.0 read `$::ns::café($index)` as the scalar
+        // `::ns::caf` followed by literal `é(...)` (`can't read "::ns::caf":
+        // variable is array` when `::ns::caf` is an array). A Logical root
+        // keeps that same lexical extent; it is not an array reference.
+        assert_eq!(root.bytes(), "::ns::caf".as_bytes());
         assert_eq!(root.source_image(), &image);
         assert_eq!(root.lexer_config(), config);
-        assert!(root.is_separate_array_root());
+        assert!(!root.is_separate_array_root());
         assert!(root.static_index_input().is_none());
         assert!(
             SignatureSourceVariableRoot::from_original_executable(

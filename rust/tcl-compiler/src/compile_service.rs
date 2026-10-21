@@ -3660,4 +3660,22 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn zz_ccg_o129_probe() {
+        let registry = CommandRegistry::build_default();
+        for (dialect, source) in [
+            (None, "proc ::f {} {\n    set y [string length abcde]\n}\n"),
+            (None, "set y [string length abcde]\n"),
+            (Some("tcl8.6"), "proc ::f {} {\n    set y [string length abcde]\n}\n"),
+            (Some("tcl8.6"), "set y [string length abcde]\n"),
+            (None, "proc ::f {} {\n    set y [string length abcde]\n}\n::f\n"),
+        ] {
+            let found: Vec<(String, String)> = crate::optimiser::optimise_raw(source, &registry, dialect)
+                .into_iter()
+                .map(|o| (o.code.as_str().to_owned(), o.replacement))
+                .collect();
+            eprintln!("O129PROBE {dialect:?} {source:?}: {found:?}");
+        }
+    }
 }
