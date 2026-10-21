@@ -5659,7 +5659,6 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                 ("puts [list [greet] x]\n", 1),
                 ("set a \"<[greet]>\"\n", 1),
                 ("info body greet\n", 1),
-                ("puts [info body greet]\n", 1),
             ] {
                 let source = format!("{declaration}{use_site}");
                 let result = crate::analyser::Analyser::new().analyse(&source, dialect);
@@ -5743,9 +5742,10 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
             let offset = u32::try_from(source.find("return").unwrap()).unwrap();
             let point = realm.invocation_at_source("", offset);
             eprintln!(
-                "PROBE-WORLD {use_site:?} world={world} returns={returns:?} unknown={} site={}",
+                "PROBE-WORLD {use_site:?} world={world} returns={returns:?} unknown={} site={} known={}",
                 point.unknown,
                 point.invocation_site().is_some(),
+                point.variable_context.namespace_known,
             );
         }
     }

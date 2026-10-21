@@ -19,13 +19,14 @@
 //! Tests for the BIG-IP code-action provider.
 //!
 //! What the provider does
-//! `tcl_lsp_core::code_actions::bigip_code_actions(source, range, uri)` walks
+//! `tcl_lsp_core::code_actions::bigip_code_actions(source, range, uri, version)` walks
 //! the parsed BIG-IP config for the stanza covering the cursor and emits:
 //!
 //!   * "Rename <full-path>…"  → `editor.action.rename` command
 //!   * "Rename partition '<n>'…" (only on `auth partition`, never `/Common`)
-//!     → `tclLsp.renamePartition` command with arguments `[uri, <bare-name>]`,
-//!     and NO pre-baked workspace edit.
+//!     → `tclLsp.renamePartition` command with arguments `[uri, <bare-name>]`
+//!     (plus the document version it was read from, when known), and NO
+//!     pre-baked workspace edit.
 //!
 //! The provider is a small arm over existing data: `tcl-lsp-core`'s own
 //! self-contained stanza parser (`src/bigip.rs`, already powering BIG-IP
@@ -85,7 +86,7 @@ fn action_titled<'a>(actions: &'a [CodeAction], prefix: &str) -> Option<&'a Code
 /// Plain comment text parses to zero stanzas → no actions.
 #[test]
 fn no_actions_for_non_bigip_text() {
-    let actions = bigip_code_actions("# not bigip\n", range_at(0), URI);
+    let actions = bigip_code_actions("# not bigip\n", range_at(0), URI, None);
     assert!(
         actions.is_empty(),
         "non-BIG-IP text must yield no actions, got: {actions:?}"
@@ -101,7 +102,7 @@ fn no_actions_for_non_bigip_text() {
 #[test]
 fn rename_action_for_object_at_cursor() {
     let source = "ltm pool /Common/web_pool { }\n";
-    let actions = bigip_code_actions(source, range_at(0), URI);
+    let actions = bigip_code_actions(source, range_at(0), URI, None);
 
     let rename = action_titled(&actions, "Rename /Common/web_pool")
         .expect("expected a 'Rename /Common/web_pool…' action");
@@ -126,7 +127,7 @@ fn rename_action_for_object_at_cursor() {
 #[test]
 fn rename_action_title_uses_full_path() {
     let source = "ltm pool /Common/web_pool { }\n";
-    let actions = bigip_code_actions(source, range_at(0), URI);
+    let actions = bigip_code_actions(source, range_at(0), URI, None);
     assert!(
         action_titled(&actions, "Rename /Common/web_pool\u{2026}").is_some(),
         "title should be the full path with an ellipsis, got: {:?}",
@@ -139,7 +140,7 @@ fn rename_action_title_uses_full_path() {
 #[test]
 fn pool_stanza_offers_only_object_rename() {
     let source = "ltm pool /Common/web_pool { }\n";
-    let actions = bigip_code_actions(source, range_at(0), URI);
+    let actions = bigip_code_actions(source, range_at(0), URI, None);
     assert_eq!(
         actions.len(),
         1,
@@ -163,7 +164,7 @@ fn pool_stanza_offers_only_object_rename() {
 fn rename_partition_action_on_partition_stanza() {
     let source =
         "auth partition Tenant_A { default-route-domain 0 }\nltm pool /Tenant_A/web_pool { }\n";
-    let actions = bigip_code_actions(source, range_at(0), URI);
+    let actions = bigip_code_actions(source, range_at(0), URI, None);
 
     let partition = action_titled(&actions, "Rename partition")
         .expect("expected a 'Rename partition …' action on the partition stanza");
@@ -189,7 +190,7 @@ fn rename_partition_action_on_partition_stanza() {
 #[test]
 fn partition_action_title_uses_bare_name() {
     let source = "auth partition Tenant_A { default-route-domain 0 }\n";
-    let actions = bigip_code_actions(source, range_at(0), URI);
+    let actions = bigip_code_actions(source, range_at(0), URI, None);
     assert!(
         action_titled(&actions, "Rename partition 'Tenant_A'\u{2026}").is_some(),
         "expected bare-name partition title, got: {:?}",
@@ -202,7 +203,7 @@ fn partition_action_title_uses_bare_name() {
 #[test]
 fn partition_stanza_offers_both_actions() {
     let source = "auth partition Tenant_A { default-route-domain 0 }\n";
-    let actions = bigip_code_actions(source, range_at(0), URI);
+    let actions = bigip_code_actions(source, range_at(0), URI, None);
     assert_eq!(actions.len(), 2, "partition: two actions, got: {actions:?}");
     // The generic rename uses the editor rename command + the partition
     // identifier as its full path.
@@ -228,7 +229,7 @@ fn partition_stanza_offers_both_actions() {
 #[test]
 fn no_partition_rename_action_for_common_partition() {
     let source = "auth partition Common { description default }\nltm pool /Common/web_pool { }\n";
-    let actions = bigip_code_actions(source, range_at(0), URI);
+    let actions = bigip_code_actions(source, range_at(0), URI, None);
     assert!(
         actions
             .iter()
@@ -249,7 +250,7 @@ fn no_partition_rename_action_for_common_partition() {
 /// strip of every leading slash used to turn `//Tenant_A` into `Tenant_A`).
 #[test]
 fn partition_argument_comes_from_the_shared_object_path_owner() {
-    let absolute = bigip_code_actions("auth partition /Tenant_A { }\n", range_at(0), URI);
+    let absolute = bigip_code_actions("auth partition /Tenant_A { }\n", range_at(0), URI, None);
     let action = action_titled(&absolute, "Rename partition 'Tenant_A'\u{2026}")
         .expect("absolute partition identifier");
     assert_eq!(
@@ -261,7 +262,7 @@ fn partition_argument_comes_from_the_shared_object_path_owner() {
         "auth partition /Tenant_A/x { }\n",
         "auth partition /Common { }\n",
     ] {
-        let actions = bigip_code_actions(source, range_at(0), URI);
+        let actions = bigip_code_actions(source, range_at(0), URI, None);
         assert!(
             actions
                 .iter()
@@ -272,6 +273,30 @@ fn partition_argument_comes_from_the_shared_object_path_owner() {
     }
 }
 
+/// The document version the stanza was read from travels with the deferred
+/// partition rename as its one integer argument, so the host can refuse the
+/// rename once the document has moved on; without a known version none is
+/// invented.
+#[test]
+fn partition_rename_carries_the_version_it_was_offered_at() {
+    let source = "auth partition Team1 { }\n";
+    let versioned = bigip_code_actions(source, range_at(0), URI, Some(7));
+    let command = action_titled(&versioned, "Rename partition 'Team1'\u{2026}")
+        .and_then(|action| action.command.as_ref())
+        .expect("partition rename");
+    assert_eq!(
+        command.string_args,
+        vec![URI.to_string(), "Team1".to_string()]
+    );
+    assert_eq!(command.args, vec![7]);
+
+    let unversioned = bigip_code_actions(source, range_at(0), URI, None);
+    let command = action_titled(&unversioned, "Rename partition 'Team1'\u{2026}")
+        .and_then(|action| action.command.as_ref())
+        .expect("partition rename");
+    assert!(command.args.is_empty(), "{:?}", command.args);
+}
+
 // No actions when the cursor is outside any stanza
 
 /// Cursor on a blank line between stanzas → no actions (no stanza range
@@ -280,7 +305,7 @@ fn partition_argument_comes_from_the_shared_object_path_owner() {
 #[test]
 fn no_actions_when_cursor_outside_any_stanza() {
     let source = "\n\nltm pool /Common/p { }\n";
-    let actions = bigip_code_actions(source, range_at(0), URI);
+    let actions = bigip_code_actions(source, range_at(0), URI, None);
     assert!(
         actions.is_empty(),
         "cursor on a blank line must yield no actions, got: {actions:?}"
@@ -293,7 +318,7 @@ fn no_actions_when_cursor_outside_any_stanza() {
 #[test]
 fn cursor_on_the_stanza_line_does_yield_an_action() {
     let source = "\n\nltm pool /Common/p { }\n";
-    let actions = bigip_code_actions(source, range_at(2), URI);
+    let actions = bigip_code_actions(source, range_at(2), URI, None);
     assert!(
         action_titled(&actions, "Rename /Common/p\u{2026}").is_some(),
         "cursor on the pool line should offer its rename, got: {:?}",
@@ -306,7 +331,7 @@ fn cursor_on_the_stanza_line_does_yield_an_action() {
 /// Empty source → no actions, no panic.
 #[test]
 fn empty_source_yields_no_actions() {
-    assert!(bigip_code_actions("", range_at(0), URI).is_empty());
+    assert!(bigip_code_actions("", range_at(0), URI, None).is_empty());
 }
 
 /// An out-of-range cursor line (past the end of the document) yields no
@@ -314,7 +339,7 @@ fn empty_source_yields_no_actions() {
 #[test]
 fn out_of_range_cursor_is_safe() {
     let source = "ltm pool /Common/web_pool { }\n";
-    let actions = bigip_code_actions(source, range_at(9999), URI);
+    let actions = bigip_code_actions(source, range_at(9999), URI, None);
     assert!(actions.is_empty(), "out-of-range cursor: no actions");
 }
 
@@ -324,7 +349,7 @@ fn out_of_range_cursor_is_safe() {
 #[test]
 fn nameless_singleton_is_not_a_rename_target() {
     let source = "auth password-policy {\n    lockout-duration 10\n}\n";
-    let actions = bigip_code_actions(source, range_at(0), URI);
+    let actions = bigip_code_actions(source, range_at(0), URI, None);
     assert!(
         actions.is_empty(),
         "nameless singleton must not offer a rename, got: {actions:?}"
@@ -337,7 +362,7 @@ fn nameless_singleton_is_not_a_rename_target() {
 fn cursor_inside_multiline_stanza_resolves_object() {
     let source = "ltm pool /Common/web_pool {\n    members {\n        1.2.3.4:80 { }\n    }\n}\n";
     // Line 4 is the stanza's closing brace.
-    let actions = bigip_code_actions(source, range_at(4), URI);
+    let actions = bigip_code_actions(source, range_at(4), URI, None);
     assert!(
         action_titled(&actions, "Rename /Common/web_pool\u{2026}").is_some(),
         "cursor on the closing-brace line should still resolve the pool, got: {:?}",

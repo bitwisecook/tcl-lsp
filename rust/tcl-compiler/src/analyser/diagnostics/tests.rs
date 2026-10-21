@@ -5954,6 +5954,7 @@ fn emit_cfg_ssa_diagnostics_w220_pkgindex_dir_var_suppressed() {
 /// the substituted read below, so W210 still reports it in pkgIndex.tcl.
 #[test]
 fn w210_pkgindex_reports_other_reads_inside_command_substitutions() {
+    let mut failures = Vec::new();
     for (path, source, names) in [
         (
             "/proj/pkgIndex.tcl",
@@ -5971,6 +5972,21 @@ fn w210_pkgindex_reports_other_reads_inside_command_substitutions() {
             &["missing"][..],
         ),
         ("/proj/pkgIndex.tcl", "set f $missing\n", &["missing"][..]),
+        (
+            "/proj/pkgIndex.tcl",
+            "set f [file join $dir $missing]\n",
+            &["missing"][..],
+        ),
+        (
+            "/proj/pkgIndex.tcl",
+            "set f [list $missing]\nsource $f\n",
+            &["missing"][..],
+        ),
+        (
+            "/proj/pkgIndex.tcl",
+            "set f $missing\nsource $f\n",
+            &["missing"][..],
+        ),
     ] {
         let mut analyser = Analyser::new().with_file_path(Some(path.to_owned()));
         let result = analyser.analyse(source, "tcl8.6");
@@ -5982,13 +5998,15 @@ fn w210_pkgindex_reports_other_reads_inside_command_substitutions() {
             .collect::<Vec<_>>();
         eprintln!("PROBE W210 {path} {source:?}: {w210:?}");
         for name in names {
-            assert!(
-                w210.iter()
-                    .any(|message| message.contains(&format!("'{name}'"))),
-                "{path}: {source:?}: {name}: {w210:?}"
-            );
+            if !w210
+                .iter()
+                .any(|message| message.contains(&format!("'{name}'")))
+            {
+                failures.push(format!("{path}: {source:?}: {name}: {w210:?}"));
+            }
         }
     }
+    assert!(failures.is_empty(), "{failures:#?}");
 }
 
 /// W220-IR-paths.  Outside ``pkgIndex.tcl``, ``$dir`` is

@@ -62,6 +62,7 @@ import {
   RuleInfo,
   RuleScratchRegistry,
   requestLinkedObjects,
+  partitionRenameVersion,
   requestPartitionRename,
   ServerCommandSender,
   translateXcDocument,
@@ -1166,7 +1167,11 @@ function applyDialectForEditor(editor: TextEditor | undefined): void {
   applyDialectForDocument(editor.document);
 }
 
-async function renamePartition(uriString?: string, oldPartition?: string): Promise<void> {
+async function renamePartition(
+  uriString?: string,
+  oldPartition?: string,
+  offeredVersion?: unknown,
+): Promise<void> {
   if (!client) {
     window.showWarningMessage("The Tcl language server is not running.");
     return;
@@ -1179,9 +1184,10 @@ async function renamePartition(uriString?: string, oldPartition?: string): Promi
     return;
   }
   // The version the stanza was read from: the rename applies to it or not at all.
-  const version = workspace.textDocuments.find(
-    (document) => document.uri.toString() === targetUri,
-  )?.version;
+  const version = partitionRenameVersion(
+    offeredVersion,
+    workspace.textDocuments.find((document) => document.uri.toString() === targetUri)?.version,
+  );
 
   const newNameInput = await window.showInputBox({
     title: "Rename BIG-IP Partition",

@@ -1295,8 +1295,11 @@ impl ScannedDocument {
 /// cross-file walk, which reads other files itself and must see the same bytes
 /// [`Backend::read_document`] would — the open buffer first, disk only for what
 /// is not open.
-/// The open documents' texts, and each open iRules document's own analysis,
-/// for the ILX relation's sibling rule files.
+///
+/// It also carries per-document input for the relation's sibling rule files:
+/// each open iRules document's own analysis, and — added per request by
+/// [`Backend::supply_sibling_rule_inputs`] — the text and own analysis of
+/// every other sibling rule file the request reads, open or closed.
 struct OpenDocumentTexts {
     texts: HashMap<PathBuf, Arc<str>>,
     analyses: HashMap<PathBuf, Arc<AnalysisResult>>,
@@ -16192,12 +16195,14 @@ impl Backend {
             text: &doc.text,
         };
         let store = self.store.as_ref();
-        let open = self.open_document_texts().await;
-        let files = core_ilx::IlxFiles::new(store).with_open_documents(&open);
+        let mut open = self.open_document_texts().await;
         // Which end of the relation the cursor is on decides which dialect's
         // registry reads the *rule* files — and which declarations apply — so
         // the file gate is asked first; it needs no registry at all.
-        let js_end = core_ilx::is_extension_entry(&path, files);
+        let js_end = core_ilx::is_extension_entry(
+            &path,
+            core_ilx::IlxFiles::new(store).with_open_documents(&open),
+        );
         // A Tcl document belongs to a workspace folder, so its own folder's
         // declarations are the ones that describe it. A JavaScript entry point
         // is matched by *workspace path* instead, so which folder declared it
@@ -16228,24 +16233,46 @@ impl Backend {
             self.registry_for_dialect(core_ilx::EXTENSION_RULE_DIALECT)
                 .await
         };
+        // First the anchor under the cursor and the rule files its relation
+        // reads; then each of those files' own input, so a sibling is scanned
+        // under its own analysis rather than reported as having no sites.
+        let (registration, call, siblings) = {
+            let ctx = core_ilx::IlxContext {
+                registry: &registry,
+                analysis: analysis.as_deref(),
+                files: core_ilx::IlxFiles::new(store).with_open_documents(&open),
+                plugins: &plugins,
+            };
+            if js_end {
+                let Some(registration) =
+                    core_ilx::registration_at(document, pos.line, pos.character)
+                else {
+                    return Ok(None);
+                };
+                let siblings = core_ilx::sibling_rule_files_from_registration(&path, ctx);
+                (Some(registration), None, siblings)
+            } else {
+                let Some(call) = core_ilx::method_call_at(document, ctx, pos.line, pos.character)
+                else {
+                    return Ok(None);
+                };
+                let siblings = core_ilx::sibling_rule_files(document, ctx, &call);
+                (None, Some(call), siblings)
+            }
+        };
+        self.supply_sibling_rule_inputs(&mut open, siblings).await;
         let ctx = core_ilx::IlxContext {
             registry: &registry,
             analysis: analysis.as_deref(),
-            files,
+            files: core_ilx::IlxFiles::new(store).with_open_documents(&open),
             plugins: &plugins,
         };
-        let found = if js_end {
-            let Some(registration) = core_ilx::registration_at(document, pos.line, pos.character)
-            else {
-                return Ok(None);
-            };
-            core_ilx::references_from_registration(document, ctx, &registration)
-        } else {
-            let Some(call) = core_ilx::method_call_at(document, ctx, pos.line, pos.character)
-            else {
-                return Ok(None);
-            };
-            core_ilx::references(document, ctx, &call)
+        let found = match (registration, call) {
+            (Some(registration), _) => {
+                core_ilx::references_from_registration(document, ctx, &registration)
+            }
+            (None, Some(call)) => core_ilx::references(document, ctx, &call),
+            (None, None) => return Ok(None),
         };
         Ok(Some(
             found
@@ -16298,9 +16325,11 @@ impl Backend {
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(true);
 
-        let open = self.open_document_texts().await;
-        let files = core_ilx::IlxFiles::new(self.store.as_ref()).with_open_documents(&open);
-        if !core_ilx::is_extension_entry(&path, files) {
+        let mut open = self.open_document_texts().await;
+        if !core_ilx::is_extension_entry(
+            &path,
+            core_ilx::IlxFiles::new(self.store.as_ref()).with_open_documents(&open),
+        ) {
             return None;
         }
         // Every declaration in the session, not just the ones the folder
@@ -16311,14 +16340,24 @@ impl Backend {
         let registry = self
             .registry_for_dialect(core_ilx::EXTENSION_RULE_DIALECT)
             .await;
+        let document = core_ilx::IlxDocument { path: &path, text };
+        let registration = core_ilx::registration_at(document, line, character)?;
+        let siblings = core_ilx::sibling_rule_files_from_registration(
+            &path,
+            core_ilx::IlxContext {
+                registry: &registry,
+                analysis: None,
+                files: core_ilx::IlxFiles::new(self.store.as_ref()).with_open_documents(&open),
+                plugins: &plugins,
+            },
+        );
+        self.supply_sibling_rule_inputs(&mut open, siblings).await;
         let ctx = core_ilx::IlxContext {
             registry: &registry,
             analysis: None,
-            files,
+            files: core_ilx::IlxFiles::new(self.store.as_ref()).with_open_documents(&open),
             plugins: &plugins,
         };
-        let document = core_ilx::IlxDocument { path: &path, text };
-        let registration = core_ilx::registration_at(document, line, character)?;
         let found = core_ilx::references_from_registration(document, ctx, &registration);
         let locations: Vec<Location> = found
             .iter()
@@ -16418,6 +16457,36 @@ impl Backend {
             }
         }
         OpenDocumentTexts { texts, analyses }
+    }
+
+    /// Give each ILX sibling rule file in `paths` that has no analysis in
+    /// `open` its own: the document read through [`Self::read_document`] (the
+    /// open buffer, or the closed file from disk with its closed-file dialect)
+    /// and analysed through [`Self::analysis_for`] under that file's own
+    /// input and configuration. The text recorded is exactly the text
+    /// analysed, so the scanner reads the bytes its analysis describes. A file
+    /// that cannot be read or analysed is left as it was — the core then has
+    /// no facts for it and borrows none.
+    async fn supply_sibling_rule_inputs(&self, open: &mut OpenDocumentTexts, paths: Vec<PathBuf>) {
+        for path in paths {
+            if open.analyses.contains_key(&path) {
+                continue;
+            }
+            let Some(uri) = canonical_file_uri(&path) else {
+                continue;
+            };
+            let Ok(Some(doc)) = self.read_document(&uri).await else {
+                continue;
+            };
+            let text = Arc::clone(&doc.text);
+            if let Ok(analysis) = self
+                .analysis_for(&uri, Arc::clone(&text), doc.dialect.clone())
+                .await
+            {
+                open.texts.insert(path.clone(), text);
+                open.analyses.insert(path, analysis);
+            }
+        }
     }
 
     /// Lift an ILX location — a path plus a range — onto the wire.
@@ -30255,7 +30324,10 @@ fn push_dialect_code_actions(
 ) {
     if Backend::is_bigip_dialect(inputs.dialect.name) {
         actions.extend(core_code_actions::bigip_code_actions(
-            source, range, inputs.uri,
+            source,
+            range,
+            inputs.uri,
+            inputs.version,
         ));
     }
     if inputs.dialect.is_irules()
@@ -30278,6 +30350,10 @@ fn push_dialect_code_actions(
 /// not — grouped so a new dialect's inputs do not change every call site.
 struct DialectActionInputs<'a> {
     uri: &'a str,
+    /// The document version the actions are computed from; a deferred
+    /// command that edits the document carries it so the host can refuse a
+    /// document that has moved on (see `bigip_code_actions`).
+    version: Option<u32>,
     dialect: &'static tcl_dialect::DialectProfile,
     analysis: &'a tcl_compiler::analyser::AnalysisResult,
     registry: &'a tcl_registry::CommandRegistry,
@@ -33659,6 +33735,7 @@ impl LanguageServer for Backend {
             );
             let dialect_inputs = DialectActionInputs {
                 uri: &uri_str,
+                version: doc.version.and_then(|version| u32::try_from(version).ok()),
                 dialect: tcl_lsp_core::profile_for_dialect(&dialect),
                 analysis: &analysis,
                 registry: &registry,
@@ -63599,7 +63676,7 @@ proc p {} {
         let src = "auth partition Team1 {\n    description test\n}\n";
         backend.documents.lock("test").await.insert(
             uri.clone(),
-            DocumentState::new(src.to_owned(), "f5-bigip".to_owned()),
+            DocumentState::with_version(src.to_owned(), "f5-bigip".to_owned(), 3),
         );
         let params = CodeActionParams {
             text_document: TextDocumentIdentifier { uri: uri.clone() },
@@ -63623,6 +63700,27 @@ proc p {} {
         assert!(
             has_rename_partition,
             "expected a renamePartition code action: {result:?}",
+        );
+        // The deferred rename names the document, the partition and the
+        // version the stanza was read from — the version the server's
+        // `tcl-lsp.renamePartition` refuses any other document state against.
+        let arguments = result.iter().find_map(|a| match a {
+            CodeActionOrCommand::CodeAction(ca) => ca
+                .command
+                .as_ref()
+                .filter(|c| c.command == "tclLsp.renamePartition")
+                .and_then(|c| c.arguments.clone()),
+            CodeActionOrCommand::Command(c) => (c.command == "tclLsp.renamePartition")
+                .then(|| c.arguments.clone())
+                .flatten(),
+        });
+        assert_eq!(
+            arguments,
+            Some(vec![
+                serde_json::json!(uri.as_str()),
+                serde_json::json!("Team1"),
+                serde_json::json!(3),
+            ]),
         );
     }
 

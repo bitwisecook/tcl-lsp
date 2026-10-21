@@ -562,13 +562,23 @@ pub fn code_actions_in_program(
 ///   `string_args` are `[uri, <bare-partition-name>]`, so the cascade
 ///   flows through the query engine on accept.  Renames of `/Common` are
 ///   suppressed (the query engine refuses them — the F5
-///   partition-visibility model).
+///   partition-visibility model).  When the caller knows the document
+///   `version` the stanza was read from, it travels as the command's one
+///   integer argument (`[uri, partition, version]` on the wire), so the
+///   deferred rename applies to that exact source or is refused — the
+///   identity is the one the action was offered for, not whatever the
+///   document holds when the user accepts it.
 ///
 /// Returns an empty vector when the cursor is not inside a parseable
 /// stanza or the document is not BIG-IP.  `range`'s start *line* selects
 /// the object (keyed on `range.start.line`).
 #[must_use]
-pub fn bigip_code_actions(source: &str, range: LspRange, uri: &str) -> Vec<CodeAction> {
+pub fn bigip_code_actions(
+    source: &str,
+    range: LspRange,
+    uri: &str,
+    version: Option<u32>,
+) -> Vec<CodeAction> {
     let cursor_line = range.start_line;
     let stanzas = crate::bigip::parse_stanzas(source);
 
@@ -623,7 +633,7 @@ pub fn bigip_code_actions(source: &str, range: LspRange, uri: &str) -> Vec<CodeA
                 kind: ActionKind::RefactorRewrite,
                 command: Some(ActionCommand {
                     command: "tclLsp.renamePartition".to_string(),
-                    args: Vec::new(),
+                    args: version.into_iter().collect(),
                     string_args: vec![uri.to_string(), partition_short.to_string()],
                 }),
                 data_group_definition: None,

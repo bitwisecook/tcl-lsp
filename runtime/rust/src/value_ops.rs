@@ -48,7 +48,6 @@ mod native_indexed_append;
 #[cfg(test)]
 #[path = "value_ops/native_integer_refusal_tests.rs"]
 mod native_integer_refusal_tests;
-#[path = "value_ops/native_jim_cat.rs"]
 mod native_jim_cat;
 #[path = "value_ops/native_jim_index.rs"]
 mod native_jim_index;

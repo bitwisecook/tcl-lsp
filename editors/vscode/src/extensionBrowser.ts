@@ -70,6 +70,7 @@ import {
   isRuleInfo,
   RuleScratchRegistry,
   requestLinkedObjects,
+  partitionRenameVersion,
   requestPartitionRename,
   ServerCommandSender,
   translateXcDocument,
@@ -1338,7 +1339,11 @@ async function generateBigipCleanupScript(): Promise<void> {
   });
 }
 
-async function renamePartition(uriString?: string, oldPartition?: string): Promise<void> {
+async function renamePartition(
+  uriString?: string,
+  oldPartition?: string,
+  offeredVersion?: unknown,
+): Promise<void> {
   const targetUri = uriString ?? window.activeTextEditor?.document.uri.toString();
   const currentName = (oldPartition ?? "").trim();
   if (!targetUri || !currentName) {
@@ -1346,9 +1351,10 @@ async function renamePartition(uriString?: string, oldPartition?: string): Promi
     return;
   }
   // The version the stanza was read from: the rename applies to it or not at all.
-  const version = workspace.textDocuments.find(
-    (document) => document.uri.toString() === targetUri,
-  )?.version;
+  const version = partitionRenameVersion(
+    offeredVersion,
+    workspace.textDocuments.find((document) => document.uri.toString() === targetUri)?.version,
+  );
   const newNameInput = await window.showInputBox({
     title: "Rename BIG-IP Partition",
     prompt: `New name for ${currentName}`,

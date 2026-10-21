@@ -263,6 +263,22 @@ export interface PartitionRenameResult {
 }
 
 /**
+ * The document version a partition rename applies to. A code action offered
+ * on a stanza carries the version that stanza was read from (its third
+ * argument), and that is the identity the rename keeps: the server refuses a
+ * document that has moved on since. Only a command run without one (the
+ * palette) takes the document's version at invocation.
+ */
+export function partitionRenameVersion(
+  offered: unknown,
+  current: number | undefined,
+): number | undefined {
+  return typeof offered === "number" && Number.isInteger(offered) && offered >= 0
+    ? offered
+    : current;
+}
+
+/**
  * Ask the server to rename a partition in the document at `version`, and
  * convert the edit only while that document is still at that version.
  */

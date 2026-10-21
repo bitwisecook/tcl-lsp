@@ -20,6 +20,7 @@ import * as assert from "assert";
 import * as vscode from "vscode";
 import {
   describeXcSource,
+  partitionRenameVersion,
   requestPartitionRename,
   RuleInfo,
   RuleScratchRegistry,
@@ -253,5 +254,11 @@ suite("BIG-IP source actions", () => {
     assert.strictEqual(typeof stale, "string");
     const current = await requestPartitionRename(send, "file:///bigip.conf", "A", "B", 2, () => 2);
     assert.ok(current instanceof vscode.WorkspaceEdit);
+    // The version a code action was offered at wins over the document's
+    // version at invocation; only a command run without one takes the latter.
+    assert.strictEqual(partitionRenameVersion(2, 5), 2);
+    assert.strictEqual(partitionRenameVersion(undefined, 5), 5);
+    assert.strictEqual(partitionRenameVersion("2", 5), 5);
+    assert.strictEqual(partitionRenameVersion(-1, undefined), undefined);
   });
 });

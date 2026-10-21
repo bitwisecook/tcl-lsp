@@ -10,7 +10,6 @@ mod native_tcloo;
 #[path = "native_variable_names/native_upvar.rs"]
 mod native_upvar;
 use super::{native_arguments::OriginalArguments, Code, Interp};
-#[path = "native_variable_names/native_unset.rs"]
 mod native_unset;
 use crate::obj::{self, Owned, TclObj};
 use std::rc::{Rc, Weak};

@@ -226,6 +226,43 @@ fn references_span_both_languages_from_either_end() {
     }
 }
 
+/// A closed sibling rule — different bytes from the open one, so the open
+/// rule's analysis cannot describe it by coincidence — is read and analysed
+/// under its own input, and its sites are found from either end. Without its
+/// own input the server would have no facts for it, which is not the same as
+/// it having no call sites.
+#[test]
+fn a_closed_sibling_rule_is_scanned_under_its_own_input() {
+    let fixture = Fixture::new("closedsib", EXTENSION);
+    let sibling = fixture
+        .root
+        .join(format!("{}/rules/rule2.tcl", fixture.plugin));
+    std::fs::write(
+        &sibling,
+        format!("# a closed sibling\n{}", rule_source(&fixture.plugin)),
+    )
+    .expect("write sibling");
+    let sibling_uri = uri_of(&sibling);
+    let mut lsp = fixture.serve();
+
+    let from_tcl =
+        locations(&lsp.references(&fixture.rule_uri, CALL_METHOD.0, CALL_METHOD.1, true));
+    assert_eq!(
+        from_tcl.iter().filter(|l| l.uri == sibling_uri).count(),
+        2,
+        "both closed-sibling sites: {from_tcl:?}"
+    );
+    assert_eq!(from_tcl.len(), 5, "{from_tcl:?}");
+
+    let from_js =
+        locations(&lsp.references(&fixture.extension_uri, REGISTRATION.0, REGISTRATION.1, true));
+    assert_eq!(
+        from_js.iter().filter(|l| l.uri == sibling_uri).count(),
+        2,
+        "{from_js:?}"
+    );
+}
+
 #[test]
 fn a_dynamic_handle_abstains_instead_of_guessing() {
     let fixture = Fixture::new("dynamic", EXTENSION);

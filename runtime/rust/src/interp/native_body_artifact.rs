@@ -5,24 +5,18 @@ use super::native_literal_pool::{
     NativeRuntimeLiteral, NativeRuntimeLiteralAction, NativeRuntimeLiteralArray,
 };
 use super::*;
-#[path = "native_body_artifact/native_dictionary.rs"]
 mod native_dictionary;
-#[path = "native_body_artifact/native_dictionary_mutation.rs"]
 mod native_dictionary_mutation;
 mod native_dictionary_scope;
-#[path = "native_body_artifact/native_error.rs"]
 mod native_error;
 use native_error::ErrorOperation;
 mod native_coroutine;
 use native_coroutine::CoroutineOperation;
-#[path = "native_body_artifact/native_named.rs"]
 mod native_named;
 use native_dictionary::DictionaryLookupOperation;
 use native_dictionary_mutation::DictionaryMutationOperation;
 use native_dictionary_scope::DictionaryScopeOperation;
-#[path = "native_body_artifact/native_switch.rs"]
 mod native_switch;
-#[path = "native_body_artifact/native_try.rs"]
 mod native_try;
 use native_named::NamedOperation;
 use native_try::TryOperation;
@@ -50,10 +44,8 @@ use native_introspection::IntrospectionOperation;
 use native_mathop::MathopOperation;
 use native_scalar::ScalarOperation;
 mod native_each;
-#[path = "native_body_artifact/native_lappend.rs"]
 mod native_lappend;
 mod native_list_conversion;
-#[path = "native_body_artifact/native_oo_next.rs"]
 mod native_oo_next;
 use native_list_conversion::{BodyListArguments, BodyListFrame};
 mod native_info_exists;
@@ -65,7 +57,6 @@ use native_each::EachOperation;
 use native_info_exists::InfoExistsOperation;
 use native_unset::UnsetOperation;
 use native_upvar::UpvarOperation;
-#[path = "native_body_artifact/native_control_preparation.rs"]
 mod native_control_preparation;
 use native_control_preparation::PreparedControlOperands;
 use std::collections::HashMap;

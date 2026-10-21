@@ -1227,6 +1227,32 @@ mod tests {
     }
 
     #[test]
+    fn zz_probe_multiple_handlers() {
+        for source in [
+            "proc bar {} {}",
+            "source /abs/path.tcl\nproc bar {} {}",
+            "package require Tcl 8.6\nproc bar {} {}",
+            "package require Tcl 8.6\nsource /abs/path.tcl\nproc bar {} {}",
+        ] {
+            let mut ctx = registry_ctx();
+            ctx.registry =
+                Some(tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
+            scan(source, None, "", false, &HashSet::new(), &mut ctx);
+            eprintln!(
+                "PROBE-SCAN {source:?} procs={:?} invocations={:?} policy={:?} namespace={:?}",
+                ctx.result.procs.keys().collect::<Vec<_>>(),
+                ctx.result
+                    .command_invocations
+                    .iter()
+                    .map(|invocation| invocation.name.clone())
+                    .collect::<Vec<_>>(),
+                ctx.name_policy(),
+                ctx.current_namespace("").is_some(),
+            );
+        }
+    }
+
+    #[test]
     fn multiple_handlers_dispatch_correctly() {
         let mut ctx = registry_ctx();
         ctx.registry = Some(tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
