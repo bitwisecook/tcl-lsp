@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-21T00:10Z",
+  "source": "AskUserQuestion answer in chat",
+  "decisions": {
+    "irules_hosted_fresh_entry": {
+      "choice": "Realm-aware command world",
+      "meaning": "The F5 rule loader gets its own authored command world (RuleLoader realm: when, proc, rule at load time), separate from the TMM event-execution world; each `when` body then gets the fresh TMM event context, mirroring how BIG-IP loads then runs a rule.",
+      "evidence": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/sol-42-c1-NOTES.md (Remaining work: hosted/iRules fresh entry)"
+    }
+  }
+}
