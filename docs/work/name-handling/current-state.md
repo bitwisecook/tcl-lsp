@@ -1,6 +1,6 @@
 # Current LSP naming migration state
 
-Updated 21 October 2026, 14:16 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
+Updated 21 October 2026, 14:27 UTC, on `work` after the full origin/rust (`fcb7927f02`) merge. This file is the single list of outstanding validations; it is refreshed with each 30-minute progress report. The previous version (17 October, pre-merge) is in git history.
 
 ## Scope
 
@@ -28,7 +28,7 @@ Counts live in [audit-status.json](audit-status.json); per-unit sites in [reposi
 
 | # | Validation | Last result | Needed | Owner |
 | --- | --- | --- | --- | --- |
-| 1 | Full workspace CI (`ci.yml`) | [Run 5201](https://github.com/bitwisecook/tcl-lsp/actions/runs/39304840863), 19 Oct on `efc58507c`: 3,634 failing tests (compiler 1,712, VM 1,022, `tcl-lsp-core` 257, explorer 75, bpf-tcl 58, cli 56, spectcl 47, cshim 43, `tcl-lsp-db` 39, others). Predates Sol-41 to Sol-49. | Re-dispatch once the current agents' work is committed; drive the in-scope crates to zero. | Coordinator |
+| 1 | Full workspace CI (`ci.yml`) | Dispatched 21 Oct on `f6c4694f14`: [run 39616304947](https://github.com/bitwisecook/tcl-lsp/actions/runs/39616304947), queued when checked. Comparison baseline remains [run 5201](https://github.com/bitwisecook/tcl-lsp/actions/runs/39304840863): 3,634 failing tests. No new test verdict yet. | Collect completed shard failures and compare per test with run 5201; retain in-scope failures without fixing them in this validation pass. | Validation agent; existing reporter retains the 30-minute reports |
 | 2 | Direct-LSP 1,085-selector capture | Capture48, 19 Oct on `82617ee15` (pre-merge): 870 pass, 215 fail, 2 server timeouts; zero pass-to-fail against capture46. | Re-run on the merged tree with the same guards and 180 s budget. | Coordinator |
 | 3 | LSP crate tests against CI 5201 | Being measured. | Fix LSP-side causes; send compiler-side causes to Sol-49. | Luna-41 |
 | 4 | 18 October user decisions (DB921 merged unit, survey option a, forced-import offsets, test-only helpers, Server102/103, Server108) | DB921, survey and workspace-symbol snapshot landed in integration45 (`aff99dc7e`, `82617ee15`); the rest unconfirmed. | Confirm each on HEAD. | Luna-41 |
@@ -37,7 +37,7 @@ Counts live in [audit-status.json](audit-status.json); per-unit sites in [reposi
 | 7 | iRules LSP diagnostics | 23 `irules_event_checks` tests fail; iRules documents get unknown runtime history. | Realm-aware command world (decision 2026-10-21T00:10Z). | Sol-49 |
 | 8 | Miscompile | `string length "{}$z"` gives 4; tclsh gives 3 (`word_value_resolution_e2e`). | Root-cause fix plus regression test. | Sol-49 |
 | 9 | SpecTcl execution | `eval_loader` 24/28 and `codegen_stamps` 1/29 (Sol-44); `spectcl-compat` CI job red. | Fix VM/runtime causes; send compiler repros. | Sol-48 |
-| 10 | `resolution-oracles` workflow | Every push to `work` records a failed run with zero jobs (probable workflow-file rejection); it also runs on PRs. | Diagnose and fix before a PR. | Unassigned |
+| 10 | `resolution-oracles` workflow | **FAIL**, confirmed 21 Oct on `f6c4694f14`. [Run 39615734200](https://github.com/bitwisecook/tcl-lsp/actions/runs/39615734200) has zero jobs. Explicit `gh workflow run resolution-oracles.yml --repo bitwisecook/tcl-lsp --ref work` is rejected with HTTP 422: `Unrecognized named-value: 'runner'` for `runner.temp` at line 33 column 28 and line 34 column 25. This confirms the previously suspected workflow-file rejection; no oracle tests executed. | Implementation owner must repair the two job-level environment expressions and revalidate before a PR. No workflow changes made by the validation agent. | Unassigned implementation owner; diagnosis complete |
 | 11 | Python lint (`lint-py`) | 650 files to reformat and 1,937 ruff errors, almost all in evidence scripts. | Re-check once evidence is excluded from the PR tree. | Unassigned |
 | 12 | Test fixtures for the PR | [Fixture review](handoff/reviews/fixture-review-20261021/REVIEW.md): 2,514 of 29,092 added test files are read by tests. 208 captured per-release expectations are not asserted. | Carry `keep-paths.txt`; merge duplicate sets; convert 51 sets to tables; add the 208 assertions. | After Sol-48/49 land |
 | 13 | Repository gates never run on the merged tree | Integration targets, an actual server process, editor hosts, proofs, generated-file drift, `make rust-check`, `make prep-pr`. | Run after CI is close to green. | Coordinator |
