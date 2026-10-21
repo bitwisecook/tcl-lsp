@@ -1,0 +1,67 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-21T15:53:55.289794+00:00",
+  "scheduled_report_utc": "2026-10-21T15:52:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "committed": {
+    "0cffd94ecf": "runtime/rust executes the native StringOperand plan (CI compile blocker); validation confirms runtime engine compile passes"
+  },
+  "validation_feed": "LSP integration targets regress vs origin/rust: name_resolution 46/29 of 75 (rust 75/0), provider targets 164/75 of 239 (rust 239/0); resolution-oracles workflow now dispatches (row 10a pass) but tcl-test-support C84 formatter reference identity mismatch stops the suite; codegen_stamps 1/28 confirmed; call hierarchy 7/0 and inlay hints 9/0 pass",
+  "routing": {
+    "lsp agent": "integration regressions vs rust now top priority, then lib losses, WASM/WASI, timeouts, link 136",
+    "vm-runtime agent": "runtime string tests, eval_loader, codegen_stamps",
+    "unassigned": "tcl-test-support C84 native formatter reference identity mismatch (resolution-oracles), 26 python ty errors, 4 cargo-deny advisories"
+  },
+  "in_progress": {
+    "vm-runtime agent": "active",
+    "compiler agent": "active",
+    "lsp agent": "active",
+    "bigip lsp agent": "active"
+  },
+  "disk_free_gb": 3.1,
+  "next_report_utc": "2026-10-21T16:24:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
