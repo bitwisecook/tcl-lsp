@@ -8389,6 +8389,11 @@ impl Vm {
         self.limits.cmd_value = limit;
     }
 
+    /// Whether a `commands` limit is armed.
+    pub(crate) fn command_limit_armed(&self) -> bool {
+        self.limits.cmd_value.is_some()
+    }
+
     /// Commands dispatched since the counter was last reset.
     pub(crate) fn command_count(&self) -> u64 {
         self.commands_run

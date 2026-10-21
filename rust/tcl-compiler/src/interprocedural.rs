@@ -2589,13 +2589,15 @@ fn original_parameter_expression_config(
     base: Option<u32>,
     ctx: ScanCtx<'_>,
 ) -> Option<tcl_lexer::LexerConfig> {
-    let tokens = ctx.current_tokens?;
-    let (config, words) = crate::registry_invocation::original_command_words_for_module(
+    let zz = std::env::var_os("ZZ_SOL49").is_some();
+    let Some(tokens) = ctx.current_tokens else { if zz { eprintln!("ZZ pexpr: no tokens"); } return None; };
+    let Some((config, words)) = crate::registry_invocation::original_command_words_for_module(
         ctx.registry,
         ctx.source_module,
         tokens,
-    )?;
+    ) else { if zz { eprintln!("ZZ pexpr: no words {:?}", tokens.argv_texts); } return None; };
     let binding = tokens.source_binding.as_ref()?;
+    if zz { eprintln!("ZZ pexpr: authored={} layout={}", binding.has_original_authored_source_body_name_role_owner(), binding.has_original_source_layout_owner()); }
     if binding.has_original_authored_source_body_name_role_owner()
         && !binding.has_original_source_layout_owner()
     {
@@ -2657,9 +2659,11 @@ fn original_parameter_expression_config(
         operands.next()?;
         operands.next().is_none().then_some(config)
     } else {
-        let (original, _) = crate::registry_invocation::original_lowered_expression_syntax(
+        let o = crate::registry_invocation::original_lowered_expression_syntax(
             expression, base, tokens,
-        )?;
+        );
+        if zz { eprintln!("ZZ pexpr: lowered={:?} eq={}", o.is_some(), o.as_ref().is_some_and(|(x, _)| *x == config)); }
+        let (original, _) = o?;
         (original == config).then_some(config)
     }
 }

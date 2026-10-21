@@ -1176,6 +1176,27 @@ fn is_invoke_op(op: Op) -> bool {
     )
 }
 
+/// Whether the command starting at instruction `start` is invoked by name (an
+/// `INVOKE_*` of its own source span), so dispatch charges it to the
+/// `commands` limit, rather than compiled inline.
+fn command_is_dispatched(asm: &FunctionAsm, start: usize) -> bool {
+    let Some(span) = asm
+        .instructions
+        .get(start)
+        .and_then(|instr| instr.source_span)
+    else {
+        return true;
+    };
+    asm.instructions[start..]
+        .iter()
+        .take_while(|instr| {
+            instr
+                .source_span
+                .is_none_or(|inner| span.start() <= inner.start() && inner.end() <= span.end())
+        })
+        .any(|instr| is_invoke_op(instr.op) && instr.source_span == Some(span))
+}
+
 /// The instructions [`Vm::tick_variable_instruction`] runs: variable access,
 /// which can run guest code (a variable trace) before the instruction ends.
 fn is_variable_op(op: Op) -> bool {
@@ -5662,6 +5683,16 @@ impl Vm {
         }
         if instr.script_command {
             f.script_command = Some(f.pc);
+        }
+        // C counts a command it compiled inline at `INST_START_CMD`, and one it
+        // invokes as it dispatches it, so an armed `commands` limit also
+        // bounds a loop of compiled commands that never dispatches.
+        if instr.source_command_boundary.is_start()
+            && self.command_limit_armed()
+            && !command_is_dispatched(&asm, f.pc)
+            && let Some(exceeded) = self.charge_command()
+        {
+            return Err(Tick::Return(exceeded));
         }
         f.pc += 1;
         // Line-watch seam: keep the embedder's cell on the dispatching
