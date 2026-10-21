@@ -41,6 +41,7 @@ mod current_diagnostics;
 mod workspace_diagnostic_sources;
 use workspace_diagnostic_sources::WorkspaceDiagnosticSources;
 mod document_transform;
+mod fresh_analysis_cache;
 mod package_source;
 mod proposal_diagnostics;
 mod rewrite_wire;
@@ -1147,6 +1148,7 @@ struct PublishedSourcePath {
 }
 type PublishedSourcePaths = std::sync::Mutex<HashMap<Uri, PublishedSourcePath>>;
 
+#[derive(Clone)]
 struct FreshAnalysisSeed {
     path_admission: Arc<DocumentPathAdmission>,
     analysis: Arc<AnalysisResult>,
@@ -1160,6 +1162,9 @@ struct FreshAnalysisDriver {
     analyser: Analyser,
     analyser_inputs_epoch: u64,
     class_factory_generation: u64,
+    /// The configured inputs `analyser` was built from, for the
+    /// [`fresh_analysis_cache`] key.
+    inputs: fresh_analysis_cache::FreshAnalyserInputs,
 }
 
 impl FreshAnalysisDriver {
@@ -9548,6 +9553,10 @@ pub struct Backend {
     /// Monotonic stamp for "the configuration the diagnostics scheduler caches
     /// has moved".  See [`Backend::invalidate_diag_inputs`].
     diag_inputs_epoch: Arc<std::sync::atomic::AtomicU64>,
+    /// Fresh per-document analyses keyed on their complete input revision
+    /// (Server108). A bounded LRU, validated against the full key on every
+    /// hit; see [`fresh_analysis_cache`].
+    fresh_analysis_cache: std::sync::Mutex<fresh_analysis_cache::FreshAnalysisCache>,
     /// Serialises analyser-input mutations with the final standalone-index
     /// epoch check and replacement. Writers hold this across the mutation and
     /// epoch bump; seed publishers hold a reader through their no-await commit.
@@ -11028,6 +11037,7 @@ impl Backend {
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             diag_inputs_epoch: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            fresh_analysis_cache: std::sync::Mutex::default(),
             analyser_inputs_gate: Arc::new(tokio::sync::RwLock::new(())),
             edit_barrier_stall_reported: std::sync::atomic::AtomicU64::new(u64::MAX),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
@@ -11256,6 +11266,12 @@ impl Backend {
     /// to maintain a second, fallible ancestor dependency graph.
     async fn invalidate_sidecar_stubs(&self) {
         use salsa::Setter as _;
+        // A sidecar is the one analyser input read from disk outside the
+        // fresh-analysis key.
+        self.fresh_analysis_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clear();
         let tracked: Vec<Uri> = {
             let mut db = self.db.lock().await;
             let files = self.db_files.lock().await;
@@ -13698,11 +13714,39 @@ impl Backend {
     ) -> DocumentSourceResult<FreshAnalysisSeed> {
         let path_admission = self.document_path_admission(uri).await?;
         let driver = self.fresh_analysis_driver(path_admission).await;
+        // Server108: an unchanged input revision reuses its analysis; only a
+        // document whose bytes, dialect, admission or configured inputs moved
+        // is analysed again.
+        let key = fresh_analysis_cache::FreshAnalysisKey {
+            text: Arc::clone(&text),
+            dialect: dialect.clone(),
+            path_admission: Arc::clone(&driver.path_admission),
+            analyser_inputs_epoch: driver.analyser_inputs_epoch,
+            class_factory_generation: driver.class_factory_generation,
+            inputs: driver.inputs.clone(),
+        };
+        let cached = self
+            .fresh_analysis_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(uri, &key);
+        if let Some(mut seed) = cached {
+            // Value-equal by the key; hand out this request's own admission,
+            // exactly as a recomputation would.
+            seed.path_admission = Arc::clone(&key.path_admission);
+            seed.path_admission.check_current(self.store.as_ref())?;
+            seed.path_admission.check_for(uri, self.store.as_ref())?;
+            return Ok(seed);
+        }
         let original_uri = uri.clone();
         let seed = crate::rt::spawn_blocking(move || driver.analyse(&text, &dialect, None))
             .await
             .map_err(|_| DocumentSourceUnavailable::Worker { uri: original_uri })??;
         seed.path_admission.check_for(uri, self.store.as_ref())?;
+        self.fresh_analysis_cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(uri, key, seed.clone());
         Ok(seed)
     }
 
@@ -13755,6 +13799,13 @@ impl Backend {
             }
         };
         let file_path = path_admission.analyser_path().map(str::to_owned);
+        let inputs = fresh_analysis_cache::FreshAnalyserInputs {
+            disabled: disabled.clone(),
+            non_ascii_mode: na_mode,
+            extra_commands: extra.clone(),
+            pack_key,
+            resource: resource.clone(),
+        };
         FreshAnalysisDriver {
             path_admission,
             source_store: Arc::clone(&self.store),
@@ -13763,6 +13814,7 @@ impl Backend {
                 .with_file_path(file_path),
             analyser_inputs_epoch,
             class_factory_generation,
+            inputs,
         }
     }
 
@@ -15886,6 +15938,10 @@ impl Backend {
             feature_toggles: _,
             optimiser_enabled: _,
             diag_inputs_epoch: _,
+            // Not keyed by URI for retirement purposes: every hit is checked
+            // against its document's full input revision, and the LRU bound
+            // retires the rest.
+            fresh_analysis_cache: _,
             analyser_inputs_gate: _,
             edit_barrier_stall_reported: _,
             optimiser_profile: _,
@@ -47241,6 +47297,7 @@ info exists ::N::v\uD800";
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             diag_inputs_epoch: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            fresh_analysis_cache: std::sync::Mutex::default(),
             analyser_inputs_gate: Arc::new(tokio::sync::RwLock::new(())),
             edit_barrier_stall_reported: std::sync::atomic::AtomicU64::new(u64::MAX),
             optimiser_profile: Mutex::new(default_optimiser_profile()),

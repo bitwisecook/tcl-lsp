@@ -6029,6 +6029,18 @@ c\uD800";
         u32::try_from(src.find(needle).expect("needle present")).expect("tiny test source")
     }
 
+    /// Byte offset of the head word of the last call written on its own
+    /// indented line as `    word`. A call-site query sits on the call's own
+    /// head word, which is what the original declaration selection reads
+    /// (test-input correction, user decision 2026-10-18T16:00Z
+    /// `forced_import_sibling_offsets`; fixtures and expected values are
+    /// unchanged).
+    fn last_call_head(src: &str, word: &str) -> u32 {
+        let line = format!("    {word}\n");
+        u32::try_from(src.rfind(&line).expect("call line present") + 4)
+            .expect("tiny test source")
+    }
+
     // Behaviour 1 — `namespace forget`.
 
     #[test]
@@ -6357,7 +6369,7 @@ c\uD800";
         //   namespace origin ::dst::p                  → ::src::p
         let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
-        let call = after_last(src, "    p\n");
+        let call = last_call_head(src, "p");
         let hit = resolve_called_proc(&analysis, src, "::dst", "p", call, DOC);
         assert!(
             hit.is_some_and(|p| p.qualified_name == "::src::p"),
@@ -6573,7 +6585,7 @@ c\uD800";
         // word, which is what the original declaration selection reads.
         let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n}\nnamespace eval dst {\n    namespace import -force ::src::*\n}\nnamespace eval dst {\n    namespace forget ::src::p\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
-        let call = after_last(src, "    p\n") - 2;
+        let call = last_call_head(src, "p");
         let hit = resolve_called_proc(&analysis, src, "::dst", "p", call, DOC);
         assert!(
             hit.is_none(),
@@ -6594,7 +6606,7 @@ c\uD800";
         // `namespace origin ::app::helper` → `::src::helper`.
         let src = "namespace eval src {\n    proc helper {} { return SRC }\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
         let analysis = analyse(src);
-        let call = after_last(src, "    helper\n");
+        let call = last_call_head(src, "helper");
         assert!(
             forced_import_shadows(&analysis, DOC, "::app", "helper", call),
             "a `-force` import of a namespace whose exports this file cannot \
@@ -6615,7 +6627,7 @@ c\uD800";
         // `namespace export other`, `::app::helper` → LOCAL).
         let src = "namespace eval src {\n    proc helper {} { return SRC }\n    proc other {} { return O }\n    namespace export other\n}\nnamespace eval app {\n    proc helper {} { return LOCAL }\n}\nnamespace eval app {\n    namespace import -force ::src::*\n}\nnamespace eval app {\n    helper\n}\n";
         let analysis = analyse(src);
-        let call = after_last(src, "    helper\n");
+        let call = last_call_head(src, "helper");
         assert!(!forced_import_shadows(
             &analysis, DOC, "::app", "helper", call
         ));
@@ -6676,7 +6688,7 @@ c\uD800";
     /// [`PARTLY_OBSERVABLE`] resolved against `oracle`.
     fn partly_observable_target(oracle: &dyn NamespaceExportOracle) -> Option<String> {
         let analysis = analyse(PARTLY_OBSERVABLE);
-        let call = after_last(PARTLY_OBSERVABLE, "    helper\n");
+        let call = last_call_head(PARTLY_OBSERVABLE, "helper");
         let ctx = DOC.in_program(ProgramExports {
             uri: "file:///main.tcl",
             oracle,
@@ -6740,7 +6752,7 @@ c\uD800";
         // CLI, a buffer the workspace has not indexed — must get exactly the
         // document-only answer rather than a panic or the abstention above.
         let analysis = analyse(PARTLY_OBSERVABLE);
-        let call = after_last(PARTLY_OBSERVABLE, "    helper\n");
+        let call = last_call_head(PARTLY_OBSERVABLE, "helper");
         assert!(!forced_import_shadows(
             &analysis, DOC, "::app", "helper", call
         ));
@@ -6768,7 +6780,7 @@ c\uD800";
         // than [`FakeExports`], which is position-blind by design.
         let src = "rename auto_import savedPrelude; namespace eval src {\n    proc p {} { return SRC }\n}\nnamespace eval dst {\n    namespace import ::src::*\n}\nnamespace eval src {\n    namespace export p\n}\nnamespace eval dst {\n    p\n}\n";
         let analysis = analyse(src);
-        let call = after_last(src, "    p\n");
+        let call = last_call_head(src, "p");
         let index = crate::workspace_index::WorkspaceIndex::from_documents([(
             "file:///main.tcl",
             &analysis,

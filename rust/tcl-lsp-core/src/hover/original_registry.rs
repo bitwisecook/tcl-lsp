@@ -129,7 +129,17 @@ fn command_text(
     package_version: Option<&str>,
 ) -> Option<String> {
     let hover = spec.hover.as_ref()?;
-    let mut out = format!("**`{}`** — command documentation\n", spec.name);
+    // A descriptor with no declared provider package is part of the selected
+    // dialect's own command set, so it is labelled a built-in command, as on
+    // the original registry hover. A packaged descriptor names its provider
+    // below instead. The label is source documentation, not a runtime
+    // availability claim (see the italic notes `schema_hover` appends).
+    let label = if spec.required_package.is_none() {
+        "built-in command"
+    } else {
+        "command documentation"
+    };
+    let mut out = format!("**`{}`** — {label}\n", spec.name);
     if !hover.summary.is_empty() {
         let _ = write!(out, "\n{}\n", hover.summary);
     }
@@ -195,7 +205,11 @@ fn operand_text(
 }
 
 fn subcommand_text(head: &str, sub: &SubCommand) -> String {
-    let mut out = format!("**`{head} {}`** — subcommand\n", sub.name);
+    subcommand_card(head, sub, "subcommand")
+}
+
+fn subcommand_card(head: &str, sub: &SubCommand, label: &str) -> String {
+    let mut out = format!("**`{head} {}`** — {label}\n", sub.name);
     if let Some(hover) = &sub.hover {
         if !hover.summary.is_empty() {
             let _ = write!(out, "\n{}\n", hover.summary);
@@ -296,10 +310,17 @@ fn scoped_hover(
             return None;
         }
         let sub = selected.subcommand(&static_ascii_word(word)?)?;
-        subcommand_text(selected.name, sub)
+        scoped_operation_text(selected.name, body.environment().name, sub)
     };
     out.push_str("\n\n_Source vocabulary for this body._");
     Some(out)
+}
+
+/// A scoped-body operation (`top set` inside a `report::defstyle` body):
+/// the same card as [`subcommand_text`], framed as an operation of the
+/// scoped environment that declares it.
+fn scoped_operation_text(head: &str, environment: &str, sub: &SubCommand) -> String {
+    subcommand_card(head, sub, &format!("{environment} operation"))
 }
 
 fn static_ascii_word(word: &NativeWord) -> Option<String> {

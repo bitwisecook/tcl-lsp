@@ -6456,6 +6456,17 @@ impl SourceOutcomes {
                 && !normal.has_opaque_domain()
                 && !normal.source_step_observed()
                 && !normal.source_execution_observed(None));
+        #[cfg(debug_assertions)]
+        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
+            eprintln!(
+                "ORIGINAL_COMPLETED_NORMAL_WORLD complete={} routes={:?} opaque={} step={} observed={}",
+                self.normal_completion.is_some(),
+                self.abrupt.iter().map(|(route, _)| route).collect::<Vec<_>>(),
+                normal.has_opaque_domain(),
+                normal.source_step_observed(),
+                normal.source_execution_observed(None),
+            );
+        }
         closed.then(|| Arc::new((**normal).clone()))
     }
 
@@ -14609,6 +14620,14 @@ impl ModuleCommandBindings {
     /// mutation. Namespace lookup changes are relevant to source-safe
     /// resolution but do not by themselves invalidate optimiser trust.
     fn mark_opaque_resolution(&mut self) {
+        #[cfg(test)]
+        if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+            eprintln!(
+                "ZZ_OPAQUE {}\n{}",
+                stringify!(mark_opaque_resolution),
+                std::backtrace::Backtrace::force_capture()
+            );
+        }
         Arc::make_mut(&mut self.original_command_world).withdraw();
         self.opaque_domain = true;
     }
@@ -14616,6 +14635,14 @@ impl ModuleCommandBindings {
     /// Widen both command resolution and the optimiser's command-trust
     /// projection because an unbounded command-binding effect may occur.
     fn mark_opaque_binding_mutation(&mut self) {
+        #[cfg(test)]
+        if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+            eprintln!(
+                "ZZ_OPAQUE {}\n{}",
+                stringify!(mark_opaque_binding_mutation),
+                std::backtrace::Backtrace::force_capture()
+            );
+        }
         Arc::make_mut(&mut self.original_command_world).withdraw();
         self.ordinary_literal_pool = None;
         Arc::make_mut(&mut self.object_instances).invalidate_dispatch(true);

@@ -5754,6 +5754,31 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
     }
 
     #[test]
+    fn crlf_class_method_bodies_analyse_without_lexer_panics() {
+        // A Windows document: every line ends in CR LF, and the method body
+        // reads `$label` inside a quoted word.
+        let source = concat!(
+            "oo::class create Widget {\n",
+            "    superclass WidgetBase\n",
+            "    variable label\n",
+            "    constructor {text} {\n",
+            "        set label $text\n",
+            "    }\n",
+            "    method render {} {\n",
+            "        puts \"widget $label\"\n",
+            "    }\n",
+            "}",
+        )
+        .replace('\n', "\r\n");
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            for text in [source.clone(), format!("{source}\r\n")] {
+                let result = crate::analyser::Analyser::new().analyse(&text, dialect);
+                assert!(result.all_classes.contains_key("::Widget"), "{dialect}");
+            }
+        }
+    }
+
+    #[test]
     fn zz_probe_completed_world_and_body_lookups() {
         for use_site in [
             "",

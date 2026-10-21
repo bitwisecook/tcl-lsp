@@ -1280,7 +1280,12 @@ mod tests {
     #[test]
     fn multiple_handlers_dispatch_correctly() {
         let mut ctx = registry_ctx();
-        ctx.registry = Some(tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        ctx.registry = Some(registry);
+        // The document's own tcl8.6 grammar, as `extract_signatures` derives
+        // it: a Tcl 9.0 escape grammar cannot spell an 8.6 command name.
+        ctx.config = tcl_lexer::LexerConfig::for_file_grammar(registry.profile().unwrap().grammar);
+        ctx.rules = tcl_syntax::word_rules::WordValueRules::from_config(&ctx.config);
         scan(
             "package require Tcl 8.6\nsource /abs/path.tcl\nproc bar {} {}",
             None,
