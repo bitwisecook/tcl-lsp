@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-21T13:10Z",
+  "source": "User message in chat",
+  "decisions": {
+    "scope_focus": {
+      "choice": "Focus entirely on the LSP, the compiler stack the LSP requires, and VM/runtime execution of SpecTcl code",
+      "in_scope": ["tcl-lsp-core, tcl-lsp-db, tcl-lsp-server and their tests", "compiler/registry/syntax/lexer analysis paths the LSP uses (fresh-entry analysis, C6, uncalled procedure bodies, iRules realm-aware world for LSP diagnostics, miscompiles in code the VM runs)", "tcl-vm / runtime/rust execution of SpecTcl code (tcl-spectcl eval_loader, codegen_stamps, spectcl-compat CI job)", "test fixture reduction for the rust PR"],
+      "parked": ["general tclvm upstream ports not needed for SpecTcl (items 2-10 of merge-A 'not yet ported')", "TclOO per-call recompile and frame-size work unless SpecTcl needs it", "command_mutation_deopt cluster P", "native compilers for remaining string/format/regsub/encoding members unless SpecTcl code needs them", "compiler lowering cost unless on an LSP path"],
+      "supersedes": "the broader 'port everything' execution scope for this merge (user-decisions-20261019T1420Z.json) where it is not needed for the three in-scope areas"
+    }
+  }
+}
