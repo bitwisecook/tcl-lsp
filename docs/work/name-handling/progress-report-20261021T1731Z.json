@@ -1,0 +1,70 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-21T17:31:36.025377+00:00",
+  "scheduled_report_utc": "2026-10-21T17:29:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "decisions_recorded_in_chat": {
+    "compiler_split": "user approved splitting the compiler queue into as many agents as needed (17:10Z)",
+    "classmethod_tcl86": "applied existing decision 2026-10-17T20:30Z non_tcl_tests",
+    "tcl9_classmethod_inheritance_and_import": "authorised by coordinator under the C Tcl fidelity rule, Tcl 9 profiles only"
+  },
+  "progress": {
+    "name_resolution": "58/76 (was 46/75; origin/rust 75/0)",
+    "db_loss": "fixed (test-input correction under fresh-entry decision)"
+  },
+  "in_progress": {
+    "vm-runtime agent": "SpecTcl fast-route folding, golden_packs, codegen_stamps",
+    "compiler agent": "lowering stack overflow, snit/itcl definers, C6, iRules",
+    "compiler-codegen agent": "compile service: default-compile preflight, pack-overlay procs/specialisation, VM-path refusals",
+    "compiler-names agent": "method-body self-dispatch tape, math functions in command substitutions",
+    "lsp agent": "remaining name_resolution clusters, provider integration targets",
+    "bigip lsp agent": "VS Code blockers, 35 units",
+    "gates agent": "owner-resolution 608, python ty 26, cargo-deny 4"
+  },
+  "disk": "1.8 GB free (below 2 GB): no stale test executables or incremental dirs to remove while builds run; agents told to trim scratch and not build below 2 GB",
+  "next_report_utc": "2026-10-21T18:02:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
