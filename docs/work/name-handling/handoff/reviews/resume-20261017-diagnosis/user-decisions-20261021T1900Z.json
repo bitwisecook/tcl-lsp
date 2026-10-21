@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-21T19:00Z",
+  "source": "AskUserQuestion answer in chat",
+  "decisions": {
+    "owner_resolution_manifest": {
+      "choice": "Make it truthful",
+      "meaning": "In docs/design/contracts/shared-utility-contracts-rust.md, keep an entry only if it is genuinely shared: register its actual cross-module consumers and update renamed consumers; withdraw entries that are private with no outside consumer and the four entries that never existed. The manifest then states only what the code shares, and the owner-resolution gate must pass on that basis.",
+      "evidence": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/gates-NOTES.md and gates-owner-resolution-remaining.json (310 remaining diagnostics)"
+    }
+  }
+}
