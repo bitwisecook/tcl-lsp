@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-21T15:00Z",
+  "source": "User message in chat",
+  "decisions": {
+    "bigip_lsp_units": {
+      "choice": "Finish the BIG-IP portions of the LSP in parallel to other efforts",
+      "meaning": "The 35 dedicated BIG-IP/F5 units in the original LSP area (iRules, iApps, tmsh, APL, iLX, XC, BIG-IP navigation/report/editor surfaces in tcl-lsp-core, tcl-lsp-server, editors/vscode and editors/zed) are no longer deferred; they are implemented now alongside the other in-scope work.",
+      "supersedes": "the earlier deferral of dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics for the LSP area"
+    },
+    "validation_run_updates": {
+      "choice": "The validation agent pushes regular updates of its validation run",
+      "meaning": "While a CI run or capture is in progress, the validation agent commits and pushes current-state.md (and any partial result summaries) at least every 30 minutes and after each completed group or shard, not only at the end."
+    }
+  }
+}

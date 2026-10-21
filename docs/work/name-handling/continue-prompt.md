@@ -4,6 +4,7 @@ You own validation for the LSP naming migration on `bitwisecook/tcl-lsp`, branch
 
 ## Scope (user decisions)
 
+- The 35 dedicated BIG-IP/F5 LSP units are now in scope and being implemented in parallel (`user-decisions-20261021T1500Z.json`).
 - Focus entirely on the LSP (`tcl-lsp-core`, `tcl-lsp-db`, `tcl-lsp-server`), the compiler, registry, syntax and lexer paths it requires, and VM/runtime execution of SpecTcl code. General tclvm parity is parked (`handoff/reviews/resume-20261017-diagnosis/user-decisions-20261021T1310Z.json`).
 - Evidence stays on `work`. The PR to `rust` carries product source, design docs and only the test fixtures tests read, reviewed and reduced (`user-decisions-20261021T1205Z.json`, `handoff/reviews/fixture-review-20261021/`).
 - All recorded decisions are `user-decisions-*.json` in `handoff/reviews/resume-20261017-diagnosis/`. Never re-open one; when a genuine new design choice comes up, ask the user and record the answer there as a new JSON file.
@@ -12,7 +13,8 @@ You own validation for the LSP naming migration on `bitwisecook/tcl-lsp`, branch
 
 1. **`current-state.md`**: the outstanding-validation table. Every time a validation runs or its status changes, update its row with the date, the commit or run ID, the numbers, and the comparison with the previous result, and update the "Updated" line. Remove a row only when its validation passes; move it under a "Passed" heading with the evidence link rather than deleting it.
 2. **`audit-status.json`** and **`progress-report-<UTC>.json`**: counts. Every 30 minutes while work is active, write a report with `validation-tools/write-report.py <delta.json>`. The delta holds `scheduled`, `change_since_previous_report`, and any `admissions`, `committed`, `in_progress` and `next_report_utc`. Change `integrated` or `verified_complete` counts only with admission evidence: a guarded capture or CI run with zero pass-to-fail and the audit units it closes named. Today nothing is verified complete, because no capture has yet been mapped onto audit units.
-3. Commit and push only these docs (`git add docs/work/name-handling/progress-report-*.json docs/work/name-handling/current-state.md`), and post a short summary in chat.
+3. **Push progress while a run is in progress** (user decision 2026-10-21T15:00Z): while a CI run or capture is running, update its row and push at least every 30 minutes and after each completed group, shard or target, with the partial counts so far. Do not wait for the run to finish.
+4. Commit and push only these docs (`git add docs/work/name-handling/progress-report-*.json docs/work/name-handling/current-state.md`), and post a short summary in chat.
 
 ## Running validations
 
