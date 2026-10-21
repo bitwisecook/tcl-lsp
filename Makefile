@@ -215,7 +215,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Tests
 .PHONY: test test-ext test-ext-partition test-ext-multi-folder test-emacs test-jetbrains test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
 .PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-editor-configs xtask-gen-environment-docs xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data xtask-runtime-stdlib tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership check-c-extension-wasm
-.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-value-transfers xtask-registry-axes xtask-gen-tmlanguage-keywords xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
+.PHONY: xtask-workflow-sync xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-value-transfers xtask-registry-axes xtask-gen-tmlanguage-keywords xtask-gen-bigip-grammars xtask-option-registry-drift xtask-callback-inventory check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-vscode-test-partitions check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph xtask-dialect-drift xtask-segmentation-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust check-rust-pr _check-rust-pr rust-deny
 .PHONY: build-report-assets build-report-pyz lint-report-ts typecheck-report-ts check-report-assets lint-spec-studio-ts typecheck-spec-studio-ts
@@ -827,7 +827,7 @@ test-ext: ## Run VS Code extension integration tests (single-root + multi-root);
 		exit 0; \
 	fi; \
 	echo "==> Validating generated editor assets (Zed query registry-drift + grammar)"; \
-	"$(MAKE)" xtask-gen-zed-queries zed-query-check; \
+	"$(MAKE)" xtask-gen-zed-queries xtask-gen-bigip-grammars zed-query-check; \
 	if [ -z "$${TCL_LSP_SERVER_BIN:-}" ]; then \
 		"$(MAKE)" rust-server; \
 		export TCL_LSP_SERVER_BIN="$(ROOT)target/$(PROFILE)/tcl-lsp-server"; \
@@ -914,7 +914,7 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests-shard matrix and its stable rust-tests aggregate
 # (ci.yml). `xtask-check` is the CI aggregate.
-xtask-check: check-name-resolution-proofs check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-value-transfers xtask-registry-axes xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
+xtask-check: check-name-resolution-proofs check-tcl-reference-toolchains check-spectcl-compat-paths check-pr-gate-path check-runtime-rust-paths check-python-ci-paths check-rust-tests-runner check-persistent-cargo-target check-rust-tests-paths check-lsp-e2e-paths check-lsp-e2e-partitions check-lsp-wasi-lto check-already-green check-monitoring-triggers check-smoke-targets check-wasm-cc-env check-homebrew-ci check-sign-and-upload check-retired-asset-names check-release-dependency-graph check-vsix-web-assets-contract xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-bundled-environments xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-bigip-grammars xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-catalogue-callers xtask-resolution-drift xtask-retired-api-gate xtask-pack-goldens xtask-number-drift xtask-segmentation-drift xtask-value-transfers xtask-registry-axes xtask-command-backing xtask-callback-inventory xtask-option-registry-drift xtask-sslictcl-data xtask-runtime-stdlib xtask-editor-extensions xtask-gen-editor-configs xtask-gen-environment-docs xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-extension-wasm ## Rust-side check gates (docs index coverage + generated-table/catalog drift) xtask-dialect-drift
 
 check-lsp-wasi-lto: ## Verify functional WASI uses thin LTO and tags retain fat LTO
 	@bash scripts/dev/test-lsp-wasi-lto.sh
@@ -1092,6 +1092,10 @@ xtask-gen-zed-queries: ## Verify the generated Zed tree-sitter highlight queries
 xtask-gen-tmlanguage-keywords: ## Verify the VS Code/JetBrains/Sublime TextMate grammar keyword lists are in sync with the registry (drift gate)
 	@echo "==> Checking generated TextMate grammar keyword lists are in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-tmlanguage-keywords --check
+
+xtask-gen-bigip-grammars: ## Verify the Zed/VS Code BIG-IP and APL grammar vocabularies are in sync with their tcl-bigip owners (drift gate)
+	@echo "==> Checking generated BIG-IP/APL grammar vocabularies are in sync (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-bigip-grammars --check
 
 xtask-gen-editor-settings: ## Verify the VS Code diagnosticCatalog.ts is in sync with the DiagCode catalogue (drift gate)
 	@echo "==> Checking generated diagnosticCatalog.ts is in sync (cargo xtask)"
@@ -1903,6 +1907,7 @@ _EDITOR_DIALECT_OUTPUTS := \
 	editors/zed/languages/iapps/config.toml \
 	editors/zed/languages/irules/config.toml \
 	editors/zed/languages/tmsh/config.toml \
+	editors/zed/languages/bigip/config.toml \
 	editors/zed/languages/apl/config.toml
 $(_EDITOR_DIALECT_OUTPUTS): $(_EDITOR_DIALECT_DEPS)
 
@@ -1941,6 +1946,8 @@ generate: editors/vscode/src/generated/iruleEvents.json editors/zed/languages/tc
 	cd $(ROOT) && cargo xtask gen-environment-docs
 	@echo "==> Generating TextMate keyword grammars (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-tmlanguage-keywords
+	@echo "==> Generating BIG-IP/APL grammar vocabularies (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-bigip-grammars
 
 gen-irule-test-data: ## Generate iRule-test Tcl assets from the Rust registries
 	@echo "==> Generating iRule-test data (cargo xtask)"
@@ -1950,6 +1957,7 @@ check-generated: ## Verify generated catalogs are up to date
 	@echo "==> Checking generated editor catalogs are up to date (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-catalogs --check
 	cd $(ROOT) && cargo xtask gen-zed-queries --check
+	cd $(ROOT) && cargo xtask gen-bigip-grammars --check
 
 # Generated editor settings and AI files. The editor catalogues are rendered
 # directly from Rust registries; only active AI prompt/skill inputs use Jinja.

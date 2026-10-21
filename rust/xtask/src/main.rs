@@ -96,6 +96,7 @@ mod environment;
 mod f5query_builtins_doc;
 mod fp_sweep;
 mod gen_ai;
+mod gen_bigip_grammars;
 mod gen_bundled_environments;
 mod gen_editor_catalogs;
 mod gen_editor_configs;
@@ -296,6 +297,15 @@ enum Command {
     GenZedQueries {
         /// Verify the committed query is in sync instead of rewriting it;
         /// exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generate the Zed and VS Code BIG-IP configuration / APL grammars'
+    /// vocabularies from their `tcl-bigip` owners.
+    GenBigipGrammars {
+        /// Verify the committed grammars are in sync instead of rewriting
+        /// them; exit non-zero on drift.
         #[arg(long)]
         check: bool,
     },
@@ -553,6 +563,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::GenEnvironmentDocs { check } => gen_environment_docs::run(check),
         Command::GenIruleTestData { check } => gen_irule_test_data::run(check),
         Command::GenZedQueries { check } => gen_zed_queries::run(check),
+        Command::GenBigipGrammars { check } => gen_bigip_grammars::run(check),
         Command::GenTmlanguageKeywords { check } => gen_tmlanguage_keywords::run(check),
         Command::GenEditorSettings { check } => gen_editor_settings::run(check),
         Command::GenVscodePackage { check } => gen_vscode_package::run(check),

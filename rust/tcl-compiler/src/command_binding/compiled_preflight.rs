@@ -397,7 +397,11 @@ struct CompilerTraversal<'a> {
 }
 
 impl CompilerTraversal<'_> {
+    #[track_caller]
     fn require_provider(&mut self) {
+        if std::env::var_os("ZZ_CCG_PROVIDER").is_some() {
+            eprintln!("ZZ_CCG_PROVIDER {}", std::panic::Location::caller());
+        }
         self.possible_error = true;
         self.locals = None;
     }

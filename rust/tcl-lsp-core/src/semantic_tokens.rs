@@ -11356,3 +11356,146 @@ mod original_comment_token_tests {
         assert!(comments(source, &changed).is_empty());
     }
 }
+
+/// The iRules overlays (BIG-IP object references, `when`/procedure
+/// declarations) over representative fixtures, read the way the server
+/// supplies an iRules document: its own analysis, input and unit.
+#[cfg(test)]
+mod irules_overlay_tests {
+    use super::tests::decode_semantic;
+    use super::*;
+    use std::sync::Arc;
+
+    /// Representative iRules sources: the shipped samples, the screenshot
+    /// fixtures, and an inline rule with procedures, nested event bodies and
+    /// every object-reference command family.
+    fn fixtures() -> Vec<(&'static str, &'static str)> {
+        vec![
+            (
+                "cookbook_http_collect",
+                include_str!("../../../samples/irules/cookbook_http_collect.irul"),
+            ),
+            (
+                "cookbook_tcp_collect",
+                include_str!("../../../samples/irules/cookbook_tcp_collect.irul"),
+            ),
+            (
+                "diagnostics_event_flow",
+                include_str!("../../../samples/irules/diagnostics_event_flow.irul"),
+            ),
+            (
+                "diagnostics_security",
+                include_str!("../../../samples/irules/diagnostics_security.irul"),
+            ),
+            (
+                "diagnostics_style_perf",
+                include_str!("../../../samples/irules/diagnostics_style_perf.irul"),
+            ),
+            (
+                "security_taint_before",
+                include_str!("../../../samples/for_screenshots/05-security-taint-before.irul"),
+            ),
+            (
+                "template_fallback",
+                include_str!("../../../samples/for_screenshots/24-template-fallback.irul"),
+            ),
+            (
+                "extract_datagroup_before",
+                include_str!("../../../samples/for_screenshots/30-extract-datagroup-before.irul"),
+            ),
+            (
+                "inline",
+                concat!(
+                    "proc helper {} { pool helper_pool }\n",
+                    "when CLIENT_ACCEPTED {\n",
+                    "  virtual vs1\n  node n1\n  snatpool sp1\n",
+                    "}\n",
+                    "when HTTP_REQUEST priority 100 {\n",
+                    "  call helper\n",
+                    "  if {[class match [HTTP::host] equals hosts_dg]} {\n",
+                    "    pool web_pool\n",
+                    "  } else {\n",
+                    "    pool $dynamic\n",
+                    "  }\n",
+                    "  set v [class lookup [HTTP::uri] uri_dg]\n",
+                    "}\n",
+                ),
+            ),
+        ]
+    }
+
+    /// The analysis and unit the server holds for an iRules document.
+    fn irules_document(
+        source: &str,
+    ) -> (
+        tcl_compiler::analyser::AnalysisResult,
+        CompilationUnit,
+        &'static tcl_dialect::DialectProfile,
+    ) {
+        let profile = tcl_dialect::DialectProfile::irules();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            Arc::clone(&context),
+            config,
+        );
+        let unit = CompilationUnit::build_with_context_registry(
+            source,
+            tcl_compiler::compilation_unit::UnitBuildOptions {
+                registry: context.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            Arc::clone(&context),
+        );
+        let analysis = tcl_compiler::analyser::Analyser::new()
+            .with_resolved_input(input)
+            .analyse(source, profile.name);
+        (analysis, unit, profile)
+    }
+
+    /// Baseline capture for the overlay migration: with
+    /// `BIGIP_TOKEN_DUMP=<file>` set, write every fixture's full token stream
+    /// (document analysis with and without a unit, and the standalone source
+    /// API) so two builds can be diffed. Does nothing otherwise.
+    #[test]
+    fn zz_irules_overlay_token_dump() {
+        use std::fmt::Write as _;
+        let Ok(path) = std::env::var("BIGIP_TOKEN_DUMP") else {
+            return;
+        };
+        let mut out = String::new();
+        for (name, source) in fixtures() {
+            let (analysis, unit, profile) = irules_document(source);
+            let registry = analysis.resolved_registry().expect("registry");
+            for (mode, tokens) in [
+                (
+                    "document+unit",
+                    full_with_cu_and_analysis(
+                        source,
+                        profile,
+                        registry,
+                        Some(&unit),
+                        Some(&analysis),
+                    ),
+                ),
+                (
+                    "document",
+                    full_with_cu_and_analysis(source, profile, registry, None, Some(&analysis)),
+                ),
+                ("standalone", full(source, profile, registry)),
+            ] {
+                for token in decode_semantic(&tokens) {
+                    let _ = writeln!(out, "{name}\t{mode}\t{token:?}");
+                }
+            }
+        }
+        std::fs::write(path, out).expect("write dump");
+    }
+}

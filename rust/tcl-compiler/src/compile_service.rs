@@ -395,9 +395,9 @@ impl BytecodeCompileService {
             &command_mutations,
             policy.scope,
         )?;
-        if let Some(profile) = profile {
-            module.profile = profile;
-        }
+        // A profile-less module is the permissive fallback profile's, whose
+        // engine it was compiled for.
+        module.profile = profile.unwrap_or_else(DialectProfile::plain_tcl);
         validate_native_function(&module.top_level)?;
         Ok(module)
     }

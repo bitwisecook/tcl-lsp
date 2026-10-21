@@ -114,9 +114,11 @@ pub struct ZedLanguage {
 
 /// Every Zed language directory, in the order `extension.toml` lists them.
 ///
-/// The `tmsh` directory registers the extensions of `f5-tmsh` but sends the
-/// `tcl-bigip` language id: it is backed by the BIG-IP configuration grammar,
-/// so the server must analyse its buffers as BIG-IP configuration.
+/// Each directory sends the language id of the environment whose extensions
+/// it registers, so the server analyses a buffer under the context its file
+/// belongs to: `tmsh` is the Tcl-grammar `f5-tmsh` script language
+/// (`tcl-tmsh`), and `bigip` the BIG-IP configuration language (`tcl-bigip`)
+/// on the `tree-sitter-bigip` grammar.
 pub const ZED_LANGUAGES: &[ZedLanguage] = &[
     ZedLanguage {
         dir: "tcl",
@@ -140,8 +142,13 @@ pub const ZED_LANGUAGES: &[ZedLanguage] = &[
     },
     ZedLanguage {
         dir: "tmsh",
-        language_id: "tcl-bigip",
+        language_id: "tcl-tmsh",
         source: ZedSource::Environment("f5-tmsh"),
+    },
+    ZedLanguage {
+        dir: "bigip",
+        language_id: "tcl-bigip",
+        source: ZedSource::Environment("f5-bigip"),
     },
     ZedLanguage {
         dir: "apl",
@@ -191,6 +198,16 @@ const BIGIP_TOKEN_SCOPES: &[(&str, &str)] = &[
     ("vlan", "entity.name.type.vlan.bigip"),
     ("bigipInterface", "entity.name.type.interface.bigip"),
 ];
+
+/// The `TextMate` scope `package.json` maps a BIG-IP semantic token type to —
+/// the scope a static grammar rule must use to land on the same theme colour.
+pub(crate) fn bigip_token_scope(token_type: &str) -> Option<&'static str> {
+    BIGIP_TOKEN_SCOPES
+        .iter()
+        .chain(std::iter::once(&OBJECT_TOKEN_SCOPE))
+        .find(|(name, _)| *name == token_type)
+        .map(|&(_, scope)| scope)
+}
 
 /// The shared token types for the sub-languages inside a Tcl string
 /// (regular expressions, `binary`, `format` and `clock` specifiers).
