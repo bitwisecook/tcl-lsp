@@ -29,10 +29,11 @@ jobs:
   complete-reference-matrix:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    env:
-      TCL_LSP_TCL_BIN_DIR: ${{ runner.temp }}/resolution-tcl-bin
-      TCL_LSP_JIM_ROOT: ${{ runner.temp }}/resolution-jim
     steps:
+      - name: Reference locations
+        run: |
+          echo "TCL_LSP_TCL_BIN_DIR=$RUNNER_TEMP/resolution-tcl-bin" >> "$GITHUB_ENV"
+          echo "TCL_LSP_JIM_ROOT=$RUNNER_TEMP/resolution-jim" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f # v2.0.0
         with:
