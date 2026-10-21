@@ -20,7 +20,8 @@ command switch {
     # single-braced-body shorthand `string {pattern body ...}` (exactly 2).
     # tclsh 8.6.14: `switch $s a b c` fails "wrong # args"; `switch $s {a b}`
     # and `switch $s a b c d` both succeed.
-    arity 3.. -step 2 -also 2
+    # Counted after the leading option words, as the shipped spec counts it.
+    arity 3.. -step 2 -also 2 -positionals
 
     # Skip option flags (including the value-consuming ones), skip the subject
     # word, then mark either the single braced clause list or the body of each

@@ -48,6 +48,8 @@ command foreach {
 
     return_type      String
     var_write_typing {ElementsOf 0}
+    # Each list operand of a varList/list pair is coerced to an ordinary list.
+    representation_effect {CoerceOrdinaryListPairs 0}
 
     lowering_hook -native Foreach
     analyser_hook -native Foreach
