@@ -310,6 +310,23 @@ fn context_aware_completions(
         ));
     }
     if !analysis.allows_lexical_declaration_advice() {
+        // A scoped body's operations (`top ` → `set`/`get`/…) under its
+        // retained original body receipt; a scoped head is not a registered
+        // command, so the registry selection below cannot reach it.
+        if let Some(command) = command_context_on_line(source, line, character, analysis)
+            && command.word_index == 1
+            && let Some(cmd) = command.head_text()
+            && let Some(env) =
+                scoped_env_at(analysis, source, line, character, &tcl_lexer::LineIndex::new(source))
+            && let Some(scoped) = env.command(&cmd)
+            && !scoped.subcommands.is_empty()
+        {
+            return Some(scoped_op_completions(
+                scoped,
+                partial,
+                analysis.resolved_input.as_ref()?.lexer_config(),
+            ));
+        }
         return original_context::items(source, cursor, line, character, analysis, partial);
     }
     let command = command_context_on_line(source, line, character, analysis)?;
@@ -422,9 +439,9 @@ fn variable_trigger_completions(
 /// Compute completions for a position in `source`.
 ///
 /// `analysis` is the pre-computed analyser result; the caller
-/// (server) is expected to cache it.  `registry`, when `Some`,
-/// remains a compatibility parameter. Actual command advice comes from the
-/// retained document Registry and full availability context.  Returns an
+/// (server) is expected to cache it.  `registry`, when `Some`, opts into
+/// the builtin command list at command position; the advice itself comes from
+/// the retained document Registry and full availability context.  Returns an
 /// empty vector when there is no useful suggestion (delimiter
 /// run, EOF, etc.).
 ///
@@ -448,7 +465,7 @@ pub fn completions(
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
-    _registry: Option<&CommandRegistry>,
+    caller_registry: Option<&CommandRegistry>,
     workspace: Option<&crate::workspace_index::WorkspaceIndex>,
     _dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<CompletionItem> {
@@ -548,7 +565,10 @@ pub fn completions(
 
     let usage = document_usage_counts(analysis);
     let mut items = proc_completions(analysis, &partial, &usage);
-    if let Some(registry) = registry {
+    // The retained Registry selects the builtin advice, but a caller that
+    // supplies no registry has asked for document symbols only; the builtin
+    // list is never widened beyond what the caller opted into.
+    if let Some(registry) = registry.filter(|_| caller_registry.is_some()) {
         // Tk commands are dialect-gated to Tcl/`tk` already, but they are also
         // offered as package advice from ambient placement — the `tk` dialect (a
         // `wish` document) or a `package require Tk` in this file.  Without

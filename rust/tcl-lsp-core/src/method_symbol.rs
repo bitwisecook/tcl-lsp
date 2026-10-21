@@ -14,7 +14,8 @@ use tcl_compiler::analyser::types::{
 };
 use tcl_compiler::analyser::{AnalysisResult, ClassDef, ProcDef};
 use tcl_compiler::command_binding::{
-    CommandAllocationSite, OriginalCommandLookup, OriginalSourceConstructorCall,
+    CommandAllocationSite, OriginalCommandLookup, OriginalSourceClassProcCall,
+    OriginalSourceConstructorCall,
 };
 use tcl_compiler::ir::CommandTokens;
 use tcl_compiler::segmenter::SegmentedCommand;
@@ -54,6 +55,9 @@ enum Target {
     },
     OwnObject(Box<OwnObjectMethod>),
     SourceClassCall(Box<OriginalSourceConstructorCall>),
+    /// An [incr Tcl] `Class::proc` call (user contract D): the qualifier joins
+    /// its source class, the final segment names a class-side member.
+    SourceClassProcCall(Box<OriginalSourceClassProcCall>),
     ClassLookup {
         lookup: OriginalCommandLookup,
         known_class: bool,
@@ -79,7 +83,9 @@ impl OriginalMethodQuery {
         match &mut self.target {
             Target::Declaration { call_point, .. } => *call_point = false,
             Target::OwnObject(own) => own.call_point = false,
-            Target::SourceClassCall(_) | Target::ClassLookup { .. } => {}
+            Target::SourceClassCall(_)
+            | Target::SourceClassProcCall(_)
+            | Target::ClassLookup { .. } => {}
         }
     }
 
@@ -451,6 +457,15 @@ fn command_query(
     {
         return ControlFlow::Break(source_class_call_query(analysis, call));
     }
+    if let Some(call) =
+        tcl_compiler::registry_invocation::source_structure::source_class_proc_call_at(
+            source,
+            analysis,
+            command.argv[0].span.start(),
+        )
+    {
+        return ControlFlow::Break(source_class_proc_call_query(analysis, command, call));
+    }
     let Some(selector) = command.argv.get(1) else {
         return ControlFlow::Continue(());
     };
@@ -576,6 +591,39 @@ fn source_class_call_query(
         consumer_image,
         consumer_config,
         target: Target::SourceClassCall(Box::new(call)),
+    })
+}
+
+/// An [incr Tcl] `Class::proc` call. The written head is the queried route;
+/// its member segment is the reported occurrence. Whether the class declares
+/// that class-side member is decided against the class's own member records.
+fn source_class_proc_call_query(
+    analysis: &AnalysisResult,
+    command: &SegmentedCommand,
+    call: OriginalSourceClassProcCall,
+) -> Option<OriginalMethodQuery> {
+    call.class_declaration().source_class(analysis)?;
+    let head = command.argv.first()?.span.start();
+    let selector = analysis
+        .command_invocations
+        .iter()
+        .find(|invocation| invocation.range.start() == head)?
+        .original_name_input
+        .clone()?;
+    let (consumer_image, consumer_config) = consumer_currency(analysis)?;
+    Some(OriginalMethodQuery {
+        class_input: call
+            .class_declaration()
+            .name_input()
+            .native_input()
+            .cloned(),
+        selector_input: selector,
+        side: MemberSide::ClassObject,
+        span: call.member_span(),
+        is_declaration: false,
+        consumer_image,
+        consumer_config,
+        target: Target::SourceClassProcCall(Box::new(call)),
     })
 }
 
@@ -824,8 +872,10 @@ pub fn candidate(
         }
         return own_candidate(caller_uri, query);
     }
-    if matches!(query.target, Target::SourceClassCall(_))
-        && !index
+    if matches!(
+        query.target,
+        Target::SourceClassCall(_) | Target::SourceClassProcCall(_)
+    ) && !index
             .diagnostic_source_context(caller_uri)
             .is_some_and(|context| {
                 context.image() == query.consumer_image()
@@ -1012,6 +1062,35 @@ fn candidate_for_records(
                 query.selector_input(),
                 query.side(),
             ))
+        }
+        Target::SourceClassProcCall(call) => {
+            let mut selected = records.iter().filter(|(uri, record)| {
+                *uri == caller_uri && call.class_declaration().matches_source_declaration(record)
+            });
+            let Some((uri, record)) = selected.next() else {
+                return ControlFlow::Break(None);
+            };
+            if selected.next().is_some() {
+                return ControlFlow::Break(None);
+            }
+            // Itcl installs only the class body's own class-side `proc`s as
+            // `Class::name` commands; instance methods are not addressable
+            // this way and nothing is inherited into the class namespace.
+            let mut members = record
+                .metadata()
+                .original_members
+                .declarations()
+                .filter(|method| {
+                    method.side() == MemberSide::ClassObject
+                        && method.original_name_input().bytes() == call.member_name()
+                });
+            let Some(method) = members.next() else {
+                return ControlFlow::Break(None);
+            };
+            if members.next().is_some() {
+                return ControlFlow::Break(None);
+            }
+            ControlFlow::Break(Some(owned_candidate(uri, record, method.clone(), false)))
         }
         // A local call with no authentic source-class owner cannot select a
         // canonical header. Sibling source suggestions use the separate
@@ -1237,6 +1316,11 @@ pub(crate) fn candidate_for_analysis(
         return own_candidate("", query);
     }
     if let Target::SourceClassCall(call) = &query.target
+        && call.class_declaration().source_class(analysis).is_none()
+    {
+        return ControlFlow::Break(None);
+    }
+    if let Target::SourceClassProcCall(call) = &query.target
         && call.class_declaration().source_class(analysis).is_none()
     {
         return ControlFlow::Break(None);
