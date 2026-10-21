@@ -1,0 +1,69 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-21T16:26:13.337228+00:00",
+  "scheduled_report_utc": "2026-10-21T16:25:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "committed": {
+    "54256b96a3": "VM/runtime agent hand-back: SpecTcl loader keeps original body text across line continuations (eda_microchip), probe tests removed; notes cover VM fixes landed via snapshots (command budget counts inline commands, frame-alias notice class, TclOO compile-once, frame sizes, CLI error reporting)"
+  },
+  "validation_feed": "Syntax name-resolution oracle targets 20/0 so far (compiler rewrite oracles still running); owner-resolution contract gate (xtask) fails with 608 diagnostics, 605 manifest entries without a public declaration; fmt still 36 hunks on b77b676afc (before the probe removal)",
+  "routing": {
+    "vm-runtime agent (new)": "verify runtime/VM/SpecTcl changes, then codegen_stamps",
+    "compiler agent": "NativePreflightRequired refusal on SpecTcl/VM paths, release_compiled for switch/try/dict, fmt, clippy",
+    "lsp agent": "integration regressions vs rust first",
+    "bigip lsp agent": "VS Code blockers, 35 units",
+    "unassigned": "owner-resolution contract gate (608), tcl-test-support C84 reference identity, 26 python ty errors, 4 cargo-deny advisories"
+  },
+  "in_progress": {
+    "vm-runtime agent": "started 16:00Z",
+    "compiler agent": "active",
+    "lsp agent": "active",
+    "bigip lsp agent": "active"
+  },
+  "disk": "fell to 1.3 GB during a compiler rebuild; superseded rlibs removed -> 3.0 GB",
+  "next_report_utc": "2026-10-21T16:57:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
