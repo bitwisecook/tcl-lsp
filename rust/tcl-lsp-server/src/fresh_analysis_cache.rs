@@ -143,3 +143,57 @@ impl FreshAnalysisCache {
         self.entries.len()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr as _;
+    use std::sync::Arc;
+
+    use tower_lsp_server::ls_types::Uri;
+
+    /// Server108: an unchanged input revision is not analysed again; a
+    /// changed text or analyser-inputs epoch is.
+    #[tokio::test]
+    async fn fresh_analysis_is_reused_only_for_an_unchanged_input_revision() {
+        let backend = crate::tests::test_backend();
+        let uri = Uri::from_str("file:///workspace/fresh-cache.tcl").unwrap();
+        let source: Arc<str> = Arc::from("proc a {} {}\na\n");
+        let first = backend
+            .fresh_analysis_seed(&uri, Arc::clone(&source), "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        let again = backend
+            .fresh_analysis_seed(&uri, Arc::from("proc a {} {}\na\n"), "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        assert!(Arc::ptr_eq(&first.analysis, &again.analysis));
+        let edited = backend
+            .fresh_analysis_seed(&uri, Arc::from("proc b {} {}\nb\n"), "tcl8.6".to_owned())
+            .await
+            .unwrap();
+        assert!(!Arc::ptr_eq(&first.analysis, &edited.analysis));
+        let other_dialect = backend
+            .fresh_analysis_seed(&uri, Arc::from("proc b {} {}\nb\n"), "tcl9.0".to_owned())
+            .await
+            .unwrap();
+        assert!(!Arc::ptr_eq(&edited.analysis, &other_dialect.analysis));
+        backend.invalidate_diag_inputs();
+        let reconfigured = backend
+            .fresh_analysis_seed(&uri, Arc::from("proc b {} {}\nb\n"), "tcl9.0".to_owned())
+            .await
+            .unwrap();
+        assert!(!Arc::ptr_eq(&other_dialect.analysis, &reconfigured.analysis));
+        assert_eq!(
+            reconfigured.analyser_inputs_epoch,
+            backend.diag_inputs_epoch()
+        );
+        assert_eq!(
+            backend
+                .fresh_analysis_cache
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .len(),
+            1
+        );
+    }
+}

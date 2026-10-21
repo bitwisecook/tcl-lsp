@@ -426,8 +426,11 @@ impl BytecodeCompileService {
             if let Some(profile) = profile {
                 module.profile = profile;
             }
-        } else {
+        } else if !std::ptr::eq(module.profile, profile.unwrap_or_else(DialectProfile::plain_tcl))
+        {
+            // The module states the world of the profile it carries.
             module.profile = profile.unwrap_or_else(DialectProfile::plain_tcl);
+            module.manifest = Some(Arc::new(crate::codegen::emitter::module_manifest(&module)));
         }
         validate_native_function(&module.top_level)?;
         Ok(module)

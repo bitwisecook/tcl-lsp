@@ -663,7 +663,7 @@ fn codegen_module_with_top_context(
 /// profile it carries, the pack facts its sites claim, and this build's
 /// intrinsic table. The runtime's pin states the same thing in the same
 /// shape (`tcl_runtime_api::RuntimeContext::identity`), so the two compare.
-pub(super) fn module_manifest(module: &ModuleAsm) -> tcl_runtime_api::ArtefactIdentityManifest {
+pub(crate) fn module_manifest(module: &ModuleAsm) -> tcl_runtime_api::ArtefactIdentityManifest {
     tcl_registry::model::runtime_context_for_profile(module.profile).identity(
         &module.claimed_packs(),
         tcl_registry::intrinsic_table_hash(),
