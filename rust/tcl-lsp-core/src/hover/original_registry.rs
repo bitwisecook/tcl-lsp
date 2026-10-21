@@ -150,7 +150,7 @@ fn command_text(
     if let Some(package) = spec.required_package {
         let _ = write!(out, "\nDeclared provider: `{package}`.\n");
     }
-    super::append_command_event_metadata(&mut out, spec);
+    super::append_command_event_metadata(&mut out, spec, super::EventRelease::of(context));
     Some(out)
 }
 

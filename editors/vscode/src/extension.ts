@@ -52,11 +52,22 @@ import {
   buildClientOptions,
   DEFAULT_DIALECT,
   EDITOR_SETTINGS_AFFECTING_FEATURES,
-  LspWorkspaceEdit,
   registerWorkspaceTrustGrant,
   resolveAllFeatureToggles,
-  workspaceEditFromLsp,
 } from "./clientCore";
+import {
+  describeXcSource,
+  extractRuleAtCursor as requestRuleAtCursor,
+  isRuleInfo,
+  RuleInfo,
+  RuleScratchRegistry,
+  requestLinkedObjects,
+  requestPartitionRename,
+  ServerCommandSender,
+  translateXcDocument,
+  unavailableReason,
+  xcDocumentSnapshot,
+} from "./bigipSourceActions";
 import { bundlePlatformDir, resolveRustServer } from "./serverResolution";
 import { escapeTclText, transformSelection, unescapeTclText } from "./selectionTransforms";
 import { registerIruleParticipant } from "./chat/iruleParticipant";
@@ -90,7 +101,12 @@ import {
   validatePackageName,
   validateVersion,
 } from "./scaffold";
-import { buildIruleEventSkeleton, COMMON_IRULE_EVENTS } from "./iruleSkeleton";
+import {
+  buildIruleEventSkeletonFor,
+  COMMON_IRULE_EVENTS,
+  describeSkeletonRejections,
+  IruleSkeletonTarget,
+} from "./iruleSkeleton";
 import { loadTemplateSnippets, renderTemplateSnippet, TemplateSnippet } from "./templateSnippets";
 import {
   explorerDocChanged,
@@ -175,14 +191,19 @@ export function isAiEnabled(): boolean {
 // importers that pull these from ./extension keep working.
 export { TCL_LANGUAGE_IDS, isTclLanguage };
 
-// LSP wire types (used by rename partitioning) live in ./clientCore, shared
-// with the browser entry.
+// The BIG-IP source actions (rule scratch editors, linked objects, partition
+// rename, XC translation) live in ./bigipSourceActions, shared with the
+// browser entry.
 
-interface RenamePartitionResult {
-  success: boolean;
-  edit?: LspWorkspaceEdit;
-  error?: string;
+/** The running client as a command sender, or `undefined` when none runs. */
+function serverCommandSender(): ServerCommandSender | undefined {
+  const running = client;
+  if (!running) return undefined;
+  return (command, args) =>
+    running.sendRequest("workspace/executeCommand", { command, arguments: args });
 }
+
+const ruleScratchEditors = new RuleScratchRegistry(serverCommandSender);
 
 let outputChannel: vscode.OutputChannel;
 let currentDiagnosticsTransportDisposable: vscode.Disposable | undefined;
@@ -535,6 +556,7 @@ export async function activate(context: ExtensionContext) {
     ),
   );
 
+  ruleScratchEditors.register(context);
   context.subscriptions.push(
     commands.registerCommand("tclLsp.insertIrule", async (code: string) => {
       const doc = await vscode.workspace.openTextDocument({ language: "tcl", content: code });
@@ -923,11 +945,6 @@ function fallbackDialectForDocument(document: TextDocument): DialectChoice {
   return describeDialect(implied ?? (configured || DEFAULT_DIALECT), currentDialectChoices());
 }
 
-/** Whether a running server can be asked. */
-function serverIsRunning(): boolean {
-  return client !== undefined && client.isRunning();
-}
-
 interface CurrentEffectiveConfig {
   readonly value: unknown;
   readonly report: CurrentDiagnosticsReport;
@@ -967,19 +984,6 @@ async function effectiveConfigFor(
     // fallback label stays until an event asks again.
     return undefined;
   }
-}
-
-/**
- * The dialect *document* is analysed under: the server's answer, else the
- * fallback. The diagnostics report owns source, resource config and session
- * currency; this projection does not reconstruct them from a URI or version.
- */
-async function effectiveDialectFor(document: TextDocument): Promise<DialectChoice> {
-  const config = await effectiveConfigFor(document);
-  const answered = config?.isCurrent()
-    ? dialectFromEffectiveConfig(config.value, currentDialectChoices())
-    : undefined;
-  return answered ?? fallbackDialectForDocument(document);
 }
 
 /** Read the server's dialect list, keeping the catalogue when it cannot be read. */
@@ -1174,6 +1178,10 @@ async function renamePartition(uriString?: string, oldPartition?: string): Promi
     window.showWarningMessage("Place the cursor on a BIG-IP partition stanza first.");
     return;
   }
+  // The version the stanza was read from: the rename applies to it or not at all.
+  const version = workspace.textDocuments.find(
+    (document) => document.uri.toString() === targetUri,
+  )?.version;
 
   const newNameInput = await window.showInputBox({
     title: "Rename BIG-IP Partition",
@@ -1199,17 +1207,18 @@ async function renamePartition(uriString?: string, oldPartition?: string): Promi
   }
 
   const newName = newNameInput.trim().replace(/^\/+/, "");
-  const result = (await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.renamePartition",
-    arguments: [targetUri, currentName, newName],
-  })) as RenamePartitionResult | null;
-
-  if (!result?.success || !result.edit) {
-    window.showErrorMessage(result?.error ?? "Partition rename did not produce any edits.");
+  const send = serverCommandSender();
+  if (!send) {
+    window.showWarningMessage("The Tcl language server is not running.");
+    return;
+  }
+  const edit = await requestPartitionRename(send, targetUri, currentName, newName, version);
+  if (typeof edit === "string") {
+    window.showErrorMessage(edit);
     return;
   }
 
-  const applied = await workspace.applyEdit(workspaceEditFromLsp(result.edit));
+  const applied = await workspace.applyEdit(edit);
   if (!applied) {
     window.showErrorMessage("VS Code rejected the partition rename workspace edit.");
     return;
@@ -1506,24 +1515,15 @@ async function translateXc(): Promise<void> {
     return;
   }
 
-  const source = editor.document.getText();
-  if (!source.trim()) {
+  const snapshot = xcDocumentSnapshot(editor.document);
+  if (!snapshot.source.trim()) {
     window.showWarningMessage("The current file is empty.");
     return;
   }
 
   try {
-    const result = (await client.sendRequest("workspace/executeCommand", {
-      command: "tcl-lsp.xcTranslate",
-      arguments: [source, "both"],
-    })) as Record<string, unknown> | null;
-
-    if (!result || result.error) {
-      window.showErrorMessage(
-        `XC translation failed: ${(result?.error as string) ?? "unknown error"}`,
-      );
-      return;
-    }
+    const result = await translateXcForCommand(snapshot, "both");
+    if (!result) return;
 
     const coverage = (result.coverage_pct as number) ?? 0;
     const translatable = (result.translatable_count as number) ?? 0;
@@ -1559,11 +1559,36 @@ async function translateXc(): Promise<void> {
     }
 
     window.showInformationMessage(
-      `XC Translation: ${coverage.toFixed(1)}% coverage — ${translatable} translatable, ${untranslatable} untranslatable`,
+      `XC Translation: ${coverage.toFixed(1)}% coverage — ${translatable} translatable, ${untranslatable} untranslatable. ${result.description}`,
     );
   } catch (err) {
     window.showErrorMessage(`XC translation failed: ${err}`);
   }
+}
+
+/**
+ * Translate the captured document through the shared document ingress,
+ * reporting a refusal; `undefined` when there is nothing to show.
+ */
+async function translateXcForCommand(
+  snapshot: ReturnType<typeof xcDocumentSnapshot>,
+  format: string,
+): Promise<(Record<string, unknown> & { description: string }) | undefined> {
+  const send = serverCommandSender();
+  if (!send) {
+    window.showWarningMessage("The Tcl language server is not running.");
+    return undefined;
+  }
+  const outcome = await translateXcDocument(send, snapshot, format);
+  if (outcome.kind === "stale") {
+    window.showWarningMessage("The document changed while it was being translated. Try again.");
+    return undefined;
+  }
+  if (outcome.kind === "failed") {
+    window.showErrorMessage(`XC translation failed: ${outcome.error}`);
+    return undefined;
+  }
+  return { ...outcome.payload, description: describeXcSource(outcome.source) };
 }
 
 interface XcConsoleObject {
@@ -1584,24 +1609,15 @@ async function translateXcConsole(): Promise<void> {
     return;
   }
 
-  const source = editor.document.getText();
-  if (!source.trim()) {
+  const snapshot = xcDocumentSnapshot(editor.document);
+  if (!snapshot.source.trim()) {
     window.showWarningMessage("The current file is empty.");
     return;
   }
 
   try {
-    const result = (await client.sendRequest("workspace/executeCommand", {
-      command: "tcl-lsp.xcTranslate",
-      arguments: [source, "console"],
-    })) as Record<string, unknown> | null;
-
-    if (!result || result.error) {
-      window.showErrorMessage(
-        `XC translation failed: ${(result?.error as string) ?? "unknown error"}`,
-      );
-      return;
-    }
+    const result = await translateXcForCommand(snapshot, "console");
+    if (!result) return;
 
     const objects = (result.console_objects as XcConsoleObject[]) ?? [];
     if (objects.length === 0) {
@@ -1623,7 +1639,7 @@ async function translateXcConsole(): Promise<void> {
 
     const kinds = objects.map((o) => o.object_type).join(", ");
     window.showInformationMessage(
-      `Opened ${objects.length} XC Console document(s): ${kinds}. Paste each into that object's JSON editor.`,
+      `Opened ${objects.length} XC Console document(s): ${kinds}. Paste each into that object's JSON editor. ${result.description}`,
     );
   } catch (err) {
     window.showErrorMessage(`XC translation failed: ${err}`);
@@ -1713,10 +1729,6 @@ async function fixAllSafeIssues(): Promise<void> {
   window.showInformationMessage(
     `Applied ${result.applied.length} safe fix${result.applied.length === 1 ? "" : "es"}.`,
   );
-}
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function insertPackageRequire(): Promise<void> {
@@ -1825,20 +1837,46 @@ async function scaffoldPackageStarter(): Promise<void> {
 
 let lastIruleSkeletonSelection: string[] = [];
 
-function inferIruleEventsFromActiveEditor(): string[] {
+/**
+ * Preselect the common events the active document already handles, read from
+ * the server's own outline of that document (its `when` declarations as the
+ * analysis resolved them), never from a text match that a comment, a string
+ * or an aliased `when` would fool. No outline, no preselection.
+ */
+async function inferIruleEventsFromActiveEditor(): Promise<string[]> {
   const editor = window.activeTextEditor;
-  if (!editor) {
+  if (!editor || !isTclLanguage(editor.document.languageId)) {
     return [];
   }
-  const source = editor.document.getText();
-  const selected: string[] = [];
-  for (const eventInfo of COMMON_IRULE_EVENTS) {
-    const pattern = new RegExp(`\\bwhen\\s+${escapeRegExp(eventInfo.name)}\\b`);
-    if (pattern.test(source)) {
-      selected.push(eventInfo.name);
-    }
+  const document = editor.document;
+  const version = document.version;
+  let symbols: Array<vscode.DocumentSymbol | vscode.SymbolInformation> | undefined;
+  try {
+    symbols = await commands.executeCommand<
+      Array<vscode.DocumentSymbol | vscode.SymbolInformation> | undefined
+    >("vscode.executeDocumentSymbolProvider", document.uri);
+  } catch {
+    return [];
   }
-  return selected;
+  if (!symbols || document.version !== version) {
+    return [];
+  }
+  const declared = new Set(
+    symbols
+      .filter((symbol) => symbol.kind === vscode.SymbolKind.Event)
+      .map((symbol) => symbol.name),
+  );
+  return COMMON_IRULE_EVENTS.map((eventInfo) => eventInfo.name).filter((name) =>
+    declared.has(name),
+  );
+}
+
+/** The release new iRule source is written for, when one is configured. */
+function iruleSkeletonTarget(): IruleSkeletonTarget {
+  const scope = window.activeTextEditor?.document.uri;
+  return {
+    bigipVersion: workspace.getConfiguration("tclLsp", scope).get<string>("bigipVersion", ""),
+  };
 }
 
 async function insertIruleEventSkeleton(): Promise<void> {
@@ -1849,7 +1887,7 @@ async function insertIruleEventSkeleton(): Promise<void> {
   const initialSelection =
     lastIruleSkeletonSelection.length > 0
       ? lastIruleSkeletonSelection
-      : inferIruleEventsFromActiveEditor();
+      : await inferIruleEventsFromActiveEditor();
 
   const picked = await new Promise<typeof items | undefined>((resolve) => {
     const quickPick = window.createQuickPick<(typeof items)[number]>();
@@ -1890,7 +1928,14 @@ async function insertIruleEventSkeleton(): Promise<void> {
 
   lastIruleSkeletonSelection = picked.map((entry) => entry.label);
 
-  const skeleton = buildIruleEventSkeleton(picked.map((entry) => entry.label));
+  const target = iruleSkeletonTarget();
+  const { source: skeleton, rejected } = buildIruleEventSkeletonFor(
+    picked.map((entry) => entry.label),
+    target,
+  );
+  if (rejected.length > 0) {
+    window.showWarningMessage(describeSkeletonRejections(rejected));
+  }
   if (!skeleton) {
     window.showWarningMessage("Unable to build iRule skeleton from the selected events.");
     return;
@@ -2234,16 +2279,6 @@ async function copyFileAsGzipBase64(uri: vscode.Uri): Promise<void> {
 
 // BIG-IP rule extraction
 
-interface RuleInfo {
-  name: string;
-  fullPath: string;
-  body: string;
-  bodyStartOffset: number;
-  bodyEndOffset: number;
-  uri: string;
-  blockStartLine?: number;
-}
-
 interface BigipLinkedObjectResult {
   root: string;
   rootUri: string;
@@ -2276,34 +2311,8 @@ interface BigipLinkedObjectResult {
     viaProperty: string;
     viaKind: string;
   }>;
-}
-
-/**
- * Track scratch editors opened from config rules so we can write changes
- * back when the scratch document is saved.
- */
-const scratchRuleMap = new Map<
-  string,
-  { sourceUri: string; bodyStartOffset: number; bodyEndOffset: number; originalBody: string }
->();
-
-async function openRuleInScratchEditor(rule: RuleInfo): Promise<void> {
-  const body = rule.body;
-  const doc = await vscode.workspace.openTextDocument({
-    language: "tcl-irule",
-    content: body,
-  });
-  await vscode.window.showTextDocument(doc, { preview: false });
-
-  // Track this scratch document for write-back on save.
-  scratchRuleMap.set(doc.uri.toString(), {
-    sourceUri: rule.uri,
-    bodyStartOffset: rule.bodyStartOffset,
-    bodyEndOffset: rule.bodyEndOffset,
-    originalBody: body,
-  });
-
-  window.showInformationMessage(`Editing iRule '${rule.name}' — save to write back to config.`);
+  /** Each document the graph was read from, at the version it was read. */
+  sources?: Array<{ uri: string; version: number | null }>;
 }
 
 /**
@@ -2312,25 +2321,19 @@ async function openRuleInScratchEditor(rule: RuleInfo): Promise<void> {
  */
 async function extractRuleAtCursor(): Promise<void> {
   const editor = window.activeTextEditor;
-  if (!editor || !client) {
+  const send = serverCommandSender();
+  if (!editor || !send) {
     window.showWarningMessage("Open a BIG-IP configuration file first.");
     return;
   }
 
-  const uri = editor.document.uri.toString();
-  const offset = editor.document.offsetAt(editor.selection.active);
-
-  const result: RuleInfo | null = await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.extractRule",
-    arguments: [uri, offset],
-  });
-
-  if (!result) {
-    window.showWarningMessage("Cursor is not inside an ltm rule or gtm rule block.");
+  const result = await requestRuleAtCursor(send, editor);
+  if (typeof result === "string") {
+    window.showWarningMessage(result);
     return;
   }
 
-  await openRuleInScratchEditor(result);
+  await ruleScratchEditors.open(result);
 }
 
 /**
@@ -2345,12 +2348,13 @@ async function extractRulePick(): Promise<void> {
   }
 
   const uri = editor.document.uri.toString();
-  const rules: RuleInfo[] | null = await client.sendRequest("workspace/executeCommand", {
+  const listed: unknown = await client.sendRequest("workspace/executeCommand", {
     command: "tcl-lsp.listRules",
     arguments: [uri],
   });
+  const rules = Array.isArray(listed) ? listed.filter(isRuleInfo) : [];
 
-  if (!rules || rules.length === 0) {
+  if (rules.length === 0) {
     window.showInformationMessage("No ltm rule or gtm rule blocks found in this file.");
     return;
   }
@@ -2366,7 +2370,7 @@ async function extractRulePick(): Promise<void> {
   });
 
   if (picked) {
-    await openRuleInScratchEditor(picked.rule);
+    await ruleScratchEditors.open(picked.rule);
   }
 }
 
@@ -2424,31 +2428,20 @@ async function extractAllRules(): Promise<void> {
  */
 async function extractLinkedObjectsAtCursor(): Promise<void> {
   const editor = window.activeTextEditor;
-  if (!editor || !client) {
+  const send = serverCommandSender();
+  if (!editor || !send) {
     window.showWarningMessage("Open a BIG-IP configuration file first.");
     return;
   }
 
-  // Collect all cursor/selection positions across the editor.
-  const selections = editor.selections;
-  const primaryUri = editor.document.uri.toString();
-  const primaryOffset = editor.document.offsetAt(selections[0].active);
-
-  // Additional cursors beyond the first are sent as extra_offsets.
-  const extraOffsets: Array<[string, number]> = [];
-  for (let i = 1; i < selections.length; i++) {
-    extraOffsets.push([primaryUri, editor.document.offsetAt(selections[i].active)]);
+  // Every cursor, as a position in the document version it was read from.
+  const answer = await requestLinkedObjects(send, editor);
+  if (unavailableReason(answer) === "stale") {
+    window.showWarningMessage("The configuration file changed while it was being read. Try again.");
+    return;
   }
-
-  const result: BigipLinkedObjectResult | null = await client.sendRequest(
-    "workspace/executeCommand",
-    {
-      command: "tcl-lsp.extractLinkedObjects",
-      arguments: [primaryUri, primaryOffset, 5, 400, extraOffsets.length > 0 ? extraOffsets : null],
-    },
-  );
-
-  if (!result) {
+  const result = answer as BigipLinkedObjectResult | null;
+  if (!result || unavailableReason(answer) !== undefined) {
     window.showWarningMessage("No BIG-IP object found at cursor.");
     return;
   }
@@ -2515,37 +2508,3 @@ async function generateBigipCleanupScript(): Promise<void> {
     viewColumn: vscode.ViewColumn.Beside,
   });
 }
-
-// Listen for saves on scratch documents and write changes back to the
-// original configuration file.
-vscode.workspace.onDidSaveTextDocument(async (doc) => {
-  const entry = scratchRuleMap.get(doc.uri.toString());
-  if (!entry || !client) {
-    return;
-  }
-
-  const newBody = doc.getText();
-  if (newBody === entry.originalBody) {
-    return; // No changes
-  }
-
-  const ok: boolean = await client.sendRequest("workspace/executeCommand", {
-    command: "tcl-lsp.writeRuleBack",
-    arguments: [entry.sourceUri, entry.bodyStartOffset, entry.bodyEndOffset, newBody],
-  });
-
-  if (ok) {
-    // Update offsets for the next save (body length may have changed).
-    const delta = newBody.length - (entry.bodyEndOffset - entry.bodyStartOffset);
-    entry.bodyEndOffset += delta;
-    entry.originalBody = newBody;
-    window.showInformationMessage("iRule written back to configuration file.");
-  } else {
-    window.showWarningMessage("Failed to write iRule back to configuration file.");
-  }
-});
-
-// Clean up tracking when scratch documents are closed.
-vscode.workspace.onDidCloseTextDocument((doc) => {
-  scratchRuleMap.delete(doc.uri.toString());
-});

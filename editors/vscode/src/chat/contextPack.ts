@@ -48,7 +48,9 @@ const DEFAULT_MAX_EVENTS = 6;
 interface IruleEventInfo {
   event: string;
   known: boolean;
+  /** The event-completion detail flag, not an F5 deprecation verdict. */
   deprecated: boolean;
+  lifecycle?: { introduced: string | null; retired: string | null } | null;
   validCommandCount: number;
   sampleCommands: string[];
 }
@@ -558,13 +560,19 @@ function buildEventSection(
     }
 
     const sample = info.sampleCommands.slice(0, 6).join(", ");
+    const lifecycle = info.lifecycle
+      ? `, declaredBigipLifecycle=${info.lifecycle.introduced ?? "-"}..${info.lifecycle.retired ?? "-"}`
+      : "";
     lines.push(
-      `- ${eventName}: known=${info.known ? "yes" : "no"}, deprecated=${info.deprecated ? "yes" : "no"}, validCommands=${info.validCommandCount}` +
+      `- ${eventName}: known=${info.known ? "yes" : "no"}${lifecycle}, validCommands=${info.validCommandCount}` +
         (sample ? `, sample=${sample}` : ""),
     );
   }
 
-  return [`iRules event metadata (${events.length}):`, ...lines].join("\n");
+  return [
+    `iRules event metadata from the standalone registry catalogue (${events.length}; not checked against the document's BIG-IP release):`,
+    ...lines,
+  ].join("\n");
 }
 
 async function buildPromptContextWithReport(

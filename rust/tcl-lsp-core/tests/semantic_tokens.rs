@@ -1544,6 +1544,44 @@ fn bigip_conf_embedded_rule_body_is_tokenised_as_irules() {
     );
 }
 
+/// The embedded rule's Tcl region is the body the shared rule parser reads,
+/// ended by the iRules brace grammar: an escaped `\}` inside the iRule does
+/// not truncate it, so the command after it is still tokenised as iRules.
+#[test]
+fn bigip_conf_embedded_rule_body_ends_where_the_rule_parser_ends_it() {
+    let mut registry = tcl_registry::CommandRegistry::build_default();
+    registry.load_surface(tcl_dialect::model::SurfaceLayer::Core(
+        tcl_dialect::model::Family::F5Irules,
+        "",
+    ));
+    let src = "ltm rule /Common/r {\n    when HTTP_REQUEST {\n        set x \\}\n        pool /Common/api_pool\n    }\n}\n";
+    let toks = tcl_lsp_core::semantic_tokens::bigip_conf_full(src, &registry);
+    let types = tcl_lsp_core::semantic_tokens::legend_token_types();
+    let mut seen = Vec::new();
+    let (mut line, mut col) = (0u32, 0u32);
+    for c in toks.data.chunks(5) {
+        line += c[0];
+        col = if c[0] == 0 { col + c[1] } else { c[1] };
+        let text: String = src
+            .lines()
+            .nth(line as usize)
+            .and_then(|l| l.get(col as usize..(col + c[2]) as usize))
+            .unwrap_or_default()
+            .to_owned();
+        seen.push((line, text, types[c[3] as usize]));
+    }
+    assert!(
+        seen.contains(&(3, "/Common/api_pool".to_owned(), "object")),
+        "the command after the escaped brace is still iRules: {seen:?}"
+    );
+    assert!(
+        !seen
+            .iter()
+            .any(|(line, _, ty)| *line == 3 && *ty == "property"),
+        "no config token inside the rule body: {seen:?}"
+    );
+}
+
 // A brace-quoted variable-name word is a variable, not a string.
 //
 // tclsh 9.0.4 / 8.6.14, byte-identical: `set {$n} v; info exists {$n}` → 1

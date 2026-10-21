@@ -1902,8 +1902,44 @@ pub fn translate_irule_with_registry(
     registry: &CommandRegistry,
 ) -> XCTranslationResult {
     let (unit, analysis) = translation_source(source, registry);
+    translate_unit(source, &unit, &analysis, registry)
+}
+
+/// Translate an open document's iRule under the document's own retained
+/// analysis and compilation unit, rather than reparsing its text under the
+/// standalone iRules defaults [`translate_irule`] uses.
+///
+/// The registry is the one the analysis retained, so the document's
+/// configured availability, packs and lexer configuration are the ones the
+/// translation walks. `None` when the analysis does not describe exactly
+/// `source` as an iRules document, or `unit` was built from other text: a
+/// document translation never falls back to the standalone profile.
+#[must_use]
+pub fn translate_irule_for_document(
+    source: &str,
+    unit: &CompilationUnit,
+    analysis: &AnalysisResult,
+) -> Option<XCTranslationResult> {
+    if analysis.analysis_context_unavailable.is_some() || unit.source != source {
+        return None;
+    }
+    tcl_compiler::source_graph::current_analysis(source, analysis)?;
+    let input = analysis.resolved_input.as_ref()?;
+    if !input.unit_profile().is_irules() {
+        return None;
+    }
+    let registry = analysis.resolved_registry()?;
+    Some(translate_unit(source, unit, analysis, registry))
+}
+
+fn translate_unit(
+    source: &str,
+    unit: &CompilationUnit,
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+) -> XCTranslationResult {
     let module = &unit.ir_module;
-    let mut ctx = TranslationContext::new(source, &analysis, module, registry);
+    let mut ctx = TranslationContext::new(source, analysis, module, registry);
 
     // Original event ownership selects handlers; display names only order output.
     let mut event_procs = Vec::new();
@@ -2402,5 +2438,47 @@ mod supplied_source_registry_tests {
             );
             assert!(!result.items.is_empty());
         }
+    }
+
+    #[test]
+    fn document_translation_walks_the_documents_retained_registry() {
+        let source = "when HTTP_REQUEST {pool retained_custom_pool}";
+        let standalone = translate_irule(source);
+        assert_eq!(standalone.origin_pools.len(), 1, "shipped pool translates");
+
+        let mut registry =
+            irules_registry().project_for_profile(tcl_dialect::DialectProfile::irules());
+        registry.insert(tcl_registry::CommandSpec {
+            name: "pool",
+            xc_translatable: Some(false),
+            ..irules_registry().get("pool").unwrap().clone()
+        });
+        let (unit, analysis) = translation_source(source, &registry);
+        let document = translate_irule_for_document(source, &unit, &analysis)
+            .expect("an iRules document analysis of this exact source");
+        let supplied = translate_irule_with_registry(source, &registry);
+        assert!(document.origin_pools.is_empty(), "the document's own spec");
+        assert_eq!(document.items, supplied.items);
+        assert_eq!(document.coverage_pct, supplied.coverage_pct);
+
+        let (shipped_unit, shipped_analysis) = translation_source(source, irules_registry());
+        let shipped = translate_irule_for_document(source, &shipped_unit, &shipped_analysis)
+            .expect("shipped iRules document");
+        assert_eq!(shipped.items, standalone.items);
+        assert_eq!(shipped.origin_pools.len(), 1);
+    }
+
+    #[test]
+    fn document_translation_refuses_other_source_or_a_non_irules_input() {
+        let source = "when HTTP_REQUEST {pool p}";
+        let (unit, analysis) = translation_source(source, irules_registry());
+        let edited = "when HTTP_REQUEST {pool q}";
+        assert!(translate_irule_for_document(edited, &unit, &analysis).is_none());
+        let (edited_unit, _) = translation_source(edited, irules_registry());
+        assert!(translate_irule_for_document(source, &edited_unit, &analysis).is_none());
+        assert!(translate_irule_for_document(edited, &edited_unit, &analysis).is_none());
+
+        let tcl = Analyser::new().analyse(source, "tcl8.6");
+        assert!(translate_irule_for_document(source, &unit, &tcl).is_none());
     }
 }

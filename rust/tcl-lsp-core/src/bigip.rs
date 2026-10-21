@@ -67,6 +67,31 @@ pub fn is_bigip_conf_name(uri: &str) -> bool {
         .contains(&lower.as_str())
 }
 
+/// Return `true` when the document a protocol URI names has a canonical
+/// BIG-IP config basename.
+///
+/// The basename is the URI path's last segment, percent-decoded — on any
+/// scheme, so a remote or virtual workspace document is named the way its
+/// host named it. Decoded data stays data: an encoded `%2E` is the `.` it
+/// spells, and a literal backslash in a POSIX name is part of that name, not
+/// a separator. A URI that does not parse, or whose last segment does not
+/// decode to Unicode, names nothing here. This selects only the analyser
+/// route; it reads no file and proves nothing about the document's content.
+#[must_use]
+pub fn is_bigip_conf_uri(uri: &str) -> bool {
+    let Ok(parsed) = fluent_uri::Uri::parse(uri) else {
+        return false;
+    };
+    let path = parsed.path();
+    let segment = path.rsplit_once('/').map_or(path, |(_, last)| last);
+    let Ok(basename) = segment.decode().to_string() else {
+        return false;
+    };
+    crate::profile_for_dialect("f5-bigip")
+        .filenames
+        .contains(&basename.to_ascii_lowercase().as_str())
+}
+
 /// A top-level config stanza: its header text and byte span.
 struct Block {
     /// e.g. `"ltm virtual /Common/my_vs"`.
@@ -713,6 +738,22 @@ ltm rule /Common/r {
     }
 }
 ";
+
+    #[test]
+    fn a_protocol_uri_is_classified_by_its_decoded_last_segment() {
+        assert!(is_bigip_conf_uri("file:///x/bigip.conf"));
+        assert!(is_bigip_conf_uri("file:///etc/BIGIP_BASE.CONF"));
+        assert!(is_bigip_conf_uri("file:///x/bigip%2Econf"));
+        assert!(is_bigip_conf_uri("file:///my%20dir/bigip_gtm.conf"));
+        assert!(is_bigip_conf_uri("vscode-vfs://github/org/repo/bigip.conf"));
+        assert!(is_bigip_conf_uri("untitled:bigip.conf"));
+        // A literal backslash is part of a POSIX name, not a separator.
+        assert!(!is_bigip_conf_uri("file:///tmp/a%5Cbigip.conf"));
+        assert!(!is_bigip_conf_uri("file:///x/notbigip.conf"));
+        assert!(!is_bigip_conf_uri("file:///x/bigip.conf/"));
+        assert!(!is_bigip_conf_uri("file:///x/bigip%FF.conf"));
+        assert!(!is_bigip_conf_uri("not a uri"));
+    }
 
     #[test]
     fn recognises_canonical_basenames() {

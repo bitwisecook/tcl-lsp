@@ -1173,14 +1173,44 @@ fn builtin_command_hover_text(
             let _ = write!(out, "\n**Requires**: `package require {pkg}`");
         }
     }
-    append_command_event_metadata(&mut out, spec);
+    let release = analysis
+        .resolved_input
+        .as_ref()
+        .map(|input| EventRelease::of(input.availability_context()))
+        .unwrap_or(EventRelease::Unconfigured);
+    append_command_event_metadata(&mut out, spec, release);
     Some(out)
 }
 
-fn append_command_event_metadata(out: &mut String, spec: &tcl_registry::CommandSpec) {
+/// The BIG-IP release a command's **Valid events** guidance is filtered to:
+/// the document's configured iRules placement floor, when it has one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EventRelease<'a> {
+    /// Events are listed only where the declared lifecycle has them at this
+    /// release.
+    Configured(&'a str),
+    /// No release is configured; the list is the requirement match alone and
+    /// says so.
+    Unconfigured,
+}
+
+impl<'a> EventRelease<'a> {
+    /// The release `context` places the iRules command surface at.
+    fn of(context: &'a tcl_registry::model::ResolvedContext) -> Self {
+        context
+            .placement_floor("f5-irules-cmds")
+            .map_or(Self::Unconfigured, |floor| Self::Configured(floor.as_str()))
+    }
+}
+
+fn append_command_event_metadata(
+    out: &mut String,
+    spec: &tcl_registry::CommandSpec,
+    release: EventRelease<'_>,
+) {
     use std::fmt::Write;
     if let Some(requires) = spec.event_requires.as_ref() {
-        append_valid_events(out, &effective_event_requires(spec, requires));
+        append_valid_events(out, &effective_event_requires(spec, requires), release);
     } else {
         let profiles = tcl_registry::profiles::ProfileRegistry::build();
         if let Some(namespace) = profiles.namespace_for_command_spec(spec)
@@ -1222,10 +1252,15 @@ fn effective_event_requires(
 
 /// Append the iRules "**Valid events**" list (first 8 + total) and the
 /// event "**Requires**" line (sides / transport / profiles) for a
-/// command's `EventRequires`.
-fn append_valid_events(out: &mut String, requires: &tcl_registry::events::EventRequires) {
+/// command's `EventRequires`. The list names the release it was filtered to,
+/// or that none was configured.
+fn append_valid_events(
+    out: &mut String,
+    requires: &tcl_registry::events::EventRequires,
+    release: EventRelease<'_>,
+) {
     use std::fmt::Write;
-    let matching = valid_events(requires);
+    let matching = valid_events(requires, release);
     if !matching.is_empty() {
         let mut list = matching
             .iter()
@@ -1236,7 +1271,17 @@ fn append_valid_events(out: &mut String, requires: &tcl_registry::events::EventR
         if matching.len() > 8 {
             let _ = write!(list, ", ... ({} total)", matching.len());
         }
-        let _ = write!(out, "\n\n**Valid events**: {list}");
+        match release {
+            EventRelease::Configured(version) => {
+                let _ = write!(out, "\n\n**Valid events** (BIG-IP {version}): {list}");
+            }
+            EventRelease::Unconfigured => {
+                let _ = write!(
+                    out,
+                    "\n\n**Valid events** (event requirements only; no BIG-IP release configured): {list}"
+                );
+            }
+        }
     }
     let mut reqs: Vec<String> = Vec::new();
     if requires.client_side {
@@ -1258,13 +1303,21 @@ fn append_valid_events(out: &mut String, requires: &tcl_registry::events::EventR
     }
 }
 
-/// Sorted event names whose properties satisfy `requires`.
-fn valid_events(requires: &tcl_registry::events::EventRequires) -> Vec<String> {
+/// Sorted event names whose properties satisfy `requires` and, at a
+/// configured release, whose declared lifecycle has them at that release.
+fn valid_events(
+    requires: &tcl_registry::events::EventRequires,
+    release: EventRelease<'_>,
+) -> Vec<String> {
     let event_reg = tcl_registry::events::EventRegistry::build();
     let profile_reg = tcl_registry::profiles::ProfileRegistry::build();
     let mut out: Vec<String> = event_reg
         .all_event_names()
         .into_iter()
+        .filter(|name| match release {
+            EventRelease::Configured(version) => event_reg.event_available_at(name, version),
+            EventRelease::Unconfigured => true,
+        })
         .filter(|name| {
             event_reg.get_props(name).is_some_and(|p| {
                 tcl_registry::events::event_satisfies(p, requires, name, &profile_reg)
@@ -4224,7 +4277,7 @@ mod tests {
             also_in: &[],
             flow: false,
         };
-        let events = valid_events(&requires);
+        let events = valid_events(&requires, EventRelease::Unconfigured);
         assert_eq!(
             events,
             vec![
@@ -4253,12 +4306,74 @@ mod tests {
             also_in: &[],
             flow: false,
         };
-        let events = valid_events(&requires);
+        let events = valid_events(&requires, EventRelease::Unconfigured);
         assert!(events.iter().any(|e| e == "HTTP_REQUEST"), "{events:?}");
         assert!(
             events.iter().any(|e| e == "ADAPT_REQUEST_HEADERS"),
             "transitive-profile event missing (expansion broken): {events:?}"
         );
+    }
+
+    #[test]
+    fn valid_events_apply_the_configured_release_lifecycle() {
+        use tcl_registry::events::EventRequires;
+        let requires = EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &["XML"],
+            also_in: &[],
+            flow: false,
+        };
+        let unconfigured = valid_events(&requires, EventRelease::Unconfigured);
+        assert!(unconfigured.iter().any(|e| e == "XML_BEGIN_DOCUMENT"));
+        let old = valid_events(&requires, EventRelease::Configured("9.4.0"));
+        assert!(old.iter().any(|e| e == "XML_BEGIN_DOCUMENT"), "{old:?}");
+        let current = valid_events(&requires, EventRelease::Configured("16.1.0"));
+        assert!(
+            !current.iter().any(|e| e == "XML_BEGIN_DOCUMENT"),
+            "retired at 10.0.0: {current:?}"
+        );
+
+        let mut text = String::new();
+        append_valid_events(&mut text, &requires, EventRelease::Configured("9.4.0"));
+        assert!(text.contains("**Valid events** (BIG-IP 9.4.0)"), "{text}");
+        let mut text = String::new();
+        append_valid_events(&mut text, &requires, EventRelease::Unconfigured);
+        assert!(text.contains("no BIG-IP release configured"), "{text}");
+    }
+
+    #[test]
+    fn hover_valid_events_follow_the_documents_configured_release() {
+        use tcl_compiler::analyser::Analyser;
+        for (version, retired_listed) in [("9.4.0", true), ("16.1.0", false)] {
+            let analysis = Analyser::new()
+                .with_bigip_version(Some(version.to_owned()))
+                .analyse("", "f5-irules");
+            let context = analysis
+                .resolved_input
+                .as_ref()
+                .expect("an iRules analysis retains its input")
+                .availability_context();
+            let release = EventRelease::of(context);
+            assert_eq!(release, EventRelease::Configured(version));
+            let events = valid_events(
+                &tcl_registry::events::EventRequires {
+                    client_side: false,
+                    server_side: false,
+                    transport: None,
+                    profiles: &["XML"],
+                    also_in: &[],
+                    flow: false,
+                },
+                release,
+            );
+            assert_eq!(
+                events.iter().any(|e| e == "XML_BEGIN_DOCUMENT"),
+                retired_listed,
+                "{version}: {events:?}"
+            );
+        }
     }
 
     #[test]
@@ -6134,11 +6249,16 @@ mod tests {
         super::append_command_event_metadata(
             &mut text,
             &descriptor(Some(tcl_dialect::model::SpecSurface::IRULES)),
+            super::EventRelease::Unconfigured,
         );
         assert_eq!(text, "\n\n**Requires**: ACCESS profile");
         for surface in [None, Some(tcl_dialect::model::SpecSurface::TCL86)] {
             let mut text = String::new();
-            super::append_command_event_metadata(&mut text, &descriptor(surface));
+            super::append_command_event_metadata(
+                &mut text,
+                &descriptor(surface),
+                super::EventRelease::Unconfigured,
+            );
             assert!(text.is_empty());
         }
         let own = tcl_registry::CommandSpec {
@@ -6155,7 +6275,7 @@ mod tests {
             ..tcl_registry::CommandSpec::DEFAULT
         };
         let mut text = String::new();
-        super::append_command_event_metadata(&mut text, &own);
+        super::append_command_event_metadata(&mut text, &own, super::EventRelease::Unconfigured);
         assert!(text.contains("**Requires**: profile HTTP"), "{text}");
         assert!(!text.contains("profile DIAMETER"), "{text}");
     }

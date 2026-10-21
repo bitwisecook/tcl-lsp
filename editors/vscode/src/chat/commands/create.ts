@@ -20,14 +20,20 @@ import * as vscode from "vscode";
 import { CommandContext } from "../types";
 import { extractCodeBlock } from "../codeUtils";
 import { sendContextualRequest } from "../contextPack";
-import { runAgenticLoop } from "../agenticLoop";
+import { AgenticResult, runAgenticLoop } from "../agenticLoop";
 import { renderDiagnosticSection } from "../diagnosticAccess";
 
+/**
+ * A new authored starter for when the model returns no code: a fixed HTTP
+ * template whose commands are an unvalidated recommendation, not a check
+ * against the user's BIG-IP release. It names no existing rule or handler.
+ */
 function buildFallbackCreateIrule(description: string): string {
   const summary = description.replace(/\s+/g, " ").trim();
   return [
     "when HTTP_REQUEST {",
     "    # Fallback starter generated because the model response was malformed.",
+    "    # Authored template: confirm these commands against your BIG-IP release.",
     `    # Request: ${summary || "Create a secure iRule."}`,
     '    if {[HTTP::uri] eq "/old"} {',
     '        HTTP::redirect "https://[HTTP::host]/new"',
@@ -37,6 +43,23 @@ function buildFallbackCreateIrule(description: string): string {
     "}",
     "",
   ].join("\n");
+}
+
+/**
+ * What a clean loop result establishes: the completed analysis of this exact
+ * source reported no errors or warnings. Static analysis only — no BIG-IP ran
+ * it — and without a completed report nothing is claimed.
+ */
+export function cleanReportLine(result: AgenticResult): string {
+  const dialect = result.finalDiagnosticsReport?.response.dialectId;
+  if (!dialect) {
+    return `No errors or warnings were reported after ${result.iterations} iteration(s), but no completed analysis report confirms it; review the source before use.`;
+  }
+  return (
+    `The language server's completed ${dialect} analysis of this exact source reported ` +
+    `no errors or warnings after ${result.iterations} iteration(s). This is static ` +
+    `analysis only; the iRule has not been run on a BIG-IP.`
+  );
 }
 
 export async function handleCreate(ctx: CommandContext): Promise<vscode.ChatResult> {
@@ -86,9 +109,7 @@ export async function handleCreate(ctx: CommandContext): Promise<vscode.ChatResu
   ctx.response.markdown(`## Generated iRule\n\n\`\`\`tcl\n${result.finalCode}\n\`\`\`\n`);
 
   if (result.clean) {
-    ctx.response.markdown(
-      `\nValidated clean in ${result.iterations} iteration(s). No errors or warnings.`,
-    );
+    ctx.response.markdown(`\n${cleanReportLine(result)}`);
   } else {
     ctx.response.markdown(
       `\nAfter ${result.iterations} iteration(s), ${result.remainingDiagnostics.length} issue(s) remain:\n`,

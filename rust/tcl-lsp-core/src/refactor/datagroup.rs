@@ -324,10 +324,13 @@ fn render_if_extraction(
             value_type,
             &dg_name,
             chain.target_var.reference(),
-            &chain.bodies[0],
-            chain.else_body.as_deref(),
-            &indent,
-        )
+            &MembershipArms {
+                body: &chain.bodies[0],
+                else_body: chain.else_body.as_deref(),
+                indent: &indent,
+            },
+            config,
+        )?
     } else {
         mapping_selected()?;
         let pairs: Vec<(String, String)> = chain
@@ -343,16 +346,11 @@ fn render_if_extraction(
             value_type: "string".to_owned(),
             records,
         };
+        let lookup = class_lookup_command(chain.target_var.reference(), &dg_name, config)?;
         let replacement = if use_return {
-            format!(
-                "return [class lookup {} {dg_name}]",
-                chain.target_var.reference()
-            )
+            format!("return [{lookup}]")
         } else {
-            format!(
-                "set {set_var} [class lookup {} {dg_name}]",
-                chain.target_var.reference()
-            )
+            set_command(&set_var, &format!("[{lookup}]"), config)?
         };
         (dg, replacement)
     };
@@ -365,6 +363,80 @@ fn render_if_extraction(
         replacement,
         data_group,
     ))
+}
+
+/// One generated command whose words at `expected` indices carry exactly the
+/// intended literal values — an operand-value check on top of the syntax
+/// check, so a supplied name with spaces, braces or `$` is still the one word
+/// it was meant to be. No command availability or execution follows.
+fn generated_operand_values(
+    command: &str,
+    config: LexerConfig,
+    expected: &[(usize, &str)],
+) -> Option<()> {
+    let generated = tcl_lexer::native_script_words_in(
+        tcl_lexer::SourceImage::document(command),
+        tcl_lexer::Span::new(0, u32::try_from(command.len()).ok()?),
+        config,
+    )
+    .ok()?;
+    let [parsed] = generated.commands.as_slice() else {
+        return None;
+    };
+    if generated.fatal_tail.is_some() {
+        return None;
+    }
+    expected.iter().try_for_each(|&(index, value)| {
+        let word = parsed.words.get(index)?;
+        (!word.group().expand
+            && tcl_syntax::word_rules::original_static_word_unicode_value(word)?.as_slice()
+                == value.as_bytes())
+        .then_some(())
+    })
+}
+
+/// An authored operand: one literal source word whose value is exactly the
+/// supplied data (a data-group name stays verbatim — it is never sanitised).
+fn literal_operand(value: &str, config: LexerConfig) -> Option<String> {
+    tcl_syntax::word_rules::lexical_unicode_source_word(value, config)
+}
+
+/// `class match <subject> equals <data-group>`, its data-group operand
+/// checked to be exactly `dg_name`.
+fn class_match_command(
+    subject_reference: &str,
+    dg_name: &str,
+    config: LexerConfig,
+) -> Option<String> {
+    let command = format!(
+        "class match {subject_reference} equals {}",
+        literal_operand(dg_name, config)?
+    );
+    generated_operand_values(&command, config, &[(4, dg_name)])?;
+    Some(command)
+}
+
+/// `class lookup <subject> <data-group>`, its data-group operand checked to
+/// be exactly `dg_name`.
+fn class_lookup_command(
+    subject_reference: &str,
+    dg_name: &str,
+    config: LexerConfig,
+) -> Option<String> {
+    let command = format!(
+        "class lookup {subject_reference} {}",
+        literal_operand(dg_name, config)?
+    );
+    generated_operand_values(&command, config, &[(3, dg_name)])?;
+    Some(command)
+}
+
+/// `set <variable> <value>`, the variable operand checked to be exactly the
+/// decoded name the original arms assigned; `value_source` is source text.
+fn set_command(variable: &str, value_source: &str, config: LexerConfig) -> Option<String> {
+    let command = format!("set {} {value_source}", literal_operand(variable, config)?);
+    generated_operand_values(&command, config, &[(1, variable)])?;
+    Some(command)
 }
 
 /// Proposed syntax is checked independently of scalar grammar and permissions.
@@ -463,33 +535,42 @@ fn if_chain_from_plan(
 }
 
 /// Build a membership-test (`class match`) extraction.
+/// The shared arm body a membership extraction keeps, its optional `else`
+/// body and the command's indent.
+struct MembershipArms<'a> {
+    body: &'a str,
+    else_body: Option<&'a str>,
+    indent: &'a str,
+}
+
 fn membership_extraction(
     keys: &[String],
     value_type: &str,
     dg_name: &str,
     subject_reference: &str,
-    body: &str,
-    else_body: Option<&str>,
-    indent: &str,
-) -> (DataGroupDefinition, String) {
+    arms: &MembershipArms<'_>,
+    config: LexerConfig,
+) -> Option<(DataGroupDefinition, String)> {
+    let MembershipArms {
+        body,
+        else_body,
+        indent,
+    } = *arms;
     let records: Vec<(String, String)> = keys.iter().map(|v| (v.clone(), String::new())).collect();
     let dg = DataGroupDefinition {
         name: dg_name.to_owned(),
         value_type: value_type.to_owned(),
         records,
     };
+    let matches = class_match_command(subject_reference, dg_name, config)?;
     let body_text = reindent_body(body, &format!("{indent}    "));
     let replacement = if let Some(eb) = else_body {
         let else_text = reindent_body(eb, &format!("{indent}    "));
-        format!(
-            "if {{ [class match {subject_reference} equals {dg_name}] }} {{\n{body_text}\n{indent}}} else {{\n{else_text}\n{indent}}}"
-        )
+        format!("if {{ [{matches}] }} {{\n{body_text}\n{indent}}} else {{\n{else_text}\n{indent}}}")
     } else {
-        format!(
-            "if {{ [class match {subject_reference} equals {dg_name}] }} {{\n{body_text}\n{indent}}}"
-        )
+        format!("if {{ [{matches}] }} {{\n{body_text}\n{indent}}}")
     };
-    (dg, replacement)
+    Some((dg, replacement))
 }
 
 /// Pair completed keys with independently decoded literal record values.
@@ -672,10 +753,13 @@ fn render_switch_extraction(
             value_type,
             &dg_name,
             subject.reference(),
-            &regular_pairs[0].1,
-            default_body.as_deref(),
-            &indent,
-        )
+            &MembershipArms {
+                body: &regular_pairs[0].1,
+                else_body: default_body.as_deref(),
+                indent: &indent,
+            },
+            config,
+        )?
     } else {
         mapping_selected()?;
         switch_mapping_extraction(
@@ -717,6 +801,7 @@ fn switch_mapping_extraction(
         value_type: "string".to_owned(),
         records,
     };
+    let lookup = class_lookup_command(subject_reference, dg_name, config)?;
     let replacement = if let Some(default) = default_body {
         // A default that is not a clean value mapping in the same form/target
         // (it sets a *different* variable, or runs a command) cannot be
@@ -725,19 +810,22 @@ fn switch_mapping_extraction(
         // assigning the literal string instead of running the command. Decline
         // the refactor rather than emit a lossy, semantics-changing edit.
         let default_val = extract_single_value(default, use_return, &target_var, config)?;
+        let matches = class_match_command(subject_reference, dg_name, config)?;
         if use_return {
             format!(
-                "if {{ [class match {subject_reference} equals {dg_name}] }} {{\n{indent}    return [class lookup {subject_reference} {dg_name}]\n{indent}}} else {{\n{indent}    return {default_val}\n{indent}}}"
+                "if {{ [{matches}] }} {{\n{indent}    return [{lookup}]\n{indent}}} else {{\n{indent}    return {default_val}\n{indent}}}"
             )
         } else {
+            let found = set_command(&target_var, &format!("[{lookup}]"), config)?;
+            let fallback = set_command(&target_var, &default_val, config)?;
             format!(
-                "if {{ [class match {subject_reference} equals {dg_name}] }} {{\n{indent}    set {target_var} [class lookup {subject_reference} {dg_name}]\n{indent}}} else {{\n{indent}    set {target_var} {default_val}\n{indent}}}"
+                "if {{ [{matches}] }} {{\n{indent}    {found}\n{indent}}} else {{\n{indent}    {fallback}\n{indent}}}"
             )
         }
     } else if use_return {
-        format!("return [class lookup {subject_reference} {dg_name}]")
+        format!("return [{lookup}]")
     } else {
-        format!("set {target_var} [class lookup {subject_reference} {dg_name}]")
+        set_command(&target_var, &format!("[{lookup}]"), config)?
     };
     Some((dg, replacement))
 }
@@ -1307,6 +1395,35 @@ mod tests {
         assert!(extract_to_datagroup(source, 0, "uri_pool", &r, &li, config()).is_some());
     }
 
+    /// A supplied data-group name stays verbatim data, and every emitted
+    /// operand is one literal word with exactly the intended value — a name
+    /// with spaces or Tcl metacharacters is not spliced in as source.
+    #[test]
+    fn supplied_names_are_emitted_as_exact_literal_operands() {
+        let source = "if {$host eq \"a.com\"} {\n    pool web_pool\n} elseif {$host eq \"b.com\"} {\n    pool web_pool\n}";
+        let r = if_dg(source, "my hosts $x").expect("result");
+        assert_eq!(
+            dg(&r).name,
+            "my hosts $x",
+            "the supplied name is not sanitised"
+        );
+        let applied = r.apply(source);
+        assert_eq!(
+            applied,
+            "if { [class match $host equals {my hosts $x}] } {\n    pool web_pool\n}"
+        );
+
+        let mapping = "switch -exact -- $method {\n    GET { set {the handler} get }\n    POST { set {the handler} post }\n    PUT { set {the handler} put }\n}";
+        let r = switch_dg(mapping, "methods[1]").expect("result");
+        assert_eq!(
+            r.apply(mapping),
+            "set {the handler} [class lookup $method {methods[1]}]"
+        );
+        assert!(generated_operand_values("set a b", config(), &[(1, "a")]).is_some());
+        assert!(generated_operand_values("set {a b} c", config(), &[(1, "a")]).is_none());
+        assert!(generated_operand_values("set a b; set c d", config(), &[(1, "a")]).is_none());
+    }
+
     #[test]
     fn data_group_tcl_rendering() {
         let source = "if {$host eq \"a.com\"} {\n    pool web_pool\n} elseif {$host eq \"b.com\"} {\n    pool web_pool\n}";
@@ -1572,10 +1689,14 @@ mod decoded_membership_script_indentation_tests {
             "string",
             "names",
             original.subject().reference(),
-            &original.pairs()[0].1,
-            Some(&original.pairs()[3].1),
-            "",
-        );
+            &MembershipArms {
+                body: &original.pairs()[0].1,
+                else_body: Some(&original.pairs()[3].1),
+                indent: "",
+            },
+            LexerConfig::for_dialect("tcl8.6"),
+        )
+        .expect("a literal data-group name");
         assert!(proposal.contains("    {return one}\n"), "{proposal}");
         assert!(proposal.contains("    {return other}\n"), "{proposal}");
         assert!(!proposal.contains("    return one\n"));

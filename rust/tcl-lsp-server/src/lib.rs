@@ -247,7 +247,8 @@ enum DocumentSourceUnavailable {
     },
     ForeignReceipt {
         expected: Uri,
-        actual: Uri,
+        // Boxed so `DocumentSourceResult` stays small on every success path.
+        actual: Box<Uri>,
     },
     Worker {
         uri: Uri,
@@ -501,7 +502,7 @@ impl DocumentPathAdmission {
         } else {
             Err(DocumentSourceUnavailable::ForeignReceipt {
                 expected: uri.clone(),
-                actual: self.uri().clone(),
+                actual: Box::new(self.uri().clone()),
             })
         }
     }
@@ -1291,7 +1292,12 @@ impl ScannedDocument {
 /// cross-file walk, which reads other files itself and must see the same bytes
 /// [`Backend::read_document`] would — the open buffer first, disk only for what
 /// is not open.
-struct OpenDocumentTexts(HashMap<PathBuf, Arc<str>>);
+/// The open documents' texts, and each open iRules document's own analysis,
+/// for the ILX relation's sibling rule files.
+struct OpenDocumentTexts {
+    texts: HashMap<PathBuf, Arc<str>>,
+    analyses: HashMap<PathBuf, Arc<AnalysisResult>>,
+}
 
 /// A source-rehoming read that never waits for live publication while holding
 /// [`Backend::rehoming_gate`].
@@ -1307,7 +1313,11 @@ enum RehomingDocumentSnapshot {
 
 impl tcl_lsp_core::ilx_navigation::OpenDocuments for OpenDocumentTexts {
     fn text(&self, path: &Path) -> Option<Arc<str>> {
-        self.0.get(path).map(Arc::clone)
+        self.texts.get(path).map(Arc::clone)
+    }
+
+    fn analysis(&self, path: &Path) -> Option<Arc<AnalysisResult>> {
+        self.analyses.get(path).map(Arc::clone)
     }
 }
 
@@ -5360,7 +5370,7 @@ async fn compute_base_analysis(
     // entirely and runs only when the original configured gate does not prove
     // completeness. Unknown parser/input is retained on the recovery path.
     if !original_document_is_complete(text, &prepared.checked_input) {
-        return compute_recovery_analysis(
+        return Box::pin(compute_recovery_analysis(
             client,
             ctx,
             disabled,
@@ -5368,7 +5378,7 @@ async fn compute_base_analysis(
             non_ascii_mode,
             recovery,
             prepared,
-        )
+        ))
         .await;
     }
 
@@ -6986,14 +6996,14 @@ async fn run_diagnostics_analyser_path(
         provider_capture: &inputs.provider_capture,
         prefer: inputs.package_prefer,
     };
-    let base = compute_base_analysis(
+    let base = Box::pin(compute_base_analysis(
         delivery.client,
         salsa_ctx,
         lift_inputs.disabled,
         inputs.extra_commands,
         inputs.non_ascii_mode,
         &recovery,
-    )
+    ))
     .shared();
 
     // Trivial documents skip the progressive machinery entirely and take the
@@ -7090,7 +7100,7 @@ async fn run_deep_diagnostics(
     timing: PublishTiming<'_>,
     base: impl std::future::Future<Output = ControlFlow<bool, Arc<AnalysisResult>>>,
 ) -> bool {
-    let produced = match compute_deep_diagnostic_report(
+    let produced = match Box::pin(compute_deep_diagnostic_report(
         delivery.uri,
         delivery.documents,
         salsa_ctx,
@@ -7098,7 +7108,7 @@ async fn run_deep_diagnostics(
         inputs,
         project,
         base,
-    )
+    ))
     .await
     {
         ControlFlow::Continue(produced) => produced,
@@ -7711,8 +7721,22 @@ fn compiler_findings(diags: &tcl_lsp_db::CompilerDiagnostics) -> Vec<core_policy
 
 /// The opt-in `f5-xc` XC100–XC301 translatability findings for an
 /// `f5-irules` document — a conversion; the policy step decides what shows.
-fn xc_findings(source: &str) -> Vec<core_policy::Finding> {
-    f5_xc::get_xc_diagnostics(source)
+///
+/// The translation walks the document's own analysis, its retained registry
+/// and a unit built from that analysis, never a reparse under the standalone
+/// iRules defaults; an analysis that cannot describe `source` states no XC
+/// findings.
+fn xc_findings(source: &str, analysis: &AnalysisResult) -> Vec<core_policy::Finding> {
+    let Some(registry) = analysis.resolved_registry() else {
+        return Vec::new();
+    };
+    let Some(unit) =
+        tcl_lsp_db::compilation_unit_uncached_from_analysis(source, registry, analysis, None)
+    else {
+        return Vec::new();
+    };
+    f5_xc::get_xc_diagnostics_for_document(source, &unit, analysis)
+        .unwrap_or_default()
         .into_iter()
         .map(core_policy::Finding::from)
         .collect()
@@ -7720,9 +7744,10 @@ fn xc_findings(source: &str) -> Vec<core_policy::Finding> {
 
 /// The findings a document publishes: the analyser's own set, the O111
 /// hints over its W100s, the compiler checks' and the optimiser's, and —
-/// for an `f5-irules` document with `xcDiagnostics` on — the XC
-/// translatability findings over `analysis_text`, the document's analysis
-/// form (a lone `\r` rewritten), which every producer reads.
+/// for an `f5-irules` document with `xcDiagnostics` on (`xc_document` is its
+/// analysis) — the XC translatability findings over `analysis_text`, the
+/// document's analysis form (a lone `\r` rewritten), which every producer
+/// reads.
 ///
 /// The deep push's, the pull provider's and the code-action handler's
 /// assembly of `produced`, in one place, so the two deliveries cannot
@@ -7732,15 +7757,15 @@ fn xc_findings(source: &str) -> Vec<core_policy::Finding> {
 fn published_findings(
     analyser_diags: &[tcl_compiler::analyser::Diagnostic],
     compiler_diags: &tcl_lsp_db::CompilerDiagnostics,
-    xc_for_irules: bool,
+    xc_document: Option<&AnalysisResult>,
     analysis_text: &str,
 ) -> Vec<core_policy::Finding> {
     let mut produced = analyser_findings(analyser_diags);
     let hints = core_report::brace_expr_hints(&produced);
     produced.extend(hints);
     produced.extend(compiler_findings(compiler_diags));
-    if xc_for_irules {
-        produced.extend(xc_findings(analysis_text));
+    if let Some(analysis) = xc_document {
+        produced.extend(xc_findings(analysis_text, analysis));
     }
     produced
 }
@@ -7905,7 +7930,7 @@ async fn refine_and_lift_diagnostics(
         let produced = published_findings(
             &analyser_diags,
             &compiler_diags,
-            xc_for_irules,
+            xc_for_irules.then_some(analysis_lifts.as_ref()),
             &analysis_text,
         );
         let doc = core_report::DocumentSource {
@@ -14044,7 +14069,7 @@ impl Backend {
         // config dialect even when the basename is not a canonical
         // `bigip*.conf` name — e.g. a user who manually picks the BIG-IP
         // language mode on a differently-named config file. Mirrors the
-        // BIG-IP routing the `is_bigip_conf_name` basename branch below feeds.
+        // BIG-IP routing the `is_bigip_conf_uri` basename branch below feeds.
         if matches!(language_id, "tcl-bigip" | "f5-bigip") {
             return "f5-bigip".to_owned();
         }
@@ -14058,7 +14083,7 @@ impl Backend {
         // get the BIG-IP path (parse / outline + general-Tcl-diagnostic
         // suppression).
         let explicit_non_tcl = lang_dialect.is_some_and(LanguageDialect::is_explicit_non_tcl);
-        if !explicit_non_tcl && core_bigip::is_bigip_conf_name(uri.as_str()) {
+        if !explicit_non_tcl && core_bigip::is_bigip_conf_uri(uri.as_str()) {
             return "f5-bigip".to_owned();
         }
         // In-source dialect hints — a `# tcl-dialect:` directive, a
@@ -15492,7 +15517,7 @@ impl Backend {
                 Some((uri, scanned))
             });
         }
-        let results = run_bounded(futures, concurrency).await;
+        let results = Box::pin(run_bounded(futures, concurrency)).await;
 
         let mut replacements = Vec::new();
         let mut to_remove: Vec<Uri> = Vec::new();
@@ -16355,21 +16380,45 @@ impl Backend {
     /// one `Arc` clone per open document, and the normalisation is the same
     /// `normalise_lone_cr` pass `read_document` applies (skipped outright for
     /// the documents that need none, which is all of them on LF and CRLF).
+    /// Every open document's text, and — for each open iRules document — its
+    /// own analysis through [`Self::analysis_for`], so an ILX sibling rule is
+    /// scanned under its own source, input and configuration rather than the
+    /// requesting document's. An analysis that cannot be had is left out; the
+    /// scanner then has no facts for that sibling.
     async fn open_document_texts(&self) -> OpenDocumentTexts {
-        let docs = self.documents.lock("open_document_texts").await;
-        let mut by_path = HashMap::with_capacity(docs.len());
-        for (uri, doc) in docs.iter() {
-            let Some(path) = uri.to_file_path() else {
-                continue;
-            };
-            let text: Arc<str> = if doc.has_bare_cr {
-                tcl_lexer::normalise_lone_cr(&doc.text).into_owned().into()
-            } else {
-                Arc::clone(&doc.text)
-            };
-            by_path.insert(path.into_owned(), text);
+        let mut rules = Vec::new();
+        let mut texts = HashMap::new();
+        {
+            let docs = self.documents.lock("open_document_texts").await;
+            texts.reserve(docs.len());
+            for (uri, doc) in docs.iter() {
+                let Some(path) = uri.to_file_path() else {
+                    continue;
+                };
+                let path = path.into_owned();
+                let text: Arc<str> = if doc.has_bare_cr {
+                    tcl_lexer::normalise_lone_cr(&doc.text).into_owned().into()
+                } else {
+                    Arc::clone(&doc.text)
+                };
+                if tcl_lsp_core::profile_for_dialect(&doc.dialect).is_irules() {
+                    rules.push((
+                        uri.clone(),
+                        path.clone(),
+                        Arc::clone(&text),
+                        doc.dialect.clone(),
+                    ));
+                }
+                texts.insert(path, text);
+            }
         }
-        OpenDocumentTexts(by_path)
+        let mut analyses = HashMap::with_capacity(rules.len());
+        for (uri, path, text, dialect) in rules {
+            if let Ok(analysis) = self.analysis_for(&uri, text, dialect).await {
+                analyses.insert(path, analysis);
+            }
+        }
+        OpenDocumentTexts { texts, analyses }
     }
 
     /// Lift an ILX location — a path plus a range — onto the wire.
@@ -22685,6 +22734,10 @@ impl Backend {
     /// for an iRules event.
     /// `validCommandCount` counts the iRules commands (those carrying
     /// `event_requires`) not excluded from the event.
+    ///
+    /// The answer is the standalone iRules catalogue (`catalogue`), not any
+    /// document's configured release or input: it says which events and
+    /// commands the registry declares, not which apply to a given BIG-IP.
     async fn describe_irule_event_command(
         &self,
         args: &[serde_json::Value],
@@ -22713,11 +22766,29 @@ impl Backend {
         // detail (`get_event_detail`), which never contains the word — so the
         // describe-event surface always reports false, deliberately *not*
         // `EventProps.deprecated` (the orthogonal F5 deprecation fact).
+        // `deprecatedSource` says so, and `lifecycle` carries the declared
+        // BIG-IP release data under its own name, so a reader cannot take the
+        // completion flag for an F5 deprecation verdict.
         let deprecated = false;
+        let lifecycle = if known {
+            events.event_lifecycle(&event).map(|life| {
+                serde_json::json!({
+                    "axis": "BIG-IP",
+                    "introduced": life.introduced,
+                    "deprecated": life.deprecated,
+                    "retired": life.retired,
+                })
+            })
+        } else {
+            None
+        };
         Ok(Some(serde_json::json!({
             "event": event,
             "known": known,
             "deprecated": deprecated,
+            "deprecatedSource": "eventCompletionDetail",
+            "lifecycle": lifecycle,
+            "catalogue": "standaloneIrules",
             "validCommandCount": count,
             "sampleCommands": sample,
         })))
@@ -22775,18 +22846,70 @@ impl Backend {
 
     /// One `ltm rule` / `gtm rule` stanza, as the editors model it.
     ///
-    /// The offsets are byte offsets into the configuration document, which is
-    /// what the clients send straight back on a write.
-    fn rule_info(rule: &tcl_bigip::rule_extract::EmbeddedRule, uri: &str) -> serde_json::Value {
+    /// The offsets are byte offsets into the configuration document as the
+    /// server read it at `documentVersion` (null when the server holds no
+    /// client version). The whole object is the receipt a client returns to
+    /// `tcl-lsp.writeRuleBack`: the server rejoins the stanza by its header,
+    /// path and original body there, so the client never does offset
+    /// arithmetic of its own.
+    fn rule_info(
+        rule: &tcl_bigip::rule_extract::EmbeddedRule,
+        uri: &str,
+        version: Option<i32>,
+    ) -> serde_json::Value {
         serde_json::json!({
             "name": rule.name,
             "fullPath": rule.full_path,
+            "header": rule.header,
             "body": rule.body,
             "bodyStartOffset": rule.body_start_offset,
             "bodyEndOffset": rule.body_end_offset,
             "uri": uri,
+            "documentVersion": version,
             "blockStartLine": rule.range.start.line,
         })
+    }
+
+    /// The byte offset a client's cursor names in `doc`.
+    ///
+    /// A bare number is the legacy byte offset, kept for existing callers. An
+    /// object `{position: {line, character}, version}` is an LSP position —
+    /// UTF-16 columns, as an editor counts them — valid only against the
+    /// document version it was read from; `Err` names why it is not.
+    fn source_position_offset(
+        doc: &DocumentState,
+        value: &serde_json::Value,
+    ) -> Result<usize, &'static str> {
+        if let Some(offset) = value.as_u64() {
+            return Ok(usize::try_from(offset).unwrap_or(usize::MAX));
+        }
+        let position = value.get("position").ok_or("request")?;
+        let (Some(line), Some(character), Some(version)) = (
+            position
+                .get("line")
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|line| u32::try_from(line).ok()),
+            position
+                .get("character")
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|character| u32::try_from(character).ok()),
+            value
+                .get("version")
+                .and_then(serde_json::Value::as_i64)
+                .and_then(|version| i32::try_from(version).ok()),
+        ) else {
+            return Err("request");
+        };
+        if doc.version != Some(version) {
+            return Err("stale");
+        }
+        if usize::try_from(line).unwrap_or(usize::MAX) >= doc.line_index.line_count() {
+            return Err("request");
+        }
+        let offset =
+            doc.line_index
+                .offset_at_utf16(line, tcl_lexer::Utf16Col::new(character), &doc.text);
+        Ok(usize::try_from(offset).unwrap_or(usize::MAX))
     }
 
     /// Handle `tcl-lsp.listRules`: every iRule embedded in a BIG-IP
@@ -22814,16 +22937,19 @@ impl Backend {
         Ok(Some(serde_json::Value::Array(
             rules
                 .iter()
-                .map(|r| Self::rule_info(r, &uri_owned))
+                .map(|r| Self::rule_info(r, &uri_owned, doc.version))
                 .collect(),
         )))
     }
 
-    /// Handle `tcl-lsp.extractRule`: the iRule containing a byte offset.
+    /// Handle `tcl-lsp.extractRule`: the iRule containing a cursor.
     ///
-    /// Arguments are `[uri, offset]`. Null when the offset is outside every
-    /// rule stanza, which is what the clients render as "cursor is not inside
-    /// an ltm rule or gtm rule block".
+    /// Arguments are `[uri, cursor]`, where `cursor` is a legacy byte offset
+    /// or a versioned LSP position ([`Self::source_position_offset`]). Null
+    /// when the cursor is outside every rule stanza, which is what the clients
+    /// render as "cursor is not inside an ltm rule or gtm rule block";
+    /// `{unavailable: reason}` when a position cannot be read against the
+    /// current document.
     async fn extract_rule_command(
         &self,
         args: &[serde_json::Value],
@@ -22834,26 +22960,37 @@ impl Backend {
         let Ok(uri) = Uri::from_str(uri_str) else {
             return Ok(None);
         };
-        let Some(offset) = args.get(1).and_then(serde_json::Value::as_u64) else {
+        let Some(cursor) = args.get(1) else {
             return Ok(None);
         };
         let Some(doc) = self.read_local_document(&uri).await? else {
             return Ok(None);
         };
-        let offset = usize::try_from(offset).unwrap_or(usize::MAX);
+        let offset = match Self::source_position_offset(&doc, cursor) {
+            Ok(offset) => offset,
+            Err(reason) => return Ok(Some(serde_json::json!({ "unavailable": reason }))),
+        };
         Ok(
             tcl_bigip::rule_extract::find_rule_at_offset(&doc.text, offset)
-                .map(|rule| Self::rule_info(&rule, uri_str)),
+                .map(|rule| Self::rule_info(&rule, uri_str, doc.version)),
         )
     }
 
     /// Handle `tcl-lsp.writeRuleBack`: put an edited rule body back into its
     /// configuration document.
     ///
-    /// Arguments are `[uri, bodyStart, bodyEnd, newBody]`. The client edits
-    /// the rule in a scratch buffer and holds the offsets it was given, so
-    /// the span is theirs rather than re-derived here; the reply is the
-    /// boolean they branch on.
+    /// Arguments are `[rule, newBody]`, where `rule` is the object
+    /// `tcl-lsp.extractRule` / `tcl-lsp.listRules` returned. The stanza is
+    /// rejoined in the current document by its header, path and original
+    /// body — wherever earlier edits have moved it — so a concurrent change
+    /// to the rule refuses rather than overwriting it; the replacement must
+    /// parse back as the same rule; and the edit names the document version
+    /// it was computed against, so the client rejects it once that is stale.
+    /// The reply is `{applied, rule?, reason?}`: on success `rule` is the
+    /// stanza as it stands after the edit, the receipt for the next write.
+    ///
+    /// The legacy `[uri, bodyStart, bodyEnd, newBody]` form, whose span is
+    /// the client's own, still answers the bare boolean it always did.
     ///
     /// The edit is applied through `workspace/applyEdit` rather than returned,
     /// because the caller is a save handler with nothing to apply an edit to:
@@ -22863,6 +23000,9 @@ impl Backend {
         &self,
         args: &[serde_json::Value],
     ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        if args.first().is_some_and(serde_json::Value::is_object) {
+            return self.write_rule_back_receipt(args).await;
+        }
         let Some(uri_str) = args.first().and_then(serde_json::Value::as_str) else {
             return Ok(Some(serde_json::json!(false)));
         };
@@ -22894,9 +23034,97 @@ impl Backend {
         {
             return Ok(Some(serde_json::json!(false)));
         }
+        let applied = self
+            .apply_rule_body_edit(uri, &doc, start, end, body, None)
+            .await;
+        Ok(Some(serde_json::json!(applied)))
+    }
 
-        // The client counts bytes; LSP ranges count UTF-16 code units, so the
-        // span is converted rather than passed through.
+    /// The receipt form of [`Self::write_rule_back_command`].
+    async fn write_rule_back_receipt(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let refuse = |reason: &str| {
+            Ok(Some(
+                serde_json::json!({ "applied": false, "reason": reason }),
+            ))
+        };
+        let receipt = &args[0];
+        let field = |name: &str| receipt.get(name).and_then(serde_json::Value::as_str);
+        let (Some(uri_str), Some(header), Some(full_path), Some(original), Some(new_body)) = (
+            field("uri"),
+            field("header"),
+            field("fullPath"),
+            field("body"),
+            args.get(1).and_then(serde_json::Value::as_str),
+        ) else {
+            return refuse("request");
+        };
+        let Ok(uri) = Uri::from_str(uri_str) else {
+            return refuse("request");
+        };
+        let Some(doc) = self.read_local_document(&uri).await? else {
+            return refuse("notOpen");
+        };
+        let Some(rule) = Self::rejoin_rule(&doc.text, header, full_path, original) else {
+            return refuse("stale");
+        };
+        let updated = tcl_bigip::rule_extract::replace_rule_body(&doc.text, &rule, new_body);
+        let Some(after) = Self::rejoin_rule(&updated, header, full_path, new_body)
+            .filter(|after| after.body_start_offset == rule.body_start_offset)
+        else {
+            return refuse("body");
+        };
+        let version = doc.version;
+        if !self
+            .apply_rule_body_edit(
+                uri,
+                &doc,
+                rule.body_start_offset,
+                rule.body_end_offset,
+                new_body,
+                version,
+            )
+            .await
+        {
+            return refuse("rejected");
+        }
+        Ok(Some(serde_json::json!({
+            "applied": true,
+            "rule": Self::rule_info(&after, uri_str, None),
+        })))
+    }
+
+    /// The one rule stanza in `source` with this header and path whose body
+    /// is still `body`; `None` when there is not exactly one.
+    fn rejoin_rule(
+        source: &str,
+        header: &str,
+        full_path: &str,
+        body: &str,
+    ) -> Option<tcl_bigip::rule_extract::EmbeddedRule> {
+        let mut matching = tcl_bigip::rule_extract::find_embedded_rules(source)
+            .into_iter()
+            .filter(|rule| rule.header == header && rule.full_path == full_path);
+        let rule = matching.next()?;
+        (matching.next().is_none() && rule.body == body).then_some(rule)
+    }
+
+    /// Ask the client to replace `[start, end)` of `doc` with `body`. With a
+    /// `version`, the edit is a versioned document change the client applies
+    /// only to that version.
+    async fn apply_rule_body_edit(
+        &self,
+        uri: Uri,
+        doc: &DocumentState,
+        start: usize,
+        end: usize,
+        body: &str,
+        version: Option<i32>,
+    ) -> bool {
+        // The rule offsets count bytes; LSP ranges count UTF-16 code units,
+        // so the span is converted rather than passed through.
         let index = tcl_lexer::LineIndex::new_lsp(&doc.text);
         let to_position = |offset: usize| {
             let p = index.position_at_utf16(u32::try_from(offset).unwrap_or(u32::MAX), &doc.text);
@@ -22912,27 +23140,42 @@ impl Backend {
             },
             new_text: body.to_owned(),
         };
-        let mut changes = HashMap::new();
-        changes.insert(uri, vec![edit]);
-        let applied = self
-            .client
-            .apply_edit(WorkspaceEdit {
+        let workspace_edit = if version.is_some() {
+            WorkspaceEdit {
+                document_changes: Some(DocumentChanges::Edits(vec![TextDocumentEdit {
+                    text_document: OptionalVersionedTextDocumentIdentifier { uri, version },
+                    edits: vec![OneOf::Left(edit)],
+                }])),
+                ..WorkspaceEdit::default()
+            }
+        } else {
+            let mut changes = HashMap::new();
+            changes.insert(uri, vec![edit]);
+            WorkspaceEdit {
                 changes: Some(changes),
                 ..WorkspaceEdit::default()
-            })
+            }
+        };
+        self.client
+            .apply_edit(workspace_edit)
             .await
-            .is_ok_and(|response| response.applied);
-        Ok(Some(serde_json::json!(applied)))
+            .is_ok_and(|response| response.applied)
     }
 
     /// Handle `tcl-lsp.extractLinkedObjects`: the BIG-IP object at the cursor
     /// and everything it references, out to a depth.
     ///
-    /// Arguments are `[uri, offset, maxDepth, maxNodes, extraOffsets?]`, where
-    /// `extraOffsets` is a list of `[uri, offset]` pairs for a multi-cursor
-    /// selection. The walk starts at every root the offsets land on, so the
-    /// result answers "these objects and what they depend on" rather than
-    /// being run once per cursor.
+    /// Arguments are `[uri, cursor, maxDepth, maxNodes, extraCursors?]`, where
+    /// `extraCursors` is a list of `[uri, cursor]` pairs for a multi-cursor
+    /// selection and each cursor is a legacy byte offset or a versioned LSP
+    /// position ([`Self::source_position_offset`]). The walk starts at every
+    /// root the cursors land on, so the result answers "these objects and
+    /// what they depend on" rather than being run once per cursor.
+    ///
+    /// `sources` in the reply names each document and the version the graph
+    /// was read from, so a client navigating to a node can tell whether its
+    /// range still describes the buffer. A positioned cursor that no longer
+    /// matches its document answers `{unavailable: reason}`.
     ///
     /// Breadth-first, so a node is reported at its shortest distance from a
     /// root. `maxNodes` stops the walk rather than truncating the answer
@@ -22946,7 +23189,10 @@ impl Backend {
         let Some(primary_uri) = args.first().and_then(serde_json::Value::as_str) else {
             return Ok(None);
         };
-        let Some(primary_offset) = args.get(1).and_then(serde_json::Value::as_u64) else {
+        let Some(primary_cursor) = args
+            .get(1)
+            .filter(|cursor| cursor.is_u64() || cursor.is_object())
+        else {
             return Ok(None);
         };
         let max_depth = args
@@ -22962,40 +23208,58 @@ impl Backend {
         .unwrap_or(400)
         .max(1);
 
-        // Every (uri, offset) the client asked about: the primary cursor plus
+        // Every (uri, cursor) the client asked about: the primary cursor plus
         // any additional ones.
-        let mut cursors: Vec<(String, usize)> = vec![(
-            primary_uri.to_owned(),
-            usize::try_from(primary_offset).unwrap_or(usize::MAX),
-        )];
+        let mut requested: Vec<(String, &serde_json::Value)> =
+            vec![(primary_uri.to_owned(), primary_cursor)];
         if let Some(extra) = args.get(4).and_then(serde_json::Value::as_array) {
             for pair in extra {
-                let (Some(u), Some(o)) = (
+                let (Some(u), Some(cursor)) = (
                     pair.get(0).and_then(serde_json::Value::as_str),
-                    pair.get(1).and_then(serde_json::Value::as_u64),
+                    pair.get(1)
+                        .filter(|cursor| cursor.is_u64() || cursor.is_object()),
                 ) else {
                     continue;
                 };
-                cursors.push((u.to_owned(), usize::try_from(o).unwrap_or(usize::MAX)));
+                requested.push((u.to_owned(), cursor));
             }
         }
 
-        // Read each distinct document once.
-        let mut sources: Vec<(String, String)> = Vec::new();
-        for (uri_str, _) in &cursors {
-            if sources.iter().any(|(u, _)| u == uri_str) {
+        // Read each distinct document once, and resolve each cursor against
+        // the document it names.
+        let mut documents: Vec<(String, DocumentState)> = Vec::new();
+        for (uri_str, _) in &requested {
+            if documents.iter().any(|(u, _)| u == uri_str) {
                 continue;
             }
             let Ok(uri) = Uri::from_str(uri_str) else {
                 continue;
             };
             if let Some(doc) = self.read_local_document(&uri).await? {
-                sources.push((uri_str.clone(), doc.text.to_string()));
+                documents.push((uri_str.clone(), doc));
             }
         }
-        if sources.is_empty() {
+        if documents.is_empty() {
             return Ok(None);
         }
+        let mut cursors: Vec<(String, usize)> = Vec::new();
+        for (uri_str, cursor) in &requested {
+            let Some((_, doc)) = documents.iter().find(|(u, _)| u == uri_str) else {
+                continue;
+            };
+            match Self::source_position_offset(doc, cursor) {
+                Ok(offset) => cursors.push((uri_str.clone(), offset)),
+                Err(reason) => return Ok(Some(serde_json::json!({ "unavailable": reason }))),
+            }
+        }
+        let read: Vec<serde_json::Value> = documents
+            .iter()
+            .map(|(uri, doc)| serde_json::json!({ "uri": uri, "version": doc.version }))
+            .collect();
+        let sources: Vec<(String, String)> = documents
+            .into_iter()
+            .map(|(uri, doc)| (uri, doc.text.to_string()))
+            .collect();
 
         // Parsing and the graph walk are pure CPU over the whole config, so
         // they run off the LSP event loop.
@@ -23003,7 +23267,13 @@ impl Backend {
             Self::linked_objects_payload(&sources, &cursors, max_depth, max_nodes)
         })
         .await
-        .unwrap_or(None);
+        .unwrap_or(None)
+        .map(|mut payload| {
+            if let Some(object) = payload.as_object_mut() {
+                object.insert("sources".to_owned(), serde_json::Value::Array(read));
+            }
+            payload
+        });
         Ok(value)
     }
 
@@ -23368,9 +23638,12 @@ impl Backend {
     /// Handle `tcl-lsp.renamePartition`: rename a BIG-IP partition and every
     /// path that names it.
     ///
-    /// Arguments are `[uri, currentName, newName]`, bare partition names
-    /// rather than paths. The reply is `{success, edit?, error?}`: the client
-    /// applies the edit itself, so it can undo the rename as one step.
+    /// Arguments are `[uri, currentName, newName, version?]`, bare partition
+    /// names rather than paths. The reply is `{success, edit?, error?}`: the
+    /// client applies the edit itself, so it can undo the rename as one step.
+    /// With `version` — the document version the client read the stanza
+    /// from — a different current version is refused, and the edit is a
+    /// versioned document change the client applies only to that version.
     ///
     /// The rewrite is the query engine's `rename_partition`, which owns the
     /// cascade — the `auth partition` stanza and every `/<old>/` prefix
@@ -23403,6 +23676,23 @@ impl Backend {
                 serde_json::json!({ "success": false, "error": "document is not open" }),
             ));
         };
+        let expected_version = match args.get(3) {
+            None | Some(serde_json::Value::Null) => None,
+            Some(value) => {
+                let Some(version) = value.as_i64().and_then(|v| i32::try_from(v).ok()) else {
+                    return Ok(Some(
+                        serde_json::json!({ "success": false, "error": "unreadable document version" }),
+                    ));
+                };
+                if doc.version != Some(version) {
+                    return Ok(Some(serde_json::json!({
+                        "success": false,
+                        "error": "the document changed since the partition was read; try again",
+                    })));
+                }
+                Some(version)
+            }
+        };
 
         let text = doc.text.to_string();
         let uri_owned = uri_str.to_owned();
@@ -23433,11 +23723,24 @@ impl Backend {
                     },
                     new_text: new_source,
                 };
-                let mut changes = HashMap::new();
-                changes.insert(uri, vec![edit]);
-                let workspace_edit = WorkspaceEdit {
-                    changes: Some(changes),
-                    ..WorkspaceEdit::default()
+                let workspace_edit = if expected_version.is_some() {
+                    WorkspaceEdit {
+                        document_changes: Some(DocumentChanges::Edits(vec![TextDocumentEdit {
+                            text_document: OptionalVersionedTextDocumentIdentifier {
+                                uri,
+                                version: expected_version,
+                            },
+                            edits: vec![OneOf::Left(edit)],
+                        }])),
+                        ..WorkspaceEdit::default()
+                    }
+                } else {
+                    let mut changes = HashMap::new();
+                    changes.insert(uri, vec![edit]);
+                    WorkspaceEdit {
+                        changes: Some(changes),
+                        ..WorkspaceEdit::default()
+                    }
                 };
                 serde_json::json!({
                     "success": true,
@@ -23536,6 +23839,100 @@ impl Backend {
                 "error": "the XC translator failed to analyse the source",
             })),
         }
+    }
+
+    /// Handle `tcl-lsp.xcTranslateDocument`: translate an open iRules
+    /// document under its own analysis.
+    ///
+    /// Arguments are `[{uri, version, source}, output_format?]`. The snapshot
+    /// must still be the server's copy of the document; the translation then
+    /// walks the document's retained analysis, registry and a unit built from
+    /// that analysis ([`f5_xc::translate_irule_for_document`]), and is
+    /// published only while the same version and source are current. The
+    /// payload is [`Self::xc_translate_command`]'s, plus `source` naming the
+    /// document, version and dialect it describes.
+    ///
+    /// Anything else answers `{unavailable: reason}` — `request`, `notOpen`,
+    /// `stale`, `notIrules` or `analysis` — never a standalone reparse: the
+    /// source-only `tcl-lsp.xcTranslate` remains the explicit standalone
+    /// purpose for text that is not such a document.
+    async fn xc_translate_document_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let unavailable = |reason: &str| Ok(Some(serde_json::json!({ "unavailable": reason })));
+        let Some(document_transform::TransformRequest::Snapshot {
+            uri,
+            version,
+            source,
+        }) = document_transform::TransformRequest::parse(args.first())
+        else {
+            return unavailable("request");
+        };
+        let output_format =
+            f5_xc::OutputFormat::from_arg(args.get(1).and_then(serde_json::Value::as_str));
+        let Some(doc) = self.read_local_document(&uri).await? else {
+            return unavailable("notOpen");
+        };
+        if doc.version != Some(version) || doc.raw() != source.as_str() {
+            return unavailable("stale");
+        }
+        if !tcl_lsp_core::profile_for_dialect(&doc.dialect).is_irules() {
+            return unavailable("notIrules");
+        }
+        let Ok(analysis) = self
+            .analysis_for(&uri, Arc::clone(&doc.text), doc.dialect.clone())
+            .await
+        else {
+            return unavailable("analysis");
+        };
+        let text = Arc::clone(&doc.text);
+        let value = crate::rt::spawn_blocking(move || {
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let registry = analysis.resolved_registry()?;
+                let unit = tcl_lsp_db::compilation_unit_uncached_from_analysis(
+                    &text, registry, &analysis, None,
+                )?;
+                let result = f5_xc::translate_irule_for_document(&text, &unit, &analysis)?;
+                Some(f5_xc::translation_payload(
+                    &result,
+                    f5_xc::DEFAULT_NAMESPACE,
+                    f5_xc::DEFAULT_LB_NAME,
+                    output_format,
+                ))
+            }))
+        })
+        .await;
+        let mut payload = match value {
+            Ok(Ok(Some(payload))) => payload,
+            Ok(Ok(None)) => return unavailable("analysis"),
+            _ => {
+                return Ok(Some(serde_json::json!({
+                    "error": "the XC translator failed to analyse the source",
+                })));
+            }
+        };
+        let Some(current) = self.read_local_document(&uri).await? else {
+            return unavailable("notOpen");
+        };
+        if current.version != doc.version
+            || current.raw() != doc.raw()
+            || current.dialect != doc.dialect
+        {
+            return unavailable("stale");
+        }
+        if let Some(object) = payload.as_object_mut() {
+            object.insert(
+                "source".to_owned(),
+                serde_json::json!({
+                    "purpose": "document",
+                    "uri": uri.as_str(),
+                    "version": version,
+                    "dialect": doc.dialect,
+                }),
+            );
+        }
+        Ok(Some(payload))
     }
 
     /// Handle `tcl-lsp.fixAllSafeIssues`: apply every non-overlapping
@@ -26589,7 +26986,7 @@ impl Backend {
             let produced = published_findings(
                 &analyser_diags,
                 &compiler_diags,
-                xc_for_irules,
+                xc_for_irules.then_some(analysis.as_ref()),
                 &analysis_text,
             );
             let doc = core_report::DocumentSource {
@@ -29836,7 +30233,12 @@ fn code_action_report(
         inputs.generic_patterns.as_deref(),
         inputs.evidence.as_deref(),
     );
-    let produced = published_findings(&inputs.published, &checks, inputs.xc_for_irules, &doc.text);
+    let produced = published_findings(
+        &inputs.published,
+        &checks,
+        inputs.xc_for_irules.then_some(analysis),
+        &doc.text,
+    );
     // `doc.text` is already this snapshot's analysis form
     // (`DocumentState::normalised_for_analysis`); `doc.raw()` is the
     // client's exact buffer, kept aside for a lone-`\r` document.
@@ -33354,6 +33756,9 @@ impl LanguageServer for Backend {
             "tcl-lsp.listIruleEvents" => Ok(Some(Self::list_irule_events_command())),
             "tcl-lsp.diagramData" => Ok(self.diagram_data_command(&params.arguments).await),
             "tcl-lsp.xcTranslate" => Ok(self.xc_translate_command(&params.arguments).await),
+            "tcl-lsp.xcTranslateDocument" => {
+                self.xc_translate_document_command(&params.arguments).await
+            }
             "tcl-lsp.listRules" => self.list_rules_command(&params.arguments).await,
             "tcl-lsp.extractRule" => self.extract_rule_command(&params.arguments).await,
             "tcl-lsp.writeRuleBack" => self.write_rule_back_command(&params.arguments).await,
@@ -37951,7 +38356,7 @@ use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
 ///
 /// The extension is compared case-insensitively, matching every other
 /// extension test in the server (`tcl_registry::dialects`'
-/// `dialect_from_extension`, `core_bigip::is_bigip_conf_name`, the APL source
+/// `dialect_from_extension`, `core_bigip::is_bigip_conf_uri`, the APL source
 /// check), so an `UPPER.TCL` is visible to the workspace scan, the
 /// watched-file filter, and the rename filter as well as to an explicit open.
 /// Extensions the *loaded packs* claim, on top of the static set — so a pack
@@ -38299,6 +38704,7 @@ fn build_server_capabilities(
                 "tcl-lsp.listIruleEvents".to_owned(),
                 "tcl-lsp.diagramData".to_owned(),
                 "tcl-lsp.xcTranslate".to_owned(),
+                "tcl-lsp.xcTranslateDocument".to_owned(),
                 "tcl-lsp.listRules".to_owned(),
                 "tcl-lsp.extractRule".to_owned(),
                 "tcl-lsp.writeRuleBack".to_owned(),
@@ -44284,14 +44690,37 @@ info exists ::N::v\uD800";
         );
     }
 
+    /// The document's own analysis, through the server's ingress, for the
+    /// XC findings that walk it.
+    async fn irules_document_analysis(src: &str) -> Arc<AnalysisResult> {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///xc-findings.irul").unwrap();
+        backend.documents.lock("test").await.insert(
+            uri.clone(),
+            DocumentState::new(src.to_owned(), "f5-irules".to_owned()),
+        );
+        backend
+            .db_set_source(&uri, src, "f5-irules".to_owned())
+            .await
+            .expect("the fixture retains its actual checked SourceFile owner");
+        backend
+            .analysis_for(&uri, Arc::from(src), "f5-irules".to_owned())
+            .await
+            .expect("the fixture analyses its actual current source and full input")
+    }
+
     /// `xc_findings` surfaces the XC translatability codes for an iRule, and
     /// the report hides those the editor disabled.
-    #[test]
-    fn xc_findings_surface_and_the_report_filters_codes() {
+    #[tokio::test]
+    async fn xc_findings_surface_and_the_report_filters_codes() {
         let src = "when HTTP_REQUEST {\n    pool my_pool\n}";
+        let analysis = irules_document_analysis(src).await;
         let diags = lift_report(
             src,
-            &core_policy::apply(xc_findings(src), &core_policy::PolicyBuilder::new().build()),
+            &core_policy::apply(
+                xc_findings(src, &analysis),
+                &core_policy::PolicyBuilder::new().build(),
+            ),
         );
         let codes = diag_codes(&diags);
         assert!(
@@ -44307,10 +44736,109 @@ info exists ::N::v\uD800";
                 &serde_json::json!({ "diagnostics": { "XC100": false } }),
             )
             .build();
-        let filtered = lift_report(src, &core_policy::apply(xc_findings(src), &policy));
+        let filtered = lift_report(
+            src,
+            &core_policy::apply(xc_findings(src, &analysis), &policy),
+        );
         assert!(
             !diag_codes(&filtered).iter().any(|c| c == "XC100"),
             "XC100 should be filtered when disabled",
+        );
+    }
+
+    /// `tcl-lsp.xcTranslateDocument` translates the open document under its
+    /// own analysis and names what it describes; a stale, unknown, non-iRules
+    /// or source-only request is refused rather than reparsed standalone.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn xc_translate_document_uses_the_current_open_document() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///xc-document.irul").unwrap();
+        let src = "when HTTP_REQUEST {\n    pool my_pool\n}\n";
+        let mut state = DocumentState::new(src.to_owned(), "f5-irules".to_owned());
+        state.version = Some(4);
+        backend
+            .documents
+            .lock("test")
+            .await
+            .insert(uri.clone(), state);
+        backend
+            .db_set_source(&uri, src, "f5-irules".to_owned())
+            .await
+            .expect("the fixture retains its actual checked SourceFile owner");
+        let request = |uri: &Uri, version: i32, source: &str| {
+            vec![
+                serde_json::json!({ "uri": uri.as_str(), "version": version, "source": source }),
+                serde_json::json!("both"),
+            ]
+        };
+
+        let document = backend
+            .xc_translate_document_command(&request(&uri, 4, src))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(document["source"]["purpose"], "document", "{document}");
+        assert_eq!(document["source"]["uri"], uri.as_str(), "{document}");
+        assert_eq!(document["source"]["version"], 4, "{document}");
+        assert_eq!(document["source"]["dialect"], "f5-irules", "{document}");
+        let standalone = backend
+            .xc_translate_command(&[serde_json::json!(src), serde_json::json!("both")])
+            .await
+            .unwrap();
+        assert_eq!(document["items"], standalone["items"]);
+        assert_eq!(document["coverage_pct"], standalone["coverage_pct"]);
+
+        for (args, reason) in [
+            (request(&uri, 3, src), "stale"),
+            (request(&uri, 4, "when HTTP_REQUEST {}\n"), "stale"),
+            (
+                request(&Uri::from_str("file:///missing.irul").unwrap(), 4, src),
+                "notOpen",
+            ),
+            (
+                vec![serde_json::json!(src), serde_json::json!("both")],
+                "request",
+            ),
+        ] {
+            let refused = backend
+                .xc_translate_document_command(&args)
+                .await
+                .unwrap()
+                .unwrap();
+            assert_eq!(refused, serde_json::json!({ "unavailable": reason }));
+        }
+
+        let tcl_uri = Uri::from_str("file:///xc-document.tcl").unwrap();
+        let mut tcl = DocumentState::new(src.to_owned(), "tcl8.6".to_owned());
+        tcl.version = Some(1);
+        backend
+            .documents
+            .lock("test")
+            .await
+            .insert(tcl_uri.clone(), tcl);
+        backend
+            .db_set_source(&tcl_uri, src, "tcl8.6".to_owned())
+            .await
+            .expect("the fixture retains its actual checked SourceFile owner");
+        let refused = backend
+            .xc_translate_document_command(&request(&tcl_uri, 1, src))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(refused, serde_json::json!({ "unavailable": "notIrules" }));
+    }
+
+    /// An analysis of other text states no XC findings: the translation never
+    /// falls back to reparsing the buffer under the standalone defaults.
+    #[tokio::test]
+    async fn xc_findings_refuse_an_analysis_of_other_source() {
+        let src = "when HTTP_REQUEST {\n    pool my_pool\n}";
+        let analysis = irules_document_analysis(src).await;
+        assert!(!xc_findings(src, &analysis).is_empty());
+        let edited = "when HTTP_REQUEST {\n    pool other_pool\n}";
+        assert!(
+            xc_findings(edited, &analysis).is_empty(),
+            "a stale analysis must not describe the edited buffer",
         );
     }
 
@@ -44404,8 +44932,8 @@ info exists ::N::v\uD800";
     /// `DiagnosticTag` — and a code outside the table could answer none of
     /// them. Before the fix `DiagCode::from_str("XC100")` was `Err`, so this
     /// assertion failed on the very first lifted diagnostic.
-    #[test]
-    fn published_xc_codes_are_known_diag_codes_issue_2121() {
+    #[tokio::test]
+    async fn published_xc_codes_are_known_diag_codes_issue_2121() {
         use core::str::FromStr as _;
         use tcl_core_types::{DiagCode, DiagSection};
 
@@ -44421,9 +44949,13 @@ info exists ::N::v\uD800";
             "    TCP::collect\n",
             "}\n",
         );
+        let analysis = irules_document_analysis(src).await;
         let diagnostics = lift_report(
             src,
-            &core_policy::apply(xc_findings(src), &core_policy::PolicyBuilder::new().build()),
+            &core_policy::apply(
+                xc_findings(src, &analysis),
+                &core_policy::PolicyBuilder::new().build(),
+            ),
         );
         assert!(
             !diagnostics.is_empty(),
@@ -53952,7 +54484,7 @@ proc p {} {
     }
 
     /// The extension test must case-fold, like every other extension check in
-    /// the server (`dialect_from_extension`, `is_bigip_conf_name`, the APL
+    /// the server (`dialect_from_extension`, `is_bigip_conf_uri`, the APL
     /// source check).  An `UPPER.TCL` opened fine but was invisible to the
     /// workspace scan, the watched-file filter, and the rename filter — so its
     /// procs never reached cross-document navigation until it was opened, and a
@@ -54578,7 +55110,7 @@ proc p {} {
 
     /// An explicit BIG-IP language id resolves to `f5-bigip` even when the
     /// document basename is not a canonical `bigip*.conf` name — the
-    /// manual-language-mode case the `is_bigip_conf_name` basename branch
+    /// manual-language-mode case the `is_bigip_conf_uri` basename branch
     /// alone would miss.
     #[tokio::test]
     async fn dialect_for_open_maps_bigip_language_id() {
@@ -54594,6 +55126,30 @@ proc p {} {
         );
         // A generic Tcl language id on the same non-conf name does not get the
         // BIG-IP dialect (no basename match, no explicit BIG-IP id).
+        assert_ne!(
+            backend.dialect_for_open(&doc, "tcl", "").await,
+            "f5-bigip".to_owned(),
+        );
+    }
+
+    /// The basename route reads the URI's decoded last segment: a
+    /// percent-encoded canonical name is that name, and a literal backslash in
+    /// a POSIX name is part of the name rather than a separator.
+    #[tokio::test]
+    async fn dialect_for_open_reads_the_decoded_uri_basename() {
+        let backend = test_backend();
+        for raw in [
+            "file:///workspace/bigip%2Econf",
+            "file:///my%20dir/BIGIP_BASE.CONF",
+        ] {
+            let doc = Uri::from_str(raw).unwrap();
+            assert_eq!(
+                backend.dialect_for_open(&doc, "tcl", "").await,
+                "f5-bigip".to_owned(),
+                "{raw}",
+            );
+        }
+        let doc = Uri::from_str("file:///workspace/a%5Cbigip.conf").unwrap();
         assert_ne!(
             backend.dialect_for_open(&doc, "tcl", "").await,
             "f5-bigip".to_owned(),
@@ -65382,7 +65938,7 @@ proc p {} {
             .await;
         let checks =
             tcl_lsp_db::compiler_check_diagnostics_uncached(src, &registry, "tcl8.6", None, None);
-        let produced = published_findings(&published_diags, &checks, false, src);
+        let produced = published_findings(&published_diags, &checks, None, src);
         let doc = core_report::DocumentSource {
             text: src,
             analysis_text: src,

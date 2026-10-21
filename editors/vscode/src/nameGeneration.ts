@@ -24,9 +24,7 @@ export interface GeneratedScaffoldNamespace {
 }
 
 /** Construct new scaffold names; the shared policy permits sanitisation collisions. */
-export function packageScaffoldNamespace(
-  packageName: string,
-): GeneratedScaffoldNamespace {
+export function packageScaffoldNamespace(packageName: string): GeneratedScaffoldNamespace {
   const policy = namespaceCatalog.policy;
   const accepts = (ranges: number[][], unit: number) =>
     ranges.some(([first, last]) => first <= unit && unit <= last);
@@ -40,9 +38,7 @@ export function packageScaffoldNamespace(
     let cleaned = "";
     for (let index = 0; index < part.length; index++) {
       const unit = part.charCodeAt(index);
-      cleaned += accepts(policy.followingUnitRanges, unit)
-        ? part[index]
-        : policy.replacement;
+      cleaned += accepts(policy.followingUnitRanges, unit) ? part[index] : policy.replacement;
     }
     if (!accepts(policy.firstUnitRanges, cleaned.charCodeAt(0))) {
       cleaned = policy.identifierPrefix + cleaned;

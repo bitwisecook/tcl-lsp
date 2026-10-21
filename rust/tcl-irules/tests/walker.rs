@@ -36,8 +36,35 @@ fn walker_matches_golden() {
     let mut reg = CommandRegistry::build_default();
     reg.load_surface(SurfaceLayer::Core(Family::F5Irules, ""));
 
-    for (i, (line, (source, rule_module))) in golden.lines().zip(&cases).enumerate() {
-        let want = line.split('\t').nth(1).unwrap_or("-");
+    // Census before pairing: `zip` stops at the shorter side, so a missing
+    // golden row or case would otherwise drop its control silently.
+    let golden_rows: Vec<(&str, &str)> = golden
+        .lines()
+        .map(|line| {
+            let mut fields = line.split('\t');
+            let id = fields.next().unwrap_or_default();
+            let want = fields
+                .next()
+                .unwrap_or_else(|| panic!("golden row {line:?} has no expected column"));
+            assert!(
+                fields.next().is_none(),
+                "golden row {line:?} has extra columns"
+            );
+            (id, want)
+        })
+        .collect();
+    assert!(!cases.is_empty(), "the case fixture must contain controls");
+    assert_eq!(
+        golden_rows.len(),
+        cases.len(),
+        "every case needs exactly one golden row"
+    );
+    for (i, (id, _)) in golden_rows.iter().enumerate() {
+        assert_eq!(*id, format!("CASE {i}"), "golden row {i} is out of order");
+    }
+
+    for (i, ((_, want), (source, rule_module))) in golden_rows.iter().zip(&cases).enumerate() {
+        let want = *want;
         let refs = extract_irules_object_references(source, Some(rule_module), &reg);
         let got = if refs.is_empty() {
             "-".to_owned()

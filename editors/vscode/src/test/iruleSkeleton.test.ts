@@ -17,7 +17,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import * as assert from "assert";
-import { buildIruleEventSkeleton, COMMON_IRULE_EVENTS } from "../iruleSkeleton";
+import {
+  buildIruleEventSkeleton,
+  buildIruleEventSkeletonFor,
+  COMMON_IRULE_EVENTS,
+  describeSkeletonRejections,
+  iruleEventDeclaredAt,
+} from "../iruleSkeleton";
 
 suite("iRule Event Skeleton", () => {
   test("auto-includes CLIENT_ACCEPTED for HTTP handlers", () => {
@@ -73,6 +79,41 @@ suite("iRule Event Skeleton", () => {
 
   test("returns empty string for empty event selection", () => {
     assert.strictEqual(buildIruleEventSkeleton([]), "");
+  });
+
+  test("writes only registry catalogue event names, never the request text", () => {
+    const result = buildIruleEventSkeletonFor([
+      "HTTP_REQUEST",
+      "NOT_AN_EVENT",
+      "HTTP_REQUEST {}\nwhen RULE_INIT",
+    ]);
+    assert.ok(result.source.includes("when HTTP_REQUEST {"));
+    assert.ok(!result.source.includes("NOT_AN_EVENT"));
+    assert.ok(!result.source.includes("when RULE_INIT"), "request text is never interpolated");
+    assert.deepStrictEqual(result.rejected, [
+      { name: "NOT_AN_EVENT", reason: "unknown" },
+      { name: "HTTP_REQUEST {}\nwhen RULE_INIT", reason: "unknown" },
+    ]);
+    assert.match(describeSkeletonRejections(result.rejected), /NOT_AN_EVENT \(not an iRules event/);
+  });
+
+  test("a configured BIG-IP release leaves out events its lifecycle does not declare", () => {
+    assert.ok(iruleEventDeclaredAt("XML_BEGIN_DOCUMENT", "9.4.0"));
+    assert.ok(!iruleEventDeclaredAt("XML_BEGIN_DOCUMENT", "16.1.0"));
+    assert.ok(!iruleEventDeclaredAt("HTTP_REQUEST", "8.4.0"));
+    assert.ok(iruleEventDeclaredAt("HTTP_REQUEST", "16.1.0"));
+
+    const current = buildIruleEventSkeletonFor(["HTTP_REQUEST", "XML_BEGIN_DOCUMENT"], {
+      bigipVersion: "16.1.0",
+    });
+    assert.ok(current.source.includes("when HTTP_REQUEST {"));
+    assert.ok(!current.source.includes("XML_BEGIN_DOCUMENT"));
+    assert.deepStrictEqual(current.rejected, [
+      { name: "XML_BEGIN_DOCUMENT", reason: "notAvailable", bigipVersion: "16.1.0" },
+    ]);
+    const unconfigured = buildIruleEventSkeletonFor(["XML_BEGIN_DOCUMENT"], { bigipVersion: "" });
+    assert.ok(unconfigured.source.includes("when XML_BEGIN_DOCUMENT {"));
+    assert.deepStrictEqual(unconfigured.rejected, []);
   });
 
   test("event catalog exposes common HTTP events", () => {

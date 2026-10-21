@@ -203,10 +203,35 @@ enum LexClass {
 /// substitutions were not tokenised at all — config highlighting applied to
 /// code, which is worse than none.
 ///
-/// [`tokenise_bigip_conf`] emits nothing inside these spans, leaving them for
-/// the caller to walk as Tcl.
+/// [`tokenise_bigip_conf`] emits nothing inside these spans. The bodies the
+/// shared rule parser recognises ([`crate::rule_extract::find_embedded_rules`],
+/// whose iRules brace grammar decides where a body ends) come first; a
+/// rule-shaped stanza that parser does not recognise is left to this
+/// presentation lexer's own bracket matching. Only the parser's bodies are
+/// source boundaries a caller may walk as Tcl; the rest are just not config.
 #[must_use]
 pub fn embedded_rule_bodies(source: &str) -> Vec<(u32, u32)> {
+    let mut spans: Vec<(u32, u32)> = crate::rule_extract::find_embedded_rules(source)
+        .iter()
+        .filter_map(|rule| {
+            Some((
+                u32::try_from(rule.body_start_offset).ok()?,
+                u32::try_from(rule.body_end_offset).ok()?,
+            ))
+        })
+        .collect();
+    for (start, end) in presentation_rule_bodies(source) {
+        if !spans.iter().any(|&(s, e)| start < e && s < end) {
+            spans.push((start, end));
+        }
+    }
+    spans.sort_unstable();
+    spans
+}
+
+/// The rule bodies this lexer's own bracket matching finds — a colour
+/// boundary, not a source one.
+fn presentation_rule_bodies(source: &str) -> Vec<(u32, u32)> {
     let mut spans = Vec::new();
     let mut line_start = 0usize;
     let mut depth: i32 = 0;
@@ -887,6 +912,22 @@ mod tests {
     /// A `ltm rule { … }` body is iRules code, not config: the config lexer must
     /// leave it alone so the caller can walk it as Tcl.  Read as config, its
     /// `when` / `if` / `switch` became config *property keys*.
+    /// The rule parser's iRules brace grammar decides where a body ends: an
+    /// escaped `\}` inside the iRule does not close it, so the config lexer
+    /// tokenises nothing that belongs to the rule.
+    #[test]
+    fn an_escaped_brace_does_not_end_the_rule_body() {
+        let src = "ltm rule /Common/r {\n    when HTTP_REQUEST {\n        set x \\}\n        pool /Common/p\n    }\n}\nltm pool /Common/q { }\n";
+        let bodies = embedded_rule_bodies(src);
+        assert_eq!(bodies.len(), 1, "one rule body: {bodies:?}");
+        let body = &src[bodies[0].0 as usize..bodies[0].1 as usize];
+        assert!(body.contains("pool /Common/p"), "body: {body:?}");
+        assert!(!body.contains("ltm pool"), "body: {body:?}");
+        let t = toks(src);
+        assert!(!t.iter().any(|(text, _)| *text == "HTTP_REQUEST"), "{t:?}");
+        assert!(t.contains(&("q", K::Pool)), "{t:?}");
+    }
+
     #[test]
     fn embedded_rule_bodies_are_left_for_the_tcl_walker() {
         let src = "ltm rule /Common/r {\n    when HTTP_REQUEST {\n        pool /Common/p\n    }\n}\nltm pool /Common/q {\n    monitor /Common/http\n}\n";

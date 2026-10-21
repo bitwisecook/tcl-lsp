@@ -949,7 +949,8 @@ suite("Chat current diagnostic publication adapter", () => {
     const requested = new Promise<void>((resolve) => {
       entered = resolve;
     });
-    let calls = 0;
+    const version = document.version;
+    const requests: { uri: string; version: number; source: string; proposal: string }[] = [];
     const activeTransport = transport(async () =>
       complete(
         {
@@ -968,7 +969,7 @@ suite("Chat current diagnostic publication adapter", () => {
       }): Promise<unknown>;
     };
     activeTransport.requestProposal = async (request) => {
-      calls += 1;
+      requests.push(request);
       entered?.();
       await new Promise<void>((resolve) => {
         answer = () => resolve();
@@ -991,7 +992,11 @@ suite("Chat current diagnostic publication adapter", () => {
         (error: unknown) =>
           error instanceof CurrentDiagnosticsUnavailableError && error.reason === "stale",
       );
-      assert.strictEqual(calls, 1, "the original request must not retry against a later source");
+      assert.deepStrictEqual(
+        requests,
+        [{ uri: document.uri.toString(), version, source, proposal: "set candidate 1" }],
+        "the original request must not retry against a later source",
+      );
     } finally {
       lease.dispose();
     }

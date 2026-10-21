@@ -29,10 +29,20 @@ VS Code
 
 BIG-IP configuration files embed iRules as `ltm rule` blocks. These commands parse the config file, extract the Tcl source from each rule block, and open it in the correct dialect for full LSP support.
 
+Saving an opened iRule writes its body back into the configuration file.
+The server finds the same `ltm rule` / `gtm rule` stanza again — by its
+header, path and the body you opened — so edits elsewhere in the file are
+fine, and it applies the write only to the version of the file it read.
+
 ## Failure modes
 
 - Extraction fails for non-standard config formatting.
 - Linked object resolution misses references.
+- A save is refused, with a warning, when the rule itself changed in the
+  configuration file since it was opened (open it again), when the edited
+  body no longer parses back as the same rule (usually unbalanced braces),
+  or when the configuration file changed while the write was being applied
+  (save again). The configuration file is left unchanged.
 
 ## Example
 

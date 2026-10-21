@@ -107,31 +107,65 @@ export interface LspTextEdit {
   new_text?: string;
 }
 
-export interface LspWorkspaceEdit {
-  changes?: Record<string, LspTextEdit[]>;
+export interface LspTextDocumentEdit {
+  textDocument: { uri: string; version: number | null };
+  edits: LspTextEdit[];
 }
 
-/** Convert a server-supplied workspace edit into one VS Code can apply. */
-export function workspaceEditFromLsp(edit: LspWorkspaceEdit): WorkspaceEdit {
-  const workspaceEdit = new WorkspaceEdit();
-  for (const [uriString, textEdits] of Object.entries(edit.changes ?? {})) {
-    const uri = Uri.parse(uriString);
-    for (const textEdit of textEdits) {
-      const newText = textEdit.newText ?? textEdit.new_text;
-      if (newText === undefined) {
-        continue;
-      }
-      workspaceEdit.replace(
-        uri,
-        new Range(
-          textEdit.range.start.line,
-          textEdit.range.start.character,
-          textEdit.range.end.line,
-          textEdit.range.end.character,
-        ),
-        newText,
-      );
+export interface LspWorkspaceEdit {
+  changes?: Record<string, LspTextEdit[]>;
+  documentChanges?: LspTextDocumentEdit[];
+}
+
+/** The version an open document is at, or `undefined` when it is not open. */
+export type OpenDocumentVersion = (uri: string) => number | undefined;
+
+function openDocumentVersion(uri: string): number | undefined {
+  return workspace.textDocuments.find((document) => document.uri.toString() === uri)?.version;
+}
+
+function replaceAll(workspaceEdit: WorkspaceEdit, uriString: string, textEdits: LspTextEdit[]) {
+  const uri = Uri.parse(uriString);
+  for (const textEdit of textEdits) {
+    const newText = textEdit.newText ?? textEdit.new_text;
+    if (newText === undefined) {
+      continue;
     }
+    workspaceEdit.replace(
+      uri,
+      new Range(
+        textEdit.range.start.line,
+        textEdit.range.start.character,
+        textEdit.range.end.line,
+        textEdit.range.end.character,
+      ),
+      newText,
+    );
+  }
+}
+
+/**
+ * Convert a server-supplied workspace edit into one VS Code can apply.
+ *
+ * A versioned `documentChanges` entry was computed against that exact
+ * document version, so it converts only while the open document is still at
+ * it; otherwise the whole edit is refused with `undefined`. Unversioned
+ * `changes` carry no such precondition and convert as they always did.
+ */
+export function workspaceEditFromLsp(
+  edit: LspWorkspaceEdit,
+  versionOf: OpenDocumentVersion = openDocumentVersion,
+): WorkspaceEdit | undefined {
+  const workspaceEdit = new WorkspaceEdit();
+  for (const change of edit.documentChanges ?? []) {
+    const expected = change.textDocument.version;
+    if (expected !== null && versionOf(change.textDocument.uri) !== expected) {
+      return undefined;
+    }
+    replaceAll(workspaceEdit, change.textDocument.uri, change.edits);
+  }
+  for (const [uriString, textEdits] of Object.entries(edit.changes ?? {})) {
+    replaceAll(workspaceEdit, uriString, textEdits);
   }
   return workspaceEdit;
 }

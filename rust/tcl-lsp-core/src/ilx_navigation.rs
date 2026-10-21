@@ -142,6 +142,15 @@ pub struct IlxDocument<'a> {
 pub trait OpenDocuments: Send + Sync {
     /// The editor's current text for `path`, or `None` when it holds none.
     fn text(&self, path: &Path) -> Option<Arc<str>>;
+
+    /// The host's own analysis of the open document at `path`, retained with
+    /// its complete input and configuration; `None` when it supplies none.
+    /// A sibling rule file is scanned under this analysis, never under the
+    /// initiating document's, and the scanner still refuses it unless it
+    /// describes exactly the text [`Self::text`] returns.
+    fn analysis(&self, _path: &Path) -> Option<Arc<tcl_compiler::analyser::AnalysisResult>> {
+        None
+    }
 }
 
 /// Where every *other* file a request touches is read from.
@@ -198,6 +207,11 @@ impl<'a> IlxFiles<'a> {
             return true;
         }
         self.store.metadata(path).is_ok_and(|meta| !meta.is_dir)
+    }
+
+    /// The host's analysis of the open document at `path`, when it has one.
+    fn open_analysis(self, path: &Path) -> Option<Arc<tcl_compiler::analyser::AnalysisResult>> {
+        self.open?.analysis(path)
     }
 
     /// Whether `path` is a directory.  Only the store can answer: a directory
@@ -606,10 +620,16 @@ pub fn source_candidates(
             continue;
         }
         if let Some(text) = ctx.files.read(&rule) {
-            out.extend(source_candidate_sites_in(
+            out.extend(source_candidate_calls(
                 &rule,
                 &text,
-                ctx,
+                sibling_method_calls(
+                    IlxDocument {
+                        path: &rule,
+                        text: &text,
+                    },
+                    ctx,
+                ),
                 target,
                 &call.method,
             ));
@@ -625,7 +645,23 @@ fn source_candidate_sites_in(
     target: &IlxExtension,
     method: &str,
 ) -> Vec<IlxSourceLocation> {
-    current_method_calls(IlxDocument { path, text }, ctx)
+    source_candidate_calls(
+        path,
+        text,
+        current_method_calls(IlxDocument { path, text }, ctx),
+        target,
+        method,
+    )
+}
+
+fn source_candidate_calls(
+    path: &Path,
+    text: &str,
+    calls: Vec<IlxMethodCall>,
+    target: &IlxExtension,
+    method: &str,
+) -> Vec<IlxSourceLocation> {
+    calls
         .into_iter()
         .filter(|call| call.method == method && call.source_target.as_ref() == Some(target))
         .map(|call| IlxSourceLocation {
@@ -648,6 +684,19 @@ fn current_method_calls(doc: IlxDocument<'_>, ctx: IlxContext<'_>) -> Vec<IlxMet
         // original source input, never borrowing a kept document's facts.
         ilx_method_calls(doc.text, ctx.registry)
     }
+}
+
+/// The method calls of a rule file other than the initiating document.
+///
+/// An open sibling the host analysed is scanned under that analysis — its own
+/// source, input and configuration — whatever route started the request.
+/// Anything else keeps the route's rule: the explicit standalone source API
+/// when no document analysis is supplied, and no borrowed facts otherwise.
+fn sibling_method_calls(doc: IlxDocument<'_>, ctx: IlxContext<'_>) -> Vec<IlxMethodCall> {
+    if let Some(analysis) = ctx.files.open_analysis(doc.path) {
+        return tcl_irules::ilx::ilx_method_calls_from_analysis(doc.text, &analysis);
+    }
+    current_method_calls(doc, ctx)
 }
 
 fn current_source_call(doc: IlxDocument<'_>, ctx: IlxContext<'_>, call: &IlxMethodCall) -> bool {
@@ -695,7 +744,14 @@ fn workspace_call_sites(
         let Some(text) = ctx.files.read(&rule) else {
             continue;
         };
-        out.extend(call_sites_in(&rule, &text, ctx, Some(target), method));
+        let calls = sibling_method_calls(
+            IlxDocument {
+                path: &rule,
+                text: &text,
+            },
+            ctx,
+        );
+        out.extend(call_sites_of(&rule, &text, calls, Some(target), method));
     }
     out
 }
@@ -711,7 +767,23 @@ fn call_sites_in(
     target: Option<&IlxExtension>,
     method: &str,
 ) -> Vec<IlxLocation> {
-    current_method_calls(IlxDocument { path, text }, ctx)
+    call_sites_of(
+        path,
+        text,
+        current_method_calls(IlxDocument { path, text }, ctx),
+        target,
+        method,
+    )
+}
+
+fn call_sites_of(
+    path: &Path,
+    text: &str,
+    calls: Vec<IlxMethodCall>,
+    target: Option<&IlxExtension>,
+    method: &str,
+) -> Vec<IlxLocation> {
+    calls
         .into_iter()
         .filter(|call| call.method == method && call.target.as_ref() == target)
         .map(|call| location(path, text, call.method_span, IlxSite::Call))
@@ -781,11 +853,18 @@ pub fn references_from_registration(
         let Some(text) = ctx.files.read(&rule) else {
             continue;
         };
+        let calls = sibling_method_calls(
+            IlxDocument {
+                path: &rule,
+                text: &text,
+            },
+            ctx,
+        );
         for target in &targets {
-            out.extend(call_sites_in(
+            out.extend(call_sites_of(
                 &rule,
                 &text,
-                ctx,
+                calls.clone(),
                 Some(target),
                 &registration.name,
             ));
@@ -830,15 +909,22 @@ pub fn source_candidates_from_registration(
         let Some(text) = ctx.files.read(&rule) else {
             continue;
         };
+        let calls = sibling_method_calls(
+            IlxDocument {
+                path: &rule,
+                text: &text,
+            },
+            ctx,
+        );
         for plugin in &plugins {
             let target = IlxExtension {
                 plugin: plugin.clone(),
                 extension: extension.clone(),
             };
-            out.extend(source_candidate_sites_in(
+            out.extend(source_candidate_calls(
                 &rule,
                 &text,
-                ctx,
+                calls.clone(),
                 &target,
                 &registration.name,
             ));
@@ -1501,6 +1587,80 @@ mod tests {
                 .find(|(held, _)| held == path)
                 .map(|(_, text)| Arc::clone(text))
         }
+    }
+
+    /// An editor holding one open document together with its own analysis.
+    struct AnalysedBuffer {
+        path: PathBuf,
+        text: Arc<str>,
+        analysis: Arc<tcl_compiler::analyser::AnalysisResult>,
+    }
+
+    impl super::OpenDocuments for AnalysedBuffer {
+        fn text(&self, path: &Path) -> Option<Arc<str>> {
+            (self.path == path).then(|| Arc::clone(&self.text))
+        }
+
+        fn analysis(&self, path: &Path) -> Option<Arc<tcl_compiler::analyser::AnalysisResult>> {
+            (self.path == path).then(|| Arc::clone(&self.analysis))
+        }
+    }
+
+    /// A sibling rule is scanned under its own retained analysis: the
+    /// initiating document's analysis cannot describe another file, and a
+    /// sibling analysis of other text is refused rather than trusted.
+    #[test]
+    fn an_open_sibling_rule_is_scanned_under_its_own_analysis() {
+        let profile = tcl_dialect::DialectProfile::irules();
+        let context = tcl_registry::model::ingress::context_for_profile(profile);
+        let analyse = |source: &str| {
+            let input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+                profile,
+                profile,
+                Arc::clone(&context),
+                tcl_lexer::LexerConfig::for_profile(Some(profile)),
+            );
+            tcl_compiler::analyser::Analyser::new()
+                .with_resolved_input(input)
+                .analyse(source, profile.name)
+        };
+        let store = workspace_store();
+        let sibling = "/w/my_plugin/rules/rule2.tcl";
+        // Different bytes from the initiating rule, so its analysis cannot
+        // describe the sibling by coincidence.
+        let sibling_text = format!("# sibling\n{RULE}");
+        store.upsert(sibling, sibling_text.as_bytes().to_vec());
+        let doc = IlxDocument {
+            path: Path::new("/w/my_plugin/rules/rule1.tcl"),
+            text: RULE,
+        };
+        let own = analyse(RULE);
+        let sibling_sites = |open: &dyn super::OpenDocuments| {
+            let ctx = IlxContext::new(context.commands(), &store)
+                .with_analysis(&own)
+                .with_open_documents(open);
+            let call = method_fixture_call(doc, ctx);
+            super::source_candidates(doc, ctx, &call)
+                .iter()
+                .filter(|candidate| candidate.location.path.ends_with("rule2.tcl"))
+                .count()
+        };
+        assert_eq!(
+            sibling_sites(&OpenBuffers::holding(sibling, &sibling_text)),
+            0,
+            "the initiating analysis cannot describe a sibling"
+        );
+        let analysed = AnalysedBuffer {
+            path: PathBuf::from(sibling),
+            text: Arc::from(sibling_text.as_str()),
+            analysis: Arc::new(analyse(&sibling_text)),
+        };
+        assert_eq!(sibling_sites(&analysed), 2, "both sibling sites");
+        let stale = AnalysedBuffer {
+            analysis: Arc::new(analyse("when HTTP_REQUEST {}\n")),
+            ..analysed
+        };
+        assert_eq!(sibling_sites(&stale), 0, "a stale sibling analysis");
     }
 
     #[test]

@@ -243,6 +243,35 @@ fn no_partition_rename_action_for_common_partition() {
     );
 }
 
+/// An absolute `/<partition>` identifier names its one component, read by the
+/// shared object-path owner; a spelling with an empty or further component is
+/// not a partition name, so no partition rename is offered for it (a local
+/// strip of every leading slash used to turn `//Tenant_A` into `Tenant_A`).
+#[test]
+fn partition_argument_comes_from_the_shared_object_path_owner() {
+    let absolute = bigip_code_actions("auth partition /Tenant_A { }\n", range_at(0), URI);
+    let action = action_titled(&absolute, "Rename partition 'Tenant_A'\u{2026}")
+        .expect("absolute partition identifier");
+    assert_eq!(
+        action.command.as_ref().unwrap().string_args,
+        vec![URI.to_string(), "Tenant_A".to_string()]
+    );
+    for source in [
+        "auth partition //Tenant_A { }\n",
+        "auth partition /Tenant_A/x { }\n",
+        "auth partition /Common { }\n",
+    ] {
+        let actions = bigip_code_actions(source, range_at(0), URI);
+        assert!(
+            actions
+                .iter()
+                .all(|a| !a.title.contains("Rename partition")),
+            "{source:?}: {:?}",
+            actions.iter().map(|a| &a.title).collect::<Vec<_>>()
+        );
+    }
+}
+
 // No actions when the cursor is outside any stanza
 
 /// Cursor on a blank line between stanzas → no actions (no stanza range

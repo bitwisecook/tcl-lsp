@@ -941,8 +941,11 @@ fn bigip_conf_entries(source: &str, registry: &CommandRegistry) -> Vec<Entry> {
     let line_index = LineIndex::new(source);
     let mut entries: Vec<Entry> = Vec::new();
 
-    for (bstart, bend) in tcl_bigip::conf_tokens::embedded_rule_bodies(source) {
-        let (bstart, bend) = (bstart as usize, bend as usize);
+    // The Tcl regions are the bodies the shared rule parser recognises, ended
+    // by the iRules brace grammar — not the config lexer's colour brackets,
+    // which an escaped `\}` in the iRule would truncate.
+    for rule in tcl_bigip::rule_extract::find_embedded_rules(source) {
+        let (bstart, bend) = (rule.body_start_offset, rule.body_end_offset);
         let Some(body) = source.get(bstart..bend) else {
             continue;
         };

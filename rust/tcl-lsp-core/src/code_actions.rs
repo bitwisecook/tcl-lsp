@@ -604,11 +604,19 @@ pub fn bigip_code_actions(source: &str, range: LspRange, uri: &str) -> Vec<CodeA
     });
 
     // Partition rename — only on an `auth partition` stanza, and never
-    // for `/Common` (the query engine refuses that rename).  The bare
-    // partition name is the identifier with any leading slash stripped.
+    // for `/Common` (the query engine refuses that rename).  The partition
+    // is the authored identifier itself, or the one component of an
+    // absolute `/<partition>` spelling read by the shared object-path owner;
+    // anything else (`//x`, `/a/b`) is not a partition name this action can
+    // name, and the query engine still admits or refuses what it is sent.
     if stanza.module == "auth" && stanza.object_type == "partition" {
-        let partition_short = obj_path.trim_start_matches('/');
-        if partition_short != "Common" {
+        let partition = if obj_path.starts_with('/') {
+            tcl_bigip::object_names::object_path_partition(obj_path)
+                .filter(|partition| partition.len() + 1 == obj_path.len())
+        } else {
+            Some(obj_path)
+        };
+        if let Some(partition_short) = partition.filter(|p| !p.is_empty() && *p != "Common") {
             actions.push(CodeAction {
                 title: format!("Rename partition '{partition_short}'\u{2026}"),
                 edits: Vec::new(),

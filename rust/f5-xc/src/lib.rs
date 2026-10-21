@@ -28,6 +28,10 @@
 //!   [`XCTranslationResult`].
 //! - [`get_xc_diagnostics`] — analyse an iRule and return XC-series
 //!   [`XcDiagnostic`]s.
+//! - [`translate_irule_for_document`] / [`get_xc_diagnostics_for_document`]
+//!   — the same over an open document's retained analysis and unit, for
+//!   callers that hold one; the source-only entry points stay the standalone
+//!   default.
 //! - [`translation_payload`] — the JSON payload every caller (MCP tool,
 //!   `tcl-lsp.xcTranslate` workspace command) reports a translation as.
 
@@ -50,10 +54,14 @@ pub mod report;
 pub mod terraform;
 pub mod translator;
 
-pub use diagnostics::{XcDiagnostic, XcSeverity, get_xc_diagnostics};
+pub use diagnostics::{
+    XcDiagnostic, XcSeverity, get_xc_diagnostics, get_xc_diagnostics_for_document,
+};
 pub use json_api::{ConsoleObject, render_console_objects, render_json};
 pub use model::{TranslateStatus, XCConstructKind, XCTranslationResult};
 pub use names::{GENERATED, derived_from, xc_object_name};
 pub use report::{DEFAULT_LB_NAME, DEFAULT_NAMESPACE, OutputFormat, translation_payload};
 pub use terraform::render_terraform;
-pub use translator::{translate_irule, translate_irule_with_registry};
+pub use translator::{
+    translate_irule, translate_irule_for_document, translate_irule_with_registry,
+};
