@@ -141,13 +141,16 @@ pub fn hover_in_program(
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
-    _registry: Option<&CommandRegistry>,
+    registry: Option<&CommandRegistry>,
     _profile: &'static tcl_dialect::DialectProfile,
     program: Option<crate::definition::ProgramExports<'_>>,
 ) -> Option<Hover> {
     // naming.core.original-registry-source-hover
     // docs/design/analysis/name-resolution-proofs/original-registry-source-hover.md
     let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    // The caller's registry never replaces the retained one, but supplying it
+    // is how a caller opts into the compiler-pipeline intrep/taint lines.
+    let annotate = registry.is_some();
     hover_impl(
         source,
         line,
@@ -158,6 +161,7 @@ pub fn hover_in_program(
             program,
         },
         current.profile(),
+        annotate,
     )
 }
 
@@ -467,6 +471,9 @@ fn proc_hover_at(
 /// [`CompilationUnit`], and building that with the default (plain-Tcl) lexer
 /// config mis-tokenises a dialect-specific construct — an iRules word
 /// operator, `{*}` under 8.4 — which skews or drops the inferred type.
+// The cursor triple, the shared line index and the two request contexts
+// are the hover entry's own inputs; bundling them would only rename them.
+#[allow(clippy::too_many_arguments)]
 fn variable_hover(
     source: &str,
     line: u32,
@@ -475,10 +482,12 @@ fn variable_hover(
     analysis: &AnalysisResult,
     ctx: crate::definition::CallResolution<'_>,
     profile: &'static tcl_dialect::DialectProfile,
+    annotate: bool,
 ) -> Option<Hover> {
     let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let context = current.context();
     let registry = Some(current.registry());
+    let annotations = registry.filter(|_| annotate);
     let dialect = Some(context.context().authoring_query());
     // `$var` resolution sits at a position where `find_word_span_at_position`
     // would also match the unqualified name, but a `$`-led ref should
@@ -506,7 +515,7 @@ fn variable_hover(
             // registry; without one we surface just the reference
             // count.
             let (type_info, taint_info) =
-                var_type_annotations(source, analysis, var_byte_offset, registry);
+                var_type_annotations(source, analysis, var_byte_offset, annotations);
             let format_info = registry.and_then(|registry| {
                 registry_pattern_format_hover(source, line, character, analysis, registry)
             });
@@ -554,7 +563,7 @@ fn variable_hover(
     let var_def =
         crate::definition::var_def_at_declaration_offset(&analysis.global_scope, decl_byte_offset)?;
     let (type_info, taint_info) =
-        var_type_annotations(source, analysis, decl_byte_offset, registry);
+        var_type_annotations(source, analysis, decl_byte_offset, annotations);
     Some(Hover::markdown(var_hover_text(
         var_def,
         type_info.as_deref(),
@@ -574,6 +583,9 @@ fn variable_hover(
 /// with the card of an unrelated same-named `TclOO` accessor method — a
 /// wrong-kind answer, worse than none.  `definition` forces the same
 /// abstention in `position_definition`.
+// The cursor triple, the shared line index and the two request contexts
+// are the hover entry's own inputs; bundling them would only rename them.
+#[allow(clippy::too_many_arguments)]
 fn variable_position_hover(
     source: &str,
     line: u32,
@@ -582,12 +594,14 @@ fn variable_position_hover(
     analysis: &AnalysisResult,
     ctx: crate::definition::CallResolution<'_>,
     profile: &'static tcl_dialect::DialectProfile,
+    annotate: bool,
 ) -> PositionHover {
     if !analysis.allows_lexical_declaration_advice() {
         return PositionHover::FallThrough;
     }
-    if let Some(hover) = variable_hover(source, line, character, line_index, analysis, ctx, profile)
-    {
+    if let Some(hover) = variable_hover(
+        source, line, character, line_index, analysis, ctx, profile, annotate,
+    ) {
         return PositionHover::Answer(hover);
     }
     let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
@@ -830,6 +844,7 @@ fn hover_impl(
     analysis: &AnalysisResult,
     ctx: crate::definition::CallResolution<'_>,
     profile: &'static tcl_dialect::DialectProfile,
+    annotate: bool,
 ) -> Option<Hover> {
     let registry = ctx.registry;
     // One index shared by the position conversions below.
@@ -884,8 +899,12 @@ fn hover_impl(
                 selection,
                 crate::variable_symbol::NavigationVariable::Original(_)
             ) {
-                let (type_info, taint_info) =
-                    var_type_annotations(source, analysis, cursor_offset, registry);
+                let (type_info, taint_info) = var_type_annotations(
+                    source,
+                    analysis,
+                    cursor_offset,
+                    registry.filter(|_| annotate),
+                );
                 append_var_annotations(&mut text, type_info.as_deref(), taint_info.as_deref());
             }
             Some(Hover::markdown(text))
@@ -896,7 +915,16 @@ fn hover_impl(
     {
         return selected.and_then(|candidate| candidate.hover());
     }
-    match variable_position_hover(source, line, character, &line_index, analysis, ctx, profile) {
+    match variable_position_hover(
+        source,
+        line,
+        character,
+        &line_index,
+        analysis,
+        ctx,
+        profile,
+        annotate,
+    ) {
         PositionHover::Answer(hover) => return Some(hover),
         PositionHover::Abstain => return None,
         PositionHover::FallThrough => {}
@@ -7039,6 +7067,7 @@ mod local_logical_hover_source_owner_tests {
             &class_analysis,
             crate::definition::CallResolution::document_only(),
             crate::profile_for_analysis(&class_analysis),
+            false,
         )
         .expect("source-owned class hover");
         assert!(class_hover.value.contains("oo::class create ::C"));
