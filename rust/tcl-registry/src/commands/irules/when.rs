@@ -165,10 +165,7 @@ mod tests {
         // After `priority N` only `timing` may follow; after `timing V` only
         // the body.
         assert_eq!(words(slot(&[e, Some("priority"), Some("10")])), ["timing"]);
-        assert_eq!(
-            slot(&[e, Some("timing"), Some("enable")]),
-            Some(Slot::Body)
-        );
+        assert_eq!(slot(&[e, Some("timing"), Some("enable")]), Some(Slot::Body));
         assert_eq!(
             words(slot(&[e, Some("priority"), Some("10"), Some("timing")])),
             ["enable", "disable"]
@@ -178,9 +175,18 @@ mod tests {
             Some(Slot::Body)
         );
         // Out-of-order, repeated or rejected clauses leave the layout.
-        assert_eq!(slot(&[e, Some("timing"), Some("on"), Some("priority")]), None);
-        assert_eq!(slot(&[e, Some("priority"), Some("1001"), Some("timing")]), None);
-        assert_eq!(slot(&[e, Some("timing"), Some("sometimes"), Some("x")]), None);
+        assert_eq!(
+            slot(&[e, Some("timing"), Some("on"), Some("priority")]),
+            None
+        );
+        assert_eq!(
+            slot(&[e, Some("priority"), Some("1001"), Some("timing")]),
+            None
+        );
+        assert_eq!(
+            slot(&[e, Some("timing"), Some("sometimes"), Some("x")]),
+            None
+        );
         // A non-literal word before the position is not inferred across.
         assert_eq!(slot(&[None, Some("priority")]), None);
         assert_eq!(slot(&[e, None]), None);

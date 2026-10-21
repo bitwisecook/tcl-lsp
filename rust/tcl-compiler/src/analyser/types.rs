@@ -5779,6 +5779,42 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
     }
 
     #[test]
+    fn zz_probe_crlf_body_text() {
+        let source = "oo::class create Widget {\r\n    method render {} {\r\n        puts \"widget $label\"\r\n    }\r\n}";
+        let config = crate::analyser::Analyser::new()
+            .analyse(source, "tcl8.6")
+            .body_lexer_config
+            .unwrap();
+        let commands = crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+        let command = &commands[0];
+        let token = command.argv[3];
+        let start = (token.span.start() + u32::from(token.content_offset)) as usize;
+        let text = &command.texts[3];
+        eprintln!(
+            "PROBE-CRLF class text_len={} region={:?} equal={} text={:?}",
+            text.len(),
+            &source[start..token.span.end() as usize],
+            source.get(start..start + text.len()) == Some(text.as_str()),
+            text
+        );
+        let inner = crate::segmenter::segment_commands_with_offset_and_config(
+            text,
+            u32::try_from(start).unwrap(),
+            config.nested(),
+        );
+        for command in &inner {
+            for (index, token) in command.argv.iter().enumerate() {
+                eprintln!(
+                    "PROBE-CRLF member argv[{index}] span={:?} text={:?} source={:?}",
+                    token.span,
+                    command.texts.get(index),
+                    source.get(token.span.start() as usize..token.span.end() as usize)
+                );
+            }
+        }
+    }
+
+    #[test]
     fn zz_probe_completed_world_and_body_lookups() {
         for use_site in [
             "",

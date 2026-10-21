@@ -7,7 +7,7 @@
 #
 # Resolution taken here: the alias transitions upvar_state_transitions()
 # produces are *entirely determined* by the frame_effect it reads
-# (`AliasPairs` + `ArityParity`), so the DSL says `resolver from-frame-effect`
+# (`AliasPairs` + `Upvar`), so the DSL says `resolver from-frame-effect`
 # instead of carrying code, and declares the surrounding plain-data knobs
 # (composition, widening, effect coverage, commit) directly.
 
@@ -29,14 +29,18 @@ command upvar {
     arity 2..
     return_type String
 
-    # C Tcl reads the level word off the ARGUMENT COUNT PARITY
+    # From 8.6, C Tcl reads the level word off the ARGUMENT COUNT PARITY
     # (Tcl_UpvarObjCmd tests objc), never off the word's text — so
     # `upvar 1 b` aliases a caller variable literally named `1`, while
-    # `upvar $lvl a b` really does take `$lvl` as its level.
+    # `upvar $lvl a b` really does take `$lvl` as its level.  8.4 and 8.5
+    # probe the leading word instead: there `upvar 1 b` takes `1` as the
+    # level and raises "wrong # args" (tclsh 8.4.20, 8.5.19 vs 8.6, 9.0,
+    # 9.1).  `Upvar` is that dialect-aware rule — `ArityParity` alone would
+    # misread 8.4 and 8.5.
     #
     # (`uplevel` is the other spelling: `-level-word LeadingProbe
     #  -layout ScriptInSelectedFrame`.)
-    frame_effect -level-word ArityParity -layout AliasPairs
+    frame_effect -level-word Upvar -layout AliasPairs
 
     # The local name in each otherVar/myVar pair is a VarWrite position;
     # the optional leading level word is selected by argument-count parity.

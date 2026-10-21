@@ -787,7 +787,11 @@ mod tests {
         for (src, module, kind) in [
             ("vcmp guest /Common/g1 {\n}\n", "vcmp", "guest"),
             ("analytics settings {\n}\n", "analytics", "settings"),
-            ("api-protection response /Common/r {\n}\n", "api-protection", "response"),
+            (
+                "api-protection response /Common/r {\n}\n",
+                "api-protection",
+                "response",
+            ),
         ] {
             let tokens = toks(src);
             assert_eq!(tokens[0], (module, K::Keyword), "{src:?}: {tokens:?}");

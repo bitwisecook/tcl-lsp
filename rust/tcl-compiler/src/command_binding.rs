@@ -6438,16 +6438,21 @@ impl SourceOutcomes {
     /// The completed command world is the world on the normal-completion
     /// path of the whole document. A possible error never reaches it, so it
     /// does not withhold that world; any other abrupt route (a top-level
-    /// `return`, `break`, exit or an unknown code) may also finish the
-    /// document elsewhere and keeps it withheld. Unknown normal-return
+    /// `return`, `break`, exit or tail call) may also finish the document
+    /// elsewhere and keeps it withheld. Unknown normal-return
     /// effects stay withheld by the opaque and observer premises.
     fn completed_normal_world(&self) -> Option<Arc<ModuleCommandBindings>> {
+        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
         let normal = self.normal.as_ref()?;
+        // `Unknown` is a handler's uncatalogued residue beside a possible
+        // normal return (`puts`'s channel error). A document-finishing
+        // `return`, `exit` or tail call keeps its own route; a script whose
+        // text is unknown also marks the normal state opaque.
         let errors_only = self.abrupt.iter().all(|(route, _)| {
-            *route
-                == tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
-                    tcl_registry::completion::CompletionCode::Error,
-                )
+            matches!(
+                route,
+                Route::Tcl(tcl_registry::completion::CompletionCode::Error) | Route::Unknown
+            )
         });
         // `original_completed_command_world` separately refuses a withdrawn
         // command world and unknown entry.

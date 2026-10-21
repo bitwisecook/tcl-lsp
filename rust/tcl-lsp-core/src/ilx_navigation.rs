@@ -1773,7 +1773,11 @@ mod tests {
         };
         // Byte-identical to the initiating rule: its analysis still describes
         // another file, so nothing is borrowed from it.
-        assert_eq!(sibling_sites(RULE, &none), 0, "no borrowed initiating facts");
+        assert_eq!(
+            sibling_sites(RULE, &none),
+            0,
+            "no borrowed initiating facts"
+        );
         assert_eq!(sibling_sites(&closed_text, &none), 0, "no host input");
         let supplied = AnalysedBuffer {
             path: PathBuf::from(sibling),
@@ -1791,7 +1795,10 @@ mod tests {
         let js_ctx = IlxContext::new(context.commands(), &store);
         assert_eq!(
             super::sibling_rule_files_from_registration(entry, js_ctx),
-            vec![PathBuf::from("/w/my_plugin/rules/rule1.tcl"), PathBuf::from(sibling)],
+            vec![
+                PathBuf::from("/w/my_plugin/rules/rule1.tcl"),
+                PathBuf::from(sibling)
+            ],
         );
     }
 

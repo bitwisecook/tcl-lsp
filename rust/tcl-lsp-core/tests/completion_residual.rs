@@ -676,7 +676,9 @@ fn when_clause_keywords_follow_the_registry_declaration_layout() {
     );
     let after_timing = offered("when HTTP_REQUEST timing enable t\n");
     assert!(
-        !after_timing.iter().any(|l| l == "timing" || l == "priority"),
+        !after_timing
+            .iter()
+            .any(|l| l == "timing" || l == "priority"),
         "only the body follows `timing V`: {after_timing:?}"
     );
     let second_timing = offered("when HTTP_REQUEST priority 10 timing d\n");

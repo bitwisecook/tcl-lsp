@@ -1333,21 +1333,6 @@ pub fn range_with_cu_and_facts(
 /// [`legend_token_modifiers`]).
 type Entry = (u32, u32, u32, TokenKind, u32);
 
-/// The iRules command store of the **generic-Tcl event display** purpose —
-/// the `f5-irules` environment's registry generation, resolved through the
-/// one ingress seam and memoised so the per-command lookup skips the
-/// generation cache's mutex.
-///
-/// A display convention only: it paints `when EVENT { … }` in a document whose
-/// own registry declares no event-handler command (a plain Tcl buffer holding
-/// an iRule). It is never consulted for a document whose registry has one, and
-/// it donates no registry schema, event availability or execution phase to
-/// the document.
-fn generic_tcl_event_display_registry() -> &'static CommandRegistry {
-    static IRULES: std::sync::OnceLock<&'static CommandRegistry> = std::sync::OnceLock::new();
-    IRULES.get_or_init(|| crate::registry_for_dialect("f5-irules"))
-}
-
 /// Return the source offsets whose commands are admitted by the shared
 /// iRules top-level declaration boundary.
 ///
@@ -1372,36 +1357,13 @@ fn irules_top_level_declaration_heads(
         .map(|handler| handler.span.start())
         .collect();
 
-    // A document whose own registry declares an event handler is read under
-    // its own registry and its own lexer configuration only. A document whose
-    // registry declares none (a plain Tcl buffer holding an iRule) keeps the
-    // explicit generic-Tcl event display purpose: `when EVENT` is painted by
-    // the iRules convention, read with the iRules grammar from the
-    // ingress-resolved `f5-irules` environment.
-    let generic_display = registry
-        .commands_with_trait(tcl_registry::Traits::IS_EVENT_HANDLER)
-        .is_empty();
-    let declaration_config = if generic_display {
-        heads.extend(
-            tcl_registry::events::top_level_when_handler_candidates_with_registry_and_head_resolver(
-                source,
-                generic_tcl_event_display_registry(),
-                identities,
-            )
-            .into_iter()
-            .map(|handler| handler.span.start()),
-        );
-        tcl_lexer::LexerConfig::for_file_grammar(
-            crate::environment_for_dialect("f5-irules").grammar(),
-        )
-    } else {
-        config
-    };
-
-    // The shared syntax boundary parser intentionally models `when`'s
-    // handler-specific grammar.  Procedure declarations use the same
-    // top-level lexer stream and the registry's declaration-shape owner.
-    for seg in segment_commands_with_offset_and_config(source, 0, declaration_config) {
+    // Read under the document's own registry and lexer configuration only.
+    // The heads are consulted solely for a command the document's registry
+    // marks `IS_EVENT_HANDLER` (see `original.rs`), so a process-wide iRules
+    // store could only ever colour a document whose registry already has its
+    // own event handler — where it would donate another registry's schema.
+    // A plain Tcl buffer has no such command, and no `when` declaration role.
+    for seg in segment_commands_with_offset_and_config(source, 0, config) {
         let Some(head_token) = seg.argv.first() else {
             continue;
         };
@@ -11548,23 +11510,43 @@ mod irules_overlay_tests {
                 None,
                 Some(&analysis),
             ));
-            assert_eq!(with_unit, standalone, "{name}: document analysis with its unit");
+            assert_eq!(
+                with_unit, standalone,
+                "{name}: document analysis with its unit"
+            );
             assert_eq!(without_unit, standalone, "{name}: document analysis alone");
             painted += standalone.len();
         }
         assert!(painted > 0, "the fixtures exercise the object overlay");
     }
 
-    /// `when EVENT` in a plain Tcl buffer keeps the generic-Tcl event display;
-    /// an iRules document reads its own registry and paints the same keyword.
+    /// An event declaration role comes from the document's own registry: an
+    /// iRules document paints `when EVENT`'s event; a plain Tcl buffer, whose
+    /// registry has no event-handler command, borrows none from a
+    /// process-wide iRules store.
     #[test]
-    fn when_display_is_generic_only_without_a_document_event_handler() {
+    fn event_declarations_read_the_documents_own_registry() {
         let source = "when HTTP_REQUEST {\n    set x 1\n}\n";
-        let keyword_at_origin = |tokens: &SemanticTokens| {
+        let events = |tokens: &SemanticTokens| {
             decode_semantic(tokens)
-                .first()
-                .is_some_and(|token| (token.0, token.1, token.3) == (0, 0, TokenKind::Keyword as u32))
+                .into_iter()
+                .filter(|token| token.3 == TokenKind::Event as u32)
+                .map(|token| (token.0, token.1, token.2))
+                .collect::<Vec<_>>()
         };
+        let (analysis, unit, profile) = irules_document(source);
+        let registry = analysis.resolved_registry().expect("registry");
+        assert_eq!(
+            events(&full_with_cu_and_analysis(
+                source,
+                profile,
+                registry,
+                Some(&unit),
+                Some(&analysis),
+            )),
+            vec![(0, 5, 12)],
+            "iRules document"
+        );
         let tcl = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         let plain = CommandRegistry::build_default();
         assert!(
@@ -11572,24 +11554,7 @@ mod irules_overlay_tests {
                 .commands_with_trait(tcl_registry::Traits::IS_EVENT_HANDLER)
                 .is_empty()
         );
-        assert!(keyword_at_origin(&full(source, tcl, &plain)), "plain Tcl");
-        let (analysis, unit, profile) = irules_document(source);
-        let registry = analysis.resolved_registry().expect("registry");
-        assert!(
-            !registry
-                .commands_with_trait(tcl_registry::Traits::IS_EVENT_HANDLER)
-                .is_empty()
-        );
-        assert!(
-            keyword_at_origin(&full_with_cu_and_analysis(
-                source,
-                profile,
-                registry,
-                Some(&unit),
-                Some(&analysis),
-            )),
-            "iRules document"
-        );
+        assert!(events(&full(source, tcl, &plain)).is_empty(), "plain Tcl");
     }
 
     /// Baseline capture for the overlay migration: with

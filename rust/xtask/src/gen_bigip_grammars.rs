@@ -499,7 +499,9 @@ pub fn run(check: bool) -> Result<ExitCode> {
         return Ok(ExitCode::from(1));
     }
     if check {
-        eprintln!("OK: the BIG-IP and APL editor grammars are in sync with their tcl-bigip owners.");
+        eprintln!(
+            "OK: the BIG-IP and APL editor grammars are in sync with their tcl-bigip owners."
+        );
     }
     Ok(ExitCode::SUCCESS)
 }
