@@ -12,6 +12,7 @@ echo built $EXE
 ZZ_PROBE_ENSEMBLE=1 ZZ_PROBE_OPAQUE=1 TCL_LSP_NATIVE_CODEGEN_DIAGNOSTIC=1 "$EXE" zz_probe_import_and_crlf --nocapture 2>&1 | head -c 20000000 > $D/$TAG-zz.log
 ZZ_PROBE_LOWER=1 "$EXE" w210_pkgindex --nocapture 2>&1 | head -c 20000000 > $D/$TAG-w210.log
 "$EXE" conditional_expression_template_retains_grammar_without_actual_entry declaration_layout_keeps_its_original_table_without_a_compiler_visit scoped_nested_normalisation_keeps_original_world_frame_and_source selected_nested_normalisation_projects_actual_operand_and_command_source scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix original_namespace_import_keeps_the_source_declaration_allocation > $D/$TAG-regress.log 2>&1
+"$EXE" signature_scan:: > $D/$TAG-signature_scan.log 2>&1
 "$EXE" command_binding:: > $D/$TAG-command_binding.log 2>&1
 rm -f "$EXE"
 grep -E "^test result" $D/$TAG-*.log

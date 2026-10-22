@@ -1490,17 +1490,13 @@ fn original_named_selection_is_closed(
     {
         return false;
     }
-    facts
-        .state_transitions
-        .declared()
-        .is_some_and(|transitions| {
-            transitions.facts().is_empty()
-                || super::original_namespace_binding::literal_pattern_transfer_is_closed(
-                    facts,
-                    state,
-                    &context.namespace_identity(),
-                )
-        })
+    // The compileProc selects its named invocation from the original vector
+    // alone (`namespace import` is `TclCompileBasicMin0ArgCmd` in 8.6–9.1,
+    // like `export` and `forget`). Whether the invocation's own transitions
+    // then close (an `auto_import` prelude, an occupied destination) is the
+    // handler's obligation after dispatch, as in a directly evaluated
+    // script; it does not make the compiler's selection unknown.
+    facts.state_transitions.is_declared()
 }
 
 fn original_compilation_point(

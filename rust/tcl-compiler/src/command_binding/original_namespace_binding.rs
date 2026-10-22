@@ -408,7 +408,8 @@ fn trace_capture(
 /// every premise under which it runs nothing else: a quiet table before and
 /// after, retained target geometry with closed lookup, fresh import
 /// destinations with a missing preload hook, and live forget origins.
-/// The seal and the compiled named-invocation selection share this owner.
+/// The seal owns it; the compiled named-invocation selection does not depend
+/// on it (see `original_named_selection_is_closed`).
 fn closed_pattern_transfer(
     facts: &tcl_registry::InvocationFacts,
     state: &ModuleCommandBindings,
@@ -425,30 +426,6 @@ fn closed_pattern_transfer(
     }
     let expected = expected_pattern_transfer(facts, state, namespace, policy, operand)?;
     quiet(&expected).then_some(expected)
-}
-
-/// Whether a compiled named namespace statement with literal pattern words
-/// keeps the same closed transfer the seal requires. Any other declared
-/// transition, a dynamic pattern or a failed premise leaves it unadmitted.
-pub(super) fn literal_pattern_transfer_is_closed(
-    facts: &tcl_registry::InvocationFacts,
-    state: &ModuleCommandBindings,
-    namespace: &SourceNamespaceKey,
-) -> bool {
-    let Some(policy) = policy(state) else {
-        return false;
-    };
-    let native_entry = state.baseline.native_entry.is_some();
-    closed_pattern_transfer(
-        facts,
-        state,
-        namespace,
-        policy,
-        &|subject: &tcl_registry::TransitionSubject| {
-            super::namespace_pattern_operand_bytes(subject, None, native_entry).map(<[u8]>::to_vec)
-        },
-    )
-    .is_some()
 }
 
 fn expected_pattern_transfer(
