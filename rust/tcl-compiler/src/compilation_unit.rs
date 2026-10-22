@@ -6809,11 +6809,29 @@ mod tests {
             );
             let entry = &unit.ir_module.source_entry;
             assert_eq!(entry.vendor_source_input.as_ref(), Some(&input));
-            assert!(entry.unknown_entry);
             assert!(entry.native_entry.is_none());
             assert!(entry.logical_source_input.is_none());
             assert!(entry.hosted_execution_context.is_none());
-            assert!(entry.execution_name_policy.is_none());
+            // Documented correction (user decision 2026-10-21T00:10Z,
+            // "realm-aware command world"): a hosted document supplied without
+            // an entry is a fresh rule load where the dialect admits the
+            // authored F5 naming simulation; elsewhere history stays unknown.
+            match crate::command_binding::SourceAnalysisEntry::for_fresh_hosted_source(&input)
+                .filter(|fresh| !fresh.unknown_entry)
+            {
+                Some(fresh) => {
+                    assert!(!entry.unknown_entry);
+                    assert_eq!(
+                        entry.invocation_realm,
+                        tcl_dialect::model::InvocationRealm::RuleLoader
+                    );
+                    assert_eq!(entry.execution_name_policy, fresh.execution_name_policy);
+                }
+                None => {
+                    assert!(entry.unknown_entry);
+                    assert!(entry.execution_name_policy.is_none());
+                }
+            }
         }
     }
 

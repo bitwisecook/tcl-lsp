@@ -95,11 +95,17 @@ fn fp_inj_02_eval_string_concat_still_w101() {
 }
 
 // FP-INJ-03 — T102 suppression for HTTP::uri / HTTP::path (PATH_PREFIXED).
+//
+// Test-input correction (fresh rule load, user decision 2026-10-21T00:10Z):
+// the negative fixtures run inside `when HTTP_REQUEST`. Executable commands
+// at iRules top level are rejected (KCS IRULE5007: the top level is a
+// declaration surface), and HTTP:: commands only exist in an event body;
+// the assertions are unchanged.
 
 #[test]
 fn fp_inj_03_http_uri_no_t102() {
     // FP-INJ-03: HTTP::uri always starts with `/`; cannot inject an option.
-    let src = "set uri [HTTP::uri]\nregexp $uri test";
+    let src = "when HTTP_REQUEST {\nset uri [HTTP::uri]\nregexp $uri test\n}";
     assert!(
         !fires(src, IRULES, "T102"),
         "FP-INJ-03: HTTP::uri must NOT fire T102; emitted {:?}",
@@ -110,7 +116,7 @@ fn fp_inj_03_http_uri_no_t102() {
 #[test]
 fn fp_inj_03_http_path_no_t102() {
     // FP-INJ-03: HTTP::path has the same path-anchoring guarantee.
-    let src = "set p [HTTP::path]\nregexp $p test";
+    let src = "when HTTP_REQUEST {\nset p [HTTP::path]\nregexp $p test\n}";
     assert!(
         !fires(src, IRULES, "T102"),
         "FP-INJ-03: HTTP::path must NOT fire T102; emitted {:?}",
@@ -121,7 +127,7 @@ fn fp_inj_03_http_path_no_t102() {
 #[test]
 fn fp_inj_03_path_prefixed_copy_suppresses() {
     // FP-INJ-03: PATH_PREFIXED colour propagates through copy assignments.
-    let src = "set uri [HTTP::uri]\nset x $uri\nregexp $x test";
+    let src = "when HTTP_REQUEST {\nset uri [HTTP::uri]\nset x $uri\nregexp $x test\n}";
     assert!(
         !fires(src, IRULES, "T102"),
         "FP-INJ-03: PATH_PREFIXED copy must NOT fire T102; emitted {:?}",
@@ -132,7 +138,7 @@ fn fp_inj_03_path_prefixed_copy_suppresses() {
 #[test]
 fn fp_inj_03_literal_non_dash_prefix_no_t102() {
     // FP-INJ-03: a fixed non-dash literal prefix preserves path-prefixed safety.
-    let src = "set foo \"path_[HTTP::path]\"\nregexp $foo test";
+    let src = "when HTTP_REQUEST {\nset foo \"path_[HTTP::path]\"\nregexp $foo test\n}";
     assert!(
         !fires(src, IRULES, "T102"),
         "FP-INJ-03: non-dash literal prefix must NOT fire T102; emitted {:?}",
@@ -230,7 +236,7 @@ fn fp_inj_06_pure_copy_still_suppresses() {
     // that passed through an unclassified command, not this simpler path
     // (already covered by FP-INJ-03, repeated here as a companion control
     // for the two repros above).
-    let src = "set uri [HTTP::uri]\nset x $uri\nregexp $x test";
+    let src = "when HTTP_REQUEST {\nset uri [HTTP::uri]\nset x $uri\nregexp $x test\n}";
     assert!(
         !fires(src, IRULES, "T102"),
         "FP-INJ-06 control: plain copy must still suppress T102; emitted {:?}",

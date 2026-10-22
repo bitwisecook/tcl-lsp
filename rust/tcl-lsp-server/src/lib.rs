@@ -13778,9 +13778,17 @@ impl Backend {
             let (disabled, na_mode, extra, pack_key, resource) = {
                 let db = self.db.lock().await;
                 (
-                    config.disabled_diagnostics(&*db).iter().cloned().collect(),
+                    config
+                        .disabled_diagnostics(&*db)
+                        .iter()
+                        .cloned()
+                        .collect::<HashSet<String>>(),
                     config.non_ascii_mode(&*db),
-                    config.extra_commands(&*db).iter().cloned().collect(),
+                    config
+                        .extra_commands(&*db)
+                        .iter()
+                        .cloned()
+                        .collect::<HashSet<String>>(),
                     config.spec_pack_key(&*db),
                     ResourceAnalyserInputs::from_db_config(config, &*db),
                 )
