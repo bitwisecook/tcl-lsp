@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T14:43Z
+Last updated: 2026-10-22T14:58Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -97,7 +97,9 @@ baseline/current comparison is complete; its missing compiler contract is below.
   with `/tmp/bigip-test.py --locked -p tcl-lsp-server --lib --test e2e`. It
   runs only the requested e2e selectors, then the F5 and plain-Tcl diagnostic
   tests in separate processes. Do not restart it as an unfiltered full suite.
-  Active server tool session: 68675. Full clippy session 52506 has finished
+  Active tool sessions: server 68675; selected-package clippy 85905;
+  standalone WASM clippy 9878 (target wasm32-unknown-unknown, independent
+  `/workspace/bigip-wasm-clippy-target`, logs `/tmp/bigip-wasm-clippy*`). Full clippy session 52506 has finished
   with the dependency errors above; the selected-package pass follows it. Both use the same
   unchanged product source. The original `/workspace/tcl-lsp` setup rebase was
   aborted and its tracked files are clean; its ignored oracle directory is

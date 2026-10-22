@@ -66,6 +66,12 @@ source-candidate navigation/reference path. Keep `target`'s runtime meaning and
 the current negative assertions. Do not restore the old consumer-local scope
 walker or join unrelated calls solely by method/plugin text.
 
+An issuer attached to the document's retained analysis can provide this relation
+through `ilx_method_calls_from_analysis`. The standalone readonly source-card
+API can retain its present refusals. This gives the LSP its missing relation
+without treating the absence of a supplied handle owner as permission to infer
+one, or weakening the existing standalone negative controls.
+
 ## F5 authority
 
 `rust/tcl-registry/src/remote_method.rs` records the fetched F5 documentation
