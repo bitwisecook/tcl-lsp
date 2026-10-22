@@ -19,7 +19,7 @@ This is an interim triage report. The post-R1 rename replay and final latest-wor
 | `run7-pending-oracles.log` / `run7-pending-oracle-summary.json` | `0434e7e7` | 30 files / 180 executions; 10 generated files / 60 matched checks; zero unexpected result. N17 `good`, disabled inline `LOCAL`, disabled extraction `5|1` on all engines. |
 | `run7-source-audit.log` | `0434e7e7` | Static excerpts for server-only seams, effect gate, arity ownership and scaling structures. |
 
-The run7 harness passes mean each observational probe completed, not that every reported product answer is correct. R1 remains absent for plain `puts` and `puts [foo]` in both the retained realm and analyser result on C 8.6/9.0, before/after `core_surfaces::ensure`. Declaration-only and bare-call controls have both worlds. The refusal originates before analyser transport and is not repaired by that bootstrap; no post-fix rename matrix was triggered. The added N09 taint projection in `run8-n09` executed zero tests because its temporary probe used a crate-private helper (E0624); the evidence source now uses public compilation-unit procedure IDs for the retry. This is a probe error, not a product verdict.
+The run7 harness passes mean each observational probe completed, not that every reported product answer is correct. R1 remains absent for plain `puts` and `puts [foo]` in both the retained realm and analyser result on C 8.6/9.0, before/after `core_surfaces::ensure`. Declaration-only and bare-call controls have both worlds. The refusal originates before analyser transport and is not repaired by that bootstrap; no post-fix rename matrix was triggered. The added N09 taint projection first failed before execution in `run8-n09` because its temporary probe used a crate-private helper (E0624). The corrected `run9-n09` on `128e1bb4` compiled and passed its one observational probe (64.04 s). Its exact dependency set for `::n::c` is `{::p, ::lib::p, ::n::c}`; leaf procedures have no dependencies. This is conservative widening, not a wrong definite global callee or a proof of precise end-to-end taint propagation.
 
 Cloud setup and earlier failures are preserved in `cloud-setup.log`, `run5.log` and `run5-e2e-repeat.log`. Run5's main/scaling probes did not execute because compile-time fixtures were omitted from the selective checkout; those three fixture trees are restored. Its initial e2e diagnostic segment was lost when a tracked live log's inode changed on rebase, so only the stable repeat and subsequent run6 e2e are used to classify that failure. Initial six-engine input replay is `cloud-baseline-oracles.log` (19 files / 114 executions).
 
@@ -55,7 +55,7 @@ Cloud setup and earlier failures are preserved in `cloud-setup.log`, `run5.log` 
 | N06 collision checks | Refused, pending R1. Run6 class/proc and sibling cases refuse with UnknownWorld; methods lack a complete current member roster | lsp | same; `rename.rs` `cross_document_symbol_edits` |
 | N07 speculative proc variable | CHANGED: safe refusal; definition no longer walks to global. Required post-R1 replay pending | lsp | `rename.rs`, `definition.rs` |
 | N08 inliner subset oracle + nested lowering | FIXED (edits and unit inference) | — | — |
-| N09 type/call/taint | FIXED for executed constructor and call-graph repros; taint not independently executed | — | — |
+| N09 type/call/taint | Constructor/call graph FIXED; taint dependency resolver conservatively retains all source candidates | — | — |
 | N10 OO class/relation | CHANGED: relations, qualified miss and path-based definition FIXED; path hover/type hierarchy still empty | lsp | `tcl-lsp-core/src/definition.rs:4260` (`resolve_class_target_at`) |
 | N11 packages | CHANGED: `if {0}` provider classified `Conditional` and still selected; `merge_library_files` early return REPRODUCES (static); `auto_qualify` Unicode FIXED | lsp | `tcl-lsp-core/src/package_resolver.rs`, `package_resolver/reachability.rs`, `tcl-lsp-server/src/lib.rs:17823` |
 | N12 incremental lifecycle | FIXED | — | — |
@@ -172,6 +172,8 @@ Each row gives the evidence (probe call or command and the observed output), the
 - The path fixture now has a `::n::c` summary with `direct_calls=["::lib::p"]`; the other summaries are `::lib::p` and `::p` with no direct calls. The earlier missing-caller result is no longer current. C Tcl's expected result is `LIB`.
 - The legacy analyser `resolved_qualified_name` field is `None` for the `p` occurrence; the current call graph does not choose the wrong global procedure.
 - **Scope:** taint output was not independently executed. The review's demonstrated wrong definite call edge is corrected; this does not claim a complete new taint conformance matrix.
+
+- **Fresh run9 (`128e1bb4`):** constructor `::n::c` returns `Object(::n::Foo)`; a nearer non-class `::n::Foo` widens to `Overdefined`. Direct calls are only `::n::c → ::lib::p`. The public taint `resolved_callees` projection retains all three source ProcedureIds for `::n::c`, and none for either leaf. This eliminates the old wrong singleton from that projection by conservative widening; taint lattices and warning precision were not independently validated. Evidence: `run9-n09.log`.
 
 ### N10: OO class / relation resolution
 

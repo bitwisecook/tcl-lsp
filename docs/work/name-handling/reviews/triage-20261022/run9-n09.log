@@ -1,0 +1,23 @@
+Thu Oct 22 16:00:36 UTC 2026
+128e1bb4d6e01de4f4d847d99f7c59159c1c3630
+0950f3fb53914e1a25230ce4292eadb37b9a4ffec0315fc77f811c399aeb9034  rust/tcl-spectcl/tests/zz_review_probe.rs
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          32G  3.7G   27G  13% /
+CASE n09_compiler_facts Thu Oct 22 16:01:06 UTC 2026
+
+running 1 test
+test n09_compiler_facts ... N09 ctor proc=::n::c return=TypeLattice { repr: Union(BoundedSet { items: [Object(Some("::n::Foo"))] }) } object-types=["TypeLattice { repr: Union(BoundedSet { items: [Object(Some(\"::n::Foo\"))] }) }"]
+N09 ctor_shadow proc=::n::c return=TypeLattice { repr: Overdefined } object-types=[]
+N09 ctor_shadow proc=::n::Foo return=TypeLattice { repr: Union(BoundedSet { items: [String] }) } object-types=[]
+N09 path proc=::p direct_calls=[]
+N09 path proc=::n::c direct_calls=["::lib::p"]
+N09 path proc=::lib::p direct_calls=[]
+N09 taint-dependencies proc=::lib::p callees=[]
+N09 taint-dependencies proc=::n::c callees=["::p", "::lib::p", "::n::c"]
+N09 taint-dependencies proc=::p callees=[]
+N09 path analyser invocation p -> None
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 64.04s
+
+CASE_EXIT n09_compiler_facts exit=0 Thu Oct 22 16:02:10 UTC 2026

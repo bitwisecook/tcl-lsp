@@ -2,7 +2,7 @@
 
 Area: Replay of the external review's findings on the current tree.
 
-Last updated: 2026-10-22T16:00:03Z
+Last updated: 2026-10-22T16:04:03Z
 
 Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. This agent commits and pushes it after each run and at least every 30 minutes.
 
@@ -10,7 +10,7 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 
 **Run7 finished** at 2026-10-22T15:55:08Z on compiled snapshot `0434e7e7`. Every group exited 0: three seams, N17 effect contrast, R1 realm/result/seeding, N03 parser/scalar controls, source chains and P25/50/100 lenses. Temporary source and executable are deleted. Full log: `../reviews/triage-20261022/run7-pending.log`; earlier closed prefix: `run7-progress.log`. Fresh output replay is complete (30 files / 180 engine executions, 10 generated files / 60 matched checks, zero unexpected results). No post-fix rename matrix ran because seeded `puts [foo]` still lacks a completed world.
 
-**Focused N09 attempt finished:** `run8-n09` on `7ce934e9` failed at probe compilation (E0624: `original_source_procedure_bodies` is crate-private). Zero test functions executed; no product failure is inferred. Exact failed source is `run8-n09-source.rs.txt`. Temporary source/executable deleted. `final-probe.rs.txt` is corrected to take the known ProcedureIds from public `cu.procedures.keys()`. Commit/push this attempt, then run `run-focused.sh run9-n09 n09_compiler_facts` after sourcing `/tmp/review-triage-env.sh` and exporting `CARGO_NET_OFFLINE=true`. Watch for compiler-names R1. The final complete semantic replay is `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-final.sh <new-tag>`. It must be followed by source audit, six-engine output replay and a fresh fetch check. Do not call an interim pre-R1 replay final sign-off.
+**N09 retry finished:** `run9-n09` on `128e1bb4` compiled and passed its one observational test (64.04 s). Constructor/call graph remain correct; taint `resolved_callees` for `::n::c` conservatively retains all three ProcedureIds (`::p`, `::lib::p`, `::n::c`); both leaves have no dependencies. This is a widened may-dependency answer, not a wrong singleton or precise taint proof. Temporary source/executable deleted. Initial failed `run8-n09` source/logs retain the E0624 probe error. Commit/push this result, then fetch/watch for R1. No further semantic batch is active. The final complete semantic replay is `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-final.sh <new-tag>`. It must be followed by source audit, six-engine output replay and a fresh fetch check. Do not call an interim pre-R1 replay final sign-off.
 
 **Remaining finish condition:** after compiler-names' R1 fix lands, rerun N04/N05/N06/N07 on all six profiles, apply edits and execute them on all six oracles (judge profile-specific edits against the matching grammar). Then recheck every finding/static seam on latest `work`; `run-final.sh` and `final-probe.rs.txt` are prepared for that semantic replay, including a direct N09 taint dependency projection. Run source audit and output replay for that snapshot. No final summary until those requirements are met.
 
@@ -24,12 +24,12 @@ Before every push fetch/rebase `origin/work`, retry rejection, never force or op
 
 ## In progress
 
-- Run7 is complete. R1/N17 implementation fixes have not landed in the latest fetched snapshot `f26f6a06`. The next independent check is the N09 taint projection, then the full final semantic replay after R1.
+- Run7 and N09 retry are complete. Latest fetched `f93058f0` contains compiler-names g4 evidence: the aggregate test still fails ten positive subcases, so R1 remains blocked. Next semantic batch is the full final replay after a real R1 fix arrives.
 - Required release gates `make rust-check` and `make prep-pr` are not run; this is evidence-only work under the active `work` development-push exception.
 
 ## Outstanding (in priority order)
 
-1. Check the prepared N09 taint projection while awaiting R1; all requested pending seam/scaling cases are now settled.
+1. Wait for/fetch compiler-names R1; the independent N09 taint projection and all requested seam/scaling cases are settled.
 2. After R1 lands, re-check N04, N05, N06 and N07 on all six profiles, apply returned edits and execute them on the matching engines.
 3. Fetch latest `work` and re-check every finding and static seam before the final summary.
 
@@ -63,3 +63,5 @@ Before every push fetch/rebase `origin/work`, retry rejection, never force or op
 - 2026-10-22T15:56:19Z: run7 finished with every group exit 0. P50 lenses = 43231.733 ms after 150409.102 ms analysis, 50 lenses. P100 = 134609.430 ms after 280831.269 ms analysis, 100 lenses. Small scaling rows complete. Temporary source/executable deleted. Final post-R1 and latest-work requirements remain.
 
 - 2026-10-22T16:00:03Z: run8-n09 executed zero tests: temporary probe used a crate-private helper and failed compilation. Corrected the evidence source to public procedure IDs; next attempt is run9-n09. Product/test sources unchanged.
+
+- 2026-10-22T16:04:03Z: run9-n09 complete, 1 observational test passed in 64.04s; public-ID taint projection is conservatively all three source candidates. Constructor/call graph unchanged and correct. Temporary source/executable deleted. Awaiting R1.
