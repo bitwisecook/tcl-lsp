@@ -291,8 +291,6 @@ impl BytecodeCompileService {
         // under, over that engine's view of its owned registry.
         let registry = match self.profile {
             Some(_) => self.registry.registry()?,
-            // TEMP measurement toggle (compiler-codegen), remove before hand-back.
-            None if std::env::var_os("ZZ_CCG_BASELINE").is_some() => self.registry.registry()?,
             None => self.registry.registry_for_profile(profile_less_engine())?,
         };
         Self::compile_target_with(
@@ -356,38 +354,14 @@ impl BytecodeCompileService {
         // runs it under. A supplied runtime
         // entry keeps its own facts; without a corresponding complete input
         // the module keeps refusing.
-        // TEMP measurement toggle (compiler-codegen), remove before hand-back.
-        let zz_baseline = std::env::var_os("ZZ_CCG_BASELINE").is_some();
-        let fresh_profile = if zz_baseline {
-            profile.unwrap_or_else(DialectProfile::plain_tcl)
-        } else {
-            profile.unwrap_or_else(profile_less_engine)
-        };
+        let fresh_profile = profile.unwrap_or_else(profile_less_engine);
         let fresh_input = (native_entry.is_none()
-            && (!zz_baseline || profile.is_some())
             && policy.scope == ModuleEmissionScope::WholeModule)
             .then(|| fresh_document_input(registry, config, fresh_profile))
             .flatten();
-        let compiled = |ir| {
-            Self::finish_module_compile(ir, target, registry, config, profile, policy, zz_baseline)
-        };
+        let compiled =
+            |ir| Self::finish_module_compile(ir, target, registry, config, profile, policy);
         match fresh_input {
-            Some(input) if zz_baseline => {
-                let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
-                    registry, &input, config, profile,
-                );
-                let mut options = entry.options();
-                options.compilation_scope = policy.scope;
-                compiled(lower_script_module_for_bytecode_with_options(
-                    target.source,
-                    target.namespace,
-                    registry,
-                    config,
-                    profile,
-                    plain_command_dispatch,
-                    Some(options),
-                ))
-            }
             Some(input) => {
                 let fresh = |compiles: bool| {
                     Self::lower_fresh_document(
@@ -430,7 +404,6 @@ impl BytecodeCompileService {
         config: LexerConfig,
         profile: Option<&'static DialectProfile>,
         policy: CompileSourcePolicy<'_>,
-        zz_baseline: bool,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         let mut ir = crate::inlining::inline_reference_bodies(ir, registry, config, profile);
         ir.top_level_evaluation = target.evaluation;
@@ -451,14 +424,10 @@ impl BytecodeCompileService {
         )?;
         // A profile-less module is the permissive fallback profile's, whose
         // engine it was compiled for.
-        if zz_baseline {
-            if let Some(profile) = profile {
-                module.profile = profile;
-            }
-        } else if !std::ptr::eq(module.profile, profile.unwrap_or_else(DialectProfile::plain_tcl))
-        {
+        let carried = profile.unwrap_or_else(DialectProfile::plain_tcl);
+        if !std::ptr::eq(module.profile, carried) {
             // The module states the world of the profile it carries.
-            module.profile = profile.unwrap_or_else(DialectProfile::plain_tcl);
+            module.profile = carried;
             module.manifest = Some(Arc::new(crate::codegen::emitter::module_manifest(&module)));
         }
         validate_native_function(&module.top_level)?;
@@ -3764,42 +3733,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn zz_ccg_release_probe() {
-        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "f5-irules"] {
-            let profile = tcl_dialect::DialectProfile::find(dialect).unwrap();
-            let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
-            let config = LexerConfig::from_grammar(profile.grammar);
-            for source in ["expr {1 + 2}", "set x 1", "catch {error x} msg", "proc p {} {return 1}"] {
-                let input = fresh_document_input(registry, config, profile);
-                let ir = input.map(|input| BytecodeCompileService::lower_fresh_document(
-                    ScriptCompileTarget { source, namespace: "", evaluation: CommandEvaluation::Compiled },
-                    registry, config, profile, false, input, true));
-                eprintln!(
-                    "RELPROBE {dialect} {source:?}: admission={:?} failure={:?} result={:?}",
-                    ir.as_ref().map(|ir| ir.top_level.native_compilation_admission.as_ref().map(|a| (a.provider_required, a.failure.is_some()))),
-                    ir.as_ref().map(|ir| ir.top_level.native_compilation_failure.is_some()),
-                    BytecodeCompileService::for_profile(profile).compile_for_profile(source, profile).map(|m| m.top_level.native_compilation_preflight),
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn zz_ccg_o129_probe() {
-        let registry = CommandRegistry::build_default();
-        for (dialect, source) in [
-            (None, "proc ::f {} {\n    set y [string length abcde]\n}\n"),
-            (None, "set y [string length abcde]\n"),
-            (Some("tcl8.6"), "proc ::f {} {\n    set y [string length abcde]\n}\n"),
-            (Some("tcl8.6"), "set y [string length abcde]\n"),
-            (None, "proc ::f {} {\n    set y [string length abcde]\n}\n::f\n"),
-        ] {
-            let found: Vec<(String, String)> = crate::optimiser::optimise_raw(source, &registry, dialect)
-                .into_iter()
-                .map(|o| (o.code.as_str().to_owned(), o.replacement))
-                .collect();
-            eprintln!("O129PROBE {dialect:?} {source:?}: {found:?}");
-        }
-    }
 }

@@ -1,0 +1,84 @@
+{
+  "agent_reported": true,
+  "guarded_validation": false,
+  "utc": "2026-10-22T16:56:25.697418+00:00",
+  "prior_measured_manifest": "/tmp/ccg-n17_public_axes-source-after.json.gz",
+  "script_sha256": "6abd8c834fd050294ab14a4b48109c2cbd2c1b745f1c47be0e3eeff54df0d9e0",
+  "active_build_processes": [],
+  "zombies_retained": [
+    "  23116 Z    cargo",
+    "  31743 Z    rustc",
+    "  45151 Z    cargo",
+    "  45394 Z    rustc"
+  ],
+  "executable_cleanup": "none",
+  "scope": "exact measurement toggle/probe cleanup only",
+  "backup": "/tmp/ccg-cleanup-backup-20261022T165625Z",
+  "cleanup_output_hashes": {
+    "rust/tcl-compiler/src/codegen/control_flow.rs": "33a7869f64f8acc08aace5986623f13203874912c81fd73dff22e5843f67dab7",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs": "596cb4cb041a65f871dc5e2d9298562d3386c3a6c937ecc91808a9302b993ab2",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight.rs": "f7f3afd5824c7a61f913bfbe13f1cc84306dbeb94e986d71a54473719534ed2d",
+    "rust/tcl-compiler/src/compile_service.rs": "231c5d0d6793c5b8a986d8b10c3e5f61d585d272e78207c9225fcc7f4fd9ce5d",
+    "rust/tcl-compiler/src/optimiser/manager.rs": "db5bcde9fd386da944ac4e3dfedd801779833100c2503874cceacfc7883b3734",
+    "rust/tcl-registry/src/native_string_operand_compilation.rs": "0de1d462e5405e632e92be2b9c754a33a15cb5222636a0e2001f9d73e8a5ac5e",
+    "rust/tcl-spectcl/src/install.rs": "97dbee735cf3ed81e57263bdcb99005ec78eefb9dbb11c0fc51969b04f252cd1"
+  },
+  "preserved_before": {
+    "rust/tcl-compiler/src/const_subst.rs": "c710e35b4eb63642a7050bc7cec6535b98cbe5a265d035a92cc27acdb96b2278",
+    "rust/tcl-spectcl/tests/variable_reference_boundaries.rs": "d67c8bade1adda96c788a16d303033b38920ed5f4767a575f6c2d8c72d5384ad"
+  },
+  "preserved_after": {
+    "rust/tcl-compiler/src/const_subst.rs": "c710e35b4eb63642a7050bc7cec6535b98cbe5a265d035a92cc27acdb96b2278",
+    "rust/tcl-spectcl/tests/variable_reference_boundaries.rs": "d67c8bade1adda96c788a16d303033b38920ed5f4767a575f6c2d8c72d5384ad"
+  },
+  "rustfmt_syntax": "7/7; emitted to stdout only, no canonical formatting writes",
+  "source_changes": [
+    {
+      "path": "rust/tcl-compiler/src/codegen/control_flow.rs",
+      "before": "24bf25affeb38bcd5d2e2653cc1221d3bba8bbcf01bac1a26c4fd822ac8628ca",
+      "after": "33a7869f64f8acc08aace5986623f13203874912c81fd73dff22e5843f67dab7"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiled_preflight.rs",
+      "before": "4430da0d820edc3ee495b5edd47c3ccf19cbf2a55d7fdeeba6e2c2342c9df73d",
+      "after": "f7f3afd5824c7a61f913bfbe13f1cc84306dbeb94e986d71a54473719534ed2d"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs",
+      "before": "d3fc82e5d1f01cb0a3471eadab3c83c9041d111c05f6adbc4e638781b7d80188",
+      "after": "596cb4cb041a65f871dc5e2d9298562d3386c3a6c937ecc91808a9302b993ab2"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compile_service.rs",
+      "before": "94ae1acadb609c91fb89fed379795d26594d1e15e216343fa9c4c251b4297313",
+      "after": "231c5d0d6793c5b8a986d8b10c3e5f61d585d272e78207c9225fcc7f4fd9ce5d"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/manager.rs",
+      "before": "ff8fdb41682dded2fe6c573620baea6e6acbc7a3b4f242d58bbf3b2a2709fb55",
+      "after": "db5bcde9fd386da944ac4e3dfedd801779833100c2503874cceacfc7883b3734"
+    },
+    {
+      "path": "rust/tcl-registry/src/native_string_operand_compilation.rs",
+      "before": "cf67244bafd8d4578a724398386e6dfa0826937cac15729fa1ab28c10eb394bd",
+      "after": "0de1d462e5405e632e92be2b9c754a33a15cb5222636a0e2001f9d73e8a5ac5e"
+    },
+    {
+      "path": "rust/tcl-spectcl/src/install.rs",
+      "before": "7167c26a7217a9e09fa824feadf1f7891e720bd8e01d18cd4d240d86bcbe8db1",
+      "after": "97dbee735cf3ed81e57263bdcb99005ec78eefb9dbb11c0fc51969b04f252cd1"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/zz_ccg_fold_probe.rs",
+      "before": "a93beded9bf7b8fb502d831eca66bb5a88938823addeb6a5ffbde67ce48f7820",
+      "after": null
+    }
+  ],
+  "source_manifest": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/n17_cleanup-source-after.json.gz",
+  "source_sha256": "a3c6ed2774b503545c51589c63ab299ac7d22abfded713e6785481af7cdb48cd",
+  "file_count": 35071,
+  "missing": [
+    "rust/tcl-spectcl/tests/zz_ccg_fold_probe.rs"
+  ],
+  "tracked_probe_deletion_needs_root_staging": "rust/tcl-spectcl/tests/zz_ccg_fold_probe.rs"
+}

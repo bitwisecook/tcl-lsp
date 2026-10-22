@@ -347,10 +347,6 @@ impl CodegenCtx<'_> {
         command: &str,
         words: &[CompileWord<'_>],
     ) -> Option<u8> {
-        // TEMP measurement toggle (compiler-codegen), remove before hand-back.
-        if std::env::var_os("ZZ_CCG_BASELINE").is_some() {
-            return None;
-        }
         let (sub, rest) = match command.strip_prefix("::").unwrap_or(command) {
             "dict" => {
                 let (sub, rest) = words.split_first()?;

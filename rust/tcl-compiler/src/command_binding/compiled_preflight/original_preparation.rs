@@ -735,8 +735,7 @@ impl CompilerTraversal<'_> {
             Some(entry) => expression_program_emission(program, entry),
             // An entry-less compile is a fresh interpreter of its profile,
             // whose expression policy is that release's own.
-            // TEMP measurement toggle (compiler-codegen), remove before hand-back.
-            None if !baseline.unknown_entry && std::env::var_os("ZZ_CCG_BASELINE").is_none() => baseline
+            None if !baseline.unknown_entry => baseline
                 .dialect
                 .and_then(|dialect| dialect.execution_point())
                 .and_then(|point| {

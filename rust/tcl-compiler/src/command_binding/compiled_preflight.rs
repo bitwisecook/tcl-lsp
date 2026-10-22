@@ -304,9 +304,8 @@ pub(super) fn preflight_image(
     // decision 2026-10-19T14:20Z): its compiler table is the profile's own,
     // which the module's command bindings guard at run time. Only an
     // explicit unknown entry leaves the chunk's compiler provider unresolved.
-    let native_entry_unavailable = state.baseline.native_entry.is_none()
-        // TEMP measurement toggle (compiler-codegen), remove before hand-back.
-        && (state.baseline.unknown_entry || std::env::var_os("ZZ_CCG_BASELINE").is_some());
+    let native_entry_unavailable =
+        state.baseline.native_entry.is_none() && state.baseline.unknown_entry;
     if (scanner.possible_error || native_entry_unavailable)
         && let Some(failure) = &mut failure
     {
@@ -431,12 +430,7 @@ struct CompilerTraversal<'a> {
 }
 
 impl CompilerTraversal<'_> {
-    #[track_caller]
     fn require_provider(&mut self) {
-        // TEMP measurement toggle (compiler-codegen), remove before hand-back.
-        if std::env::var_os("ZZ_CCG_PROVIDER").is_some() {
-            eprintln!("ZZ_CCG_PROVIDER {}", std::panic::Location::caller());
-        }
         self.possible_error = true;
         self.locals = None;
     }

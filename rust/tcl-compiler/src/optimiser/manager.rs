@@ -924,13 +924,7 @@ pub fn optimise_raw(
         registry,
         dialect
             .map(|name| crate::environment_ingress::resolve_environment(name).analyser_profile())
-            // TEMP measurement toggle (compiler-codegen), remove before hand-back.
-            .or_else(|| {
-                std::env::var_os("ZZ_CCG_BASELINE")
-                    .is_none()
-                    .then(|| registry.profile())
-                    .flatten()
-            }),
+            .or_else(|| registry.profile()),
     )
 }
 

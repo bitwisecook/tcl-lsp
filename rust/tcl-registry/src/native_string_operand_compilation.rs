@@ -224,12 +224,6 @@ pub fn select_shapes(
     if operands.contains(&Shape::Expanded) {
         return Selection::Generic;
     }
-    // TEMP measurement toggle (compiler-codegen), remove before hand-back.
-    if operation == NativeStringOperandOperation::Cat
-        && std::env::var_os("ZZ_CCG_BASELINE").is_some()
-    {
-        return Selection::Unknown;
-    }
     if operation.accepts(operands.len()) {
         return Selection::Inline {
             operation: semantic,

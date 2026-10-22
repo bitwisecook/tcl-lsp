@@ -2,7 +2,7 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-22T16:38:23Z (compiler role resumed in the active checkout)
+Last updated: 2026-10-22T16:57:20Z (compiler role resumed in the active checkout)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -95,6 +95,8 @@ Files I have touched since e34d8a427e (details in `sol-49-NOTES.md`):
   - `source_command_world` import: `original_completed_command_world()` is None. That is compiler-names' R1 area, but it may be C6's fresh entry (`rename auto_import`); needs a run.
 
 ## Outstanding (in priority order)
+
+- **N17 derived SCCP admission (queued after R1/C6 diagnosis).** The completed combined public diagnostic reports direct Evaluate success (expr42/catxy, default and EMPTY contexts) while all eight CU rows retain `::p`/trusted heads but only one known SSA v1 Overdefined, no other versions, no SCCP routes, and no host errors/crashes. Attribute this pre-route admission separately from CCG's explicit-body native preflight-provider refusal. CCG owns that provider seam; this role owns derived SCCP admission/route attribution after the functional diagnosis. No runtime parity conclusion or canonical fix is claimed. Current source hold still blocks edits/builds until the coordinator's post-rebase GO.
 
 1. Finish C6. After the running build, run the full tcl-compiler filter batch:
    - `interprocedural`, `diagnostics::fp`/`tests`/`helpers`
