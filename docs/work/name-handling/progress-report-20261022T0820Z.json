@@ -1,0 +1,73 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-22T08:20:57.577827+00:00",
+  "scheduled_report_utc": "2026-10-22T08:20:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "committed": {
+    "696be6a377/a0f0db2e03/6540ed54f4": "WIP snapshots"
+  },
+  "progress_in_tree": {
+    "lsp": "hover_completion 55/56, hover_residual 33/36, references_residual 21/23, references_rename 71/98, force_import 6/10 (abstain decision), name_resolution 69/77, call_hierarchy 7/7, inlay_hints 9/9",
+    "vm-runtime": "tcl-spec-studio spectcl_ports 12/12 (was 10/12); goldens regenerated after the port pass, six changed, all intended port fields",
+    "perf": "quadratic analysis cause found: original_written_word_observations_at_span (O(prior commands) bindings per word query) and declaration_caller_alias_arguments (per-call rescan of callee declarations); both new on work; memoising fixes in progress"
+  },
+  "routing": {
+    "compiler-names": "R1 not effective through the LSP rename path (~15 references_rename failures); two more rename refusals",
+    "compiler": "iRules `proc` invocation needs its original lookup in the RuleLoader realm"
+  },
+  "in_progress": {
+    "vm-runtime": "active",
+    "compiler": "active",
+    "compiler-codegen": "active",
+    "compiler-names": "active",
+    "lsp": "active",
+    "bigip-lsp": "active",
+    "perf": "active"
+  },
+  "resources": "disk 2.0 GB, RAM 6 GB available, /dev/shm 1.2 GB",
+  "next_report_utc": "2026-10-22T08:52:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
