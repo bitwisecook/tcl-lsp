@@ -784,18 +784,29 @@ mod tests {
     /// line, its module word a property key.
     #[test]
     fn every_schema_module_opens_a_stanza_header() {
-        for (src, module, kind) in [
-            ("vcmp guest /Common/g1 {\n}\n", "vcmp", "guest"),
-            ("analytics settings {\n}\n", "analytics", "settings"),
+        // A named stanza types its module and object-type words; a singleton
+        // (`analytics settings { }`) names no object, so its last word is the
+        // header's tail and only the module word is asserted.
+        for (src, words) in [
+            ("vcmp guest /Common/g1 {\n}\n", &["vcmp", "guest"][..]),
             (
                 "api-protection response /Common/r {\n}\n",
-                "api-protection",
-                "response",
+                &["api-protection", "response"],
             ),
+            ("analytics settings {\n}\n", &["analytics"]),
         ] {
             let tokens = toks(src);
-            assert_eq!(tokens[0], (module, K::Keyword), "{src:?}: {tokens:?}");
-            assert_eq!(tokens[1], (kind, K::Keyword), "{src:?}: {tokens:?}");
+            for (index, word) in words.iter().enumerate() {
+                assert_eq!(
+                    tokens.get(index),
+                    Some(&(*word, K::Keyword)),
+                    "{src:?}: {tokens:?}"
+                );
+            }
+            assert!(
+                !tokens.iter().any(|token| token.1 == K::Property),
+                "a header is not a property line: {src:?}: {tokens:?}"
+            );
             assert_no_overlap(src);
         }
     }
