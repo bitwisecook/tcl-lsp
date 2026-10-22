@@ -23,7 +23,7 @@ The run7 harness passes mean each observational probe completed, not that every 
 
 Cloud setup and earlier failures are preserved in `cloud-setup.log`, `run5.log` and `run5-e2e-repeat.log`. Run5's main/scaling probes did not execute because compile-time fixtures were omitted from the selective checkout; those three fixture trees are restored. Its initial e2e diagnostic segment was lost when a tracked live log's inode changed on rebase, so only the stable repeat and subsequent run6 e2e are used to classify that failure. Initial six-engine input replay is `cloud-baseline-oracles.log` (19 files / 114 executions).
 
-**Interim all-finding replay active on `60ce7009`:** `run10-progress.log` records the completed prefix through N16, all observational groups exiting 0 with the same product results. Static audit: `run10-source-audit.log`. Remote `fd5c12bf` now contains the N17 effect-gate fix, while R1 remains blocked; a fresh N17 replay is required after rebase. No run10 oracle result is claimed yet, and the still-running `run10-current.log` is intentionally untracked. The initial wrapper startup failure was fixed before compilation; it executed no tests (`run10-startup.log`).
+**Interim all-finding replay active on `60ce7009`:** `run10-progress.log` records the completed prefix through pre-fix N17, all observational groups exiting 0 with the same product results. Static audits: `run10-source-audit.log` on `60ce7009` and `run10-after-fix-source-audit.log` on rebased `6ebc499c`, where the new declared-footprint gate is present. Remote `fd5c12bf` now contains the N17 effect-gate fix, while R1 remains blocked; a fresh N17 replay is required after rebase. No run10 oracle result is claimed yet, and the still-running `run10-current.log` is intentionally untracked. The initial wrapper startup failure was fixed before compilation; it executed no tests (`run10-startup.log`).
 
 ## Method
 
@@ -66,7 +66,7 @@ Cloud setup and earlier failures are preserved in `cloud-setup.log`, `run5.log` 
 | N15 minifier compaction | CHANGED (refuses `MissingAlphaRenameContract`); output behaviour-preserving | lsp | `tcl-lsp-core/src/minify.rs`, `minify/original.rs` |
 | N16 provider fallbacks | FIXED (4/4 rows) | — | — |
 | N17 SpecTcl template | FIXED | — | — |
-| N17 live hook | CHANGED: direct hooks correctly return `good`; explicit pure effects allow O129; undeclared effects suppress folding. Existing control e2e FAILS | compiler-codegen (`const_subst.rs`, per user decision 13:17Z); vm-runtime (host) | see detail |
+| N17 live hook | Fix landed in `fd5c12bf`, fresh verification PENDING. Pre-fix: direct/pure hooks work; undeclared effects suppress folding and existing e2e fails | compiler-codegen (`const_subst.rs`, per user decision 13:17Z); vm-runtime (host) | see detail |
 | Seam `ns_var_global_fallback` | FIXED (static) | — | — |
 | Seam `WorkspaceIndex::registry_for` | FIXED (static) | — | — |
 | Seam `analyse_with_workspace_classes` | CHANGED (static): resolved input, resource inputs and base-analysis identity retained; source-entry parity not shown | lsp | `tcl-lsp-server/src/lib.rs:20036–20120` |
@@ -238,9 +238,11 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 ### N17: SpecTcl template and live hook
 
+The declared-footprint-only barrier correction landed in `fd5c12bf`; the following contrast describes pre-fix executions. The rebased run10 e2e and a newly built focused live-hook matrix must verify the correction before this row is settled on current work.
+
 - **Template: FIXED.** Fresh run6 again registers only `good`, with no notices/load errors, in all 16 combinations of DSL 1/2.0, direct/helper, unbraced/braced and fast-path on/off. The capture driver independently registers `good` on all six pinned engines.
 - **Live-hook substitution: FIXED in direct execution.** All eight run6 controls (two DSLs × braced/unbraced reference × declared/undeclared pure effects) install with no decline or notice and directly return `Some("good")`. The earlier wrong `bad` result is gone in these cases.
-- **Optimiser behavior: REGRESSED for undeclared effects.** Some live hooks do fold; the effect declaration is the distinguishing condition:
+- **Pre-fix optimiser behavior (`5bd5a503` / `60ce7009`): REGRESSED for undeclared effects.** Some live hooks do fold; the effect declaration is the distinguishing condition:
 
 | DSL / array reference forms | Effects declaration | Direct callback | `optimise_raw` O129 |
 |---|---|---|---|

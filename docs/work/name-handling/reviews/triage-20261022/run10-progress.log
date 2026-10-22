@@ -401,3 +401,127 @@ N17T dsl=1 helper=true braced=false fast=true -> commands=["good"] notices=0 loa
 N17T dsl=1 helper=true braced=false fast=false -> commands=["good"] notices=0 load_error=None
 N17T dsl=1 helper=true braced=true fast=true -> commands=["good"] notices=0 load_error=None
 N17T dsl=1 helper=true braced=true fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=false braced=false fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=false braced=false fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=false braced=true fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=false braced=true fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=true braced=false fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=true braced=false fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=true braced=true fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=true braced=true fast=false -> commands=["good"] notices=0 load_error=None
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 85.15s
+
+CASE_EXIT n17_template_registration exit=0 Thu Oct 22 16:30:28 UTC 2026
+
+CASE n17_live_hook Thu Oct 22 16:30:28 UTC 2026
+
+running 2 tests
+test n17_live_hook ... N17H dsl=1 fold=$arr($a:b) notices=0 plan_empty=false declined=["None"] O129=[]
+N17H dsl=2.0 fold=$arr($a:b) notices=0 plan_empty=false declined=["None"] O129=[]
+N17H dsl=2.0 fold=$arr(${a}:b) notices=0 plan_empty=false declined=["None"] O129=[]
+N17H dsl=2.0 fold=good notices=0 plan_empty=false declined=["None"] O129=[]
+N17H dsl=2.0 fold=[string length [lindex $words 0]] notices=0 plan_empty=false declined=["None"] O129=[]
+ok
+test n17_live_hook_effect_control ... N17_EFFECT dsl=1 pure=false braced=false notices=[] declined=["None"] direct=Some("good") O129=[]
+N17_EFFECT dsl=1 pure=false braced=true notices=[] declined=["None"] direct=Some("good") O129=[]
+N17_EFFECT dsl=1 pure=true braced=false notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=1 pure=true braced=true notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=2.0 pure=false braced=false notices=[] declined=["None"] direct=Some("good") O129=[]
+N17_EFFECT dsl=2.0 pure=false braced=true notices=[] declined=["None"] direct=Some("good") O129=[]
+N17_EFFECT dsl=2.0 pure=true braced=false notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=2.0 pure=true braced=true notices=[] declined=["None"] direct=Some("good") O129=["good"]
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 44.35s
+
+CASE_EXIT n17_live_hook exit=0 Thu Oct 22 16:31:13 UTC 2026
+
+CASE n17_control_mylib Thu Oct 22 16:31:13 UTC 2026
+
+running 1 test
+test n17_control_mylib ... N17CTL mylib::strlen O129=[] all_codes=[]
+N17CTL with-return all_codes=[]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 16.77s
+
+CASE_EXIT n17_control_mylib exit=0 Thu Oct 22 16:31:30 UTC 2026
+
+CASE rename_with_registry Thu Oct 22 16:31:30 UTC 2026
+
+running 1 test
+test rename_with_registry ... WORLD r_n05 tcl8.4 completed=false
+r_n05 tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl8.4 completed=true
+r_n07 tcl8.4 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl8.4 completed=false
+r_plain tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_noputs tcl8.4 completed=true
+r_noputs tcl8.4 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl8.4.tcl
+WORLD r_setonly tcl8.4 completed=true
+r_setonly tcl8.4 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl8.4 completed=false
+r_n04wild tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl8.4 completed=false
+r_n04exact tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl8.4 completed=false
+r_n03 tcl8.4 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl8.4.tcl
+WORLD r_n05 tcl8.5 completed=false
+r_n05 tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl8.5 completed=true
+r_n07 tcl8.5 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl8.5 completed=false
+r_plain tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_noputs tcl8.5 completed=true
+r_noputs tcl8.5 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl8.5.tcl
+WORLD r_setonly tcl8.5 completed=true
+r_setonly tcl8.5 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl8.5 completed=false
+r_n04wild tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl8.5 completed=false
+r_n04exact tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl8.5 completed=false
+r_n03 tcl8.5 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl8.5.tcl
+WORLD r_n05 tcl8.6 completed=false
+r_n05 tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl8.6 completed=true
+r_n07 tcl8.6 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl8.6 completed=false
+r_plain tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_noputs tcl8.6 completed=true
+r_noputs tcl8.6 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl8.6.tcl
+WORLD r_setonly tcl8.6 completed=true
+r_setonly tcl8.6 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl8.6 completed=false
+r_n04wild tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl8.6 completed=false
+r_n04exact tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl8.6 completed=false
+r_n03 tcl8.6 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl8.6.tcl
+WORLD r_n05 tcl9.0 completed=false
+r_n05 tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl9.0 completed=true
+r_n07 tcl9.0 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl9.0 completed=false
+r_plain tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_noputs tcl9.0 completed=true
+r_noputs tcl9.0 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl9.0.tcl
+WORLD r_setonly tcl9.0 completed=true
+r_setonly tcl9.0 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl9.0 completed=false
+r_n04wild tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl9.0 completed=false
+r_n04exact tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl9.0 completed=false
+r_n03 tcl9.0 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl9.0.tcl
+WORLD r_n05 tcl9.1 completed=false
+r_n05 tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl9.1 completed=true
+r_n07 tcl9.1 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl9.1 completed=false
+r_plain tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_noputs tcl9.1 completed=true
+r_noputs tcl9.1 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl9.1.tcl
+WORLD r_setonly tcl9.1 completed=true

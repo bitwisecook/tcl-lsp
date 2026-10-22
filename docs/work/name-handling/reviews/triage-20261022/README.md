@@ -4,7 +4,7 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 
 | Item | What it is |
 | --- | --- |
-| `run10-progress.log`, `run10-source-audit.log`, `run10-startup.log`, `run10-source.rs.txt` | Interim all-finding replay on `60ce7009`: closed prefix through N16 and static audit; active main log/output replay not yet complete. Startup wrapper correction is separately recorded. |
+| `run10-progress.log`, `run10-source-audit.log`, `run10-after-fix-source-audit.log`, `run10-startup.log`, `run10-source.rs.txt` | Interim all-finding replay on `60ce7009`: closed prefix through pre-fix N17 and static audit; active main log/output replay not yet complete. Startup wrapper correction is separately recorded. |
 | `summarize-oracles.py` | Checks known generated outputs on matching engines and requires manual review for new fixture names; reproduces earlier 126/60 check counts. |
 | `run7-pending.log`, `run7-progress.log`, `run7-pending-oracles.log`, `run7-pending-oracle-summary.json`, `run7-source-audit.log` | Complete bounded follow-up on `0434e7e7`, including P25/50/100 lenses; 180 engine executions / 60 matched generated checks, no unexpected result; static seam audit. |
 | `run-focused.sh`, `run8-n09*` | Focused current-tree runner; initial N09 attempt failed before execution for a private helper. `run9-n09*` is the successful public-ID retry on `128e1bb4`: precise type/call facts, conservatively widened taint dependencies. |

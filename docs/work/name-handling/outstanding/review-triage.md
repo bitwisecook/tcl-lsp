@@ -2,7 +2,7 @@
 
 Area: Replay of the external review's findings on the current tree.
 
-Last updated: 2026-10-22T16:30:00Z
+Last updated: 2026-10-22T16:36:45Z
 
 Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. This agent commits and pushes it after each run and at least every 30 minutes.
 
@@ -69,3 +69,5 @@ Before every push fetch/rebase `origin/work`, retry rejection, never force or op
 - 2026-10-22T16:12:43Z: closed run10 progress checkpoint: 7 completed filter groups, all exit 0, through N06; runtime observations remain as reported. Fresh static audit is `run10-source-audit.log` on `60ce7009`. Main command remains active; outputs are not yet replayed and remain uncommitted.
 
 - 2026-10-22T16:30:00Z: run10 closed prefix refreshed through N16 (all groups exit 0; N15 generated all 48 outputs, not replayed yet). Remote `fd5c12bf` publishes the N17 declared-effect barrier correction; R1 still fails ten positive g4 subcases. Rebase at this checkpoint leaves the main executable on `60ce7009`; its later e2e Cargo step will build the rebased tree. After run10 finishes, run a fresh focused `n17_live_hook` replay and all-six-engine outputs on the new correction. No final sign-off yet.
+
+- 2026-10-22T16:36:45Z: run10 closed prefix now has 22 completed filter groups, all exit 0, through pre-fix N17; server-shaped rename matrix is active. Fresh source audit on rebased `6ebc499c` confirms the N17 declared-footprint guard (`run10-after-fix-source-audit.log`). Main exe remains pre-fix `60ce7009`; the later Cargo e2e is expected to build the rebased fix. Keep live log/output directory untracked until replay.
