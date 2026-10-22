@@ -451,7 +451,50 @@ pub fn rename_with_diagnosis(
 ///
 /// `resolution` carries the registry and the oracle together, which also keeps
 /// this entry point at [`rename_with_diagnosis`]'s arity.
+///
+/// A call whose `-force` shadow only the whole-program view decides is never
+/// edited (user decision 2026-10-22T07:18Z, `force_import_shadow_direction`):
+/// [`references_in_program`](crate::references::references_in_program) omits
+/// it, so a rename whose edit set would touch it is refused as a whole.
 pub fn rename_in_program(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    line: u32,
+    character: u32,
+    new_name: &str,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+) -> Result<Vec<TextEdit>, crate::rename_safety::RenameRefusal> {
+    let edits = rename_in_program_unchecked(
+        source, dialect, line, character, new_name, analysis, resolution,
+    )?;
+    if resolution.program.is_some() {
+        let line_index = LineIndex::new(source);
+        if let Some(edit) = edits.iter().find(|edit| {
+            crate::definition::program_forced_import_abstains(
+                analysis,
+                resolution.program,
+                crate::definition::byte_offset_at(
+                    &line_index,
+                    source,
+                    edit.range.start_line,
+                    edit.range.start_character,
+                ),
+            )
+        }) {
+            return Err(crate::rename_safety::RenameRefusal {
+                reason: FORCE_IMPORT_CONDITIONAL.to_owned(),
+                range: Some(edit.range),
+            });
+        }
+    }
+    Ok(edits)
+}
+
+const FORCE_IMPORT_CONDITIONAL: &str = "force-import-shadow-conditional: a sibling document's \
+     export decides this call only under a cross-document execution order that is not proven";
+
+fn rename_in_program_unchecked(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     line: u32,
@@ -470,9 +513,7 @@ pub fn rename_in_program(
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
     if crate::definition::program_forced_import_abstains(analysis, resolution.program, cursor) {
         return Err(crate::rename_safety::RenameRefusal {
-            reason: "force-import-shadow-conditional: a sibling document's export decides \
-                     this call only under a cross-document execution order that is not proven"
-                .to_owned(),
+            reason: FORCE_IMPORT_CONDITIONAL.to_owned(),
             range: None,
         });
     }

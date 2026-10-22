@@ -3656,6 +3656,60 @@ mod tests {
         }
     }
 
+    /// A variable reference ends where the release's scanner ends it
+    /// (review N17): `$a:b` substitutes `a` and appends `:b`, a lone colon is
+    /// literal, a run of two or more colons is a namespace separator, and a
+    /// braced `${a}` is the control. Every release agrees (tclsh 8.4.20,
+    /// 8.5.19, 8.6.18, 9.0.4 and 9.1.0 print the expected line for this
+    /// script); the result is the same compiled at top level and in a proc.
+    #[test]
+    fn a_variable_reference_ends_where_the_release_scanner_ends_it() {
+        const SETUP: &str = "namespace eval a {variable b NSB}\n\
+            set a x\nset a:b BAD\nset {a:} LONE\n\
+            set arr(x:b) good\nset arr(BAD) bad\nset arr(x:) lone-good\n\
+            set arr(LONE) lone-bad\nset arr(NSB) ns-good\n";
+        const RESULT: &str = "join [list $arr($a:b) $arr(${a}:b) $arr($a:) $arr($a::b) \
+            $arr($a:::b) \"$a:b\" \"$a:\" \"$a.b\" [set a]:b] |";
+        const EXPECTED: &str = "good|good|lone-good|ns-good|ns-good|x:b|x:|x.b|x:b";
+        let scripts = [
+            format!("{SETUP}{RESULT}\n"),
+            format!(
+                "proc p {{}} {{\n    global a a:b a: arr\n    {RESULT}\n}}\n{SETUP}p\n"
+            ),
+        ];
+        for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let profile = tcl_registry::model::ingress::resolve_environment(release).unit_profile();
+            for script in &scripts {
+                let service = BytecodeCompileService::for_profile(profile);
+                let module = service
+                    .compile_for_profile(script, profile)
+                    .unwrap_or_else(|error| panic!("{release}: {error:?}\n{script}"));
+                let mut vm = tcl_vm::Vm::with_native_core(
+                    Box::new(std::io::sink()),
+                    std::rc::Rc::new(tcl_vm::host_native::NativeHost::new()),
+                    profile,
+                    tcl_registry::special_vars::NativeBootstrapInputs {
+                        package_path: Vec::new(),
+                        default_library: None,
+                    },
+                )
+                .expect("native interpreter");
+                vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
+                let completion = vm.run_module(&module);
+                assert!(
+                    completion.code.is_ok(),
+                    "{release}: {}\n{script}",
+                    completion.result.to_str()
+                );
+                assert_eq!(
+                    completion.result.to_str().as_ref(),
+                    EXPECTED,
+                    "{release}\n{script}"
+                );
+            }
+        }
+    }
+
     /// The raw lowering pipeline with no entry is the same fresh
     /// interpreter, so its module is admitted; an explicitly unknown entry
     /// keeps the chunk's compiler provider unresolved.

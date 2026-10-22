@@ -947,8 +947,48 @@ pub fn references(
 /// `namespace export` lives in another file changes *which* definition a bare
 /// call is a reference to, and find-references has to
 /// answer that the same way go-to-definition does.
+///
+/// A call whose `-force` shadow only that view decides is not a proven
+/// occurrence of either definition (user decision 2026-10-22T07:18Z,
+/// `force_import_shadow_direction`), so it is never reported.
 #[must_use]
 pub fn references_in_program(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    line: u32,
+    character: u32,
+    analysis: &AnalysisResult,
+    include_declaration: bool,
+    program: Option<crate::definition::ProgramExports<'_>>,
+) -> Vec<LspRange> {
+    let mut ranges = references_in_program_unchecked(
+        source,
+        dialect,
+        line,
+        character,
+        analysis,
+        include_declaration,
+        program,
+    );
+    if program.is_some() {
+        let line_index = LineIndex::new(source);
+        ranges.retain(|range| {
+            !crate::definition::program_forced_import_abstains(
+                analysis,
+                program,
+                crate::definition::byte_offset_at(
+                    &line_index,
+                    source,
+                    range.start_line,
+                    range.start_character,
+                ),
+            )
+        });
+    }
+    ranges
+}
+
+fn references_in_program_unchecked(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     line: u32,
