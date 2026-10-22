@@ -1,4 +1,5 @@
-# Tracked inputs actually referenced by literal Rust includes, omitted by initial selective checkout.
+# Candidate tracked inputs referenced by the literal Rust scan; review compiled consumers before the PR.
+# Compiler-observed g4 omissions are identified separately in compile-time-inputs.json.
 experiments/name-handling/results/clock-parse-format-args/input.tcl
 experiments/name-handling/results/clock-parse-format-args/captured/c8.6.18.stdout.txt
 experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/input.tcl

@@ -40,22 +40,22 @@
   "delivery": "Chat and repository only; external guide unchanged.",
   "next_report_utc": "2026-10-22T15:25:37+00:00",
   "change_since_previous_report": [
-    "Baseline rust fetcheddepth1 and merge-base proven atfcb7927f02; trialmerge ofpushed41e547bcb is identical toits tree and conflictfree. Clone remains shallow; Git geometry only, allsectionF pending.",
-    "Pinned Wasmtime49.0.3/Binaryen133/WASI34 and threeRustWASMtargets ready, no host functional proof.",
-    "New D3 test-only paired warm/fresh regression prepared; N10/N11/minify cases prepared and fixtureoracles measured separately from production behavior.",
-    "Firstg4 testcompile blocked on9missinginclude diagnostics,0tests; stopped onlyknownfailed compile. Audited2,152literal paths and restored166tracked inputsbyteexact,176787bytes. Retainedcommands/errors and no assertionchanges.",
-    "Strict externalClippy failed789compiler379VM ataeeecf397 (see canonical receipt); owner splits/offtreeplans prepared withoutallows.",
-    "Sourceholds protect earlyg4/N17reuse; compiler source-only N13 issuer assignednames, transport/convergenceLSP; perfpatches remainunproven."
+    "Pinned origin/rust at fcb7927f02 and recorded a conflict-free trial merge for pushed snapshot 41e547bcb. The clone remains shallow. This is Git geometry only; section F remains open.",
+    "Provisioned pinned Wasmtime 49.0.3, Binaryen 133, WASI SDK 34.0 and three Rust WASM targets; host functional gates are unexecuted.",
+    "Prepared D3 warm/fresh, N10, N11 and minify regressions. Manual fixture oracles are recorded separately from production acceptance.",
+    "The first g4 test build reported nine missing includes before executing tests. Stopped only that known-failed build; restored 166 tracked inputs byte-for-byte after checking 2,152 literal references. No assertions changed.",
+    "External strict Clippy failed with 789 compiler and 379 VM errors at aeecf397. Routed inventories and prepared off-tree plans without new allowances.",
+    "Held compiler/Core source changes for build reuse; assigned the N13 issuer to compiler-names and transport/convergence to LSP. Perf patches remain unproven."
   ],
   "committed": [
     "41e547bcbe1f451ef767b083826328a5c8dd7de4"
   ],
   "admissions": [],
   "in_progress": [
-    "Complete14:55WIPsync/report/push, restartg4 aftertrackedfixture repair.",
-    "Buildorder:namesearlyg4,codegenN17,compilerC6,VMafter8b,coordinationD3,LSPminify.",
-    "Root restored cached history boundaries only after verifying actual commit parents; fetched missingoldercommits depth1, retained all prior shallow limits.",
-    "Strict lint cleanup staged in shadowcopies only pending functional measurements."
+    "Complete the 14:55 WIP rebase and push, then restart g4 with restored fixtures.",
+    "Build order: compiler-names, compiler-codegen, compiler, vm-runtime, coordination D3, LSP.",
+    "Cached shallow boundaries restored only after checking actual commit parents; missing older commits fetched individually at depth 1. Prior shallow limits retained.",
+    "Strict lint cleanup remains in shadow copies pending functional measurements."
   ],
   "external_role_updates": {
     "bigip-lsp": "2026-10-22T14:43Z",
@@ -64,6 +64,6 @@
   },
   "green_PR": false,
   "merge_or_issue_closure": false,
-  "validation_note": "No fresh product test verdict. Firstg4 buildblockedbeforetests; fixture/oracle/static/merge/tooling receipts are scoped evidence, not acceptance/admissions. Historical validated product rows unchanged.",
+  "validation_note": "No fresh product test verdict. The first g4 build was blocked before tests; oracle, static, merge and tooling receipts are scoped evidence. No admissions; historical validated product rows unchanged.",
   "disk_free_bytes": 14182916096
 }
