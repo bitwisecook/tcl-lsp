@@ -1167,10 +1167,12 @@ async fn project_token_config_publication_drops_partial_locks_and_preserves_snap
     let locks = backend.try_live_source_locks().ok().unwrap();
     Backend::set_live_db_source_locked(
         locks,
-        &admission,
-        "proc second {} {}",
-        "tcl",
-        true,
+        LiveSourceContents {
+            admission: &admission,
+            text: "proc second {} {}",
+            dialect: "tcl",
+            project_member: true,
+        },
         backend.store.as_ref(),
         &mut || {},
         backend.source_path_admissions.as_ref(),
