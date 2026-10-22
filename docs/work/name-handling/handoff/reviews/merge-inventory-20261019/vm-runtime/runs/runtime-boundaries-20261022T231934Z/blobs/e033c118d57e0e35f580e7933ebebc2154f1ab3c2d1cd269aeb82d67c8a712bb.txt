@@ -1,0 +1,11 @@
+{
+  "argv": [
+    "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+    "--list",
+    "--format",
+    "terse"
+  ],
+  "pid": 177734,
+  "process_group": 177734,
+  "utc": "2026-10-22T23:17:53.739537+00:00"
+}

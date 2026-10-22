@@ -1,0 +1,19 @@
+{
+  "changed": [
+    {
+      "after": "9568d7309e0a40fefe462208045a82811fa4c70e650449c2a14d2c5a2275bca8",
+      "before": "3732c7dcb007509d14105c0b83e9cf52e3ff2e3fb0488c07039e4432f8efe87b",
+      "path": "src/cmd_namespace.rs"
+    }
+  ],
+  "cleanup": "none; no canonical/provider/target writes",
+  "mirror_exact": true,
+  "preserved_artifacts": [
+    {
+      "retained": "/tmp/vm-runtime-c84-boundary3-20261022T2306Z/prior-artifacts/tcl_runtime-1f8f0379ac20d55d-5600ac5f06ee26ccf03653b9041ea9f16b80007f7b28deca18510324e8c366f5",
+      "sha256": "5600ac5f06ee26ccf03653b9041ea9f16b80007f7b28deca18510324e8c366f5",
+      "source": "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d"
+    }
+  ],
+  "utc": "2026-10-22T23:07:27.450517+00:00"
+}

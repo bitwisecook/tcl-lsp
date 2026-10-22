@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+    "cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion",
+    "--exact",
+    "--nocapture",
+    "--test-threads",
+    "1"
+  ],
+  "pid": 177735,
+  "process_group": 177735,
+  "utc": "2026-10-22T23:17:54.214603+00:00"
+}

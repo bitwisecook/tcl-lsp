@@ -1,0 +1,90 @@
+{
+  "utc": "2026-10-22T23:25:27.693626+00:00",
+  "status": "actual finite executions; no full-runtime/release claim",
+  "c84": {
+    "active_git_after": {
+      "head": "ba02fd7035ad3a35bf3f64f6260b2204590f33be",
+      "tree": "e6f0a95e4d22a18a17a660bd7739c4fdb732b189"
+    },
+    "active_git_before": {
+      "head": "ba02fd7035ad3a35bf3f64f6260b2204590f33be",
+      "tree": "e6f0a95e4d22a18a17a660bd7739c4fdb732b189"
+    },
+    "artifacts_unchanged": true,
+    "cleanup": "none; all artifacts retained",
+    "expected": 3,
+    "failure": null,
+    "log_cap_bytes": 20971520,
+    "observed": 3,
+    "passed": true,
+    "passes": 3,
+    "phase": "c84_boundary3",
+    "provider_count": 3471,
+    "providers_unchanged": true,
+    "publisher_equivalence_claim": false,
+    "publisher_git_after": {
+      "head": "c7296ee035b7ca95b36b5c9fcb20f3813dceb12b",
+      "tree": "404d17e5028b356fa0ce3c1c1f59e043a9b54ab0"
+    },
+    "publisher_git_before": {
+      "head": "c7296ee035b7ca95b36b5c9fcb20f3813dceb12b",
+      "tree": "404d17e5028b356fa0ce3c1c1f59e043a9b54ab0"
+    },
+    "retained_stdout_stderr_bytes": 264543,
+    "source_count": 44795,
+    "source_unchanged": true,
+    "utc": "2026-10-22T23:11:56.686418+00:00"
+  },
+  "jim": {
+    "active_git_after": {
+      "head": "ba02fd7035ad3a35bf3f64f6260b2204590f33be",
+      "tree": "e6f0a95e4d22a18a17a660bd7739c4fdb732b189"
+    },
+    "active_git_before": {
+      "head": "ba02fd7035ad3a35bf3f64f6260b2204590f33be",
+      "tree": "e6f0a95e4d22a18a17a660bd7739c4fdb732b189"
+    },
+    "artifacts_unchanged": true,
+    "cleanup": "none; all artifacts retained",
+    "expected": 1,
+    "failure": null,
+    "log_cap_bytes": 20971520,
+    "observed": 1,
+    "passed": false,
+    "passes": 0,
+    "phase": "jim_import1",
+    "provider_count": 3471,
+    "providers_unchanged": true,
+    "publisher_equivalence_claim": false,
+    "publisher_git_after": {
+      "head": "c7296ee035b7ca95b36b5c9fcb20f3813dceb12b",
+      "tree": "404d17e5028b356fa0ce3c1c1f59e043a9b54ab0"
+    },
+    "publisher_git_before": {
+      "head": "c7296ee035b7ca95b36b5c9fcb20f3813dceb12b",
+      "tree": "404d17e5028b356fa0ce3c1c1f59e043a9b54ab0"
+    },
+    "retained_stdout_stderr_bytes": 265446,
+    "source_count": 44795,
+    "source_unchanged": true,
+    "utc": "2026-10-22T23:19:34.254350+00:00"
+  },
+  "baseline": {
+    "job": 119956196088,
+    "source": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+    "log_sha256": "5aa462b23077b24cbe852e856f611546c88b46b017656663d83cca38905c066d",
+    "no_tommath_lib": "655 passed; 0 failed; deliberate absent-source warning",
+    "full_tommath_lib": "753 passed; 0 failed",
+    "catch_exact_named_pass_count": 2,
+    "jim_exact_selector_absent": true
+  },
+  "cause": {
+    "observed": "Jim import guest CodeError, native refusal None, invalid command name \"if\"; full NativeReturnOptions completion retained",
+    "source": "cmd_control::install registers if/while/for only under cfg(have_tommath); active build deliberately absent TomMath",
+    "scope": "absence at ordinary bootstrap, not nested lookup or missing Native grant; full-TomMath Jim outcome unmeasured",
+    "test_change": "none; absent-baseline control, no P2F claim"
+  },
+  "guards": "both phases exact44795 source/3471 provider plus artifact equality; no timeout/abort; sequential lock release; no cleanup",
+  "warnings": "zero typed warnings; intentional no-Tommath notice in both builds, not zero-warning gate",
+  "archive": "lossless content-addressed blobs deduplicate identical bytes; prior executables remain /tmp with actual artifact metadata retained; no artifact deletion"
+}

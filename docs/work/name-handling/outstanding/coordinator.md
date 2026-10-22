@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T22:56:21.508591+00:00
+Last updated: 2026-10-22T23:25:37.302781+00:00
 
 ## In progress
 
@@ -314,3 +314,22 @@ Last updated: 2026-10-22T22:56:21.508591+00:00
 - Strict666locatedfindingsolddef9 remainunclosed; allnewlintdrafts static/untyped/unmeasured. Requiredmake rust-check/prep-pr/generated/native/editor/browser/WASI/SpecTclC1C2/shippingperformance andactualrustzero-P2Fcomparison remain. CI5205metadata still7success17failure3running3skip; actualheavy27P2F24absent andhost15P2F2absent remainseparatepartialledgers,main2/4unknown.
 - Cycleofficialreport/table/freshness/fullWIPexcludezzRustprobes, freshfetch/FFpublisher+normalpushrebase,productdiffproof,diskchecks/reminder23:25:37. No target/executablecleanup; jobs2/debug0/incremental0/2GiBfloor/20MiBlogs andsourceHOLD preserved.
 - User nowAUTHORIZEDauthenticatedfull-reportcomparison; exactnewdecision user-decisions-20261022T2256Z.json. CompilerownsseparateAPI/carriers, perfseparatesessionharness+fullold/mixedproof. Everyfield/typedsubject retained/currentuniqueownerproofelseUnavailablefails; global/runtimeEq/cache/Salsacutoff+hosteligibilityUNCHANGED. No currentproof/perfpatchacceptance. Existingpendingreportproposalresolvedbyactualanswer, notelapsedtime.
+
+### Current cycle and routing (23:25 UTC)
+
+- Primary goal remains clean LSP merge/release readiness from rust before deferred parity. Development and normal pushes only on work; no PR, merge, tag or release requested. All section F boxes and audit admissions remain unchanged.
+- 22:55 cycle published c2b0b4a8f after resolving only a perf brief conflict by preserving the external owner current body and adding user-decision routing. Authenticated full-report decision2256 is published. Active perf brief was synchronized to that confirmed resolution without changing owner timestamp.
+- Reviewed23-path batch applied and checkpointed ba02, published c7296ee after fresh depth1 fetch/rebase with zero product-tree difference. It retires TEMP3, fixes whole-input borrower identity, adds kernel frontier/currentness guards and bounded G4/N13/Jim/N17 observations. A vacuous immediate-body argument index was caught before apply; successor proves exact actual body at post-head argument1.
+- Exact RBS diagnostic closed with original failure and stable source/provider/artifact: authored simulation, Reached-without-child/Generic, not a physical Native compiler. Source-only authored layout purpose is under investigation; runtime entry guards remain intact.
+- Guarded standalone C84 boundary3 closed23:11:56:3/3 PASS, full44795 source/3471 provider and artifact checks exact. It does not prove the original plain-constructor plus8.4 repin catch fixed. Deliberate no-tommath notice means this is not a zero-warning repository gate.
+- Guarded Jim1 closed23:19:34:0/1 FAIL, guest invalid command if, first native refusal None, complete error options captured with nshelper.tcl66 namespace import path. Read-only code confirms no-tommath omits if/while; no fallback or test disabling authorized. Full numeric-backend acceptance and exact flavor contract remain to assess.
+- Applied small3 batch551aa after independent free whole-build lock and exact before/after hashes: bounded actual alias declaration-cardinality observer with same full Eq diagnostic assertion, successful nested runtime Cargo logs with warning-visible line boundaries, and narrow ni-spacing expectation supported by13:17 decision plus five matched C Tcl/Jim pairs. Actual tests remain pending.
+- Finite compiler plan v2 retains all34 original rows/guards and adds exact alias diagnostic1:25 filters/35 selections. Root and helper verified original rows, script hashes/inverses, logger prefixes and unchanged watchdog v5; explicit GO issued after runtime phases closed. Product source remains held during build and execution; documentation may change.
+- CI5205 shard3 named results complete:3897 outcomes,3053PASS844FAIL;844 repeated failure summary lines deduplicated with full ordinal coverage. Exact main baseline24312 join gives822 PASS-to-FAIL,2502 matchedPASS,20988 missing/unknown,551 extraPASS and22 unmatchedFAIL. Full raw/parser/current rows/lossless full comparison/replay archived. This is older2b934 source, not current fixes or full-run verdict.
+- Confirmed regressions routed by actual phases to compiler, compiler-names, LSP, compiler-codegen and vm-runtime. Shared87 VM preflight observations do not identify which of four validator predicates failed. No blanket assertion rewrites or huge rerun queued. Separate heavy27 and host15 regression ledgers are not added to main counts without overlap checks.
+- Full CI status read uses per_page100 and asserts all30 jobs returned. Shard1 has now completed unsuccessfully and shard5 remains running; named shard1 logs/comparison pending. Shard2/4 unavailable logs retain unknown outcomes. No entire CI or release acceptance.
+- External BIGIP18:08, perf21:00 and completed triage19:57:30 remain over60 minutes old; user notified and roles not duplicated. Perf realm/interprocedural remains withheld until actual complete authenticated comparison and full old/mixed corpus proof.
+- Cycle refreshes report/table/freshness, full WIP snapshot excluding zz Rust probes, fresh fetch/rebase and normal work push with product comparison. No target/executable cleanup; jobs2/debug0/incremental0,20MiB logs and2GiB floors remain.
+- Compiler35 actual guarded start23:22:55 on551aa, receipt compiler-postbatch-focused-v2-runs/20261022T232255.302907Z; external watchdog attached before tests during initial source seal. No current outcome inferred.
+- Shard1 log retrieval through connector did not complete; bounded GitHub API fallback returned Forbidden with zero retained log bytes. Its failure conclusion is known but named outcomes remain unavailable/unknown, not a baseline regression count. No token or temporary redirect URL is printed or published.
+- VM checked actual origin/rust standalone runtime log: both no-tommath655/655 and full753/753 passed; original catch8.4 passed both. New Jim import selector is absent from baseline, and no-tommath excludes if/while/for by declared build guards. Full-backend Jim acceptance remains required; no test disabling or unsupported fallback applied.

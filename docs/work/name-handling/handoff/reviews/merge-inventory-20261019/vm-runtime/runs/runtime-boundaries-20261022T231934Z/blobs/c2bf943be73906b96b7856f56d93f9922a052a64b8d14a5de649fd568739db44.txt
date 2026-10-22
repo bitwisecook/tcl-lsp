@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+    "interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver",
+    "--exact",
+    "--nocapture",
+    "--test-threads",
+    "1"
+  ],
+  "pid": 175452,
+  "process_group": 175452,
+  "utc": "2026-10-22T23:10:33.164092+00:00"
+}

@@ -1,0 +1,3811 @@
+{
+  "utc": "2026-10-22T23:19:15.305756+00:00",
+  "response": {
+    "total_count": 30,
+    "jobs": [
+      {
+        "id": 120058581627,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9AySew",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120058581627",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120058581627",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-22T20:05:28Z",
+        "started_at": "2026-10-22T20:05:31Z",
+        "completed_at": "2026-10-22T20:10:29Z",
+        "name": "cargo-deny",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:05:31Z",
+            "completed_at": "2026-10-22T20:05:32Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:05:32Z",
+            "completed_at": "2026-10-22T20:10:06Z"
+          },
+          {
+            "name": "Install cargo-deny",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:10:06Z",
+            "completed_at": "2026-10-22T20:10:06Z"
+          },
+          {
+            "name": "cargo deny check (all locked workspaces)",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:10:06Z",
+            "completed_at": "2026-10-22T20:10:27Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:10:27Z",
+            "completed_at": "2026-10-22T20:10:28Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:10:28Z",
+            "completed_at": "2026-10-22T20:10:28Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120058581627",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058705,
+        "runner_name": "GitHub Actions 1000058705",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120058581917,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9AyTnQ",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120058581917",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120058581917",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-22T20:05:28Z",
+        "started_at": "2026-10-22T20:05:32Z",
+        "completed_at": "2026-10-22T20:10:26Z",
+        "name": "channel",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:05:33Z",
+            "completed_at": "2026-10-22T20:05:33Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:05:33Z",
+            "completed_at": "2026-10-22T20:10:21Z"
+          },
+          {
+            "name": "Detect release channel from the ref",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:10:21Z",
+            "completed_at": "2026-10-22T20:10:21Z"
+          },
+          {
+            "name": "Check whether this exact code is already green",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:10:21Z",
+            "completed_at": "2026-10-22T20:10:21Z"
+          },
+          {
+            "name": "Classify changed paths",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:10:21Z",
+            "completed_at": "2026-10-22T20:10:21Z"
+          },
+          {
+            "name": "Select the broad Rust test runner",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:10:21Z",
+            "completed_at": "2026-10-22T20:10:21Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-22T20:10:21Z",
+            "completed_at": "2026-10-22T20:10:22Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-22T20:10:22Z",
+            "completed_at": "2026-10-22T20:10:22Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120058581917",
+        "labels": [
+          "ubuntu-24.04"
+        ],
+        "runner_id": 1000058706,
+        "runner_name": "GitHub Actions 1000058706",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061099986,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DL_0g",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061099986",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061099986",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:29Z",
+        "completed_at": "2026-10-22T20:21:17Z",
+        "name": "rust-tests-doctest",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:30Z",
+            "completed_at": "2026-10-22T20:10:31Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:31Z",
+            "completed_at": "2026-10-22T20:16:19Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:16:19Z",
+            "completed_at": "2026-10-22T20:16:39Z"
+          },
+          {
+            "name": "cargo test --doc",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:16:39Z",
+            "completed_at": "2026-10-22T20:21:15Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T20:21:15Z",
+            "completed_at": "2026-10-22T20:21:15Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:21:15Z",
+            "completed_at": "2026-10-22T20:21:15Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:21:15Z",
+            "completed_at": "2026-10-22T20:21:15Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061099986",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058718,
+        "runner_name": "GitHub Actions 1000058718",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100015,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DL_7w",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100015",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100015",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:29Z",
+        "completed_at": "2026-10-22T20:25:07Z",
+        "name": "lsp-server-wasm",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:30Z",
+            "completed_at": "2026-10-22T20:10:33Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:33Z",
+            "completed_at": "2026-10-22T20:14:56Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:14:56Z",
+            "completed_at": "2026-10-22T20:15:16Z"
+          },
+          {
+            "name": "Install wasm-bindgen CLI",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:15:16Z",
+            "completed_at": "2026-10-22T20:15:17Z"
+          },
+          {
+            "name": "Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:15:17Z",
+            "completed_at": "2026-10-22T20:15:29Z"
+          },
+          {
+            "name": "Build and exercise the browser LSP server",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 6,
+            "started_at": "2026-10-22T20:15:29Z",
+            "completed_at": "2026-10-22T20:25:03Z"
+          },
+          {
+            "name": "Post Set up Node.js",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 10,
+            "started_at": "2026-10-22T20:25:03Z",
+            "completed_at": "2026-10-22T20:25:03Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-22T20:25:03Z",
+            "completed_at": "2026-10-22T20:25:03Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-22T20:25:03Z",
+            "completed_at": "2026-10-22T20:25:03Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-22T20:25:03Z",
+            "completed_at": "2026-10-22T20:25:03Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100015",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058709,
+        "runner_name": "GitHub Actions 1000058709",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100019,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DL_8w",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100019",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100019",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:29Z",
+        "completed_at": "2026-10-22T20:17:51Z",
+        "name": "rust-check",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:29Z",
+            "completed_at": "2026-10-22T20:10:30Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:30Z",
+            "completed_at": "2026-10-22T20:16:23Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:16:23Z",
+            "completed_at": "2026-10-22T20:16:40Z"
+          },
+          {
+            "name": "Run fast CI gate (format + Clippy + generated-file drift)",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 4,
+            "started_at": "2026-10-22T20:16:40Z",
+            "completed_at": "2026-10-22T20:17:48Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T20:17:48Z",
+            "completed_at": "2026-10-22T20:17:48Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:17:48Z",
+            "completed_at": "2026-10-22T20:17:48Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:17:48Z",
+            "completed_at": "2026-10-22T20:17:48Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100019",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058713,
+        "runner_name": "GitHub Actions 1000058713",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100037,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMABQ",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100037",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100037",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:29Z",
+        "completed_at": "2026-10-22T20:25:34Z",
+        "name": "test-ext-web",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:29Z",
+            "completed_at": "2026-10-22T20:10:31Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:31Z",
+            "completed_at": "2026-10-22T20:16:30Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:16:30Z",
+            "completed_at": "2026-10-22T20:16:46Z"
+          },
+          {
+            "name": "Install wasm-bindgen CLI",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:16:46Z",
+            "completed_at": "2026-10-22T20:16:48Z"
+          },
+          {
+            "name": "Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:16:48Z",
+            "completed_at": "2026-10-22T20:16:58Z"
+          },
+          {
+            "name": "Enable Corepack (pin npm via packageManager)",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:16:58Z",
+            "completed_at": "2026-10-22T20:16:59Z"
+          },
+          {
+            "name": "Cache npm registry",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T20:16:59Z",
+            "completed_at": "2026-10-22T20:17:00Z"
+          },
+          {
+            "name": "Install npm dependencies",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:17:00Z",
+            "completed_at": "2026-10-22T20:17:17Z"
+          },
+          {
+            "name": "Resolve the VS Code web build",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:17:17Z",
+            "completed_at": "2026-10-22T20:17:17Z"
+          },
+          {
+            "name": "Cache the VS Code web download",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10,
+            "started_at": "2026-10-22T20:17:17Z",
+            "completed_at": "2026-10-22T20:17:17Z"
+          },
+          {
+            "name": "Build the browser language server",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-22T20:17:17Z",
+            "completed_at": "2026-10-22T20:24:53Z"
+          },
+          {
+            "name": "Stage the browser assets (must exist)",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-22T20:24:53Z",
+            "completed_at": "2026-10-22T20:24:54Z"
+          },
+          {
+            "name": "Run the web extension-host smoke test",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-22T20:24:54Z",
+            "completed_at": "2026-10-22T20:25:26Z"
+          },
+          {
+            "name": "Post Cache the VS Code web download",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 22,
+            "started_at": "2026-10-22T20:25:26Z",
+            "completed_at": "2026-10-22T20:25:28Z"
+          },
+          {
+            "name": "Post Cache npm registry",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 23,
+            "started_at": "2026-10-22T20:25:28Z",
+            "completed_at": "2026-10-22T20:25:30Z"
+          },
+          {
+            "name": "Post Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 24,
+            "started_at": "2026-10-22T20:25:30Z",
+            "completed_at": "2026-10-22T20:25:31Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 25,
+            "started_at": "2026-10-22T20:25:31Z",
+            "completed_at": "2026-10-22T20:25:31Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 26,
+            "started_at": "2026-10-22T20:25:31Z",
+            "completed_at": "2026-10-22T20:25:31Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 27,
+            "started_at": "2026-10-22T20:25:31Z",
+            "completed_at": "2026-10-22T20:25:31Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100037",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058710,
+        "runner_name": "GitHub Actions 1000058710",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100065,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMAIQ",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100065",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100065",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:29Z",
+        "completed_at": "2026-10-22T20:30:06Z",
+        "name": "lsp-server-wasi",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:30Z",
+            "completed_at": "2026-10-22T20:10:32Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:32Z",
+            "completed_at": "2026-10-22T20:14:37Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:14:37Z",
+            "completed_at": "2026-10-22T20:14:57Z"
+          },
+          {
+            "name": "Install the wasmtime CLI",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:14:57Z",
+            "completed_at": "2026-10-22T20:15:02Z"
+          },
+          {
+            "name": "Install binaryen",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:15:02Z",
+            "completed_at": "2026-10-22T20:15:11Z"
+          },
+          {
+            "name": "Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:15:11Z",
+            "completed_at": "2026-10-22T20:15:15Z"
+          },
+          {
+            "name": "Build and exercise the WASI LSP server",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 7,
+            "started_at": "2026-10-22T20:15:15Z",
+            "completed_at": "2026-10-22T20:30:03Z"
+          },
+          {
+            "name": "Build the WASI LSP server (release artefact)",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 8,
+            "started_at": "2026-10-22T20:30:03Z",
+            "completed_at": "2026-10-22T20:30:03Z"
+          },
+          {
+            "name": "Upload the WASI module",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 9,
+            "started_at": "2026-10-22T20:30:03Z",
+            "completed_at": "2026-10-22T20:30:03Z"
+          },
+          {
+            "name": "Post Set up Node.js",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 16,
+            "started_at": "2026-10-22T20:30:03Z",
+            "completed_at": "2026-10-22T20:30:03Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-22T20:30:03Z",
+            "completed_at": "2026-10-22T20:30:03Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 18,
+            "started_at": "2026-10-22T20:30:03Z",
+            "completed_at": "2026-10-22T20:30:04Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 19,
+            "started_at": "2026-10-22T20:30:04Z",
+            "completed_at": "2026-10-22T20:30:04Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100065",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058707,
+        "runner_name": "GitHub Actions 1000058707",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100179,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMAkw",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100179",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100179",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:29Z",
+        "completed_at": "2026-10-22T20:24:17Z",
+        "name": "python",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:30Z",
+            "completed_at": "2026-10-22T20:10:32Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:32Z",
+            "completed_at": "2026-10-22T20:16:16Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:16:16Z",
+            "completed_at": "2026-10-22T20:16:43Z"
+          },
+          {
+            "name": "Compute venv cache key",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:16:43Z",
+            "completed_at": "2026-10-22T20:16:48Z"
+          },
+          {
+            "name": "Cache typecheck venv",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:16:48Z",
+            "completed_at": "2026-10-22T20:16:49Z"
+          },
+          {
+            "name": "Install uv",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:16:49Z",
+            "completed_at": "2026-10-22T20:16:50Z"
+          },
+          {
+            "name": "Verify uv version",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T20:16:50Z",
+            "completed_at": "2026-10-22T20:16:50Z"
+          },
+          {
+            "name": "ruff (format --check + check)",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:16:50Z",
+            "completed_at": "2026-10-22T20:16:51Z"
+          },
+          {
+            "name": "ty + pyright",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:16:51Z",
+            "completed_at": "2026-10-22T20:24:04Z"
+          },
+          {
+            "name": "Native engine binding tests",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10,
+            "started_at": "2026-10-22T20:24:04Z",
+            "completed_at": "2026-10-22T20:24:12Z"
+          },
+          {
+            "name": "Post Cache typecheck venv",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 18,
+            "started_at": "2026-10-22T20:24:12Z",
+            "completed_at": "2026-10-22T20:24:14Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 19,
+            "started_at": "2026-10-22T20:24:14Z",
+            "completed_at": "2026-10-22T20:24:15Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 20,
+            "started_at": "2026-10-22T20:24:15Z",
+            "completed_at": "2026-10-22T20:24:15Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 21,
+            "started_at": "2026-10-22T20:24:15Z",
+            "completed_at": "2026-10-22T20:24:15Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100179",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058708,
+        "runner_name": "GitHub Actions 1000058708",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100182,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMAlg",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100182",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100182",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:29Z",
+        "completed_at": "2026-10-22T20:22:21Z",
+        "name": "wasm-real-link",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:30Z",
+            "completed_at": "2026-10-22T20:10:31Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:31Z",
+            "completed_at": "2026-10-22T20:16:09Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:16:09Z",
+            "completed_at": "2026-10-22T20:16:33Z"
+          },
+          {
+            "name": "Install the wasmtime CLI",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:16:33Z",
+            "completed_at": "2026-10-22T20:16:37Z"
+          },
+          {
+            "name": "Install wasi-sdk",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:16:37Z",
+            "completed_at": "2026-10-22T20:16:41Z"
+          },
+          {
+            "name": "Fetch the Tcl 9.0.4 source (libtommath)",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:16:41Z",
+            "completed_at": "2026-10-22T20:16:42Z"
+          },
+          {
+            "name": "make check-c-extension-wasm (toolchain required)",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T20:16:42Z",
+            "completed_at": "2026-10-22T20:16:42Z"
+          },
+          {
+            "name": "cargo test --test wasm_real_link --test wasm_tiers (toolchain required)",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 8,
+            "started_at": "2026-10-22T20:16:42Z",
+            "completed_at": "2026-10-22T20:22:19Z"
+          },
+          {
+            "name": "cargo test -p tcl-engine-wasm (toolchain required)",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 9,
+            "started_at": "2026-10-22T20:22:19Z",
+            "completed_at": "2026-10-22T20:22:19Z"
+          },
+          {
+            "name": "cargo check -p tcl-lsp-server (wasm32-wasip1)",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 10,
+            "started_at": "2026-10-22T20:22:19Z",
+            "completed_at": "2026-10-22T20:22:19Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 19,
+            "started_at": "2026-10-22T20:22:19Z",
+            "completed_at": "2026-10-22T20:22:19Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 20,
+            "started_at": "2026-10-22T20:22:19Z",
+            "completed_at": "2026-10-22T20:22:19Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 21,
+            "started_at": "2026-10-22T20:22:19Z",
+            "completed_at": "2026-10-22T20:22:19Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100182",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058714,
+        "runner_name": "GitHub Actions 1000058714",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100185,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMAmQ",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100185",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100185",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:29Z",
+        "completed_at": "2026-10-22T20:19:33Z",
+        "name": "runtime-rust-tests",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:30Z",
+            "completed_at": "2026-10-22T20:10:32Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:32Z",
+            "completed_at": "2026-10-22T20:14:40Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:14:40Z",
+            "completed_at": "2026-10-22T20:15:01Z"
+          },
+          {
+            "name": "make runtime-rust-test-no-tommath (standalone runtime, no libtommath)",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 4,
+            "started_at": "2026-10-22T20:15:01Z",
+            "completed_at": "2026-10-22T20:19:30Z"
+          },
+          {
+            "name": "Fetch the Tcl 9.0.4 source (libtommath)",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 5,
+            "started_at": "2026-10-22T20:19:30Z",
+            "completed_at": "2026-10-22T20:19:30Z"
+          },
+          {
+            "name": "make runtime-rust-test (standalone runtime unit suite)",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 6,
+            "started_at": "2026-10-22T20:19:30Z",
+            "completed_at": "2026-10-22T20:19:30Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-22T20:19:30Z",
+            "completed_at": "2026-10-22T20:19:30Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-22T20:19:30Z",
+            "completed_at": "2026-10-22T20:19:30Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-22T20:19:30Z",
+            "completed_at": "2026-10-22T20:19:30Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100185",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058711,
+        "runner_name": "GitHub Actions 1000058711",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100241,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMA0Q",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100241",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100241",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:31Z",
+        "completed_at": "2026-10-22T20:58:48Z",
+        "name": "rust-tests-heavy",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:32Z",
+            "completed_at": "2026-10-22T20:10:33Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:33Z",
+            "completed_at": "2026-10-22T20:15:32Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:15:32Z",
+            "completed_at": "2026-10-22T20:16:08Z"
+          },
+          {
+            "name": "Install cargo-nextest",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:16:08Z",
+            "completed_at": "2026-10-22T20:16:10Z"
+          },
+          {
+            "name": "cargo nextest run (VM-sim heavies + tcl-fuzz plumbing)",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 5,
+            "started_at": "2026-10-22T20:16:10Z",
+            "completed_at": "2026-10-22T20:58:44Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:58:44Z",
+            "completed_at": "2026-10-22T20:58:45Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10,
+            "started_at": "2026-10-22T20:58:45Z",
+            "completed_at": "2026-10-22T20:58:45Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-22T20:58:45Z",
+            "completed_at": "2026-10-22T20:58:45Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100241",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058715,
+        "runner_name": "GitHub Actions 1000058715",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100300,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMBDA",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100300",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100300",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:29Z",
+        "completed_at": "2026-10-22T20:17:07Z",
+        "name": "web-frontends",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:30Z",
+            "completed_at": "2026-10-22T20:10:32Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:32Z",
+            "completed_at": "2026-10-22T20:16:16Z"
+          },
+          {
+            "name": "Set up Node",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:16:16Z",
+            "completed_at": "2026-10-22T20:16:22Z"
+          },
+          {
+            "name": "Enable Corepack (pin npm via packageManager)",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:16:22Z",
+            "completed_at": "2026-10-22T20:16:23Z"
+          },
+          {
+            "name": "Cache npm registry",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:16:23Z",
+            "completed_at": "2026-10-22T20:16:26Z"
+          },
+          {
+            "name": "Install both front-end dependency trees",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:16:26Z",
+            "completed_at": "2026-10-22T20:16:29Z"
+          },
+          {
+            "name": "Shared report front-end (typecheck + lint + asset drift)",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T20:16:29Z",
+            "completed_at": "2026-10-22T20:16:31Z"
+          },
+          {
+            "name": "Spec studio front-end (typecheck + lint + build + unit tests)",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:16:31Z",
+            "completed_at": "2026-10-22T20:16:40Z"
+          },
+          {
+            "name": "Post Cache npm registry",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-22T20:16:40Z",
+            "completed_at": "2026-10-22T20:16:40Z"
+          },
+          {
+            "name": "Post Set up Node",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-22T20:16:40Z",
+            "completed_at": "2026-10-22T20:16:40Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 16,
+            "started_at": "2026-10-22T20:16:40Z",
+            "completed_at": "2026-10-22T20:16:41Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-22T20:16:41Z",
+            "completed_at": "2026-10-22T20:16:41Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100300",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058717,
+        "runner_name": "GitHub Actions 1000058717",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100309,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMBFQ",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100309",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100309",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:29Z",
+        "completed_at": "2026-10-22T20:20:22Z",
+        "name": "lsp-e2e archive",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:30Z",
+            "completed_at": "2026-10-22T20:10:35Z"
+          },
+          {
+            "name": "Skip lsp-e2e archive where no test is required",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:35Z",
+            "completed_at": "2026-10-22T20:10:35Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:10:35Z",
+            "completed_at": "2026-10-22T20:16:28Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:16:28Z",
+            "completed_at": "2026-10-22T20:16:56Z"
+          },
+          {
+            "name": "Set up sccache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:16:56Z",
+            "completed_at": "2026-10-22T20:16:57Z"
+          },
+          {
+            "name": "Install cargo-nextest",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:16:57Z",
+            "completed_at": "2026-10-22T20:16:58Z"
+          },
+          {
+            "name": "Warm already-green merge push once",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 7,
+            "started_at": "2026-10-22T20:16:58Z",
+            "completed_at": "2026-10-22T20:16:58Z"
+          },
+          {
+            "name": "Build and archive lsp_e2e once",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 8,
+            "started_at": "2026-10-22T20:16:58Z",
+            "completed_at": "2026-10-22T20:20:19Z"
+          },
+          {
+            "name": "Verify hash-partition coverage",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 9,
+            "started_at": "2026-10-22T20:20:19Z",
+            "completed_at": "2026-10-22T20:20:19Z"
+          },
+          {
+            "name": "Record archive proof and listing metadata",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 10,
+            "started_at": "2026-10-22T20:20:19Z",
+            "completed_at": "2026-10-22T20:20:19Z"
+          },
+          {
+            "name": "Upload lsp-e2e archive",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 11,
+            "started_at": "2026-10-22T20:20:19Z",
+            "completed_at": "2026-10-22T20:20:19Z"
+          },
+          {
+            "name": "Upload lsp-e2e proof",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 12,
+            "started_at": "2026-10-22T20:20:19Z",
+            "completed_at": "2026-10-22T20:20:19Z"
+          },
+          {
+            "name": "Post Set up sccache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 22,
+            "started_at": "2026-10-22T20:20:19Z",
+            "completed_at": "2026-10-22T20:20:19Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 23,
+            "started_at": "2026-10-22T20:20:19Z",
+            "completed_at": "2026-10-22T20:20:19Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 24,
+            "started_at": "2026-10-22T20:20:19Z",
+            "completed_at": "2026-10-22T20:20:20Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 25,
+            "started_at": "2026-10-22T20:20:20Z",
+            "completed_at": "2026-10-22T20:20:20Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100309",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058720,
+        "runner_name": "GitHub Actions 1000058720",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100386,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMBYg",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100386",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100386",
+        "status": "completed",
+        "conclusion": "success",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:29Z",
+        "completed_at": "2026-10-22T20:27:21Z",
+        "name": "build-tcl-lsp-server",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:30Z",
+            "completed_at": "2026-10-22T20:10:32Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:32Z",
+            "completed_at": "2026-10-22T20:16:34Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:16:34Z",
+            "completed_at": "2026-10-22T20:16:55Z"
+          },
+          {
+            "name": "Set up sccache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:16:55Z",
+            "completed_at": "2026-10-22T20:16:56Z"
+          },
+          {
+            "name": "Enable sccache when available",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:16:56Z",
+            "completed_at": "2026-10-22T20:16:56Z"
+          },
+          {
+            "name": "Build tcl-lsp-server (ci profile)",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:16:56Z",
+            "completed_at": "2026-10-22T20:27:13Z"
+          },
+          {
+            "name": "Upload tcl-lsp-server binary",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T20:27:13Z",
+            "completed_at": "2026-10-22T20:27:18Z"
+          },
+          {
+            "name": "Report sccache statistics",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:27:18Z",
+            "completed_at": "2026-10-22T20:27:18Z"
+          },
+          {
+            "name": "Post Set up sccache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-22T20:27:18Z",
+            "completed_at": "2026-10-22T20:27:18Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-22T20:27:18Z",
+            "completed_at": "2026-10-22T20:27:18Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 16,
+            "started_at": "2026-10-22T20:27:18Z",
+            "completed_at": "2026-10-22T20:27:18Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-22T20:27:18Z",
+            "completed_at": "2026-10-22T20:27:18Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100386",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058723,
+        "runner_name": "GitHub Actions 1000058723",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100397,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMBbQ",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100397",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100397",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:30Z",
+        "completed_at": "2026-10-22T20:41:21Z",
+        "name": "spectcl-compat",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:30Z",
+            "completed_at": "2026-10-22T20:10:32Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:32Z",
+            "completed_at": "2026-10-22T20:15:46Z"
+          },
+          {
+            "name": "Resolve the exact Tcl 9.0 cache identity",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:15:46Z",
+            "completed_at": "2026-10-22T20:15:47Z"
+          },
+          {
+            "name": "Restore the exact Tcl 9.0 source and build tree",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:15:47Z",
+            "completed_at": "2026-10-22T20:15:47Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:15:47Z",
+            "completed_at": "2026-10-22T20:16:09Z"
+          },
+          {
+            "name": "Set up sccache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:16:09Z",
+            "completed_at": "2026-10-22T20:16:10Z"
+          },
+          {
+            "name": "Enable sccache when available",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T20:16:10Z",
+            "completed_at": "2026-10-22T20:16:10Z"
+          },
+          {
+            "name": "Run exact SpecTcl 1.x + 2.0 + real-Tcl compatibility gate",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 8,
+            "started_at": "2026-10-22T20:16:10Z",
+            "completed_at": "2026-10-22T20:41:19Z"
+          },
+          {
+            "name": "Save the validated Tcl 9.0 source and build tree",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 9,
+            "started_at": "2026-10-22T20:41:19Z",
+            "completed_at": "2026-10-22T20:41:19Z"
+          },
+          {
+            "name": "Report sccache statistics",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10,
+            "started_at": "2026-10-22T20:41:19Z",
+            "completed_at": "2026-10-22T20:41:19Z"
+          },
+          {
+            "name": "Post Set up sccache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 18,
+            "started_at": "2026-10-22T20:41:19Z",
+            "completed_at": "2026-10-22T20:41:19Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 19,
+            "started_at": "2026-10-22T20:41:19Z",
+            "completed_at": "2026-10-22T20:41:19Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 20,
+            "started_at": "2026-10-22T20:41:19Z",
+            "completed_at": "2026-10-22T20:41:20Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 21,
+            "started_at": "2026-10-22T20:41:20Z",
+            "completed_at": "2026-10-22T20:41:20Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100397",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058722,
+        "runner_name": "GitHub Actions 1000058722",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100472,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMBuA",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100472",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100472",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:30Z",
+        "completed_at": "2026-10-22T21:28:07Z",
+        "name": "rust-tests-shard (2/5)",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:31Z",
+            "completed_at": "2026-10-22T20:10:33Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:33Z",
+            "completed_at": "2026-10-22T20:16:05Z"
+          },
+          {
+            "name": "Verify canonical Rust homes",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:16:05Z",
+            "completed_at": "2026-10-22T20:16:05Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:16:05Z",
+            "completed_at": "2026-10-22T20:16:26Z"
+          },
+          {
+            "name": "Set up sccache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:16:26Z",
+            "completed_at": "2026-10-22T20:16:27Z"
+          },
+          {
+            "name": "Enable sccache when available",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:16:27Z",
+            "completed_at": "2026-10-22T20:16:27Z"
+          },
+          {
+            "name": "Prepare persistent Tank Cargo target",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 7,
+            "started_at": "2026-10-22T20:16:27Z",
+            "completed_at": "2026-10-22T20:16:27Z"
+          },
+          {
+            "name": "Install cargo-nextest",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:16:27Z",
+            "completed_at": "2026-10-22T20:16:27Z"
+          },
+          {
+            "name": "Install exact Tcl 9.0 reference interpreter",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:16:27Z",
+            "completed_at": "2026-10-22T20:16:57Z"
+          },
+          {
+            "name": "cargo nextest run (binary-aware workspace shard)",
+            "status": "in_progress",
+            "conclusion": null,
+            "number": 10,
+            "started_at": "2026-10-22T20:16:57Z",
+            "completed_at": null
+          },
+          {
+            "name": "Record selected shard listing",
+            "status": "pending",
+            "conclusion": null,
+            "number": 11,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Upload selected shard listing",
+            "status": "pending",
+            "conclusion": null,
+            "number": 12,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Upload authoritative Cargo metadata",
+            "status": "pending",
+            "conclusion": null,
+            "number": 13,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Report sccache statistics",
+            "status": "pending",
+            "conclusion": null,
+            "number": 14,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Report final Tank Cargo target",
+            "status": "pending",
+            "conclusion": null,
+            "number": 15,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Post Set up sccache",
+            "status": "pending",
+            "conclusion": null,
+            "number": 28,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "pending",
+            "conclusion": null,
+            "number": 29,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "pending",
+            "conclusion": null,
+            "number": 30,
+            "started_at": null,
+            "completed_at": null
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100472",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058724,
+        "runner_name": "GitHub Actions 1000058724",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100525,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMB7Q",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100525",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100525",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:30Z",
+        "completed_at": "2026-10-22T21:00:07Z",
+        "name": "rust-tests-shard (4/5)",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:30Z",
+            "completed_at": "2026-10-22T20:10:33Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:33Z",
+            "completed_at": "2026-10-22T20:16:19Z"
+          },
+          {
+            "name": "Verify canonical Rust homes",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:16:19Z",
+            "completed_at": "2026-10-22T20:16:20Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:16:20Z",
+            "completed_at": "2026-10-22T20:16:37Z"
+          },
+          {
+            "name": "Set up sccache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:16:37Z",
+            "completed_at": "2026-10-22T20:16:38Z"
+          },
+          {
+            "name": "Enable sccache when available",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:16:38Z",
+            "completed_at": "2026-10-22T20:16:38Z"
+          },
+          {
+            "name": "Prepare persistent Tank Cargo target",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 7,
+            "started_at": "2026-10-22T20:16:38Z",
+            "completed_at": "2026-10-22T20:16:38Z"
+          },
+          {
+            "name": "Install cargo-nextest",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:16:38Z",
+            "completed_at": "2026-10-22T20:16:38Z"
+          },
+          {
+            "name": "Install exact Tcl 9.0 reference interpreter",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:16:38Z",
+            "completed_at": "2026-10-22T20:17:09Z"
+          },
+          {
+            "name": "cargo nextest run (binary-aware workspace shard)",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "number": 10,
+            "started_at": "2026-10-22T20:17:09Z",
+            "completed_at": "2026-10-22T21:00:05Z"
+          },
+          {
+            "name": "Record selected shard listing",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 11,
+            "started_at": "2026-10-22T21:00:05Z",
+            "completed_at": "2026-10-22T21:00:05Z"
+          },
+          {
+            "name": "Upload selected shard listing",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 12,
+            "started_at": "2026-10-22T21:00:05Z",
+            "completed_at": "2026-10-22T21:00:05Z"
+          },
+          {
+            "name": "Upload authoritative Cargo metadata",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 13,
+            "started_at": "2026-10-22T21:00:05Z",
+            "completed_at": "2026-10-22T21:00:05Z"
+          },
+          {
+            "name": "Report sccache statistics",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 14,
+            "started_at": "2026-10-22T21:00:05Z",
+            "completed_at": "2026-10-22T21:00:05Z"
+          },
+          {
+            "name": "Report final Tank Cargo target",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 15,
+            "started_at": "2026-10-22T21:00:05Z",
+            "completed_at": "2026-10-22T21:00:05Z"
+          },
+          {
+            "name": "Post Set up sccache",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 28,
+            "started_at": "2026-10-22T21:00:05Z",
+            "completed_at": "2026-10-22T21:00:05Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 29,
+            "started_at": "2026-10-22T21:00:05Z",
+            "completed_at": "2026-10-22T21:00:05Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 30,
+            "started_at": "2026-10-22T21:00:05Z",
+            "completed_at": "2026-10-22T21:00:05Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 31,
+            "started_at": "2026-10-22T21:00:05Z",
+            "completed_at": "2026-10-22T21:00:05Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100525",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058712,
+        "runner_name": "GitHub Actions 1000058712",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100614,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMCRg",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100614",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100614",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:30Z",
+        "completed_at": "2026-10-22T22:43:19Z",
+        "name": "rust-tests-shard (3/5)",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:31Z",
+            "completed_at": "2026-10-22T20:10:34Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:34Z",
+            "completed_at": "2026-10-22T20:16:22Z"
+          },
+          {
+            "name": "Verify canonical Rust homes",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:16:22Z",
+            "completed_at": "2026-10-22T20:16:22Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:16:22Z",
+            "completed_at": "2026-10-22T20:16:43Z"
+          },
+          {
+            "name": "Set up sccache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:16:43Z",
+            "completed_at": "2026-10-22T20:16:44Z"
+          },
+          {
+            "name": "Enable sccache when available",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:16:44Z",
+            "completed_at": "2026-10-22T20:16:44Z"
+          },
+          {
+            "name": "Prepare persistent Tank Cargo target",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 7,
+            "started_at": "2026-10-22T20:16:44Z",
+            "completed_at": "2026-10-22T20:16:44Z"
+          },
+          {
+            "name": "Install cargo-nextest",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:16:44Z",
+            "completed_at": "2026-10-22T20:16:45Z"
+          },
+          {
+            "name": "Install exact Tcl 9.0 reference interpreter",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:16:45Z",
+            "completed_at": "2026-10-22T20:17:14Z"
+          },
+          {
+            "name": "cargo nextest run (binary-aware workspace shard)",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 10,
+            "started_at": "2026-10-22T20:17:14Z",
+            "completed_at": "2026-10-22T22:43:14Z"
+          },
+          {
+            "name": "Record selected shard listing",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 11,
+            "started_at": "2026-10-22T22:43:14Z",
+            "completed_at": "2026-10-22T22:43:14Z"
+          },
+          {
+            "name": "Upload selected shard listing",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 12,
+            "started_at": "2026-10-22T22:43:14Z",
+            "completed_at": "2026-10-22T22:43:15Z"
+          },
+          {
+            "name": "Upload authoritative Cargo metadata",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 13,
+            "started_at": "2026-10-22T22:43:15Z",
+            "completed_at": "2026-10-22T22:43:15Z"
+          },
+          {
+            "name": "Report sccache statistics",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-22T22:43:15Z",
+            "completed_at": "2026-10-22T22:43:15Z"
+          },
+          {
+            "name": "Report final Tank Cargo target",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 15,
+            "started_at": "2026-10-22T22:43:15Z",
+            "completed_at": "2026-10-22T22:43:15Z"
+          },
+          {
+            "name": "Post Set up sccache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 28,
+            "started_at": "2026-10-22T22:43:15Z",
+            "completed_at": "2026-10-22T22:43:15Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 29,
+            "started_at": "2026-10-22T22:43:15Z",
+            "completed_at": "2026-10-22T22:43:15Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 30,
+            "started_at": "2026-10-22T22:43:15Z",
+            "completed_at": "2026-10-22T22:43:16Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 31,
+            "started_at": "2026-10-22T22:43:16Z",
+            "completed_at": "2026-10-22T22:43:16Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100614",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058721,
+        "runner_name": "GitHub Actions 1000058721",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100615,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMCRw",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100615",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100615",
+        "status": "in_progress",
+        "conclusion": null,
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:29Z",
+        "completed_at": null,
+        "name": "rust-tests-shard (5/5)",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:30Z",
+            "completed_at": "2026-10-22T20:10:34Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:34Z",
+            "completed_at": "2026-10-22T20:16:41Z"
+          },
+          {
+            "name": "Verify canonical Rust homes",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:16:41Z",
+            "completed_at": "2026-10-22T20:16:41Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:16:41Z",
+            "completed_at": "2026-10-22T20:17:00Z"
+          },
+          {
+            "name": "Set up sccache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:17:00Z",
+            "completed_at": "2026-10-22T20:17:01Z"
+          },
+          {
+            "name": "Enable sccache when available",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:17:01Z",
+            "completed_at": "2026-10-22T20:17:01Z"
+          },
+          {
+            "name": "Prepare persistent Tank Cargo target",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 7,
+            "started_at": "2026-10-22T20:17:01Z",
+            "completed_at": "2026-10-22T20:17:01Z"
+          },
+          {
+            "name": "Install cargo-nextest",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:17:01Z",
+            "completed_at": "2026-10-22T20:17:01Z"
+          },
+          {
+            "name": "Install exact Tcl 9.0 reference interpreter",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:17:01Z",
+            "completed_at": "2026-10-22T20:17:27Z"
+          },
+          {
+            "name": "cargo nextest run (binary-aware workspace shard)",
+            "status": "in_progress",
+            "conclusion": null,
+            "number": 10,
+            "started_at": "2026-10-22T20:17:27Z",
+            "completed_at": null
+          },
+          {
+            "name": "Record selected shard listing",
+            "status": "pending",
+            "conclusion": null,
+            "number": 11,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Upload selected shard listing",
+            "status": "pending",
+            "conclusion": null,
+            "number": 12,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Upload authoritative Cargo metadata",
+            "status": "pending",
+            "conclusion": null,
+            "number": 13,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Report sccache statistics",
+            "status": "pending",
+            "conclusion": null,
+            "number": 14,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Report final Tank Cargo target",
+            "status": "pending",
+            "conclusion": null,
+            "number": 15,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Post Set up sccache",
+            "status": "pending",
+            "conclusion": null,
+            "number": 28,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "pending",
+            "conclusion": null,
+            "number": 29,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "pending",
+            "conclusion": null,
+            "number": 30,
+            "started_at": null,
+            "completed_at": null
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100615",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058716,
+        "runner_name": "GitHub Actions 1000058716",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061100771,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMC4w",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061100771",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061100771",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:29Z",
+        "completed_at": "2026-10-22T23:11:21Z",
+        "name": "rust-tests-shard (1/5)",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:10:30Z",
+            "completed_at": "2026-10-22T20:10:31Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:10:31Z",
+            "completed_at": "2026-10-22T20:16:12Z"
+          },
+          {
+            "name": "Verify canonical Rust homes",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:16:12Z",
+            "completed_at": "2026-10-22T20:16:12Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:16:12Z",
+            "completed_at": "2026-10-22T20:16:28Z"
+          },
+          {
+            "name": "Set up sccache",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:16:28Z",
+            "completed_at": "2026-10-22T20:16:29Z"
+          },
+          {
+            "name": "Enable sccache when available",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:16:29Z",
+            "completed_at": "2026-10-22T20:16:29Z"
+          },
+          {
+            "name": "Prepare persistent Tank Cargo target",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 7,
+            "started_at": "2026-10-22T20:16:29Z",
+            "completed_at": "2026-10-22T20:16:29Z"
+          },
+          {
+            "name": "Install cargo-nextest",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:16:29Z",
+            "completed_at": "2026-10-22T20:16:29Z"
+          },
+          {
+            "name": "Install exact Tcl 9.0 reference interpreter",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:16:29Z",
+            "completed_at": "2026-10-22T20:16:58Z"
+          },
+          {
+            "name": "cargo nextest run (binary-aware workspace shard)",
+            "status": "in_progress",
+            "conclusion": null,
+            "number": 10,
+            "started_at": "2026-10-22T20:16:58Z",
+            "completed_at": null
+          },
+          {
+            "name": "Record selected shard listing",
+            "status": "pending",
+            "conclusion": null,
+            "number": 11,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Upload selected shard listing",
+            "status": "pending",
+            "conclusion": null,
+            "number": 12,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Upload authoritative Cargo metadata",
+            "status": "pending",
+            "conclusion": null,
+            "number": 13,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Report sccache statistics",
+            "status": "pending",
+            "conclusion": null,
+            "number": 14,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Report final Tank Cargo target",
+            "status": "pending",
+            "conclusion": null,
+            "number": 15,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Post Set up sccache",
+            "status": "pending",
+            "conclusion": null,
+            "number": 28,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "pending",
+            "conclusion": null,
+            "number": 29,
+            "started_at": null,
+            "completed_at": null
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "pending",
+            "conclusion": null,
+            "number": 30,
+            "started_at": null,
+            "completed_at": null
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061100771",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058719,
+        "runner_name": "GitHub Actions 1000058719",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120061103737,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMOeQ",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061103737",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061103737",
+        "status": "completed",
+        "conclusion": "skipped",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:26Z",
+        "completed_at": "2026-10-22T20:10:26Z",
+        "name": "native ${{ matrix.platform.id }} / ${{ matrix.program.id }}",
+        "steps": [],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061103737",
+        "labels": [],
+        "runner_id": null,
+        "runner_name": null,
+        "runner_group_id": null,
+        "runner_group_name": null
+      },
+      {
+        "id": 120061103749,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9DMOhQ",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120061103749",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120061103749",
+        "status": "completed",
+        "conclusion": "skipped",
+        "created_at": "2026-10-22T20:10:26Z",
+        "started_at": "2026-10-22T20:10:26Z",
+        "completed_at": "2026-10-22T20:10:26Z",
+        "name": "macos-wasm-check",
+        "steps": [],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120061103749",
+        "labels": [
+          "macos-15"
+        ],
+        "runner_id": null,
+        "runner_name": null,
+        "runner_group_id": null,
+        "runner_group_name": null
+      },
+      {
+        "id": 120066238015,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9IFmPw",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120066238015",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120066238015",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:20:23Z",
+        "started_at": "2026-10-22T20:20:26Z",
+        "completed_at": "2026-10-22T20:20:31Z",
+        "name": "lsp-e2e",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:20:27Z",
+            "completed_at": "2026-10-22T20:20:28Z"
+          },
+          {
+            "name": "Require all lsp-e2e partitions",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 2,
+            "started_at": "2026-10-22T20:20:28Z",
+            "completed_at": "2026-10-22T20:20:28Z"
+          },
+          {
+            "name": "Check out verifier for transferred normal-path results",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 3,
+            "started_at": "2026-10-22T20:20:28Z",
+            "completed_at": "2026-10-22T20:20:28Z"
+          },
+          {
+            "name": "Download producer proof metadata",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 4,
+            "started_at": "2026-10-22T20:20:28Z",
+            "completed_at": "2026-10-22T20:20:28Z"
+          },
+          {
+            "name": "Download partition 1 metadata",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 5,
+            "started_at": "2026-10-22T20:20:28Z",
+            "completed_at": "2026-10-22T20:20:28Z"
+          },
+          {
+            "name": "Download partition 2 metadata",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 6,
+            "started_at": "2026-10-22T20:20:28Z",
+            "completed_at": "2026-10-22T20:20:28Z"
+          },
+          {
+            "name": "Download partition 3 metadata",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 7,
+            "started_at": "2026-10-22T20:20:28Z",
+            "completed_at": "2026-10-22T20:20:28Z"
+          },
+          {
+            "name": "Validate transferred lsp-e2e results",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 8,
+            "started_at": "2026-10-22T20:20:28Z",
+            "completed_at": "2026-10-22T20:20:28Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:20:28Z",
+            "completed_at": "2026-10-22T20:20:28Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120066238015",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058725,
+        "runner_name": "GitHub Actions 1000058725",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120066239420,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9IFrvA",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120066239420",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120066239420",
+        "status": "completed",
+        "conclusion": "skipped",
+        "created_at": "2026-10-22T20:20:23Z",
+        "started_at": "2026-10-22T20:20:23Z",
+        "completed_at": "2026-10-22T20:20:23Z",
+        "name": "lsp-e2e-partition (${{ matrix.partition }})",
+        "steps": [],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120066239420",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": null,
+        "runner_name": null,
+        "runner_group_id": null,
+        "runner_group_name": null
+      },
+      {
+        "id": 120069799826,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9Le_kg",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120069799826",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120069799826",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:27:21Z",
+        "started_at": "2026-10-22T20:27:27Z",
+        "completed_at": "2026-10-22T20:44:26Z",
+        "name": "test-ext-partition (1, one)",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:27:27Z",
+            "completed_at": "2026-10-22T20:27:30Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:27:30Z",
+            "completed_at": "2026-10-22T20:31:53Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:31:53Z",
+            "completed_at": "2026-10-22T20:32:23Z"
+          },
+          {
+            "name": "Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:32:23Z",
+            "completed_at": "2026-10-22T20:32:28Z"
+          },
+          {
+            "name": "Enable Corepack (pin npm via packageManager)",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:32:28Z",
+            "completed_at": "2026-10-22T20:32:30Z"
+          },
+          {
+            "name": "Cache npm registry",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:32:30Z",
+            "completed_at": "2026-10-22T20:32:31Z"
+          },
+          {
+            "name": "Install npm dependencies",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T20:32:31Z",
+            "completed_at": "2026-10-22T20:32:35Z"
+          },
+          {
+            "name": "Verify VS Code test partitions",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:32:35Z",
+            "completed_at": "2026-10-22T20:32:36Z"
+          },
+          {
+            "name": "Resolve VS Code stable version",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:32:36Z",
+            "completed_at": "2026-10-22T20:32:36Z"
+          },
+          {
+            "name": "Cache VS Code test download",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10,
+            "started_at": "2026-10-22T20:32:36Z",
+            "completed_at": "2026-10-22T20:32:37Z"
+          },
+          {
+            "name": "Lint TypeScript",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-22T20:32:37Z",
+            "completed_at": "2026-10-22T20:32:41Z"
+          },
+          {
+            "name": "Copy canonical AI data",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-22T20:32:41Z",
+            "completed_at": "2026-10-22T20:32:41Z"
+          },
+          {
+            "name": "Compile TypeScript",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-22T20:32:41Z",
+            "completed_at": "2026-10-22T20:32:42Z"
+          },
+          {
+            "name": "Download tcl-lsp-server binary",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-22T20:32:42Z",
+            "completed_at": "2026-10-22T20:32:44Z"
+          },
+          {
+            "name": "Make tcl-lsp-server binary executable",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-22T20:32:44Z",
+            "completed_at": "2026-10-22T20:32:44Z"
+          },
+          {
+            "name": "Run extension tests",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 16,
+            "started_at": "2026-10-22T20:32:44Z",
+            "completed_at": "2026-10-22T20:44:17Z"
+          },
+          {
+            "name": "Upload single-root partition metadata",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-22T20:44:17Z",
+            "completed_at": "2026-10-22T20:44:18Z"
+          },
+          {
+            "name": "Post Cache VS Code test download",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 30,
+            "started_at": "2026-10-22T20:44:18Z",
+            "completed_at": "2026-10-22T20:44:18Z"
+          },
+          {
+            "name": "Post Cache npm registry",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 31,
+            "started_at": "2026-10-22T20:44:18Z",
+            "completed_at": "2026-10-22T20:44:18Z"
+          },
+          {
+            "name": "Post Set up Node.js",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 32,
+            "started_at": "2026-10-22T20:44:18Z",
+            "completed_at": "2026-10-22T20:44:18Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 33,
+            "started_at": "2026-10-22T20:44:18Z",
+            "completed_at": "2026-10-22T20:44:24Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 34,
+            "started_at": "2026-10-22T20:44:24Z",
+            "completed_at": "2026-10-22T20:44:24Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 35,
+            "started_at": "2026-10-22T20:44:24Z",
+            "completed_at": "2026-10-22T20:44:24Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120069799826",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058727,
+        "runner_name": "GitHub Actions 1000058727",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120069799854,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9Le_rg",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120069799854",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120069799854",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:27:21Z",
+        "started_at": "2026-10-22T20:27:24Z",
+        "completed_at": "2026-10-22T20:34:34Z",
+        "name": "test-ext-multi-folder",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:27:25Z",
+            "completed_at": "2026-10-22T20:27:28Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:27:28Z",
+            "completed_at": "2026-10-22T20:33:04Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:33:04Z",
+            "completed_at": "2026-10-22T20:33:20Z"
+          },
+          {
+            "name": "Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:33:20Z",
+            "completed_at": "2026-10-22T20:33:25Z"
+          },
+          {
+            "name": "Enable Corepack (pin npm via packageManager)",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:33:25Z",
+            "completed_at": "2026-10-22T20:33:26Z"
+          },
+          {
+            "name": "Cache npm registry",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:33:26Z",
+            "completed_at": "2026-10-22T20:33:28Z"
+          },
+          {
+            "name": "Install npm dependencies",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T20:33:28Z",
+            "completed_at": "2026-10-22T20:33:31Z"
+          },
+          {
+            "name": "Verify VS Code test partitions",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:33:31Z",
+            "completed_at": "2026-10-22T20:33:32Z"
+          },
+          {
+            "name": "Resolve VS Code stable version",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:33:32Z",
+            "completed_at": "2026-10-22T20:33:33Z"
+          },
+          {
+            "name": "Cache VS Code test download",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10,
+            "started_at": "2026-10-22T20:33:33Z",
+            "completed_at": "2026-10-22T20:33:33Z"
+          },
+          {
+            "name": "Lint TypeScript",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-22T20:33:33Z",
+            "completed_at": "2026-10-22T20:33:36Z"
+          },
+          {
+            "name": "Copy canonical AI data",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-22T20:33:36Z",
+            "completed_at": "2026-10-22T20:33:36Z"
+          },
+          {
+            "name": "Compile TypeScript",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-22T20:33:36Z",
+            "completed_at": "2026-10-22T20:33:37Z"
+          },
+          {
+            "name": "Download tcl-lsp-server binary",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-22T20:33:37Z",
+            "completed_at": "2026-10-22T20:33:57Z"
+          },
+          {
+            "name": "Make tcl-lsp-server binary executable",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-22T20:33:57Z",
+            "completed_at": "2026-10-22T20:33:57Z"
+          },
+          {
+            "name": "Run extension tests",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 16,
+            "started_at": "2026-10-22T20:33:57Z",
+            "completed_at": "2026-10-22T20:34:21Z"
+          },
+          {
+            "name": "Upload multi-folder test metadata",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-22T20:34:21Z",
+            "completed_at": "2026-10-22T20:34:23Z"
+          },
+          {
+            "name": "Post Cache VS Code test download",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 30,
+            "started_at": "2026-10-22T20:34:23Z",
+            "completed_at": "2026-10-22T20:34:23Z"
+          },
+          {
+            "name": "Post Cache npm registry",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 31,
+            "started_at": "2026-10-22T20:34:23Z",
+            "completed_at": "2026-10-22T20:34:23Z"
+          },
+          {
+            "name": "Post Set up Node.js",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 32,
+            "started_at": "2026-10-22T20:34:23Z",
+            "completed_at": "2026-10-22T20:34:23Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 33,
+            "started_at": "2026-10-22T20:34:23Z",
+            "completed_at": "2026-10-22T20:34:31Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 34,
+            "started_at": "2026-10-22T20:34:31Z",
+            "completed_at": "2026-10-22T20:34:32Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 35,
+            "started_at": "2026-10-22T20:34:32Z",
+            "completed_at": "2026-10-22T20:34:32Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120069799854",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058728,
+        "runner_name": "GitHub Actions 1000058728",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120069799858,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9Le_sg",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120069799858",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120069799858",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:27:21Z",
+        "started_at": "2026-10-22T20:27:24Z",
+        "completed_at": "2026-10-22T20:58:22Z",
+        "name": "test-ext-partition (2, two)",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:27:25Z",
+            "completed_at": "2026-10-22T20:27:27Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:27:27Z",
+            "completed_at": "2026-10-22T20:32:55Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:32:55Z",
+            "completed_at": "2026-10-22T20:33:14Z"
+          },
+          {
+            "name": "Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:33:14Z",
+            "completed_at": "2026-10-22T20:33:18Z"
+          },
+          {
+            "name": "Enable Corepack (pin npm via packageManager)",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:33:18Z",
+            "completed_at": "2026-10-22T20:33:20Z"
+          },
+          {
+            "name": "Cache npm registry",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:33:20Z",
+            "completed_at": "2026-10-22T20:33:21Z"
+          },
+          {
+            "name": "Install npm dependencies",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T20:33:21Z",
+            "completed_at": "2026-10-22T20:33:25Z"
+          },
+          {
+            "name": "Verify VS Code test partitions",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:33:25Z",
+            "completed_at": "2026-10-22T20:33:26Z"
+          },
+          {
+            "name": "Resolve VS Code stable version",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:33:26Z",
+            "completed_at": "2026-10-22T20:33:27Z"
+          },
+          {
+            "name": "Cache VS Code test download",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10,
+            "started_at": "2026-10-22T20:33:27Z",
+            "completed_at": "2026-10-22T20:33:27Z"
+          },
+          {
+            "name": "Lint TypeScript",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-22T20:33:27Z",
+            "completed_at": "2026-10-22T20:33:31Z"
+          },
+          {
+            "name": "Copy canonical AI data",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-22T20:33:31Z",
+            "completed_at": "2026-10-22T20:33:31Z"
+          },
+          {
+            "name": "Compile TypeScript",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-22T20:33:31Z",
+            "completed_at": "2026-10-22T20:33:32Z"
+          },
+          {
+            "name": "Download tcl-lsp-server binary",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-22T20:33:32Z",
+            "completed_at": "2026-10-22T20:33:34Z"
+          },
+          {
+            "name": "Make tcl-lsp-server binary executable",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-22T20:33:34Z",
+            "completed_at": "2026-10-22T20:33:34Z"
+          },
+          {
+            "name": "Run extension tests",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 16,
+            "started_at": "2026-10-22T20:33:34Z",
+            "completed_at": "2026-10-22T20:58:12Z"
+          },
+          {
+            "name": "Upload single-root partition metadata",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-22T20:58:12Z",
+            "completed_at": "2026-10-22T20:58:13Z"
+          },
+          {
+            "name": "Post Cache VS Code test download",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 30,
+            "started_at": "2026-10-22T20:58:13Z",
+            "completed_at": "2026-10-22T20:58:13Z"
+          },
+          {
+            "name": "Post Cache npm registry",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 31,
+            "started_at": "2026-10-22T20:58:13Z",
+            "completed_at": "2026-10-22T20:58:13Z"
+          },
+          {
+            "name": "Post Set up Node.js",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 32,
+            "started_at": "2026-10-22T20:58:13Z",
+            "completed_at": "2026-10-22T20:58:13Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 33,
+            "started_at": "2026-10-22T20:58:13Z",
+            "completed_at": "2026-10-22T20:58:19Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 34,
+            "started_at": "2026-10-22T20:58:19Z",
+            "completed_at": "2026-10-22T20:58:20Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 35,
+            "started_at": "2026-10-22T20:58:20Z",
+            "completed_at": "2026-10-22T20:58:20Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120069799858",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058726,
+        "runner_name": "GitHub Actions 1000058726",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120069799902,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9Le_3g",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120069799902",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120069799902",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:27:21Z",
+        "started_at": "2026-10-22T20:27:24Z",
+        "completed_at": "2026-10-22T20:43:59Z",
+        "name": "test-ext-partition (3, three)",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:27:25Z",
+            "completed_at": "2026-10-22T20:27:27Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:27:27Z",
+            "completed_at": "2026-10-22T20:31:46Z"
+          },
+          {
+            "name": "Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:31:46Z",
+            "completed_at": "2026-10-22T20:32:01Z"
+          },
+          {
+            "name": "Set up Node.js",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 4,
+            "started_at": "2026-10-22T20:32:01Z",
+            "completed_at": "2026-10-22T20:32:05Z"
+          },
+          {
+            "name": "Enable Corepack (pin npm via packageManager)",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 5,
+            "started_at": "2026-10-22T20:32:05Z",
+            "completed_at": "2026-10-22T20:32:06Z"
+          },
+          {
+            "name": "Cache npm registry",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-10-22T20:32:06Z",
+            "completed_at": "2026-10-22T20:32:07Z"
+          },
+          {
+            "name": "Install npm dependencies",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-10-22T20:32:07Z",
+            "completed_at": "2026-10-22T20:32:09Z"
+          },
+          {
+            "name": "Verify VS Code test partitions",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-10-22T20:32:09Z",
+            "completed_at": "2026-10-22T20:32:11Z"
+          },
+          {
+            "name": "Resolve VS Code stable version",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 9,
+            "started_at": "2026-10-22T20:32:11Z",
+            "completed_at": "2026-10-22T20:32:11Z"
+          },
+          {
+            "name": "Cache VS Code test download",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10,
+            "started_at": "2026-10-22T20:32:11Z",
+            "completed_at": "2026-10-22T20:32:11Z"
+          },
+          {
+            "name": "Lint TypeScript",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-22T20:32:11Z",
+            "completed_at": "2026-10-22T20:32:13Z"
+          },
+          {
+            "name": "Copy canonical AI data",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 12,
+            "started_at": "2026-10-22T20:32:13Z",
+            "completed_at": "2026-10-22T20:32:14Z"
+          },
+          {
+            "name": "Compile TypeScript",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 13,
+            "started_at": "2026-10-22T20:32:14Z",
+            "completed_at": "2026-10-22T20:32:14Z"
+          },
+          {
+            "name": "Download tcl-lsp-server binary",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 14,
+            "started_at": "2026-10-22T20:32:14Z",
+            "completed_at": "2026-10-22T20:32:16Z"
+          },
+          {
+            "name": "Make tcl-lsp-server binary executable",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 15,
+            "started_at": "2026-10-22T20:32:16Z",
+            "completed_at": "2026-10-22T20:32:16Z"
+          },
+          {
+            "name": "Run extension tests",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 16,
+            "started_at": "2026-10-22T20:32:16Z",
+            "completed_at": "2026-10-22T20:43:48Z"
+          },
+          {
+            "name": "Upload single-root partition metadata",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 17,
+            "started_at": "2026-10-22T20:43:48Z",
+            "completed_at": "2026-10-22T20:43:49Z"
+          },
+          {
+            "name": "Post Cache VS Code test download",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 30,
+            "started_at": "2026-10-22T20:43:49Z",
+            "completed_at": "2026-10-22T20:43:49Z"
+          },
+          {
+            "name": "Post Cache npm registry",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 31,
+            "started_at": "2026-10-22T20:43:49Z",
+            "completed_at": "2026-10-22T20:43:49Z"
+          },
+          {
+            "name": "Post Set up Node.js",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 32,
+            "started_at": "2026-10-22T20:43:49Z",
+            "completed_at": "2026-10-22T20:43:49Z"
+          },
+          {
+            "name": "Post Set up Rust",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 33,
+            "started_at": "2026-10-22T20:43:49Z",
+            "completed_at": "2026-10-22T20:43:57Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 34,
+            "started_at": "2026-10-22T20:43:57Z",
+            "completed_at": "2026-10-22T20:43:57Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 35,
+            "started_at": "2026-10-22T20:43:57Z",
+            "completed_at": "2026-10-22T20:43:57Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120069799902",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058729,
+        "runner_name": "GitHub Actions 1000058729",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120076837173,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9SMhNQ",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120076837173",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120076837173",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:41:21Z",
+        "started_at": "2026-10-22T20:41:24Z",
+        "completed_at": "2026-10-22T20:41:26Z",
+        "name": "pr-gate",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:41:24Z",
+            "completed_at": "2026-10-22T20:41:24Z"
+          },
+          {
+            "name": "Propagate prerequisite gate failures",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 2,
+            "started_at": "2026-10-22T20:41:24Z",
+            "completed_at": "2026-10-22T20:41:24Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 3,
+            "started_at": "2026-10-22T20:41:24Z",
+            "completed_at": "2026-10-22T20:41:25Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120076837173",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058730,
+        "runner_name": "GitHub Actions 1000058730",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      },
+      {
+        "id": 120085165834,
+        "run_id": 39845788481,
+        "workflow_name": "CI",
+        "head_branch": "work",
+        "run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/runs/39845788481",
+        "run_attempt": 1,
+        "node_id": "CR_kwDORmQgMc8AAAAb9aI3Cg",
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "url": "https://api.github.com/repos/bitwisecook/tcl-lsp/actions/jobs/120085165834",
+        "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39845788481/job/120085165834",
+        "status": "completed",
+        "conclusion": "failure",
+        "created_at": "2026-10-22T20:58:22Z",
+        "started_at": "2026-10-22T20:58:25Z",
+        "completed_at": "2026-10-22T21:03:07Z",
+        "name": "test-ext",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 1,
+            "started_at": "2026-10-22T20:58:25Z",
+            "completed_at": "2026-10-22T20:58:26Z"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 2,
+            "started_at": "2026-10-22T20:58:26Z",
+            "completed_at": "2026-10-22T21:03:04Z"
+          },
+          {
+            "name": "Propagate extension prerequisite failures",
+            "status": "completed",
+            "conclusion": "failure",
+            "number": 3,
+            "started_at": "2026-10-22T21:03:04Z",
+            "completed_at": "2026-10-22T21:03:05Z"
+          },
+          {
+            "name": "Download extension test metadata",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 4,
+            "started_at": "2026-10-22T21:03:05Z",
+            "completed_at": "2026-10-22T21:03:05Z"
+          },
+          {
+            "name": "Verify extension test exact-once metadata",
+            "status": "completed",
+            "conclusion": "skipped",
+            "number": 5,
+            "started_at": "2026-10-22T21:03:05Z",
+            "completed_at": "2026-10-22T21:03:05Z"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 10,
+            "started_at": "2026-10-22T21:03:05Z",
+            "completed_at": "2026-10-22T21:03:06Z"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 11,
+            "started_at": "2026-10-22T21:03:06Z",
+            "completed_at": "2026-10-22T21:03:06Z"
+          }
+        ],
+        "check_run_url": "https://api.github.com/repos/bitwisecook/tcl-lsp/check-runs/120085165834",
+        "labels": [
+          "ubuntu-26.04"
+        ],
+        "runner_id": 1000058731,
+        "runner_name": "GitHub Actions 1000058731",
+        "runner_group_id": 0,
+        "runner_group_name": "GitHub Actions"
+      }
+    ]
+  }
+}

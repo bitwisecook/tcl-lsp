@@ -1,0 +1,3 @@
+   Compiling tcl-runtime v0.1.0 (/tmp/vm-runtime-ci5205-no-tommath/runtime/rust)
+warning: tcl-runtime@0.1.0: libtommath source not found; bignum backend disabled
+    Finished `test` profile [unoptimized] target(s) in 4m 49s

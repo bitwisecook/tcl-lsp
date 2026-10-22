@@ -1,0 +1,20 @@
+{
+  "prepared_utc": "2026-10-22T23:14:08.386890+00:00",
+  "status": "OFFTREE pure cfgtest observer, untyped/unrun; root source-window approval required",
+  "source_head": "ba02fd7035ad3a35bf3f64f6260b2204590f33be",
+  "path": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+  "before_sha256": "177494838ad7937bded1f0000d84469b29df73ce94ffd8c4696f340c46c2c07b",
+  "after_sha256": "fd0bf28fd7227bb534a5f482fd4b5c218d1cff320e7690c53144ca74e5a6a594",
+  "patch_sha256": "75559b93a95ab6131ea49e1f50a1233fe4da237bd901fbf99451095447c970d9",
+  "env": {
+    "TCL_LSP_TRACE_REPORT_DECLARATIONS": "1"
+  },
+  "scope": "Original count!=1 predicate and immediate refusal unchanged; bounded failed-site observation ONLY. Requeries immutable actual named/lowered inventories after failure to classify missing vs multiple and actual typed body roles/current ownership. No captured eligibility/totality change, no Eq/assertion change. Max8 detail rows per reached refusal.",
+  "syntax_exit": 0,
+  "applycheck_exit": 0,
+  "applycheck_stderr": "",
+  "successor_to": "5836d112cc1af04e4cc0b512464ba9993f0583648ef017e6c4f97f0240d60bf1",
+  "additional_change": "Restores ONLY previously retired aliases diagnostic with same original include/profile/two analyses/full first==second assertion; bounded observations, expected equality failure remains diagnostic. Original E003/hosted TEMP tests and owner probes stay retired.",
+  "selector": "object_types::report_comparison::tests::current_native_alias_report_capture_control",
+  "expected_selected": 1
+}

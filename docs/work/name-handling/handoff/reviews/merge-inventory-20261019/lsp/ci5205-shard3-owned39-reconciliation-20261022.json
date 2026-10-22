@@ -1,0 +1,1712 @@
+{
+  "schema": "lsp-ci5205-shard3-exact39-reconciliation-v1",
+  "current_ci_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+  "baseline_source": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "identity": [
+    "binary_id",
+    "selector"
+  ],
+  "count": 39,
+  "area_counts": {
+    "Grammarless-body completion source purpose": 1,
+    "Selected operand hover": 3,
+    "Inline variable ownership/dataflow": 2,
+    "Minify original literal word syntax": 1,
+    "Minify numeric equality inversion": 1,
+    "Minify obsolete spacing expectation": 1,
+    "Minify switch case-list syntax": 1,
+    "Semantic token edit stability": 1,
+    "Linked editing self-call": 1,
+    "Minify nested body syntax": 1,
+    "Expression code-action source proof": 1,
+    "Extract-proc captured variable contract": 1,
+    "Typed source path advice": 3,
+    "OO configurable symbol extraction": 1,
+    "Itcl source declaration dispatch": 4,
+    "Old wildcard capability boundary": 1,
+    "W210 loader incoming variable seed": 1,
+    "OO method/class provider agreement": 12,
+    "DB body memo/query-path guard": 2
+  },
+  "exact_current13_named_overlap": 1,
+  "current_scope": "Read-only raw assertion attribution and existing-candidate/plan reconciliation. No test reruns or current result, no assertion/fixture/budget changes.",
+  "rows": [
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::authoring_dialect_completion",
+        "selector": "a_body_with_no_grammar_falls_back_to_ordinary_completion"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "authoring_dialect_completion",
+        "selector": "a_body_with_no_grammar_falls_back_to_ordinary_completion",
+        "status": "PASS",
+        "reporter_ordinal": 1620,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::authoring_dialect_completion"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:58:10.8443751Z",
+        "duration": "   2.950s",
+        "reporter_ordinal": 1753,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "authoring_dialect_completion",
+        "binary_id": "tcl-lsp-core::authoring_dialect_completion",
+        "selector": "a_body_with_no_grammar_falls_back_to_ordinary_completion",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26001,
+      "raw_end_line": 26032,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__authoring_dialect_completion--a_body_with_no_grammar_falls_back_to_ordinary_completion.log",
+      "block_sha256": "619c52a09eb657d3d6d2b969a7acad83e7eda014b0d520e6eab7691b5a69126c",
+      "panic_excerpt": [
+        "2026-10-22T20:58:10.8736502Z     thread 'a_body_with_no_grammar_falls_back_to_ordinary_completion' (21298) panicked at rust/tcl-lsp-core/tests/authoring_dialect_completion.rs:142:5:",
+        "2026-10-22T20:58:10.8738102Z     ordinary Tcl completion resumes inside a grammarless body: []",
+        "2026-10-22T20:58:10.8738823Z     stack backtrace:",
+        "2026-10-22T20:58:10.8739273Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T20:58:10.8740187Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "Grammarless-body completion source purpose",
+      "phase_or_join": "Actual completion result empty in body lacking custom grammar. Needs authentic deferred-body/ordinary Tcl completion purpose; no Native entry or registry fallback by absence.",
+      "current_status": "unfixed/unmeasured; not covered by N13 host queue/current13",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::hover_residual",
+        "selector": "residual_hover_option_word_of_command"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "hover_residual",
+        "selector": "residual_hover_option_word_of_command",
+        "status": "PASS",
+        "reporter_ordinal": 1664,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::hover_residual"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:58:44.4545383Z",
+        "duration": "   1.253s",
+        "reporter_ordinal": 1796,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "hover_residual",
+        "binary_id": "tcl-lsp-core::hover_residual",
+        "selector": "residual_hover_option_word_of_command",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26075,
+      "raw_end_line": 26112,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__hover_residual--residual_hover_option_word_of_command.log",
+      "block_sha256": "262123f79c1b4654056138bdfd97e3db210f267adcaec86e0aad080be6a3d2b5",
+      "panic_excerpt": [
+        "2026-10-22T20:58:44.4690308Z     thread 'residual_hover_option_word_of_command' (21383) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:407:54:",
+        "2026-10-22T20:58:44.4691989Z     option hover",
+        "2026-10-22T20:58:44.4692624Z     stack backtrace:",
+        "2026-10-22T20:58:44.4693274Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T20:58:44.4694236Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "Selected operand hover",
+      "phase_or_join": "Earlier compiler e1 retained regexp/lsearch schema with undefined arguments. LSP selected-operand readonly fallback draft remains off-tree/unmeasured; rerun exact actual assertion before closure.",
+      "current_status": "unfixed/unmeasured; candidate /tmp/lsp-hover-selected-operand.patch",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::hover_residual",
+        "selector": "residual_hover_regexp_literal_pattern_notes_no_metacharacters"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "hover_residual",
+        "selector": "residual_hover_regexp_literal_pattern_notes_no_metacharacters",
+        "status": "PASS",
+        "reporter_ordinal": 1666,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::hover_residual"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:58:45.4913627Z",
+        "duration": "   1.033s",
+        "reporter_ordinal": 1799,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "hover_residual",
+        "binary_id": "tcl-lsp-core::hover_residual",
+        "selector": "residual_hover_regexp_literal_pattern_notes_no_metacharacters",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26115,
+      "raw_end_line": 26152,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__hover_residual--residual_hover_regexp_literal_pattern_notes_no_metacharacters.log",
+      "block_sha256": "c7a0cad6f024227ce986641efee8ac0389cc2ceb71af991a63475cbed60b2071",
+      "panic_excerpt": [
+        "2026-10-22T20:58:45.5262972Z     thread 'residual_hover_regexp_literal_pattern_notes_no_metacharacters' (21387) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:293:48:",
+        "2026-10-22T20:58:45.5292045Z     regexp literal hover",
+        "2026-10-22T20:58:45.5301899Z     stack backtrace:",
+        "2026-10-22T20:58:45.5332232Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T20:58:45.5352330Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "Selected operand hover",
+      "phase_or_join": "Earlier compiler e1 retained regexp/lsearch schema with undefined arguments. LSP selected-operand readonly fallback draft remains off-tree/unmeasured; rerun exact actual assertion before closure.",
+      "current_status": "unfixed/unmeasured; candidate /tmp/lsp-hover-selected-operand.patch",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::hover_residual",
+        "selector": "residual_hover_regexp_pattern_anchors_and_class"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "hover_residual",
+        "selector": "residual_hover_regexp_pattern_anchors_and_class",
+        "status": "PASS",
+        "reporter_ordinal": 1668,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::hover_residual"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:58:45.6364098Z",
+        "duration": "   1.066s",
+        "reporter_ordinal": 1800,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "hover_residual",
+        "binary_id": "tcl-lsp-core::hover_residual",
+        "selector": "residual_hover_regexp_pattern_anchors_and_class",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26153,
+      "raw_end_line": 26190,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__hover_residual--residual_hover_regexp_pattern_anchors_and_class.log",
+      "block_sha256": "23705dae2f84985323317978c5c6f2d51bf83ecea30320118bfcd2c0c3db0469",
+      "panic_excerpt": [
+        "2026-10-22T20:58:45.6376174Z     thread 'residual_hover_regexp_pattern_anchors_and_class' (21389) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:266:48:",
+        "2026-10-22T20:58:45.6377947Z     regexp hover",
+        "2026-10-22T20:58:45.6378633Z     stack backtrace:",
+        "2026-10-22T20:58:45.6379274Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T20:58:45.6380366Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "Selected operand hover",
+      "phase_or_join": "Earlier compiler e1 retained regexp/lsearch schema with undefined arguments. LSP selected-operand readonly fallback draft remains off-tree/unmeasured; rerun exact actual assertion before closure.",
+      "current_status": "unfixed/unmeasured; candidate /tmp/lsp-hover-selected-operand.patch",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_core_residual",
+        "selector": "inline_command_substitution_value_standalone"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_core_residual",
+        "selector": "inline_command_substitution_value_standalone",
+        "status": "PASS",
+        "reporter_ordinal": 1690,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_core_residual"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:01.8013805Z",
+        "duration": "   2.010s",
+        "reporter_ordinal": 1822,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_core_residual",
+        "binary_id": "tcl-lsp-core::lsp_core_residual",
+        "selector": "inline_command_substitution_value_standalone",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26212,
+      "raw_end_line": 26249,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_core_residual--inline_command_substitution_value_standalone.log",
+      "block_sha256": "c6bd02fb21050bf93cecafb9f45751636aaf4722b532d77ffafd5c5f83e5f8e1",
+      "panic_excerpt": [
+        "2026-10-22T20:59:01.8141867Z     thread 'inline_command_substitution_value_standalone' (21436) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:308:5:",
+        "2026-10-22T20:59:01.8143630Z     assertion `left == right` failed",
+        "2026-10-22T20:59:01.8144463Z       left: None",
+        "2026-10-22T20:59:01.8145068Z      right: Some(\"set y [list 1 2]\")",
+        "2026-10-22T20:59:01.8145804Z     stack backtrace:"
+      ],
+      "area": "Inline variable ownership/dataflow",
+      "phase_or_join": "Command-substitution positive returnsNone; reassignment refusal unexpectedly returnsSome. No actual source corruption inferred; preserve positive and no-op assertions/CFG/source-owner guards.",
+      "current_status": "unfixed/unmeasured; not covered by N13 host/bootstrap or current13",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_core_residual",
+        "selector": "inline_declines_when_reassigned_later"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_core_residual",
+        "selector": "inline_declines_when_reassigned_later",
+        "status": "PASS",
+        "reporter_ordinal": 1695,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_core_residual"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:05.3493741Z",
+        "duration": "   1.696s",
+        "reporter_ordinal": 1828,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_core_residual",
+        "binary_id": "tcl-lsp-core::lsp_core_residual",
+        "selector": "inline_declines_when_reassigned_later",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26256,
+      "raw_end_line": 26289,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_core_residual--inline_declines_when_reassigned_later.log",
+      "block_sha256": "f169b43cc0454629b2462a7f8b00e430c5a92d6d9b5ff336bce63b48b2cee46a",
+      "panic_excerpt": [
+        "2026-10-22T20:59:05.3604777Z     thread 'inline_declines_when_reassigned_later' (21447) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:349:5:",
+        "2026-10-22T20:59:05.3606258Z     assertion failed: inline(\"set x 1\\nputs $x\\nset x 2\", 0).is_none()",
+        "2026-10-22T20:59:05.3607104Z     stack backtrace:",
+        "2026-10-22T20:59:05.3607668Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T20:59:05.3608647Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "Inline variable ownership/dataflow",
+      "phase_or_join": "Command-substitution positive returnsNone; reassignment refusal unexpectedly returnsSome. No actual source corruption inferred; preserve positive and no-op assertions/CFG/source-owner guards.",
+      "current_status": "unfixed/unmeasured; not covered by N13 host/bootstrap or current13",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_core_residual",
+        "selector": "minify_drops_redundant_quotes_around_number"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_core_residual",
+        "selector": "minify_drops_redundant_quotes_around_number",
+        "status": "PASS",
+        "reporter_ordinal": 1702,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_core_residual"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:07.9739554Z",
+        "duration": "   1.192s",
+        "reporter_ordinal": 1833,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_core_residual",
+        "binary_id": "tcl-lsp-core::lsp_core_residual",
+        "selector": "minify_drops_redundant_quotes_around_number",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26294,
+      "raw_end_line": 26331,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_core_residual--minify_drops_redundant_quotes_around_number.log",
+      "block_sha256": "d8d605c8952fdf2831b48a958e51960008f5d18d48a5411246f539857c4ee8a1",
+      "panic_excerpt": [
+        "2026-10-22T20:59:07.9753942Z     thread 'minify_drops_redundant_quotes_around_number' (21461) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:738:5:",
+        "2026-10-22T20:59:07.9755322Z     assertion `left == right` failed",
+        "2026-10-22T20:59:07.9756916Z       left: \"puts \\\"42\\\"\"",
+        "2026-10-22T20:59:07.9757489Z      right: \"puts 42\"",
+        "2026-10-22T20:59:07.9758027Z     stack backtrace:"
+      ],
+      "area": "Minify original literal word syntax",
+      "phase_or_join": "Old exact output keeps quotes around42; expression-gap/body whitespace proof does not by itself authorize word-wrapper removal.",
+      "current_status": "not covered by frozen current13; independent release blocker",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_core_residual",
+        "selector": "minify_expr_comparison_inversion_in_value_context_is_safe"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_core_residual",
+        "selector": "minify_expr_comparison_inversion_in_value_context_is_safe",
+        "status": "PASS",
+        "reporter_ordinal": 1703,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_core_residual"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:09.1636415Z",
+        "duration": "   1.892s",
+        "reporter_ordinal": 1836,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_core_residual",
+        "binary_id": "tcl-lsp-core::lsp_core_residual",
+        "selector": "minify_expr_comparison_inversion_in_value_context_is_safe",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26334,
+      "raw_end_line": 26371,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_core_residual--minify_expr_comparison_inversion_in_value_context_is_safe.log",
+      "block_sha256": "58c8765d09bff9428afe7c8fe30f948232b8572a2dc5c49d647297b6713f0d65",
+      "panic_excerpt": [
+        "2026-10-22T20:59:09.1780277Z     thread 'minify_expr_comparison_inversion_in_value_context_is_safe' (21463) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:779:5:",
+        "2026-10-22T20:59:09.1782080Z     assertion `left == right` failed",
+        "2026-10-22T20:59:09.1782802Z       left: \"set a 1;set b 2;puts [expr {!($a==$b)}]\"",
+        "2026-10-22T20:59:09.1783536Z      right: \"set a 1;set b 2;puts [expr {$a!=$b}]\"",
+        "2026-10-22T20:59:09.1784215Z     stack backtrace:"
+      ],
+      "area": "Minify numeric equality inversion",
+      "phase_or_join": "Old failure !($a==$b) vs$a!=$b. Current59ea boolean inversion whitelist covers StrEq/StrNe/In/Ni only, so do not claim it fixes this numeric Eq/Ne selector. Need configured native equality inversion law/guard evidence.",
+      "current_status": "not covered by frozen current13; independent release blocker",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_core_residual",
+        "selector": "minify_preserves_expr_membership_braced_list"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_core_residual",
+        "selector": "minify_preserves_expr_membership_braced_list",
+        "status": "PASS",
+        "reporter_ordinal": 1709,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_core_residual"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:11.8273902Z",
+        "duration": "   1.741s",
+        "reporter_ordinal": 1841,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_core_residual",
+        "binary_id": "tcl-lsp-core::lsp_core_residual",
+        "selector": "minify_preserves_expr_membership_braced_list",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26376,
+      "raw_end_line": 26413,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_core_residual--minify_preserves_expr_membership_braced_list.log",
+      "block_sha256": "0871b9b4239dfd812f32a0fabef93b57a5f0966cc34ca276b062445889b3d609",
+      "panic_excerpt": [
+        "2026-10-22T20:59:11.8387904Z     thread 'minify_preserves_expr_membership_braced_list' (21475) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:703:5:",
+        "2026-10-22T20:59:11.8389163Z     assertion `left == right` failed",
+        "2026-10-22T20:59:11.8389701Z       left: \"set x b;puts [expr {$x ni{a b c}}]\"",
+        "2026-10-22T20:59:11.8390265Z      right: \"set x b;puts [expr {$x ni {a b c}}]\"",
+        "2026-10-22T20:59:11.8390825Z     stack backtrace:"
+      ],
+      "area": "Minify obsolete spacing expectation",
+      "phase_or_join": "13:17 explicitly removes removable operator\u2192brace whitespace; original exact source/list-data preserved; five paired C/Jim controls match.",
+      "current_status": "narrow expectation successor3872fb6 approved for next root source window; unrun",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_core_residual",
+        "selector": "minify_switch_regexp_case_list_preserved"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_core_residual",
+        "selector": "minify_switch_regexp_case_list_preserved",
+        "status": "PASS",
+        "reporter_ordinal": 1711,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_core_residual"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:12.0387630Z",
+        "duration": "   1.276s",
+        "reporter_ordinal": 1843,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_core_residual",
+        "binary_id": "tcl-lsp-core::lsp_core_residual",
+        "selector": "minify_switch_regexp_case_list_preserved",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26415,
+      "raw_end_line": 26452,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_core_residual--minify_switch_regexp_case_list_preserved.log",
+      "block_sha256": "33510d784ba6204e04fa2fe3f0d023da3b54b5374783692214ae596e76588309",
+      "panic_excerpt": [
+        "2026-10-22T20:59:12.0447596Z     thread 'minify_switch_regexp_case_list_preserved' (21479) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:767:5:",
+        "2026-10-22T20:59:12.0449057Z     assertion `left == right` failed",
+        "2026-10-22T20:59:12.0450039Z       left: \"switch -regexp $x {\\n  {^a} {puts 1}\\n  default {puts 2}\\n}\"",
+        "2026-10-22T20:59:12.0451162Z      right: \"switch -regexp $x {{^a} {puts 1} default {puts 2}}\"",
+        "2026-10-22T20:59:12.0452367Z     stack backtrace:"
+      ],
+      "area": "Minify switch case-list syntax",
+      "phase_or_join": "Old output leaves braced case-list script whitespace. Needs genuine selected list/body syntax owner, preserving patterns/list-data and handler guards.",
+      "current_status": "not covered by frozen current13; independent release blocker",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_core_residual",
+        "selector": "st_diff_appends_a_single_token_via_provider"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_core_residual",
+        "selector": "st_diff_appends_a_single_token_via_provider",
+        "status": "PASS",
+        "reporter_ordinal": 1712,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_core_residual"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:12.8933705Z",
+        "duration": "   1.067s",
+        "reporter_ordinal": 1846,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_core_residual",
+        "binary_id": "tcl-lsp-core::lsp_core_residual",
+        "selector": "st_diff_appends_a_single_token_via_provider",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26455,
+      "raw_end_line": 26492,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_core_residual--st_diff_appends_a_single_token_via_provider.log",
+      "block_sha256": "00458890994c58c665df4ccedfd659a75c1c25a83fdcc6a57222727dd23aab52",
+      "panic_excerpt": [
+        "2026-10-22T20:59:12.9234313Z     thread 'st_diff_appends_a_single_token_via_provider' (21481) panicked at rust/tcl-lsp-core/tests/lsp_core_residual.rs:641:5:",
+        "2026-10-22T20:59:12.9236349Z     assertion `left == right` failed: append deletes nothing: TokenEdit { start: 5, delete_count: 5, data: [0, 4, 1, 2, 0, 0, 2, 1, 4, 0] }",
+        "2026-10-22T20:59:12.9237466Z       left: 5",
+        "2026-10-22T20:59:12.9237829Z      right: 0",
+        "2026-10-22T20:59:12.9238216Z     stack backtrace:"
+      ],
+      "area": "Semantic token edit stability",
+      "phase_or_join": "Old append deletes5 instead of0; token classification/range prefix changed.",
+      "current_status": "unfixed/unmeasured; not covered by N13/current13",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_edit_workspace",
+        "selector": "linked_editing_links_namespace_relative_self_call"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_edit_workspace",
+        "selector": "linked_editing_links_namespace_relative_self_call",
+        "status": "PASS",
+        "reporter_ordinal": 1723,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_edit_workspace"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:18.2349512Z",
+        "duration": "   3.786s",
+        "reporter_ordinal": 1857,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_edit_workspace",
+        "binary_id": "tcl-lsp-core::lsp_edit_workspace",
+        "selector": "linked_editing_links_namespace_relative_self_call",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26503,
+      "raw_end_line": 26540,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_edit_workspace--linked_editing_links_namespace_relative_self_call.log",
+      "block_sha256": "fbabb342408fbe7ee15c1c9e418efec7dbb9a11ec629d32750c9dd47273294db",
+      "panic_excerpt": [
+        "2026-10-22T20:59:18.2496623Z     thread 'linked_editing_links_namespace_relative_self_call' (21503) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:880:10:",
+        "2026-10-22T20:59:18.2498441Z     namespace-relative self-call should link to the declaration",
+        "2026-10-22T20:59:18.2499361Z     stack backtrace:",
+        "2026-10-22T20:59:18.2500005Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T20:59:18.2501075Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "Linked editing self-call",
+      "phase_or_join": "Old namespace-relative call returnsNone. Compiler typed lookup/reference vs provider selection must be joined independently.",
+      "current_status": "unfixed/unmeasured; no closure from N10 diagnostic alone",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_edit_workspace",
+        "selector": "minify_strips_comments_and_collapses_whitespace_factorial"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_edit_workspace",
+        "selector": "minify_strips_comments_and_collapses_whitespace_factorial",
+        "status": "PASS",
+        "reporter_ordinal": 1744,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_edit_workspace"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:30.4224064Z",
+        "duration": "   4.512s",
+        "reporter_ordinal": 1883,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_edit_workspace",
+        "binary_id": "tcl-lsp-core::lsp_edit_workspace",
+        "selector": "minify_strips_comments_and_collapses_whitespace_factorial",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26604,
+      "raw_end_line": 26641,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_edit_workspace--minify_strips_comments_and_collapses_whitespace_factorial.log",
+      "block_sha256": "e9441cb1e6d11e57ca55f3a3e06164eafdf072f3a606c75ceb3b83496255f318",
+      "panic_excerpt": [
+        "2026-10-22T20:59:30.4268398Z     thread 'minify_strips_comments_and_collapses_whitespace_factorial' (21539) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:274:5:",
+        "2026-10-22T20:59:30.4269910Z     assertion `left == right` failed",
+        "2026-10-22T20:59:30.4270834Z       left: \"proc fact {n} {if {$n <= 1} { return 1 };return [expr {$n * [fact [expr {$n - 1}]]}]};puts [fact 5]\"",
+        "2026-10-22T20:59:30.4272218Z      right: \"proc fact {n} {if {$n<=1} {return 1};return [expr {$n*[fact [expr {$n-1}]]}]};puts [fact 5]\"",
+        "2026-10-22T20:59:30.4273028Z     stack backtrace:"
+      ],
+      "area": "Minify nested body syntax",
+      "phase_or_join": "Current canonical94cc body inventory/request owner plus unavailable3ca guards target this path; original exact assertions unchanged.",
+      "current_status": "exact current13 row queued only after root GO; no current runtime verdict",
+      "exact_current13_filter": true
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+        "selector": "actions_demorgan_rewrite_on_expression_selection"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_lens_links_symbols",
+        "selector": "actions_demorgan_rewrite_on_expression_selection",
+        "status": "PASS",
+        "reporter_ordinal": 1760,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:36.6739974Z",
+        "duration": "   1.770s",
+        "reporter_ordinal": 1891,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_lens_links_symbols",
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+        "selector": "actions_demorgan_rewrite_on_expression_selection",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26649,
+      "raw_end_line": 26688,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_lens_links_symbols--actions_demorgan_rewrite_on_expression_selection.log",
+      "block_sha256": "79ded68c547e8f4a9e33d90f28cbc63ef7e198efab1628a29d07b5be3a94d305",
+      "panic_excerpt": [
+        "2026-10-22T20:59:36.6897910Z     thread 'actions_demorgan_rewrite_on_expression_selection' (21587) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:1094:17:",
+        "2026-10-22T20:59:36.6899670Z     index out of bounds: the len is 0 but the index is 0",
+        "2026-10-22T20:59:36.6900569Z     stack backtrace:",
+        "2026-10-22T20:59:36.6901248Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T20:59:36.6902710Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "Expression code-action source proof",
+      "phase_or_join": "Old action list empty; action selection indexes missing candidate. Minify comparison proof is not a DeMorgan law.",
+      "current_status": "unfixed/unmeasured; no broad law or assertion change",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+        "selector": "actions_extract_proc_on_selection_is_well_formed"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_lens_links_symbols",
+        "selector": "actions_extract_proc_on_selection_is_well_formed",
+        "status": "PASS",
+        "reporter_ordinal": 1762,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:39.1673801Z",
+        "duration": "   2.492s",
+        "reporter_ordinal": 1897,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_lens_links_symbols",
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+        "selector": "actions_extract_proc_on_selection_is_well_formed",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26694,
+      "raw_end_line": 26725,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_lens_links_symbols--actions_extract_proc_on_selection_is_well_formed.log",
+      "block_sha256": "1e40090cbf632bac5d50e0461a74339053efc83fd8792fb9ca3bbbd1625ec336",
+      "panic_excerpt": [
+        "2026-10-22T20:59:39.1906620Z     thread 'actions_extract_proc_on_selection_is_well_formed' (21591) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:1033:5:",
+        "2026-10-22T20:59:39.1910332Z     CodeAction { title: \"Extract selection into proc\", edits: [], kind: RefactorExtract, command: None, data_group_definition: None, disabled: Some(\"the original selection captures 1 read and 0 written variable identities; moving their frames, observers and caller links is not independently proved\") }",
+        "2026-10-22T20:59:39.1912820Z     stack backtrace:",
+        "2026-10-22T20:59:39.1913291Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T20:59:39.1914312Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "Extract-proc captured variable contract",
+      "phase_or_join": "Actual disabled action cites one captured read and0writes with unproved moved frames/observers/caller links; not generic empty publication.",
+      "current_status": "unfixed/unmeasured; preserve guard, needs real captured-variable transfer law",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+        "selector": "links_literal_file_join_source_resolves"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_lens_links_symbols",
+        "selector": "links_literal_file_join_source_resolves",
+        "status": "PASS",
+        "reporter_ordinal": 1781,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:44.9713725Z",
+        "duration": "   1.267s",
+        "reporter_ordinal": 1913,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_lens_links_symbols",
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+        "selector": "links_literal_file_join_source_resolves",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26741,
+      "raw_end_line": 26778,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_lens_links_symbols--links_literal_file_join_source_resolves.log",
+      "block_sha256": "79586814ddbc678c16ec7d2fb571539ddd86c08b0b48fe5d3dfd40d4b4552d9a",
+      "panic_excerpt": [
+        "2026-10-22T20:59:44.9758871Z     thread 'links_literal_file_join_source_resolves' (21630) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:753:5:",
+        "2026-10-22T20:59:44.9760281Z     assertion `left == right` failed: []",
+        "2026-10-22T20:59:44.9760955Z       left: 0",
+        "2026-10-22T20:59:44.9761656Z      right: 1",
+        "2026-10-22T20:59:44.9762194Z     stack backtrace:"
+      ],
+      "area": "Typed source path advice",
+      "phase_or_join": "Old links empty. Correlates with cut-head SourceLoad barrier/incoming path advice; direct Core document-links provider still requires separate measured consumer join, not automatically fixed by Backend host adapter.",
+      "current_status": "authentic e8e20188 compiler path adapter + v12 host pairing off-tree; no current runtime verdict",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+        "selector": "symbols_oo_configurable_emits_property"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_lens_links_symbols",
+        "selector": "symbols_oo_configurable_emits_property",
+        "status": "PASS",
+        "reporter_ordinal": 1797,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:50.9946471Z",
+        "duration": "   1.159s",
+        "reporter_ordinal": 1929,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_lens_links_symbols",
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+        "selector": "symbols_oo_configurable_emits_property",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26794,
+      "raw_end_line": 26833,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_lens_links_symbols--symbols_oo_configurable_emits_property.log",
+      "block_sha256": "7836b7cbd819f2239215ad7644cd3784a4c43a7e445f6be6bb568d423cfe4894",
+      "panic_excerpt": [
+        "2026-10-22T20:59:51.0087149Z     thread 'symbols_oo_configurable_emits_property' (21663) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:385:23:",
+        "2026-10-22T20:59:51.0088875Z     index out of bounds: the len is 0 but the index is 0",
+        "2026-10-22T20:59:51.0089757Z     stack backtrace:",
+        "2026-10-22T20:59:51.0090423Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T20:59:51.0091747Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "OO configurable symbol extraction",
+      "phase_or_join": "Actual symbol list empty; property source metadata producer and provider filtering remain unmeasured.",
+      "current_status": "unfixed/unmeasured; not source-view queue closure",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+        "selector": "tp_a_single_set_constant_propagates_into_the_join"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_lens_links_symbols",
+        "selector": "tp_a_single_set_constant_propagates_into_the_join",
+        "status": "PASS",
+        "reporter_ordinal": 1802,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:54.4633771Z",
+        "duration": "   3.091s",
+        "reporter_ordinal": 1936,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_lens_links_symbols",
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+        "selector": "tp_a_single_set_constant_propagates_into_the_join",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26877,
+      "raw_end_line": 26914,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_lens_links_symbols--tp_a_single_set_constant_propagates_into_the_join.log",
+      "block_sha256": "d66136a4d7bed03bfabe50650e25cb50cbc9b56691b2dcf4fdf4511ff07e18c1",
+      "panic_excerpt": [
+        "2026-10-22T20:59:54.4807209Z     thread 'tp_a_single_set_constant_propagates_into_the_join' (21673) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:858:5:",
+        "2026-10-22T20:59:54.4808594Z     assertion `left == right` failed: []",
+        "2026-10-22T20:59:54.4809149Z       left: 0",
+        "2026-10-22T20:59:54.4809509Z      right: 1",
+        "2026-10-22T20:59:54.4809901Z     stack backtrace:"
+      ],
+      "area": "Typed source path advice",
+      "phase_or_join": "Old links empty. Correlates with cut-head SourceLoad barrier/incoming path advice; direct Core document-links provider still requires separate measured consumer join, not automatically fixed by Backend host adapter.",
+      "current_status": "authentic e8e20188 compiler path adapter + v12 host pairing off-tree; no current runtime verdict",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+        "selector": "tp_info_script_based_paths_resolve_through_the_source_graph_evaluator"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_lens_links_symbols",
+        "selector": "tp_info_script_based_paths_resolve_through_the_source_graph_evaluator",
+        "status": "PASS",
+        "reporter_ordinal": 1803,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:59:54.2773937Z",
+        "duration": "   2.284s",
+        "reporter_ordinal": 1935,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_lens_links_symbols",
+        "binary_id": "tcl-lsp-core::lsp_lens_links_symbols",
+        "selector": "tp_info_script_based_paths_resolve_through_the_source_graph_evaluator",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26839,
+      "raw_end_line": 26876,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__lsp_lens_links_symbols--tp_info_script_based_paths_resolve_through_the_source_graph_evaluator.log",
+      "block_sha256": "e8b8c3b31ea3ee36453ecd736866c91f5633876876cf384dc50bebb6b9a6c94b",
+      "panic_excerpt": [
+        "2026-10-22T20:59:54.2934864Z     thread 'tp_info_script_based_paths_resolve_through_the_source_graph_evaluator' (21675) panicked at rust/tcl-lsp-core/tests/lsp_lens_links_symbols.rs:849:5:",
+        "2026-10-22T20:59:54.2936698Z     assertion `left == right` failed: []",
+        "2026-10-22T20:59:54.2937522Z       left: 0",
+        "2026-10-22T20:59:54.2938152Z      right: 1",
+        "2026-10-22T20:59:54.2939183Z     stack backtrace:"
+      ],
+      "area": "Typed source path advice",
+      "phase_or_join": "Old links empty. Correlates with cut-head SourceLoad barrier/incoming path advice; direct Core document-links provider still requires separate measured consumer join, not automatically fixed by Backend host adapter.",
+      "current_status": "authentic e8e20188 compiler path adapter + v12 host pairing off-tree; no current runtime verdict",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::name_resolution",
+        "selector": "itcl_class_proc_dispatch::fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "name_resolution",
+        "selector": "itcl_class_proc_dispatch::fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc",
+        "status": "PASS",
+        "reporter_ordinal": 1816,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::name_resolution"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:00:06.6214517Z",
+        "duration": "   3.704s",
+        "reporter_ordinal": 1953,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "name_resolution",
+        "binary_id": "tcl-lsp-core::name_resolution",
+        "selector": "itcl_class_proc_dispatch::fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27007,
+      "raw_end_line": 27044,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__name_resolution--itcl_class_proc_dispatch__fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc.log",
+      "block_sha256": "9daf58048eb5da59a4bb8e7b6a5e08c946b64f9ea2016011dd69dd0e93f4799a",
+      "panic_excerpt": [
+        "2026-10-22T21:00:06.6228184Z     thread 'itcl_class_proc_dispatch::fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc' (21713) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:602:9:",
+        "2026-10-22T21:00:06.6230146Z     assertion `left == right` failed: go-to-definition from global reaches the plain proc",
+        "2026-10-22T21:00:06.6231086Z       left: []",
+        "2026-10-22T21:00:06.6231816Z      right: [0]",
+        "2026-10-22T21:00:06.6232337Z     stack backtrace:"
+      ],
+      "area": "Itcl source declaration dispatch",
+      "phase_or_join": "Actual definition/reference sets missing except declarations; needs compiler declaration/call metadata then source-specific provider join.",
+      "current_status": "unfixed/unmeasured; not automatically closed by N13 typed source views",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::name_resolution",
+        "selector": "itcl_class_proc_dispatch::fp_a_shadowing_proc_wins_over_the_class_proc"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "name_resolution",
+        "selector": "itcl_class_proc_dispatch::fp_a_shadowing_proc_wins_over_the_class_proc",
+        "status": "PASS",
+        "reporter_ordinal": 1817,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::name_resolution"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:00:05.3814301Z",
+        "duration": "   1.858s",
+        "reporter_ordinal": 1952,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "name_resolution",
+        "binary_id": "tcl-lsp-core::name_resolution",
+        "selector": "itcl_class_proc_dispatch::fp_a_shadowing_proc_wins_over_the_class_proc",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 26969,
+      "raw_end_line": 27006,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__name_resolution--itcl_class_proc_dispatch__fp_a_shadowing_proc_wins_over_the_class_proc.log",
+      "block_sha256": "1a0e9ec14b07b08d22249f81489b4828aec5f8f292068e93223dbe5c1124c9ed",
+      "panic_excerpt": [
+        "2026-10-22T21:00:05.4203227Z     thread 'itcl_class_proc_dispatch::fp_a_shadowing_proc_wins_over_the_class_proc' (21715) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:626:9:",
+        "2026-10-22T21:00:05.4233769Z     assertion `left == right` failed: the shadowing proc's declaration + the `::app` call \u2014 not the class proc, and not the global call that still reaches the class proc",
+        "2026-10-22T21:00:05.4261934Z       left: []",
+        "2026-10-22T21:00:05.4291926Z      right: [5, 6]",
+        "2026-10-22T21:00:05.4321954Z     stack backtrace:"
+      ],
+      "area": "Itcl source declaration dispatch",
+      "phase_or_join": "Actual definition/reference sets missing except declarations; needs compiler declaration/call metadata then source-specific provider join.",
+      "current_status": "unfixed/unmeasured; not automatically closed by N13 typed source views",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::name_resolution",
+        "selector": "itcl_class_proc_dispatch::tp_every_dispatch_spelling_is_a_reference"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "name_resolution",
+        "selector": "itcl_class_proc_dispatch::tp_every_dispatch_spelling_is_a_reference",
+        "status": "PASS",
+        "reporter_ordinal": 1822,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::name_resolution"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:00:09.3424509Z",
+        "duration": "   2.456s",
+        "reporter_ordinal": 1957,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "name_resolution",
+        "binary_id": "tcl-lsp-core::name_resolution",
+        "selector": "itcl_class_proc_dispatch::tp_every_dispatch_spelling_is_a_reference",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27048,
+      "raw_end_line": 27085,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__name_resolution--itcl_class_proc_dispatch__tp_every_dispatch_spelling_is_a_reference.log",
+      "block_sha256": "f3cecea410fdce8d453a37f06b4df224c9e44f437e400f4dbaa39ee605293e87",
+      "panic_excerpt": [
+        "2026-10-22T21:00:09.3528806Z     thread 'itcl_class_proc_dispatch::tp_every_dispatch_spelling_is_a_reference' (21726) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:464:9:",
+        "2026-10-22T21:00:09.3530956Z     assertion `left == right` failed: decl + bare sibling + self-qualified + namespace-relative + absolute + global-relative",
+        "2026-10-22T21:00:09.3532326Z       left: [2]",
+        "2026-10-22T21:00:09.3532740Z      right: [2, 3, 4, 6, 8, 9]",
+        "2026-10-22T21:00:09.3533207Z     stack backtrace:"
+      ],
+      "area": "Itcl source declaration dispatch",
+      "phase_or_join": "Actual definition/reference sets missing except declarations; needs compiler declaration/call metadata then source-specific provider join.",
+      "current_status": "unfixed/unmeasured; not automatically closed by N13 typed source views",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::name_resolution",
+        "selector": "itcl_class_proc_dispatch::tp_references_from_the_call_site_match_the_declaration"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "name_resolution",
+        "selector": "itcl_class_proc_dispatch::tp_references_from_the_call_site_match_the_declaration",
+        "status": "PASS",
+        "reporter_ordinal": 1825,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::name_resolution"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:00:11.2524396Z",
+        "duration": "   4.090s",
+        "reporter_ordinal": 1960,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "name_resolution",
+        "binary_id": "tcl-lsp-core::name_resolution",
+        "selector": "itcl_class_proc_dispatch::tp_references_from_the_call_site_match_the_declaration",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27088,
+      "raw_end_line": 27125,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__name_resolution--itcl_class_proc_dispatch__tp_references_from_the_call_site_match_the_declaration.log",
+      "block_sha256": "88cf4ba7d1174c30c4cfa06e2d39321c896a9b2a637bcc1f23ee580e8b37b155",
+      "panic_excerpt": [
+        "2026-10-22T21:00:11.2658987Z     thread 'itcl_class_proc_dispatch::tp_references_from_the_call_site_match_the_declaration' (21728) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:476:9:",
+        "2026-10-22T21:00:11.2660695Z     assertion `left == right` failed",
+        "2026-10-22T21:00:11.2661721Z       left: []",
+        "2026-10-22T21:00:11.2662327Z      right: [2]",
+        "2026-10-22T21:00:11.2662918Z     stack backtrace:"
+      ],
+      "area": "Itcl source declaration dispatch",
+      "phase_or_join": "Actual definition/reference sets missing except declarations; needs compiler declaration/call metadata then source-specific provider join.",
+      "current_status": "unfixed/unmeasured; not automatically closed by N13 typed source views",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::name_resolution",
+        "selector": "namespace_scoped_class_dispatch::tn_a_wildcard_import_is_not_followed"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "name_resolution",
+        "selector": "namespace_scoped_class_dispatch::tn_a_wildcard_import_is_not_followed",
+        "status": "PASS",
+        "reporter_ordinal": 1849,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::name_resolution"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:00:31.1966319Z",
+        "duration": "   2.953s",
+        "reporter_ordinal": 1983,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "name_resolution",
+        "binary_id": "tcl-lsp-core::name_resolution",
+        "selector": "namespace_scoped_class_dispatch::tn_a_wildcard_import_is_not_followed",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27148,
+      "raw_end_line": 27185,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__name_resolution--namespace_scoped_class_dispatch__tn_a_wildcard_import_is_not_followed.log",
+      "block_sha256": "488761e4206a4784fb40bebee6308a867e54a5c7272f57f0a0a1103162979966",
+      "panic_excerpt": [
+        "2026-10-22T21:00:31.2203352Z     thread 'namespace_scoped_class_dispatch::tn_a_wildcard_import_is_not_followed' (21784) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:1384:9:",
+        "2026-10-22T21:00:31.2205384Z     assertion `left == right` failed: declaration only \u2014 the wildcard-import model is out of scope (#1027)",
+        "2026-10-22T21:00:31.2206395Z       left: [2, 8]",
+        "2026-10-22T21:00:31.2206761Z      right: [2]",
+        "2026-10-22T21:00:31.2261951Z     stack backtrace:"
+      ],
+      "area": "Old wildcard capability boundary",
+      "phase_or_join": "Old negative expects declaration-only because model out of scope, actual[2,8]. Genuine export snapshot may implement it; verify C9.0/9.1 and existing decision/typed import gate before any narrow correction.",
+      "current_status": "unchanged assertion; not yet authorized correction",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::name_resolution",
+        "selector": "pkgindex_dir::fp_other_undefined_var_in_pkgindex_still_fires"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "name_resolution",
+        "selector": "pkgindex_dir::fp_other_undefined_var_in_pkgindex_still_fires",
+        "status": "PASS",
+        "reporter_ordinal": 1875,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::name_resolution"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:00:53.7524160Z",
+        "duration": "   1.803s",
+        "reporter_ordinal": 2011,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "name_resolution",
+        "binary_id": "tcl-lsp-core::name_resolution",
+        "selector": "pkgindex_dir::fp_other_undefined_var_in_pkgindex_still_fires",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27213,
+      "raw_end_line": 27244,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__name_resolution--pkgindex_dir__fp_other_undefined_var_in_pkgindex_still_fires.log",
+      "block_sha256": "e45f2ba7a2b24e8357f732a56ace6910afd9b6db17df4d10e656a62c055ddfe4",
+      "panic_excerpt": [
+        "2026-10-22T21:00:53.7785512Z     thread 'pkgindex_dir::fp_other_undefined_var_in_pkgindex_still_fires' (21838) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:1004:9:",
+        "2026-10-22T21:00:53.7792459Z     an undefined `$missing` is still read-before-set in pkgIndex.tcl",
+        "2026-10-22T21:00:53.7793243Z     stack backtrace:",
+        "2026-10-22T21:00:53.7793727Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T21:00:53.7794617Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "W210 loader incoming variable seed",
+      "phase_or_join": "Actual $missing warning absent after loader$dir; earlier names direct/CU path-aware entry propagation plan required.",
+      "current_status": "compiler-names joint W210 ownership; unimplemented/unmeasured",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "a_locally_declared_method_is_unchanged_by_the_shared_walk"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "selector": "a_locally_declared_method_is_unchanged_by_the_shared_walk",
+        "status": "PASS",
+        "reporter_ordinal": 1879,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::oo_mro_parity"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:00:56.1555488Z",
+        "duration": "   2.406s",
+        "reporter_ordinal": 2015,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "a_locally_declared_method_is_unchanged_by_the_shared_walk",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27248,
+      "raw_end_line": 27285,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__oo_mro_parity--a_locally_declared_method_is_unchanged_by_the_shared_walk.log",
+      "block_sha256": "1a76ee248bd8239e8ad2016fa5ac66626a573447fb625286f149a6c7b05ac2c3",
+      "panic_excerpt": [
+        "2026-10-22T21:00:56.1691826Z     thread 'a_locally_declared_method_is_unchanged_by_the_shared_walk' (21844) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:224:5:",
+        "2026-10-22T21:00:56.1693341Z     assertion `left == right` failed",
+        "2026-10-22T21:00:56.1694417Z       left: []",
+        "2026-10-22T21:00:56.1695093Z      right: [1]",
+        "2026-10-22T21:00:56.1695738Z     stack backtrace:"
+      ],
+      "area": "OO method/class provider agreement",
+      "phase_or_join": "Actual MRO/member/constructor/self/reflective diagnostics and references fail; inspect genuine class/member owner/lookup metadata before provider repair. No common cause asserted.",
+      "current_status": "unfixed/unmeasured; N13 class/member/region paths explicitly unavailable",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "declaration_side_query_agrees_with_the_call_site_query"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "selector": "declaration_side_query_agrees_with_the_call_site_query",
+        "status": "PASS",
+        "reporter_ordinal": 1882,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::oo_mro_parity"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:00:59.2833991Z",
+        "duration": "   4.680s",
+        "reporter_ordinal": 2016,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "declaration_side_query_agrees_with_the_call_site_query",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27286,
+      "raw_end_line": 27323,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__oo_mro_parity--declaration_side_query_agrees_with_the_call_site_query.log",
+      "block_sha256": "e80b3cabbf8e5b9f9877279358d9d9c1c87744c96dc5565f06461e52b64db981",
+      "panic_excerpt": [
+        "2026-10-22T21:00:59.3242882Z     thread 'declaration_side_query_agrees_with_the_call_site_query' (21849) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:180:5:",
+        "2026-10-22T21:00:59.3272466Z     assertion `left == right` failed: find-references must be direction-independent",
+        "2026-10-22T21:00:59.3301900Z       left: [1, 5]",
+        "2026-10-22T21:00:59.3331858Z      right: []",
+        "2026-10-22T21:00:59.3361959Z     stack backtrace:"
+      ],
+      "area": "OO method/class provider agreement",
+      "phase_or_join": "Actual MRO/member/constructor/self/reflective diagnostics and references fail; inspect genuine class/member owner/lookup metadata before provider repair. No common cause asserted.",
+      "current_status": "unfixed/unmeasured; N13 class/member/region paths explicitly unavailable",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "idx53_a_readable_sibling_class_keeps_its_method_checks"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "selector": "idx53_a_readable_sibling_class_keeps_its_method_checks",
+        "status": "PASS",
+        "reporter_ordinal": 1881,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::oo_mro_parity"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:00:59.6417093Z",
+        "duration": "   3.522s",
+        "reporter_ordinal": 2017,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "idx53_a_readable_sibling_class_keeps_its_method_checks",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27324,
+      "raw_end_line": 27355,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__oo_mro_parity--idx53_a_readable_sibling_class_keeps_its_method_checks.log",
+      "block_sha256": "7ce4f9fa0a62ed8be83f8f5898f45aa0eb9ca5708a495433c78a66ca78a0a93d",
+      "panic_excerpt": [
+        "2026-10-22T21:00:59.6566130Z     thread 'idx53_a_readable_sibling_class_keeps_its_method_checks' (21851) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:660:5:",
+        "2026-10-22T21:00:59.6567730Z     the readable class must still warn: [\"W307\"]",
+        "2026-10-22T21:00:59.6568489Z     stack backtrace:",
+        "2026-10-22T21:00:59.6569253Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T21:00:59.6570285Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "OO method/class provider agreement",
+      "phase_or_join": "Actual MRO/member/constructor/self/reflective diagnostics and references fail; inspect genuine class/member owner/lookup metadata before provider repair. No common cause asserted.",
+      "current_status": "unfixed/unmeasured; N13 class/member/region paths explicitly unavailable",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "idx53_reflectively_installed_members_abstain_instead_of_warning"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "selector": "idx53_reflectively_installed_members_abstain_instead_of_warning",
+        "status": "PASS",
+        "reporter_ordinal": 1883,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::oo_mro_parity"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:00:59.8963868Z",
+        "duration": "   3.739s",
+        "reporter_ordinal": 2018,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "idx53_reflectively_installed_members_abstain_instead_of_warning",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27356,
+      "raw_end_line": 27387,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__oo_mro_parity--idx53_reflectively_installed_members_abstain_instead_of_warning.log",
+      "block_sha256": "02ba1ad0208547e1bc5b118d9972459d2db3983cd6518a65bd3ea5dd878a7041",
+      "panic_excerpt": [
+        "2026-10-22T21:00:59.9302999Z     thread 'idx53_reflectively_installed_members_abstain_instead_of_warning' (21853) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:622:5:",
+        "2026-10-22T21:00:59.9322366Z     the abstention must not erase what *was* readable",
+        "2026-10-22T21:00:59.9352688Z     stack backtrace:",
+        "2026-10-22T21:00:59.9361952Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T21:00:59.9382464Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "OO method/class provider agreement",
+      "phase_or_join": "Actual MRO/member/constructor/self/reflective diagnostics and references fail; inspect genuine class/member owner/lookup metadata before provider repair. No common cause asserted.",
+      "current_status": "unfixed/unmeasured; N13 class/member/region paths explicitly unavailable",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "idx55_a_literal_foreach_oo_define_installer_reaches_the_real_classes"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "selector": "idx55_a_literal_foreach_oo_define_installer_reaches_the_real_classes",
+        "status": "PASS",
+        "reporter_ordinal": 1885,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::oo_mro_parity"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:01:03.1740625Z",
+        "duration": "   3.786s",
+        "reporter_ordinal": 2021,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "idx55_a_literal_foreach_oo_define_installer_reaches_the_real_classes",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27459,
+      "raw_end_line": 27490,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__oo_mro_parity--idx55_a_literal_foreach_oo_define_installer_reaches_the_real_classes.log",
+      "block_sha256": "adde1c74810d5d278adec8de670bd8668f3eb682e6d2ed7db6c09b346ba958aa",
+      "panic_excerpt": [
+        "2026-10-22T21:01:03.2103314Z     thread 'idx55_a_literal_foreach_oo_define_installer_reaches_the_real_classes' (21855) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:479:9:",
+        "2026-10-22T21:01:03.2112491Z     chart must own the injected method: [(\"mychart\", \"chart\"), (\"mychart\", \"chart3D\")]",
+        "2026-10-22T21:01:03.2131931Z     stack backtrace:",
+        "2026-10-22T21:01:03.2161926Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T21:01:03.2192351Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "OO method/class provider agreement",
+      "phase_or_join": "Actual MRO/member/constructor/self/reflective diagnostics and references fail; inspect genuine class/member owner/lookup metadata before provider repair. No common cause asserted.",
+      "current_status": "unfixed/unmeasured; N13 class/member/region paths explicitly unavailable",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "idx96_a_metaclass_made_class_resolves_its_spliced_inherited_method"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "selector": "idx96_a_metaclass_made_class_resolves_its_spliced_inherited_method",
+        "status": "PASS",
+        "reporter_ordinal": 1884,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::oo_mro_parity"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:01:01.8633914Z",
+        "duration": "   2.219s",
+        "reporter_ordinal": 2019,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "idx96_a_metaclass_made_class_resolves_its_spliced_inherited_method",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27388,
+      "raw_end_line": 27419,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__oo_mro_parity--idx96_a_metaclass_made_class_resolves_its_spliced_inherited_method.log",
+      "block_sha256": "6c16c3fe4667ecd5e32e546bf558fcc6f5dbc46275c8e0ed9b20ac3e089acbfc",
+      "panic_excerpt": [
+        "2026-10-22T21:01:01.8728605Z     thread 'idx96_a_metaclass_made_class_resolves_its_spliced_inherited_method' (21857) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:529:9:",
+        "2026-10-22T21:01:01.8731005Z     SimpleWidget must be a class with its own members: [(\"::tk\", \"Megawidget\"), (\"Megawidget\", \"create\"), (\"::tk\", \"MegawidgetClass\"), (\"MegawidgetClass\", \"TraceOption\")]",
+        "2026-10-22T21:01:01.8732441Z     stack backtrace:",
+        "2026-10-22T21:01:01.8732876Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T21:01:01.8733672Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "OO method/class provider agreement",
+      "phase_or_join": "Actual MRO/member/constructor/self/reflective diagnostics and references fail; inspect genuine class/member owner/lookup metadata before provider repair. No common cause asserted.",
+      "current_status": "unfixed/unmeasured; N13 class/member/region paths explicitly unavailable",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "idx97_next_resolves_through_a_metaclass_made_chain"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "selector": "idx97_next_resolves_through_a_metaclass_made_chain",
+        "status": "PASS",
+        "reporter_ordinal": 1886,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::oo_mro_parity"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:01:03.0453596Z",
+        "duration": "   3.148s",
+        "reporter_ordinal": 2020,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "idx97_next_resolves_through_a_metaclass_made_chain",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27421,
+      "raw_end_line": 27458,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__oo_mro_parity--idx97_next_resolves_through_a_metaclass_made_chain.log",
+      "block_sha256": "1d6c1581de08432e2a156c1924774958ebe49d45ef64c9b0eb94895a08177cdc",
+      "panic_excerpt": [
+        "2026-10-22T21:01:03.0993100Z     thread 'idx97_next_resolves_through_a_metaclass_made_chain' (21859) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:580:5:",
+        "2026-10-22T21:01:03.1052671Z     assertion `left == right` failed: `next` must reach FocusableWidget::GetSpecs: []",
+        "2026-10-22T21:01:03.1111886Z       left: []",
+        "2026-10-22T21:01:03.1171899Z      right: [13]",
+        "2026-10-22T21:01:03.1201903Z     stack backtrace:"
+      ],
+      "area": "OO method/class provider agreement",
+      "phase_or_join": "Actual MRO/member/constructor/self/reflective diagnostics and references fail; inspect genuine class/member owner/lookup metadata before provider repair. No common cause asserted.",
+      "current_status": "unfixed/unmeasured; N13 class/member/region paths explicitly unavailable",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "initialize_block_variables_do_not_leak_between_sibling_classes"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "selector": "initialize_block_variables_do_not_leak_between_sibling_classes",
+        "status": "PASS",
+        "reporter_ordinal": 1890,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::oo_mro_parity"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:01:04.4804060Z",
+        "duration": "   2.617s",
+        "reporter_ordinal": 2022,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "initialize_block_variables_do_not_leak_between_sibling_classes",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27491,
+      "raw_end_line": 27528,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__oo_mro_parity--initialize_block_variables_do_not_leak_between_sibling_classes.log",
+      "block_sha256": "7325a10c5bfcace5129c0b7a6d535f147105b9c78ff1ff3a55462f4fbf827bac",
+      "panic_excerpt": [
+        "2026-10-22T21:01:04.5017336Z     thread 'initialize_block_variables_do_not_leak_between_sibling_classes' (21861) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:393:5:",
+        "2026-10-22T21:01:04.5018754Z     assertion `left == right` failed",
+        "2026-10-22T21:01:04.5019303Z       left: []",
+        "2026-10-22T21:01:04.5019667Z      right: [3]",
+        "2026-10-22T21:01:04.5020058Z     stack backtrace:"
+      ],
+      "area": "OO method/class provider agreement",
+      "phase_or_join": "Actual MRO/member/constructor/self/reflective diagnostics and references fail; inspect genuine class/member owner/lookup metadata before provider repair. No common cause asserted.",
+      "current_status": "unfixed/unmeasured; N13 class/member/region paths explicitly unavailable",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "my_call_to_a_mixin_provided_method_resolves_in_all_three_providers"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "selector": "my_call_to_a_mixin_provided_method_resolves_in_all_three_providers",
+        "status": "PASS",
+        "reporter_ordinal": 1888,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::oo_mro_parity"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:01:06.1935301Z",
+        "duration": "   3.149s",
+        "reporter_ordinal": 2024,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "my_call_to_a_mixin_provided_method_resolves_in_all_three_providers",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27567,
+      "raw_end_line": 27604,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__oo_mro_parity--my_call_to_a_mixin_provided_method_resolves_in_all_three_providers.log",
+      "block_sha256": "f92be1a935e4411c6550052115dd78f9911f92c241335fdf774e38d893e51b6f",
+      "panic_excerpt": [
+        "2026-10-22T21:01:06.2283312Z     thread 'my_call_to_a_mixin_provided_method_resolves_in_all_three_providers' (21864) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:149:5:",
+        "2026-10-22T21:01:06.2285620Z     assertion `left == right` failed: definition already walked the MRO and must keep doing so",
+        "2026-10-22T21:01:06.2312034Z       left: []",
+        "2026-10-22T21:01:06.2342055Z      right: [1]",
+        "2026-10-22T21:01:06.2371932Z     stack backtrace:"
+      ],
+      "area": "OO method/class provider agreement",
+      "phase_or_join": "Actual MRO/member/constructor/self/reflective diagnostics and references fail; inspect genuine class/member owner/lookup metadata before provider repair. No common cause asserted.",
+      "current_status": "unfixed/unmeasured; N13 class/member/region paths explicitly unavailable",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "my_call_to_an_inherited_method_resolves_in_all_three_providers"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "selector": "my_call_to_an_inherited_method_resolves_in_all_three_providers",
+        "status": "PASS",
+        "reporter_ordinal": 1887,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::oo_mro_parity"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:01:06.0843843Z",
+        "duration": "   3.014s",
+        "reporter_ordinal": 2023,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "my_call_to_an_inherited_method_resolves_in_all_three_providers",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27529,
+      "raw_end_line": 27566,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__oo_mro_parity--my_call_to_an_inherited_method_resolves_in_all_three_providers.log",
+      "block_sha256": "9ab3e73b5b060c35b5ed50bce76be6007b043934d73498d158cc1313c6305e24",
+      "panic_excerpt": [
+        "2026-10-22T21:01:06.0971211Z     thread 'my_call_to_an_inherited_method_resolves_in_all_three_providers' (21865) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:202:5:",
+        "2026-10-22T21:01:06.0973124Z     assertion `left == right` failed",
+        "2026-10-22T21:01:06.0973859Z       left: []",
+        "2026-10-22T21:01:06.0974398Z      right: [1]",
+        "2026-10-22T21:01:06.0974982Z     stack backtrace:"
+      ],
+      "area": "OO method/class provider agreement",
+      "phase_or_join": "Actual MRO/member/constructor/self/reflective diagnostics and references fail; inspect genuine class/member owner/lookup metadata before provider repair. No common cause asserted.",
+      "current_status": "unfixed/unmeasured; N13 class/member/region paths explicitly unavailable",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "next_inside_a_constructor_resolves_in_all_three_providers"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "selector": "next_inside_a_constructor_resolves_in_all_three_providers",
+        "status": "PASS",
+        "reporter_ordinal": 1893,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::oo_mro_parity"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:01:10.2043998Z",
+        "duration": "   4.120s",
+        "reporter_ordinal": 2028,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "next_inside_a_constructor_resolves_in_all_three_providers",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27645,
+      "raw_end_line": 27682,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__oo_mro_parity--next_inside_a_constructor_resolves_in_all_three_providers.log",
+      "block_sha256": "aed8d100e926e06f3d829750c5f5885679fa396f38777d37486705fd513a2130",
+      "panic_excerpt": [
+        "2026-10-22T21:01:10.2286164Z     thread 'next_inside_a_constructor_resolves_in_all_three_providers' (21869) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:281:5:",
+        "2026-10-22T21:01:10.2287457Z     assertion `left == right` failed",
+        "2026-10-22T21:01:10.2287960Z       left: []",
+        "2026-10-22T21:01:10.2288303Z      right: [1]",
+        "2026-10-22T21:01:10.2288670Z     stack backtrace:"
+      ],
+      "area": "OO method/class provider agreement",
+      "phase_or_join": "Actual MRO/member/constructor/self/reflective diagnostics and references fail; inspect genuine class/member owner/lookup metadata before provider repair. No common cause asserted.",
+      "current_status": "unfixed/unmeasured; N13 class/member/region paths explicitly unavailable",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "self_wrapped_mixin_is_a_class_reference_in_all_three_providers"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "selector": "self_wrapped_mixin_is_a_class_reference_in_all_three_providers",
+        "status": "PASS",
+        "reporter_ordinal": 1894,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::oo_mro_parity"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T21:01:09.3169925Z",
+        "duration": "   2.670s",
+        "reporter_ordinal": 2027,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "oo_mro_parity",
+        "binary_id": "tcl-lsp-core::oo_mro_parity",
+        "selector": "self_wrapped_mixin_is_a_class_reference_in_all_three_providers",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 27607,
+      "raw_end_line": 27644,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-core__oo_mro_parity--self_wrapped_mixin_is_a_class_reference_in_all_three_providers.log",
+      "block_sha256": "3657c48b4dba49fe56bed9eae4afcc49c840ac2a1e7324f758c706aebff5d4a8",
+      "panic_excerpt": [
+        "2026-10-22T21:01:09.3503529Z     thread 'self_wrapped_mixin_is_a_class_reference_in_all_three_providers' (21873) panicked at rust/tcl-lsp-core/tests/oo_mro_parity.rs:340:5:",
+        "2026-10-22T21:01:09.3533161Z     assertion `left == right` failed: declaration + self-mixin usage + plain-mixin usage",
+        "2026-10-22T21:01:09.3572365Z       left: [0, 7]",
+        "2026-10-22T21:01:09.3603076Z      right: [0, 4, 7]",
+        "2026-10-22T21:01:09.3622677Z     stack backtrace:"
+      ],
+      "area": "OO method/class provider agreement",
+      "phase_or_join": "Actual MRO/member/constructor/self/reflective diagnostics and references fail; inspect genuine class/member owner/lookup metadata before provider repair. No common cause asserted.",
+      "current_status": "unfixed/unmeasured; N13 class/member/region paths explicitly unavailable",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-db::interned_gc",
+        "selector": "interned_slots_stay_bounded_across_an_edit_session"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-db",
+        "binary_label_as_rendered": "interned_gc",
+        "selector": "interned_slots_stay_bounded_across_an_edit_session",
+        "status": "PASS",
+        "reporter_ordinal": 2815,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-db::interned_gc"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T22:43:14.7991699Z",
+        "duration": "6120.736s",
+        "reporter_ordinal": 3897,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-db",
+        "binary_label_as_rendered": "interned_gc",
+        "binary_id": "tcl-lsp-db::interned_gc",
+        "selector": "interned_slots_stay_bounded_across_an_edit_session",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 40854,
+      "raw_end_line": 40888,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-db__interned_gc--interned_slots_stay_bounded_across_an_edit_session.log",
+      "block_sha256": "a37d27cda13a5c86b1ac890be4fd8d3eda10e59b52a24f8ee1f151d3fc53d46e",
+      "panic_excerpt": [
+        "2026-10-22T22:43:14.7998970Z     thread 'interned_slots_stay_bounded_across_an_edit_session' (21900) panicked at rust/tcl-lsp-db/tests/interned_gc.rs:374:9:",
+        "2026-10-22T22:43:14.8001684Z     `ProcBodyKey` was never interned during the session, so this test proves nothing about it \u2014 either the ingredient was renamed, or the corpus no longer reaches its query path (see the `corpus` doc comment). Measured: short ItemBodyKey: 15 slots, 10 reuses; FnLatticeKey: 97 slots, 303 reuses; ProcBodyKey: 0 slots, 0 reuses; OptDepsKey: 0 slots, 0 reuses; TaintSummaryKey: 0 slots, 0 reuses; SummaryDepsKey: 96 slots, 304 reuses (over 24 edits)",
+        "2026-10-22T22:43:14.8003597Z     stack backtrace:",
+        "2026-10-22T22:43:14.8003862Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T22:43:14.8004365Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "DB body memo/query-path guard",
+      "phase_or_join": "Actual assertions: ProcBodyKey0, not a timeout/GC-leak finding. Native vs SourceProcBodyKey callback eligibility and capsule fallback need current bounded attribution; all6 ingredients/corpus/bounds preserved.",
+      "current_status": "DB product unchanged; compiler joint producer audit requested",
+      "exact_current13_filter": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-lsp-db::interned_gc",
+        "selector": "raising_input_durability_disables_the_collector"
+      },
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-db",
+        "binary_label_as_rendered": "interned_gc",
+        "selector": "raising_input_durability_disables_the_collector",
+        "status": "PASS",
+        "reporter_ordinal": 2780,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-db::interned_gc"
+      },
+      "current": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T22:42:54.9030694Z",
+        "duration": "6096.864s",
+        "reporter_ordinal": 3896,
+        "reporter_total": 3897,
+        "package": "tcl-lsp-db",
+        "binary_label_as_rendered": "interned_gc",
+        "binary_id": "tcl-lsp-db::interned_gc",
+        "selector": "raising_input_durability_disables_the_collector",
+        "duplicate_summary_lines": 1
+      },
+      "raw_first_line": 40820,
+      "raw_end_line": 40852,
+      "block_path": "/tmp/lsp-ci5205-shard3-owned-reconciliation/tcl-lsp-db__interned_gc--raising_input_durability_disables_the_collector.log",
+      "block_sha256": "a116b5997affeed24299b908a606d40b860bd9cd9559979719a4724be32b8895",
+      "panic_excerpt": [
+        "2026-10-22T22:42:54.9037101Z     thread 'raising_input_durability_disables_the_collector' (21905) panicked at rust/tcl-lsp-db/tests/interned_gc.rs:408:9:",
+        "2026-10-22T22:42:54.9039939Z     the control session retained only 0 `ProcBodyKey` slots across 24 edits, so the corpus is no longer re-keying it once per edit and `interned_slots_stay_bounded_across_an_edit_session` is measuring nothing. Fix the corpus (see its doc comment), not this bound. Measured: ItemBodyKey: 25 slots, 0 reuses; FnLatticeKey: 400 slots, 0 reuses; ProcBodyKey: 0 slots, 0 reuses; OptDepsKey: 0 slots, 0 reuses; TaintSummaryKey: 0 slots, 0 reuses; SummaryDepsKey: 400 slots, 0 reuses (over 24 edits)",
+        "2026-10-22T22:42:54.9042364Z     stack backtrace:",
+        "2026-10-22T22:42:54.9042651Z        0: __rustc::rust_begin_unwind",
+        "2026-10-22T22:42:54.9043172Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+      ],
+      "area": "DB body memo/query-path guard",
+      "phase_or_join": "Actual assertions: ProcBodyKey0, not a timeout/GC-leak finding. Native vs SourceProcBodyKey callback eligibility and capsule fallback need current bounded attribution; all6 ingredients/corpus/bounds preserved.",
+      "current_status": "DB product unchanged; compiler joint producer audit requested",
+      "exact_current13_filter": false
+    }
+  ]
+}

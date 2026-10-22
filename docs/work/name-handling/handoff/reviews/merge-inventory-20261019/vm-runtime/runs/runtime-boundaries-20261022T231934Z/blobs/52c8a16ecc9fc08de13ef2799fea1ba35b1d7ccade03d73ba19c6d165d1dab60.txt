@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+    "interp::native_error_variables::tests::c84_global_error_code_publication_matches_five_original_callback_controls",
+    "--exact",
+    "--nocapture",
+    "--test-threads",
+    "1"
+  ],
+  "pid": 175471,
+  "process_group": 175471,
+  "utc": "2026-10-22T23:10:34.881032+00:00"
+}

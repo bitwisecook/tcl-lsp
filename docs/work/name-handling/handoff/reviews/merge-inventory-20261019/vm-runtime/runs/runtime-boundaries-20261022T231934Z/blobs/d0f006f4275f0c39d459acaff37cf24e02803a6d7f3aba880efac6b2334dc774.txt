@@ -1,0 +1,6 @@
+
+thread 'cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion' (177736) panicked at src/cmd_namespace.rs:7060:9:
+assertion `left == right` failed: Jim import: native refusal before projection None; result [105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 105, 102, 34]; actual completion Ok(Completion { code: Error, result: [105, 110, 118, 97, 108, 105, 100, 32, 99, 111, 109, 109, 97, 110, 100, 32, 110, 97, 109, 101, 32, 34, 105, 102, 34], options: [45, 99, 111, 100, 101, 32, 49, 32, 45, 108, 101, 118, 101, 108, 32, 49, 32, 45, 101, 114, 114, 111, 114, 105, 110, 102, 111, 32, 123, 123, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 105, 109, 112, 111, 114, 116, 125, 32, 110, 115, 104, 101, 108, 112, 101, 114, 46, 116, 99, 108, 32, 54, 54, 32, 123, 125, 32, 123, 125, 32, 123, 125, 32, 49, 32, 123, 123, 110, 97, 109, 101, 115, 112, 97, 99, 101, 32, 105, 109, 112, 111, 114, 116, 125, 32, 58, 58, 115, 114, 99, 58, 58, 120, 125, 125], option_origin: NativeReturnOptions })
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

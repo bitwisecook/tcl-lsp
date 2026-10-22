@@ -1,0 +1,9 @@
+{
+  "recorded_at_utc": "2026-10-22T23:23:17.265375Z",
+  "patch_sha256": "75559b93a95ab6131ea49e1f50a1233fe4da237bd901fbf99451095447c970d9",
+  "status": "Bounded static review clear; untyped/unrun",
+  "delta": "Same original-refusal observer plus ONLY restored exact aliases source/profile/two genuine analyses/full equality assertion; no E003/hosted TEMP helpers",
+  "selector": "object_types::report_comparison::tests::current_native_alias_report_capture_control",
+  "expected_selected": 1,
+  "no_semantic_change": "Original refusal, Eq, eligibility and assertions unchanged"
+}

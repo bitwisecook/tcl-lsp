@@ -1,0 +1,15 @@
+{
+  "started_utc": "2026-10-22T23:24:13.691204+00:00",
+  "finished_utc": "2026-10-22T23:24:14.510459+00:00",
+  "job_id": 120061100771,
+  "run_id": 39845788481,
+  "exit_code": 1,
+  "timeout45": false,
+  "retained_bytes": 0,
+  "at_cap": false,
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "path": "/tmp/ci5205-job-120061100771.log",
+  "stderr_retained_privately": true,
+  "complete": false,
+  "sanitized_failure": "Forbidden; no named log outcomes retrieved"
+}

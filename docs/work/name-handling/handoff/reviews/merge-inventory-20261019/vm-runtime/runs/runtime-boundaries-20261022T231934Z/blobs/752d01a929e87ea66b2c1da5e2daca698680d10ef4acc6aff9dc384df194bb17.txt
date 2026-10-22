@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "cargo",
+    "test",
+    "--locked",
+    "--manifest-path",
+    "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/Cargo.toml",
+    "--lib",
+    "--no-run",
+    "--message-format=json",
+    "-j",
+    "2"
+  ],
+  "pid": 174910,
+  "process_group": 174910,
+  "utc": "2026-10-22T23:07:56.360448+00:00"
+}

@@ -1,0 +1,13 @@
+{
+  "changed": [],
+  "cleanup": "none; no canonical/provider/target writes",
+  "mirror_exact": true,
+  "preserved_artifacts": [
+    {
+      "retained": "/tmp/vm-runtime-jim-import1-20261022T2312Z/prior-artifacts/tcl_runtime-1f8f0379ac20d55d-a60b3a654940bc70c50f936d2bb1d437600cf21a34a7d345ccf31f167b620293",
+      "sha256": "a60b3a654940bc70c50f936d2bb1d437600cf21a34a7d345ccf31f167b620293",
+      "source": "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d"
+    }
+  ],
+  "utc": "2026-10-22T23:12:27.529575+00:00"
+}

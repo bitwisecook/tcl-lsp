@@ -1,0 +1,96 @@
+{
+  "artifact_identity_evidence": {
+    "manifest_path": "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/Cargo.toml",
+    "note": "CLI --lib is not Cargo target.kind=lib for this standalone crate.",
+    "source": "/tmp/vm-runtime-ci5205-six-postfix/build.stdout actual successful Cargo JSON",
+    "target_kind": [
+      "rlib",
+      "cdylib",
+      "staticlib"
+    ],
+    "target_name": "tcl_runtime",
+    "test_profile": true
+  },
+  "build_flavor": "Exact current-runtime mirror no-tommath; unchanged build.rs and authentic experiments/rust links. Only existing explicit no-tommath warning excepted; all typed/build-other warnings terminal. No zero-warning claim.",
+  "cases": [
+    {
+      "baseline": null,
+      "baseline_status": "UNKNOWN-no-baseline-claim",
+      "classification": "existing-unchanged-narrow-boundary",
+      "kind": "rlib",
+      "package": "tcl-runtime",
+      "selector": "interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver",
+      "target": "tcl_runtime"
+    },
+    {
+      "baseline": null,
+      "baseline_status": "UNKNOWN-no-baseline-claim",
+      "classification": "existing-unchanged-narrow-boundary",
+      "kind": "rlib",
+      "package": "tcl-runtime",
+      "selector": "interp::native_error_variables::tests::c84_global_error_code_publication_matches_five_original_callback_controls",
+      "target": "tcl_runtime"
+    },
+    {
+      "baseline": null,
+      "baseline_status": "UNKNOWN-no-baseline-claim",
+      "classification": "existing-unchanged-narrow-boundary",
+      "kind": "rlib",
+      "package": "tcl-runtime",
+      "selector": "interp::native_error_variables::tests::public_error_resets_preserve_global_headers_and_start_fresh_episodes",
+      "target": "tcl_runtime"
+    }
+  ],
+  "expected_selected": 3,
+  "feature_contract": {
+    "flavour": "Standalone runtime lib test, default features; unchanged build.rs selects deliberate absent-tommath fallback, distinct from main all-features VM14/11/20",
+    "source": "Existing standalone runtime6 no-tommath Cargo flavor; runtime/rust excluded from main workspace",
+    "target_dir": "/tmp/vm-runtime-ci5205-target-20261022; unique owned mirror target, no concurrent access except whole global lock"
+  },
+  "guards": {
+    "artifact": "current Cargo JSON exact manifest_path,target.name,kind,test profile only; executable streamed SHA256 before and after. No stale fallback. Active and publisher Git HEAD/tree recorded independently; no published artifact equivalence inferred.",
+    "cleanup": "none; all fresh executables and target files retained, no source/provider/Make fixture mutations",
+    "disk": "stop own process group below2GiB on workspace or /tmp, prefer>=2.3GiB before build; never remove targets/artifacts",
+    "lock": "/tmp/tcl-lsp-naming-build.lock nonblocking; whole source/provider preguard, Cargo, fresh artifact identity/roster, per-selector execution, postguard, receipt",
+    "logs": "aggregate subprocess stdout/stderr retained <=20MiB; drain and stop owned process group on overflow; inventories/receipts separate bounded proof data",
+    "providers": "all5 pinned Tcl actual executable+wrapper+libtcl shared/static archives+library scripts; Jim actual exe+config+provisioning manifest; full before-after SHA256 PLUS frozen existing compiler provider helper recursive ELF dependencies, realpath/proxy bindings and actual Rust tools; no dependency/chain equivalence inferred.",
+    "selector_deadline_seconds": 180,
+    "source": "all present files under rust/, runtime/rust/, experiments/, specs/ and .cargo/ excluding target/node_modules/.git; root Cargo.toml/Cargo.lock, rust-toolchain.toml, Makefile and environment/provider manifest; explicit scope in full inventories PLUS root-wide Rust/C-family/Cargo/build inputs outside those prefixes, excluding mutable docs/work/name-handling and generated target/Git/node_modules trees; exact script/plan/helper/environment hashes.",
+    "summary": "each selector exact --nocapture --test-threads 1, nonzero exact roster before execution, started exactly1 and completed1 with0ignored; timeout/abort/incomplete retained separately and continue independent selectors unless log/disk/source/provider guard fails",
+    "warnings": "No typed compiler warning or unexpected build warning. Exactly one deliberate existing no-tommath build-script notice retained as flavor exception; no zero-warning claim."
+  },
+  "limits": "All cases unrun by this plan. Existing narrow boundary/diagnostic evidence only; no full standalone runtime/release/zero-warning claim.",
+  "mirror_preparation": "Within wholelock before Cargo: retain prior executable/source byte-for-byte outside target, exact current runtime\u2192owned mirror refresh with no source removals/deletes; fail if canonical changes. Full source/provider guards follow and must close.",
+  "optional_prerequisite": "Existing unchanged three C84 boundary assertions; no new semantics/assertions/instrumentation.",
+  "ordering": "Independent root-authorized phase; separate from runtime6, mainVM14/11/20, stack3 and VM71. Actual current Cargo-owned build+run required; never direct stale artifact.",
+  "phase": "c84_boundary3",
+  "prepared_utc": "2026-10-22T22:48:24.137641+00:00",
+  "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
+  "root": "/workspace/naming-migration-active/tcl-lsp",
+  "status": "IMMUTABLE PREPARATION ONLY; no Cargo GO/queue/execution",
+  "targets": [
+    {
+      "cargo_build_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "--manifest-path",
+        "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/Cargo.toml",
+        "--lib",
+        "--no-run",
+        "--message-format=json",
+        "-j",
+        "2"
+      ],
+      "kind": "rlib",
+      "manifest_path": "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/Cargo.toml",
+      "package": "tcl-runtime",
+      "target": "tcl_runtime",
+      "target_kinds": [
+        "rlib",
+        "cdylib",
+        "staticlib"
+      ]
+    }
+  ]
+}

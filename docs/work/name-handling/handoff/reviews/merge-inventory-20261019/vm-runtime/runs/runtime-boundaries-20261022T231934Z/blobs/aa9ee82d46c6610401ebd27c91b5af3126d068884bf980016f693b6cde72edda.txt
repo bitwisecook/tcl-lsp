@@ -1,0 +1,38 @@
+[
+  {
+    "artifact": "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+    "artifact_sha256": "a60b3a654940bc70c50f936d2bb1d437600cf21a34a7d345ccf31f167b620293",
+    "case": {
+      "baseline": null,
+      "baseline_status": "UNKNOWN-no-baseline-claim",
+      "classification": "original-import-regression-diagnostic",
+      "kind": "rlib",
+      "package": "tcl-runtime",
+      "selector": "cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion",
+      "target": "tcl_runtime"
+    },
+    "completed_exactly_one_zero_ignored": true,
+    "passed": false,
+    "process": {
+      "aggregate_retained_bytes": 265446,
+      "argv": [
+        "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+        "cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion",
+        "--exact",
+        "--nocapture",
+        "--test-threads",
+        "1"
+      ],
+      "cwd": "/workspace/naming-migration-active/tcl-lsp",
+      "deadline_seconds": 180,
+      "ended_utc": "2026-10-22T23:17:59.094266+00:00",
+      "exit": 101,
+      "label": "test-01",
+      "minimum_free_bytes": 6107226112,
+      "started_utc": "2026-10-22T23:17:54.214603+00:00",
+      "stdout_stderr_bytes": 1613,
+      "stopped": null
+    },
+    "started_exactly_one": true
+  }
+]

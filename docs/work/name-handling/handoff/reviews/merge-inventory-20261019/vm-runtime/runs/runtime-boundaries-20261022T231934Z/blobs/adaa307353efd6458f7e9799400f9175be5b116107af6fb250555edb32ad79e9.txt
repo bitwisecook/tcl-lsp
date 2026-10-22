@@ -1,0 +1,45 @@
+{
+  "executable": "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+  "executable_sha256": "a60b3a654940bc70c50f936d2bb1d437600cf21a34a7d345ccf31f167b620293",
+  "executable_stat": {
+    "mtime_ns": 1792710632455370680,
+    "size": 93568568
+  },
+  "features": [],
+  "filenames": [
+    "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d"
+  ],
+  "fresh": false,
+  "intentional_no_tommath_notice": [
+    "warning: tcl-runtime@0.1.0: libtommath source not found; bignum backend disabled"
+  ],
+  "manifest_path": "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/Cargo.toml",
+  "package_id": "path+file:///tmp/vm-runtime-ci5205-no-tommath/runtime/rust#tcl-runtime@0.1.0",
+  "profile": {
+    "debug_assertions": true,
+    "debuginfo": 0,
+    "opt_level": "0",
+    "overflow_checks": true,
+    "test": true
+  },
+  "reason": "compiler-artifact",
+  "target": {
+    "crate_types": [
+      "rlib",
+      "cdylib",
+      "staticlib"
+    ],
+    "doc": true,
+    "doctest": true,
+    "edition": "2021",
+    "kind": [
+      "rlib",
+      "cdylib",
+      "staticlib"
+    ],
+    "name": "tcl_runtime",
+    "src_path": "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/src/lib.rs",
+    "test": true
+  },
+  "zero_warning_claim": false
+}

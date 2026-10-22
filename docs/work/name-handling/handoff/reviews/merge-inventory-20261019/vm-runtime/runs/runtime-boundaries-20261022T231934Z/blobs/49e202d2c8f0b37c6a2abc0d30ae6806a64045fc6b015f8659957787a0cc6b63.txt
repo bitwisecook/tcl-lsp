@@ -1,0 +1,110 @@
+[
+  {
+    "artifact": "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+    "artifact_sha256": "a60b3a654940bc70c50f936d2bb1d437600cf21a34a7d345ccf31f167b620293",
+    "case": {
+      "baseline": null,
+      "baseline_status": "UNKNOWN-no-baseline-claim",
+      "classification": "existing-unchanged-narrow-boundary",
+      "kind": "rlib",
+      "package": "tcl-runtime",
+      "selector": "interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver",
+      "target": "tcl_runtime"
+    },
+    "completed_exactly_one_zero_ignored": true,
+    "passed": true,
+    "process": {
+      "aggregate_retained_bytes": 264067,
+      "argv": [
+        "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+        "interp::native_error_variables::tests::c84_command_logging_seeds_then_appends_the_original_global_receiver",
+        "--exact",
+        "--nocapture",
+        "--test-threads",
+        "1"
+      ],
+      "cwd": "/workspace/naming-migration-active/tcl-lsp",
+      "deadline_seconds": 180,
+      "ended_utc": "2026-10-22T23:10:34.872111+00:00",
+      "exit": 0,
+      "label": "test-01",
+      "minimum_free_bytes": 6223077376,
+      "started_utc": "2026-10-22T23:10:33.164092+00:00",
+      "stdout_stderr_bytes": 234,
+      "stopped": null
+    },
+    "started_exactly_one": true
+  },
+  {
+    "artifact": "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+    "artifact_sha256": "a60b3a654940bc70c50f936d2bb1d437600cf21a34a7d345ccf31f167b620293",
+    "case": {
+      "baseline": null,
+      "baseline_status": "UNKNOWN-no-baseline-claim",
+      "classification": "existing-unchanged-narrow-boundary",
+      "kind": "rlib",
+      "package": "tcl-runtime",
+      "selector": "interp::native_error_variables::tests::c84_global_error_code_publication_matches_five_original_callback_controls",
+      "target": "tcl_runtime"
+    },
+    "completed_exactly_one_zero_ignored": true,
+    "passed": true,
+    "process": {
+      "aggregate_retained_bytes": 264307,
+      "argv": [
+        "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+        "interp::native_error_variables::tests::c84_global_error_code_publication_matches_five_original_callback_controls",
+        "--exact",
+        "--nocapture",
+        "--test-threads",
+        "1"
+      ],
+      "cwd": "/workspace/naming-migration-active/tcl-lsp",
+      "deadline_seconds": 180,
+      "ended_utc": "2026-10-22T23:10:35.854662+00:00",
+      "exit": 0,
+      "label": "test-02",
+      "minimum_free_bytes": 6223065088,
+      "started_utc": "2026-10-22T23:10:34.881032+00:00",
+      "stdout_stderr_bytes": 240,
+      "stopped": null
+    },
+    "started_exactly_one": true
+  },
+  {
+    "artifact": "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+    "artifact_sha256": "a60b3a654940bc70c50f936d2bb1d437600cf21a34a7d345ccf31f167b620293",
+    "case": {
+      "baseline": null,
+      "baseline_status": "UNKNOWN-no-baseline-claim",
+      "classification": "existing-unchanged-narrow-boundary",
+      "kind": "rlib",
+      "package": "tcl-runtime",
+      "selector": "interp::native_error_variables::tests::public_error_resets_preserve_global_headers_and_start_fresh_episodes",
+      "target": "tcl_runtime"
+    },
+    "completed_exactly_one_zero_ignored": true,
+    "passed": true,
+    "process": {
+      "aggregate_retained_bytes": 264543,
+      "argv": [
+        "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+        "interp::native_error_variables::tests::public_error_resets_preserve_global_headers_and_start_fresh_episodes",
+        "--exact",
+        "--nocapture",
+        "--test-threads",
+        "1"
+      ],
+      "cwd": "/workspace/naming-migration-active/tcl-lsp",
+      "deadline_seconds": 180,
+      "ended_utc": "2026-10-22T23:11:09.558547+00:00",
+      "exit": 0,
+      "label": "test-03",
+      "minimum_free_bytes": 6222983168,
+      "started_utc": "2026-10-22T23:10:35.858040+00:00",
+      "stdout_stderr_bytes": 236,
+      "stopped": null
+    },
+    "started_exactly_one": true
+  }
+]

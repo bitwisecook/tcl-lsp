@@ -1,0 +1,20 @@
+{
+  "aggregate_retained_bytes": 264307,
+  "argv": [
+    "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+    "interp::native_error_variables::tests::c84_global_error_code_publication_matches_five_original_callback_controls",
+    "--exact",
+    "--nocapture",
+    "--test-threads",
+    "1"
+  ],
+  "cwd": "/workspace/naming-migration-active/tcl-lsp",
+  "deadline_seconds": 180,
+  "ended_utc": "2026-10-22T23:10:35.854662+00:00",
+  "exit": 0,
+  "label": "test-02",
+  "minimum_free_bytes": 6223065088,
+  "started_utc": "2026-10-22T23:10:34.881032+00:00",
+  "stdout_stderr_bytes": 240,
+  "stopped": null
+}

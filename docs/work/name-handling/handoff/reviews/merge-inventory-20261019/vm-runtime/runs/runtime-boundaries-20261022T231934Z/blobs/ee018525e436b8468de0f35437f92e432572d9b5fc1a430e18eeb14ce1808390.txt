@@ -1,0 +1,34 @@
+{
+  "active_git_after": {
+    "head": "ba02fd7035ad3a35bf3f64f6260b2204590f33be",
+    "tree": "e6f0a95e4d22a18a17a660bd7739c4fdb732b189"
+  },
+  "active_git_before": {
+    "head": "ba02fd7035ad3a35bf3f64f6260b2204590f33be",
+    "tree": "e6f0a95e4d22a18a17a660bd7739c4fdb732b189"
+  },
+  "artifacts_unchanged": true,
+  "cleanup": "none; all artifacts retained",
+  "expected": 1,
+  "failure": null,
+  "log_cap_bytes": 20971520,
+  "observed": 1,
+  "passed": false,
+  "passes": 0,
+  "phase": "jim_import1",
+  "provider_count": 3471,
+  "providers_unchanged": true,
+  "publisher_equivalence_claim": false,
+  "publisher_git_after": {
+    "head": "c7296ee035b7ca95b36b5c9fcb20f3813dceb12b",
+    "tree": "404d17e5028b356fa0ce3c1c1f59e043a9b54ab0"
+  },
+  "publisher_git_before": {
+    "head": "c7296ee035b7ca95b36b5c9fcb20f3813dceb12b",
+    "tree": "404d17e5028b356fa0ce3c1c1f59e043a9b54ab0"
+  },
+  "retained_stdout_stderr_bytes": 265446,
+  "source_count": 44795,
+  "source_unchanged": true,
+  "utc": "2026-10-22T23:19:34.254350+00:00"
+}

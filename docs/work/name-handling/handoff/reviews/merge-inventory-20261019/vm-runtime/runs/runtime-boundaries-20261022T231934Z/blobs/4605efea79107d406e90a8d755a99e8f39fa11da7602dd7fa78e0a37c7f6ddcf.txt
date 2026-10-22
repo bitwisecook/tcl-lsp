@@ -1,0 +1,24 @@
+{
+  "aggregate_retained_bytes": 47306,
+  "argv": [
+    "cargo",
+    "test",
+    "--locked",
+    "--manifest-path",
+    "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/Cargo.toml",
+    "--lib",
+    "--no-run",
+    "--message-format=json",
+    "-j",
+    "2"
+  ],
+  "cwd": "/workspace/naming-migration-active/tcl-lsp",
+  "deadline_seconds": null,
+  "ended_utc": "2026-10-22T23:10:32.950336+00:00",
+  "exit": 0,
+  "label": "build-1",
+  "minimum_free_bytes": 6090788864,
+  "started_utc": "2026-10-22T23:07:56.360448+00:00",
+  "stdout_stderr_bytes": 47306,
+  "stopped": null
+}
