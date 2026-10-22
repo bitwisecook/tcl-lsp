@@ -41,6 +41,10 @@ pub(super) struct DiagnosticPass {
     class_factory_generation: u64,
     input: Option<Arc<tcl_compiler::analyser::ResolvedAnalysisInput>>,
     registry: tcl_registry::RegistrySnapshot,
+    /// The document is an F5 model document (BIG-IP configuration or iApp
+    /// APL): its report is the F5 model report, which reads no Tcl analysis
+    /// input and applies the byte-integrity abstention itself.
+    f5_model: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -366,6 +370,8 @@ impl DiagInputs {
             class_factory_generation: generation,
             input,
             registry: self.registry.snapshot(),
+            f5_model: Backend::is_bigip_dialect(&job.dialect)
+                || is_apl_source(uri, &job.language_id),
         }))
     }
 }
@@ -422,6 +428,23 @@ impl DeliveryCtx<'_> {
                 .finish_diagnostic_pass(self.uri, pass, DiagnosticPassState::Unavailable(reason))
                 .await;
         }
+    }
+
+    /// Complete this pass with the F5 model report delivered for `text`.
+    /// Only an F5 model pass over exactly that source completes; anything else
+    /// is a context mismatch, never a borrowed completion.
+    pub(super) async fn complete_f5_model_pass(&self, text: &str, result_id: String) {
+        let Some(pass) = self.diagnostic_pass else {
+            return;
+        };
+        if !pass.f5_model || pass.source.as_ref() != text {
+            self.diagnostic_pass_unavailable(DiagnosticUnavailable::Context)
+                .await;
+            return;
+        }
+        self.diagnostic_publisher
+            .finish_diagnostic_pass(self.uri, pass, DiagnosticPassState::Complete { result_id })
+            .await;
     }
 
     pub(super) async fn complete_diagnostic_pass(
@@ -1342,9 +1365,6 @@ impl Backend {
             if doc.version != source.version || doc.raw() != source.source.as_ref() {
                 return Ok(Err(DiagnosticUnavailable::Stale));
             }
-            if tcl_lsp_core::source_decode::should_abstain(doc.decode_report.as_ref()) {
-                return Ok(Err(DiagnosticUnavailable::Context));
-            }
             if doc.publication != DocumentPublication::Indexed || self.diag_inputs_epoch() != epoch
             {
                 return Ok(Err(DiagnosticUnavailable::Pending));
@@ -1360,6 +1380,14 @@ impl Backend {
                 return Ok(Err(DiagnosticUnavailable::Stale));
             };
             let pass = &receipt.source;
+            // An abstaining (non-text) source has no analysis report. The F5
+            // model report applies that abstention itself, so it stays the
+            // document's answer.
+            if !pass.f5_model
+                && tcl_lsp_core::source_decode::should_abstain(doc.decode_report.as_ref())
+            {
+                return Ok(Err(DiagnosticUnavailable::Context));
+            }
             if let Some(sources) = receipt.workspace_sources.as_ref() {
                 workspace_sources.push(Arc::clone(sources));
             }
@@ -1411,8 +1439,10 @@ impl Backend {
                 return Ok(Err(DiagnosticUnavailable::Stale));
             }
             checked_configurations.push((*configuration, pass.configuration.clone()));
-            // A delivered policy clear does not claim analysis preparation.
-            if suppression.is_none() {
+            // A delivered policy clear does not claim analysis preparation,
+            // and neither does an F5 model report, which reads no analysis
+            // input (its configuration is checked below like every report's).
+            if suppression.is_none() && !pass.f5_model {
                 let current = match current {
                     Ok(current) => current,
                     Err(reason) => return Ok(Err(*reason)),
@@ -1705,8 +1735,30 @@ impl Backend {
         let diagnostics = if policy.is_some() {
             Vec::new()
         } else {
-            if Self::is_bigip_dialect(&job.dialect) || is_apl_source(uri, &job.language_id) {
-                return Err(DiagnosticUnavailable::Unsupported);
+            if source.f5_model {
+                let analysis_text = tcl_lexer::normalise_lone_cr(&job.text);
+                let diagnostics = f5_model_document_report(
+                    &F5ReportInputs {
+                        uri,
+                        text: &job.text,
+                        analysis_text: &analysis_text,
+                        decode_report: job.decode_report.as_ref(),
+                        dialect: tcl_lsp_core::profile_for_dialect(&job.dialect),
+                        language_id: &job.language_id,
+                        policy_layers: &inputs.policy_layers,
+                    },
+                    &inputs.documents,
+                    inputs.store.as_ref(),
+                )
+                .await;
+                return Ok(ProducedDirectDiagnosticReport {
+                    receipt: DiagnosticCacheReceipt {
+                        workspace_sources: None,
+                        source: Arc::clone(source),
+                        origin: DiagnosticCacheOrigin::Direct { policy: None },
+                    },
+                    diagnostics,
+                });
             }
             let analysis_text = tcl_lexer::normalise_lone_cr(&job.text);
             let profile = tcl_lsp_core::profile_for_dialect(&job.dialect);
@@ -2040,6 +2092,77 @@ mod tests {
         assert_eq!(response["dialectId"], dialect);
         assert!(response["resultId"].is_string());
         assert!(response["inputsEpoch"].is_string());
+    }
+
+    /// A BIG-IP configuration or iApp APL document answers
+    /// `textDocument/diagnostic` with its F5 model report — the same report
+    /// code the push publisher runs — both directly before any push and by
+    /// reborrowing the completed push afterwards.
+    #[tokio::test]
+    async fn f5_model_documents_answer_pull_with_their_model_report() {
+        for (uri, dialect, source) in [
+            (
+                "file:///pulled-config.scf",
+                "f5-bigip",
+                "ltm pool /Common/p {\n    members {\n        /Common/10.0.0.1:80 { }\n    }\n}\n",
+            ),
+            (
+                "file:///pulled.apl",
+                "f5-iapps",
+                "section basic {\n    string name\n}\n",
+            ),
+        ] {
+            let backend = crate::tests::test_backend();
+            let expected = DiagnosticSourceExpectation {
+                uri: Uri::from_str(uri).unwrap(),
+                version: 1,
+                source: source.into(),
+            };
+            backend.documents.lock("f5_pull_fixture").await.insert(
+                expected.uri.clone(),
+                DocumentState::with_version(
+                    expected.source.clone(),
+                    dialect.into(),
+                    expected.version,
+                ),
+            );
+            backend
+                .db_set_source(&expected.uri, &expected.source, dialect.into())
+                .await
+                .unwrap();
+            let direct = full_pull(
+                backend
+                    .diagnostic(pull_params(&expected.uri, None))
+                    .await
+                    .unwrap_or_else(|error| panic!("{uri}: direct pull refused: {error:?}")),
+            );
+            run_provider(&backend, &expected.uri).await;
+            let pushed = backend
+                .pull_diag_cache
+                .lock()
+                .await
+                .get(&expected.uri)
+                .map(|entry| (entry.result_id.clone(), entry.diagnostics.clone()))
+                .expect("the push primed the pull cache");
+            let reborrowed = full_pull(
+                backend
+                    .diagnostic(pull_params(&expected.uri, None))
+                    .await
+                    .unwrap_or_else(|error| panic!("{uri}: pull after push refused: {error:?}")),
+            );
+            assert_eq!(
+                reborrowed.result_id.as_deref(),
+                Some(pushed.0.as_str()),
+                "{uri}"
+            );
+            assert_eq!(reborrowed.items, pushed.1, "{uri}");
+            assert_eq!(direct.items, pushed.1, "{uri}: one report code");
+            let current =
+                serde_json::to_value(backend.current_diagnostics(&expected).await.unwrap())
+                    .unwrap();
+            assert_eq!(current["status"], "complete", "{uri}: {current}");
+            assert_eq!(current["dialectId"], dialect, "{uri}");
+        }
     }
 
     #[tokio::test]

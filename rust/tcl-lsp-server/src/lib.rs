@@ -4916,6 +4916,9 @@ impl DeliveryCtx<'_> {
     /// `documents` is held. Client I/O does not: this waits for the publisher's
     /// acknowledgement only after releasing the map. A close or newer edit
     /// therefore orders before or after this commit without a check/send race.
+    /// Production publishers complete their pass from the issued result id
+    /// ([`Self::delivered_current_report`]); this boolean form is the tests'.
+    #[cfg(test)]
     async fn deliver_if_current(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) -> bool {
         self.delivered_current_report(diags).await.is_some()
     }
@@ -5131,41 +5134,85 @@ async fn run_diagnostics_f5_dialect(
     {
         return None;
     }
-    let encoding_abstains =
-        tcl_lsp_core::source_decode::should_abstain(inputs.decode_report.as_ref());
-    // A non-text byte signature makes every parser/model verdict untrustworthy.
-    // Skip the validator entirely rather than computing findings the policy
-    // step's abstention would then hide.
-    let produced = if encoding_abstains {
-        Vec::new()
-    } else {
-        f5_dialect_diagnostics(
-            delivery.uri,
-            analysis_text,
-            inputs.dialect,
-            language_id,
-            delivery.documents,
-            delivery.store.as_ref(),
-        )
-        .await
-        .unwrap_or_default()
-    };
-    let diags = f5_model_report(
-        &F5ModelDocument {
+    let diags = f5_model_document_report(
+        &F5ReportInputs {
+            uri: delivery.uri,
             text: inputs.text,
             analysis_text,
             decode_report: inputs.decode_report.as_ref(),
             dialect: inputs.dialect,
+            language_id,
+            policy_layers: inputs.policy_layers,
+        },
+        delivery.documents,
+        delivery.store.as_ref(),
+    )
+    .await;
+    // Publish only when this version is still current (the same revision
+    // guard the analyser path applies before publishing), keep the
+    // pull-diagnostic cache in lock-step, and complete the pass with the
+    // delivered report so `textDocument/diagnostic` answers with this set.
+    match delivery.delivered_current_report(diags).await {
+        Some(result_id) => {
+            delivery
+                .complete_f5_model_pass(inputs.text, result_id)
+                .await
+        }
+        None => {
+            delivery
+                .diagnostic_pass_unavailable(DiagnosticUnavailable::Stale)
+                .await;
+        }
+    }
+    Some(true)
+}
+
+/// One F5 model document snapshot (BIG-IP configuration or iApp APL) and the
+/// policy its report is read under.
+struct F5ReportInputs<'a> {
+    uri: &'a Uri,
+    text: &'a str,
+    analysis_text: &'a str,
+    decode_report: Option<&'a tcl_lsp_core::source_decode::DecodeReport>,
+    dialect: &'static tcl_dialect::DialectProfile,
+    language_id: &'a str,
+    policy_layers: &'a PolicyLayers,
+}
+
+/// The F5 model report for one document snapshot — the single report code
+/// the push publisher and a direct `textDocument/diagnostic` answer share.
+async fn f5_model_document_report(
+    inputs: &F5ReportInputs<'_>,
+    documents: &DocumentStore,
+    store: &dyn vfs::SourceStore,
+) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+    // A non-text byte signature makes every parser/model verdict untrustworthy.
+    // Skip the validator entirely rather than computing findings the policy
+    // step's abstention would then hide.
+    let produced = if tcl_lsp_core::source_decode::should_abstain(inputs.decode_report) {
+        Vec::new()
+    } else {
+        f5_dialect_diagnostics(
+            inputs.uri,
+            inputs.analysis_text,
+            inputs.dialect,
+            inputs.language_id,
+            documents,
+            store,
+        )
+        .await
+        .unwrap_or_default()
+    };
+    f5_model_report(
+        &F5ModelDocument {
+            text: inputs.text,
+            analysis_text: inputs.analysis_text,
+            decode_report: inputs.decode_report,
+            dialect: inputs.dialect,
         },
         inputs.policy_layers,
         produced,
-    );
-    // Publish only when this version is still current (the same revision
-    // guard the analyser path applies before publishing), and keep the
-    // pull-diagnostic cache in lock-step so `textDocument/diagnostic`
-    // returns the same set.
-    delivery.deliver_if_current(diags).await;
-    Some(true)
+    )
 }
 
 /// The salsa handles + per-edit identity shared by the two cancellable analysis
@@ -6869,9 +6916,6 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     if let Some(settled) =
         run_diagnostics_f5_dialect(&delivery, &lift_inputs, &analysis_text, &language_id).await
     {
-        delivery
-            .diagnostic_pass_unavailable(DiagnosticUnavailable::Unsupported)
-            .await;
         return settled;
     }
 

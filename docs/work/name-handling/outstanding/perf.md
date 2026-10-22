@@ -2,14 +2,14 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 11:13 UTC
+Last updated: 2026-10-22 12:23 UTC
 
 Maintained by the perf agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress
 
-- tclIndex repro has a third hot path: `incomplete_body_metadata.rs::incomplete_body_operand_layout_advice`. Each command re-parses the document tail for every earlier declaration site through `header()`. Fix: an exact per-region thread_local memo of `header()`. Building it in exp now.
-- Then: the AnalysisResult equality corpus (102 `.tcl` + 15 `.irul` + synthetic), then the crate tests.
+- AnalysisResult equality corpus. The first pass flagged 2/101 `.tcl` and 15/15 `.irul` mismatches. The same mismatch appears old-vs-old (ZZ_SAME=old): a second analysis in a warm process differs in retained registry/OnceLock fields (`<uninit>` vs initialised). It is a probe artifact, not a semantic change. Diagnostics are equal in every case. The probe is being reworked to run old1/new/old2 and compare new against the old runs.
+- tclIndex (253 lines, opt-level 1): 208 s → 29 s after the `incomplete_body_metadata::header` memo. The rest is diffuse per-command whole-document work: SourceImage/SourceMap/LineIndex rebuilt per command (~20%) and re-segmentation per query (~25%). Still mildly super-linear (100 lines 7.9 s, 253 lines 29 s).
 
 ## Outstanding (in priority order)
 
@@ -18,8 +18,9 @@ Maintained by the perf agent. It lists what this agent considers it must still c
 3. Land the batch in ONE application. Re-check `git status` and diff exp against the tree for each file, and message the coordinator first. Files:
    - tcl-lexer `parse_cut.rs` and `source_map.rs`
    - tcl-compiler `parsing/spectcl_source/original_word.rs`
+   - `command_binding/incomplete_body_metadata.rs`
    - `command_binding/original_name_value.rs` and `command_binding/formal_call_advice.rs`
-   - `realm.rs` and `interprocedural.rs`
+   - `realm.rs` and `interprocedural.rs`: compiler agent's files. Send the hunks to the coordinator, diffed against the current tree.
 4. origin/rust comparison timings: build rust-wt only after the exp target is deleted, then delete both.
 5. Write the perf-NOTES.md handback (`docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf-NOTES.md`).
 6. Next: the review's section 4.1/4.2 scaling shapes that are still super-linear on the LSP ordinary path. The coordinator will pass the confirmed list from the triage agent.

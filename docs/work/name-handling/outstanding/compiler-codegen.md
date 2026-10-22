@@ -2,14 +2,14 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-22T11:23Z
+Last updated: 2026-10-22T12:24Z
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress
 
-- Before/after measurement chain (TEMP env toggle `ZZ_CCG_BASELINE` in the tree, marked; removed right after): remaining targets tcl-spectcl lib, codegen_stamps, pack_source_e2e, spec_corpus, golden_packs. Waiting on disk (750 MB free at 11:22Z; builds only above 2 GB).
-- const_fold hook path (next, per coordinator; N17 live-hook acceptance depends on it): fixes already in the tree — `optimise_raw(.., None)` over a profile-projected registry analyses for that profile (it was dialect-blind and folded nothing, even `string length`), and pack rows now carry native compiler descriptors (install.rs). Regression `variable_reference_boundaries.rs::a_live_hook_folds_the_value_its_substitution_computes` (DSL 1/2.0 × `$arr($a:b)` / braced control) awaits a run.
+- Before/after measurement chain (TEMP env toggle `ZZ_CCG_BASELINE` in the tree, marked; removed right after): tcl-spectcl lib 302/310 → 304/310 (0 pass→fail), pack_source_e2e 3/6 → 3/6 (0 pass→fail); spec_corpus running, golden_packs next; codegen_stamps re-run after the toggle is removed.
+- const_fold hook path (next, per coordinator; N17 live-hook acceptance depends on it): fixes already in the tree — `optimise_raw(.., None)` over a profile-projected registry analyses for that profile (it was dialect-blind and folded nothing, even `string length`), and pack rows now carry native compiler descriptors (install.rs). Regression `variable_reference_boundaries.rs::a_live_hook_folds_the_value_its_substitution_computes` (DSL 1/2.0 × `$arr($a:b)` / braced control) awaits a run. pack_source_e2e `a_pack_file_folds_a_call_site_in_the_optimiser` still gets no O129 with both fixes in, so a further gate declines; a TEMP probe (`rust/tcl-spectcl/tests/zz_ccg_fold_probe.rs`, removed with the toggle) traces registry profile → spec thunk → resolve_call → optimise_raw once the chain frees the CPU.
 
 ## Outstanding (in priority order)
 
