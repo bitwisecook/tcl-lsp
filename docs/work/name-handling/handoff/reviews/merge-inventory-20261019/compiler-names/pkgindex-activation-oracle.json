@@ -1,0 +1,47 @@
+[
+  {
+    "version": "8.4",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.4",
+    "source": "set dir GLOBAL\nset observed {}\nset auto_path [list {/tmp/names-pkgindex-frame-snyfr1y8}]\nset status [catch {package require NamingFrame 1.0} message]\nputs [list STATUS $status $message]\nputs $observed\n",
+    "pkgIndex": "lappend ::observed [list BEFORE [info level] $dir]\nglobal dir\nlappend ::observed [list AFTER [info level] $dir]\npackage ifneeded NamingFrame 1.0 {package provide NamingFrame 1.0}\n",
+    "stdout": "STATUS 1 {can't find package NamingFrame 1.0}\n{BEFORE 1 /tmp/names-pkgindex-frame-snyfr1y8}\n",
+    "stderr": "error reading package index file /tmp/names-pkgindex-frame-snyfr1y8/pkgIndex.tcl: variable \"dir\" already exists\n",
+    "exit": 0
+  },
+  {
+    "version": "8.5",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.5",
+    "source": "set dir GLOBAL\nset observed {}\nset auto_path [list {/tmp/names-pkgindex-frame-snyfr1y8}]\nset status [catch {package require NamingFrame 1.0} message]\nputs [list STATUS $status $message]\nputs $observed\n",
+    "pkgIndex": "lappend ::observed [list BEFORE [info level] $dir]\nglobal dir\nlappend ::observed [list AFTER [info level] $dir]\npackage ifneeded NamingFrame 1.0 {package provide NamingFrame 1.0}\n",
+    "stdout": "STATUS 1 {can't find package NamingFrame 1.0}\n{BEFORE 1 /tmp/names-pkgindex-frame-snyfr1y8}\n",
+    "stderr": "error reading package index file /tmp/names-pkgindex-frame-snyfr1y8/pkgIndex.tcl: variable \"dir\" already exists\n",
+    "exit": 0
+  },
+  {
+    "version": "8.6",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "source": "set dir GLOBAL\nset observed {}\nset auto_path [list {/tmp/names-pkgindex-frame-snyfr1y8}]\nset status [catch {package require NamingFrame 1.0} message]\nputs [list STATUS $status $message]\nputs $observed\n",
+    "pkgIndex": "lappend ::observed [list BEFORE [info level] $dir]\nglobal dir\nlappend ::observed [list AFTER [info level] $dir]\npackage ifneeded NamingFrame 1.0 {package provide NamingFrame 1.0}\n",
+    "stdout": "STATUS 1 {can't find package NamingFrame 1.0}\n{BEFORE 1 /tmp/names-pkgindex-frame-snyfr1y8}\n",
+    "stderr": "error reading package index file /tmp/names-pkgindex-frame-snyfr1y8/pkgIndex.tcl: variable \"dir\" already exists\n",
+    "exit": 0
+  },
+  {
+    "version": "9.0",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "source": "set dir GLOBAL\nset observed {}\nset auto_path [list {/tmp/names-pkgindex-frame-snyfr1y8}]\nset status [catch {package require NamingFrame 1.0} message]\nputs [list STATUS $status $message]\nputs $observed\n",
+    "pkgIndex": "lappend ::observed [list BEFORE [info level] $dir]\nglobal dir\nlappend ::observed [list AFTER [info level] $dir]\npackage ifneeded NamingFrame 1.0 {package provide NamingFrame 1.0}\n",
+    "stdout": "STATUS 1 {can't find package NamingFrame 1.0}\n{BEFORE 1 /tmp/names-pkgindex-frame-snyfr1y8}\n",
+    "stderr": "error reading package index file /tmp/names-pkgindex-frame-snyfr1y8/pkgIndex.tcl: variable \"dir\" already exists\n",
+    "exit": 0
+  },
+  {
+    "version": "9.1",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
+    "source": "set dir GLOBAL\nset observed {}\nset auto_path [list {/tmp/names-pkgindex-frame-snyfr1y8}]\nset status [catch {package require NamingFrame 1.0} message]\nputs [list STATUS $status $message]\nputs $observed\n",
+    "pkgIndex": "lappend ::observed [list BEFORE [info level] $dir]\nglobal dir\nlappend ::observed [list AFTER [info level] $dir]\npackage ifneeded NamingFrame 1.0 {package provide NamingFrame 1.0}\n",
+    "stdout": "STATUS 1 {can't find package NamingFrame 1.0}\n{BEFORE 1 /tmp/names-pkgindex-frame-snyfr1y8}\n",
+    "stderr": "error reading package index file /tmp/names-pkgindex-frame-snyfr1y8/pkgIndex.tcl: variable \"dir\" already exists\n",
+    "exit": 0
+  }
+]

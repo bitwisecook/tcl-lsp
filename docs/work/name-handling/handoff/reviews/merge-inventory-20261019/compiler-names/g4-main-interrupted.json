@@ -1,0 +1,9 @@
+{
+  "reason": "known-failed unit-test compile interrupted after nine missing tracked include-file diagnostics; coordinator authorised termination",
+  "terminated_cargo_subtree": [
+    23367,
+    31743
+  ],
+  "tests_executed": 0,
+  "product_verdict": null
+}

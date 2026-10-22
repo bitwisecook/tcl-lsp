@@ -2,7 +2,7 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-22T15:06Z (RESUMED; agent-reported, not validation)
+Last updated: 2026-10-22T15:53Z (RESUMED; agent-reported, not validation)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -43,18 +43,25 @@ The probe compares O129 output for the pack registry (`registry_for_dialect_with
 
 ## In progress
 
-- As of the `fabfda18b` coordinator snapshot: compiler-names first early-window attempt executed zero tests because tracked include inputs were missing; those inputs are restored and its first window is restarting. This role has not started cargo, no N17 verdict is claimed, and the original const-subst barrier remains unchanged until the fold probe measures it. New controls are written/formatted only.
-- Release lint work added by the coordinator: `/tmp/naming-clippy-compiler-codegen.json` is an external `aeecf397` Rust 1.99.1 inventory, 54 diagnostics across 17 owned paths. Current hunks are inspected; mechanical fixes and helper splits are being prepared in `/tmp/ccg-lint-{base,work}`, with no canonical product edits. A shared `registry_invocation::InvocationMetadataSelection { Standalone, Retained(context) }` (outer absence still terminal refusal) is coordinated with compiler: compiler owns the API plus SSA/static_loops consumers, this role owns method_barrier and emitter consumers. No duplicate alias/enum will ship. The coordinator explicitly postpones canonical lint/API application until the unchanged N17 probe and functional chain are measured.
-
-- const_fold live hooks (release-blocking, coordinator's top item): no live pack const_fold hook folds in `optimise_raw`. The world-barrier hypothesis and the probe are in Resume.
+- 15:51 UTC: compiler-names explicitly released the early build window and root authorised this role next. The unchanged baseline is now running under the global lock: `cargo test --locked -p tcl-spectcl --test zz_ccg_fold_probe -- --nocapture --test-threads=1`, `/tmp/ccg-run-target.py n17_probe_before`, live log `/tmp/ccg-n17_probe_before.log` (exec session 98983). ZZ toggles are unset. No result yet; normal Cargo dependency freshness is rebuilding as required. Canonical const-subst barrier remains unchanged. Disk was about 12 GB free before this build.
+- Build provenance: the coordinator records a different role's transient parse_cut edit/restoration at 15:34. Current bytes are original; this role neither touched that file nor overrides timestamps/fingerprints. The first names attempt ran zero tests because include inputs were missing; its later g4 main reports 0/1, and remaining attribution filters were deferred. These are other roles' receipts, not results of this role.
+- N17 pure/abstaining/no-hook/dynamic/unknown-child/declared-callback/missing-host controls are written and formatted only. The existing fold probe remains the first command before the authorised narrow barrier fix or toggle removal. The latest independent existing-selector failure is the triage 13:59 repeat on `53ec43d1`, `docs/work/name-handling/reviews/triage-20261022/run5-e2e-repeat.log` (DSL 1 expected `5`, got no O129); it is not a run by this role.
+- Runner `/tmp/ccg-run-target.py` records before/after SHA-256 manifests for Rust/runtime/spec/Cargo inputs, keeps live filtered logs under `/tmp`, and copies only completed logs/receipts into `compiler-codegen/results/resumed-20261022/`. Receipts are agent-reported, not guarded validation. Executables younger than 60 minutes remain retained.
+- Lint assignment: `/tmp/naming-clippy-compiler-codegen.json` is the external `aeecf397` Rust 1.99.1 inventory, 54 diagnostics across 17 owned paths. Draft `/tmp/ccg-lint-prepared.patch` covers those plus the shared metadata API's emitter consumer (18 shadow files). Rustfmt parses the shadows; there is no compile/Clippy verdict. Reconcile targeted hunks/replay after untoggle and the compiler's shared API change; do not copy pre-untoggle shadows wholesale. Canonical lint application is postponed until the N17 baseline and narrow-fix functional chain are measured.
+- Shared metadata selection is coordinated with compiler: `InvocationMetadataSelection { Standalone, Retained(context) }`, outer absence still terminal refusal. Compiler owns its API plus SSA/static_loops consumers; this role owns method_barrier and emitter consumers. No duplicate private alias/enum will ship.
+- Static lead, not a measured current failure: `codegen_stamps.rs::compile` line 448 bypasses `BytecodeCompileService` and invokes raw profile-less lowering/CFG/codegen. Earlier missing-procedure-provenance failures may reflect absent fresh source metadata there. Inspect the production owner after N17 before any fixture/assertion change or unparked string compiler.
 
 ## Outstanding (in priority order)
 
 1. const_fold fix plus N17 live-hook regression (see Resume).
 2. Remove the TEMP toggle, the probe tests and the probe file (untoggle.py), then fmt/clippy/check, then the final runs listed in Resume (golden_packs after, codegen_stamps after).
 3. Notes and hand-back (`docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen-NOTES.md`, draft present, with Measurements rows still pending).
-4. `string is` native compiler (C TclCompileStringIsCmd; 8.6 / 9.0 / 9.1 variants). Not started. Also `string map/range/replace/insert/format` (the engine's `a_whitelisted_ensembles…` needs `string map`).
-5. CompilerTraversal frame: re-measure against the 24 KB budget after the last split (`compiled_command`, `boxed_command_tokens`).
+4. Assigned compiler-codegen/preflight/optimiser strict Clippy errors; apply coordinated batch after N17 functional measurements, then compile/lint and required focused checks. No new allowances or assertion weakening.
+
+## Parked unless needed by SpecTcl
+
+- Remaining `string is/map/range/replace/insert/format` native compilers. Textual use by a hook is not evidence that a native compiler is required: its runtime handler may execute it correctly. No such native-compiler dependency is established by this resumed role yet.
+- CompilerTraversal frame re-measurement against the 24 KB budget after the last split (`compiled_command`, `boxed_command_tokens`), unless a supported LSP/SpecTcl path establishes the need.
 
 ## Blocked (on whom, and what is needed)
 

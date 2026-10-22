@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-22T15:29:34.038112+00:00",
+  "source_snapshot": "db2623ed2dbe4e0c8d5302732bf5c7bd55e106b9",
+  "published_snapshot": "9b3f4f273265bc2d0ac9e674d3eb3c061828abbe",
+  "product_tree_diff": [],
+  "shallow": true,
+  "additional_parent_fetched_depth1": "0434e7e71259ef138a9dd3982a950b6d98ed62e6",
+  "sync_correction": "An initial publication rebase started with an artificial shallow boundary and was terminated/aborted; its push was a no-op at existing remote tip. After the exact missing parent fetch, ancestry was proven and exactly two local publication commits rebased. The helper now exits nonzero while parent commits are missing, and sync uses set -e. Active source checkout never rebased.",
+  "required_gate_admission": false
+}

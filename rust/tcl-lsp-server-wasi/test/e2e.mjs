@@ -56,6 +56,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { runNamingHostProof } from "../../../scripts/dev/lsp-naming-host-proof.mjs";
 import { cp, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -423,6 +424,8 @@ async function mainSession() {
         data.length > 0 && data.length % 5 === 0,
         `${data.length / 5} tokens`,
     );
+
+    await runNamingHostProof(session, `file://${ROOT}/host-naming.tcl`, check, undefined, REPLY_BUDGET_MS);
 
     // ---- (4) clean shutdown and exit --------------------------------------
     const shutdown = await session.request("shutdown", null);

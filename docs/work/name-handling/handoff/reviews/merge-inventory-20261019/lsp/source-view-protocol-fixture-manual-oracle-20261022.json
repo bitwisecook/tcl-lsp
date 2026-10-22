@@ -1,0 +1,90 @@
+{
+  "observed_utc": "2026-10-22T15:30:59.980587+00:00",
+  "scope": "Manual control for new native D2 e2e fixture only: no server/compiler execution or release admission.",
+  "files": {
+    "flat.tcl": "proc flat {} {héλper}\n",
+    "leaf.tcl": "proc run {} {héλper}\n",
+    "hop1.tcl": "namespace eval part {namespace path ::lib; source {/tmp/lsp-n13-composed-source-fixture/hop2.tcl}}\n",
+    "hop2.tcl": "namespace eval part {namespace path ::lib; source {/tmp/lsp-n13-composed-source-fixture/hop3.tcl}}\n",
+    "hop3.tcl": "namespace eval part {namespace path ::lib; source {/tmp/lsp-n13-composed-source-fixture/hop4.tcl}}\n",
+    "hop4.tcl": "namespace eval part {namespace path ::lib; source {/tmp/lsp-n13-composed-source-fixture/hop5.tcl}}\n",
+    "hop5.tcl": "namespace eval part {namespace path ::lib; source {/tmp/lsp-n13-composed-source-fixture/hop6.tcl}}\n",
+    "hop6.tcl": "namespace eval part {namespace path ::lib; source $::sourceDir/hop7.tcl}\n",
+    "hop7.tcl": "namespace eval part {namespace path ::lib; source {/tmp/lsp-n13-composed-source-fixture/hop8.tcl}}\n",
+    "hop8.tcl": "namespace eval part {namespace path ::lib; source {/tmp/lsp-n13-composed-source-fixture/hop9.tcl}}\n",
+    "hop9.tcl": "namespace eval part {namespace path ::lib; source {/tmp/lsp-n13-composed-source-fixture/hop10.tcl}}\n",
+    "hop10.tcl": "namespace eval part {namespace path ::lib; source {/tmp/lsp-n13-composed-source-fixture/hop11.tcl}}\n",
+    "hop11.tcl": "namespace eval part {namespace path ::lib; source {/tmp/lsp-n13-composed-source-fixture/hop12.tcl}}\n",
+    "hop12.tcl": "namespace eval part {namespace path ::lib; source {/tmp/lsp-n13-composed-source-fixture/leaf.tcl}}\n"
+  },
+  "entries": {
+    "original": "namespace eval lib {proc héλper {} {return GOOD}}\nset ::sourceDir [file dirname [info script]]\nnamespace eval app {namespace path ::lib; source [file join $::sourceDir flat.tcl]; source [file join $::sourceDir hop1.tcl]}\nputs [::app::flat]\nputs [::app::part::part::part::part::part::part::part::part::part::part::part::part::run]\nnamespace eval other {namespace path ::lib; source [file join $::sourceDir flat.tcl]; source [file join $::sourceDir hop1.tcl]}\nputs [::other::flat]\nputs [::other::part::part::part::part::part::part::part::part::part::part::part::part::run]\n",
+    "edge-removed": "namespace eval lib {proc héλper {} {return GOOD}}\nset ::sourceDir [file dirname [info script]]\nnamespace eval other {namespace path ::lib; source [file join $::sourceDir flat.tcl]; source [file join $::sourceDir hop1.tcl]}\nputs [::other::flat]\nputs [::other::part::part::part::part::part::part::part::part::part::part::part::part::run]\n"
+  },
+  "results": [
+    {
+      "stage": "original",
+      "engine": "8.5",
+      "exit": 0,
+      "stdout": "GOOD\nGOOD\nGOOD\nGOOD\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "stage": "original",
+      "engine": "8.6",
+      "exit": 0,
+      "stdout": "GOOD\nGOOD\nGOOD\nGOOD\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "stage": "original",
+      "engine": "9.0",
+      "exit": 0,
+      "stdout": "GOOD\nGOOD\nGOOD\nGOOD\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "stage": "original",
+      "engine": "9.1",
+      "exit": 0,
+      "stdout": "GOOD\nGOOD\nGOOD\nGOOD\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "stage": "edge-removed",
+      "engine": "8.5",
+      "exit": 0,
+      "stdout": "GOOD\nGOOD\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "stage": "edge-removed",
+      "engine": "8.6",
+      "exit": 0,
+      "stdout": "GOOD\nGOOD\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "stage": "edge-removed",
+      "engine": "9.0",
+      "exit": 0,
+      "stdout": "GOOD\nGOOD\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "stage": "edge-removed",
+      "engine": "9.1",
+      "exit": 0,
+      "stdout": "GOOD\nGOOD\n",
+      "stderr": "",
+      "pass_fixture": true
+    }
+  ]
+}

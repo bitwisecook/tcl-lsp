@@ -1,0 +1,40 @@
+{
+  "observed_utc": "2026-10-22T15:25:30.716816+00:00",
+  "scope": "Manual control of narrow N15 e2e fixture correction; no actual server/minifier execution or admission.",
+  "original": "proc addNumbers {a b} { return [expr {$a + $b}] }\nputs [addNumbers 1 2]\n",
+  "manual_control": "proc addNumbers {a b} {return [expr {$a+$b}]};puts [addNumbers 1 2]",
+  "results": [
+    {
+      "engine": "8.6",
+      "variant": "original",
+      "exit": 0,
+      "stdout": "3\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "engine": "8.6",
+      "variant": "manual-control",
+      "exit": 0,
+      "stdout": "3\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "engine": "9.0",
+      "variant": "original",
+      "exit": 0,
+      "stdout": "3\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "engine": "9.0",
+      "variant": "manual-control",
+      "exit": 0,
+      "stdout": "3\n",
+      "stderr": "",
+      "pass_fixture": true
+    }
+  ]
+}

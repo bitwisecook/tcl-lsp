@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-22T15:51:34.494758+00:00",
+  "role": "coordination checks",
+  "incident": "Temporary canonical parse_cut.rs candidate edit and restoration violated the source hold despite an off-tree-only instruction. Earlier no-source-edit claims were incorrect.",
+  "known_time": "2026-10-22T15:34:04.227774131Z canonical mtime/ctime after restoration",
+  "candidate_change": "written_span last token: tokens.get(word.tokens.end.checked_sub(1)?)? -> tokens.get(word.tokens.clone())?.last()?",
+  "canonical_sha256": "339c0bb38ccf4c66d1a0ecec8ddf6524aa94aab299693d0a10f3b5d538fa784c",
+  "canonical_matches_HEAD": true,
+  "exact_command_history": "Not recovered by the role; exact edit start/end and pre-edit digest are unavailable. Do not claim a guarded interval.",
+  "main_run_scope": {
+    "result": "0 passed /1 failed,10positive-world subcase mismatches,168.78s; no negative/body-check mismatch reported",
+    "log": "/tmp/compiler-names-g4/g4-main.log",
+    "reason_to_retain_as_agent_reported": "Main Cargo log does not rebuild lexer; it linked the cached lexer from before the touch. Both compiler depfiles checked contain no direct parse_cut.rs include. This supports the existing original-lexer attribution but is not a whole-source guarded capture.",
+    "guarded_admission": false
+  },
+  "new_ZZ_run": "Legitimately rebuilt lexer and downstream dependencies due the changed source timestamp, then was paused before compiler rebuild. Retiring this incomplete attribution run; never call it a test result.",
+  "recovery": [
+    "Canonical bytes remain original; no timestamp/fingerprint overrides.",
+    "Retain all fresh executables and target artifacts; no cleanup while builds exist.",
+    "Names releases the verified paused ZZ subtree and lock; CCG runs unchanged N17 baseline with ordinary Cargo freshness checks.",
+    "Remaining names attribution filters deferred until the coordinated compiler batch.",
+    "Coordination checks restricted to read-only review/evidence pending exact root grants."
+  ],
+  "user_gate_effect": "No validated row, audit count or release checkbox changes."
+}

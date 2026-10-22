@@ -1,0 +1,41 @@
+diff --git a/rust/tcl-lexer/src/parse_cut.rs b/rust/tcl-lexer/src/parse_cut.rs
+--- a/rust/tcl-lexer/src/parse_cut.rs
++++ b/rust/tcl-lexer/src/parse_cut.rs
+@@ -903,7 +903,7 @@ fn written_span(
+     src: &[u8],
+     config: LexerConfig,
+ ) -> Option<crate::Span> {
+-    let last = tokens.get(word.tokens.end.checked_sub(1)?)?;
++    let last = tokens.get(word.tokens.clone())?.last()?;
+     let end = match crate::native_word::complete_group_span(src, word, *last, config) {
+         Ok(span) => span.end(),
+         // An incomplete variable still needs its original bytes inspected for
+
+diff --git a/rust/tcl-lexer/src/jim_script_tokens.rs b/rust/tcl-lexer/src/jim_script_tokens.rs
+--- a/rust/tcl-lexer/src/jim_script_tokens.rs
++++ b/rust/tcl-lexer/src/jim_script_tokens.rs
+@@ -416,9 +416,9 @@ fn original_jim_syntax_roster_uses_complete_config_and_refuses_foreign_grammar() {
+         assert_eq!(body.image, image);
+         assert_eq!(root.missing, None);
+         assert_eq!(body.missing, None);
+-        assert_eq!(root.tokens[0].source.start(), 3);
++        assert_eq!(root.tokens[0].source.start(), 0);
+         assert_eq!(body.tokens[0].source.start(), 0);
+-        assert_ne!(root.tokens[0].value, body.tokens[0].value);
++        assert_eq!(root.tokens[0].value, body.tokens[0].value);
+         let mut foreign = config();
+         foreign.braced_var = crate::BracedVarStyle::Tcl9Nesting;
+         assert_eq!(
+
+diff --git a/rust/tcl-lexer/src/word_parts.rs b/rust/tcl-lexer/src/word_parts.rs
+--- a/rust/tcl-lexer/src/word_parts.rs
++++ b/rust/tcl-lexer/src/word_parts.rs
+@@ -1520,6 +1520,6 @@ fn original_bracket_boundaries_keep_selected_variable_name_grammar() {
+                 assert!(plan.fatal_tail.is_none());
+                 assert_eq!(plan.commands.len(), 2);
+                 let word = &plan.commands[1].words[1];
+-                assert_eq!(word.try_text().unwrap(), operand);
++                assert_eq!(word.try_text().unwrap(), written);
+                 assert_eq!(word.image(), &image);
+                 assert_eq!(word.config(), selected);
+*** End Patch

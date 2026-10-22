@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T15:24:34Z
+Last updated: 2026-10-22T15:55:49.036529+00:00
 
 ## In progress
 
@@ -70,3 +70,14 @@ Last updated: 2026-10-22T15:24:34Z
 - External files checked this cycle: BIG-IP 14:58, perf 15:16, review-triage 14:42:43. All are under 60 minutes old. Perf equality is still pending and its realm/interprocedural patch remains withheld. Strict lint blockers and ILX are already routed to compiler/VM owners; R1 remains with compiler-names.
 - Shadow lint patches are prepared by compiler, compiler-names, compiler-codegen and VM; canonical production sources remain held. After the N17 functional chain, coordinate their shared API batch before broad compiler acceptance to avoid repeated expensive rebuilds. No new lint allowances.
 - No validated product row, audit admission or release checkbox changed. Next cycle is due at 15:55:37 UTC.
+
+### Current cycle and routing (15:55 UTC)
+
+- Previous publication: `9b3f4f273`; active source snapshot: `db2623ed2`. Product trees were identical at those snapshots. The isolated publisher handles remote fetch/rebase/push; active build source remains in place. The next full WIP includes prepared native D1–D5 scenarios and the shared browser/WASI rename application proof, all unexecuted.
+- Early g4 main: 0 passed / 1 failed, 168.78s, ten positive-world mismatches across C8.6/C9.0. Negative/body checks reported no mismatches, not separate passed tests. The body guard uses `.all()` and its vacuity limit is explicit. R1 attribution points to confusing callback capability (UNKNOWN/TRACE) with installed hooks; compiler-names prepares an authenticated registration correction, retaining generic unknown-call refusal.
+- Coordination support temporarily changed and restored canonical parse_cut.rs around 15:34, violating the source hold. Current bytes match HEAD. The completed main used the earlier cached lexer and has no direct compiler include of this file; retain it only as agent-reported evidence. The following ZZ run legitimately rebuilt dependencies, then was interrupted before tests. No timestamp/fingerprint override or cleanup. Exact command history was unavailable and remains explicit in the incident receipt. Support now does read-only review.
+- compiler-codegen received the slot at 15:51 for the unchanged N17 probe, then the narrowly authorised barrier fix and functional controls. Remaining g4/ZZ/eight-case attribution is deferred to the coordinated compiler batch; no extra compiler-test rebuild solely for the interrupted probe. Compiler C6, VM acceptance, native protocol checks and LSP minify follow.
+- Root owns three lexer blocker candidates after the source hold: reject empty token geometry without weakening the existing assertion; correct Jim BOM and original quoted-source expectations narrowly using pinned Jim and C Tcl evidence. Candidates are off-tree and have not run. Shared browser/WASI proof applies every returned UTF-16 edit, validates captured URI/version/ranges and checks first new-revision targets. Its twelve manual original/control executions across six engines are fixture controls only.
+- Browser dependencies, Chromium, exact wasm-bindgen and fixed Tcllib are provisioned. Their receipts state setup warnings and initial failed attempts; no transport acceptance is implied. A source-hold operational inventory covers 4,539 materialised Rust src/SpecTcl files from 15:52 onward; it is not a whole-source validation guard.
+- External status: BIG-IP 15:46, perf 15:45, review-triage 15:46:08; all fresh. Perf equality remains pending. Its realm/interprocedural patch is still withheld. Core60 Clippy primary inventory is requested in the routing record but not yet published; generic Core belongs to LSP. ILX source relation stays with compiler; its server latency remains with compiler/LSP and measured perf work.
+- Next cycle: 16:25:37 UTC. Re-arm the one-shot local reminder each cycle; hosted automations do not support this cadence. No release gate or audit admission changed.

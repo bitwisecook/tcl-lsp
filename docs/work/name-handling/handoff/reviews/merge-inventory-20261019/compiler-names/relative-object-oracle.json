@@ -1,0 +1,26 @@
+[
+  {
+    "version": "8.6",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "source": "namespace eval ::a {oo::class create C {}; C create rex}\nputs [list [info commands ::a::rex] [info commands ::rex] [namespace eval ::a {rex destroy}]]\n",
+    "stdout": "::a::rex {} {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "9.0",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "source": "namespace eval ::a {oo::class create C {}; C create rex}\nputs [list [info commands ::a::rex] [info commands ::rex] [namespace eval ::a {rex destroy}]]\n",
+    "stdout": "::a::rex {} {}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "9.1",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
+    "source": "namespace eval ::a {oo::class create C {}; C create rex}\nputs [list [info commands ::a::rex] [info commands ::rex] [namespace eval ::a {rex destroy}]]\n",
+    "stdout": "::a::rex {} {}\n",
+    "stderr": "",
+    "exit": 0
+  }
+]

@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-22T15:41:16.336445+00:00",
+  "node": "26.12.1",
+  "npm": "12.2.0",
+  "playwright_browsers_path": "/workspace/naming-toolchains/playwright-browsers",
+  "esbuild": "0.28.2",
+  "wasm_bindgen": "0.2.129",
+  "tcllib": "2.0",
+  "verified_fixed_tcllib_cat_hash": "dde40e3acb7b78e89c6c466c1f684c8b3e1c380fe519839d63bead72665d4d5a",
+  "setup_scope": "Dependencies and CLI availability only; no transport/extension acceptance or source guard admission.",
+  "notes": [
+    "Corepack initial direct registry request failed. The successful retry retained certificate validation and used the provided network proxy plus system CAs.",
+    "npm ci succeeded with a deprecated stub-types warning and three install scripts blocked by npm policy. Project allowScripts settings were not modified. Reviewed Chromium CLI setup and native esbuild/vsce postinstalls completed explicitly.",
+    "Restricted sandbox esbuild postinstall returned EPERM while its version subprocess printed0.28.2; the network-enabled retry completed successfully.",
+    "All output runners drain and cap retained logs at20MB and stop below2GB free. No target cleanup was performed."
+  ]
+}

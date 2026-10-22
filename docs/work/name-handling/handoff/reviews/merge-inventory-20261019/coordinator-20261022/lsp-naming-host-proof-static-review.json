@@ -1,0 +1,21 @@
+{
+  "date_utc": "2026-10-22",
+  "scope": "Static source and syntax review only; no browser/WASI host transport run, Cargo process, or acceptance claim.",
+  "shared_helper": "scripts/dev/lsp-naming-host-proof.mjs",
+  "host_calls": [
+    "rust/tcl-lsp-server-wasm/test/e2e.mjs workspaceSession",
+    "rust/tcl-lsp-server-wasi/test/e2e.mjs mainSession"
+  ],
+  "review": {
+    "utf16": "offsetAt treats JavaScript string indices as UTF-16 code units and refuses a position between a high and low surrogate; declaration/call locations are derived from the exact fixture text.",
+    "captured_edit": "The edit must target only the fixture URI, contain exactly two non-overlapping replacements of host_old with host_new, and reconstruct source.replaceAll(host_old, host_new). documentChanges text edits must target version 1 when a version is supplied; resource operations and wrong source spans/newText fail.",
+    "readiness": "currentDiagnostics is queried for exact URI/version/full source. Only unavailable pending/stale responses are retried; complete requires matching URI/version/source, numeric revision and inputsEpoch, nonempty resultId and diagnostics array. This command reborrows the existing completed publisher and does not schedule analysis.",
+    "first_answers": "After each complete-source receipt, exactly one definition and one references query are made for each revision; targets must equal the exact declaration and call locations. There is no naming-query retry or expected-answer convergence loop.",
+    "host_wiring": "The browser publishes the fixture through its VFS before didOpen; WASI opens the fixture under the existing preopened root. Both call after their established workspace-session work. The browser request wrapper supplies its own bounded race because its Session.request ignores the optional budget argument; WASI forwards its existing reply budget."
+  },
+  "protocol_version_limit": "WorkspaceEdit.changes entries carry no document version by LSP design. They are bound to the captured version-1 source by immediate request/application ordering and exact source-span checks. documentChanges may carry null per the protocol; explicit versions are restricted to 1. URI and edit completeness remain strict.",
+  "limitations": [
+    "No host binary/transport execution was performed.",
+    "This is syntax/static review only and does not establish runtime behavior, host parity, or release admission."
+  ]
+}

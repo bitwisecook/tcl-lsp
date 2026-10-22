@@ -73,61 +73,9 @@ fn write_hidden_provider(root: &Path) {
     .expect("write hidden package provider");
 }
 
-fn diagnostics_at_completed_update(
-    lsp: &Lsp,
-    uri: &str,
-    version: i64,
-    cursor: usize,
-) -> Vec<Value> {
-    let uri_marker = format!("(uri={uri},");
-    lsp.await_log(&["workspace_state.update", &uri_marker], TIMEOUT, cursor);
-    let notifications = lsp.notifications();
-    let update_index = notifications
-        .iter()
-        .enumerate()
-        .skip(cursor)
-        .find_map(|(index, note)| {
-            let message = note
-                .get("method")
-                .filter(|method| method.as_str() == Some("window/logMessage"))
-                .and_then(|_| note.get("params"))
-                .and_then(|params| params.get("message"))
-                .and_then(Value::as_str)?;
-            (message.contains("workspace_state.update") && message.contains(&uri_marker))
-                .then_some(index)
-        })
-        .expect("awaited per-URI workspace update is present");
-
-    notifications
-        .iter()
-        .take(update_index)
-        .enumerate()
-        .skip(cursor)
-        .rev()
-        .find_map(|(_, note)| {
-            let params = note
-                .get("method")
-                .filter(|method| method.as_str() == Some("textDocument/publishDiagnostics"))
-                .and_then(|_| note.get("params"))?;
-            if params.get("uri").and_then(Value::as_str) != Some(uri) {
-                return None;
-            }
-            assert_eq!(params.get("version").and_then(Value::as_i64), Some(version));
-            Some(
-                params
-                    .get("diagnostics")
-                    .and_then(Value::as_array)
-                    .expect("completed diagnostic publish has a findings array")
-                    .clone(),
-            )
-        })
-        .expect("completed update has a preceding exact-URI diagnostic publish")
-}
-
-fn open_ready(lsp: &mut Lsp, uri: &str, text: &str) -> Vec<Value> {
-    let cursor = lsp.notification_cursor();
+fn open_ready(lsp: &mut Lsp, uri: &str, text: &str) {
     lsp.open_document(uri, text);
-    diagnostics_at_completed_update(lsp, uri, 1, cursor)
+    let _diagnostics = lsp.current_complete_diagnostics(uri, 1, text, TIMEOUT);
 }
 
 fn query_definition(lsp: &mut Lsp, uri: &str, line: u32) -> Value {
@@ -170,7 +118,7 @@ fn assert_references_include_provider_and_call(
         assert!(
             found.iter().any(|location| {
                 location.uri == provider_uri
-                    && location.range["start"] == json!({ "line": line - 1, "character": 9 })
+                    && location.range["start"] == json!({ "line": line, "character": 9 })
             }),
             "references include the selected provider declaration: {references}"
         );
@@ -185,17 +133,17 @@ fn assert_references_include_provider_and_call(
     }
 }
 
-fn make_fixture(
-    label: &str,
-) -> (
-    PathBuf,
-    PathBuf,
-    PathBuf,
-    PathBuf,
-    PathBuf,
-    PathBuf,
-    PathBuf,
-) {
+struct Fixture {
+    root: PathBuf,
+    workspace: PathBuf,
+    libraries_a: PathBuf,
+    libraries_b: PathBuf,
+    p1: PathBuf,
+    p2_a: PathBuf,
+    p2_b: PathBuf,
+}
+
+fn make_fixture(label: &str) -> Fixture {
     let root = std::env::temp_dir().join(format!(
         "tcl-lsp-e2e-naming-packages-{}-{label}-{}",
         std::process::id(),
@@ -209,15 +157,15 @@ fn make_fixture(
     let p2_a = write_provider(&libraries_a, "2.0", &provider_text("2.0"));
     write_hidden_provider(&libraries_a);
     let p2_b = write_provider(&libraries_b, "2.0", &provider_text("2.0"));
-    (
+    Fixture {
         root,
         workspace,
         libraries_a,
         libraries_b,
-        p1.join("package.tcl"),
-        p2_a.join("package.tcl"),
-        p2_b.join("package.tcl"),
-    )
+        p1: p1.join("package.tcl"),
+        p2_a: p2_a.join("package.tcl"),
+        p2_b: p2_b.join("package.tcl"),
+    }
 }
 
 fn write_callers(workspace: &Path) -> [(String, String); 3] {
@@ -242,7 +190,15 @@ fn assert_package_queries(lsp: &mut Lsp, caller_uri: &str, provider_uri: &str) {
 }
 
 fn run_cold_order(label: &str, order: [usize; 3]) {
-    let (root, workspace, libraries_a, _libraries_b, p1, p2_a, _p2_b) = make_fixture(label);
+    let fixture = make_fixture(label);
+    let Fixture {
+        root,
+        workspace,
+        libraries_a,
+        p1,
+        p2_a,
+        ..
+    } = fixture;
     let callers = write_callers(&workspace);
     let libraries_a = libraries_a.to_str().expect("library path is UTF-8");
     let mut lsp = Lsp::with_config_at_root(json!({ "libraryPaths": [libraries_a] }), &workspace);
@@ -278,8 +234,15 @@ fn package_release_queries_are_order_independent_and_retire_old_library_paths() 
     run_cold_order("a-b-a", [0, 1, 0]);
     run_cold_order("b-a-b", [1, 0, 1]);
 
-    let (root, workspace, libraries_a, libraries_b, p1, _p2_a, p2_b) =
-        make_fixture("library-change");
+    let Fixture {
+        root,
+        workspace,
+        libraries_a,
+        libraries_b,
+        p1,
+        p2_b,
+        ..
+    } = make_fixture("library-change");
     let callers = write_callers(&workspace);
     let library_a_string = libraries_a.to_str().expect("library path is UTF-8");
     let mut lsp =
@@ -304,6 +267,15 @@ fn package_release_queries_are_order_independent_and_retire_old_library_paths() 
     // The scan notification carries no configuration-generation identifier;
     // effective_config above proves the requested path list, and this later
     // marker proves resolver/index publication completed for the new scan.
+    // Reborrow each exact-source publisher result too: currentDiagnostics waits
+    // for the current document revision/input epoch without requiring an
+    // identical diagnostic push to be emitted again.
+    let _exact_one_diagnostics =
+        lsp.current_complete_diagnostics(&callers[0].0, 1, &callers[0].1, TIMEOUT);
+    let _exact_two_diagnostics =
+        lsp.current_complete_diagnostics(&callers[1].0, 1, &callers[1].1, TIMEOUT);
+    let _latest_diagnostics =
+        lsp.current_complete_diagnostics(&callers[2].0, 1, &callers[2].1, TIMEOUT);
 
     // The unchanged exact-1.0 requirement is now unavailable. Positive exact
     // 2.0 and latest controls prove that the new library generation is usable.
@@ -316,12 +288,11 @@ fn package_release_queries_are_order_independent_and_retire_old_library_paths() 
     assert_package_queries(&mut lsp, &callers[2].0, &path_uri(&p2_b));
 
     // Change the exact requirement in the open document. This is a distinct
-    // source revision, so its first naming response follows its completed deep
-    // diagnostic update, without a query used to repair readiness.
+    // source revision, so its first naming response follows an exact-source
+    // completed publisher report, without a naming query used to repair state.
     let exact_two = caller_text(EXACT_TWO);
-    let cursor = lsp.notification_cursor();
     lsp.replace_document(&callers[0].0, 2, &exact_two);
-    let diagnostics = diagnostics_at_completed_update(&lsp, &callers[0].0, 2, cursor);
+    let diagnostics = lsp.current_complete_diagnostics(&callers[0].0, 2, &exact_two, TIMEOUT);
     assert!(
         !has_code(&diagnostics, "W123"),
         "the new exact 2.0 requirement resolves against library B: {diagnostics:?}"

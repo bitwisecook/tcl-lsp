@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-22T15:51:24.773266+00:00",
+  "authorisation": "coordinator explicit stop of remaining ZZ rebuild to hand slot to compiler-codegen",
+  "main": "completed FAIL0/1,168.78s; separate original-lexer agent-reported result",
+  "zz": "interrupted during dependency rebuild; zero probe tests; no product verdict",
+  "reason": "canonical parse_cut.rs transient touch/restoration at15:34 caused fresh dependency rebuild; coordinator confirms original bytes now restored",
+  "leaf_first_terminated": [
+    {
+      "pid": 45394,
+      "command": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/rustc --crate-name tcl_registry --edition=2024 rust/tcl-registry/src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no --warn=clippy::pedantic --forbid=unsafe_code --warn=unexpected_cfgs --allow=clippy::module_name_repetitions --allow=clippy::missing_panics_doc --allow=clippy::missing_errors_doc --check-cfg cfg(tokio_unstable) --check-cfg cfg(tokio_taskdump) --check-cfg cfg(docsrs,test) --check-cfg cfg(feature, values()) -C metadata=29ba8d077357692b -C extra-filename=-838210b03b8594b4 --out-dir /workspace/naming-migration-active/tcl-lsp/target/debug/deps -C strip=debuginfo -L dependency=/workspace/naming-migration-active/tcl-lsp/target/debug/deps --extern bitflags=/workspace/naming-migration-active/tcl-lsp/target/debug/deps/libbitflags-1fdf0fce4c11fa73.rmeta --extern rustc_hash=/workspace/naming-migration-active/tcl-lsp/target/debug/deps/librustc_hash-24b16ca29408e1a7.rmeta --extern sha2=/workspace/naming-migration-active/tcl-lsp/target/debug/deps/libsha2-2f281cbd3eb2ebcf.rmeta --extern smallvec=/workspace/naming-migration-active/tcl-lsp/target/debug/deps/libsmallvec-8995219cac1cc0b4.rmeta --extern tcl_cmd_core=/workspace/naming-migration-active/tcl-lsp/target/debug/deps/libtcl_cmd_core-eaee8f57346cbdf1.rmeta --extern tcl_core_types=/workspace/naming-migration-active/tcl-lsp/target/debug/deps/libtcl_core_types-7a0c30e1b57eb98b.rmeta --extern tcl_dialect=/workspace/naming-migration-active/tcl-lsp/target/debug/deps/libtcl_dialect-051746368397d9ae.rmeta --extern tcl_lexer=/workspace/naming-migration-active/tcl-lsp/target/debug/deps/libtcl_lexer-ff172cc3515b8ad8.rmeta --extern tcl_regex=/workspace/naming-migration-active/tcl-lsp/target/debug/deps/libtcl_regex-1eb53c7e614c53d9.rmeta --extern tcl_runtime_api=/workspace/naming-migration-active/tcl-lsp/target/debug/deps/libtcl_runtime_api-057d314f36c92c0a.rmeta --extern tcl_syntax=/workspace/naming-migration-active/tcl-lsp/target/debug/deps/libtcl_syntax-d55a159e25981def.rmeta "
+    },
+    {
+      "pid": 45151,
+      "command": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/cargo test --locked -p tcl-compiler --lib zz_probe_import_and_crlf -- --nocapture --test-threads=1 "
+    },
+    {
+      "pid": 45152,
+      "command": "python3 /workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/capped-log.py /tmp/compiler-names-g4/g4-zz.log "
+    },
+    {
+      "pid": 45145,
+      "command": "bash docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/buildrun.sh g4 early "
+    },
+    {
+      "pid": 35078,
+      "command": "bash docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/buildrun.sh g4 early "
+    }
+  ],
+  "cleanup": "none; fresh executable retained; no timestamps/fingerprints overridden"
+}

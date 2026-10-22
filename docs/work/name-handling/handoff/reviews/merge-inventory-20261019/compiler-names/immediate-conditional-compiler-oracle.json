@@ -1,0 +1,42 @@
+[
+  {
+    "version": "8.4",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.4",
+    "source": "set source {if {$condition} {set result A}; if {[set condition]} {set result B}}\nputs [tcl::unsupported::disassemble script $source]\nset status [catch {uplevel #0 $source} message]\nputs [list RUNTIME $status $message [info exists result]]\n",
+    "stdout": "RUNTIME 1 {can't read \"condition\": no such variable} 0\n",
+    "stderr": "invalid command name \"tcl::unsupported::disassemble\"\n",
+    "exit": 0
+  },
+  {
+    "version": "8.5",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.5",
+    "source": "set source {if {$condition} {set result A}; if {[set condition]} {set result B}}\nputs [tcl::unsupported::disassemble script $source]\nset status [catch {uplevel #0 $source} message]\nputs [list RUNTIME $status $message [info exists result]]\n",
+    "stdout": "ByteCode 0x0x56217c943a70, refCt 1, epoch 3, interp 0x0x56217c918d90 (epoch 3)\n  Source \"if {$condition} {set result A}; if {[set condition]} {s\"\n  Cmds 5, src 67, inst 59, litObjs 5, aux 0, stkDepth 2, code/src 0.00\n  Commands 5:\n      1: pc 0-24, src 0-29   \t   2: pc 6-19, src 17-28\n      3: pc 25-57, src 32-66   \t   4: pc 34-36, src 37-49\n      5: pc 40-53, src 54-65\n  Command 1: \"if {$condition} {set result A}\"\n    (0) push1 0 \t# \"condition\"\n    (2) loadScalarStk \n    (3) tryCvtToNumeric \n    (4) jumpFalse1 +18 \t# pc 22\n  Command 2: \"set result A\"\n    (6) startCommand +14 1 \t# next cmd at pc 20\n    (15) push1 1 \t# \"result\"\n    (17) push1 2 \t# \"A\"\n    (19) storeScalarStk \n    (20) jump1 +4 \t# pc 24\n    (22) push1 3 \t# \"\"\n    (24) pop \n  Command 3: \"if {[set condition]} {set result B}\"\n    (25) startCommand +33 2 \t# next cmd at pc 58, 2 cmds start here\n  Command 4: \"set condition\"\n    (34) push1 0 \t# \"condition\"\n    (36) loadScalarStk \n    (37) tryCvtToNumeric \n    (38) jumpFalse1 +18 \t# pc 56\n  Command 5: \"set result B\"\n    (40) startCommand +14 1 \t# next cmd at pc 54\n    (49) push1 1 \t# \"result\"\n    (51) push1 4 \t# \"B\"\n    (53) storeScalarStk \n    (54) jump1 +4 \t# pc 58\n    (56) push1 3 \t# \"\"\n    (58) done \n\nRUNTIME 1 {can't read \"condition\": no such variable} 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "8.6",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "source": "set source {if {$condition} {set result A}; if {[set condition]} {set result B}}\nputs [tcl::unsupported::disassemble script $source]\nset status [catch {uplevel #0 $source} message]\nputs [list RUNTIME $status $message [info exists result]]\n",
+    "stdout": "ByteCode 0x0x559076fe8430, refCt 1, epoch 17, interp 0x0x559076f9c130 (epoch 17)\n  Source \"if {$condition} {set result A}; if {[set condition]} {s...\"\n  Cmds 5, src 67, inst 32, litObjs 5, aux 0, stkDepth 2, code/src 0.00\n  Commands 5:\n      1: pc 0-15, src 0-29        2: pc 6-10, src 17-28\n      3: pc 16-30, src 32-66        4: pc 16-18, src 37-49\n      5: pc 22-26, src 54-65\n  Command 1: \"if {$condition} {set result A}...\"\n    (0) push1 0 \t# \"condition\"\n    (2) loadStk \n    (3) nop \n    (4) jumpFalse1 +9 \t# pc 13\n  Command 2: \"set result A...\"\n    (6) push1 1 \t# \"result\"\n    (8) push1 2 \t# \"A\"\n    (10) storeStk \n    (11) jump1 +4 \t# pc 15\n    (13) push1 3 \t# \"\"\n    (15) pop \n  Command 3: \"if {[set condition]} {set result B}\"\n  Command 4: \"set condition...\"\n    (16) push1 0 \t# \"condition\"\n    (18) loadStk \n    (19) nop \n    (20) jumpFalse1 +9 \t# pc 29\n  Command 5: \"set result B...\"\n    (22) push1 1 \t# \"result\"\n    (24) push1 4 \t# \"B\"\n    (26) storeStk \n    (27) jump1 +4 \t# pc 31\n    (29) push1 3 \t# \"\"\n    (31) done \n\nRUNTIME 1 {can't read \"condition\": no such variable} 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "9.0",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "source": "set source {if {$condition} {set result A}; if {[set condition]} {set result B}}\nputs [tcl::unsupported::disassemble script $source]\nset status [catch {uplevel #0 $source} message]\nputs [list RUNTIME $status $message [info exists result]]\n",
+    "stdout": "ByteCode 0x56503ced9c40, refCt 1, epoch 21, interp 0x56503ce4ba10 (epoch 21)\n  Source \"if {$condition} {set result A}; if {[set condition]} {s...\"\n  Cmds 5, src 67, inst 32, litObjs 5, aux 0, stkDepth 2, code/src 0.00\n  Commands 5:\n      1: pc 0-15, src 0-29        2: pc 6-10, src 17-28\n      3: pc 16-30, src 32-66        4: pc 16-18, src 37-49\n      5: pc 22-26, src 54-65\n  Command 1: \"if {$condition} {set result A}...\"\n    (0) push1 0 \t# \"condition\"\n    (2) loadStk \n    (3) nop \n    (4) jumpFalse1 +9 \t# pc 13\n  Command 2: \"set result A...\"\n    (6) push1 1 \t# \"result\"\n    (8) push1 2 \t# \"A\"\n    (10) storeStk \n    (11) jump1 +4 \t# pc 15\n    (13) push1 3 \t# \"\"\n    (15) pop \n  Command 3: \"if {[set condition]} {set result B}\"\n  Command 4: \"set condition...\"\n    (16) push1 0 \t# \"condition\"\n    (18) loadStk \n    (19) nop \n    (20) jumpFalse1 +9 \t# pc 29\n  Command 5: \"set result B...\"\n    (22) push1 1 \t# \"result\"\n    (24) push1 4 \t# \"B\"\n    (26) storeStk \n    (27) jump1 +4 \t# pc 31\n    (29) push1 3 \t# \"\"\n    (31) done \n\nRUNTIME 1 {can't read \"condition\": no such variable} 0\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "9.1",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
+    "source": "set source {if {$condition} {set result A}; if {[set condition]} {set result B}}\nputs [tcl::unsupported::disassemble script $source]\nset status [catch {uplevel #0 $source} message]\nputs [list RUNTIME $status $message [info exists result]]\n",
+    "stdout": "ByteCode 0x557dae37ddb0, refCt 1, epoch 24, interp 0x557dae30ca10 (epoch 24)\n  Source \"if {$condition} {set result A}; if {[set condition]} {s...\"\n  Cmds 5, src 67, inst 68, litObjs 5, aux 0, stkDepth 2, code/src 0.00\n  Commands 5:\n      1: pc 0-33, src 0-29        2: pc 12-22, src 17-28\n      3: pc 34-66, src 32-66        4: pc 34-39, src 37-49\n      5: pc 46-56, src 54-65\n  Command 1: \"if {$condition} {set result A}...\"\n    (0) push 0 \t# \"condition\"\n    (5) loadStk \n    (6) nop \n    (7) jumpFalse +21 \t# pc 28\n  Command 2: \"set result A...\"\n    (12) push 1 \t# \"result\"\n    (17) push 2 \t# \"A\"\n    (22) storeStk \n    (23) jump +10 \t# pc 33\n    (28) push 3 \t# \"\"\n    (33) pop \n  Command 3: \"if {[set condition]} {set result B}\"\n  Command 4: \"set condition...\"\n    (34) push 0 \t# \"condition\"\n    (39) loadStk \n    (40) nop \n    (41) jumpFalse +21 \t# pc 62\n  Command 5: \"set result B...\"\n    (46) push 1 \t# \"result\"\n    (51) push 4 \t# \"B\"\n    (56) storeStk \n    (57) jump +10 \t# pc 67\n    (62) push 3 \t# \"\"\n    (67) done \n\nRUNTIME 1 {can't read \"condition\": no such variable} 0\n",
+    "stderr": "",
+    "exit": 0
+  }
+]

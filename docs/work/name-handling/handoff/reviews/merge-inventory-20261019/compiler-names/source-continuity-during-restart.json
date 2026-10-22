@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-22T15:30:47.895175+00:00",
+  "scope": "agent-reported source continuity only, not guarded product validation",
+  "active_head": "db2623ed2dbe4e0c8d5302732bf5c7bd55e106b9",
+  "reference_receipt": "/tmp/compiler-names-g4/source-during-build.json",
+  "reference_sha256": "ecfdd791a8389150987a8a03d074b2250f7bf2404e2bc676949eec140bd4e49e",
+  "compiler_source_count": 640,
+  "changed_compiler_sources": [],
+  "compiler_core_hold": "coordinator hold through early g4 and following N17; no source mutations by this role",
+  "result": "no completed g4 test result yet"
+}

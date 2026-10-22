@@ -1,0 +1,67 @@
+{
+  "date_utc": "2026-10-22",
+  "scope": "Read-only triage of three external lexer perf failures; no Rust tests/builds or source edits were run.",
+  "candidate_patch": "lexer-triage-candidates.patch",
+  "candidate_patch_check": "git apply --check passed against an isolated /tmp copy of the three source files; no repository files were patched.",
+  "jim_oracle": {
+    "version": "0.84",
+    "source_commit": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+    "source_file": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jim.c",
+    "source_sha256": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "binary": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh",
+    "binary_sha256": "0f634c82506c87484326b8f8ad33ab284a1806ef6b6f1e43f012a2314166942e",
+    "observation_command": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh -e $'\\ufeffset x 1'",
+    "stdout": "",
+    "stderr": "invalid command name \"\ufeffset\"\n",
+    "exit_status": 1,
+    "source_basis": "jim.c JimParserInit stores the source pointer unchanged; JimParseScript has no BOM case and dispatches this first byte through JimParseStr. tcl-dialect GRAMMAR_JIM also declares script_skips_leading_bom=false. This confirms root token offset 0 is correct for Jim; the test's offset 3 expectation imports C Tcl file behavior.",
+    "test_disposition": "narrow expectation correction only: assert Jim root/body token starts at 0 and their source values match; retain the selected Jim grammar/foreign grammar guards.",
+    "observation_argv": [
+      "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh",
+      "-e",
+      "\ufeffset x 1"
+    ],
+    "stdout_hex": "",
+    "stderr_hex": "696e76616c696420636f6d6d616e64206e616d652022efbbbf736574220a"
+  },
+  "c_tcl_original_word_witness": {
+    "version": "8.6.18",
+    "wrapper": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "wrapper_sha256": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+    "binary": "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh",
+    "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "command": "puts \"patchlevel=[info patchlevel]\"\nproc ::Q {} {\n    set frames [info frame]\n    puts \"outer=[dict get [info frame 1] cmd]\"\n    return x\n}\neval {set plain [list [Q]]}\neval {set quoted [list \"[Q]\"]}",
+    "stdout": "patchlevel=8.6.18\nouter=eval {set plain [list [Q]]}\nouter=eval {set quoted [list \"[Q]\"]}\n",
+    "exit_status": 0,
+    "scope": "Tcl info frame reports the caller's original command text, retaining the quoted word delimiter. The exact byte extent assertion is governed by NativeWord::bytes/try_text, which returns the original operand including quotes; the synthetic selected FirstClose configuration is not claimed to be a C release profile.",
+    "test_disposition": "for each loop value, compare word.try_text() with written; unquoted written equals operand, quoted written retains the outer quote pair."
+  },
+  "failures": [
+    {
+      "selector": "tcl-lexer::jim_script_tokens::original_script_syntax_tests::original_jim_syntax_roster_uses_complete_config_and_refuses_foreign_grammar",
+      "path": "rust/tcl-lexer/src/jim_script_tokens.rs",
+      "classification": "fixture expectation; production behavior matches pinned Jim source and interpreter",
+      "evidence": "pinned Jim 0.84 treats UTF-8 BOM as ordinary first-command bytes; GRAMMAR_JIM script_skips_leading_bom=false",
+      "proposed_change": "expect root token source start 0 and root/body values equal"
+    },
+    {
+      "selector": "tcl-lexer::parse_cut::original_parse_descent_tests::original_parse_descent_keeps_recursive_wrapper_and_unavailable_geometry_distinct",
+      "path": "rust/tcl-lexer/src/parse_cut.rs",
+      "classification": "production fail-closed range validation bug",
+      "evidence": "WordSpan.tokens is an exclusive range. The fixture sets len..len (empty), while written_span uses only end-1 and borrows the previous token; word_job then returns valid geometry instead of WordJob::Unavailable / SourceGeometry.",
+      "proposed_change": "written_span obtains the final token via tokens.get(word.tokens.clone())?.last()?; retain the original is_err assertions. Candidate patch is stored alongside this receipt."
+    },
+    {
+      "selector": "tcl-lexer::word_parts::tests::original_bracket_boundaries_keep_selected_variable_name_grammar",
+      "path": "rust/tcl-lexer/src/word_parts.rs",
+      "classification": "fixture expectation; source-preserving word bytes match the API contract and C caller-source witness",
+      "evidence": "NativeWord::bytes returns the original operand and documents that it includes braces or quotes; the test compares both bracket-only and quoted written inputs to the unquoted operand.",
+      "proposed_change": "compare word.try_text() with the loop's written source in each case; preserve the selected FirstClose/Tcl9Nesting assertions."
+    }
+  ],
+  "limitations": [
+    "No lexer tests were run; perf failure details and locations came from the coordinator-provided completed run.",
+    "The C Tcl info-frame witness retains complete caller command text, not a direct Tcl_ParseCommand token span; NativeWord's source contract supplies that exact span interpretation.",
+    "No canonical production/test files were changed."
+  ]
+}

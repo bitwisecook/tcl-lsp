@@ -30,5 +30,23 @@
     "new": "minify::original::tests::native_syntax_compaction_uses_selected_original_expression_gaps",
     "authority": "user-decisions-20261022T1317Z.json: minify removes all whitespace it can, including braced expressions",
     "correction": "Use independently selected syntax-only expression gap owner for Default; expression division by zero, variable and function token gaps no longer require the separate finite-pure-value receipt. Existing pure receipt unit tests remain unchanged. Malformed expression and observed dispatch negative controls remain."
+  },
+  "wire_policy_selector": {
+    "old": "commands::minify_compact_round_trip",
+    "new": "commands::minify_compact_reports_naming_refusal_and_preserves_result",
+    "authority": "review N15 and user-decisions-20261022T1317Z.json retaining alpha-renaming refusal",
+    "retained_assertions": [
+      "non-null actual command result",
+      "minifiedLength < originalLength"
+    ],
+    "replacement_assertions": [
+      "exact supported syntax source preserving addNumbers",
+      "typed missing-alpha-rename-contract refusal",
+      "empty parsed procedure and variable maps",
+      "actual server output executes identically to original under C8.6/9.0 with stdout3"
+    ],
+    "fixture_correction": "wrap the original addNumbers invocation in puts to make its result observable",
+    "fixture_oracle": "minify-e2e-manual-oracle-20261022.json",
+    "execution_status": "source written, production test uncompiled/unexecuted"
   }
 }

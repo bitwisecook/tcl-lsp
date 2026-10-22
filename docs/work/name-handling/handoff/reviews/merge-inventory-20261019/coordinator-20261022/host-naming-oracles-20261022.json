@@ -1,0 +1,135 @@
+{
+  "utc": "2026-10-22T15:40:26.703743+00:00",
+  "scope": "Manual original and expected complete rename control only; actual host-generated edits and browser/WASI suites have not run.",
+  "source": "proc host_old {value} { return $value }\nputs \"\ud83e\uddea caf\u00e9\"; puts [host_old 7]\n",
+  "expected_edited_source": "proc host_new {value} { return $value }\nputs \"\ud83e\uddea caf\u00e9\"; puts [host_new 7]\n",
+  "matching_engine_pairs": 6,
+  "rows": [
+    {
+      "engine": "8.4",
+      "path": "/workspace/naming-toolchains/bin/tclsh8.4",
+      "launcher_sha256": "d47422869429a960bccf50aee8a56ce7a6a4250e7d54235b4fe5628eef3420d1",
+      "captures": [
+        {
+          "label": "original",
+          "exit": 0,
+          "stdout_hex": "c3b0c29fc2a7c2aa20636166c3a90a370a",
+          "stderr_hex": "",
+          "source_sha256": "ccd2c0c6798278ceaac04acde6df56be808cd31cab5cab997dc8dd25939f6512"
+        },
+        {
+          "label": "control",
+          "exit": 0,
+          "stdout_hex": "c3b0c29fc2a7c2aa20636166c3a90a370a",
+          "stderr_hex": "",
+          "source_sha256": "440c2c296078c69a643d52943b0682ec4bca154b77bceedf76ee0ef631b6fb93"
+        }
+      ]
+    },
+    {
+      "engine": "8.5",
+      "path": "/workspace/naming-toolchains/bin/tclsh8.5",
+      "launcher_sha256": "9a9d095dbb73cad65fb94e0ba5535f4ac2eacc7ad724221c2a7a10cfba293c72",
+      "captures": [
+        {
+          "label": "original",
+          "exit": 0,
+          "stdout_hex": "c3b0c29fc2a7c2aa20636166c3a90a370a",
+          "stderr_hex": "",
+          "source_sha256": "ccd2c0c6798278ceaac04acde6df56be808cd31cab5cab997dc8dd25939f6512"
+        },
+        {
+          "label": "control",
+          "exit": 0,
+          "stdout_hex": "c3b0c29fc2a7c2aa20636166c3a90a370a",
+          "stderr_hex": "",
+          "source_sha256": "440c2c296078c69a643d52943b0682ec4bca154b77bceedf76ee0ef631b6fb93"
+        }
+      ]
+    },
+    {
+      "engine": "8.6",
+      "path": "/workspace/naming-toolchains/bin/tclsh8.6",
+      "launcher_sha256": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+      "captures": [
+        {
+          "label": "original",
+          "exit": 0,
+          "stdout_hex": "f09fa7aa20636166c3a90a370a",
+          "stderr_hex": "",
+          "source_sha256": "ccd2c0c6798278ceaac04acde6df56be808cd31cab5cab997dc8dd25939f6512"
+        },
+        {
+          "label": "control",
+          "exit": 0,
+          "stdout_hex": "f09fa7aa20636166c3a90a370a",
+          "stderr_hex": "",
+          "source_sha256": "440c2c296078c69a643d52943b0682ec4bca154b77bceedf76ee0ef631b6fb93"
+        }
+      ]
+    },
+    {
+      "engine": "9.0",
+      "path": "/workspace/naming-toolchains/bin/tclsh9.0",
+      "launcher_sha256": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+      "captures": [
+        {
+          "label": "original",
+          "exit": 0,
+          "stdout_hex": "f09fa7aa20636166c3a90a370a",
+          "stderr_hex": "",
+          "source_sha256": "ccd2c0c6798278ceaac04acde6df56be808cd31cab5cab997dc8dd25939f6512"
+        },
+        {
+          "label": "control",
+          "exit": 0,
+          "stdout_hex": "f09fa7aa20636166c3a90a370a",
+          "stderr_hex": "",
+          "source_sha256": "440c2c296078c69a643d52943b0682ec4bca154b77bceedf76ee0ef631b6fb93"
+        }
+      ]
+    },
+    {
+      "engine": "9.1",
+      "path": "/workspace/naming-toolchains/bin/tclsh9.1",
+      "launcher_sha256": "8cbf4f56b0831bc96f057e37cf762d12e981f44d3fd42f1c5ae130880c79ad06",
+      "captures": [
+        {
+          "label": "original",
+          "exit": 0,
+          "stdout_hex": "f09fa7aa20636166c3a90a370a",
+          "stderr_hex": "",
+          "source_sha256": "ccd2c0c6798278ceaac04acde6df56be808cd31cab5cab997dc8dd25939f6512"
+        },
+        {
+          "label": "control",
+          "exit": 0,
+          "stdout_hex": "f09fa7aa20636166c3a90a370a",
+          "stderr_hex": "",
+          "source_sha256": "440c2c296078c69a643d52943b0682ec4bca154b77bceedf76ee0ef631b6fb93"
+        }
+      ]
+    },
+    {
+      "engine": "Jim0.84",
+      "path": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh",
+      "launcher_sha256": "0f634c82506c87484326b8f8ad33ab284a1806ef6b6f1e43f012a2314166942e",
+      "captures": [
+        {
+          "label": "original",
+          "exit": 0,
+          "stdout_hex": "f09fa7aa20636166c3a90a370a",
+          "stderr_hex": "",
+          "source_sha256": "ccd2c0c6798278ceaac04acde6df56be808cd31cab5cab997dc8dd25939f6512"
+        },
+        {
+          "label": "control",
+          "exit": 0,
+          "stdout_hex": "f09fa7aa20636166c3a90a370a",
+          "stderr_hex": "",
+          "source_sha256": "440c2c296078c69a643d52943b0682ec4bca154b77bceedf76ee0ef631b6fb93"
+        }
+      ]
+    }
+  ]
+}

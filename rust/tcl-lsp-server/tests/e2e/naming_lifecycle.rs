@@ -81,7 +81,7 @@ fn assert_new_p_targets(
     assert_eq!(definitions.len(), 1, "p has one current definition");
     assert_eq!(definitions[0].0, provider_uri);
     assert_eq!(
-        definitions[0].1["range"]["start"],
+        definitions[0].1["start"],
         json!({ "line": 3, "character": 5 }),
         "definition points to the post-rename p declaration"
     );
@@ -154,7 +154,7 @@ fn assert_old_revision_is_retired(lsp: &mut Lsp, uri: &str, text: &str, diagnost
     );
 }
 
-fn await_completed_revision_diagnostics(
+pub(super) fn await_completed_revision_diagnostics(
     lsp: &Lsp,
     uri: &str,
     version: i64,
@@ -163,7 +163,9 @@ fn await_completed_revision_diagnostics(
     // The server may publish a provisional fast-tier result before this marker.
     // Select the first completed update after the caller's cursor, then pair it
     // with the nearest preceding exact-URI publish at the expected document
-    // version; do not return the earlier provisional notification.
+    // version; do not return the earlier provisional notification. The marker
+    // carries no source revision identifier, so this version check is the
+    // strongest association exposed by the protocol harness.
     let uri_marker = format!("(uri={uri},");
     lsp.await_log(&["workspace_state.update", &uri_marker], TIMEOUT, cursor);
 
@@ -210,7 +212,11 @@ fn await_completed_revision_diagnostics(
         .expect("completed per-URI update has a preceding diagnostic publish")
 }
 
-fn open_and_await_completed_diagnostics(lsp: &mut Lsp, uri: &str, text: &str) -> Vec<Value> {
+pub(super) fn open_and_await_completed_diagnostics(
+    lsp: &mut Lsp,
+    uri: &str,
+    text: &str,
+) -> Vec<Value> {
     let cursor = lsp.notification_cursor();
     lsp.open_document(uri, text);
     await_completed_revision_diagnostics(lsp, uri, 1, cursor)

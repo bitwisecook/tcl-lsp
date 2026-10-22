@@ -1,0 +1,47 @@
+[
+  {
+    "version": "8.4",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.4",
+    "source": "set dir GLOBAL\nset observed {}\nset auto_path [list {/tmp/names-pkgindex-frame-8qddadwf}]\nset status [catch {package require NamingFrame 1.0} message]\nputs [list STATUS $status $message]\nputs $observed\n",
+    "pkgIndex": "upvar #0 dir rootdir\nlappend ::observed [list FRAME [info level] LOCAL $dir GLOBAL $rootdir]\npackage ifneeded NamingFrame 1.0 {package provide NamingFrame 1.0}\n",
+    "stdout": "STATUS 0 1.0\n{FRAME 1 LOCAL /tmp/names-pkgindex-frame-8qddadwf GLOBAL GLOBAL}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "8.5",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.5",
+    "source": "set dir GLOBAL\nset observed {}\nset auto_path [list {/tmp/names-pkgindex-frame-8qddadwf}]\nset status [catch {package require NamingFrame 1.0} message]\nputs [list STATUS $status $message]\nputs $observed\n",
+    "pkgIndex": "upvar #0 dir rootdir\nlappend ::observed [list FRAME [info level] LOCAL $dir GLOBAL $rootdir]\npackage ifneeded NamingFrame 1.0 {package provide NamingFrame 1.0}\n",
+    "stdout": "STATUS 0 1.0\n{FRAME 1 LOCAL /tmp/names-pkgindex-frame-8qddadwf GLOBAL GLOBAL}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "8.6",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "source": "set dir GLOBAL\nset observed {}\nset auto_path [list {/tmp/names-pkgindex-frame-8qddadwf}]\nset status [catch {package require NamingFrame 1.0} message]\nputs [list STATUS $status $message]\nputs $observed\n",
+    "pkgIndex": "upvar #0 dir rootdir\nlappend ::observed [list FRAME [info level] LOCAL $dir GLOBAL $rootdir]\npackage ifneeded NamingFrame 1.0 {package provide NamingFrame 1.0}\n",
+    "stdout": "STATUS 0 1.0\n{FRAME 1 LOCAL /tmp/names-pkgindex-frame-8qddadwf GLOBAL GLOBAL}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "9.0",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "source": "set dir GLOBAL\nset observed {}\nset auto_path [list {/tmp/names-pkgindex-frame-8qddadwf}]\nset status [catch {package require NamingFrame 1.0} message]\nputs [list STATUS $status $message]\nputs $observed\n",
+    "pkgIndex": "upvar #0 dir rootdir\nlappend ::observed [list FRAME [info level] LOCAL $dir GLOBAL $rootdir]\npackage ifneeded NamingFrame 1.0 {package provide NamingFrame 1.0}\n",
+    "stdout": "STATUS 0 1.0\n{FRAME 1 LOCAL /tmp/names-pkgindex-frame-8qddadwf GLOBAL GLOBAL}\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "9.1",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
+    "source": "set dir GLOBAL\nset observed {}\nset auto_path [list {/tmp/names-pkgindex-frame-8qddadwf}]\nset status [catch {package require NamingFrame 1.0} message]\nputs [list STATUS $status $message]\nputs $observed\n",
+    "pkgIndex": "upvar #0 dir rootdir\nlappend ::observed [list FRAME [info level] LOCAL $dir GLOBAL $rootdir]\npackage ifneeded NamingFrame 1.0 {package provide NamingFrame 1.0}\n",
+    "stdout": "STATUS 0 1.0\n{FRAME 1 LOCAL /tmp/names-pkgindex-frame-8qddadwf GLOBAL GLOBAL}\n",
+    "stderr": "",
+    "exit": 0
+  }
+]

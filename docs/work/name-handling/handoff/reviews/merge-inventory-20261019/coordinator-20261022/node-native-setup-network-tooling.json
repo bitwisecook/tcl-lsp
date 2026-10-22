@@ -1,0 +1,15 @@
+{
+  "command": [
+    "node",
+    "node_modules/esbuild/install.js"
+  ],
+  "cwd": "/workspace/naming-migration-active/tcl-lsp/editors/vscode",
+  "started": "2026-10-22T15:40:49.625929+00:00",
+  "finished": "2026-10-22T15:40:50.045314+00:00",
+  "exit": 0,
+  "bytes_seen": 0,
+  "bytes_retained": 0,
+  "truncated": false,
+  "disk_abort": false,
+  "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

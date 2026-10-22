@@ -1,0 +1,70 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-22T15:55:49.193119+00:00",
+  "scheduled_report_utc": "2026-10-22T15:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-22T16:25:37+00:00",
+  "change_since_previous_report": [
+    "g4 main completed:0 passed/1 failed,168.78s,10positive-world subcase mismatches. R1 registration/capability cause is isolated; no fresh fix verdict.",
+    "Source-hold incident recorded: support temporarily changed/restored parse_cut; completed main used original cached lexer, interrupted ZZ has zero tests. No fingerprint override or cleanup.",
+    "CCG started unchanged N17 baseline at15:51; dependency rebuild active, no result yet.",
+    "Native D1-D5 scenarios and browser/WASI complete UTF-16 edit proof are written or under static review; none executed.",
+    "Pinned Jim and C Tcl controls support narrow lexer expectation corrections; geometry production fix retains original refusal assertion. All candidates remain off-tree.",
+    "Host dependencies are ready;12manual original/control host fixture executions match across six engines. Full host acceptance is pending.",
+    "External perf equality and routed compiler patch remain unproven; latest BIG-IP and triage measurements remain agent-reported."
+  ],
+  "committed": [
+    "9b3f4f273265bc2d0ac9e674d3eb3c061828abbe"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish full WIP in isolated publisher without active checkout changes.",
+    "Complete N17 baseline/fix functional chain, then coordinated compiler/lint batch and remaining R1/C6 attribution.",
+    "VM after8b/Jim/TLS, native D1-D5 protocol and minify/provider functional checks.",
+    "Required section F, exact shipping host/performance gates and origin/rust zero pass-to-fail comparison."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T15:46Z",
+    "perf": "2026-10-22T15:45Z",
+    "review-triage": "2026-10-22T15:46:08Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No audit admissions or validated-row changes. One fresh agent-run aggregate failure is scoped separately from guarded validation; interrupted follow-up has zero tests. Fixture controls, syntax/static reviews and external partial results are not release acceptance.",
+  "disk_free_bytes": 13055238144
+}

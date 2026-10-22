@@ -1,0 +1,26 @@
+[
+  {
+    "version": "8.6",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "source": "proc literal {} {expr {7 << 1}}\nproc parameter {x} {expr {$x * 2}}\nproc eliminated {} {if {0} {expr {7 << 1}}}\nforeach command {literal parameter eliminated} {puts \"BEGIN $command\"; puts [tcl::unsupported::disassemble proc $command]; puts \"END $command\"}\n",
+    "stdout": "BEGIN literal\nByteCode 0x0x5559c9cf8b20, refCt 1, epoch 17, interp 0x0x5559c9c70130 (epoch 17)\n  Source \"expr {7 << 1}\"\n  Cmds 1, src 13, inst 3, litObjs 1, aux 0, stkDepth 1, code/src 0.00\n  Proc 0x0x5559c9cc55e0, refCt 1, args 0, compiled locals 0\n  Commands 1:\n      1: pc 0-1, src 0-12\n  Command 1: \"expr {7 << 1}\"\n    (0) push1 0 \t# \"14\"\n    (2) done \n\nEND literal\nBEGIN parameter\nByteCode 0x0x5559c9cf8c20, refCt 1, epoch 17, interp 0x0x5559c9c70130 (epoch 17)\n  Source \"expr {$x * 2}\"\n  Cmds 1, src 13, inst 6, litObjs 1, aux 0, stkDepth 2, code/src 0.00\n  Proc 0x0x5559c9d027d0, refCt 1, args 1, compiled locals 1\n      slot 0, scalar, arg, \"x\"\n  Commands 1:\n      1: pc 0-4, src 0-12\n  Command 1: \"expr {$x * 2}\"\n    (0) loadScalar1 %v0 \t# var \"x\"\n    (2) push1 0 \t# \"2\"\n    (4) mult \n    (5) done \n\nEND parameter\nBEGIN eliminated\nByteCode 0x0x5559c9cf8d20, refCt 1, epoch 17, interp 0x0x5559c9c70130 (epoch 17)\n  Source \"if {0} {expr {7 << 1}}\"\n  Cmds 1, src 22, inst 3, litObjs 1, aux 0, stkDepth 1, code/src 0.00\n  Proc 0x0x5559c9d028d0, refCt 1, args 0, compiled locals 0\n  Commands 1:\n      1: pc 0-1, src 0-21\n  Command 1: \"if {0} {expr {7 << 1}}\"\n    (0) push1 0 \t# \"\"\n    (2) done \n\nEND eliminated\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "9.0",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "source": "proc literal {} {expr {7 << 1}}\nproc parameter {x} {expr {$x * 2}}\nproc eliminated {} {if {0} {expr {7 << 1}}}\nforeach command {literal parameter eliminated} {puts \"BEGIN $command\"; puts [tcl::unsupported::disassemble proc $command]; puts \"END $command\"}\n",
+    "stdout": "BEGIN literal\nByteCode 0x564bc96dc720, refCt 1, epoch 21, interp 0x564bc960aa10 (epoch 21)\n  Source \"expr {7 << 1}\"\n  Cmds 1, src 13, inst 3, litObjs 1, aux 0, stkDepth 1, code/src 0.00\n  Proc 0x564bc96ac130, refCt 1, args 0, compiled locals 0\n  Commands 1:\n      1: pc 0-1, src 0-12\n  Command 1: \"expr {7 << 1}\"\n    (0) push1 0 \t# \"14\"\n    (2) done \n\nEND literal\nBEGIN parameter\nByteCode 0x564bc96dc820, refCt 1, epoch 21, interp 0x564bc960aa10 (epoch 21)\n  Source \"expr {$x * 2}\"\n  Cmds 1, src 13, inst 6, litObjs 1, aux 0, stkDepth 2, code/src 0.00\n  Proc 0x564bc968ce80, refCt 1, args 1, compiled locals 1\n      slot 0, scalar, arg, \"x\"\n  Commands 1:\n      1: pc 0-4, src 0-12\n  Command 1: \"expr {$x * 2}\"\n    (0) loadScalar1 %v0 \t# var \"x\"\n    (2) push1 0 \t# \"2\"\n    (4) mult \n    (5) done \n\nEND parameter\nBEGIN eliminated\nByteCode 0x564bc96dca20, refCt 1, epoch 21, interp 0x564bc960aa10 (epoch 21)\n  Source \"if {0} {expr {7 << 1}}\"\n  Cmds 1, src 22, inst 3, litObjs 1, aux 0, stkDepth 1, code/src 0.00\n  Proc 0x564bc96ac030, refCt 1, args 0, compiled locals 0\n  Commands 1:\n      1: pc 0-1, src 0-21\n  Command 1: \"if {0} {expr {7 << 1}}\"\n    (0) push1 0 \t# \"\"\n    (2) done \n\nEND eliminated\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "9.1",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
+    "source": "proc literal {} {expr {7 << 1}}\nproc parameter {x} {expr {$x * 2}}\nproc eliminated {} {if {0} {expr {7 << 1}}}\nforeach command {literal parameter eliminated} {puts \"BEGIN $command\"; puts [tcl::unsupported::disassemble proc $command]; puts \"END $command\"}\n",
+    "stdout": "BEGIN literal\nByteCode 0x556c5f09fb60, refCt 1, epoch 24, interp 0x556c5efdfa10 (epoch 24)\n  Source \"expr {7 << 1}\"\n  Cmds 1, src 13, inst 6, litObjs 1, aux 0, stkDepth 1, code/src 0.00\n  Proc 0x556c5f083d50, refCt 1, args 0, compiled locals 0\n  Commands 1:\n      1: pc 0-4, src 0-12\n  Command 1: \"expr {7 << 1}\"\n    (0) push 0 \t# \"14\"\n    (5) done \n\nEND literal\nBEGIN parameter\nByteCode 0x556c5f0a8f80, refCt 1, epoch 24, interp 0x556c5efdfa10 (epoch 24)\n  Source \"expr {$x * 2}\"\n  Cmds 1, src 13, inst 12, litObjs 1, aux 0, stkDepth 2, code/src 0.00\n  Proc 0x556c5f064a80, refCt 1, args 1, compiled locals 1\n      slot 0, scalar, arg, \"x\"\n  Commands 1:\n      1: pc 0-10, src 0-12\n  Command 1: \"expr {$x * 2}\"\n    (0) loadScalar %v0 \t# var \"x\"\n    (5) push 0 \t# \"2\"\n    (10) mult \n    (11) done \n\nEND parameter\nBEGIN eliminated\nByteCode 0x556c5f09fd60, refCt 1, epoch 24, interp 0x556c5efdfa10 (epoch 24)\n  Source \"if {0} {expr {7 << 1}}\"\n  Cmds 1, src 22, inst 6, litObjs 1, aux 0, stkDepth 1, code/src 0.00\n  Proc 0x556c5f083c50, refCt 1, args 0, compiled locals 0\n  Commands 1:\n      1: pc 0-4, src 0-21\n  Command 1: \"if {0} {expr {7 << 1}}\"\n    (0) push 0 \t# \"\"\n    (5) done \n\nEND eliminated\n",
+    "stderr": "",
+    "exit": 0
+  }
+]

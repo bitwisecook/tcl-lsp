@@ -1,0 +1,18 @@
+{
+  "command": [
+    "corepack",
+    "npm",
+    "ci",
+    "--no-audit",
+    "--no-fund"
+  ],
+  "cwd": "/workspace/naming-migration-active/tcl-lsp/editors/vscode",
+  "started": "2026-10-22T15:33:25.181553+00:00",
+  "finished": "2026-10-22T15:34:04.607489+00:00",
+  "exit": 0,
+  "bytes_seen": 678,
+  "bytes_retained": 678,
+  "truncated": false,
+  "disk_abort": false,
+  "log_sha256": "1f24e6200c4c9e59ec4257bd5791c8145cd1d04d1c970e53dceb6e3d32ff843b"
+}

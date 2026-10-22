@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-22T15:46:49.634186+00:00",
+  "files": {
+    "rust/tcl-lexer/src/parse_cut.rs": {
+      "before_sha256": "339c0bb38ccf4c66d1a0ecec8ddf6524aa94aab299693d0a10f3b5d538fa784c",
+      "candidate_sha256": "ea6ceea833195a1b1135b3a28e67beccc38b88542b206cbcb1752465ba68429f"
+    },
+    "rust/tcl-lexer/src/jim_script_tokens.rs": {
+      "before_sha256": "99d74482256d59b86f6d582288d0d967ac0029ecd51818ff1d4190620f4f9dd8",
+      "candidate_sha256": "098131a905842001509a91cc263660ebf7ef657e097393edc8520e7b857badf9"
+    },
+    "rust/tcl-lexer/src/word_parts.rs": {
+      "before_sha256": "f1deda4eea8729ac5465823f1c506a21255d7a73adcdeeac897c5de0636ddbf6",
+      "candidate_sha256": "15d1020c9b3d8417ca2e72501cfd88b5a0f4a6239aa032cf738d85f779b731c6"
+    }
+  },
+  "scope": "Off-tree reviewed candidate only; source hold still active, no test execution."
+}

@@ -1,0 +1,6 @@
+{
+  "source": "namespace eval : {proc p {} {return LEFT}; puts [list ns [namespace current] which [namespace which -command p]]}\nputs [list root [p] rootwhich [namespace which -command p]]\nproc p {} {return RIGHT}\nputs [list root [p] colon [namespace eval : {p}]]\n",
+  "stdout": "ns ::: which :::::p\nroot LEFT rootwhich ::p\nroot RIGHT colon RIGHT\n",
+  "stderr": "",
+  "exit": 0
+}

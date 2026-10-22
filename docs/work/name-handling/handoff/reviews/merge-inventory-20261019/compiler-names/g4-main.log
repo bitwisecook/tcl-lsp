@@ -1,0 +1,25 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 37m 54s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+test analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups ... 
+thread 'analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups' (44785) panicked at rust/tcl-compiler/src/analyser/types.rs:5757:9:
+    "tcl8.6: \"puts hi\\n\": world expected true",
+    "tcl8.6: \"puts [greet]\\nputs [greet]\\n\": world expected true",
+    "tcl8.6: \"set a [list [greet]]\\n\": world expected true",
+    "tcl8.6: \"set a [string length x]\\n\": world expected true",
+    "tcl8.6: \"proc say {} { puts hi }\\nsay\\n\": world expected true",
+    "tcl9.0: \"puts hi\\n\": world expected true",
+    "tcl9.0: \"puts [greet]\\nputs [greet]\\n\": world expected true",
+    "tcl9.0: \"set a [list [greet]]\\n\": world expected true",
+    "tcl9.0: \"set a [string length x]\\n\": world expected true",
+    "tcl9.0: \"proc say {} { puts hi }\\nsay\\n\": world expected true",
+FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10480 filtered out; finished in 168.78s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

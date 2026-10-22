@@ -1,0 +1,17 @@
+{
+  "command": [
+    "node",
+    "node_modules/playwright-core/cli.js",
+    "install",
+    "chromium"
+  ],
+  "cwd": "/workspace/naming-migration-active/tcl-lsp/editors/vscode",
+  "started": "2026-10-22T15:34:49.697436+00:00",
+  "finished": "2026-10-22T15:36:36.571550+00:00",
+  "exit": 0,
+  "bytes_seen": 6855,
+  "bytes_retained": 6855,
+  "truncated": false,
+  "disk_abort": false,
+  "log_sha256": "17c131d3bd347ed53ff06adba298380946d21a55c13cc2660e7340f714b2f78c"
+}

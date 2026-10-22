@@ -1,0 +1,7 @@
+{
+  "utc": "2026-10-22T15:55:59.011327+00:00",
+  "reference": "/tmp/naming-source-hold-reference-1552.json",
+  "files_checked": 4539,
+  "changes": [],
+  "scope": "Materialised Rust src files and SpecTcl packs only, source-hold operational audit, not whole-source guarded validation."
+}

@@ -31,6 +31,8 @@ use crate::common::{Lsp, scaled_timeout};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
+mod environment_lifecycle;
+
 /// A pack declaring one command with enough detail to be recognisable in
 /// hover: a summary, a synopsis, and a real arity.
 const MYLIB_PACK: &str = r"

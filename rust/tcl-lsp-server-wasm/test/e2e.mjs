@@ -29,6 +29,7 @@
  */
 
 import { readdir, readFile } from "node:fs/promises";
+import { runNamingHostProof } from "../../../scripts/dev/lsp-naming-host-proof.mjs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { runInThisContext } from "node:vm";
@@ -429,6 +430,8 @@ async function workspaceSession(wasmBindgen) {
         autoUris.some((u) => u.endsWith("/tmp/mypkg/impl.tcl")),
         JSON.stringify(autoUris),
     );
+
+    await runNamingHostProof(session, "file:///ws/host-naming.tcl", check, (uri, source) => session.worker.vfs_upsert(uri, source));
 
     const shutdown = await session.request("shutdown", null);
     check("the workspace session shuts down", shutdown.error === undefined);

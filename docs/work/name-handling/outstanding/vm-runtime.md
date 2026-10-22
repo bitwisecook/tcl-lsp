@@ -2,7 +2,7 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T15:22Z (blocked on the shared build sequence; shadow lint patch prepared)
+Last updated: 2026-10-22T15:52Z (test-only D4 case implemented, unexecuted; waiting for the VM build slot)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -18,6 +18,20 @@ result below is a guarded validation or audit admission.
 Six-vendor EDA smoke is prepared in `spec_packs.rs` and included in the WIP, with
 all eight pack names, own-vendor plus shared SDC/UPF availability and rival-vendor
 exclusion checked in one server process. It is unmeasured; section D stays open.
+
+Accepted D4 protocol case is now implemented as the child module
+`rust/tcl-lsp-server/tests/e2e/spec_packs/environment_lifecycle.rs`, linked from
+the owned `spec_packs.rs`. It changes folder configuration, the workspace-wide
+custom pack and dialect sidecars through change/remove/restore while all three
+open document versions remain 1 and their bytes plus the unopened provider stay
+exactly fixed. It compares first warm/fresh naming, callback, class, signature,
+role and live-hook answers. Readiness uses current configuration/publication
+and raw read-only `currentDiagnostics`; exact old/new identities are checked
+through `validateDiagnosticPublication` before and after the fixed provider
+sequence. No naming-answer polling, new sleeps or production instrumentation.
+LSP owns the complementary controlled stale-worker completion regression;
+transport silence is not a retirement proof. Rustfmt parses/formats the test;
+it has not compiled or run, and grants no section D admission.
 
 New release blocker: external strict Clippy on `aeecf39743b` with Rust 1.99.1
 reported **379 VM diagnostics across 72 paths**. Inventory:

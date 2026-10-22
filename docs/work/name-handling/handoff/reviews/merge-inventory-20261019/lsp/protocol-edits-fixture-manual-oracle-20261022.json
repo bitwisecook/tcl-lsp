@@ -1,0 +1,101 @@
+{
+  "observed_utc": "2026-10-22T15:35:52.809461+00:00",
+  "scope": "Manual controls for new D5 protocol edit fixtures only; no returned server WorkspaceEdit has been executed or admitted.",
+  "provider": "namespace eval ::space {\n    proc saluté {value} {return \"ok:$value\"}\n}\n",
+  "caller": "source [file join [file dirname [info script]] provider.tcl]\nset marker \"😀\"; puts [::space::saluté payload]\n",
+  "import_alias": "namespace eval ::space {\n    proc saluté {value} {return \"ok:$value\"}\n    namespace export saluté\n}\nnamespace import ::space::saluté\ninterp alias {} route {} ::space::saluté\nputs [saluté imported]\nputs [route aliased]\n",
+  "results": [
+    {
+      "case": "cross-file",
+      "variant": "original",
+      "engine": "8.6",
+      "exit": 0,
+      "stdout": "ok:payload\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "case": "cross-file",
+      "variant": "original",
+      "engine": "9.0",
+      "exit": 0,
+      "stdout": "ok:payload\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "case": "cross-file",
+      "variant": "manual-complete-rename",
+      "engine": "8.6",
+      "exit": 0,
+      "stdout": "ok:payload\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "case": "cross-file",
+      "variant": "manual-complete-rename",
+      "engine": "9.0",
+      "exit": 0,
+      "stdout": "ok:payload\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "case": "import-alias",
+      "variant": "original",
+      "engine": "8.6",
+      "exit": 0,
+      "stdout": "ok:imported\nok:aliased\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "case": "import-alias",
+      "variant": "original",
+      "engine": "9.0",
+      "exit": 0,
+      "stdout": "ok:imported\nok:aliased\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "case": "import-alias",
+      "variant": "manual-complete-rename",
+      "engine": "8.6",
+      "exit": 0,
+      "stdout": "ok:imported\nok:aliased\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "case": "import-alias",
+      "variant": "manual-complete-rename",
+      "engine": "9.0",
+      "exit": 0,
+      "stdout": "ok:imported\nok:aliased\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "case": "shadowed-transforms",
+      "variant": "original",
+      "engine": "8.6",
+      "exit": 0,
+      "stdout": "SHADOW\n77\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "case": "shadowed-transforms",
+      "variant": "original",
+      "engine": "9.0",
+      "exit": 0,
+      "stdout": "SHADOW\n77\n",
+      "stderr": "",
+      "pass_fixture": true
+    }
+  ],
+  "shadowed_transforms": "proc llength {value} {return 77}\nproc expr {args} {return SHADOW}\nset n [expr 3+4]\nputs $n\nputs [llength [list a b c]]\n",
+  "updated_utc": "2026-10-22T15:40:03.408461+00:00"
+}
