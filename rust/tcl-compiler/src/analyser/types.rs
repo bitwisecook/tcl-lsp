@@ -5763,6 +5763,37 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
     }
 
     #[test]
+    fn zz_probe_import_and_crlf() {
+        for (dialect, source) in [
+            (
+                "tcl8.6",
+                "namespace eval ::a {proc p {} {}; namespace export p}\nnamespace eval ::b {namespace import ::a::p; p}\n",
+            ),
+            (
+                "tcl8.6",
+                "oo::class create Widget {\r\n    method render {} {\r\n        puts \"widget $label\"\r\n    }\r\n}",
+            ),
+        ] {
+            let result = std::panic::catch_unwind(|| {
+                crate::analyser::Analyser::new().analyse(source, dialect)
+            });
+            eprintln!("ZZ_RESULT {source:?} ok={}", result.is_ok());
+            if let Ok(result) = result {
+                for row in &result.command_invocations {
+                    eprintln!(
+                        "ZZ_ROW {} at={} input={} lookup={} reference={}",
+                        row.name,
+                        row.range.start(),
+                        row.original_name_input.is_some(),
+                        row.original_lookup.is_some(),
+                        row.resolved_command_reference.is_some()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn advisory_invocation_and_unknown_body_scope_cannot_issue_source_names() {
         let invocation =
             SignatureCommandInvocation::written("p".to_owned(), Span::new(0, 1), Some(0));

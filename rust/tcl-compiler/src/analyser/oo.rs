@@ -1218,6 +1218,14 @@ impl Analyser {
         // capture it before the member-collection walk mutates `class_def`.
         let class_qualified = class_def.qualified_name.clone();
         let base_offset = body_tok.span.start() + u32::from(body_tok.content_offset);
+        #[cfg(test)]
+        if std::env::var_os("ZZ_CRLF").is_some() {
+            eprintln!(
+                "ZZ_CRLF class base={base_offset} tok={:?} text={body_text:?} source={:?}",
+                body_tok.span,
+                self.source.get(base_offset as usize..body_tok.span.end() as usize)
+            );
+        }
         let cmds = crate::segmenter::segment_commands_with_offset_and_config(
             body_text,
             base_offset,

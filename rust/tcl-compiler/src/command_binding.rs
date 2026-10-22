@@ -7314,7 +7314,8 @@ impl SourceCommandBindings {
                 {
                     continue;
                 }
-                self.walk_deferred_entry(&root, &entry, config, registry);
+                let after_load = self.uncalled_body_after_load(&root, &entry);
+                self.walk_deferred_entry_with(&root, &entry, config, registry, after_load);
             }
             if root_count == self.deferred.len() {
                 break;
@@ -7435,12 +7436,45 @@ impl SourceCommandBindings {
             .collect::<Vec<_>>()
     }
 
+    /// An uncalled procedure body is analysed as if called after the
+    /// document finished running at top level (user decision
+    /// 2026-10-21T08:20Z, "world after load"): its commands resolve in the
+    /// procedure's namespace against the command world at the end of the
+    /// script. That needs a normal completion of the whole document and this
+    /// very end-of-script state; event handlers, receiver methods, future
+    /// frames and bodies first installed by deferred outcomes keep their own
+    /// conditional entries.
+    fn uncalled_body_after_load(
+        &self,
+        root: &DeferredSourceBody,
+        incoming: &ModuleCommandBindings,
+    ) -> bool {
+        root.event.is_none()
+            && !root.receiver_method
+            && root.future_frame.is_none()
+            && self
+                .original_completed_root_state
+                .as_deref()
+                .is_some_and(|completed| completed.same_state(incoming))
+    }
+
     fn walk_deferred_entry(
         &mut self,
         root: &DeferredSourceBody,
         incoming: &ModuleCommandBindings,
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
+    ) {
+        self.walk_deferred_entry_with(root, incoming, config, registry, false);
+    }
+
+    fn walk_deferred_entry_with(
+        &mut self,
+        root: &DeferredSourceBody,
+        incoming: &ModuleCommandBindings,
+        config: tcl_lexer::LexerConfig,
+        registry: &CommandRegistry,
+        after_load: bool,
     ) {
         #[cfg(any(test, debug_assertions))]
         let _timing = root_owner_work::Timing::at(root_owner_work::Query::DeferredEntry);
@@ -7511,13 +7545,18 @@ impl SourceCommandBindings {
         // Preview ownership does not mark a document call as reached.
         let implementation = root.implementation_id();
         let activated = self.active_calls.insert(implementation.clone());
-        self.declaration_preview_depth += 1;
+        let preview = usize::from(!after_load);
+        self.declaration_preview_depth += preview;
         let outcomes = self.walk_source(
             &root.source,
             root.offset,
             &mut branch,
             &SourceExecutionContext {
-                body_entry: SourceBodyEntryPurpose::Conditional,
+                body_entry: if after_load {
+                    SourceBodyEntryPurpose::Selected
+                } else {
+                    SourceBodyEntryPurpose::Conditional
+                },
                 source_purpose: tcl_lexer::SourceSegmentationPurpose::NestedScript,
                 realm: root.realm,
                 compilation,
@@ -7543,7 +7582,7 @@ impl SourceCommandBindings {
                 expression_source: None,
             },
         );
-        self.declaration_preview_depth -= 1;
+        self.declaration_preview_depth -= preview;
         if activated {
             self.active_calls.remove(&implementation);
         }
@@ -8769,7 +8808,19 @@ impl SourceCommandBindings {
                 break;
             };
             let prefix_complete = outcomes.normal_completion;
+            #[cfg(test)]
+            let zz_before = continuing.opaque_domain;
             let command = self.walk_source_command(image, base, &mut continuing, segment, context);
+            #[cfg(test)]
+            if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+                eprintln!(
+                    "ZZ_COMMAND {:?} ns={:?} opaque_before={zz_before} opaque_after={} abrupt={:?}",
+                    segment.texts,
+                    context.namespace_identity(),
+                    command.normal.as_ref().is_some_and(|normal| normal.opaque_domain),
+                    command.abrupt.iter().map(|(route, _)| route).collect::<Vec<_>>(),
+                );
+            }
             #[cfg(debug_assertions)]
             if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_VARIABLE_TRANSFER").is_some() {
                 eprintln!(
@@ -11991,13 +12042,23 @@ impl SourceCommandBindings {
         if let Some(word) = operands.written_word(index) {
             self.record_executed_word(&parent.source, word.source().span, None, script.clone());
         }
-        self.record_executed_script(
-            parent,
-            index,
-            script.clone(),
-            context.entered_frame(),
-            state.source_variables.namespace_identity.as_ref(),
-        );
+        if context.entered_frame().is_some() {
+            self.record_executed_script(
+                parent,
+                index,
+                script.clone(),
+                context.entered_frame(),
+                state.source_variables.namespace_identity.as_ref(),
+            );
+        } else {
+            // The selected body context names the namespace it would run in.
+            self.record_conditional_in_frame_script(
+                parent,
+                index,
+                script.clone(),
+                Some(&context.namespace_identity()),
+            );
+        }
         let previous_origin = state
             .current_source_origin
             .replace(Arc::clone(&script.origin));

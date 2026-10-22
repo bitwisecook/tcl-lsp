@@ -280,6 +280,14 @@ impl Analyser {
         // `self.source`, but a runaway `"` / `{` only swallows to the body's
         // own end.
         let region_end = base_offset as usize + body_text.len();
+        #[cfg(test)]
+        if std::env::var_os("ZZ_CRLF").is_some() {
+            eprintln!(
+                "ZZ_CRLF body base={base_offset} tok={:?} text={body_text:?} source={:?}",
+                body_tok.span,
+                self.source.get(base_offset as usize..body_tok.span.end() as usize)
+            );
+        }
         let body_commands = crate::segmenter::segment_commands_with_offset_and_config(
             body_text,
             base_offset,

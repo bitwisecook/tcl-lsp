@@ -59,6 +59,10 @@ pub(super) struct EnteredScriptObservation {
     pub namespace: Option<super::SourceNamespaceKey>,
     pub receiver_context:
         Option<Arc<super::original_receiver_body_context::OriginalReceiverBodyContext>>,
+    /// Namespace of the invoking command for a body that runs in that same
+    /// frame but whose entry is conditional (a loop that may not iterate).
+    /// It names where the body would run, never that it ran.
+    pub conditional_namespace: Option<super::SourceNamespaceKey>,
 }
 
 impl SourceInvocationBinding {
@@ -786,6 +790,22 @@ impl SourceCommandBindings {
                 .all(|key| key.as_ref() == Some(&first))
                 .then_some(first);
         }
+        let mut conditional = self.entered_scripts.values().flat_map(|arguments| {
+            arguments.values().flatten().filter_map(|observation| {
+                (&observation.source == source && observation.frame.is_none())
+                    .then(|| observation.conditional_namespace.clone())
+            })
+        });
+        if let Some(first) = conditional.next().flatten() {
+            let mut declared = self.deferred.values().filter(|body| {
+                body.executed_script
+                    .as_ref()
+                    .is_some_and(|(_, _, retained)| retained == source)
+            });
+            if declared.next().is_none() && conditional.all(|key| key.as_ref() == Some(&first)) {
+                return Some(first);
+            }
+        }
         let mut declared = self.deferred.values().filter_map(|body| {
             let (_, _, retained) = body.executed_script.as_ref()?;
             (retained == source).then(|| {
@@ -926,6 +946,34 @@ impl SourceCommandBindings {
             frame: frame.cloned(),
             namespace: frame.and(namespace).cloned(),
             receiver_context: None,
+            conditional_namespace: None,
+        };
+        if !scripts.contains(&observation) {
+            scripts.push(observation);
+        }
+    }
+
+    /// A body operand that runs in the invoking command's own frame under a
+    /// conditional entry retains that frame's namespace, never an entry.
+    pub(super) fn record_conditional_in_frame_script(
+        &mut self,
+        invocation: CommandAllocationSite,
+        argument: usize,
+        script: ExecutedScriptSource,
+        namespace: Option<&super::SourceNamespaceKey>,
+    ) {
+        let scripts = self
+            .entered_scripts
+            .entry(invocation)
+            .or_default()
+            .entry(argument)
+            .or_default();
+        let observation = EnteredScriptObservation {
+            source: script,
+            frame: None,
+            namespace: None,
+            receiver_context: None,
+            conditional_namespace: namespace.cloned(),
         };
         if !scripts.contains(&observation) {
             scripts.push(observation);
