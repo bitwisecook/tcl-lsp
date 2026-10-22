@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T12:13Z
+Last updated: 2026-10-22T13:12Z
 
 ## In progress
 
@@ -24,6 +24,10 @@ Last updated: 2026-10-22T12:13Z
 - Validated rows in `current-state.md`: the user's validation agent last committed 2026-10-21 17:51 UTC; fresh validation runs are needed before agent-reported fixes count toward the gate.
 
 ## Done since the last update
+
+- 12:50–13:12Z: re-armed the 30-minute cycle. Pushed the full tree (`1c719796fe`). Mirrored agent-referenced scratchpad files to `scratchpad-mirror/` (`6bc8ceaed2`) so agents in the user's separate session can read them. Truncated compiler-names' 2.1 GB runaway log (disk 1.7 → 2.7 GB). Archived the coordinator's three duplicate cloud sessions (no commits). Refreshed the agent table in `current-state.md` from all outstanding files.
+- Ruled for compiler-names: `compiled_invocation.rs` import-alias gate and the W210 pkgIndex `dir` entry option are its own; it coordinates the `compilation_unit.rs` construction sites with the compiler agent; the `other.tcl` W210 row narrows to `dir` only (tclsh: the read of `dir` raises before `$missing` is substituted).
+- Note: `outstanding/bigip-lsp.md` says "Last updated: 2026-10-22T14:05Z", which is later than the time it was pushed; the separate session should correct it on its next update.
 
 - 11:40–12:10Z: the session usage limit stopped every agent; all eight resumed at 12:12Z from their transcripts. 3.65 GB of superseded libraries and 0.32 GB of idle test executables pruned while no build ran (disk 966 MB → 4.4 GB).
 - Full working tree pushed on the user's request (`2fe1d48d97`, includes two temporary probes).

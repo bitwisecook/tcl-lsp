@@ -5961,10 +5961,13 @@ fn w210_pkgindex_reports_other_reads_inside_command_substitutions() {
             "set f [file join $dir $missing]\nsource $f\n",
             &["missing"][..],
         ),
+        // Outside a package index `$dir` is unset, so the substitution
+        // stops at it: tclsh 9.0.4 reports `can't read "dir": no such
+        // variable` and never reads `$missing`.
         (
             "/proj/other.tcl",
             "set f [file join $dir $missing]\nsource $f\n",
-            &["dir", "missing"][..],
+            &["dir"][..],
         ),
         (
             "/proj/pkgIndex.tcl",
