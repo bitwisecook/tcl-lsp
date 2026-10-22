@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-22T22:21:56.726563+00:00",
+  "status": "User question pending; NO answer/authorization assumed for new policy",
+  "trigger": "Seven unchanged ILX16 assertions require source navigation at later call after previous opaque remote effects. Static expectation review, not newly measured test outcome.",
+  "question": "Should later ILX::notify retain a conditional readonly association to original ILX::init extension after prior opaque ILX::call?",
+  "recommended": "Distinct source-only conditional association carrying effect/reentry/observer/result debts; known writes/foreign frames/unknown unrelated operations invalidate. No Native/Normal/quiet/runtime handle grant.",
+  "alternatives": [
+    "First operand only; subsequent opaque calls withdraw association",
+    "Wait for genuine reviewed F5 preservation contract"
+  ],
+  "evidence_sha256": "db3af317cde308e0226a108e1410bb91d43dd61b98f57dcbf05a749449cafec8",
+  "instructions": "User requires genuinely new design choices be asked and answers recorded in new user-decisions JSON. No existing decision reopened. User-decisions file waits for actual answer."
+}

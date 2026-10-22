@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T21:55:37.315771+00:00
+Last updated: 2026-10-22T22:25:37.930921+00:00
 
 ## In progress
 
@@ -278,3 +278,21 @@ Last updated: 2026-10-22T21:55:37.315771+00:00
 - Externalfreshness usespublished50cperf21:00,notstaleactivecopy: fullcurrent39b allold/mixedEqblockersroutedcompiler,patcheswithheld. BIGIP18:08andcompletedtriage19:57remainstale,usernotified,no takeover; BIGIP6confirmedCLIregressions recordedinownfile. No externalroleduplicates.
 - StrictClippy666locatedoldsourcefindings remainunclosed. Compilerownercomposed68pathv3explicitlyincomplete; helpermechanical/APImetadata/keymapdrafts andVM181draftsareuntyped/unmeasured. Drafttouchedfilesare notresolvedcount. No newallows/assertionweakening. AllsectionF host/SpecTcl/generated/strict/shippingperformance/fullactualrustcomparison gates remain.
 - CyclefullWIP excludeszztemporaryprobeRustfiles,publishfromisolatedworkafterfreshfetch/rebase/normalpush; sourceguardHOLDpreserved. Disk checked,no target/executablecleanup,2GiB floor/logs20MiB/jobs2/debug0/incremental0. Next22:25:37 reminderrearmed.
+
+### Current cycle and routing (22:25 UTC)
+
+- Primary goal remains clean LSP merge/release readiness from rust before general parity; work only, no PR/merge/tag/release. All F boxes and integrated/verified counts unchanged.
+- Combined six-package metadata run closed/reaped22:04:27, sources6535 and providers unchanged, one Core libtest E0275 plus six TEMP warning records. All6normal and compiler/DB/server/VM/fuzz test metadata present; no tests executed. Full actual failures archived, no type gate inferred.
+- Reviewed four-path small fix checkpoint54daa7bc6 applies exact48b parentheses,5daa test-only trait-solving256+actualAnalysisResult SendSync assertion,3ca terminal minify unavailable guard+negative,7651 authentic producer for new VM controls. Exact before/after hashes, pinned rustfmt unchanged and diffcheck passed. No runtime/test budgets or Eq/assertions weakened.
+- Small fixes normally pushed740097818 at22:13:27 after fresh depth1fetch/rebase, actual remote confirmed and source/published product diff zero; no forcepush. Guarded Core-only alltargets check started22:11:50 on54daa, then compiler TEMP3 and55 ordered under exclusive whole build/run lock.
+- External files re-read on actual published work: BIGIP18:08 stale, perf21:00 stale, completed triage19:57 stale; user told all, no duplication/takeover. BIGIP generator3/3 already historicalPASS; ILX authentic constructor/setter/read relation routed compiler, plain rewrite+genericserver lint routed LSP, newCLI regressions stay external owner.
+- Perf private first-refusal probes preserve final fullEq assertions and complete currentness. Capture/currentness bug repair is within existing policy only where actual retained owner satisfies full contract. Any new report-comparison policy requires user answer/newJSON after actualdiagnostics; no choice reopened or made.
+- N13 host remains off-tree, compiler-names building genuine issuer-derived Potential vs actual CurrentCut frontier query. Potential retains dependency debt and never proves inactive from missing visits; compiler independently reviews enclosing owner/point/body associations and controls, LSP consumer follows.
+- CCG distinct frozen51v2 andnativev5 plans preserve original selectors/features/budgets; independently reviewed source docpin/oracle repair/full provider inputs and explicitclang.cfg. Actual artifact build/functional verdict pending. No stale artifact reuse.
+- VM lint v3d6e1 remains off-tree/incomplete/untyped/unmeasured. Preserves prior guard collapses; owned inverse proofs and independent bounded reviews are static evidence only, not181finding closure.
+- CI5205 complete30job metadata still7success/17failure/3running/3skipped; main1/3/5 active, canceled/lost-runner2/4 named outcomes unknown. Heavy27exactbaselineP2F/24absent ledger preserved; no baseline comparison admission.
+- Cycle snapshot excludes zztemporaryprobeRust, officialreport/table/freshness/disk and next22:55:37 reminder required. Disk about11GiB, no target/executable cleanup; wholelock, jobs2/debug0/incremental0,2GiB floor and20MiB logs retained.
+- Core-only alltargets check CLOSED/PASS22:17:32.769815Z on54daa: Cargo0,0errors/0warnings, unchanged6535source/providers/HEAD,174109bytes,no trunc/diskabort. Reaped/released; compiler TEMP3+55 GO afterclosure. This validates actual CoreLIBTEST SendSync budget256, notruntime/sectionF acceptance.
+- New ILX design question pending user: exact16assertionreview identifies7 requiring conditional read-only constructor/setter/read association across opaque prior remote effects. Recommended distinctdebt-carrying conditionalledger; no runtime/effect/Normalgrant, knownwrites/foreignframes/unknownunrelatedopsinvalidate. Alternativesfirst-only(abstainlater)oractualF5preservationcontract. Noanswerassumed; noJSONdecisionfileuntilactualanswer.
+- Refreshed concrete validated rows1/5/11/13/14 with recorded actualCI/Clippy/Core evidence, preservingallFcheckboxes/auditcounts. Python14 is scopedCI5205PASS; fullCIremainsfailing/incomplete. Replaced stale21Octdisplay with exactheavy27P2F/24absent andpartialhost15P2F/2absent, pluslatestlocalstrict666findings, withoutinferringcurrenttipfullgate.
+- CompilerTEMP3 diagnosticrun started22:19:49 on54daa, exact3selectors/fullEqassertions, currentfirstfilterbuilding. Authentic N13frontierv1 staticreviews caught partialregion-markerstrippinghole; frozenv1notapplyready, successorwilljoin actualbaseline region presence+exactpublicregion, addnegativecontrols. No availabilitybypassdemonstrated: existing imagecurrentnessguardalready rejectsOverlayMiss/bodyconfig.

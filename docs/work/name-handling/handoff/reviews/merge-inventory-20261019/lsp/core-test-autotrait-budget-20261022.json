@@ -1,0 +1,59 @@
+{
+  "status": "Coordinator-applied54daa7bc6; independently read successful finite Core all-targets typecheck receipt, no functional admission",
+  "path": "rust/tcl-lsp-core/src/lib.rs",
+  "before_sha256": "a87a33ffcc66e6f4e9ba4e1e768f1a892c1882e9eab3634b71bdfb794a2650a2",
+  "proposed_sha256": "d6c5da9b17812a3ad53c99ea183c096817ba53285e8c096de1d32f6025abaacc",
+  "patch_sha256": "5daa1fb6f372ddd39cb06331536c6a3de8bc075f7e1a8d2d545ecf36a86600c3",
+  "evidence": "Current E0275 on OpenDocuments:Send+Sync for test AnalysedBuffer containing Arc<AnalysisResult>, not a future/spawn or runtime stack failure. Compiler src/lib.rs already uses recursion_limit256; Core uses default128. Compiler normal metadata artifact has checked the new receipt types. Exact bound remains asserted explicitly in Core test compilation.",
+  "budgets": "Only cfg(test) rustc trait-solving limit aligned to existing compiler256; runtime/test stack, parser/walker depth, selector timeout, guards and assertions unchanged. No unsafe or opaque carrier API. If256 fails, retain actual diagnostic and do not escalate blindly.",
+  "peer_review": {
+    "reporter": "compiler role",
+    "scope": "Bounded static review of exact immutable patch, no examined blocker; not type/runtime claim"
+  },
+  "local_validation": {
+    "canonical_sha256": "d6c5da9b17812a3ad53c99ea183c096817ba53285e8c096de1d32f6025abaacc",
+    "matches_proposed": true,
+    "rustfmt_parse_and_current_apply_check": "passed before coordinator apply; no Cargo by LSP",
+    "type_runtime": "Core all-targets metadata/typecheck PASS0errors0warnings; explicit cfg(test) Send+Sync assertion checked. Functional selectors unrun."
+  },
+  "observed_at": "2026-10-22T22:20:11Z",
+  "typecheck": {
+    "observed_at": "2026-10-22T22:21:34Z",
+    "run_directory": "/tmp/compiler-names-n13-core-20261022T221150Z",
+    "argv": [
+      "cargo",
+      "check",
+      "--locked",
+      "--keep-going",
+      "-p",
+      "tcl-lsp-core",
+      "--all-targets",
+      "--message-format=json"
+    ],
+    "summary": {
+      "cargo_exits": [
+        0
+      ],
+      "compiler_errors": 0,
+      "compiler_warnings": 0,
+      "head_after": "54daa7bc6eedaabb6d40ec816cfb245a3cb024ec",
+      "head_before": "54daa7bc6eedaabb6d40ec816cfb245a3cb024ec",
+      "passed": true,
+      "phases_completed": 1,
+      "provider_changes": [],
+      "retained_log_bytes": 174109,
+      "retention_cap_bytes": 20971520,
+      "scope": "Typecheck only, no tests or N13 functional admission. Core alone uses one keep-going all-targets invocation; Cargo controls dependency failures. HEAD/index-only coordinator changes are recorded independently.",
+      "source_and_providers_unchanged": true,
+      "source_changes": [],
+      "source_count_after": 6535,
+      "source_count_before": 6535,
+      "utc": "2026-10-22T22:17:32.769815+00:00"
+    },
+    "summary_sha256": "5e90ad2e3ff73b1c09cc9d06bd588e21a9b5fb2845aafecdaadafad895a9c84f",
+    "result_sha256": "bef778b20eaa088b7feba0776a6f1d7fd734837b934fddc2b1a0b5a85fb23304",
+    "source_manifest_comparison": "All fields including6535 input rows equal except recorded capture UTC; this is not raw JSON-byte equality",
+    "provider_manifest_comparison": "independently byte-equal",
+    "functional_admission": false
+  }
+}

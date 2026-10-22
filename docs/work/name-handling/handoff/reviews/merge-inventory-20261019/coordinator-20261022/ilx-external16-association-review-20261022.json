@@ -1,0 +1,168 @@
+{
+  "utc": "2026-10-22T22:19:01.040438+00:00",
+  "source": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server/tests/e2e/issue1707_ilx_methods.rs",
+  "source_sha256": "f1f2bfd32ab3b6f2590dd1eaffb8772d1cd5b185a75282488707af212069e553",
+  "package": "tcl-lsp-server",
+  "target": "--test e2e",
+  "test_count": 16,
+  "categories": {
+    "repeated_remote_association": 7,
+    "first_positive": 2,
+    "first_js_negative_explanation": 2,
+    "same_frame_nested_positive_plus_foreign_frame_negatives": 1,
+    "negative_only": 4
+  },
+  "rows": [
+    {
+      "selector": "issue1707_ilx_methods::go_to_definition_crosses_into_the_extension_javascript",
+      "function": "go_to_definition_crosses_into_the_extension_javascript",
+      "line": 140,
+      "requirement": "requires_repeated_remote_source_association",
+      "detail": "Same rule_source fixture expects both ILX::call and later ILX::notify; later notify follows opaque HTTP::uri argument, ILX::call handler and reply setter. A first-read-only association cannot meet all original assertions.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::hover_names_the_extension_the_file_and_the_dispatch",
+      "function": "hover_names_the_extension_the_file_and_the_dispatch",
+      "line": 157,
+      "requirement": "requires_repeated_remote_source_association",
+      "detail": "Same rule_source fixture expects both ILX::call and later ILX::notify; later notify follows opaque HTTP::uri argument, ILX::call handler and reply setter. A first-read-only association cannot meet all original assertions.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::references_span_both_languages_from_either_end",
+      "function": "references_span_both_languages_from_either_end",
+      "line": 179,
+      "requirement": "requires_repeated_remote_source_association",
+      "detail": "Same rule_source fixture expects both ILX::call and later ILX::notify; later notify follows opaque HTTP::uri argument, ILX::call handler and reply setter. A first-read-only association cannot meet all original assertions.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::a_closed_sibling_rule_is_scanned_under_its_own_input",
+      "function": "a_closed_sibling_rule_is_scanned_under_its_own_input",
+      "line": 235,
+      "requirement": "requires_repeated_remote_source_association",
+      "detail": "Same rule_source fixture expects both ILX::call and later ILX::notify; later notify follows opaque HTTP::uri argument, ILX::call handler and reply setter. A first-read-only association cannot meet all original assertions.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::a_dynamic_handle_abstains_instead_of_guessing",
+      "function": "a_dynamic_handle_abstains_instead_of_guessing",
+      "line": 267,
+      "requirement": "negative_only",
+      "detail": "Preserve dynamic-plugin/unregistered-method/plain-Tcl/non-extension-JS refusal as applicable; passing this alone does not establish producer association.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::a_duplicate_registration_is_reported_not_guessed",
+      "function": "a_duplicate_registration_is_reported_not_guessed",
+      "line": 291,
+      "requirement": "first_remote_operand_js_negative_explanation",
+      "detail": "Definition must remain empty, but hover must identify duplicate/removed method table; first association is needed to inspect the correct JS extension, independently of JS absence/ambiguity.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::a_removed_method_resolves_to_nothing",
+      "function": "a_removed_method_resolves_to_nothing",
+      "line": 306,
+      "requirement": "first_remote_operand_js_negative_explanation",
+      "detail": "Definition must remain empty, but hover must identify duplicate/removed method table; first association is needed to inspect the correct JS extension, independently of JS absence/ambiguity.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::a_handle_only_reaches_bodies_that_share_its_frame",
+      "function": "a_handle_only_reaches_bodies_that_share_its_frame",
+      "line": 327,
+      "requirement": "same_frame_body_inheritance_positive_and_fresh_frame_negatives",
+      "detail": "Top-level handle must NOT enter proc/event locals. Event-local own handle must reach nested if1 call via genuine registry-declared caller-frame body owner; straight-line-only producer insufficient.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::an_unsaved_edit_to_the_extension_is_what_navigation_reads",
+      "function": "an_unsaved_edit_to_the_extension_is_what_navigation_reads",
+      "line": 373,
+      "requirement": "first_remote_operand_positive",
+      "detail": "Only first ILX::call method queried positively. Own handler effects occur later; same supplied body/source constructor-setter-read association needed, with explicit applicability/result/observer debt.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::an_unregistered_method_resolves_to_nothing_and_no_diagnostic",
+      "function": "an_unregistered_method_resolves_to_nothing_and_no_diagnostic",
+      "line": 411,
+      "requirement": "negative_only",
+      "detail": "Preserve dynamic-plugin/unregistered-method/plain-Tcl/non-extension-JS refusal as applicable; passing this alone does not establish producer association.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::ordinary_tcl_named_ilx_call_is_untouched",
+      "function": "ordinary_tcl_named_ilx_call_is_untouched",
+      "line": 430,
+      "requirement": "negative_only",
+      "detail": "Preserve dynamic-plugin/unregistered-method/plain-Tcl/non-extension-JS refusal as applicable; passing this alone does not establish producer association.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::a_declared_plugin_resolves_where_the_directory_name_cannot",
+      "function": "a_declared_plugin_resolves_where_the_directory_name_cannot",
+      "line": 538,
+      "requirement": "first_remote_operand_positive",
+      "detail": "Only first ILX::call method queried positively. Own handler effects occur later; same supplied body/source constructor-setter-read association needed, with explicit applicability/result/observer debt.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::declared_rule_directories_reach_a_caller_outside_the_workspace",
+      "function": "declared_rule_directories_reach_a_caller_outside_the_workspace",
+      "line": 559,
+      "requirement": "requires_repeated_remote_source_association",
+      "detail": "Same rule_source fixture expects both ILX::call and later ILX::notify; later notify follows opaque HTTP::uri argument, ILX::call handler and reply setter. A first-read-only association cannot meet all original assertions.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::the_javascript_end_answers_through_the_ilx_references_command",
+      "function": "the_javascript_end_answers_through_the_ilx_references_command",
+      "line": 585,
+      "requirement": "requires_repeated_remote_source_association",
+      "detail": "Same rule_source fixture expects both ILX::call and later ILX::notify; later notify follows opaque HTTP::uri argument, ILX::call handler and reply setter. A first-read-only association cannot meet all original assertions.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::the_ilx_references_command_ignores_an_ordinary_javascript_file",
+      "function": "the_ilx_references_command_ignores_an_ordinary_javascript_file",
+      "line": 633,
+      "requirement": "negative_only",
+      "detail": "Preserve dynamic-plugin/unregistered-method/plain-Tcl/non-extension-JS refusal as applicable; passing this alone does not establish producer association.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    },
+    {
+      "selector": "issue1707_ilx_methods::a_declaration_outside_its_folder_reaches_both_ends",
+      "function": "a_declaration_outside_its_folder_reaches_both_ends",
+      "line": 724,
+      "requirement": "requires_repeated_remote_source_association",
+      "detail": "Same rule_source fixture expects both ILX::call and later ILX::notify; later notify follows opaque HTTP::uri argument, ILX::call handler and reply setter. A first-read-only association cannot meet all original assertions.",
+      "execution_status": "STATIC_CURRENT_ASSERTION_REVIEW_ONLY; no fresh e2e execution by compiler role"
+    }
+  ],
+  "minimal_example": "when HTTP_REQUEST {\n    set h [ILX::init p e]\n    ILX::call $h m\n    ILX::notify $h m\n}\n",
+  "exact_existing_example": "when HTTP_REQUEST {\n    set handle [ILX::init PLUGIN my_extension]\n    set reply [ILX::call $handle my_js_function [HTTP::uri]]\n    ILX::notify $handle my_js_function logged\n}\n",
+  "opaque_prefix_to_second_operand": [
+    "HTTP::uri substitution in previous call",
+    "ILX::call unknown current-interpreter effects/reentry",
+    "set reply possible source observer applicability"
+  ],
+  "existing_measured_evidence": "Canonical bigip-lsp/ilx-handle-owner-repro.md: baseline fcb792 literal handle1PASS; initial current source-card/runtime-handle refusal2PASS. External first6 e2e initial publish timed out in previous owner report; no fresh unchanged16 assertion outcomes here. Do not call this a newly measured failure.",
+  "decision_boundary": "First-operand conditional source association has existing project authorization vocabulary. Preserving a relation across earlier unknown remote/callback effects is not a quiet fact and requires explicit reviewed conditional association policy (or real F5 preservation contract). Existing readonly source candidates and runtime targetNone must remain separate.",
+  "alternatives": [
+    {
+      "name": "First operand only",
+      "behavior": "Issue distinct debt-carrying source association before current call effects; withdraw after unknown effects. Preserves strict UNKNOWN facts and negatives but does NOT satisfy7 repeated-site selectors."
+    },
+    {
+      "name": "Conditional repeated remote association",
+      "behavior": "Distinct source-only ledger retains association conditionally across selected remote operations with explicit unrepresented-effect/reentry/observer/result debts; known writes/trace installs/foreign frames/unknown unrelated operations still invalidate; current effect/Normal/runtime APIs remain UNKNOWN/unavailable. Requires recorded policy choice and fixed controls before implementation."
+    },
+    {
+      "name": "Actual preservation contract",
+      "behavior": "Obtain reviewed F5-specific evidence for a genuine source preservation contract; existing strict064792 producer may then admit only within that contract. No such evidence currently available; tests remain blocked."
+    }
+  ]
+}

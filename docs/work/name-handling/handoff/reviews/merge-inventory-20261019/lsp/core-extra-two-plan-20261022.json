@@ -1,0 +1,33 @@
+{
+  "status": "Prepared separate supplemental Core2 phase, no Cargo queued/run; original13 and earlierCore1 frozen unchanged",
+  "files": {
+    "plan.json": "f73a6f59a93504ef8c9bd6f39b40e947860a0be4d6628de9cc496d43b8ec0fc7",
+    "run.sh": "276ad370ebaf473d9e1720f63ee64a64a0b3edc4645bccd966126373dcdac50f",
+    "summarize.py": "52c7fc866669a28347f0b431476a1eeef53044827d1669e815538eb4b81d877a",
+    "run-selector.py": "0829599528270569ce724da1c8aea9191e722b594389a4eed0b145be549a48b2",
+    "collect-build.py": "76c690585d22185516cebe5a7c701deef467b91f9f4bee5b36dccefa6f48ec9a",
+    "providers.py": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8"
+  },
+  "source_attribution": "Must use current Cargo --no-run artifact after approved source batch; original frozen13 remains byte-identical",
+  "guards": "Whole-command flock, >=2.3GB before build,180s exact selector, inherited stack, full source/provider/artifact before-after seals, capped draining log, no target/executable cleanup",
+  "plan": {
+    "status": "Separate Core extra2 phase only, coordinator authorized preparation; NO CARGO GO; original13 unchanged; second requires minify unavailable proposal applied",
+    "selectors": [
+      {
+        "package": "tcl-lsp-core",
+        "target": "--lib",
+        "selector": "minify::original::tests::body_syntax_compaction_retains_changed_handler_and_observer_refusals",
+        "expected_tests": 1
+      },
+      {
+        "package": "tcl-lsp-core",
+        "target": "--lib",
+        "selector": "minify::original::tests::original_minifier_refuses_unavailable_context_with_retained_source_and_input",
+        "expected_tests": 1,
+        "requires_patch_sha256": "3ca50ee0a376f4989beee829d90199badcdef48fa3e03c6eae68341a5155fca3"
+      }
+    ],
+    "parent_plan_sha256": "1e0c2d2a03b4b4993002f644d31b391bf6f2a9cf76fb7bbf46f70e385e0e0f6b"
+  },
+  "observed_at": "2026-10-22T22:20:11Z"
+}

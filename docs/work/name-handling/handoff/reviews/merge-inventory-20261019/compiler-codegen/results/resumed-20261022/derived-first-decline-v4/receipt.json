@@ -1,0 +1,55 @@
+{
+  "utc": "2026-10-22T22:21:29.665396+00:00",
+  "status": "Clean immutable OFF-TREE diagnostic. Final support/internal Rust stdin parses idempotently; copied COMPLETE final target parses, dry-apply/inverse pass. No type/Cargo/run/canonical changes.",
+  "blocked_prior": [
+    "v2 public/internal final output contains invalid rustfmt filename-label line",
+    "v3 inherited invalid output; initial module-before-inner-doc placement also invalid; never applied"
+  ],
+  "correction": [
+    {
+      "file": "public",
+      "invalid_prior_sha256": "17152d7d4ef3457fc34b8ab9d73090c3e3128f16aaa23acd9c5c7059af3118f8",
+      "clean_sha256": "6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1",
+      "sole_observer_change": "Remove invalid rustfmt filename-label line and separator. All remaining intended Rust bytes exactly equal.",
+      "stdin_reparse_idempotent": true
+    },
+    {
+      "file": "internal",
+      "invalid_prior_sha256": "70ed36f0c094c23f92eb2478bfc4373a89731e8f2f560cd432f64f0f7b7f73f2",
+      "clean_sha256": "a772dd0b717203b06f6b53e77de9634e4531cc4547013c93a6a741ada4260400",
+      "sole_observer_change": "Remove invalid rustfmt filename-label line and separator. All remaining intended Rust bytes exactly equal.",
+      "stdin_reparse_idempotent": true
+    }
+  ],
+  "target_placement_correction": "Place module declaration after original inner docs, before first use. No original bytes changed; deleting exact additions recovers entire original file.",
+  "proposal": {
+    "path": "/tmp/ccg-derived-first-decline-v4/proposal.patch",
+    "sha256": "041eb0e44d22a7f1274143ef3e9ee236c32d90b3ccfc9332d8bbc02275d39911"
+  },
+  "files": [
+    {
+      "path": "rust/tcl-spectcl/tests/pack_source_e2e.rs",
+      "before_sha256": "a46e9deccdc44e9014b053069130bf3eb7e85a92e836705c0ef7385eaa0a8ff1",
+      "proposed_sha256": "e1ed4fb25d4aeba91df7e0185dec4b029d11bd7dda8d7093750bdc22f76307b7"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/support/derived_first_decline.rs",
+      "before_sha256": null,
+      "proposed_sha256": "6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1"
+    }
+  ],
+  "guard": "Relative canonical support module covered by ordinary full-source manifest. No external /tmp Rust include. Actual compiler review/assigned guarded exact2 execution still required.",
+  "inverse": "Remove exactly owned module declaration+report call, delete only owned support module; entire original target byte-identical. No assertion/fixture/feature/selector changes.",
+  "observer_semantics": "Same exact intended v2 observer Rust after invalid filename label removal. No new queries/evaluation/Native/authority/fallback. Public completeness/privatefold explicitly unobservable. Internal remains optional/uninstalled.",
+  "limits": [
+    "Long temporary observer may need helper extraction if retained in strict Clippy; no allow.",
+    "Normal transfer/store cause awaits actual gate receipt; route count/child totality not acceptance proof.",
+    "Original51v2 plan unchanged; do not refresh its source pins for temporary diagnostic."
+  ],
+  "selected_tests": [
+    "a_reference_body_answers_through_the_host_as_the_procedure_does",
+    "a_derived_body_runs_under_the_release_the_call_is_analysed_under"
+  ],
+  "expected_each": 1,
+  "syntax_validation": "rustfmt1.99.1 stdin final support/internal each idempotent, stdin final COMPLETE target skip_children=true; all exits0. Path-labelled stdout is never installed."
+}

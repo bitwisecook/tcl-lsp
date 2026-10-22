@@ -2,13 +2,24 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-22T21:56:20Z (compiler role; combined six-package check active, finite55 and coherent lintv4 prepared; product HOLD)
+Last updated: 2026-10-22T22:22:15Z (compiler role; TEMP3 actual guarded runner active, conditional finite55 follows; product HOLD)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/sol-49-NOTES.md`.
 
 ## Resume
+
+**CURRENT ACTUAL SLOT:** narrowed Core all-targets check closed/reaped22:17:32Z PASS,0errors/0warnings, all6535source/providers and54daaHEAD unchanged. Root granted TEMP3 first, then finite55v5 automatically after TEMP3 full guard closure/no type blocker; no competing Cargo. TEMP runner actual start22:19:49.432413Z, exec session13364, receipt `/tmp/compiler-focused/20261022T221949.432413Z`; source-before100394inputs +provider/runner/environment hashes captured. First exact native-alias filter is building the current compiler test artifact; tcl_registry rustc active, no test outcome yet. Frozen runnera730/helpera1bf/wrapper6efc unchanged, network-enabled. Do not treat expected diagnostic full-Eq failures as semantic green. Product/source HOLD; no target/executable cleanup.
+
+**Source window now integrated:** root applied TEMP48b parentheses-only cleanup, Core5daa test-only solver budget256 alignment plus actual AnalysisResult Send+Sync compile assertion, LSP3ca terminal unavailable minify refusal, and optional VM7651 fixture producer refinement. Core check proves current test budget succeeds; runtime stack/walker/timeouts/Eq/ownership were unchanged. TEMP retirement now exact85eb successor is the relevant prepared inverse, preserving09e9 and all permanent code; oldc46b is stale after48b. Retire ONLY later root source window after TEMP3+55 and all guards close, with all actual before hashes exact.
+
+**ILX policy boundary reviewed, QUESTION PENDING:** `/tmp/compiler-ilx-external16-association-review.json` SHAdb3af317 pins all16 actual server e2e selectors/source. Seven require later notify across previous unknown HTTP::uri/ILX::call/reply-set effects; two first-call positives, two first-call JS-negative explanations, one genuine same-frame if1 positive with fresh proc/event negatives, four negative-only. First-only source association cannot meet seven unchanged selectors. Root has asked user about repeated conditional association versus first-only/refuse versus actual F5 preservation evidence. No answer/implementation authorization received; strict064792/UNKNOWN/runtime targets/refusal assertions remain unchanged. N13 source ownership is not continuity authority. The existing class source-association ledger is a conditional vocabulary only; do not relabel its Native SourceHandleKey as a hosted handle or infer EMPTY from remote_method.
+
+**Newest frozen lint candidate:** owner-composedv5 SHAbf901f82,78paths, latest permanent21:48 base/TEMP excluded from copied semantic base, all syntax/currentapplycheck0; all395 findings still PENDING_ACTUAL_CLIPPY and candidate incomplete/untyped. Since freeze, working shadow additionally has three exact phase extractions (peer efde0bfd clear), six exact helper nested-if collapses f9ee12 (reviewed/applied only to isolated shadow), private SourceDeclarationPurpose variant rename, and two private large-enum payload boxing drafts. Those new working changes are not in frozenv5; heap-cost/type/Clippy/regression validation remains necessary. Most longfn/borrow/large-enum work remains open. Root requires functional/native admission measurement before broad lint integration.
+
+**New N13 review seam:** Names is drafting distinct CurrentCut/ConditionalAssociation/Unknown frontier. Actual after-load body root records entered-script frameNone but selected nested bodies can recordSome(frame); conflict must use exact enclosing declaration parent-site/body-argument, not any same-image entry or nonpreview/Reached boolean. Potential is association+debt, never inactivity or Normal. Names immutable frontierd49d awaits bounded review during current build. CCG derived diagnosticv2/v3 blocked due literal rustfmt filename labels; correctedv4 clean helper/inverse awaits review, no source integration or derived probe in this55 scope.
+
 
 **Current source/slot:** active `/workspace/naming-migration-active/tcl-lsp`, root source80193 frozen while the combined six-package all-targets check runs. Root integrated the exact23-path batch at21:48Z; `/tmp/naming-next-batch-2142-applied.json` pins actual before/after hashes. This adds09e9 genuine region declaration/purpose controls,54e source-entry availability,94cc retained-request minify body syntax, temporary1eb3 report diagnostics, VM/CCG fixes and old-test compatibility. No compiler Cargo is queued. Product HOLD, docs CLEAR. Only root integrates canonical product or Git changes.
 

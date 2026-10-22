@@ -1,0 +1,191 @@
+{
+  "captured_utc": "2026-10-22T22:13:29.712075+00:00",
+  "run": 39845788481,
+  "source_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+  "total_jobs": 30,
+  "jobs": [
+    {
+      "id": 120058581627,
+      "name": "cargo-deny",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120058581917,
+      "name": "channel",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120061099986,
+      "name": "rust-tests-doctest",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120061100015,
+      "name": "lsp-server-wasm",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120061100019,
+      "name": "rust-check",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120061100037,
+      "name": "test-ext-web",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120061100065,
+      "name": "lsp-server-wasi",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120061100179,
+      "name": "python",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120061100182,
+      "name": "wasm-real-link",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120061100185,
+      "name": "runtime-rust-tests",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120061100241,
+      "name": "rust-tests-heavy",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120061100300,
+      "name": "web-frontends",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120061100309,
+      "name": "lsp-e2e archive",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120061100386,
+      "name": "build-tcl-lsp-server",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120061100397,
+      "name": "spectcl-compat",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120061100472,
+      "name": "rust-tests-shard (2/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120061100525,
+      "name": "rust-tests-shard (4/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120061100614,
+      "name": "rust-tests-shard (3/5)",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120061100615,
+      "name": "rust-tests-shard (5/5)",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120061100771,
+      "name": "rust-tests-shard (1/5)",
+      "status": "in_progress",
+      "conclusion": null
+    },
+    {
+      "id": 120061103737,
+      "name": "native ${{ matrix.platform.id }} / ${{ matrix.program.id }}",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120061103749,
+      "name": "macos-wasm-check",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120066238015,
+      "name": "lsp-e2e",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120066239420,
+      "name": "lsp-e2e-partition (${{ matrix.partition }})",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120069799826,
+      "name": "test-ext-partition (1, one)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120069799854,
+      "name": "test-ext-multi-folder",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120069799858,
+      "name": "test-ext-partition (2, two)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120069799902,
+      "name": "test-ext-partition (3, three)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120076837173,
+      "name": "pr-gate",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120085165834,
+      "name": "test-ext",
+      "status": "completed",
+      "conclusion": "failure"
+    }
+  ],
+  "metadata_complete": true,
+  "named_test_results_changed": false,
+  "note": "Still 3 main shards active, 7 successes/17 failures/3 skips. No extra named outcomes or release admission. Earlier canceled/lost-runner logs remain unknown."
+}

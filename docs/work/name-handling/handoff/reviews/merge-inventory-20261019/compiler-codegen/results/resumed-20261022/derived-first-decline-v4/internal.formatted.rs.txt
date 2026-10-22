@@ -1,0 +1,122 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! OPTIONAL compiler-internal observation, OFF-TREE and UNRUN.
+//! Requires the exact retained parent tokens/input from the original fixture.
+//! No visibility changes. A child value never licenses the parent's store.
+fn report_retained_child_first_decline(
+    key: &str,
+    tokens: &crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    input: &crate::analyser::ResolvedAnalysisInput,
+) {
+    macro_rules! stop {
+        ($gate:literal) => {{
+            eprintln!("N17GI2 {key} first-child-decline={}", $gate);
+            return;
+        }};
+    }
+    let Some(metadata) =
+        crate::registry_invocation::InvocationMetadataContext::for_analysis_input(registry, input)
+    else {
+        stop!("exact-source-metadata");
+    };
+    let Some((_, site)) = tokens
+        .words()
+        .get(2)
+        .and_then(|word| word.sole_command_substitution())
+    else {
+        stop!("original-written-sole-substitution");
+    };
+    let Some(calls) =
+        crate::word_subst::checked_lifted_calls(tokens, input.lexer_config().nested())
+    else {
+        stop!("complete-original-child-inventory");
+    };
+    let mut matching = calls.iter().filter(|call| call.span == site.span);
+    let Some(call) = matching.next() else {
+        stop!("matching-original-child");
+    };
+    if matching.next().is_some() {
+        stop!("unique-original-child");
+    }
+    let Some(child) = call.tokens.as_ref() else {
+        stop!("child-retained-tokens");
+    };
+    let Some(binding) = child.source_binding.as_ref() else {
+        stop!("child-retained-binding");
+    };
+    if !binding
+        .proved_execution_target()
+        .is_some_and(|target| target.registry_backed)
+    {
+        stop!("child-registry-backed-original-execution");
+    }
+    let Some(invocation) =
+        crate::registry_invocation::resolved_handler_invocation_with_metadata_context(
+            registry,
+            Some(metadata),
+            child,
+        )
+    else {
+        stop!("child-retained-handler-and-metadata");
+    };
+    if invocation.dialect.is_none() {
+        stop!("child-invocation-dialect");
+    }
+    if invocation.facts.effects.requires_world_barrier() {
+        let Some(realm) = binding.invocation_realm() else {
+            stop!("child-invocation-realm");
+        };
+        let Some(declared) = invocation.with_metadata_schema(registry, metadata, realm, |schema| {
+            Some(schema.semantics.world_effects.is_declared())
+        }) else {
+            stop!("selected-world-effect-schema");
+        };
+        if declared {
+            stop!("declared-world-barrier");
+        }
+    }
+    if invocation.facts.operation
+        == tcl_registry::SemanticOperationId::StructuredLowering(
+            tcl_registry::hooks::LoweringHookId::Expr,
+        )
+    {
+        stop!("retained-expr-dedicated-path");
+    }
+    let no_value = |_: &str| None;
+    let no_textual_trust = |_: &str| false;
+    let context = crate::const_subst::ConstSubstCtx {
+        registry,
+        resolution_namespace: "::",
+        namespace_context: None,
+        version: input.unit_profile().const_fold_version(),
+        defining_class: None,
+        trusts: &no_textual_trust,
+        lookup_var: &no_value,
+    };
+    // The exact failing expr42/catxy fixture calls have literal original argv.
+    // This projects argument proof; it grants neither parent store nor totality.
+    let Some(arguments) = context.retained_arguments_with_metadata_context(call, &calls, metadata)
+    else {
+        stop!("child-retained-argument-values");
+    };
+    let Some(spec) = registry.get_for_surface(
+        &invocation.facts.canonical_command,
+        Some(metadata.context().authoring_query()),
+    ) else {
+        stop!("selected-original-command-surface");
+    };
+    if !spec.subcommands.is_empty() {
+        let Some(member) = invocation.facts.subcommand.canonical_name() else {
+            stop!("selected-original-subcommand");
+        };
+        if spec.subcommand(member).is_none() {
+            stop!("selected-subcommand-surface");
+        }
+    }
+    // Exactly one retained fold API call; missing/unknown values are not repaired.
+    let value = context.fold_retained_call_with_metadata_context(call, &calls, metadata);
+    eprintln!(
+        "N17GI2 {key} child-preconditions=observed argument-count={} retained-fold={value:?} parent-store-NOT-granted",
+        arguments.len()
+    );
+}

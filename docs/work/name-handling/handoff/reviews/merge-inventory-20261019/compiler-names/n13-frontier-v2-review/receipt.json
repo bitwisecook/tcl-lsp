@@ -1,0 +1,49 @@
+{
+  "utc": "2026-10-22T22:24:30.082919+00:00",
+  "status": "OFF-TREE syntax/applycheck only; compiler bounded v1review clear except self-found view-kind gap closed in v2; delta review/type/runtime pending",
+  "sha256": "3b6c86737f8a92216cc1542a165104ed28379869647c7a2741eb95a8d13a9235",
+  "delta_sha256": "c1cd609de07141c64bce4f19d26e6eac0c70736317f685bbf10e775f66cfca17",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_source.rs",
+      "before_sha256": "314d9537ecead65f07a3656f4ed8d56c37416356fa148d075ed7133a084e272e",
+      "after_sha256": "31608b08befc420e9bc072d4fad03a9b64571fe00f25793d3cd52ba60678e327"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_sha256": "5e126fc3ab98e22160c9afe91632a78a6604839405fa6c32c96e7671134110a4",
+      "after_sha256": "f8e00a4f3013e9695514c7fe7c53f00571e28a05a8faaf9d1541866530fc9f96"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "4668b6f5e4c3c8cabb5fac2273e3039c83074cec35af8620b0f5aaa9abf0043a",
+      "after_sha256": "0fea3e35a4749159af7dd5651bcedbd928f5cae46ff220064e4302ba23a1eec7"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs",
+      "before_sha256": null,
+      "after_sha256": "a6e8fc90c26ca0625df60c226550f499dd5556c5f29d90125ff77dc67991f9f5"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs",
+      "before_sha256": "53c640324ac78bdeb32b09d14bfdb045ca939ffa6c0152d968f76dfa2c249237",
+      "after_sha256": "3302c494b82da07c9e9ac078264dbdd97381cf577e12dc21771643837f46a055"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "f8d53d9211945081c78924f9cfde02d46fccc65eb56c96526250b3a85db861e0",
+      "after_sha256": "0b86e61998e0ca5365514d79a3b9ca5894b384595c2456ff934b10679e36bc23"
+    }
+  ],
+  "tests": [
+    "a_genuine_point_cannot_replace_a_withdrawn_finite_plan",
+    "finite_root_and_namespace_cuts_retain_actual_kernel_plans",
+    "declared_procedure_and_deferred_package_body_keep_conditional_association_debts",
+    "association_receipts_refuse_foreign_parent_and_unavailable_or_changed_input",
+    "unsupported_decode_dynamic_path_and_later_held_load_remain_unknown",
+    "independently_selected_enclosing_body_is_not_an_association_only_frontier",
+    "region_cut_rejoins_the_exact_view_and_refuses_equal_byte_foreign_region"
+  ],
+  "api": "source_structure::OriginalProjectSourceFrontier::{CurrentCut,ConditionalAssociation,Unknown}; load.frontier(actual_parent)",
+  "v2": "Actual baseline conditional-region presence must agree with actual region receipt; CurrentCut retains actual region; stripped marker/explicit cut unavailable/config/input negatives. Correct docs keep physical retirement independently host-owned."
+}

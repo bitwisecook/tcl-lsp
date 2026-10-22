@@ -1,0 +1,98 @@
+{
+  "schema": "ci5205-python-job-steps-v1",
+  "run_id": 39845788481,
+  "run_number": 5205,
+  "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+  "job_id": 120061100179,
+  "job_name": "python",
+  "status": "completed",
+  "conclusion": "success",
+  "steps": [
+    {
+      "number": 1,
+      "name": "Set up job",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "number": 2,
+      "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "number": 3,
+      "name": "Set up Rust",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "number": 4,
+      "name": "Compute venv cache key",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "number": 5,
+      "name": "Cache typecheck venv",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "number": 6,
+      "name": "Install uv",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "number": 7,
+      "name": "Verify uv version",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "number": 8,
+      "name": "ruff (format --check + check)",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "number": 9,
+      "name": "ty + pyright",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "number": 10,
+      "name": "Native engine binding tests",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "number": 18,
+      "name": "Post Cache typecheck venv",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "number": 19,
+      "name": "Post Set up Rust",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "number": 20,
+      "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "number": 21,
+      "name": "Complete job",
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "source_api_capture": "/tmp/work-ci5205/jobs-2212.json",
+  "note": "Filtered GitHub Actions job metadata excerpt; records step state, not test selector outcomes or audit-unit admission."
+}

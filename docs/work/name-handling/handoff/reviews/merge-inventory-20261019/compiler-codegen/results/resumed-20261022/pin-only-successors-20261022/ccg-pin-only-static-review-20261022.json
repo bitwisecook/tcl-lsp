@@ -1,0 +1,47 @@
+{
+  "utc": "2026-10-22T22:11:38.163709+00:00",
+  "status": "Bounded static plan/inventory review only; no suite execution or acceptance claim.",
+  "files": [
+    {
+      "path": "/tmp/ccg-postbatch-functional-v2-plan.json",
+      "sha256": "45fd1079922c0693c0b1a13a003053401df866b5225852ada1c939eabdc30216"
+    },
+    {
+      "path": "/tmp/ccg-postbatch-functional-v2-suite.py",
+      "sha256": "91f183879537ba8a02b9b72ce253064e8d0c2ed4f95960d4fbcdcaaf056f7e5b"
+    },
+    {
+      "path": "/tmp/ccg-wasm-five-v5-plan.json",
+      "sha256": "f793633d9255d89f5ed1cae1d4bc2010b5d7db68098c0611269a6102fa7f1064"
+    },
+    {
+      "path": "/tmp/ccg-wasm-five-v5-suite.py",
+      "sha256": "dd84986f7c793ad45467fa946c73cb27093c46e82376d75348a69d64ed57c70d"
+    },
+    {
+      "path": "/tmp/ccg-wasm-five-v5-run.sh",
+      "sha256": "e3b3e3a4ed1748c6209e7f06a16e640b13092c8e85c6b150fcbef8a4a8f93859"
+    },
+    {
+      "path": "/tmp/ccg-wasm-five-providers.py",
+      "sha256": "db4a280fc93a71b29b80adc17417b2071ff723a77ae362794dc7150eab33817a"
+    },
+    {
+      "path": "/workspace/.toolchains/wasi-sdk-34.0/bin/clang.cfg",
+      "sha256": "61c6cded13c3b915cf17bd2c3be30d23a9eba934c49d7ea55924c815ff7f9fce"
+    },
+    {
+      "path": "/tmp/naming-oracle-setup.json",
+      "sha256": "40cdc417fd9aa05661047b5cf501f9b2a57a5c03f08f984b784e109213a00f99"
+    }
+  ],
+  "findings": [
+    "51-test v2 successor changes its source inventory pin for rust/tcl-registry/src/native_string_is_compilation.rs from bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06 to a70c5ba877c0c294d8d795ed4f99dc88e37b5fe6c7cbac9e81b02715a0a6e555; receipt identifies only module-doc backticks. Five jobs and 51 selected tests remain identical.",
+    "Native v5 remains seven jobs with unchanged selectors/assertions/features versus v4 and adds only clang.cfg to the runner input seal, alongside successor plan/suite/runner routing.",
+    "clang.cfg exists and matches SHA 61c6cded13c3b915cf17bd2c3be30d23a9eba934c49d7ea55924c815ff7f9fce; that file is now explicit in the run inputs checked before, between, and after jobs per receipt."
+  ],
+  "limitations": [
+    "No commands or suites executed; runtime artifact build/run still required under the pinned guarded plan.",
+    "Provider seal is a pre-execution pin and does not itself establish runtime acceptance."
+  ]
+}

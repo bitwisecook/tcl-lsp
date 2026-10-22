@@ -2,11 +2,43 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T22:00:49Z (guarded plans14/11/20 strengthened/frozen, synthetic driver safety checks only;31path181lint composition+value inverse proof, all target runs pending; no Cargo queue, runtime6/VM71 separate)
+Last updated: 2026-10-22T22:20:45Z (root-reported Core check PASS on54daa; compiler TEMP3/55 owns slot; stack3 pre/post plans ready, all finite VM runs pending; lint drafts frozen, docs CLEAR/product HOLD)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Root reports checkpoint `54daa7bc6` includes the authentic new-control fixture
+refinement `7651cdfa` and three small compile/guard fixes. Root's Core type check
+closed at22:17:32Z with0 errors and0 warnings on that checkpoint; this is a
+coordinator-reported result, not a VM test result. Compiler TEMP3/55 owns the
+next guarded execution. Docs are explicitly CLEAR; product/source/provider
+inputs remain frozen. No VM Cargo job is running or queued. All14 new VM
+controls,11 exact heavy baseline regressions,20 absent-baseline cases,
+corrected runtime6 and VM71 still require actual current-source execution.
+
+A separate immutable native-stack plan is ready at
+`/tmp/vm-runtime-stack3-acceptance/`: pre-lint plan `19a3840a`, post-lint plan
+`137d983a`, driver `bbc5677e`. It selects exactly three existing `cmd_oo_e2e`
+controls with unchanged assertions and the existing explicit2MiB thread budgets.
+The full24312 baseline ledger records `deeply_recursive_method_errors_instead_of_crashing`
+as PASS; both explicit2MiB controls are absent, so their baseline outcomes are
+unknown. Current pre-lint execution must precede any181-lint integration;
+post-lint execution must use the same controls. All six planned observations
+are unrun. The scalar extraction adds a retained dispatcher/helper frame,
+so static body equivalence does not prove native-stack headroom.
+
+The latest181-lint composition is frozen at
+`/tmp/vm-runtime-clippy-181-composed-v3/composed.patch`, SHA-256
+`d6e1f4ea4c11a085f48b8ccfb6b0fa2a47645da472395483dccd7aea2daf7cde`:
+nine components across31 paths. It preserves all prior guard collapses and
+adds the scalar16-arm extraction and independently reviewed `try` clause
+helpers. Separate `try` state-machine extraction `a8f4f4b9` is preserved and
+uncomposed. These are off-tree syntax/static preparations, not Clippy, typing,
+runtime or stack results. At coordinator instruction, further lint expansions
+and composition stopped; required functional evidence and actual strict
+measurement take priority. Older drafts below are provenance, not execution
+or current integration claims.
 
 Guarded finite plans have a preserved successor at
 `/tmp/vm-runtime-finite-acceptance-v2/`: controls14 `0a532689`, baseline11
@@ -56,7 +88,7 @@ Root is integrating frozen `ffc765` without waiting for optional new-control
 fixture refinement `7651cdfa`. That separate delta has compiler bounded static
 review: genuine live-entry module producer retained through metadata-only
 queries, no foreign Native execution, production and all assertions unchanged.
-It remains off-tree/unrun and must not be confused with current integrated tests.
+Root later integrated it in54daa7bc6; its controls remain unrun.
 The additional181-lint seven-let-else draft `bbb1a745` is off-tree syntax only;
 no measured lint reduction or guard/drop-scope acceptance is claimed.
 

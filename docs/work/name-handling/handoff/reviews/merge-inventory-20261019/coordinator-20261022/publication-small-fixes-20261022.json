@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-22T22:13:27.675270+00:00",
+  "source_snapshot": "54daa7bc6eedaabb6d40ec816cfb245a3cb024ec",
+  "published_snapshot": "7400978182245d424a38835d81ab694469fa135e",
+  "remote_confirmed": "7400978182245d424a38835d81ab694469fa135e",
+  "product_tree_diff": [],
+  "normal_push": true,
+  "fresh_fetch_before_push": true,
+  "scope": "Reviewed small unblock fixes and closed combined-check evidence; Core-only typecheck in progress; no release gate claim"
+}

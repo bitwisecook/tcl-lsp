@@ -1,0 +1,29 @@
+{
+  "argv": [
+    "cargo",
+    "check",
+    "--locked",
+    "--keep-going",
+    "-p",
+    "tcl-lsp-core",
+    "--all-targets",
+    "--message-format=json"
+  ],
+  "cargo_exit": 0,
+  "disk_abort": false,
+  "error_count": 0,
+  "errors": [],
+  "logs_truncated": false,
+  "minimum_free_bytes": 12088340480,
+  "overlong_json_lines": 0,
+  "parse_errors": 0,
+  "passed": true,
+  "retained_bytes": 174109,
+  "retention_budget": 20971520,
+  "stderr_bytes": 2295,
+  "stdout_bytes": 171814,
+  "termination_scope": "Only this Popen-created Cargo session/process group; no cleanup/deletion",
+  "utc": "2026-10-22T22:17:24.062382+00:00",
+  "warning_count": 0,
+  "warnings": []
+}

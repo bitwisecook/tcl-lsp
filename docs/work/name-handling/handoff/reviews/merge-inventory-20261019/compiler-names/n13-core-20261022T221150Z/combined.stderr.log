@@ -1,0 +1,36 @@
+    Checking thiserror v2.0.21
+    Checking serde_json v1.0.154
+    Checking tcl-lexer v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lexer)
+    Checking serde v1.0.229
+    Checking tcl-syntax v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-syntax)
+    Checking asn1-rs v0.7.2
+    Checking ref-cast v1.0.27
+    Checking der-parser v10.0.0
+    Checking oid-registry v0.8.1
+    Checking fluent-uri v0.4.1
+    Checking x509-parser v0.18.1
+    Checking futures-util v0.3.34
+    Checking tcl-runtime-api v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-runtime-api)
+    Checking tcl-cmd-core v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-cmd-core)
+    Checking tcl-bytecode v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bytecode)
+    Checking tcl-engine-api v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-engine-api)
+    Checking tokio v1.53.3
+    Checking tokio-util v0.7.20
+    Checking dashmap v6.2.1
+    Checking tower v0.5.3
+    Checking ls-types v0.0.6
+    Checking tcl-regex v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-regex)
+    Checking tcl-registry v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry)
+    Checking futures v0.3.34
+    Checking tcl-pkg-model v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-pkg-model)
+    Checking tower-lsp-server v0.23.0
+    Checking tcl-compiler v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm)
+    Checking tcl-sslictcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-sslictcl)
+    Checking tcl-irules v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-irules)
+    Checking tcl-engine-tclvm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-engine-tclvm)
+    Checking tcl-spec-hooks v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spec-hooks)
+    Checking tcl-bigip v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bigip)
+    Checking tcl-lsp-core v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core)
+    Checking tcl-spectcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl)
+    Finished `dev` profile [unoptimized] target(s) in 5m 18s

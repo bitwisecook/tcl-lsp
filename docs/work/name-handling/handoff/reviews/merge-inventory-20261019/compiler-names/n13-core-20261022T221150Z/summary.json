@@ -1,0 +1,20 @@
+{
+  "cargo_exits": [
+    0
+  ],
+  "compiler_errors": 0,
+  "compiler_warnings": 0,
+  "head_after": "54daa7bc6eedaabb6d40ec816cfb245a3cb024ec",
+  "head_before": "54daa7bc6eedaabb6d40ec816cfb245a3cb024ec",
+  "passed": true,
+  "phases_completed": 1,
+  "provider_changes": [],
+  "retained_log_bytes": 174109,
+  "retention_cap_bytes": 20971520,
+  "scope": "Typecheck only, no tests or N13 functional admission. Core alone uses one keep-going all-targets invocation; Cargo controls dependency failures. HEAD/index-only coordinator changes are recorded independently.",
+  "source_and_providers_unchanged": true,
+  "source_changes": [],
+  "source_count_after": 6535,
+  "source_count_before": 6535,
+  "utc": "2026-10-22T22:17:32.769815+00:00"
+}

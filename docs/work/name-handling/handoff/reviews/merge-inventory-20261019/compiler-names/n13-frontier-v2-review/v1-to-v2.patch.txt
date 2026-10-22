@@ -1,0 +1,124 @@
+--- a/rust/tcl-compiler/src/command_binding/conditional_source.rs
++++ b/rust/tcl-compiler/src/command_binding/conditional_source.rs
+@@ -560,15 +560,31 @@
+             && parent.retained_command_realm().is_some_and(|realm| {
+                 realm
+                     .source_bindings_ref()
+-                    .conditional_source
+-                    .plans
+-                    .get(self.point.allocation_site())
+-                    .and_then(Option::as_ref)
+-                    .is_some_and(|plan| Arc::ptr_eq(plan, &self.plan))
++                    .source_frontier_parent_view_matches(parent)
++                    && realm
++                        .source_bindings_ref()
++                        .conditional_source
++                        .plans
++                        .get(self.point.allocation_site())
++                        .and_then(Option::as_ref)
++                        .is_some_and(|plan| Arc::ptr_eq(plan, &self.plan))
+             })
+     }
+ }
+ impl super::SourceCommandBindings {
++    pub(crate) fn source_frontier_parent_view_matches(
++        &self,
++        parent: &crate::analyser::AnalysisResult,
++    ) -> bool {
++        let partial = self
++            .original_inherited_source_entry()
++            .is_some_and(|entry| entry.conditional_region().is_some());
++        match parent.original_source_region.as_ref() {
++            Some(region) => partial && region.matches_region_analysis(parent),
++            None => !partial,
++        }
++    }
++
+     pub(crate) fn original_source_finite_cut(
+         &self,
+         point: super::OriginalSourcePointEntry,
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs
+@@ -26,6 +26,7 @@
+ pub struct OriginalProjectSourceCurrentCut {
+     load: OriginalProjectSourceLoad,
+     kernel: crate::command_binding::OriginalSourceFiniteCut,
++    region: Option<crate::command_binding::OriginalSourceConditionalRegion>,
+ }
+ impl OriginalProjectSourceCurrentCut {
+     /// The actual original path/schema card, without physical loading proof.
+@@ -41,7 +42,8 @@
+     /// Rejoin this exact parent view; physical publication is independent.
+     #[must_use]
+     pub fn matches_parent_analysis(&self, parent: &AnalysisResult) -> bool {
+-        self.kernel.matches_parent_analysis(parent)
++        self.region.as_ref() == parent.original_source_region.as_ref()
++            && self.kernel.matches_parent_analysis(parent)
+             && self.load.authenticated_frontier_words(parent).is_some()
+     }
+ }
+@@ -91,7 +93,8 @@
+         &self.0.advice
+     }
+     /// Same actual current parent attachment, including any partial region.
+-    /// Byte-equal foreign parents and retired host publications cannot renew it.
++    /// Byte-equal foreign parents cannot renew this attachment. The host
++    /// separately revalidates physical publication and retirement.
+     #[must_use]
+     pub fn matches_parent_analysis(&self, parent: &AnalysisResult) -> bool {
+         self.0.load.capture_source_association(parent).as_ref() == Some(self)
+@@ -117,6 +120,7 @@
+             return OriginalProjectSourceFrontier::CurrentCut(OriginalProjectSourceCurrentCut {
+                 load: self.clone(),
+                 kernel,
++                region: parent.original_source_region.clone(),
+             });
+         }
+         self.capture_source_association(parent).map_or(
+@@ -139,6 +143,9 @@
+         if !self.matches_source(image, input)
+             || !parent.matches_original_source_image(image, input.lexer_config())
+             || !realm.matches_resolved_analysis_input(input)
++            || !realm
++                .source_bindings_ref()
++                .source_frontier_parent_view_matches(parent)
+             || parent
+                 .original_source_region
+                 .as_ref()
+@@ -271,6 +278,22 @@
+             assert!(cut.matches_parent_analysis(&parent));
+             assert!(cut.point().matches_parent_analysis(&parent));
+             assert_eq!(cut.source_load(), &load);
++            let mut unavailable = parent.clone();
++            unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
++                environment: "tcl8.6".to_owned(),
++                overlay: 1,
++            });
++            assert!(!cut.matches_parent_analysis(&unavailable));
++            assert!(matches!(
++                load.frontier(&unavailable),
++                OriginalProjectSourceFrontier::Unknown
++            ));
++            let mut changed = parent.clone();
++            changed.body_lexer_config = None;
++            assert!(!cut.matches_parent_analysis(&changed));
++            changed = parent.clone();
++            changed.resolved_input = None;
++            assert!(!cut.matches_parent_analysis(&changed));
+             assert_eq!(
+                 load.frontier(&parent),
+                 OriginalProjectSourceFrontier::CurrentCut(cut)
+@@ -394,6 +417,13 @@
+         let second = load(source, &view, "source second");
+         let second_cut = expect_cut(second.frontier(&view));
+         assert!(second_cut.matches_parent_analysis(&view));
++        let mut stripped = view.clone();
++        stripped.original_source_region = None;
++        assert!(!second_cut.matches_parent_analysis(&stripped));
++        assert!(matches!(
++            second.frontier(&stripped),
++            OriginalProjectSourceFrontier::Unknown
++        ));
+         assert!(!second_cut.matches_parent_analysis(&parent));
+         assert!(matches!(
+             first.frontier(&view),

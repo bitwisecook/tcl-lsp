@@ -1,0 +1,31 @@
+{
+  "cleanup": "none; retain all artifacts",
+  "env": {
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_TARGET_DIR": "/workspace/naming-migration-active/tcl-lsp/target",
+    "RUSTUP_TOOLCHAIN": "1.99.1",
+    "TCL_LSP_JIMSH": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6"
+  },
+  "free_bytes": 12236439552,
+  "phases": [
+    [
+      "combined",
+      [
+        "cargo",
+        "check",
+        "--locked",
+        "--keep-going",
+        "-p",
+        "tcl-lsp-core",
+        "--all-targets",
+        "--message-format=json"
+      ]
+    ]
+  ],
+  "pid": 157012,
+  "utc": "2026-10-22T22:11:50.600821+00:00"
+}

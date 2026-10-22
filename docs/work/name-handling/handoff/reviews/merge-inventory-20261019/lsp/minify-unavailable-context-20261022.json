@@ -1,0 +1,64 @@
+{
+  "status": "Coordinator-applied54daa7bc6; independently read successful finite Core all-targets typecheck receipt, no functional admission",
+  "path": "rust/tcl-lsp-core/src/minify/original.rs",
+  "before_sha256": "72b946ac9073d2e1f6214e494c87b259967c61d56f7acaca6bb057859d4a6cc7",
+  "proposed_sha256": "f884671b83a57578b6c6e314c66c1cb3bce6fb6ca59c4b64f821af1e382902e3",
+  "patch_sha256": "3ca50ee0a376f4989beee829d90199badcdef48fa3e03c6eae68341a5155fca3",
+  "scope": "Explicit terminal context-unavailable check before retained profile/registry resolution; real retained-analysis positive and typed OverlayMiss negative; all existing syntax/handler/observer/current-input guards unchanged",
+  "peer_review": {
+    "reporter": "compiler role",
+    "scope": "Bounded static review of exact immutable patch, no examined blocker; not type/runtime claim"
+  },
+  "local_validation": {
+    "canonical_sha256": "f884671b83a57578b6c6e314c66c1cb3bce6fb6ca59c4b64f821af1e382902e3",
+    "matches_proposed": true,
+    "rustfmt_parse_and_current_apply_check": "passed before coordinator apply; no Cargo by LSP",
+    "type_runtime": "Core all-targets metadata/typecheck PASS0errors0warnings; explicit cfg(test) Send+Sync assertion checked. Functional selectors unrun."
+  },
+  "observed_at": "2026-10-22T22:20:11Z",
+  "typecheck": {
+    "observed_at": "2026-10-22T22:21:34Z",
+    "run_directory": "/tmp/compiler-names-n13-core-20261022T221150Z",
+    "argv": [
+      "cargo",
+      "check",
+      "--locked",
+      "--keep-going",
+      "-p",
+      "tcl-lsp-core",
+      "--all-targets",
+      "--message-format=json"
+    ],
+    "summary": {
+      "cargo_exits": [
+        0
+      ],
+      "compiler_errors": 0,
+      "compiler_warnings": 0,
+      "head_after": "54daa7bc6eedaabb6d40ec816cfb245a3cb024ec",
+      "head_before": "54daa7bc6eedaabb6d40ec816cfb245a3cb024ec",
+      "passed": true,
+      "phases_completed": 1,
+      "provider_changes": [],
+      "retained_log_bytes": 174109,
+      "retention_cap_bytes": 20971520,
+      "scope": "Typecheck only, no tests or N13 functional admission. Core alone uses one keep-going all-targets invocation; Cargo controls dependency failures. HEAD/index-only coordinator changes are recorded independently.",
+      "source_and_providers_unchanged": true,
+      "source_changes": [],
+      "source_count_after": 6535,
+      "source_count_before": 6535,
+      "utc": "2026-10-22T22:17:32.769815+00:00"
+    },
+    "summary_sha256": "5e90ad2e3ff73b1c09cc9d06bd588e21a9b5fb2845aafecdaadafad895a9c84f",
+    "result_sha256": "bef778b20eaa088b7feba0776a6f1d7fd734837b934fddc2b1a0b5a85fb23304",
+    "source_manifest_comparison": "All fields including6535 input rows equal except recorded capture UTC; this is not raw JSON-byte equality",
+    "provider_manifest_comparison": "independently byte-equal",
+    "functional_admission": false
+  },
+  "correction": {
+    "scope": "Initial attribution overstated the absence of a transitive unavailable gate. Canonical AnalysisResult::matches_original_source_image already rejects analysis_context_unavailable (verified at80193 and420476 source pins).",
+    "actual_change": "Return the specific existing MissingAnalysisContext reason before retained profile/registry resolution; the prior downstream image guard would refuse with StaleSource. No old stale rewrite was observed or demonstrated.",
+    "preserved_evidence": "Original proposed patch/receipt/hash remains immutable under /tmp/lsp-minify-unavailable-v1; correction does not erase initial attribution.",
+    "frontier_review": "The same transitive source-image guard already protects new frontier association reborrows. LSP withdrew its mistaken missing-guard finding; no redundant compiler producer patch was requested."
+  }
+}
