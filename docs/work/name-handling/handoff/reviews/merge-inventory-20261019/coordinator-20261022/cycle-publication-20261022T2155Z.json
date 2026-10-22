@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-22T21:56:42.480999+00:00",
+  "scheduled": "2026-10-22T21:55:37+00:00",
+  "source_snapshot": "2773b58e046de8b5e1cbf86a096ddc07f4b0aa81",
+  "published_snapshot": "c36c4580b5d07530c8358e609b4d947051644057",
+  "fresh_fetched_remote": "fe05d8e3c8800cc2ad245c79ad4ce3a202399b2b",
+  "product_tree_diff": [],
+  "normal_push": true,
+  "shallow": "true",
+  "next_due": "2026-10-22T22:25:37+00:00"
+}

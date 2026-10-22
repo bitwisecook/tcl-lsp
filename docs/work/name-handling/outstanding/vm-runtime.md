@@ -2,11 +2,38 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T21:51:12Z (root integrating frozen release batch; immutable plans14VM/11heavyP2F/20absent prepared, provider-readonly preflight3470 hashes; no Cargo queue; correctedruntime6/VM71 separate;181lint draft composition ongoing)
+Last updated: 2026-10-22T22:00:49Z (guarded plans14/11/20 strengthened/frozen, synthetic driver safety checks only;31path181lint composition+value inverse proof, all target runs pending; no Cargo queue, runtime6/VM71 separate)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Guarded finite plans have a preserved successor at
+`/tmp/vm-runtime-finite-acceptance-v2/`: controls14 `0a532689`, baseline11
+`69c50208`, absent20 `f1edd9fb`. Final driver `run-v3.py` is SHA-256
+`46abd51e68751dcb4dce5e660b3922c782b8bc8cb72253764520aa6e7c6c68c5`.
+It adds root-wide Rust/C/Cargo inputs to the full shared fixture inventories,
+merges the frozen compiler provider helper's recursive ELF/proxy/shared-library
+chain with Tcl scripts/archives and Jim configuration, and fails incomplete
+initial/final guards explicitly. Original plans/drivers remain byte-preserved.
+At actual21:57:26Z, disposable Python-child checks verified terminal log-cap
+handling and timeout escalation after the parent exited while its child held a
+pipe. This ran no Cargo, Rust, Tcl/Jim, release test or global build lock; all
+14/11/20 target cases are unrun. Execution budget stays180s per exact selector,
+with30s signal cleanup grace confined to that Popen-owned group.
+
+The mandatory181-lint draft now composes7 frozen components across31 paths at
+`/tmp/vm-runtime-clippy-181-composed/composed.patch`, SHA-256
+`62daeea87c204835dedc4b22643344ec387145a452f62767f5f31ba659eadf7e`.
+All components applied with zero fuzz in a shadow, all31 final Rust files parsed
+under pinned rustfmt, and canonical before/after hashes matched. At actual
+22:00:18Z, the owned value inverse proof checked the materializer, three moved
+methods and full representation match after documented inverses. It is not an
+independent review or type/runtime/stack result. Variable44-arm extraction and
+43 guard-pair collapse retain their independent bounded static reviews. The181
+inventory is an old-source observation: no new Clippy count or zero-warning
+closure follows from these preparations. Canonical product hold remains; no VM
+Cargo process entered or queued. Corrected runtime6 and VM71 remain separate.
 
 Finite acceptance plans are immutable under `/tmp/vm-runtime-finite-acceptance/`:
 `controls-plan.json` (14, SHA-256 `82430187f0c8bab34d5f8560320ea974c7f1051139251553dfa50660e33eb124`),

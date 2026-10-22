@@ -260,10 +260,10 @@ impl ObjectHandleFacts {
                         .native_name_protocol()
                         .is_some()
                 });
-        if report_capture_refused!("unsupported-source-domain", (!logical && !versioned_source))
+        if report_capture_refused!("unsupported-source-domain", !logical && !versioned_source)
             || report_capture_refused!(
                 "logical-advice-unavailable",
-                (logical && !analysis.allows_retained_logical_declaration_advice())
+                logical && !analysis.allows_retained_logical_declaration_advice()
             )
             || report_capture_refused!("realm-input", !realm.matches_resolved_analysis_input(input))
             || report_capture_refused!("module-image", image != &module.source)
@@ -282,7 +282,7 @@ impl ObjectHandleFacts {
             || report_capture_refused!("physical-entry", module.source_entry.native_entry.is_some())
             || report_capture_refused!(
                 "unknown-entry",
-                (module.source_entry.unknown_entry && !versioned_source)
+                module.source_entry.unknown_entry && !versioned_source
             )
             || report_capture_refused!(
                 "entry-input",

@@ -4,7 +4,7 @@
 use super::{Code, Vm};
 use std::sync::Arc;
 use tcl_bytecode::ModuleAsm;
-use tcl_runtime_api::{CompileService, ManifestField};
+use tcl_runtime_api::ManifestField;
 
 fn host() -> &'static tcl_dialect::DialectProfile {
     tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
@@ -17,10 +17,11 @@ fn vendor_vm() -> Vm {
     vm
 }
 
-fn host_module() -> ModuleAsm {
-    tcl_compiler::compile_service::BytecodeCompileService::for_profile(host())
-        .compile_for_profile("set framework_value 42", host())
-        .unwrap()
+fn host_module(vm: &mut Vm) -> ModuleAsm {
+    let saved = vm.active_native_profile.replace(host());
+    let module = vm.compile_cached("set framework_value 42").unwrap();
+    vm.active_native_profile = saved;
+    module.as_ref().clone()
 }
 
 #[test]
@@ -43,7 +44,7 @@ fn genuine_framework_source_uses_core_manifest_and_restores_vendor_pin() {
 #[test]
 fn framework_manifest_is_admitted_only_under_its_original_selection() {
     let mut vm = vendor_vm();
-    let module = host_module();
+    let module = host_module(&mut vm);
     assert!(vm.validate_module_profile(&module).is_err());
     vm.active_native_profile = Some(host());
     vm.validate_module_profile(&module).unwrap();
@@ -61,7 +62,8 @@ fn selecting_profile_without_core_never_issues_host_context() {
     assert!(vm.native_core_pin.is_none());
     vm.active_native_profile = Some(host());
     assert!(vm.selected_source_identity().is_err());
-    let module = host_module();
+    let mut producer = vendor_vm();
+    let module = host_module(&mut producer);
     assert!(vm.validate_module_profile(&module).is_err());
     assert!(!vm.manifest_admits(&module.top_level, module.manifest.as_deref()));
 }
@@ -117,7 +119,7 @@ fn complete_installed_core_input_survives_vendor_repins() {
 fn host_manifest_keeps_exact_generic_identity_checks() {
     let mut vm = vendor_vm();
     vm.active_native_profile = Some(host());
-    let original = host_module();
+    let original = host_module(&mut vm);
     let original_manifest = original.manifest.as_ref().unwrap();
     for field in [
         ManifestField::AbiVersion,

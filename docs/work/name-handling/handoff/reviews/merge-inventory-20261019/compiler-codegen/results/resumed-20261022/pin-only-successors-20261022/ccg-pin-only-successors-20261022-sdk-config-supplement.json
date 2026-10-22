@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-22T22:08:49.450372+00:00",
+  "status": "Supplemental read-only SDK auto-config pin; no prior provider seal or successor bytes modified. Not execution/acceptance.",
+  "path": "/workspace/.toolchains/wasi-sdk-34.0/bin/clang.cfg",
+  "realpath": "/workspace/.toolchains/wasi-sdk-34.0/bin/clang.cfg",
+  "sha256": "61c6cded13c3b915cf17bd2c3be30d23a9eba934c49d7ea55924c815ff7f9fce",
+  "size": 41,
+  "exact_contents": "--sysroot=<CFGDIR>/../share/wasi-sysroot\n",
+  "provenance": "Existing installed WASI SDK34 auto-config observed in actual clang --version output; same selected SDK/sysroot as frozen native plan. Root notified old provider script omits this auto-read file.",
+  "future_preflight": "Before assigned execution, explicitly verify this exact SHA or incorporate via a separately reviewed runner-input pin successor. Unknown drift must stop.",
+  "sealed_native_plan": {
+    "path": "/tmp/ccg-wasm-five-v4-plan.json",
+    "sha256": "af3ad1e29cd077b8db924702374cddccb22f1621728a13b9903dc9f23dd9d134"
+  }
+}

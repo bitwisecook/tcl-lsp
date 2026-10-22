@@ -1,0 +1,156 @@
+ Downloading crates ...
+  Downloaded arbitrary v1.5.0
+  Downloaded combine v4.6.9
+  Downloaded cranelift-bforest v0.136.4
+  Downloaded clap_lex v1.1.1
+  Downloaded cranelift-codegen-meta v0.136.4
+  Downloaded cranelift-entity v0.136.4
+  Downloaded cranelift-native v0.136.4
+  Downloaded wasm-encoder v0.258.3
+  Downloaded pulley-interpreter v49.0.4
+  Downloaded wasmtime-internal-core v49.0.4
+  Downloaded wasmtime-internal-jit-debug v49.0.4
+  Downloaded wasmtime v49.0.4
+  Downloaded cranelift-bitset v0.136.4
+  Downloaded wasmtime-internal-versioned-export-macros v49.0.4
+  Downloaded cranelift-control v0.136.4
+  Downloaded cranelift-srcgen v0.136.4
+  Downloaded rustix v1.1.5
+  Downloaded wasmtime-environ v49.0.4
+  Downloaded wasmtime-internal-fiber v49.0.4
+  Downloaded cranelift-assembler-x64 v0.136.4
+  Downloaded cranelift-codegen-shared v0.136.4
+  Downloaded wasmprinter v0.258.3
+  Downloaded object v0.40.0
+  Downloaded wasmtime-internal-jit-icache-coherence v49.0.4
+  Downloaded cranelift-codegen v0.136.4
+  Downloaded pulley-macros v49.0.4
+  Downloaded wasmtime-internal-cranelift v49.0.4
+  Downloaded cranelift-frontend v0.136.4
+  Downloaded wasmtime-internal-component-util v49.0.4
+  Downloaded cranelift-isle v0.136.4
+  Downloaded cranelift-assembler-x64-meta v0.136.4
+  Downloaded wasmparser v0.258.3
+  Downloaded wasmtime-internal-unwinder v49.0.4
+   Compiling serde v1.0.229
+    Checking bitflags v2.13.2
+    Checking hashbrown v0.17.1
+    Checking smallvec v1.16.3
+    Checking tcl-dialect v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-dialect)
+    Checking indexmap v2.14.2
+    Checking tcl-lexer v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lexer)
+    Checking serde_json v1.0.154
+    Checking tcl-syntax v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-syntax)
+    Checking nix v0.31.3
+    Checking tcl-host-native v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-host-native)
+    Checking tcl-test-support v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-test-support)
+    Checking parking_lot_core v0.9.12
+    Checking either v1.19.0
+    Checking parking_lot v0.12.5
+    Checking rayon v1.12.0
+    Checking temp-env v0.3.6
+    Checking dashmap v6.2.1
+    Checking tcl-runtime-api v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-runtime-api)
+    Checking tcl-pkg-model v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-pkg-model)
+    Checking ls-types v0.0.6
+    Checking tcl-cmd-core v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-cmd-core)
+    Checking tcl-regex v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-regex)
+    Checking tcl-registry v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry)
+    Checking tcl-bytecode v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bytecode)
+    Checking tcl-engine-api v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-engine-api)
+    Checking tower-lsp-server v0.23.0
+    Checking hashlink v0.12.2
+    Checking salsa v0.28.5
+   Compiling wasmtime-internal-core v49.0.4
+   Compiling version_check v0.9.5
+   Compiling generic-array v0.14.7
+   Compiling cranelift-srcgen v0.136.4
+   Compiling cranelift-assembler-x64-meta v0.136.4
+   Compiling pulley-macros v49.0.4
+    Checking log v0.4.34
+   Compiling heck v0.5.0
+   Compiling cranelift-bitset v0.136.4
+    Checking hashbrown v0.16.1
+   Compiling cranelift-isle v0.136.4
+   Compiling pulley-interpreter v49.0.4
+    Checking crypto-common v0.1.7
+    Checking block-buffer v0.10.4
+   Compiling target-lexicon v0.13.5
+   Compiling cranelift-codegen-shared v0.136.4
+   Compiling cranelift-codegen-meta v0.136.4
+    Checking digest v0.10.7
+    Checking cranelift-entity v0.136.4
+   Compiling cranelift-assembler-x64 v0.136.4
+    Checking cobs v0.3.0
+    Checking fnv v1.0.7
+    Checking cpufeatures v0.2.17
+   Compiling tcl-version v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-version)
+    Checking sha2 v0.10.9
+    Checking gimli v0.33.0
+    Checking postcard v1.1.3
+    Checking cranelift-bforest v0.136.4
+   Compiling cranelift-codegen v0.136.4
+    Checking bumpalo v3.20.3
+    Checking arbitrary v1.5.0
+   Compiling rustix v1.1.5
+   Compiling crc32fast v1.5.2
+   Compiling anyhow v1.0.104
+    Checking cranelift-control v0.136.4
+    Checking regalloc2 v0.15.2
+    Checking tcl-compiler v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm)
+    Checking semver v1.0.28
+    Checking linux-raw-sys v0.12.1
+    Checking wasmparser v0.258.3
+    Checking leb128fmt v0.1.0
+    Checking termcolor v1.4.1
+    Checking tcl-irules v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-irules)
+    Checking tcl-sslictcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-sslictcl)
+    Checking tcl-engine-tclvm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-engine-tclvm)
+    Checking tcl-spec-hooks v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spec-hooks)
+    Checking tcl-diagram v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-diagram)
+    Checking wasmprinter v0.258.3
+    Checking tcl-bigip v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bigip)
+    Checking wasm-encoder v0.258.3
+    Checking object v0.40.0
+    Checking tcl-lsp-core v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core)
+    Checking tcl-bigip-query v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bigip-query)
+   Compiling wasmtime-internal-versioned-export-macros v49.0.4
+    Checking wasmtime-internal-component-util v49.0.4
+   Compiling wasmtime-internal-unwinder v49.0.4
+    Checking utf8parse v0.2.2
+    Checking anstyle-parse v1.0.0
+    Checking wasmtime-environ v49.0.4
+    Checking colorchoice v1.0.5
+    Checking tcl-spectcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl)
+    Checking tcl-lsp-db v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db)
+    Checking tcl-explorer v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-explorer)
+    Checking f5-xc v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/f5-xc)
+   Compiling wasmtime-internal-cranelift v49.0.4
+    Checking anstyle v1.0.14
+    Checking anstyle-query v1.1.5
+    Checking is_terminal_polyfill v1.70.2
+    Checking anstream v1.0.0
+   Compiling wasmtime v49.0.4
+    Checking bpf-tcl-ir v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/bpf-tcl-ir)
+    Checking tcl-lsp-server v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server)
+    Checking cranelift-native v0.136.4
+    Checking cranelift-frontend v0.136.4
+    Checking terminal_size v0.4.4
+    Checking combine v4.6.9
+    Checking itertools v0.14.0
+    Checking strsim v0.11.1
+    Checking byteorder v1.5.0
+    Checking clap_lex v1.1.1
+    Checking clap_builder v4.6.7
+    Checking rbpf v0.4.1
+    Checking bpf-tcl-codegen v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/bpf-tcl-codegen)
+    Checking memfd v0.6.6
+   Compiling clap_derive v4.6.7
+    Checking wasmtime-internal-jit-icache-coherence v49.0.4
+   Compiling async-trait v0.1.92
+    Checking clap v4.6.7
+    Checking bpf-tcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/bpf-tcl)
+    Checking tcl-fuzz v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-fuzz)
+error: could not compile `tcl-lsp-core` (lib test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

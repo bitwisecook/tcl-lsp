@@ -1,0 +1,25 @@
+--- /tmp/ccg-postbatch-functional-suite.py
++++ /tmp/ccg-postbatch-functional-v2-suite.py
+@@ -5,7 +5,7 @@
+ if not rows: raise SystemExit('STOP: explicit target jobs required')
+ lock=open('/tmp/tcl-lsp-naming-build.lock','w'); fcntl.flock(lock,fcntl.LOCK_EX)
+ tag=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
+-receipt=Path('/tmp/ccg-postbatch-functional')/tag; receipt.mkdir(parents=True)
++receipt=Path('/tmp/ccg-postbatch-functional-v2')/tag; receipt.mkdir(parents=True)
+ (receipt/'plan.json').write_text(json.dumps(plan,indent=2)+'\n')
+ def digest(path):
+     with path.open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
+@@ -32,11 +32,12 @@
+ before=source_manifest(); write_json(receipt/'source-before.json',before)
+ subprocess.run([sys.executable,'/tmp/compiler-c6-provider-manifest.py',str(receipt/'providers-before.json')],check=True)
+ providers=json.loads((receipt/'providers-before.json').read_text())
++if providers!=json.loads(Path(plan['provider_seal']['path']).read_text()):raise SystemExit('STOP: actual providers differ from explicitly reviewed pinned seal')
+ (receipt/'head-before.txt').write_bytes(subprocess.check_output(['git','rev-parse','HEAD']))
+ (receipt/'current-rust-diff.patch').write_bytes(subprocess.check_output(['git','diff','--binary','HEAD','--','rust','Cargo.toml','Cargo.lock']))
+ safe_keys={'CARGO_TARGET_DIR','CARGO_BUILD_JOBS','CARGO_INCREMENTAL','CARGO_PROFILE_TEST_DEBUG','CARGO_PROFILE_DEV_DEBUG','CARGO_TERM_COLOR','RUSTUP_HOME','RUSTUP_TOOLCHAIN','TCL_LSP_REQUIRE_TCLSH','TCL_LSP_TCLSH84','TCL_LSP_TCLSH85','TCL_LSP_TCLSH86','TCL_LSP_TCLSH90','TCL_LSP_TCLSH91','TCL_LSP_JIMSH','WASI_SDK_PATH'}
+ write_json(receipt/'build-environment.json',{k:os.environ[k] for k in safe_keys if k in os.environ})
+-runner_files=['/tmp/tcl-lsp-naming-env.sh','/tmp/ccg-postbatch-functional-run.sh','/tmp/ccg-postbatch-functional-suite.py','/tmp/compiler-c6-guarded-cargo.py','/tmp/compiler-c6-provider-manifest.py','/tmp/naming-oracle-setup.json',str(plan_path)]
++runner_files=['/tmp/tcl-lsp-naming-env.sh','/tmp/ccg-postbatch-functional-v2-run.sh','/tmp/ccg-postbatch-functional-v2-suite.py','/tmp/compiler-c6-guarded-cargo.py','/tmp/compiler-c6-provider-manifest.py','/tmp/naming-oracle-setup.json',str(plan_path)]
+ write_json(receipt/'runner-inputs.json',{p:digest(Path(p)) for p in runner_files})
+ results=[]; overall=0
+ print('START',tag,'receipt='+str(receipt),'source_inputs='+str(len(before)),flush=True)

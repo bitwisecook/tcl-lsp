@@ -1,0 +1,2063 @@
+[
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "tcl_vm",
+    "kind": [
+      "lib"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "tcl_compiler",
+    "kind": [
+      "lib"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "tcl_lsp_core",
+    "kind": [
+      "lib"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "tcl_lsp_db",
+    "kind": [
+      "lib"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+    "target": "tcl_lsp_server",
+    "kind": [
+      "lib"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+    "target": "tcl-lsp-server",
+    "kind": [
+      "bin"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-fuzz#0.1.0",
+    "target": "tcl-fuzz",
+    "kind": [
+      "bin"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+    "target": "smoke",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+    "target": "tcl-lsp-server",
+    "kind": [
+      "bin"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+    "target": "preview_tickets_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+    "target": "stdio_deadlock",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-fuzz#0.1.0",
+    "target": "tcl-fuzz",
+    "kind": [
+      "bin"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "compiler_check_corpus",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+    "target": "e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "memory_growth",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "tail_profile",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "file_decls_corpus",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "edit_memory",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "dialect_seam",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "overlay_generations",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "interned_gc",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "fa_diff",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "early_cutoff",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "project_diagnostics_corpus",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "class_factory_fixpoint",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "memory_alias_graph",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "stress_concurrent_analysis",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "file_analysis_corpus",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "cc_diff",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "span_char_boundaries",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "oo_mro_parity",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "fp_depth",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "per_item_divergence",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "slot_allocation",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "name_resolution",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "fix_safety",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "optimise_memo_experiments",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "signature_scan",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "entry_contract_abstention",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "minify_residual",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "object_lattice_cost",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "side_effects_binding",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "dispatch_proof_architecture",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "mro_overrides",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "mathfunc_and_word_recognition",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "resolution_rewrite_oracles",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "differential_word_expr",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "mro_interproc",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "release_units",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "lsp_providers",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "differential_segment",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "irules_spec_examples_self_consistent",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "mro_eval",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "tcloo_dispatch",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "regex_source_oracle",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "lsp_navigation",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "differential_incremental",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "mro_delta",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "recovery_positions",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "differential_group",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "lsp_lens_links_symbols",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "real_job_fixtures",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "differential_codegen",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "pipeline_coverage",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "lsp_edit_workspace",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "dialect_threading",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "emit_wasm",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "phi_undef_memo",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "lsp_core_residual",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "dataflow",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "per_item_corpus",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "inlay_hints",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "core_analyses",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "optimiser_depth",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "aot_command_priority",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "complexity_guard",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "hover_residual",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "optimiser_coverage",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "value_transfers",
+    "kind": [
+      "bench"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "compiler_residual",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "optimiser_codegen_residual",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "hover_completion",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "wasm_tiers",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db#0.1.0",
+    "target": "tcl_lsp_db",
+    "kind": [
+      "lib"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "compiler_analysis_residual",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "optimiser",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "wasm_real_link",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "formatting_keywords",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "command_segmenter",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "native_arithmetic_conformance",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "wasm_execute",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "command_resolution_conformance",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "formatting_engine_residual",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "wasm_codegen",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "codegen_integration",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "force_import_shadow_consumers",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "wasm_api_architecture",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "mro_lattice_adversarial",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "codegen_golden",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "var_escape_typeinfer",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "folding",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "codegen_depth",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "var_escape_residual2",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "file_ops_bigip_residual",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "codegen",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "var_escape_cfg_tree_arms",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "checks",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "docstring",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "var_escape_cfg_catch",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "cfg",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "datagroup_residual",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "var_escape_cfg",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "caller_frame_effects",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "value_transfer_witnesses",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "completion_residual",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "tcloo_diag",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "body_command_dis_oracle",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "unused_var_tricky_features",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "command_table_mutation",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "analyser",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "stub_arg_roles",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "irules_event_context",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "type_propagation",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "alias_scoping",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "command_prefix_integration",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "intervals",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "semantic_tokens_residual",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "text_utils",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server#0.1.0",
+    "target": "tcl_lsp_server",
+    "kind": [
+      "lib"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "tcl_namespace_probe",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "code_actions_depth",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "semantic_tokens",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "tcl_expr_eval",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "call_hierarchy",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "selection_range",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "taint_depth",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "bigip_code_actions",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "inlining_rename",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "references_residual",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "taint",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "name_lookup_issue_witnesses",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "inlining_interproc_residual",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "authoring_dialect_completion",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "incr_experiments",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "references_rename",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "static_name_consumers",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "inlining",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "per_item_fallbacks",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+    "target": "are_tokenizer_consistency",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cross_version_expr_surface_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "switch_integer_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "namespace_colon_runs_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cross_version_escapes_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "step_trace_inline_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "name_lookup_issue_witnesses",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cross_version_command_surface_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "selected_frame_coroutines",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "mathfunc_derivation_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cross_interp_reentry_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "safe_interp_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "literal_index_encoding_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cross_interp_alias_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "run_script",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "library_bootstrap_presence",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "coro_error_trace_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "return_code_boundary_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "legacy_variable_traces_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "command_traces_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "rename_return_source_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "language_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "command_resolution_conformance",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "release_running_bytecode_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "integer_argument_reads_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "command_mutation_deopt_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "run_test",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "release_number_semantics_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "formal_slot_identity",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cmd_thread_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "eval",
+    "kind": [
+      "example"
+    ],
+    "test": false,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "regexp_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "expr_surface_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cmd_string_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "word_value_resolution_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "regexp_cmd_corpus",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "expanded_invoke_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cmd_oo_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "word_parts_owner_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "package_diagnostics_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "error_info_text_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cmd_math_expr_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "wasm_coro_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "package_coro_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "env_host_sync_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cmd_info_prefix_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "variable_trace_semantics_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "opcode_dispatch_coverage",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "encoding_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cmd_event_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "variable_name_resolution_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "opcode_catch_parity",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "embed_api_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cmd_coro_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "variable_container_models",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "opcode_c_parity",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cmd_control_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "element_recovery_traces_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "uplevel_coro_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "numeric_tower_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "dict_canonicalisation_parity",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cmd_collections_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "tricky_resolution_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "native_variable_declaration",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cross_version_vars_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "capability",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "thread_exit_retirement",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "native_mathfunc_bootstrap",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cross_version_numerals_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "c_error_paths_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "tcltest_load",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "native_compilation_conformance",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cross_version_lset_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "builtins_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "tclsh_parity_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "native_byte_literals",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "cross_version_info_surface_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "tcl_vm",
+    "kind": [
+      "lib"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "tailcall_uplevel_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-vm#0.1.0",
+    "target": "namespace_surface_e2e",
+    "kind": [
+      "test"
+    ],
+    "test": true,
+    "fresh": false
+  },
+  {
+    "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+    "target": "tcl_compiler",
+    "kind": [
+      "lib"
+    ],
+    "test": true,
+    "fresh": false
+  }
+]

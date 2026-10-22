@@ -1,0 +1,370 @@
+{
+  "argv": [
+    "cargo",
+    "check",
+    "--locked",
+    "--keep-going",
+    "-p",
+    "tcl-compiler",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "tcl-lsp-server",
+    "-p",
+    "tcl-vm",
+    "-p",
+    "tcl-fuzz",
+    "--all-targets",
+    "--message-format=json"
+  ],
+  "cargo_exit": 101,
+  "disk_abort": false,
+  "error_count": 1,
+  "errors": [
+    {
+      "code": "E0275",
+      "message": "overflow evaluating the requirement `alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Owned, std::string::String, tcl_runtime_api::native_compilation::NativeCompilerHookPresence, alloc::collections::btree::node::marker::LeafOrInternal>: Send`",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 61088,
+          "byte_start": 61074,
+          "column_end": 49,
+          "column_start": 35,
+          "expansion": null,
+          "file_name": "rust/tcl-lsp-core/src/ilx_navigation.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 1654,
+          "line_start": 1654,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 49,
+              "highlight_start": 35,
+              "text": "    impl super::OpenDocuments for AnalysedBuffer {"
+            }
+          ]
+        }
+      ],
+      "rendered": "error[E0275]: overflow evaluating the requirement `alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Owned, std::string::String, tcl_runtime_api::native_compilation::NativeCompilerHookPresence, alloc::collections::btree::node::marker::LeafOrInternal>: Send`\n    --> rust/tcl-lsp-core/src/ilx_navigation.rs:1654:35\n     |\n1654 |     impl super::OpenDocuments for AnalysedBuffer {\n     |                                   ^^^^^^^^^^^^^^\n     |\n     = help: consider increasing the recursion limit by adding a `#![recursion_limit = \"256\"]` attribute to your crate (`tcl_lsp_core`)\nnote: required because it appears within the type `Option<NodeRef<Owned, String, NativeCompilerHookPresence, _>>`\n    --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9\nnote: required because it appears within the type `BTreeMap<String, NativeCompilerHookPresence>`\n    --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/collections/btree/map.rs:189:11\nnote: required because it appears within the type `TrustedPackageLoader`\n    --> rust/tcl-compiler/src/command_binding.rs:1117:12\n     |\n1117 | pub struct TrustedPackageLoader {\n     |            ^^^^^^^^^^^^^^^^^^^^\n     = note: required for `std::ptr::Unique<TrustedPackageLoader>` to implement `Send`\nnote: required because it appears within the type `std::boxed::Box<TrustedPackageLoader>`\n    --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/boxed.rs:236:11\nnote: required because it appears within the type `ExecutionRegionDependency`\n    --> rust/tcl-compiler/src/execution_region.rs:28:10\n     |\n  28 | pub enum ExecutionRegionDependency {\n     |          ^^^^^^^^^^^^^^^^^^^^^^^^^\nnote: required because it appears within the type `PhantomData<ExecutionRegionDependency>`\n    --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/marker.rs:811:11\nnote: required because it appears within the type `alloc::raw_vec::RawVec<ExecutionRegionDependency>`\n    --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/raw_vec/mod.rs:73:18\nnote: required because it appears within the type `Vec<ExecutionRegionDependency>`\n    --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/vec/mod.rs:436:11\nnote: required because it appears within the type `EvaluatedBodyRegion`\n    --> rust/tcl-compiler/src/execution_region.rs:226:12\n     |\n 226 | pub struct EvaluatedBodyRegion {\n     |            ^^^^^^^^^^^^^^^^^^^\n     = note: required for `std::ptr::Unique<EvaluatedBodyRegion>` to implement `Send`\nnote: required because it appears within the type `std::boxed::Box<EvaluatedBodyRegion>`\n    --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/boxed.rs:236:11\nnote: required because it appears within the type `std::option::Option<std::boxed::Box<EvaluatedBodyRegion>>`\n    --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9\nnote: required because it appears within the type `CommandTokens`\n    --> rust/tcl-compiler/src/ir.rs:550:12\n     |\n 550 | pub struct CommandTokens {\n     |            ^^^^^^^^^^^^^\nnote: required because it appears within the type `registry_invocation::authored_body_scope::OriginalAuthoredSourceBodyScope`\n    --> rust/tcl-compiler/src/registry_invocation/authored_body_scope.rs:16:19\n     |\n  16 | pub(crate) struct OriginalAuthoredSourceBodyScope {\n     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n     = note: required for `std::sync::Arc<registry_invocation::authored_body_scope::OriginalAuthoredSourceBodyScope>` to implement `Sync`\nnote: required because it appears within the type `Option<Arc<OriginalAuthoredSourceBodyScope>>`\n    --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:598:9\nnote: required because it appears within the type `SourceInvocationBinding`\n    --> rust/tcl-compiler/src/command_binding.rs:1377:12\n     |\n1377 | pub struct SourceInvocationBinding {\n     |            ^^^^^^^^^^^^^^^^^^^^^^^\n     = note: required for `std::ptr::Unique<SourceInvocationBinding>` to implement `Sync`\nnote: required because it appears within the type `std::boxed::Box<SourceInvocationBinding>`\n    --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/alloc/src/boxed.rs:236:11\nnote: required by a bound in `OpenDocuments`\n    --> rust/tcl-lsp-core/src/ilx_navigation.rs:142:33\n     |\n 142 | pub trait OpenDocuments: Send + Sync {\n     |                                 ^^^^ required by this bound in `OpenDocuments`\n     = note: the full name for the type has been written to '/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_lsp_core-3b86b910771e3f67.long-type-15397227980384996150.txt'\n     = note: consider using `--verbose` to print the full type name to the console\n\n"
+    }
+  ],
+  "logs_truncated": false,
+  "minimum_free_bytes": 12242812928,
+  "overlong_json_lines": 0,
+  "parse_errors": 0,
+  "passed": false,
+  "retained_bytes": 457955,
+  "retention_budget": 20971520,
+  "stderr_bytes": 7517,
+  "stdout_bytes": 450438,
+  "termination_scope": "Only this Popen-created Cargo session/process group; no cleanup/deletion",
+  "utc": "2026-10-22T22:04:16.033474+00:00",
+  "warning_count": 6,
+  "warnings": [
+    {
+      "code": "unused_parens",
+      "message": "unnecessary parentheses around assigned value",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 9305,
+          "byte_start": 9304,
+          "column_end": 66,
+          "column_start": 65,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 263,
+          "line_start": 263,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 66,
+              "highlight_start": 65,
+              "text": "        if report_capture_refused!(\"unsupported-source-domain\", (!logical && !versioned_source))"
+            }
+          ]
+        },
+        {
+          "byte_end": 9335,
+          "byte_start": 9334,
+          "column_end": 96,
+          "column_start": 95,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 263,
+          "line_start": 263,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 96,
+              "highlight_start": 95,
+              "text": "        if report_capture_refused!(\"unsupported-source-domain\", (!logical && !versioned_source))"
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: unnecessary parentheses around assigned value\n   --> rust/tcl-compiler/src/object_types/report_comparison.rs:263:65\n    |\n263 |         if report_capture_refused!(\"unsupported-source-domain\", (!logical && !versioned_source))\n    |                                                                 ^                             ^\n    |\n    = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default\nhelp: remove these parentheses\n    |\n263 -         if report_capture_refused!(\"unsupported-source-domain\", (!logical && !versioned_source))\n263 +         if report_capture_refused!(\"unsupported-source-domain\", !logical && !versioned_source)\n    |\n\n"
+    },
+    {
+      "code": "unused_parens",
+      "message": "unnecessary parentheses around assigned value",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 9440,
+          "byte_start": 9439,
+          "column_end": 18,
+          "column_start": 17,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 266,
+          "line_start": 266,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 18,
+              "highlight_start": 17,
+              "text": "                (logical && !analysis.allows_retained_logical_declaration_advice())"
+            }
+          ]
+        },
+        {
+          "byte_end": 9506,
+          "byte_start": 9505,
+          "column_end": 84,
+          "column_start": 83,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 266,
+          "line_start": 266,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 84,
+              "highlight_start": 83,
+              "text": "                (logical && !analysis.allows_retained_logical_declaration_advice())"
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: unnecessary parentheses around assigned value\n   --> rust/tcl-compiler/src/object_types/report_comparison.rs:266:17\n    |\n266 |                 (logical && !analysis.allows_retained_logical_declaration_advice())\n    |                 ^                                                                 ^\n    |\nhelp: remove these parentheses\n    |\n266 -                 (logical && !analysis.allows_retained_logical_declaration_advice())\n266 +                 logical && !analysis.allows_retained_logical_declaration_advice()\n    |\n\n"
+    },
+    {
+      "code": "unused_parens",
+      "message": "unnecessary parentheses around assigned value",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 10357,
+          "byte_start": 10356,
+          "column_end": 18,
+          "column_start": 17,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 285,
+          "line_start": 285,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 18,
+              "highlight_start": 17,
+              "text": "                (module.source_entry.unknown_entry && !versioned_source)"
+            }
+          ]
+        },
+        {
+          "byte_end": 10412,
+          "byte_start": 10411,
+          "column_end": 73,
+          "column_start": 72,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 285,
+          "line_start": 285,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 73,
+              "highlight_start": 72,
+              "text": "                (module.source_entry.unknown_entry && !versioned_source)"
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: unnecessary parentheses around assigned value\n   --> rust/tcl-compiler/src/object_types/report_comparison.rs:285:17\n    |\n285 |                 (module.source_entry.unknown_entry && !versioned_source)\n    |                 ^                                                      ^\n    |\nhelp: remove these parentheses\n    |\n285 -                 (module.source_entry.unknown_entry && !versioned_source)\n285 +                 module.source_entry.unknown_entry && !versioned_source\n    |\n\n"
+    },
+    {
+      "code": "unused_parens",
+      "message": "unnecessary parentheses around assigned value",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 9305,
+          "byte_start": 9304,
+          "column_end": 66,
+          "column_start": 65,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 263,
+          "line_start": 263,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 66,
+              "highlight_start": 65,
+              "text": "        if report_capture_refused!(\"unsupported-source-domain\", (!logical && !versioned_source))"
+            }
+          ]
+        },
+        {
+          "byte_end": 9335,
+          "byte_start": 9334,
+          "column_end": 96,
+          "column_start": 95,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 263,
+          "line_start": 263,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 96,
+              "highlight_start": 95,
+              "text": "        if report_capture_refused!(\"unsupported-source-domain\", (!logical && !versioned_source))"
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: unnecessary parentheses around assigned value\n   --> rust/tcl-compiler/src/object_types/report_comparison.rs:263:65\n    |\n263 |         if report_capture_refused!(\"unsupported-source-domain\", (!logical && !versioned_source))\n    |                                                                 ^                             ^\n    |\n    = note: `#[warn(unused_parens)]` (part of `#[warn(unused)]`) on by default\nhelp: remove these parentheses\n    |\n263 -         if report_capture_refused!(\"unsupported-source-domain\", (!logical && !versioned_source))\n263 +         if report_capture_refused!(\"unsupported-source-domain\", !logical && !versioned_source)\n    |\n\n"
+    },
+    {
+      "code": "unused_parens",
+      "message": "unnecessary parentheses around assigned value",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 9440,
+          "byte_start": 9439,
+          "column_end": 18,
+          "column_start": 17,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 266,
+          "line_start": 266,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 18,
+              "highlight_start": 17,
+              "text": "                (logical && !analysis.allows_retained_logical_declaration_advice())"
+            }
+          ]
+        },
+        {
+          "byte_end": 9506,
+          "byte_start": 9505,
+          "column_end": 84,
+          "column_start": 83,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 266,
+          "line_start": 266,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 84,
+              "highlight_start": 83,
+              "text": "                (logical && !analysis.allows_retained_logical_declaration_advice())"
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: unnecessary parentheses around assigned value\n   --> rust/tcl-compiler/src/object_types/report_comparison.rs:266:17\n    |\n266 |                 (logical && !analysis.allows_retained_logical_declaration_advice())\n    |                 ^                                                                 ^\n    |\nhelp: remove these parentheses\n    |\n266 -                 (logical && !analysis.allows_retained_logical_declaration_advice())\n266 +                 logical && !analysis.allows_retained_logical_declaration_advice()\n    |\n\n"
+    },
+    {
+      "code": "unused_parens",
+      "message": "unnecessary parentheses around assigned value",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 10357,
+          "byte_start": 10356,
+          "column_end": 18,
+          "column_start": 17,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 285,
+          "line_start": 285,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 18,
+              "highlight_start": 17,
+              "text": "                (module.source_entry.unknown_entry && !versioned_source)"
+            }
+          ]
+        },
+        {
+          "byte_end": 10412,
+          "byte_start": 10411,
+          "column_end": 73,
+          "column_start": 72,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 285,
+          "line_start": 285,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 73,
+              "highlight_start": 72,
+              "text": "                (module.source_entry.unknown_entry && !versioned_source)"
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: unnecessary parentheses around assigned value\n   --> rust/tcl-compiler/src/object_types/report_comparison.rs:285:17\n    |\n285 |                 (module.source_entry.unknown_entry && !versioned_source)\n    |                 ^                                                      ^\n    |\nhelp: remove these parentheses\n    |\n285 -                 (module.source_entry.unknown_entry && !versioned_source)\n285 +                 module.source_entry.unknown_entry && !versioned_source\n    |\n\n"
+    }
+  ]
+}

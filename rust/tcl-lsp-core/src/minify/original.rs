@@ -177,6 +177,10 @@ pub fn minify_with_analysis(
         original_length: source.len(),
         ..MinifyResult::default()
     };
+    if analysis.analysis_context_unavailable.is_some() {
+        result.refusals.push(MinifyRefusal::MissingAnalysisContext);
+        return result;
+    }
     let (Some(config), Some(profile), Some(registry)) = (
         analysis.body_lexer_config,
         analysis.resolved_profile(),
@@ -1104,6 +1108,23 @@ mod tests {
                 .refusals
                 .contains(&MinifyRefusal::IncompleteOriginalSyntax)
         );
+    }
+
+    #[test]
+    fn original_minifier_refuses_unavailable_context_with_retained_source_and_input() {
+        let source = "expr { 3 + 4 }\n";
+        let analysis = analyse(source, "tcl8.6");
+        let result = minify_with_analysis(source, &analysis, MinifyOptions::default());
+        assert_ne!(result.source, source);
+
+        let mut unavailable = analysis.clone();
+        unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl8.6".into(),
+            overlay: u64::MAX - 405,
+        });
+        let result = minify_with_analysis(source, &unavailable, MinifyOptions::default());
+        assert_eq!(result.source, source);
+        assert_eq!(result.refusals, vec![MinifyRefusal::MissingAnalysisContext]);
     }
 
     #[test]

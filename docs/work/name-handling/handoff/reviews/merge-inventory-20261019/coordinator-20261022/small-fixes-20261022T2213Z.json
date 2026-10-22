@@ -1,0 +1,41 @@
+{
+  "utc": "2026-10-22T22:11:30.466799+00:00",
+  "status": "Applied reviewed small fixes; typecheck and functional execution pending",
+  "head_before": "2773b58e046de8b5e1cbf86a096ddc07f4b0aa81",
+  "combined_patch_sha256": "de7bd200d85db674cb834c32c21e6f6782260eec3e43b4af912432bec3ffaad4",
+  "files": [
+    {
+      "patch": "/tmp/compiler-report-temp-parens-v1/proposal.patch",
+      "sha256": "48b123d7cde8370bb132b50792cb24d5b05d3ae877213f9169c94ea6bf4180a1",
+      "path": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+      "before": "7ca7ad0d0acefd45a73d584a4cf2002d70272f36e46bc5784f1ccb5616f77888",
+      "expected_after": "44630ba00b563f4cd4f65e3ff094c96b31e51becfa1e52175ffb2a1458399df4",
+      "actual_after_rustfmt": "44630ba00b563f4cd4f65e3ff094c96b31e51becfa1e52175ffb2a1458399df4"
+    },
+    {
+      "patch": "/tmp/lsp-core-autotrait-budget-v1/proposal.patch",
+      "sha256": "5daa1fb6f372ddd39cb06331536c6a3de8bc075f7e1a8d2d545ecf36a86600c3",
+      "path": "rust/tcl-lsp-core/src/lib.rs",
+      "before": "a87a33ffcc66e6f4e9ba4e1e768f1a892c1882e9eab3634b71bdfb794a2650a2",
+      "expected_after": "d6c5da9b17812a3ad53c99ea183c096817ba53285e8c096de1d32f6025abaacc",
+      "actual_after_rustfmt": "d6c5da9b17812a3ad53c99ea183c096817ba53285e8c096de1d32f6025abaacc"
+    },
+    {
+      "patch": "/tmp/lsp-minify-unavailable-v1/proposal.patch",
+      "sha256": "3ca50ee0a376f4989beee829d90199badcdef48fa3e03c6eae68341a5155fca3",
+      "path": "rust/tcl-lsp-core/src/minify/original.rs",
+      "before": "72b946ac9073d2e1f6214e494c87b259967c61d56f7acaca6bb057859d4a6cc7",
+      "expected_after": "f884671b83a57578b6c6e314c66c1cb3bce6fb6ca59c4b64f821af1e382902e3",
+      "actual_after_rustfmt": "f884671b83a57578b6c6e314c66c1cb3bce6fb6ca59c4b64f821af1e382902e3"
+    },
+    {
+      "patch": "/tmp/vm-runtime-f5-manifest/controls-v2-delta.patch",
+      "sha256": "7651cdfaac99c1fa0f1afe84c96aaa545cdd93d46544c9c7b96bc4c6702cdf67",
+      "path": "rust/tcl-vm/src/interp/native_source_manifest_tests.rs",
+      "before": "de58b36c21dce7e87e543918f99871c82b3fd732ba52227f1ce892093bce797c",
+      "expected_after": "0357f3d26ab35471e3ee43232e9f7e8efd5973d6c8dcb54749b16d91cdb87a7e",
+      "actual_after_rustfmt": "0357f3d26ab35471e3ee43232e9f7e8efd5973d6c8dcb54749b16d91cdb87a7e"
+    }
+  ],
+  "scope": "test-only trait-solving budget256+actualSendSyncassertion, three TEMP outer parentheses, terminal minify unavailable guard+control, authentic new VM fixture producer; no Eq weakening or runtime budget change"
+}

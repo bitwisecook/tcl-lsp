@@ -1,0 +1,16 @@
+--- /tmp/ccg-wasm-five-v3-suite.py
++++ /tmp/ccg-wasm-five-v4-suite.py
+@@ -41,11 +41,12 @@
+ before=source_manifest(); write_json(receipt/'source-before.json',before)
+ subprocess.run([sys.executable,'/tmp/ccg-wasm-five-providers.py',str(receipt/'providers-before.json')],check=True)
+ providers=json.loads((receipt/'providers-before.json').read_text())
++if providers!=json.loads(Path(plan['provider_seal']['path']).read_text()):raise SystemExit('STOP: actual providers differ from explicitly reviewed pinned seal')
+ (receipt/'head-before.txt').write_bytes(subprocess.check_output(['git','rev-parse','HEAD']))
+ (receipt/'current-rust-diff.patch').write_bytes(subprocess.check_output(['git','diff','--binary','HEAD','--','rust','Cargo.toml','Cargo.lock']))
+ safe_keys={'CARGO_TARGET_DIR','CARGO_BUILD_JOBS','CARGO_INCREMENTAL','CARGO_PROFILE_TEST_DEBUG','CARGO_PROFILE_DEV_DEBUG','CARGO_TERM_COLOR','RUSTUP_HOME','RUSTUP_TOOLCHAIN','TCL_LSP_REQUIRE_TCLSH','TCL_LSP_TCLSH84','TCL_LSP_TCLSH85','TCL_LSP_TCLSH86','TCL_LSP_TCLSH90','TCL_LSP_TCLSH91','TCL_LSP_JIMSH','RUSTFLAGS','CARGO_ENCODED_RUSTFLAGS','WASI_SDK_PATH','TCL_TOMMATH_DIR','TCL_REQUIRE_WASM_LINK','TCL_WASM_CC','TCL_WASM_AR','TCL_WASM_SYSROOT'}
+ write_json(receipt/'build-environment.json',{k:os.environ[k] for k in safe_keys if k in os.environ})
+-runner_files=['/tmp/tcl-lsp-naming-env.sh','/tmp/ccg-wasm-five-v3-run.sh','/tmp/ccg-wasm-five-v3-suite.py','/tmp/ccg-wasm-five-guarded-cargo.py','/tmp/ccg-wasm-five-providers.py','/tmp/compiler-c6-provider-manifest.py','/tmp/naming-oracle-setup.json',str(plan_path)]
++runner_files=['/tmp/tcl-lsp-naming-env.sh','/tmp/ccg-wasm-five-v4-run.sh','/tmp/ccg-wasm-five-v4-suite.py','/tmp/ccg-wasm-five-guarded-cargo.py','/tmp/ccg-wasm-five-providers.py','/tmp/compiler-c6-provider-manifest.py','/tmp/naming-oracle-setup.json',str(plan_path)]
+ write_json(receipt/'runner-inputs.json',{p:digest(Path(p)) for p in runner_files})
+ runtime_path=root/'target/tcl_reserved_runtime/wasm32-wasip1/debug/tcl_runtime.wasm'
+ def runtime_artifact():

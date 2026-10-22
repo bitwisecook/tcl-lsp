@@ -26,11 +26,19 @@
 //! the `tcl-lsp-server` binary links against this crate
 //! directly over the LSP protocol.
 
+// Match the compiler crate for retained receipt auto-traits in test consumers.
+#![cfg_attr(test, recursion_limit = "256")]
 #![deny(missing_docs)]
 #![forbid(unsafe_code)]
 // Long linear fail-closed guard chains and scenario tests; splitting them is
 // tracked as follow-up debt (Luna-41 notes) rather than done mid-merge.
 #![allow(clippy::too_many_lines)]
+
+#[cfg(test)]
+const _: fn() = || {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<tcl_compiler::analyser::AnalysisResult>();
+};
 
 /// Cap on [`tcl_compiler::analyser::Scope`]-tree walking depth shared by
 /// every LSP feature provider that recurses over `scope.children`

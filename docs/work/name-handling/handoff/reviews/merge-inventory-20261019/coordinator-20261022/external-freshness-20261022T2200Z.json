@@ -1,0 +1,26 @@
+{
+  "utc": "2026-10-22T22:01:07.948148+00:00",
+  "fresh_fetched_work": "c36c4580b5d07530c8358e609b4d947051644057",
+  "rows": [
+    {
+      "role": "bigip-lsp",
+      "owner_header": "2026-10-22T18:08Z",
+      "age_minutes": 233.13246913333333,
+      "stale_over60": true
+    },
+    {
+      "role": "perf",
+      "owner_header": "2026-10-22 21:00 UTC",
+      "age_minutes": 61.13246913333333,
+      "stale_over60": true
+    },
+    {
+      "role": "review-triage",
+      "owner_header": "2026-10-22T19:57:30Z",
+      "age_minutes": 123.63246913333334,
+      "stale_over60": true
+    }
+  ],
+  "duplicates_started": false,
+  "takeover": false
+}

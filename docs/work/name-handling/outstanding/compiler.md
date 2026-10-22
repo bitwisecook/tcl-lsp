@@ -2,7 +2,7 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-22T21:53:36Z (compiler role; exact23-path functional batch integrated, combined six-package check active; product HOLD)
+Last updated: 2026-10-22T21:56:20Z (compiler role; combined six-package check active, finite55 and coherent lintv4 prepared; product HOLD)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -11,6 +11,12 @@ Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-2026
 ## Resume
 
 **Current source/slot:** active `/workspace/naming-migration-active/tcl-lsp`, root source80193 frozen while the combined six-package all-targets check runs. Root integrated the exact23-path batch at21:48Z; `/tmp/naming-next-batch-2142-applied.json` pins actual before/after hashes. This adds09e9 genuine region declaration/purpose controls,54e source-entry availability,94cc retained-request minify body syntax, temporary1eb3 report diagnostics, VM/CCG fixes and old-test compatibility. No compiler Cargo is queued. Product HOLD, docs CLEAR. Only root integrates canonical product or Git changes.
+
+**Latest prepared successor:** root requested five new LSP compiler owner/refusal guards alongside unchanged50. `/tmp/compiler-functional-current-focused-plan-v5.json`, SHA `6c0aeb0dd7e366ec4f9db8d0da76fc47ad3e1542bc339a8fe5d91fe1ed85b5cf`,33 filters/55 tests, retains every prior50 entry verbatim then adds exact5 fromddbb9297. Core extra1 remains LSP-owned. Actual selector confirmation requested from LSP; no Cargo queued. TEMP3 remains separate diagnostic plan.
+
+**Latest lint successor:** `/tmp/compiler-lint-owner-composed-v4/proposal.patch`, SHA `b37fca9913d6f7425b2aad8bcf4867d495c11adfdf74dd73dd910ae24dd50f04`,68paths; latest23-path semantic manifest verified, TEMP removed only from copied semantic base,148-path three-way refresh has zero conflicts. All68 isolated syntax parses and current exactapplycheck pass. Two private iRules event/flow purpose enums retain outer unavailable versus ordinary/no-tracked-operation distinctions; local static review only. All395 actual findings still PENDING_ACTUAL_CLIPPY. Incomplete/not ready canonical integration; broad lint follows functional/native admission. v3 below is retained provenance and superseded.
+
+**Current check observation:** Names reports three unused_parens warnings in TEMP report macros, no other conclusion yet. Minimal off-tree cleanup `/tmp/compiler-report-temp-parens-v1/proposal.patch` SHA48b123d7 removes only outer parentheses around three identical expression arguments. Conditional retirement `/tmp/compiler-report-retire-after-parens-v1/retire.patch`, SHA85ebf15f, is prepared ONLY if that exact cleanup applies; currentc46b remains correct for unmodified source. Every retirement is held until actual diagnostic3 and all source guards close.
 
 **Next finite functional scope:** `/tmp/compiler-functional-current-focused-plan-v4.json`, SHA `f4e7548a44106b322bd5a6bc42f73e41c90648826f24dbd4ba27246dc484e93e`,28 filters/50 selected tests. Previous48 retained, source_point_entry prefix now10 and exactbc9 declaration1 added. Start with original four confirmed C6 losses and all eight unchanged naming assertions, then new owner/Direct/refusal/conditional-region controls. Correct third RBS selector is `analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator`. No old-green g4/ZZ or broad family repeat; root deep CI covers broad groups. Runner `/tmp/compiler-focused-run.sh` and exact helper hashes are pinned in `/tmp/compiler-focused-runner-receipt.json`; global whole-command lock, full source/provider/current-artifact guards,2GiB disk floor and20MiB cap remain mandatory. Await root Cargo GO.
 

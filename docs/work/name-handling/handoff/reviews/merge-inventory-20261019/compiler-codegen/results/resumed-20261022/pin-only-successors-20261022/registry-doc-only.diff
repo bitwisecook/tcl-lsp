@@ -1,0 +1,9 @@
+--- 
++++ 
+@@ -1,5 +1,5 @@
+ // SPDX-License-Identifier: AGPL-3.0-or-later
+-//! The measured non-strict ASCII branch of C's StringIs compiler.
++//! The measured non-strict ASCII branch of C's `StringIs` compiler.
+ //!
+ //! C8.6/9.0/9.1 compile exactly one original subject followed by `STR_CLASS`
+ //! ASCII. Class/options outside this branch stay unknown: their native

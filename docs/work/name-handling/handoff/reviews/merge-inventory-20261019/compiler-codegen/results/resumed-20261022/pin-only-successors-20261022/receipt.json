@@ -1,0 +1,127 @@
+{
+  "utc": "2026-10-22T22:07:31.500522+00:00",
+  "status": "Immutable pin-only successors; static syntax/inverse/inventory proof only, no Cargo/test execution. Product sources untouched.",
+  "authorized_changes": [
+    {
+      "kind": "documented-source-pin",
+      "path": "rust/tcl-registry/src/native_string_is_compilation.rs",
+      "old_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+      "new_sha256": "a70c5ba877c0c294d8d795ed4f99dc88e37b5fe6c7cbac9e81b02715a0a6e555",
+      "change": "Only module-doc backticks; every test/assertion/body byte unchanged.",
+      "owning_commit": "def9a5fd7fdece3f785ace02da20f6ed8a8da539",
+      "patch": {
+        "path": "/tmp/ccg-ci5205-registry-lints/proposal.patch",
+        "sha256": "16257e9d0fb7f97e272db6043429dedb1fd642b01730fa5e0722d162c028ed24"
+      },
+      "receipt": {
+        "path": "/tmp/ccg-ci5205-registry-lints/receipt.json",
+        "sha256": "2f452fa5831e05720288c7f114830cf992dff155e88aa73f808c4beda293f47e"
+      }
+    },
+    {
+      "kind": "truthful-provider-repair",
+      "path": "/tmp/naming-oracle-setup.json",
+      "old_sha256": "915d7f5aa6b9bd927214ac4b35a58c6352d8120ec3b16deff496d13ea54effd6",
+      "new_sha256": "40cdc417fd9aa05661047b5cf501f9b2a57a5c03f08f984b784e109213a00f99",
+      "old_executable_sha256": "0f634c82506c87484326b8f8ad33ab284a1806ef6b6f1e43f012a2314166942e",
+      "new_executable_sha256": "4c52ccf801a46df9ea5aa062c50e5d4b7e7b09c5d523d464fe8b6e682744b12e",
+      "mechanism": "Restored authenticshallowancestry+upstreamannotatedtag thenupstreamauto.def gitdescribe/configure/make. NoHEAD/sourcecodechange, versionmacro/binaryediting, wrapperoverride ororacleexpectationrelaxation.",
+      "receipt": {
+        "path": "/tmp/vm-runtime-jim-provider-repair-20261022/receipt.json",
+        "sha256": "cfad6f33ca7614f7548417802a375b4546960d5ee28580b1f6cea1ac2d9d0e8a"
+      },
+      "source_head_unchanged": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "source_tree_unchanged": "2e383c0e70d826fdd024eaeff4f631c33a01d4d7",
+      "source_manifest_unchanged": "bba8be8d398369281319baa1293e58e401427e5f501b3e0a3dec98e45f4adde9"
+    }
+  ],
+  "successors": [
+    {
+      "label": "51",
+      "old_plan": {
+        "path": "/tmp/ccg-postbatch-functional-plan.json",
+        "sha256": "406063b58edf7ab331d69dcfb801832e36dd36fffa0324b6e1df8ebd4efca731"
+      },
+      "new_plan": {
+        "path": "/tmp/ccg-postbatch-functional-v2-plan.json",
+        "sha256": "45fd1079922c0693c0b1a13a003053401df866b5225852ada1c939eabdc30216"
+      },
+      "old_suite": {
+        "path": "/tmp/ccg-postbatch-functional-suite.py",
+        "sha256": "c4adbc0f34a3c13a20a36f3eea8712b62f442577e4440c808b1f543cdfe1f576"
+      },
+      "new_suite": {
+        "path": "/tmp/ccg-postbatch-functional-v2-suite.py",
+        "sha256": "91f183879537ba8a02b9b72ce253064e8d0c2ed4f95960d4fbcdcaaf056f7e5b"
+      },
+      "old_runner": {
+        "path": "/tmp/ccg-postbatch-functional-run.sh",
+        "sha256": "37c349962282c94d9e4289e7ac649ab4b0045ecc475b17254d20acbe1634c962"
+      },
+      "new_runner": {
+        "path": "/tmp/ccg-postbatch-functional-v2-run.sh",
+        "sha256": "3006fc511746af0a6b7a6c24a4c160c918bdbfd88c950222ace011020293fae9"
+      },
+      "provider_seal": {
+        "path": "/tmp/ccg-current-base-provider-seal-20261022.json",
+        "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+      },
+      "provider_record_count": 104,
+      "jobs_identical": true,
+      "features_and_budget_guards_identical": true,
+      "suite_inverse_proof": "Exact original recovered after removal of sole explicit provider pin gate and inverse path routing.",
+      "source_changes": [
+        {
+          "path": "rust/tcl-registry/src/native_string_is_compilation.rs",
+          "old_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+          "new_sha256": "a70c5ba877c0c294d8d795ed4f99dc88e37b5fe6c7cbac9e81b02715a0a6e555"
+        }
+      ]
+    },
+    {
+      "label": "native5+2",
+      "old_plan": {
+        "path": "/tmp/ccg-wasm-five-v3-plan.json",
+        "sha256": "b8f07d8e555d741e7f961e56f621acaf8080862eb4a1827b60bdfa39ca2fb327"
+      },
+      "new_plan": {
+        "path": "/tmp/ccg-wasm-five-v4-plan.json",
+        "sha256": "af3ad1e29cd077b8db924702374cddccb22f1621728a13b9903dc9f23dd9d134"
+      },
+      "old_suite": {
+        "path": "/tmp/ccg-wasm-five-v3-suite.py",
+        "sha256": "15c5972b1662d2ed38e14abc36fac429558df2518140f87fbd87af6bc89142ea"
+      },
+      "new_suite": {
+        "path": "/tmp/ccg-wasm-five-v4-suite.py",
+        "sha256": "c42b7ce15ec3e18eace3bc7abfad5ce064d9aada1a6405a00769348e4c2251fd"
+      },
+      "old_runner": {
+        "path": "/tmp/ccg-wasm-five-v3-run.sh",
+        "sha256": "acf2f9ab2fe22ee45c004d4fd841a099bf40164a76e816836504b828835ad93e"
+      },
+      "new_runner": {
+        "path": "/tmp/ccg-wasm-five-v4-run.sh",
+        "sha256": "6a89c69469779358b9185a110980bce17ebd8547ee8f2736a5ac7893dd86b284"
+      },
+      "provider_seal": {
+        "path": "/tmp/ccg-current-provider-seal-20261022.json",
+        "sha256": "5a727cdd97d2ede8e10eae2b88338b6151da445951660d64382b8c8e3a89bd98"
+      },
+      "provider_record_count": 17480,
+      "jobs_identical": true,
+      "features_and_budget_guards_identical": true,
+      "suite_inverse_proof": "Exact original recovered after removal of sole explicit provider pin gate and inverse path routing.",
+      "source_changes": []
+    }
+  ],
+  "full_actual_provider_seal": {
+    "path": "/tmp/ccg-current-provider-seal-20261022.json",
+    "sha256": "5a727cdd97d2ede8e10eae2b88338b6151da445951660d64382b8c8e3a89bd98"
+  },
+  "current_identity": {
+    "path": "/tmp/ccg-current-provider-identity-20261022.json",
+    "sha256": "f7672e45e68b915f3e4385fa5e683e3dc08c0e48c6fd66c310dc723e760c5e85"
+  },
+  "limitations": "Expected provider equality adds no Native authority. Runtime WASM artifact absent now, must be built and recorded from ordinary Cargo output under future full guards. Future unknown source/provider drift stops; no silent refresh."
+}

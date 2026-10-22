@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "76ba762303bfc0590f2633d5236561ffb74de6f4",
-  "last_published_snapshot": "fe05d8e3c8800cc2ad245c79ad4ce3a202399b2b",
+  "last_source_snapshot": "2773b58e046de8b5e1cbf86a096ddc07f4b0aa81",
+  "last_published_snapshot": "c36c4580b5d07530c8358e609b4d947051644057",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -20,9 +20,9 @@
   "product_tree_diff": [],
   "source_lineage_rebased_utc": "2026-10-22T20:32:04.450664+00:00",
   "source_lineage_note": "20:55 cycle published active420/def9/fe802/ab1 checkpoints onto external27c2d and normal-pushedf5d78f. Product equality verified. Active source lineage stays in place during runtime6; next publication selects ab1..HEAD until next mapped active rebase.",
-  "unpublished_active_base": "76ba762303bfc0590f2633d5236561ffb74de6f4",
-  "active_current_head": "148da10e6727f1e255d8cfff2998e5f9f4f7e8ad",
+  "unpublished_active_base": "2773b58e046de8b5e1cbf86a096ddc07f4b0aa81",
+  "active_current_head": "2773b58e046de8b5e1cbf86a096ddc07f4b0aa81",
   "product_tree_diff_at_integration": [],
-  "updated_utc": "2026-10-22T21:27:56.654501+00:00",
+  "updated_utc": "2026-10-22T21:57:06.244614+00:00",
   "push_authentication": "Command-local git -c credential.helper= -c credential.helper=!gh auth git-credential push origin HEAD:work; never print/store credential payloads. GH auth status endpoint reported invalid but standard repo-scoped credential helper normal push succeeded, so endpoint status alone is not Git readiness."
 }
