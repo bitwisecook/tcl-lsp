@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+    "obj::tls_retirement_tests::original_object_retirement_after_metadata_tls_destruction_does_not_abort",
+    "--exact",
+    "--nocapture",
+    "--test-threads",
+    "1"
+  ],
+  "cwd": "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust",
+  "exit": 0,
+  "started_utc": "2026-10-22T21:07:54.715638+00:00",
+  "ended_utc": "2026-10-22T21:07:54.745191+00:00",
+  "bytes": 227,
+  "stopped": null,
+  "deadline_seconds": 180
+}

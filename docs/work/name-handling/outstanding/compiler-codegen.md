@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-22T21:13:53+00:00 (ACTIVE; agent-reported, not validation)
+Last updated: 2026-10-22T21:18:22.535645+00:00 (ACTIVE; agent-reported, not validation)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+**Actual heavy CI comparison, 2026-10-22T21:18:22.535645+00:00:** authoritative current349 ordinal rows (298PASS/51FAIL) joined to actual Rust baseline119956195910312namedPASS by exact binary+test including suite. Exactly27 matchedPASS→FAIL,24 failing absent-baseline,0unknown;51 repeated final failure rows excluded. Current284matchedPASS→PASS+14newPASS;one baseline-only test omitted current supplies no result. Receipt `/tmp/ccg-heavy-ci-comparison/receipt.json` SHA `0808da8c3c6edf688405c667acc057ade3fc1853fc490813ae6d6212c30f1d5c` and full ledger/snippets/parser saved under resumed results/heavy-ci5205. This HEAVY ledger is separate from main24312 and wasm/SpecTcl baselines. Routed BPF2P2F compiler; runtime31 (11P2F/20absent) VM; external CLI10 (6P2F/4absent) root for external owning files; WASM8P2F actual missing host_refusal_pending import remains codegen/backend-host acceptance work, distinct from dedup/shared-table/i64 diagnostics. F5simulate2 share profile mismatch observation but are counted only in CLI primary10. No cause inferred from aggregate, no assertion/manifest/provider weakening or new Cargo.
 
 **Shared API adapter reserved, 2026-10-22T21:13:53+00:00:** compiler's next off-tree lint tri-state API replaces nested optional procedure identity with interprocedural::AnalysisBody (TopLevel/Procedure), outer None still unavailable. This role reserves ONLY optimiser/propagation.rs ModuleRun `analysis_body: Some(Some(*body_id))` → `Some(crate::interprocedural::AnalysisBody::Procedure(*body_id))` after frozen shared patch/root batch GO. Unit_scope's unrelated Some(*id) remains unchanged. No canonical apply, no body-state/derived-admission semantic change; exact shared patch hash pending owner. CCG4-path WASM/lint/diagnostic manifest8fcb127f is disjoint and ready; no Cargo queued.
 

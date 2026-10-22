@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+    "cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication",
+    "--exact",
+    "--nocapture",
+    "--test-threads",
+    "1"
+  ],
+  "cwd": "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust",
+  "exit": -6,
+  "started_utc": "2026-10-22T21:07:56.365327+00:00",
+  "ended_utc": "2026-10-22T21:08:00.214332+00:00",
+  "bytes": 7400,
+  "stopped": null,
+  "deadline_seconds": 180
+}

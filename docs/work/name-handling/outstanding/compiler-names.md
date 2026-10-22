@@ -2,7 +2,7 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-22T21:10:27Z (agent-reported work only)
+Last updated: 2026-10-22T21:16:23Z (agent-reported work only)
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -118,6 +118,8 @@ Perf aliases evidence reviewed read-only after staged GO: all-old control proves
 - g3: `crlf_class…` and `substituted_heads…` ok. `completed_world…` failed on positive cases, caused by the strict `::unknown` kind check, which is now relaxed.
 
 ## Resume
+
+- **Actual integrated N13/C6 typecheck started:** root applied exact d52c functional composition plus coordinated LSP/minify/codegen/VM supplements at afde9bfdb. Exact guarded runner b1dd6c89f4faaa7a07ada87952a05f2db072c868faccb2f8eb2ed16ea32b9999 claimed whole lock at21:15:42.419Z and compiler Cargo started21:15:55.931Z. Output `/tmp/compiler-names-n13-typecheck-20261022T211529Z` retains actual UTC receipts;6531 present Rust/C-family/Cargo/build inputs and actual provider/library hashes captured before build. Compiler --all-targets phase runs first, then Core/server/DB --all-targets only on compiler build success; combined log cap20MiB, disk floor2GiB, no tests or cleanup. Verdict/source-after/provider-after pending; canonical product hold remains.
 
 - **Restored off-tree candidates and lint work:** immutable final N13/C6 composition `/tmp/compiler-names-n13-c6-composed-v2.patch` SHAd52c9f233e30f28aae79d98428daa5bf0533b54fb169862446d3656cc105720e remains unchanged and uncompiled; stage6 bounded compiler/codegen reviews close the earlier CompleteProgram contradiction statically, without functional acceptance. V2 also restores analyser scope/private region marker on every return and adds reuse coverage. Current names lint shadow starts from that exact functional candidate. Partial immutable checkpoint `/tmp/compiler-names-clippy-partial-v1.patch` SHA7330991cc46bced42e93321c6a838590654e5e7fabb677973591c0518867bf5f records29paths/2550diff lines (helper extractions, borrowed query args, full-Eq private boxed recipe, type aliases and mechanical corrections); remaining long-function findings stay open and later edits are only in the mutable shadow. Required compiler schema-query/associated-function adapters are coordinated; body_effects/deferred/HRTB and LSP minify hunks remain with their owners. Rustfmt syntax only, no Cargo/typecheck/Clippy result or canonical product write. Coordinator holds the build window.
 

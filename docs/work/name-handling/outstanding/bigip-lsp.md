@@ -163,3 +163,7 @@ no lint allowance added, no PR opened.
   this continuation; earlier TS/prettier receipts remain historical.
 - Full repository/host gates are not green. Never open a PR; the PR to `rust`
   remains gated on external-review section F and integrated-tip validation.
+
+### Coordinator routing — 2026-10-22T21:19Z (owner header unchanged)
+
+CI5205 heavy on2b934 confirms six exact origin/rust PASS→FAIL and four additional baseline-absent failures in F5 CLI suites. Full named routing: `../handoff/reviews/merge-inventory-20261019/coordinator-20261022/heavy-ci5205-bigip-routing-20261022T2119Z.json`. Original assertions remain. Two explain-flow simulations also depend on the VM-owned tcl9.0/F5 manifest mismatch. Owner session has not been duplicated;18:08 owner freshness remains stale and is flagged to user. These are new release blockers for the owning separate session, not a claim of resumed owner work.

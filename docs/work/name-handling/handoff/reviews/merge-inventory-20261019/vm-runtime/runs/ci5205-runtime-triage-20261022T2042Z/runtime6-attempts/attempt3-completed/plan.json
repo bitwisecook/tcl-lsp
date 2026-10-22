@@ -1,0 +1,54 @@
+{
+  "prepared_utc": "2026-10-22T20:38:52.487550+00:00",
+  "status": "OFFTREE successor plan prepared while attempt2 finishes. No fixture link mutation/current driver edit and no Cargo queued.",
+  "manifest": "/workspace/naming-migration-active/tcl-lsp/runtime/rust/Cargo.toml",
+  "cargo_build_argv": [
+    "cargo",
+    "test",
+    "--locked",
+    "--manifest-path",
+    "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/Cargo.toml",
+    "--lib",
+    "--no-run",
+    "--message-format=json",
+    "-j",
+    "2"
+  ],
+  "exact_selectors": [
+    "cmd_error::tests::eight_four_catch_takes_no_options_variable",
+    "cmd_alias::tests::aliases_lists_every_alias",
+    "obj::tls_retirement_tests::original_object_retirement_after_metadata_tls_destruction_does_not_abort",
+    "obj::tls_retirement_tests::original_object_retirement_while_tls_is_live_releases_source_metadata",
+    "cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion",
+    "cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication"
+  ],
+  "run_argv_per_selector": [
+    "<exactnewlibraryartifact>",
+    "<exactselector>",
+    "--exact",
+    "--nocapture",
+    "--test-threads",
+    "1"
+  ],
+  "roster_expectation": "Six exact selectors, one real test each; failures/aborts retained. No full library pass or TLS control run inferred from other selectors.",
+  "guarantees": "Whole build/all isolated runs/final receipt under nonblocking global flock. Current source + full provider chain (all five Tcl exe/wrappers/libtcl archives or sharedlibs/library scripts, Jim executable/config, setup manifest) sealed before/after. Disk >=2GiB, combined per-step log cap20MiB, incremental/debug0/j2, unique target/no cleanup. Compiler warnings terminal; exactly the deliberate no-tommath build-script flavor warning is recorded as an exception, so no zero-warning gate claim. Each selector deadline180s; timeout and signal retained, subsequent independent selectors continue.",
+  "build_flavor": "Exact-byte current runtime/rust mirror; mirror/rust symlink to sealed active/rust; mirror/tmp absent, TCL_TOMMATH_DIR unset. Unchanged build.rs picks no libtommath. No source or provider renames/deletions. Retain mirror/artifact; source+provider seals before/after. Existing explicit no-tommath cargo warning is recorded as intentional flavor notice, all other warnings fail closed. Root authorized controlled exact-byte mirror flavor; build still requires GO.",
+  "source_manifest": "/workspace/naming-migration-active/tcl-lsp/runtime/rust/Cargo.toml",
+  "mirror_manifest": "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/Cargo.toml",
+  "execution": "Extract exactly one libtest executable from successful cargo JSON artifact; list --format terse; require exact six selectors each once. Invoke each independently, continue after panic/abort and preserve return code/signal. No unchecked stale artifact fallback.",
+  "providers": {
+    "jim_sha256": "4c52ccf801a46df9ea5aa062c50e5d4b7e7b09c5d523d464fe8b6e682744b12e",
+    "active_provision_manifest_sha256": "40cdc417fd9aa05661047b5cf501f9b2a57a5c03f08f984b784e109213a00f99"
+  },
+  "unique_cargo_target_dir": "/tmp/vm-runtime-ci5205-target-20261022",
+  "mirror_proof": "/tmp/vm-runtime-ci5205-mirror-proof.json",
+  "mirror_source_file_count": 9517,
+  "guarded_runner": "/tmp/vm-runtime-ci5205-six-v2.py",
+  "guarded_runner_sha256": "daa9c7d3cb371828bb7b229854625bfc8d9430cdaa77b09f643154816d2605d5",
+  "run_command": "source /tmp/tcl-lsp-naming-env.sh\npython3 /tmp/vm-runtime-ci5205-six-v2.py --execute",
+  "log_dir": "/tmp/vm-runtime-ci5205-six-run-attempt3",
+  "frozen_utc": "2026-10-22T20:59:54.053449+00:00",
+  "per_selector_deadline_seconds": 180,
+  "provider_map_reference": "/tmp/lsp-minify-focused/providers.py",
+  "fixture_correction": "Mirror/experiments -> canonical/experiments AFTER attempt2 final guard only. All22 missing include files exist canonically with exact hash receipt; extra full experiments tree hash in before/after seal. Root canonical fixtures unchanged; no-tommath path still absent."
+}

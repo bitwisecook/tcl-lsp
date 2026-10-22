@@ -1,0 +1,58 @@
+
+thread 'cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication' (135650) panicked at src/cmd_oo/original_namespace_copy_tests.rs:41:5:
+assertion failed: interpreter.namespaces_mut().command_names(DESTINATION.with(Cell::get)).is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication' (135650) panicked at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:225:5:
+panic in a function that cannot unwind
+stack backtrace:
+   0:     0x55bad81e7181 - <<std[68c81ae915296b05]::sys::backtrace::BacktraceLock>::print::DisplayBacktrace as core[efd5e57aef94d71e]::fmt::Display>::fmt
+   1:     0x55bad82005aa - core[efd5e57aef94d71e]::fmt::write
+   2:     0x55bad81ee86c - <std[68c81ae915296b05]::sys::stdio::unix::Stderr as core[efd5e57aef94d71e]::io::write::Write>::write_fmt
+   3:     0x55bad81be2d6 - std[68c81ae915296b05]::panicking::default_hook::{closure#0}
+   4:     0x55bad81dcc51 - std[68c81ae915296b05]::panicking::default_hook
+   5:     0x55bad81dcf7b - std[68c81ae915296b05]::panicking::panic_with_hook
+   6:     0x55bad81be3b4 - std[68c81ae915296b05]::panicking::panic_handler::{closure#0}
+   7:     0x55bad81b5ec9 - std[68c81ae915296b05]::sys::backtrace::__rust_end_short_backtrace::<std[68c81ae915296b05]::panicking::panic_handler::{closure#0}, !>
+   8:     0x55bad81bf41d - __rustc[3d2f79520d6fa809]::rust_begin_unwind
+   9:     0x55bad8200bcd - core[efd5e57aef94d71e]::panicking::panic_nounwind_fmt
+  10:     0x55bad8200b4b - core[efd5e57aef94d71e]::panicking::panic_nounwind
+  11:     0x55bad8200cd7 - core[efd5e57aef94d71e]::panicking::panic_cannot_unwind
+  12:     0x55bad6ffea94 - tcl_runtime[8818f2885d86a12a]::cmd_oo::original_namespace_copy_tests::retire
+  13:     0x55bad6901f2a - tcl_runtime[8818f2885d86a12a]::obj::free_obj
+  14:     0x55bad68f77fd - tcl_runtime[8818f2885d86a12a]::obj::decr_ref_count
+  15:     0x55bad6997de9 - <tcl_runtime[8818f2885d86a12a]::obj::Owned as core[efd5e57aef94d71e]::ops::drop::Drop>::drop
+  16:     0x55bad6dac1fe - core[efd5e57aef94d71e]::ptr::drop_glue::<tcl_runtime[8818f2885d86a12a]::obj::Owned>
+  17:     0x55bad6dbf8bc - core[efd5e57aef94d71e]::ptr::drop_glue::<[tcl_runtime[8818f2885d86a12a]::obj::Owned]>
+  18:     0x55bad667cae1 - <alloc[c23e483dde3f7cfb]::vec::Vec<tcl_runtime[8818f2885d86a12a]::obj::Owned> as core[efd5e57aef94d71e]::ops::drop::Drop>::drop
+  19:     0x55bad6d99aad - core[efd5e57aef94d71e]::ptr::drop_glue::<alloc[c23e483dde3f7cfb]::vec::Vec<tcl_runtime[8818f2885d86a12a]::obj::Owned>>
+  20:     0x55bad6d8e825 - core[efd5e57aef94d71e]::ptr::drop_glue::<core[efd5e57aef94d71e]::option::Option<alloc[c23e483dde3f7cfb]::vec::Vec<tcl_runtime[8818f2885d86a12a]::obj::Owned>>>
+  21:     0x55bad722df16 - core[efd5e57aef94d71e]::mem::drop::<core[efd5e57aef94d71e]::option::Option<alloc[c23e483dde3f7cfb]::vec::Vec<tcl_runtime[8818f2885d86a12a]::obj::Owned>>>
+  22:     0x55bad628012c - <tcl_runtime[8818f2885d86a12a]::interp::ProcDef as tcl_runtime_api[9e4359749b89e5ae]::native_procedure_roles::NativeProcedureRoleOwner>::retire_native_procedure_resources
+  23:     0x55bad68e5801 - <tcl_runtime_api[9e4359749b89e5ae]::native_procedure_roles::NativeProcedureReference<tcl_runtime[8818f2885d86a12a]::interp::ProcDef>>::release
+  24:     0x55bad699501e - <tcl_runtime_api[9e4359749b89e5ae]::native_procedure_roles::NativeProcedureReference<tcl_runtime[8818f2885d86a12a]::interp::ProcDef> as core[efd5e57aef94d71e]::ops::drop::Drop>::drop
+  25:     0x55bad6d970ad - core[efd5e57aef94d71e]::ptr::drop_glue::<tcl_runtime_api[9e4359749b89e5ae]::native_procedure_roles::NativeProcedureReference<tcl_runtime[8818f2885d86a12a]::interp::ProcDef>>
+  26:     0x55bad6d8db48 - core[efd5e57aef94d71e]::ptr::drop_glue::<core[efd5e57aef94d71e]::option::Option<tcl_runtime_api[9e4359749b89e5ae]::native_procedure_roles::NativeProcedureReference<tcl_runtime[8818f2885d86a12a]::interp::ProcDef>>>
+  27:     0x55bad722ddfa - core[efd5e57aef94d71e]::mem::drop::<core[efd5e57aef94d71e]::option::Option<tcl_runtime_api[9e4359749b89e5ae]::native_procedure_roles::NativeProcedureReference<tcl_runtime[8818f2885d86a12a]::interp::ProcDef>>>
+  28:     0x55bad619eab0 - <tcl_runtime[8818f2885d86a12a]::interp::Interp>::retire_original_command_implementation
+  29:     0x55bad6f77d06 - <tcl_runtime[8818f2885d86a12a]::interp::Interp>::retire_original_command_generation_using::{closure#0}
+  30:     0x55bad6dc695c - tcl_cmd_core[f108998520051ea7]::native_command_retirement::retire_original_command::<<tcl_runtime[8818f2885d86a12a]::interp::Interp>::retire_original_command_generation_using::{closure#0}>
+  31:     0x55bad619ffa3 - <tcl_runtime[8818f2885d86a12a]::interp::Interp>::retire_original_command_generation_using
+  32:     0x55bad619e806 - <tcl_runtime[8818f2885d86a12a]::interp::Interp>::retire_original_command_for_creation
+  33:     0x55bad62444ad - <tcl_runtime[8818f2885d86a12a]::interp::Interp>::bind_command_replacement_entered
+  34:     0x55bad6255c85 - <tcl_runtime[8818f2885d86a12a]::interp::Interp>::bind_command_replacement_with_original_jim_key
+  35:     0x55bad6250f2a - <tcl_runtime[8818f2885d86a12a]::interp::Interp>::bind_command_replacement_with_jim_key
+  36:     0x55bad62240f3 - <tcl_runtime[8818f2885d86a12a]::interp::Interp>::bind_command_replacement
+  37:     0x55bad6176df8 - <tcl_runtime[8818f2885d86a12a]::interp::Interp>::oo_clone_namespace
+  38:     0x55bad6fffe5c - tcl_runtime[8818f2885d86a12a]::cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication
+  39:     0x55bad6f9ed53 - tcl_runtime[8818f2885d86a12a]::cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication::{closure#0}
+  40:     0x55bad6f20836 - <tcl_runtime[8818f2885d86a12a]::cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication::{closure#0} as core[efd5e57aef94d71e]::ops::function::FnOnce<()>>::call_once
+  41:     0x55bad7761bfb - test[ff178199d140d5fa]::__rust_begin_short_backtrace::<core[efd5e57aef94d71e]::result::Result<(), alloc[c23e483dde3f7cfb]::string::String>, fn() -> core[efd5e57aef94d71e]::result::Result<(), alloc[c23e483dde3f7cfb]::string::String>>
+  42:     0x55bad776f265 - test[ff178199d140d5fa]::run_test::{closure#0}
+  43:     0x55bad7768624 - std[68c81ae915296b05]::sys::backtrace::__rust_begin_short_backtrace::<test[ff178199d140d5fa]::run_test::{closure#1}, ()>
+  44:     0x55bad77723c2 - <std[68c81ae915296b05]::thread::lifecycle::spawn_unchecked<test[ff178199d140d5fa]::run_test::{closure#1}, ()>::{closure#1} as core[efd5e57aef94d71e]::ops::function::FnOnce<()>>::call_once::{shim:vtable#0}
+  45:     0x55bad81e6089 - <std[68c81ae915296b05]::sys::thread::unix::Thread>::new::thread_start
+  46:     0x7facf1dcbb7b - <unknown>
+  47:     0x7facf1e497f8 - <unknown>
+  48:                0x0 - <unknown>
+thread caused non-unwinding panic. aborting.

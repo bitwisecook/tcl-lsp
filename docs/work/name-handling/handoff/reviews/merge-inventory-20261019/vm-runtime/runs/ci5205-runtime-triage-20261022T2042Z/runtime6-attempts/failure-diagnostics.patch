@@ -1,0 +1,29 @@
+--- a/runtime/rust/src/cmd_error.rs
++++ b/runtime/rust/src/cmd_error.rs
+@@ -1280,8 +1280,10 @@
+         assert_eq!(
+             i.eval_str(src),
+             Code::Ok,
+-            "eval {:?}",
+-            String::from_utf8_lossy(src)
++            "eval {:?}; native refusal {:?}; result {:?}",
++            String::from_utf8_lossy(src),
++            i.native_execution_refusal(),
++            i.result_bytes()
+         );
+         i.result_bytes()
+     }
+--- a/runtime/rust/src/cmd_namespace.rs
++++ b/runtime/rust/src/cmd_namespace.rs
+@@ -7046,7 +7046,10 @@
+         let mut interp = native();
+         assert_eq!(
+             interp.eval_str(b"namespace eval src {proc x {} {return OLD}}"),
+-            Code::Ok
++            Code::Ok,
++            "Jim source setup: native refusal {:?}; result {:?}",
++            interp.native_execution_refusal(),
++            interp.result_bytes()
+         );
+         let key = interp
+             .namespaces()

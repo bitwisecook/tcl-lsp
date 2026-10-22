@@ -1,0 +1,53 @@
+{
+  "utc": "2026-10-22T21:19:44.854875+00:00",
+  "run_id": 39845788481,
+  "source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+  "full_metadata_file": "/tmp/work-ci5205/jobs-2117.json",
+  "jobs_complete_inventory": 30,
+  "status_counts": {
+    "success": 7,
+    "failure": 16,
+    "in_progress": 4,
+    "skipped": 3
+  },
+  "heavy": {
+    "current": {
+      "PASS": 298,
+      "FAIL": 51
+    },
+    "baseline": {
+      "PASS": 312
+    },
+    "confirmed_exact_PASS_to_FAIL": 27,
+    "failing_absent_baseline": 24,
+    "comparison": "../compiler-codegen/results/resumed-20261022/heavy-ci5205/receipt.json",
+    "separate_from_main24312": true
+  },
+  "shard4": {
+    "job_id": 120061100525,
+    "conclusion": "failure",
+    "started_at": "2026-10-22T20:10:30Z",
+    "completed_at": "2026-10-22T21:00:07Z",
+    "step10": "cancelled",
+    "authoritative_annotation": "The operation was canceled.",
+    "named_outcomes": "unknown, no logs obtained",
+    "connector": "Transport closed repeated",
+    "gh_fallback": "Redirect target returned Forbidden; no specific cause supplied; URL query redacted and not retained",
+    "no_named_result_inference": true
+  },
+  "editor2": {
+    "job_id": 120069799858,
+    "PASS": 137,
+    "FAIL": 79,
+    "raw_log": "/tmp/work-ci5205/editor-two.log",
+    "complete_baseline_join": "pending"
+  },
+  "remaining_shards": [
+    1,
+    2,
+    3,
+    5
+  ],
+  "gate_passed": false,
+  "admissions": []
+}

@@ -1,0 +1,134 @@
+{
+  "as_of_utc": "2026-10-22T21:18Z",
+  "status": "Coordinator dependency audit only; no checklist row changed and no release gate admitted.",
+  "inputs": {
+    "release_gate_map": "section-f-release-gates-20261022.md (read-only; last updated 19:07Z)",
+    "current_state": "../../../../current-state.md (dashboard timestamp 20:55Z; stale relative to newer role handoffs)",
+    "functional_batch": {
+      "path": "functional-batch-20261022T2114Z.json",
+      "sha256": "27017abacbbde4d076e6cdf3b38b9044204795bf6fb9316c59f50faee28c6b36",
+      "base_head": "ab1f5e3b064e31b6e6c0974bef133453f7d563d4",
+      "status": "Integrated reviewed WIP; no type/test/lint admission",
+      "patch_count": 8,
+      "product_path_count": 40
+    },
+    "latest_outstanding_handoffs": [
+      "compiler-names.md, 21:16:23Z",
+      "compiler-codegen.md, 21:18:22Z",
+      "compiler.md, 21:05:15Z",
+      "vm-runtime.md, 21:16:46Z",
+      "lsp.md, 21:16:26Z",
+      "perf.md, 20:12Z",
+      "bigip-lsp.md, 18:08Z (stale separate-session handoff)",
+      "review-triage.md, 19:57:30Z (complete triage; not release approval)"
+    ]
+  },
+  "dependency_order": [
+    {
+      "order": 1,
+      "gate": "Integrated functional-batch typecheck",
+      "owner": "compiler-names, with compiler/Cargo coordinator",
+      "state": "In progress at audit time. The guarded seven-crate all-targets check began compiler first; compiler/Core/server/DB sequencing and final source/provider guards are pending.",
+      "evidence": [
+        "/tmp/compiler-names-n13-typecheck-20261022T211529Z/compiler-started.json",
+        "/tmp/compiler-names-n13-typecheck-20261022T211529Z/before-source.json",
+        "/tmp/compiler-names-n13-typecheck-20261022T211529Z/before-providers.json",
+        "compiler-names.md Resume at 21:16:23Z"
+      ],
+      "closes_only_when": "The exact guarded all-targets command completes with exit 0, no warnings/errors, all required crate phases complete, and post-source/provider hashes match. This is compile evidence only; it does not close original selector failures, lint, or runtime behavior."
+    },
+    {
+      "order": 2,
+      "gate": "Restore and remeasure compiler/name behavior, including the original N13/C6 and g4/C6 regressions",
+      "owner": "compiler-names and compiler; compiler-codegen for owned compiler-service/WASM selectors",
+      "state": "Open. The 21:14 batch integrated N13/C6 composition and related shared changes without tests. Compiler-names records eight historical regressions still failing in the guarded replay; compiler owns the current follow-up. Compiler-codegen's separate heavy CI join reports 27 exact matched PASS-to-FAIL selectors, 24 failing selectors absent from baseline, and 8 WASM PASS-to-FAILs; these ledgers are distinct and must not be summed.",
+      "evidence": [
+        "functional-batch-20261022T2114Z.json",
+        "compiler-names.md Resume and current guarded original replay",
+        "/tmp/ccg-heavy-ci-comparison/receipt.json (SHA-256 0808da8c3c6edf688405c667acc057ade3fc1853fc490813ae6d6212c30f1d5c)",
+        "compiler-codegen.md Resume at 21:18:22Z"
+      ],
+      "closes_only_when": "Run the exact owner-selected original and new selectors after the typecheck, preserve all old assertions, pass with source/provider/artifact guards, then join every actual current outcome to the exact origin/rust binary+selector identity. Missing baseline selectors remain unknown. Address the separate eight WASM failures, including the reported host_refusal_pending import, and run the five original WASM controls plus new controls."
+    },
+    {
+      "order": 3,
+      "gate": "LSP Core/DB/server functional and source-view lifecycle acceptance",
+      "owner": "lsp, with compiler-names/compiler for source-region and authored-name interfaces",
+      "state": "Open. Current LSP handoff says no fresh type/runtime verdict; N13 coupled host/view integration remains partial and off-tree. The folder-context six-row probe is integrated but uncompiled/unrun. The CURRENT3 run had one exact baseline-matched pass, two Core depth timeouts/aborts and one DB selector not in the baseline; those outcomes are not a complete P2F set.",
+      "evidence": [
+        "lsp.md Resume at 21:16:26Z",
+        "functional-batch-20261022T2114Z.json (folder-context probe v4 append)",
+        "partial-minify12-baseline-join-20261022.json"
+      ],
+      "closes_only_when": "After compiler/source APIs are validated, complete the actual host registration, freshness/currentness checks, atomic publication and view-aware consumer path; run D1-D6 and the original required Core/DB/server selectors with unchanged budgets/assertions. For parent/child source views, prove retired A cannot be reused after byte-equal B, with full config/epoch/factory/path/index/publication currentness and first completed answers. Compare only exact matched baseline identities; absent selectors are unknown."
+    },
+    {
+      "order": 4,
+      "gate": "SpecTcl C.1/C.2 and pinned runtime compatibility",
+      "owner": "vm-runtime, with compiler-codegen for the separately assigned 51 codegen/service cases",
+      "state": "Open. Five pinned-C callback controls pass. Latest runtime6 attempt reports alias and two TLS cases pass, catch/Jim setup fail, and the unchanged OO abort remains; no full runtime or SpecTcl acceptance. General VM parity remains parked.",
+      "evidence": [
+        "vm-runtime.md Resume at 21:16:46Z",
+        "/tmp/vm-runtime-preflight/execution-selector-plan.json",
+        "/tmp/vm-runtime-c1-c2-acceptance-map.json",
+        "functional-batch-20261022T2114Z.json (OO callback phase correction)"
+      ],
+      "closes_only_when": "Repair runtime6 failures without dropping the original OO/cleanup assertions, then complete the exact five-target `make test-spectcl-compat` closure on pinned Tcl 9.0.4, plus the mapped Jim, EDA, UPF, reload/generation and protocol cases on their exact pinned providers. Verify all 17 UPF executable slots and remaining required Jim/EDA cases; plans and manual C controls alone do not close the gate."
+    },
+    {
+      "order": 5,
+      "gate": "Strict source, lint and repository drift gates",
+      "owner": "root/coordinator; compiler, VM, LSP, CCG and registry owners clear their diagnostics",
+      "state": "Open. `make prep-pr` and `make rust-check` have not been run on the shipping SHA. Current Clippy inventories and scoped repairs are not a full strict pass.",
+      "evidence": [
+        "section-f-release-gates-20261022.md, Required by the review",
+        "compiler.md Resume",
+        "vm-runtime.md Resume",
+        "lsp.md Resume",
+        "compiler-codegen.md Resume"
+      ],
+      "closes_only_when": "Run `make prep-pr` and then `make rust-check` on the exact release candidate with prescribed Rust 1.99.1, no lint allowances, generated drift checks clean and all conditionally required targets/jobs recorded. A prior scoped Clippy pass or syntax-only patch review is insufficient."
+    },
+    {
+      "order": 6,
+      "gate": "Native LSP protocol, editor shipping hosts and WASI transport",
+      "owner": "lsp and root/coordinator; external BIG-IP/LSP owner inputs remain separately stale",
+      "state": "Open. CI5205 partial joins already show matched baseline failures in folder, browser/WASM/WASI and host checks. Desktop/browser and WASI aggregates have not all closed on the current candidate. The bigip-lsp handoff is from 18:08Z and must be refreshed before relying on it.",
+      "evidence": [
+        "section-f-release-gates-20261022.md, Native Rust tests and LSP protocol / Desktop editor host / Browser editor host / WASI",
+        "bigip-lsp.md (18:08Z handoff)",
+        "lsp.md Resume"
+      ],
+      "closes_only_when": "On one exact shipping SHA, pass all five Rust shards and doctests, the three-part native `lsp-e2e` aggregate, desktop `test-ext` aggregate, browser `test-ext-web` aggregate and browser language-server transport. Run WASI JSON-RPC transport if shipping the universal VSIX/release module; a compile-only check does not close it. Resolve all exact baseline-matched failures first."
+    },
+    {
+      "order": 7,
+      "gate": "Shipping performance, cancellation and memory evidence",
+      "owner": "perf, with compiler/LSP/runtime support",
+      "state": "Open. Perf handoff reports a default-profile observed pass-to-fail in `every_shipped_pack_loads_identically_with_and_without_the_static_fast_path`; full equality remains unproven and a separate 5-second budget axis failed. Do not infer closure from isolated fast-path timing.",
+      "evidence": [
+        "perf.md Resume (20:12Z)",
+        "section-f-release-gates-20261022.md, Shipping performance/cancellation/memory"
+      ],
+      "closes_only_when": "Measure cold/warm representative workloads on the release profile and exact shipping source, including open-to-first-tokens, edit/diagnostic convergence, references/rename/code lens, cancellation/overlap and peak/retained memory across repeated source/config/lifecycle changes; establish full semantic equality and report target/runtime/workload. No numeric memory ceiling is specified by Section F."
+    },
+    {
+      "order": 8,
+      "gate": "Exact origin/rust pass-to-fail comparison and release notes/restrictions",
+      "owner": "root/coordinator",
+      "state": "Open. Exact baseline CI5203 is complete: 24,312 named PASS outcomes, exact binary IDs, 4,625 unnamed skips unknown. This is the comparator, not current-branch completion. Current failures and partial joins remain distributed across distinct ledgers; do not claim zero P2F from absence.",
+      "evidence": [
+        "origin-rust-ci-5203-named-log-outcomes-20261022.json",
+        "section-f-release-gates-20261022.md, Historical origin/rust comparison availability"
+      ],
+      "closes_only_when": "Collect complete current outcomes for the exact shipping candidate and join by exact package/binary/selector with matching toolchain/features/profile; every baseline PASS must be observed as PASS or explicitly surfaced as FAIL/ABORT/timeout. Any missing or skipped current selector stays unknown. Then update release restrictions and scope notes and verify every required aggregate is green for that same SHA."
+    }
+  ],
+  "release_checklist_state": "All Section F release checklist boxes remain open. Review-triage is complete as a bounded replay, not release approval. The 21:14 functional batch records eight integrated reviewed patches and 40 product paths, but explicitly grants no type, test, or lint admission.",
+  "limitations": [
+    "This audit is a coordination map, not test evidence or approval.",
+    "No validated rows, current-state text, outstanding handoffs, source, tests, or workflow files were changed.",
+    "The current-state dashboard is older than the role handoffs and should not be treated as the latest execution status.",
+    "Distinct CI ledgers (main Rust/LSP 24,312 baseline, heavy CI, WASM, SpecTcl, editor hosts) are not additive unless exact shared identities and gate provenance are proved."
+  ]
+}

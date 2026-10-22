@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-22T21:10:15.087152+00:00",
+  "status": "OFFTREE assertion-message-only diagnostics; no assertion/input/expected value change, no production change, uncompiled/unrun.",
+  "patch_sha256": "b8eaf28984af2c8485f7fc7052ce190ac217d4e0971c3cf5f438f760501d1f6b",
+  "files": [
+    {
+      "path": "runtime/rust/src/cmd_error.rs",
+      "before_sha256": "8a007629381d2eb003cc642fd2962ce3a73b1730498c4e9d192e5ee85aa4a74c",
+      "after_sha256": "e63462db64c929982ad5582501dfc9f4a9d3a438e3fbccd2ab0b2c06fac358f3"
+    },
+    {
+      "path": "runtime/rust/src/cmd_namespace.rs",
+      "before_sha256": "c90b27fe37b622a19f7b5f3fe3c730d01155de62d42a9967a6cddf63b5264d62",
+      "after_sha256": "3732c7dcb007509d14105c0b83e9cf52e3ff2e3fb0488c07039e4432f8efe87b"
+    }
+  ],
+  "scope": "Print existing Native refusal before result byte projection only when unchanged original assertion fails. This identifies Error channel cause without weakening CodeOk or exact expected byte checks."
+}

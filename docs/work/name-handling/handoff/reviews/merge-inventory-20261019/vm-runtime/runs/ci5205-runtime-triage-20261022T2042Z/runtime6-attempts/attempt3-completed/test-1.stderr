@@ -1,0 +1,6 @@
+
+thread 'cmd_error::tests::eight_four_catch_takes_no_options_variable' (135594) panicked at src/cmd_error.rs:1280:9:
+assertion `left == right` failed: eval "list [catch {catch {set x 1} r o} m] $m $::errorCode"
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

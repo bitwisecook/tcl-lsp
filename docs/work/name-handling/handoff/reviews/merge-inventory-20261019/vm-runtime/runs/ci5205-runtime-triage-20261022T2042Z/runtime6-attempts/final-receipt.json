@@ -1,0 +1,62 @@
+{
+  "utc": "2026-10-22T21:09:14.710651+00:00",
+  "scope": "Finite exact6 current-source standalone no-tommath libtests; no full suite or release gate claim.",
+  "plan_sha256": "17db18a24b961071c8e6859d2b463aa092860912f8448715bbf4d845429b6e9b",
+  "runner_sha256": "daa9c7d3cb371828bb7b229854625bfc8d9430cdaa77b09f643154816d2605d5",
+  "artifact": {
+    "path": "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+    "sha256": "b37b2b5176176b745181e9967d590b8d710441e01e049e238f6727c422601d29",
+    "intentional_no_tommath_notice": [
+      "warning: tcl-runtime@0.1.0: libtommath source not found; bignum backend disabled"
+    ],
+    "zero_warning_claim": false
+  },
+  "results": [
+    {
+      "selector": "cmd_error::tests::eight_four_catch_takes_no_options_variable",
+      "exit": 101,
+      "stopped": null,
+      "started_exactly_one_test": true
+    },
+    {
+      "selector": "cmd_alias::tests::aliases_lists_every_alias",
+      "exit": 0,
+      "stopped": null,
+      "started_exactly_one_test": true
+    },
+    {
+      "selector": "obj::tls_retirement_tests::original_object_retirement_after_metadata_tls_destruction_does_not_abort",
+      "exit": 0,
+      "stopped": null,
+      "started_exactly_one_test": true
+    },
+    {
+      "selector": "obj::tls_retirement_tests::original_object_retirement_while_tls_is_live_releases_source_metadata",
+      "exit": 0,
+      "stopped": null,
+      "started_exactly_one_test": true
+    },
+    {
+      "selector": "cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion",
+      "exit": 101,
+      "stopped": null,
+      "started_exactly_one_test": true
+    },
+    {
+      "selector": "cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication",
+      "exit": -6,
+      "stopped": null,
+      "started_exactly_one_test": true
+    }
+  ],
+  "guard": {
+    "source_and_providers_unchanged": true,
+    "source_count": 35063,
+    "cleanup": "None; mirror, fresh executable, target and logs retained."
+  },
+  "flock_independently_free": true,
+  "warnings": "Exactly deliberate no-tommath build-script notice; no typed compiler warning; not zero-warning gate claim.",
+  "cleanup": "None. Fresh binary, unique target, mirror, completed logs retained.",
+  "catch_limits": "CodeError confirmed for exact original script; current assertion does not print actual result bytes/refusal. No cause inferred.",
+  "jim_limits": "Fails first namespace/proc setup before import/key assertion. No TLS panic reproduced; both separate TLS controls PASS."
+}

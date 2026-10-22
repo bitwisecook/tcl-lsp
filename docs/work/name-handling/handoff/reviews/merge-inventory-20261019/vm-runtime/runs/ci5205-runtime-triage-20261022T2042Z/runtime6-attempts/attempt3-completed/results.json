@@ -1,0 +1,38 @@
+[
+  {
+    "selector": "cmd_error::tests::eight_four_catch_takes_no_options_variable",
+    "exit": 101,
+    "stopped": null,
+    "started_exactly_one_test": true
+  },
+  {
+    "selector": "cmd_alias::tests::aliases_lists_every_alias",
+    "exit": 0,
+    "stopped": null,
+    "started_exactly_one_test": true
+  },
+  {
+    "selector": "obj::tls_retirement_tests::original_object_retirement_after_metadata_tls_destruction_does_not_abort",
+    "exit": 0,
+    "stopped": null,
+    "started_exactly_one_test": true
+  },
+  {
+    "selector": "obj::tls_retirement_tests::original_object_retirement_while_tls_is_live_releases_source_metadata",
+    "exit": 0,
+    "stopped": null,
+    "started_exactly_one_test": true
+  },
+  {
+    "selector": "cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion",
+    "exit": 101,
+    "stopped": null,
+    "started_exactly_one_test": true
+  },
+  {
+    "selector": "cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication",
+    "exit": -6,
+    "stopped": null,
+    "started_exactly_one_test": true
+  }
+]

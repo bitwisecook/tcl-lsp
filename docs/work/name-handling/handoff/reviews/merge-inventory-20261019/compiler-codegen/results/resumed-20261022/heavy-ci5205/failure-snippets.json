@@ -1,0 +1,716 @@
+[
+  {
+    "binary_id": "f5-cli::cli",
+    "test_name": "mutating_queries_require_faithful_named_and_structured_donors",
+    "classification": "absent-baseline",
+    "ordinal": 35,
+    "current_result_line": 806,
+    "first_panic": [
+      "    thread 'mutating_queries_require_faithful_named_and_structured_donors' (4261) panicked at rust/f5-cli/tests/cli.rs:413:9:",
+      "    [101, 114, 114, 111, 114, 58, 32, 114, 101, 110, 97, 109, 101, 58, 32, 97, 114, 103, 117, 109, 101, 110, 116, 32, 50, 32, 109, 117, 115, 116, 32, 98, 101, 32, 97, 32, 115, 116, 114, 105, 110, 103, 44, 32, 103, 111, 116, 32, 115, 116, 114, 101, 97, 109, 10]",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "f5-cli::cli",
+    "test_name": "query_archive_file_donors_keep_original_bytes_before_mutation",
+    "classification": "absent-baseline",
+    "ordinal": 36,
+    "current_result_line": 838,
+    "first_panic": [
+      "    thread 'query_archive_file_donors_keep_original_bytes_before_mutation' (4265) panicked at rust/f5-cli/tests/cli.rs:453:9:",
+      "    [101, 114, 114, 111, 114, 58, 32, 99, 97, 110, 110, 111, 116, 32, 114, 101, 97, 100, 32, 102, 105, 101, 108, 100, 32, 34, 99, 111, 110, 116, 101, 110, 116, 34, 32, 111, 110, 32, 110, 117, 108, 108, 10]",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "f5-cli::cli",
+    "test_name": "source_transforms_refuse_invalid_name_bytes_before_artifacts",
+    "classification": "absent-baseline",
+    "ordinal": 37,
+    "current_result_line": 870,
+    "first_panic": [
+      "    thread 'source_transforms_refuse_invalid_name_bytes_before_artifacts' (4269) panicked at rust/f5-cli/tests/cli.rs:357:5:",
+      "    assertion failed: String::from_utf8(report.stdout).unwrap().contains(\"/Common/old\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "f5-cli",
+    "test_name": "commands::explain::source_event_tests::source_event_report_separates_owned_empty_and_unavailable",
+    "classification": "absent-baseline",
+    "ordinal": 39,
+    "current_result_line": 905,
+    "first_panic": [
+      "    thread 'commands::explain::source_event_tests::source_event_report_separates_owned_empty_and_unavailable' (4133) panicked at rust/f5-cli/src/commands/explain.rs:586:9:",
+      "    assertion `left == right` failed",
+      "      left: \"(event inventory unavailable)\"",
+      "     right: \"CLIENT_ACCEPTED, HTTP_REQUEST\"",
+      "    stack backtrace:"
+    ]
+  },
+  {
+    "binary_id": "f5-cli::explain_flow",
+    "test_name": "simulate_json_populates_simulated_fields",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 45,
+    "current_result_line": 948,
+    "first_panic": [
+      "    thread 'simulate_json_populates_simulated_fields' (4314) panicked at rust/f5-cli/tests/explain_flow.rs:188:5:",
+      "    {",
+      "      \"pcap_path\": \"explain-flow-matched.pcap\",",
+      "      \"flow_count\": 4,",
+      "      \"session_count\": 1,"
+    ]
+  },
+  {
+    "binary_id": "f5-cli::explain_flow",
+    "test_name": "simulate_runs_irule_and_selects_pool",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 49,
+    "current_result_line": 1229,
+    "first_panic": [
+      "    thread 'simulate_runs_irule_and_selects_pool' (4320) panicked at rust/f5-cli/tests/explain_flow.rs:174:5:",
+      "    explain-flow: explain-flow-matched.pcap",
+      "      sessions: 1 | matched: 1 | tshark: no",
+      "",
+      "    [session 1] tcp"
+    ]
+  },
+  {
+    "binary_id": "f5-cli::cli",
+    "test_name": "explain_virtual_text",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 50,
+    "current_result_line": 1305,
+    "first_panic": [
+      "    thread 'explain_virtual_text' (4235) panicked at rust/f5-cli/tests/cli.rs:55:5:",
+      "    assertion `left == right` failed: f5 diff output does not match the golden (explain-virtual.text.golden)",
+      "      left: \"explain virtual: /Common/www_vs\\n\\n  destination:\\n    /Common/10.0.0.1:443\\n\\n  profiles:\\n    /Common/my_http_profile (http)\\n    /Common/my_tcp_profile (tcp)\\n    /Common/my_clientssl (client_ssl)\\n    /Common/my_serverssl (server_ssl)\\n    /Common/my_oneconnect (one_connect)\\n\\n  iRules:\\n    /Common/route_by_host \u2014 14 loc; events: (event inventory unavailable)\\n    /Common/ip_blocklist \u2014 5 loc; events: (event inventory unavailable)\\n    /Common/uri_rewrite \u2014 6 loc; events: (event inventory unavailable)\\n\\n  persistence:\\n    /Common/my_cookie_persist (cookie)\\n\\n  SNAT:\\n    snatpool /Common/my_snatpool (2 member(s))\\n    translation: snat\\n\\n  default pool:\\n    /Common/web_pool (round-robin)\\n      pool monitor: /Common/my_http_monitor\\n      member /Common/web1:80 addr=10.0.1.10\\n      member /Common/web2:80 addr=10.0.1.11\\n\"",
+      "     right: \"explain virtual: /Common/www_vs\\n\\n  destination:\\n    /Common/10.0.0.1:443\\n\\n  profiles:\\n    /Common/my_http_profile (http)\\n    /Common/my_tcp_profile (tcp)\\n    /Common/my_clientssl (client_ssl)\\n    /Common/my_serverssl (server_ssl)\\n    /Common/my_oneconnect (one_connect)\\n\\n  iRules:\\n    /Common/route_by_host \u2014 14 loc; events: HTTP_REQUEST\\n    /Common/ip_blocklist \u2014 5 loc; events: CLIENT_ACCEPTED\\n    /Common/uri_rewrite \u2014 6 loc; events: HTTP_REQUEST\\n\\n  persistence:\\n    /Common/my_cookie_persist (cookie)\\n\\n  SNAT:\\n    snatpool /Common/my_snatpool (2 member(s))\\n    translation: snat\\n\\n  default pool:\\n    /Common/web_pool (round-robin)\\n      pool monitor: /Common/my_http_monitor\\n      member /Common/web1:80 addr=10.0.1.10\\n      member /Common/web2:80 addr=10.0.1.11\\n\"",
+      "    stack backtrace:"
+    ]
+  },
+  {
+    "binary_id": "f5-cli::cli",
+    "test_name": "explain_virtual_json",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 51,
+    "current_result_line": 1345,
+    "first_panic": [
+      "    thread 'explain_virtual_json' (4230) panicked at rust/f5-cli/tests/cli.rs:55:5:",
+      "    assertion `left == right` failed: f5 diff output does not match the golden (explain-virtual.json.golden)",
+      "      left: \"{\\n  \\\"target\\\": \\\"/Common/www_vs\\\",\\n  \\\"kind\\\": \\\"virtual\\\",\\n  \\\"found\\\": true,\\n  \\\"sections\\\": [\\n    {\\n      \\\"heading\\\": \\\"destination\\\",\\n      \\\"lines\\\": [\\n        \\\"/Common/10.0.0.1:443\\\"\\n      ]\\n    },\\n    {\\n      \\\"heading\\\": \\\"profiles\\\",\\n      \\\"lines\\\": [\\n        \\\"/Common/my_http_profile (http)\\\",\\n        \\\"/Common/my_tcp_profile (tcp)\\\",\\n        \\\"/Common/my_clientssl (client_ssl)\\\",\\n        \\\"/Common/my_serverssl (server_ssl)\\\",\\n        \\\"/Common/my_oneconnect (one_connect)\\\"\\n      ]\\n    },\\n    {\\n      \\\"heading\\\": \\\"iRules\\\",\\n      \\\"lines\\\": [\\n        \\\"/Common/route_by_host \\\\u2014 14 loc; events: (event inventory unavailable)\\\",\\n        \\\"/Common/ip_blocklist \\\\u2014 5 loc; events: (event inventory unavailable)\\\",\\n        \\\"/Common/uri_rewrite \\\\u2014 6 loc; events: (event inventory unavailable)\\\"\\n      ]\\n    },\\n    {\\n      \\\"heading\\\": \\\"persistence\\\",\\n      \\\"lines\\\": [\\n        \\\"/Common/my_cookie_persist (cookie)\\\"\\n      ]\\n    },\\n    {\\n      \\\"heading\\\": \\\"SNAT\\\",\\n      \\\"lines\\\": [\\n        \\\"snatpool /Common/my_snatpool (2 member(s))\\\",\\n        \\\"translation: snat\\\"\\n      ]\\n    },\\n    {\\n      \\\"heading\\\": \\\"default pool\\\",\\n      \\\"lines\\\": [\\n        \\\"/Common/web_pool (round-robin)\\\",\\n        \\\"  pool monitor: /Common/my_http_monitor\\\",\\n        \\\"  member /Common/web1:80 addr=10.0.1.10\\\",\\n        \\\"  member /Common/web2:80 addr=10.0.1.11\\\"\\n      ]\\n    }\\n  ]\\n}\\n\"",
+      "     right: \"{\\n  \\\"target\\\": \\\"/Common/www_vs\\\",\\n  \\\"kind\\\": \\\"virtual\\\",\\n  \\\"found\\\": true,\\n  \\\"sections\\\": [\\n    {\\n      \\\"heading\\\": \\\"destination\\\",\\n      \\\"lines\\\": [\\n        \\\"/Common/10.0.0.1:443\\\"\\n      ]\\n    },\\n    {\\n      \\\"heading\\\": \\\"profiles\\\",\\n      \\\"lines\\\": [\\n        \\\"/Common/my_http_profile (http)\\\",\\n        \\\"/Common/my_tcp_profile (tcp)\\\",\\n        \\\"/Common/my_clientssl (client_ssl)\\\",\\n        \\\"/Common/my_serverssl (server_ssl)\\\",\\n        \\\"/Common/my_oneconnect (one_connect)\\\"\\n      ]\\n    },\\n    {\\n      \\\"heading\\\": \\\"iRules\\\",\\n      \\\"lines\\\": [\\n        \\\"/Common/route_by_host \\\\u2014 14 loc; events: HTTP_REQUEST\\\",\\n        \\\"/Common/ip_blocklist \\\\u2014 5 loc; events: CLIENT_ACCEPTED\\\",\\n        \\\"/Common/uri_rewrite \\\\u2014 6 loc; events: HTTP_REQUEST\\\"\\n      ]\\n    },\\n    {\\n      \\\"heading\\\": \\\"persistence\\\",\\n      \\\"lines\\\": [\\n        \\\"/Common/my_cookie_persist (cookie)\\\"\\n      ]\\n    },\\n    {\\n      \\\"heading\\\": \\\"SNAT\\\",\\n      \\\"lines\\\": [\\n        \\\"snatpool /Common/my_snatpool (2 member(s))\\\",\\n        \\\"translation: snat\\\"\\n      ]\\n    },\\n    {\\n      \\\"heading\\\": \\\"default pool\\\",\\n      \\\"lines\\\": [\\n        \\\"/Common/web_pool (round-robin)\\\",\\n        \\\"  pool monitor: /Common/my_http_monitor\\\",\\n        \\\"  member /Common/web1:80 addr=10.0.1.10\\\",\\n        \\\"  member /Common/web2:80 addr=10.0.1.11\\\"\\n      ]\\n    }\\n  ]\\n}\\n\"",
+      "    stack backtrace:"
+    ]
+  },
+  {
+    "binary_id": "f5-cli::irule",
+    "test_name": "trace_keeps_data_group_from_braced_expression_command",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 71,
+    "current_result_line": 1404,
+    "first_panic": [
+      "    thread 'trace_keeps_data_group_from_braced_expression_command' (4445) panicked at rust/f5-cli/tests/irule.rs:195:5:",
+      "    assertion `left == right` failed: stderr: ",
+      "      left: 1",
+      "     right: 0",
+      "    stack backtrace:"
+    ]
+  },
+  {
+    "binary_id": "f5-cli::irule",
+    "test_name": "trace_uses_the_event_closure_not_the_first_handler_body",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 72,
+    "current_result_line": 1442,
+    "first_panic": [
+      "    thread 'trace_uses_the_event_closure_not_the_first_handler_body' (4449) panicked at rust/f5-cli/tests/irule.rs:219:5:",
+      "    assertion `left == right` failed: stderr: ",
+      "      left: 1",
+      "     right: 0",
+      "    stack backtrace:"
+    ]
+  },
+  {
+    "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+    "test_name": "bpf_diff::tests::tn_zero_selected_byte_is_the_socket_filter_drop_verdict",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 184,
+    "current_result_line": 1593,
+    "first_panic": [
+      "    thread 'bpf_diff::tests::tn_zero_selected_byte_is_the_socket_filter_drop_verdict' (4925) panicked at rust/tcl-fuzz/src/bpf_diff.rs:162:32:",
+      "    compiled BPF program: \"BPF-Tcl lowering: [BPF001] DSL command requires its retained original or typed generated selection\"",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+    "test_name": "bpf_diff::tests::tp_real_ebpf_program_returns_the_selected_packet_byte",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 185,
+    "current_result_line": 1629,
+    "first_panic": [
+      "    thread 'bpf_diff::tests::tp_real_ebpf_program_returns_the_selected_packet_byte' (4928) panicked at rust/tcl-fuzz/src/bpf_diff.rs:151:32:",
+      "    compiled BPF program: \"BPF-Tcl lowering: [BPF001] DSL command requires its retained original or typed generated selection\"",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+    "test_name": "generator::tests::malformed_expressions_error_on_our_engine",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 217,
+    "current_result_line": 1696,
+    "first_panic": [
+      "    thread 'generator::tests::malformed_expressions_error_on_our_engine' (4994) panicked at rust/tcl-vm/src/exec.rs:1753:14:",
+      "    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+    "test_name": "wasm_diff::tests::dynamic_break_exits_the_loop",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 280,
+    "current_result_line": 1798,
+    "first_panic": [
+      "    thread 'wasm_diff::tests::dynamic_break_exits_the_loop' (5123) panicked at rust/tcl-fuzz/src/wasm_diff.rs:415:9:",
+      "    assertion `left == right` failed",
+      "      left: Unrunnable(\"instantiate: unknown import: `tcl::tcl_codegen_host_refusal_pending` has not been defined\")",
+      "     right: Match",
+      "    stack backtrace:"
+    ]
+  },
+  {
+    "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+    "test_name": "wasm_diff::tests::dynamic_continue_skips_the_iteration",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 281,
+    "current_result_line": 1837,
+    "first_panic": [
+      "    thread 'wasm_diff::tests::dynamic_continue_skips_the_iteration' (5127) panicked at rust/tcl-fuzz/src/wasm_diff.rs:426:9:",
+      "    assertion `left == right` failed",
+      "      left: Unrunnable(\"instantiate: unknown import: `tcl::tcl_codegen_host_refusal_pending` has not been defined\")",
+      "     right: Match",
+      "    stack backtrace:"
+    ]
+  },
+  {
+    "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+    "test_name": "wasm_diff::tests::error_in_loop_unwinds_not_hangs",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 282,
+    "current_result_line": 1875,
+    "first_panic": [
+      "    thread 'wasm_diff::tests::error_in_loop_unwinds_not_hangs' (5129) panicked at rust/tcl-fuzz/src/wasm_diff.rs:395:9:",
+      "    assertion `left == right` failed",
+      "      left: Unrunnable(\"instantiate: unknown import: `tcl::tcl_codegen_host_refusal_pending` has not been defined\")",
+      "     right: Match",
+      "    stack backtrace:"
+    ]
+  },
+  {
+    "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+    "test_name": "wasm_diff::tests::if_branch_matches",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 283,
+    "current_result_line": 1914,
+    "first_panic": [
+      "    thread 'wasm_diff::tests::if_branch_matches' (5132) panicked at rust/tcl-fuzz/src/wasm_diff.rs:351:9:",
+      "    assertion `left == right` failed",
+      "      left: Unrunnable(\"instantiate: unknown import: `tcl::tcl_codegen_host_refusal_pending` has not been defined\")",
+      "     right: Match",
+      "    stack backtrace:"
+    ]
+  },
+  {
+    "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+    "test_name": "wasm_diff::tests::loop_iteration_matches",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 284,
+    "current_result_line": 1952,
+    "first_panic": [
+      "    thread 'wasm_diff::tests::loop_iteration_matches' (5134) panicked at rust/tcl-fuzz/src/wasm_diff.rs:370:9:",
+      "    assertion `left == right` failed: WASM loop must iterate like tcl-vm",
+      "      left: Unrunnable(\"instantiate: unknown import: `tcl::tcl_codegen_host_refusal_pending` has not been defined\")",
+      "     right: Match",
+      "    stack backtrace:"
+    ]
+  },
+  {
+    "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+    "test_name": "wasm_diff::tests::return_in_loop_stops_the_script",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 286,
+    "current_result_line": 1991,
+    "first_panic": [
+      "    thread 'wasm_diff::tests::return_in_loop_stops_the_script' (5137) panicked at rust/tcl-fuzz/src/wasm_diff.rs:404:9:",
+      "    assertion `left == right` failed",
+      "      left: Unrunnable(\"instantiate: unknown import: `tcl::tcl_codegen_host_refusal_pending` has not been defined\")",
+      "     right: Match",
+      "    stack backtrace:"
+    ]
+  },
+  {
+    "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+    "test_name": "wasm_diff::tests::straight_line_matches",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 291,
+    "current_result_line": 2033,
+    "first_panic": [
+      "    thread 'wasm_diff::tests::straight_line_matches' (5141) panicked at rust/tcl-fuzz/src/wasm_diff.rs:340:9:",
+      "    assertion `left == right` failed: straight-line output must agree",
+      "      left: Unrunnable(\"instantiate: unknown import: `tcl::tcl_codegen_host_refusal_pending` has not been defined\")",
+      "     right: Match",
+      "    stack backtrace:"
+    ]
+  },
+  {
+    "binary_id": "tcl-fuzz::bin/tcl-fuzz",
+    "test_name": "wasm_diff::tests::while_with_break_matches",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 293,
+    "current_result_line": 2072,
+    "first_panic": [
+      "    thread 'wasm_diff::tests::while_with_break_matches' (5143) panicked at rust/tcl-fuzz/src/wasm_diff.rs:381:9:",
+      "    assertion `left == right` failed",
+      "      left: Unrunnable(\"instantiate: unknown import: `tcl::tcl_codegen_host_refusal_pending` has not been defined\")",
+      "     right: Match",
+      "    stack backtrace:"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::authored_functions_keep_independent_worker_random_and_precision_contexts",
+    "classification": "absent-baseline",
+    "ordinal": 294,
+    "current_result_line": 2110,
+    "first_panic": [
+      "    thread 'live::tests::authored_functions_keep_independent_worker_random_and_precision_contexts' (5155) panicked at rust/tcl-irule-test/src/live.rs:1733:51:",
+      "    framework: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::original_projection_tests::original_live_result_projection_keeps_strict_bytes_earlier_eval_cause_and_next_entry",
+    "classification": "absent-baseline",
+    "ordinal": 295,
+    "current_result_line": 2146,
+    "first_panic": [
+      "    thread 'live::original_projection_tests::original_live_result_projection_keeps_strict_bytes_earlier_eval_cause_and_next_entry' (5153) panicked at rust/tcl-irule-test/src/live/original_projection_tests.rs:44:14:",
+      "    called `Result::unwrap()` on an `Err` value: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::embedded_session_scenarios",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 297,
+    "current_result_line": 2183,
+    "first_panic": [
+      "    thread 'live::tests::embedded_session_scenarios' (5161) panicked at rust/tcl-irule-test/src/live.rs:1234:45:",
+      "    embedded session: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::event_errors_preserve_cells_and_restore_worker_rule_activation",
+    "classification": "absent-baseline",
+    "ordinal": 299,
+    "current_result_line": 2220,
+    "first_panic": [
+      "    thread 'live::tests::event_errors_preserve_cells_and_restore_worker_rule_activation' (5163) panicked at rust/tcl-irule-test/src/live.rs:1955:51:",
+      "    framework: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::event_frames_preserve_cells_aliases_and_traces",
+    "classification": "absent-baseline",
+    "ordinal": 300,
+    "current_result_line": 2256,
+    "first_panic": [
+      "    thread 'live::tests::event_frames_preserve_cells_aliases_and_traces' (5166) panicked at rust/tcl-irule-test/src/live.rs:1632:56:",
+      "    session: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::harness_runs_the_tmm_84_surface",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 301,
+    "current_result_line": 2292,
+    "first_panic": [
+      "    thread 'live::tests::harness_runs_the_tmm_84_surface' (5168) panicked at rust/tcl-irule-test/src/live.rs:2444:50:",
+      "    session: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::irule_source_rewrite_only_touches_command_positions",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 302,
+    "current_result_line": 2328,
+    "first_panic": [
+      "    thread 'live::tests::irule_source_rewrite_only_touches_command_positions' (5170) panicked at rust/tcl-irule-test/src/live.rs:1539:50:",
+      "    session: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::live_session_class_match_honours_every_operator",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 303,
+    "current_result_line": 2364,
+    "first_panic": [
+      "    thread 'live::tests::live_session_class_match_honours_every_operator' (5174) panicked at rust/tcl-irule-test/src/live.rs:1114:50:",
+      "    session: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::live_session_drives_the_request_lifecycle",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 304,
+    "current_result_line": 2400,
+    "first_panic": [
+      "    thread 'live::tests::live_session_drives_the_request_lifecycle' (5176) panicked at rust/tcl-irule-test/src/live.rs:953:50:",
+      "    session: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::itest_loader_event_registration_matches_rust_when_blocks",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 305,
+    "current_result_line": 2436,
+    "first_panic": [
+      "    thread 'live::tests::itest_loader_event_registration_matches_rust_when_blocks' (5172) panicked at rust/tcl-irule-test/src/live.rs:1053:56:",
+      "    session: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::measured_event_names_enter_the_actual_connection_frame_and_restore_policy",
+    "classification": "absent-baseline",
+    "ordinal": 306,
+    "current_result_line": 2472,
+    "first_panic": [
+      "    thread 'live::tests::measured_event_names_enter_the_actual_connection_frame_and_restore_policy' (5182) panicked at rust/tcl-irule-test/src/live.rs:728:56:",
+      "    session: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::measured_loader_checks_original_source_and_keeps_dynamic_runtime_commands",
+    "classification": "absent-baseline",
+    "ordinal": 307,
+    "current_result_line": 2508,
+    "first_panic": [
+      "    thread 'live::tests::measured_loader_checks_original_source_and_keeps_dynamic_runtime_commands' (5184) panicked at rust/tcl-irule-test/src/live.rs:2224:51:",
+      "    framework: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::measured_counted_lengths_keep_dynamic_bytes_and_literal_strings_separate_from_host",
+    "classification": "absent-baseline",
+    "ordinal": 309,
+    "current_result_line": 2545,
+    "first_panic": [
+      "    thread 'live::tests::measured_counted_lengths_keep_dynamic_bytes_and_literal_strings_separate_from_host' (5179) panicked at rust/tcl-irule-test/src/live.rs:2427:51:",
+      "    framework: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::native_completion_capabilities_do_not_expand_the_user_grammar",
+    "classification": "absent-baseline",
+    "ordinal": 310,
+    "current_result_line": 2581,
+    "first_panic": [
+      "    thread 'live::tests::native_completion_capabilities_do_not_expand_the_user_grammar' (5192) panicked at rust/tcl-irule-test/src/live.rs:811:56:",
+      "    called `Result::unwrap()` on an `Err` value: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::named_rules_keep_procedures_owned_and_route_call_without_extra_frames",
+    "classification": "absent-baseline",
+    "ordinal": 311,
+    "current_result_line": 2617,
+    "first_panic": [
+      "    thread 'live::tests::named_rules_keep_procedures_owned_and_route_call_without_extra_frames' (5190) panicked at rust/tcl-irule-test/src/live.rs:2271:51:",
+      "    framework: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::measured_rule_lookup_uses_partition_root_and_keeps_activated_callables",
+    "classification": "absent-baseline",
+    "ordinal": 312,
+    "current_result_line": 2653,
+    "first_panic": [
+      "    thread 'live::tests::measured_rule_lookup_uses_partition_root_and_keeps_activated_callables' (5186) panicked at rust/tcl-irule-test/src/live.rs:2353:51:",
+      "    framework: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::retained_event_frame_preserves_native_completion_options",
+    "classification": "absent-baseline",
+    "ordinal": 313,
+    "current_result_line": 2689,
+    "first_panic": [
+      "    thread 'live::tests::retained_event_frame_preserves_native_completion_options' (5195) panicked at rust/tcl-irule-test/src/live.rs:2148:51:",
+      "    called `Result::unwrap()` on an `Err` value: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::rule_init_uses_each_workers_global_cells_once",
+    "classification": "absent-baseline",
+    "ordinal": 314,
+    "current_result_line": 2725,
+    "first_panic": [
+      "    thread 'live::tests::rule_init_uses_each_workers_global_cells_once' (5200) panicked at rust/tcl-irule-test/src/live.rs:1783:51:",
+      "    framework: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::rule_creation_and_recreation_initialise_only_the_owned_rule_on_four_workers",
+    "classification": "absent-baseline",
+    "ordinal": 315,
+    "current_result_line": 2761,
+    "first_panic": [
+      "    thread 'live::tests::rule_creation_and_recreation_initialise_only_the_owned_rule_on_four_workers' (5197) panicked at rust/tcl-irule-test/src/live.rs:2167:51:",
+      "    framework: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::scf_loader_stores_parsed_snatpool_members",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 316,
+    "current_result_line": 2797,
+    "first_panic": [
+      "    thread 'live::tests::scf_loader_stores_parsed_snatpool_members' (5202) panicked at rust/tcl-irule-test/src/live.rs:1342:44:",
+      "    session: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::scheduled_callback_retirement_and_error_reports_preserve_original_options",
+    "classification": "absent-baseline",
+    "ordinal": 317,
+    "current_result_line": 2833,
+    "first_panic": [
+      "    thread 'live::tests::scheduled_callback_retirement_and_error_reports_preserve_original_options' (5204) panicked at rust/tcl-irule-test/src/live.rs:2105:51:",
+      "    called `Result::unwrap()` on an `Err` value: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::scheduled_callbacks_keep_worker_root_and_connection_cells_distinct",
+    "classification": "absent-baseline",
+    "ordinal": 318,
+    "current_result_line": 2869,
+    "first_panic": [
+      "    thread 'live::tests::scheduled_callbacks_keep_worker_root_and_connection_cells_distinct' (5206) panicked at rust/tcl-irule-test/src/live.rs:2047:51:",
+      "    called `Result::unwrap()` on an `Err` value: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::tmm_select_mode_survives_the_per_test_reset",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 319,
+    "current_result_line": 2905,
+    "first_panic": [
+      "    thread 'live::tests::tmm_select_mode_survives_the_per_test_reset' (5208) panicked at rust/tcl-irule-test/src/live.rs:1302:50:",
+      "    session: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 320,
+    "current_result_line": 2941,
+    "first_panic": [
+      "    thread 'live::tests::tmm_word_boolean_operators_are_rewritten_to_their_tcl_equivalents' (5210) panicked at rust/tcl-irule-test/src/live.rs:1422:50:",
+      "    session: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::worker_array_recreation_retires_element_aliases_and_traces",
+    "classification": "absent-baseline",
+    "ordinal": 321,
+    "current_result_line": 2977,
+    "first_panic": [
+      "    thread 'live::tests::worker_array_recreation_retires_element_aliases_and_traces' (5212) panicked at rust/tcl-irule-test/src/live.rs:2005:51:",
+      "    framework: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::worker_interpreters_preserve_cells_traces_and_command_tables",
+    "classification": "absent-baseline",
+    "ordinal": 322,
+    "current_result_line": 3013,
+    "first_panic": [
+      "    thread 'live::tests::worker_interpreters_preserve_cells_traces_and_command_tables' (5214) panicked at rust/tcl-irule-test/src/live.rs:1674:56:",
+      "    session: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::worker_reset_reloads_independent_globals_and_initialisation",
+    "classification": "absent-baseline",
+    "ordinal": 323,
+    "current_result_line": 3049,
+    "first_panic": [
+      "    thread 'live::tests::worker_reset_reloads_independent_globals_and_initialisation' (5217) panicked at rust/tcl-irule-test/src/live.rs:1893:51:",
+      "    framework: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "live::tests::worker_static_broadcast_and_recreation_preserve_trace_owners",
+    "classification": "absent-baseline",
+    "ordinal": 324,
+    "current_result_line": 3085,
+    "first_panic": [
+      "    thread 'live::tests::worker_static_broadcast_and_recreation_preserve_trace_owners' (5219) panicked at rust/tcl-irule-test/src/live.rs:1846:51:",
+      "    framework: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "pure_functions::binary_boundary_tests::reference_binary_output_retains_counted_payload_and_authored_constructor_origin",
+    "classification": "absent-baseline",
+    "ordinal": 328,
+    "current_result_line": 3124,
+    "first_panic": [
+      "    thread 'pure_functions::binary_boundary_tests::reference_binary_output_retains_counted_payload_and_authored_constructor_origin' (5223) panicked at rust/tcl-irule-test/src/pure_functions.rs:755:10:",
+      "    called `Result::unwrap()` on an `Err` value: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  },
+  {
+    "binary_id": "tcl-irule-test",
+    "test_name": "pure_functions::tests::irules_pure_functions_match_the_simulator_and_the_oracle",
+    "classification": "matched-PASS-to-FAIL",
+    "ordinal": 347,
+    "current_result_line": 3179,
+    "first_panic": [
+      "    thread 'pure_functions::tests::irules_pure_functions_match_the_simulator_and_the_oracle' (5234) panicked at rust/tcl-irule-test/src/pure_functions.rs:557:56:",
+      "    session: Eval(\"bytecode manifest disagrees with the runtime on environment: compiled for tcl9.0, runtime holds f5-irules\")",
+      "    stack backtrace:",
+      "       0: __rustc::rust_begin_unwind",
+      "                 at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5"
+    ]
+  }
+]
