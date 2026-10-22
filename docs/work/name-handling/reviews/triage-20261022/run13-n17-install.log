@@ -1,0 +1,23 @@
+Thu Oct 22 17:17:13 UTC 2026
+fc5aeac174c883ad7d0038bebe9b56cb5d7f89c1
+77ae0143b54f1006ce8cf352cb4bcb4e7137b489135e97f5038c308c55c21a20  rust/tcl-spectcl/tests/zz_review_probe.rs
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          32G  3.7G   27G  13% /
+CASE n17_control_mylib Thu Oct 22 17:28:36 UTC 2026
+
+running 1 test
+test n17_control_mylib ... N17_CONTROL_INSTALL dsl=1 plan_empty=false notices=[] declined=["None"] registry_profile=Some("tcl8.6")
+N17_PROFILE dsl=1 dialect=None return=false direct=None O129=[]
+N17_PROFILE dsl=1 dialect=None return=true direct=None O129=[]
+N17_PROFILE dsl=1 dialect=Some("tcl8.6") return=false direct=None O129=[]
+N17_PROFILE dsl=1 dialect=Some("tcl8.6") return=true direct=None O129=[]
+N17_CONTROL_INSTALL dsl=2.0 plan_empty=false notices=[] declined=["None"] registry_profile=Some("tcl8.6")
+N17_PROFILE dsl=2.0 dialect=None return=false direct=None O129=[]
+N17_PROFILE dsl=2.0 dialect=None return=true direct=None O129=[]
+N17_PROFILE dsl=2.0 dialect=Some("tcl8.6") return=false direct=None O129=[]
+N17_PROFILE dsl=2.0 dialect=Some("tcl8.6") return=true direct=None O129=[]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 29.32s
+
+CASE_EXIT n17_control_mylib exit=0 Thu Oct 22 17:29:05 UTC 2026

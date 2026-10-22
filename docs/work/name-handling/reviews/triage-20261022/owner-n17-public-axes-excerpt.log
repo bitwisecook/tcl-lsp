@@ -1,0 +1,21 @@
+Thu Oct 22 17:21:52 UTC 2026
+READ-ONLY OWNER RECEIPT EXCERPT; not a new triage execution.
+commit=fc5aeac174c883ad7d0038bebe9b56cb5d7f89c1
+blob=d55304997168e103d3da91c3fd8b4f1422f87911
+source=docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/results/resumed-20261022/n17_public_axes.log
+6: ZZP explicit install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+7: ZZP explicit direct=None direct86=None errors=["mylib::strlen const_fold: execution refused: native compiler preflight provider required"] crashes=[]
+8: ZZP explicit empty install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+9: ZZP explicit direct_empty=None direct_empty86=None errors=["mylib::strlen const_fold: execution refused: native compiler preflight provider required"] crashes=[]
+11: ZZP explicit world=undeclared formals="" install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+16: ZZP explicit world=undeclared formals="" errors=["mylib::strlen const_fold: execution refused: native compiler preflight provider required"] crashes=[]
+17: ZZP explicit world=undeclared formals="x" install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+22: ZZP explicit world=undeclared formals="x" errors=["mylib::strlen const_fold: execution refused: native compiler preflight provider required"] crashes=[]
+24: ZZP explicit world=empty formals="" install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+29: ZZP explicit world=empty formals="" errors=["mylib::strlen const_fold: execution refused: native compiler preflight provider required"] crashes=[]
+30: ZZP explicit world=empty formals="x" install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+35: ZZP explicit world=empty formals="x" errors=["mylib::strlen const_fold: execution refused: native compiler preflight provider required"] crashes=[]
+37: ZZP explicit world=write formals="" install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+42: ZZP explicit world=write formals="" errors=[] crashes=[]
+43: ZZP explicit world=write formals="x" install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+48: ZZP explicit world=write formals="x" errors=[] crashes=[]
