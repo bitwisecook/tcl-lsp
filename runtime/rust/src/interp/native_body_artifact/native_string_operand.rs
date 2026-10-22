@@ -39,7 +39,7 @@ impl Builder<'_> {
         recipe: NativeStringOperandInstruction,
         depth: u32,
     ) -> Result<StringOperandOperation, tcl_cmd_core::CmdError> {
-        if recipe.operands.len() != recipe.operation.arity() {
+        if !recipe.operation.accepts(recipe.operands.len()) {
             return Err(
                 (ValueError::CommandProtocolUnavailable("native string operand geometry")).into(),
             );
@@ -111,6 +111,7 @@ impl Interp {
                 "string totitle string ?first? ?last?",
                 numbers,
             ),
+            NativeStringOperandOperation::Cat => tcl_cmd_core::string::cat(self, &words),
         }
         .map_err(|error| self.report_cmd_error(error))?;
         drop(operands);

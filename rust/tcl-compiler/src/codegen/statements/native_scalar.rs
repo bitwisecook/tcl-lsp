@@ -56,8 +56,13 @@ impl CodegenCtx<'_> {
         operations: &mut Vec<NativeEmissionTask>,
     ) -> bool {
         use tcl_registry::native_string_operand_compilation::NativeStringOperandOperation as Operation;
-        if recipe.operands.len() != recipe.operation.arity() {
+        if !recipe.operation.accepts(recipe.operands.len())
+            || recipe.literals.len() != recipe.operands.len()
+        {
             return false;
+        }
+        if recipe.operation == Operation::Cat {
+            return Self::append_native_string_cat_tasks(command, recipe, version, operations);
         }
         for operand in recipe.operands {
             let Some(task) = Self::native_namespace_word_task(&command.words, operand) else {
@@ -73,8 +78,62 @@ impl CodegenCtx<'_> {
             Operation::ToUpper => Op::STR_UPPER,
             Operation::ToLower => Op::STR_LOWER,
             Operation::ToTitle => Op::STR_TITLE,
+            Operation::Cat => return false,
         };
         operations.push(NativeEmissionTask::SwitchOperation(op, Vec::new(), version));
+        true
+    }
+
+    /// `TclCompileStringCatCmd`: no words push `""`; each run of compile-known
+    /// words is folded into one literal; every other word is evaluated in
+    /// place; `strcat` joins them, flushing at 254 operands so the folded
+    /// literal still fits one instruction's count.
+    fn append_native_string_cat_tasks(
+        command: &tcl_lexer::NativeScriptCommandWords,
+        recipe: tcl_registry::native_string_operand_compilation::NativeStringOperandInstruction,
+        version: tcl_dialect::TclVersion,
+        operations: &mut Vec<NativeEmissionTask>,
+    ) -> bool {
+        use crate::codegen::Operand;
+        let concat = |count: usize| {
+            NativeEmissionTask::SwitchOperation(
+                Op::STR_CONCAT1,
+                vec![Operand::Imm(i32::try_from(count).expect("at most 254 operands"))],
+                version,
+            )
+        };
+        if recipe.operands.is_empty() {
+            operations.push(NativeEmissionTask::Literal(Vec::new()));
+            return true;
+        }
+        let mut pushed = 0usize;
+        let mut folded: Option<Vec<u8>> = None;
+        for (operand, literal) in recipe.operands.into_iter().zip(recipe.literals) {
+            if let Some(value) = literal {
+                folded.get_or_insert_with(Vec::new).extend_from_slice(&value);
+                continue;
+            }
+            if let Some(value) = folded.take() {
+                operations.push(NativeEmissionTask::Literal(value));
+                pushed += 1;
+            }
+            let Some(task) = Self::native_namespace_word_task(&command.words, operand) else {
+                return false;
+            };
+            operations.push(task);
+            pushed += 1;
+            if pushed >= 254 {
+                operations.push(concat(pushed));
+                pushed = 1;
+            }
+        }
+        if let Some(value) = folded {
+            operations.push(NativeEmissionTask::Literal(value));
+            pushed += 1;
+        }
+        if pushed > 1 {
+            operations.push(concat(pushed));
+        }
         true
     }
 }

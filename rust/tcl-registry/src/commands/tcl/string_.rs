@@ -1067,6 +1067,16 @@ static SUBCOMMANDS: &[SubCommand] = &[
         arity: Arity::any(),
         detail: "Concatenate strings.",
         synopsis: "string cat ?string1? ?string2 ...?",
+        // C 8.6+ TclCompileStringCatCmd (`strcat`) takes any operand count;
+        // an expanded word leaves the command to run.
+        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
+            grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
+                scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+                operation: crate::native_string_operand_compilation::NativeStringOperandOperation::Cat,
+            },
+            operation: SemanticOperationId::Invoke,
+            body: crate::native_compilation::NativeBodyCompilation::Inherit,
+        }),
         successful_handler: Some(
             crate::native_compilation::SuccessfulHandlerSpec::EnsembleLeaf {
                 direct_provider: Some(crate::native_compilation::NormalValueLeafProvider::F5String),

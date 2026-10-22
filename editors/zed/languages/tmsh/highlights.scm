@@ -1,48 +1,131 @@
-; BIG-IP configuration (tmsh) highlights for Zed.
+; Tcl-family highlights for Zed
 ;
-; Backed by `grammars/tree-sitter-bigip`. Without it, Zed's TMSH language
-; would point at the *Tcl* grammar and ship no query file at all, so a
-; `bigip.conf` would get no highlighting and a garbage parse tree.
-;
-; The captures mirror the BIG-IP semantic-token types the server emits. Where
-; the grammar cannot be as specific as the server (a bare `/Common/x` does not
-; say whether it names a pool or a monitor) it stays generic rather than guess:
-; less specific, never contradictory.
+; DO NOT EDIT — the command-classification `#any-of?` lists below are generated
+; from `tcl-registry` (scoped to this language's dialect) by
+; `cargo xtask gen-zed-queries`. Structural rules are a static template in that
+; generator. Run `make generate` after registry changes.
 
+; Comments
 (comment) @comment
 
-(module) @keyword
-(object_type) @keyword
+; Strings and escapes
+(quoted_word) @string
+(escaped_character) @string.escape
 
-; The partition of an object path is a namespace, as the server types it.
-(object_path partition: (path_component) @namespace)
-(object_path port: (port) @number)
-(object_path route_domain: (number) @constant)
-
-; A pool member's or virtual's final path component *is* an address. Without
-; this it would fall through to the generic object-name capture and be painted
-; a different colour than the server's `ipAddress` — the one place these two
-; layers could contradict each other outright.
-((object_path name: (path_component) @number)
- (#match? @number "^([0-9]{1,3}\\.){3}[0-9]{1,3}$"))
-
-(object_path name: (path_component) @type)
-
-; A reference whose type is named by the preceding word — the one case where the
-; grammar can be exactly as specific as the server, so it is.
-(property
-  name: (word) @keyword
-  (#any-of? @keyword
-    "pool" "monitor" "profile" "persistence" "vlan" "vlans" "interface"))
-
-(property name: (word) @property)
-
-(ip_address) @number
-(ip_address port: (port) @number)
-(encrypted) @string.special
-(string) @string
-(escape_sequence) @string.escape
+; Numbers
 (number) @number
-(word) @variable
 
-["{" "}"] @punctuation.bracket
+((simple_word) @number
+  (#match? @number "^[+-]?[0-9]+$"))
+
+((simple_word) @boolean
+  (#any-of? @boolean "true" "false"))
+
+; Variables
+(variable_substitution) @variable
+
+(set (id) @variable)
+
+(argument
+  name: (_) @variable.parameter)
+
+; Tcl built-in variables from the shared special-variable catalogue
+((simple_word) @variable.builtin
+  (#any-of? @variable.builtin
+    "argc" "argv" "argv0" "auto_execs" "auto_index" "auto_noexec"
+    "auto_noload" "auto_path" "env" "errorCode" "errorInfo" "tcl_interactive"
+    "tcl_libPath" "tcl_library" "tcl_nonwordchars" "tcl_patchLevel" "tcl_pkgPath" "tcl_platform"
+    "tcl_precision" "tcl_prompt1" "tcl_prompt2" "tcl_rcFileName" "tcl_traceCompile" "tcl_traceExec"
+    "tcl_version" "tcl_wordchars"))
+
+; Procedure definitions
+"proc" @keyword.function
+
+(procedure
+  name: (_) @function.definition)
+
+; Control-flow keywords parsed as dedicated grammar nodes
+["if" "else" "elseif"] @keyword.control
+["while" "foreach"] @keyword.control
+["catch" "try" "finally"] @keyword.control
+["set" "namespace"] @keyword
+"expr" @function.builtin
+
+; --- generated from tcl-registry: control-flow commands ---
+(command
+  name: (simple_word) @keyword.control
+  (#any-of? @keyword.control
+    "case" "foreachLine" "lfilter" "lmap" "timerate"))
+
+; --- generated from tcl-registry: language keywords ---
+(command
+  name: (simple_word) @keyword
+  (#any-of? @keyword
+    "apply" "break" "callback" "classvariable" "const" "continue"
+    "coroutine" "error" "eval" "global" "interp" "link"
+    "my" "mymethod" "next" "nextto" "oo::Helpers::callback" "oo::Helpers::classvariable"
+    "oo::Helpers::link" "oo::Helpers::mymethod" "oo::Helpers::next" "oo::Helpers::nextto" "oo::Helpers::self" "oo::abstract"
+    "oo::class" "oo::configurable" "oo::define" "oo::objdefine" "oo::object" "oo::singleton"
+    "package" "rename" "return" "self" "source" "tailcall"
+    "throw" "uplevel" "upvar" "variable" "yield" "yieldto"))
+
+; --- generated from tcl-registry: built-in commands ---
+(command
+  name: (simple_word) @function.builtin
+  (#any-of? @function.builtin
+    "after" "append" "array" "auto_execok" "auto_import" "auto_load"
+    "auto_load_index" "auto_mkindex" "auto_mkindex_old" "auto_qualify" "auto_reset" "bgerror"
+    "binary" "cd" "chan" "clock" "close" "concat"
+    "coroinject" "coroprobe" "dict" "divmod" "encoding" "eof"
+    "exec" "exit" "fblocked" "fconfigure" "fcopy" "file"
+    "fileevent" "filename" "flush" "format" "fpclassify" "frexp"
+    "gets" "gettimes" "glob" "history" "http" "incr"
+    "info" "join" "lappend" "lassign" "ledit" "lgen"
+    "lindex" "linsert" "list" "llength" "load" "lpop"
+    "lrange" "lremove" "lrepeat" "lreplace" "lreverse" "lsearch"
+    "lseq" "lset" "lsort" "lstring" "memory" "modf"
+    "noop" "oo::copy" "open" "parray" "pid" "pkg::create"
+    "pkg_mkIndex" "pkg_mkindex" "puts" "pwd" "re_quote" "read"
+    "readFile" "regex::quote" "regex_quote" "regexp" "regexp::quote" "registry"
+    "regsub" "remquo" "scan" "seek" "socket" "split"
+    "string" "subst" "tclLog" "tclPkgSetup" "tclPkgUnknown" "tcl_endOfWord"
+    "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore" "tell"
+    "time" "timer" "tmsh::add_help" "tmsh::add_tabc" "tmsh::begin_transaction" "tmsh::builtin_help"
+    "tmsh::builtin_tabc" "tmsh::cancel_transaction" "tmsh::cd" "tmsh::clear_screen" "tmsh::commit_transaction" "tmsh::create"
+    "tmsh::delete" "tmsh::display" "tmsh::display_threshold" "tmsh::get_config" "tmsh::get_field_names" "tmsh::get_field_value"
+    "tmsh::get_name" "tmsh::get_status" "tmsh::get_type" "tmsh::include" "tmsh::list" "tmsh::log"
+    "tmsh::log_dest" "tmsh::log_level" "tmsh::modify" "tmsh::pwd" "tmsh::reset_stats" "tmsh::show"
+    "tmsh::stateless" "tmsh::version" "trace" "unicode" "unknown" "unload"
+    "unset" "update" "vwait" "writeFile" "zipfs" "zlib"))
+
+; Highlight unset / variable arguments as variables
+(command
+  name: (simple_word) @_kw
+  arguments: (word_list) @variable
+  (#any-of? @_kw "unset" "variable"))
+
+; Generic command calls
+(command
+  name: (simple_word) @function)
+
+; Operators recognised as dedicated tokens by the vendored tree-sitter-tcl
+; grammar
+(unpack) @operator
+
+[
+    "!" "!=" "%" "&" "&&" "*"
+    "**" "+" "-" "/" "<" "<<"
+    "<=" "==" ">" ">=" ">>" "^"
+    "eq" "in" "ne" "ni" "|" "||"
+    "~"
+] @operator
+
+; Word-shaped operators (TIP 461 string-ordering, iRules words) the vendored
+; grammar parses as a plain word rather than a dedicated token — matched by
+; content, like `@boolean` below.
+((simple_word) @operator
+  (#any-of? @operator
+    "ge" "gt" "le" "lt"))
+
+; Punctuation
+["{" "}" "[" "]" ";"] @punctuation.bracket

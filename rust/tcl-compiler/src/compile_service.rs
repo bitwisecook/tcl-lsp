@@ -3621,6 +3621,41 @@ mod tests {
         }
     }
 
+    /// `string cat` compiles as tclsh 8.6.18 and 9.0.4 disassemble it: each
+    /// run of compile-known words folded into one literal, `strcat` over the
+    /// operands, and `""` for no words — not an invocation of the command.
+    #[test]
+    fn string_cat_compiles_with_its_literal_runs_folded() {
+        let source = "set b x\nset r [string cat a - $b {c} d]\nset e [string cat]\n";
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            let profile = tcl_dialect::DialectProfile::find(dialect).expect("catalogue profile");
+            let module = BytecodeCompileService::for_profile(profile)
+                .compile_for_profile(source, profile)
+                .unwrap_or_else(|error| panic!("{dialect}: {error:?}"));
+            let instructions = &module.top_level.instructions;
+            assert!(
+                instructions.iter().any(|instruction| instruction.op
+                    == tcl_bytecode::Op::STR_CONCAT1
+                    && instruction.operands == [tcl_bytecode::Operand::Imm(3)]),
+                "{dialect}: {instructions:?}"
+            );
+            assert!(
+                !instructions.iter().any(|instruction| matches!(
+                    instruction.op,
+                    tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
+                )),
+                "{dialect}: {instructions:?}"
+            );
+            let literals = module.top_level.literals.entries();
+            for folded in ["a-", "cd", ""] {
+                assert!(
+                    literals.iter().any(|literal| literal == folded),
+                    "{dialect}: {folded:?} in {literals:?}"
+                );
+            }
+        }
+    }
+
     /// The raw lowering pipeline with no entry is the same fresh
     /// interpreter, so its module is admitted; an explicitly unknown entry
     /// keeps the chunk's compiler provider unresolved.

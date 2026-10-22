@@ -4583,17 +4583,15 @@ impl CapturedNativeCompletionReceipts {
     }
 }
 
-/// Whether a handler's normal return leaves the command world exactly as the
-/// walk models it: a declared descriptor whose transitions cannot change which
-/// command a name reaches (no binding, namespace-resolution, package-load or
-/// unknown transition). Variable and channel effects do not change it.
+/// Whether a handler without its own closed receipt still leaves the world
+/// exactly as the walk models it on normal return: a declared descriptor with
+/// no state transition at all (`puts`, `list`, `string length`). Any binding,
+/// namespace, package, trace or interpreter transition needs a receipt.
 fn command_world_closed_on_normal_return(facts: &InvocationFacts) -> bool {
     facts
         .state_transitions
         .declared()
-        .is_some_and(|transitions| {
-            transitions.command_resolution_impact() == tcl_registry::CommandResolutionImpact::None
-        })
+        .is_some_and(|transitions| transitions.facts().is_empty())
 }
 
 fn source_frame_namespace(frame: &crate::var_resolve::VariableExecutionFrame) -> &str {
@@ -10407,10 +10405,6 @@ impl SourceCommandBindings {
                 && !command_world_closed_on_normal_return(facts)
                 && let Some(normal) = outcomes.normal.as_mut()
             {
-                #[cfg(test)]
-                if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
-                    eprintln!("ZZ_UNCLOSED_EARLY {:?}", native.segment.texts);
-                }
                 normal.unclosed_command_world = true;
             }
             return *outcomes;
@@ -10468,14 +10462,6 @@ impl SourceCommandBindings {
             || completions.completed(&outcomes, native, facts, *context)
         {
             outcomes.retain_closed_native_handler_completion(native, facts, *context);
-        } else if !command_world_closed_on_normal_return(facts)
-            && let Some(normal) = outcomes.normal.as_mut()
-        {
-            #[cfg(test)]
-            if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
-                eprintln!("ZZ_UNCLOSED {:?}", native.segment.texts);
-            }
-            normal.unclosed_command_world = true;
         }
         finish_source_native_results(
             &mut outcomes,
@@ -10493,6 +10479,12 @@ impl SourceCommandBindings {
             context,
             receipts.normal_write.as_ref().filter(|_| write_complete),
         );
+        if outcomes.normal_completion.is_none()
+            && !command_world_closed_on_normal_return(facts)
+            && let Some(normal) = outcomes.normal.as_mut()
+        {
+            normal.unclosed_command_world = true;
+        }
         outcomes.publish(state);
         *outcomes
     }

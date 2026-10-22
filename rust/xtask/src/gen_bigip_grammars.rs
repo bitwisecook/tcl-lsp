@@ -281,9 +281,13 @@ fn provenance_comment(grammar: &Value, rule: &str, owner: &str) -> Value {
     let original = grammar["repository"][rule]["comment"]
         .as_str()
         .unwrap_or_default();
-    let base = original
-        .split_once(&format!("\n\n{PROVENANCE}"))
-        .map_or(original, |(head, _)| head);
+    let base = if original.starts_with(PROVENANCE) {
+        ""
+    } else {
+        original
+            .split_once(&format!("\n\n{PROVENANCE}"))
+            .map_or(original, |(head, _)| head)
+    };
     let note = format!("{PROVENANCE} from {owner}; lexical display only.");
     Value::from(if base.is_empty() {
         note

@@ -1902,7 +1902,7 @@ impl NativeCompilationSpec {
             | NativeCompilationGrammar::ListLength
             | NativeCompilationGrammar::NamespaceOrigin
             | NativeCompilationGrammar::NamespaceString(_) => count == 1,
-            NativeCompilationGrammar::StringOperand { operation, .. } => count == operation.arity(),
+            NativeCompilationGrammar::StringOperand { operation, .. } => operation.accepts(count),
             NativeCompilationGrammar::StringMatch(_) => {
                 count == 2 || (count == 3 && words.literal(operand_from) == Some(b"-nocase"))
             }

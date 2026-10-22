@@ -597,6 +597,30 @@ pub fn contiguous_prefix<'t>(source: &str, base: usize, text: &'t str) -> &'t st
     &text[..i]
 }
 
+/// The original source text of a braced body whose cooked `text` is the same
+/// region read through a translating Document channel. Under C Tcl's
+/// `-translation auto`, `source` turns each CRLF and lone CR into LF before the
+/// parser runs, so the word value is shorter than its region while every span
+/// stays an original offset. Segmenting the region itself keeps those spans
+/// exact: CR is a word separator before the pair's LF and a lone CR ends a
+/// command exactly as the LF it reads as. Any other difference keeps `text`.
+#[must_use]
+pub fn braced_body_source_region<'t>(
+    source: &'t str,
+    base: usize,
+    close: usize,
+    text: &'t str,
+) -> &'t str {
+    let Some(region) = source.get(base..close) else {
+        return text;
+    };
+    if region.len() == text.len() || !region.contains('\r') {
+        return text;
+    }
+    let folded = region.replace("\r\n", "\n").replace('\r', "\n");
+    if folded == text { region } else { text }
+}
+
 /// The part of a body word's `text` whose spans a walk may rebase by `base`,
 /// given that the word occupies `base..region_end` in `source`.
 ///

@@ -268,11 +268,20 @@ impl Analyser {
         // The rebase below only produces truthful absolute spans while
         // `body_text` maps 1:1 onto its source region; clamp it to the part
         // that actually does.
+        // A translating Document channel folds CRLF in the cooked value; the
+        // body's spans are original offsets, so walk the region itself.
+        let source_region = crate::segmenter::braced_body_source_region(
+            &self.source,
+            base_offset as usize,
+            body_tok.span.end().saturating_sub(1) as usize,
+            body_text,
+        )
+        .to_owned();
         let body_text = crate::segmenter::body_text_in_region(
             &self.source,
             base_offset as usize,
             body_tok.span.end() as usize,
-            body_text,
+            &source_region,
         );
         // Absolute byte offset at which this body region ends. The E202 /
         // E203 detectors test "reaches end of region" against this, not the
@@ -280,14 +289,6 @@ impl Analyser {
         // `self.source`, but a runaway `"` / `{` only swallows to the body's
         // own end.
         let region_end = base_offset as usize + body_text.len();
-        #[cfg(test)]
-        if std::env::var_os("ZZ_CRLF").is_some() {
-            eprintln!(
-                "ZZ_CRLF body base={base_offset} tok={:?} text={body_text:?} source={:?}",
-                body_tok.span,
-                self.source.get(base_offset as usize..body_tok.span.end() as usize)
-            );
-        }
         let body_commands = crate::segmenter::segment_commands_with_offset_and_config(
             body_text,
             base_offset,

@@ -29,6 +29,12 @@
 //! | `first` | `strfind` | 8.6 | `TCL_ERROR` |
 //! | `last` | `strrfind` | 8.6 | `TCL_ERROR` |
 //! | `toupper`, `tolower`, `totitle` | `strupper`, `strlower`, `strtitle` | 8.6 | `TclCompileBasic1To3ArgCmd` |
+//! | `cat` | `strcat` (`str_concat1`) | 8.6 | any count: none pushes `""`, one is the word |
+//!
+//! `TclCompileStringCatCmd` folds each run of compile-known words into one
+//! literal and issues `str_concat1` in chunks of at most 254 operands
+//! (measured with `::tcl::unsupported::disassemble` on tclsh 8.6.18, 9.0.4
+//! and 9.1.0; 8.5 has no `string cat`).
 //!
 //! A refused public ensemble member keeps its selected private worker through
 //! the ensemble's invocation rewrite from C 8.6. `TclCompileBasic1To3ArgCmd`
@@ -65,11 +71,13 @@ pub enum NativeStringOperandOperation {
     ToLower,
     /// `string totitle s`: `strtitle`.
     ToTitle,
+    /// `string cat ?s ...?`: `strcat` over the words, compile-known runs folded.
+    Cat,
 }
 
 impl NativeStringOperandOperation {
     /// Every authored operation.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Compare,
         Self::Index,
         Self::First,
@@ -77,14 +85,18 @@ impl NativeStringOperandOperation {
         Self::ToUpper,
         Self::ToLower,
         Self::ToTitle,
+        Self::Cat,
     ];
 
-    /// Number of evaluated operands the inline instruction consumes.
+    /// Whether the inline instruction takes `count` evaluated operands:
+    /// two for the comparisons and searches, one for the case conversions,
+    /// any number for `cat`.
     #[must_use]
-    pub const fn arity(self) -> usize {
+    pub const fn accepts(self, count: usize) -> bool {
         match self {
-            Self::Compare | Self::Index | Self::First | Self::Last => 2,
-            Self::ToUpper | Self::ToLower | Self::ToTitle => 1,
+            Self::Compare | Self::Index | Self::First | Self::Last => count == 2,
+            Self::ToUpper | Self::ToLower | Self::ToTitle => count == 1,
+            Self::Cat => true,
         }
     }
 
@@ -94,9 +106,12 @@ impl NativeStringOperandOperation {
     pub const fn hook_from(self) -> TclVersion {
         match self {
             Self::Compare | Self::Index => TclVersion::V8_4,
-            Self::First | Self::Last | Self::ToUpper | Self::ToLower | Self::ToTitle => {
-                TclVersion::V8_6
-            }
+            Self::First
+            | Self::Last
+            | Self::ToUpper
+            | Self::ToLower
+            | Self::ToTitle
+            | Self::Cat => TclVersion::V8_6,
         }
     }
 
@@ -117,6 +132,7 @@ impl NativeStringOperandOperation {
             Self::ToUpper => &STRING_TOUPPER_IMPLEMENTATION,
             Self::ToLower => &STRING_TOLOWER_IMPLEMENTATION,
             Self::ToTitle => &STRING_TOTITLE_IMPLEMENTATION,
+            Self::Cat => &STRING_CAT_IMPLEMENTATION,
         }
     }
 }
@@ -141,6 +157,7 @@ string_worker!(STRING_LAST_IMPLEMENTATION, "last");
 string_worker!(STRING_TOUPPER_IMPLEMENTATION, "toupper");
 string_worker!(STRING_TOLOWER_IMPLEMENTATION, "tolower");
 string_worker!(STRING_TOTITLE_IMPLEMENTATION, "totitle");
+string_worker!(STRING_CAT_IMPLEMENTATION, "cat");
 
 /// Chronological original operands followed by the selected instruction.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -149,6 +166,9 @@ pub struct NativeStringOperandInstruction {
     pub operation: NativeStringOperandOperation,
     /// Exact original words or original static expansion member receipts.
     pub operands: Vec<NativeCompilerWordOperand>,
+    /// Each operand's compile-known value (`TclWordKnownAtCompileTime`);
+    /// `cat` folds each run of them into one literal.
+    pub literals: Vec<Option<Vec<u8>>>,
 }
 
 /// Select the actual compiler outcome from the post-head word shapes.
@@ -204,7 +224,13 @@ pub fn select_shapes(
     if operands.contains(&Shape::Expanded) {
         return Selection::Generic;
     }
-    if operands.len() == operation.arity() {
+    // TEMP measurement toggle (compiler-codegen), remove before hand-back.
+    if operation == NativeStringOperandOperation::Cat
+        && std::env::var_os("ZZ_CCG_BASELINE").is_some()
+    {
+        return Selection::Unknown;
+    }
+    if operation.accepts(operands.len()) {
         return Selection::Inline {
             operation: semantic,
             guard: NativeCompilationGuard::for_c_version(version),
@@ -282,12 +308,16 @@ pub fn compile_native_string_operand(
     }
     let projected = project_native_compiler_words(words, version).ok()?;
     let from = operand_from + usize::from(scope == NativeScalarScope::PublicMember);
+    let operands = projected.get(from..)?;
     Some(NativeStringOperandInstruction {
         operation,
-        operands: projected
-            .get(from..)?
+        operands: operands
             .iter()
             .map(|operand| operand.operand.clone())
+            .collect(),
+        literals: operands
+            .iter()
+            .map(|operand| operand.literal.clone())
             .collect(),
     })
 }
@@ -381,6 +411,61 @@ mod tests {
             Operation::Index,
             TclVersion::V8_5
         )));
+    }
+
+    /// `string cat` compiles from 8.6 at every operand count, as
+    /// `::tcl::unsupported::disassemble` shows on tclsh 8.6.18, 9.0.4 and
+    /// 9.1.0 (`push ""` for none, the word itself for one, `strcat` for
+    /// more); an expanded word leaves the command to run, and each operand
+    /// carries its compile-known value for the compiler's literal folding.
+    #[test]
+    fn string_cat_compiles_from_8_6_at_every_operand_count() {
+        let inline = |selection| matches!(selection, NativeCompilationSelection::Inline { .. });
+        for version in TclVersion::ALL {
+            for source in ["string cat", "string cat $a", "string cat a - $b {c} d"] {
+                assert_eq!(
+                    inline(select(source, Operation::Cat, version)),
+                    version >= TclVersion::V8_6,
+                    "{version:?}: {source}"
+                );
+            }
+        }
+        assert_eq!(
+            select("string cat a {*}$b", Operation::Cat, TclVersion::V9_0),
+            NativeCompilationSelection::Generic
+        );
+        let dialect = crate::InvocationDialect::for_version(TclVersion::V9_0);
+        let source = "string cat a - $b {c} d";
+        let parsed = tcl_lexer::native_script_words_in(
+            tcl_lexer::SourceImage::native(source.as_bytes()),
+            tcl_lexer::Span::new(0, u32::try_from(source.len()).unwrap()),
+            tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar),
+        )
+        .unwrap();
+        let captured = NativeCompilerWords::capture(
+            &parsed.commands[0].words,
+            dialect.native_string_protocol().unwrap(),
+        )
+        .unwrap();
+        let recipe = compile_native_string_operand(
+            &captured,
+            1,
+            Operation::Cat,
+            NativeScalarScope::PublicMember,
+            TclVersion::V9_0,
+        )
+        .expect("inline");
+        assert_eq!(recipe.operands.len(), 5);
+        assert_eq!(
+            recipe.literals,
+            vec![
+                Some(b"a".to_vec()),
+                Some(b"-".to_vec()),
+                None,
+                Some(b"c".to_vec()),
+                Some(b"d".to_vec()),
+            ]
+        );
     }
 
     #[test]

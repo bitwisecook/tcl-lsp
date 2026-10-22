@@ -693,6 +693,9 @@ fn class_relation_reference_spans(
     let Some(target) = identity.class_metadata(analysis) else {
         return Vec::new();
     };
+    let Some((image, config)) = OriginalDeclarationIdentity::current(source, analysis) else {
+        return Vec::new();
+    };
     let records = analysis.original_class_declarations().collect::<Vec<_>>();
     let Some(root) = records
         .iter()
@@ -727,14 +730,11 @@ fn class_relation_reference_spans(
                 if selected.as_slice() != [Some(root)] {
                     continue;
                 }
-                let input = relation.name_input();
-                if let Some(key) = input.original_word_key()
-                    && crate::original_name_edit::original_input_matches_source(
-                        source,
-                        analysis,
-                        input,
-                        key.span(),
-                    )
+                // The operand word itself, written in this document under
+                // its current grammar (the same check a procedure name gets).
+                if let Some(key) = relation.name_input().original_word_key()
+                    && key.source_image() == &image
+                    && key.lexer_config() == config
                 {
                     spans.push(key.span());
                 }
