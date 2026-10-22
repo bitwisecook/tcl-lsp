@@ -4,24 +4,24 @@ Reviewed report: [naming-migration-review-20261022.md](naming-migration-review-2
 
 Evidence, scripts and logs: [triage-20261022/](triage-20261022/README.md). Live progress and resume steps: [../outstanding/review-triage.md](../outstanding/review-triage.md).
 
-This report is updated after every probe run. Rows marked **PENDING** are not settled.
+This report is updated after every probe run. Remaining post-R1 and latest-work obligations are stated explicitly.
 
-Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. Rust 1.99.1 and the exact six engines are provisioned; see [cloud-setup.log](triage-20261022/cloud-setup.log). Run5 completed with checkout-related failures before its main/scaling probes ran. All embedded fixtures and shared libraries are now available. The repeated existing live-fold e2e test fails as detailed below; the completed main snapshot and oracle replay are recorded below; isolated pending seam/lens checks and the post-R1 final replay remain outstanding. `make rust-check` and `make prep-pr` have not run in this evidence-only session.
+## Validation snapshots
 
-## Cloud validation progress
+This is an interim triage report. The post-R1 rename replay and final latest-work check remain outstanding. No product code or permanent tests were changed. `make rust-check` and `make prep-pr` are unrun under the active `work` development-push exception.
 
-**Run6 main snapshot (2026-10-22T14:16:15Z):** [run6-progress.log](triage-20261022/run6-progress.log) is a closed prefix snapshot from `5bd5a503`; the full main log and edit replay are now preserved. The main command completed 24 probe functions, then reached its 3600 s cap in scaling; the three seam functions were not reached. Current observations below supersede the older runs where stated. No final summary or completed migration is claimed.
+| Evidence | Compiled/source snapshot | Result |
+|---|---|---|
+| `run6.log` main | `5bd5a503` | 24 observational probe functions completed; 3600 s cap reached during scaling before seams. Flat P25/50/100/200 and chains completed; lens P25 completed. |
+| `run6.log` later existing-fold e2e | `90fe96e2` | 0 passed / 1 failed: DSL 1 expected `["5"]`, actual `[]`. |
+| `run6-oracles.log` / `run6-oracle-summary.json` | replay recorded on `90fe96e2` of `5bd5a503` outputs | 96 files / 576 engine executions; 76 generated files / 126 matching-profile checks; zero unexpected matched results. |
+| `run7-pending.log` | `0434e7e7` | Complete: three seams, N17 effects, R1 realm/result/seeding, N03 parser controls, chains and all three bounded lens sizes; every group exited 0. Temporary source/executable deleted. `run7-progress.log` is the earlier closed prefix. |
+| `run7-pending-oracles.log` / `run7-pending-oracle-summary.json` | `0434e7e7` | 30 files / 180 executions; 10 generated files / 60 matched checks; zero unexpected result. N17 `good`, disabled inline `LOCAL`, disabled extraction `5|1` on all engines. |
+| `run7-source-audit.log` | `0434e7e7` | Static excerpts for server-only seams, effect gate, arity ownership and scaling structures. |
 
-- **2026-10-22T13:45:08Z:** 19 preserved Tcl inputs replayed on six exact engines: **114 executions, no timeouts**. Complete outputs, exit codes and hashes: [cloud-baseline-oracles.log](triage-20261022/cloud-baseline-oracles.log). Feature-unavailable rows are retained, including Jim's unsupported `interp alias` form; they are not incorrect oracle answers. N17's capture driver registers `good` on every engine.
-- [cloud-source-audit.log](triage-20261022/cloud-source-audit.log) rechecks the static seams on `81a911af`. N11's existing-command early return and N13's four/five-round caps remain. These are source inspections, not server protocol executions.
-- `run5.log` is the completed initial cloud build log (with an incomplete e2e diagnostic segment, as explained below). The initial main command exited 101 for omitted embedded fixture files; the scaling command also encountered missing includes before all three trees were restored, while the compiler continued building. No named probe result is inferred from these errors. Rebasing this tracked active log replaced its inode, so the e2e cargo diagnostic segment was lost; a stable repeat is recorded separately. The exact launched source is `run5-source.rs.txt`.
-- The prepared `run6.sh` restores the expanded probe into the authorised temporary path, uses a fresh output directory, records completed-world presence, seeds Jim's compiled-in surfaces as production does, covers all six rename profiles and both sibling collision origins, and distinguishes direct hook answers from optimiser folding with/without declared pure effects. It also replays all findings, scaling and the existing fold e2e test. This is prepared work, not an executed result.
+The run7 harness passes mean each observational probe completed, not that every reported product answer is correct. R1 remains absent for plain `puts` and `puts [foo]` in both the retained realm and analyser result on C 8.6/9.0, before/after `core_surfaces::ensure`. Declaration-only and bare-call controls have both worlds. The refusal originates before analyser transport and is not repaired by that bootstrap; no post-fix rename matrix was triggered.
 
-- **Live-fold repeat on `53ec43d1`: 0 passed / 1 failed.** The existing `a_pack_file_folds_a_call_site_in_the_optimiser` fails at `pack_source_e2e.rs:185`: DSL 1 expected `["5"]`, got `[]`. Log: [run5-e2e-repeat.log](triage-20261022/run5-e2e-repeat.log). This confirms the supported control does not fold. The direct/pure contrast remains pending.
-
-**Completed run6 replay:** [run6.log](triage-20261022/run6.log), [run6-oracles.log](triage-20261022/run6-oracles.log), [summary](triage-20261022/run6-oracle-summary.json). There were **96 files / 576 engine executions**, including **76 generated outputs / 126 intended-profile checks**, with **0 unexpected matched results**. Every file ran on every engine; cross-family Unicode-prefix differences are not failures of a C-profile edit. All eight N17 drivers print `good` everywhere. The main executable was built at `5bd5a503`; the later e2e cargo command rebuilt after incoming compiler changes at `90fe96e2` and still fails with no O129. A complete final latest-code check is not claimed yet.
-
-**Run7 completed semantic groups on `0434e7e7`:** three seams pass (122.00 s); eight N17 direct/effect controls pass (36.62 s); R1 transport/seeding controls pass (34.71 s); N03 parser/scalar controls pass (11.28 s). The harness passes mean the observational probe completed, not that every product result is correct. R1 is still absent for plain `puts` and `puts [foo]` in both the retained realm and analyser result on C 8.6/9.0, before/after `core_surfaces::ensure`. Declaration-only and bare-call controls have both worlds. Thus this refusal originates before analyser transport and is not repaired by that bootstrap. No post-fix rename matrix was triggered. N03's valid first-close indirect input has no diagnostics on C 8.4/8.5/8.6/Jim, despite the profileless helper returning false; scalar `a(b` and `a(b)c` remain intact for both styles. No current diagnostic bug is inferred from the helper alone. Source-chain rows completed and the lens series is active; the active log remains untracked until closed. Closed progress evidence is `run7-progress.log`. The fresh oracle replay covers 30 files / 180 executions, including 10 generated files / 60 matched checks with no unexpected result: N17 `good`, inline `LOCAL`, extraction `5|1` on every engine.
+Cloud setup and earlier failures are preserved in `cloud-setup.log`, `run5.log` and `run5-e2e-repeat.log`. Run5's main/scaling probes did not execute because compile-time fixtures were omitted from the selective checkout; those three fixture trees are restored. Its initial e2e diagnostic segment was lost when a tracked live log's inode changed on rebase, so only the stable repeat and subsequent run6 e2e are used to classify that failure. Initial six-engine input replay is `cloud-baseline-oracles.log` (19 files / 114 executions).
 
 ## Method
 
@@ -29,7 +29,7 @@ Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. R
 - **Probes.** Current production APIs were called from one temporary test, `rust/tcl-spectcl/tests/zz_review_probe.rs` (copy: `triage-20261022/zz_review_probe.rs.txt`).
   - It was built in the shared target with `CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0` and run with `--nocapture --test-threads=1`.
   - `tcl-spectcl` was chosen because one build links `tcl-compiler`, `tcl-lsp-core`, `tcl-spectcl`, `tcl-spec-hooks` and `tcl-engine-tclvm`.
-  - Runs: run1 at 11:01Z (safety batch), run2 at 11:20Z, run3 from 11:28Z to 12:06Z, run4 from 12:13Z to 12:39Z (stopped before scaling when the triage moved to a cloud session). The resume batch is `triage-20261022/run5.sh`. Logs are `triage-20261022/run*.log`.
+  - Runs: run1 at 11:01Z (safety batch), run2 at 11:20Z, run3 from 11:28Z to 12:06Z, run4 from 12:13Z to 12:39Z (stopped before scaling when the triage moved to a cloud session). Cloud run6 uses `run6.sh`; the bounded follow-up uses `run-pending.sh` and `pending-probe.rs.txt`. The prepared final latest-work replay is `run-final.sh` with `final-probe.rs.txt`. Logs and hashes are in the evidence directory.
   - Runs 1–4 reported no crate compilation failures. Cloud run5 encountered omitted embedded fixture files in `tcl-test-support`; these checkout errors were repaired without product changes.
 - **Edits.** Returned edits (rename `TextEdit`s, optimiser rewrites, minifier output) were applied to scratch copies (`triage-20261022/out/`), and each copy was run on the same six engines.
 - **Rename entry point.** Rename was probed in two ways:
@@ -53,7 +53,7 @@ Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. R
 | N04 imported-source rename | Refused, pending R1 | lsp (planner), compiler-names (R1 world) | `tcl-lsp-core/src/original_command_rename.rs`, `rename.rs` |
 | N05 forced-import rename | Refused, pending R1 (references correct) | lsp, compiler-names | same |
 | N06 collision checks | Refused, pending R1. Run6 class/proc and sibling cases refuse with UnknownWorld; methods lack a complete current member roster | lsp | same; `rename.rs` `cross_document_symbol_edits` |
-| N07 speculative proc variable | Refused, pending R1. Definition no longer walks to the global | lsp | `rename.rs`, `definition.rs` |
+| N07 speculative proc variable | CHANGED: safe refusal; definition no longer walks to global. Required post-R1 replay pending | lsp | `rename.rs`, `definition.rs` |
 | N08 inliner subset oracle + nested lowering | FIXED (edits and unit inference) | — | — |
 | N09 type/call/taint | FIXED for executed constructor and call-graph repros; taint not independently executed | — | — |
 | N10 OO class/relation | CHANGED: relations, qualified miss and path-based definition FIXED; path hover/type hierarchy still empty | lsp | `tcl-lsp-core/src/definition.rs:4260` (`resolve_class_target_at`) |
@@ -73,7 +73,7 @@ Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. R
 | Seam `method_barrier` | FIXED (static) | — | — |
 | Seam linked-editing self-name fallback | FIXED (static, plus executed probe) | — | — |
 | Seam extract/inline refactors | CHANGED: explicitly disabled refusals with zero edits in both repros | lsp | `tcl-lsp-core/src/refactor/` |
-| 4.1 scaling rows | Substantial flat/index/chain costs REPRODUCE; P25 lens measured, P50/P100 follow-up active | perf / lsp | `workspace_index.rs`, `source_graph.rs`, `code_lens.rs` |
+| 4.1 scaling rows | Substantial flat/index/chain/lens costs REPRODUCE at the requested small sizes | perf / lsp | `workspace_index.rs`, `source_graph.rs`, `code_lens.rs` |
 
 ## Per-finding detail
 
@@ -99,17 +99,13 @@ Each row gives the evidence (probe call or command and the observed output), the
 - **Owner:** compiler-names (`tcl-syntax/src/naming.rs` policy) and lsp (`tcl-lsp-core/src/definition.rs`).
 - **Fix direction:** a mandatory family-aware naming policy (operation-specific resolution for Jim), so Jim navigation resolves instead of abstaining.
 
-### N03: variable cursor / profile
+### N03: variable cursor/profile
 
-- **Status:** C Tcl FIXED; Jim CHANGED.
-- **Fresh run6:** C 8.6/9.0 still edit only `caf` and `$caf`; C 9.1 joins 9.0 in selecting `a{b}` for nested braces. Under Jim, with compiled-in core surfaces explicitly seeded as production does, definition and references for `$café` are both empty and rename refuses. The earlier Jim navigation result below is historical, not the current result.
-- **Evidence for `set caf A; set café B; puts $café`:**
-  - Under tcl8.6 and tcl9.0, `definition` gives `(0,4,7)` (the `caf` declaration), and references give `(0,4,7)` and `(2,5,9)`. Rename to `zz` edits `caf` and `$caf`; the edited file (`out/r_n03_tcl8.6.tcl`) prints `Aé` on all C Tcl releases.
-  - Under Jim, `definition` gives `(1,4,8)` (`café`), and the rename output prints `B` on Jim.
-- **Nested braces** (`tcl/n03b.tcl`): definition gives line 0 (`a{b`) under 8.6 and line 1 (`a{b}`) under 9.0. The oracle prints `X}` on 8.x and Jim, and `Y` on 9.x.
-- **Literal suffix:** a cursor on `bar` in `$foo-bar` gives `def=[]`.
-- **Source of the fix:** `template_variable_reference_at` (9d4f72634f, post-review).
-- **Caveat:** with the registry and program view (run3), C Tcl rename succeeds, but Jim rename refuses with "cannot prove the original variable selected by this occurrence".
+- **Status:** C Tcl FIXED in the cursor/rename repros; Jim CHANGED to conservative abstention/refusal.
+- **Fresh run6:** for `set caf A; set café B; puts $café`, all five C profiles edit the `caf` declaration and only the `$caf` prefix. Each matching-engine output is `Aé`. Under Jim, with core surfaces seeded as production does, definition/references are empty and rename refuses because the original variable cannot be proved. No Jim output edit is returned.
+- **Nested braces:** C 8.6 selects `a{b`; C 9.0/9.1 select `a{b}`. The oracle prints `X}` on C 8.x/Jim and `Y` on C 9.x. A cursor on the literal `bar` suffix of `$foo-bar` gives no definition.
+- **Fresh run7 parser debt check:** scalar names `a(b` and `a(b)c` remain intact under both `FirstClose` and `Tcl9Nesting`. The valid first-close `${a{b}(status)` script has no diagnostics on C 8.4/8.5/8.6/Jim, although the profileless `is_braced_indirect_array_ref` helper returns false. That helper alone is not evidence of a current diagnostic failure. The same script is invalid on C 9.x, as recorded by the oracles.
+- **Source:** `template_variable_reference_at`, original-variable proofs and the shared style-aware array-name splitter. Remaining Jim provider coverage belongs to lsp/compiler-names.
 
 ### N04: imported-command source rename
 
@@ -150,8 +146,8 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 ### N07: speculative proc-variable binding
 
-- **Status:** refused, pending R1.
-- **Fresh run6:** definition is empty on all six profiles; no request edits the unrelated global. C profiles report W210 and refuse with `unreferenced-edit`; Jim reports no W210 and refuses because the original variable cannot be proved. This is a safe refusal, with a separate Jim analysis gap. The server-shaped matrix and required post-R1 replay remain pending.
+- **Status:** CHANGED to safe refusal; required post-R1 replay remains outstanding.
+- **Fresh run6:** definition is empty on all six profiles; no request edits the unrelated global. C profiles report W210 and refuse with `unreferenced-edit`; Jim reports no W210 and refuses because the original variable cannot be proved. This is a safe refusal, with a separate Jim analysis gap. The run6 server-shaped C matrix has a completed world and still refuses with `unreferenced-edit`, so this refusal is not caused by R1. The user-required post-R1 replay remains outstanding.
 - **Evidence for `set g 1; proc p {} {puts $g}`:**
   - Definition from `$g` is now `[]`; it no longer walks out to the global. W210 is still reported.
   - Run1, without a registry: rename to `h` edits only the proc-local `$g`. The global is untouched, under tcl8.4, tcl8.6, tcl9.0 and Jim.
@@ -288,6 +284,14 @@ Each row gives the evidence (probe call or command and the observed output), the
 | 1,000 | 1,396.401 |
 | 2,000 | 5,055.848 |
 
-Code lenses at **25 procedures** took **6,049.759 ms**, after **61,798.1 ms** pre-analysis, and returned **25 lenses**. The combined batch reached its one-hour cap during the later lens work, so no P50/P100 lens time is inferred. `run-pending.sh` will measure those cases separately and print analysis completion before starting the lens query, with explicit per-case budgets. Because compiler changes arrived during run6, that follow-up refreshes the complete small lens series.
+Fresh run7 uses a separate process/budget per lens size on `0434e7e7`, with analysis completion explicitly logged before the query:
+
+| Procedures | Pre-analysis ms | Lens query ms | Returned lenses |
+|---:|---:|---:|---:|
+| 25 | 35,242.482 | 6,093.848 | 25 |
+| 50 | 150,409.102 | 43,231.733 | 50 |
+| 100 | 280,831.269 | 134,609.430 | 100 |
+
+Fresh source-chain minima (F250/500/1000/2000) are 70.989 / 252.495 / 1,085.463 / 5,692.710 ms. Run6's older P25 lens query was 6,049.759 ms after 61,798.1 ms analysis; its combined one-hour cap yielded no larger lens result, so no time is inferred from that cap.
 
 Static inspection still finds the linear live-procedure/class/link scan in `workspace_command_exists_for_call` and the root-path vectors in `RunOrder`. Full server/release latency and RSS remain unmeasured. Logs and source hashes distinguish this snapshot from later implementation fixes.

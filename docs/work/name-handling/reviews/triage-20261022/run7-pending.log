@@ -1,0 +1,142 @@
+Thu Oct 22 15:28:52 UTC 2026
+0434e7e71259ef138a9dd3982a950b6d98ed62e6
+16a78fc86d2954360ab5f969bfa0ae5631bcd94a5e46d5793c187336d21985ba  rust/tcl-spectcl/tests/zz_review_probe.rs
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          32G  3.7G   27G  13% /
+
+CASE seam_ size= budget=240s Thu Oct 22 15:40:19 UTC 2026
+
+running 3 tests
+test seam_extract_inline ... SEAM inline_proc title="Inline proc 'p'" edits=0 disabled=Some("the copied command's implementation is not preserved in the caller namespace") saved seam_inline.tcl
+SEAM extract_variable(result) offered edits=0 disabled=Some("The selection is not a pure original complete word at a reached local source point"); saved seam_extract.tcl
+ok
+test seam_linked_editing ... SEAM linked_editing=Some([(0, 5), (0, 15)])
+ok
+test seam_nested_passthrough_irules ... SEAM nested f5-irules root=0 conditions=[] blocks=0 native_calls=0 calls=["proc", "when"]
+SEAM nested f5-irules root=1 conditions=[] blocks=0 native_calls=0 calls=["uplevel"]
+SEAM nested f5-irules root=2 conditions=[] blocks=0 native_calls=0 calls=["set", "if", "call"]
+SEAM nested f5-irules root=3 conditions=[] blocks=0 native_calls=0 calls=["uplevel"]
+SEAM nested f5-irules root=0 conditions=[] blocks=0 native_calls=0 calls=["proc", "proc"]
+SEAM nested f5-irules root=1 conditions=[] blocks=0 native_calls=0 calls=["uplevel"]
+SEAM nested f5-irules root=2 conditions=[] blocks=0 native_calls=0 calls=["set", "if", "run"]
+SEAM nested f5-irules root=3 conditions=[] blocks=0 native_calls=0 calls=["uplevel"]
+SEAM nested tcl8.6 root=0 conditions=[] blocks=0 native_calls=0 calls=["proc", "proc"]
+SEAM nested tcl8.6 root=1 conditions=[] blocks=0 native_calls=0 calls=["uplevel"]
+SEAM nested tcl8.6 root=2 conditions=["Binary { op: StrEq, left: Var { text: \"$x\", name: \"x\", start: 0, end: 1 }, right: String { text: \"\\\"a\\\"\", start: 6, end: 8 } }"] blocks=1 native_calls=0 calls=["puts", "if"]
+ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 30 filtered out; finished in 122.00s
+
+CASE_EXIT seam_ size= exit=0 Thu Oct 22 15:42:22 UTC 2026
+
+CASE n17_live_hook_effect_control size= budget=300s Thu Oct 22 15:42:22 UTC 2026
+
+running 1 test
+test n17_live_hook_effect_control ... N17_EFFECT dsl=1 pure=false braced=false notices=[] declined=["None"] direct=Some("good") O129=[]
+N17_EFFECT dsl=1 pure=false braced=true notices=[] declined=["None"] direct=Some("good") O129=[]
+N17_EFFECT dsl=1 pure=true braced=false notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=1 pure=true braced=true notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=2.0 pure=false braced=false notices=[] declined=["None"] direct=Some("good") O129=[]
+N17_EFFECT dsl=2.0 pure=false braced=true notices=[] declined=["None"] direct=Some("good") O129=[]
+N17_EFFECT dsl=2.0 pure=true braced=false notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=2.0 pure=true braced=true notices=[] declined=["None"] direct=Some("good") O129=["good"]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out; finished in 36.62s
+
+CASE_EXIT n17_live_hook_effect_control size= exit=0 Thu Oct 22 15:42:58 UTC 2026
+
+CASE completed_world_transport_before_and_after_core_surface_seed size= budget=360s Thu Oct 22 15:42:58 UTC 2026
+
+running 1 test
+test completed_world_transport_before_and_after_core_surface_seed ... R1_TRANSPORT seeded=false tcl8.6 puts: realm=false analysis=false calls=[("puts", true)]
+R1_TRANSPORT seeded=false tcl8.6 declaration: realm=true analysis=true calls=[("proc", true), ("return", true)]
+R1_TRANSPORT seeded=false tcl8.6 bare-call: realm=true analysis=true calls=[("proc", true), ("return", true), ("foo", true)]
+R1_TRANSPORT seeded=false tcl8.6 puts-call: realm=false analysis=false calls=[("proc", true), ("return", true), ("puts", true), ("foo", true)]
+R1_TRANSPORT seeded=false tcl9.0 puts: realm=false analysis=false calls=[("puts", true)]
+R1_TRANSPORT seeded=false tcl9.0 declaration: realm=true analysis=true calls=[("proc", true), ("return", true)]
+R1_TRANSPORT seeded=false tcl9.0 bare-call: realm=true analysis=true calls=[("proc", true), ("return", true), ("foo", true)]
+R1_TRANSPORT seeded=false tcl9.0 puts-call: realm=false analysis=false calls=[("proc", true), ("return", true), ("puts", true), ("foo", true)]
+R1_TRANSPORT seeded=true tcl8.6 puts: realm=false analysis=false calls=[("puts", true)]
+R1_TRANSPORT seeded=true tcl8.6 declaration: realm=true analysis=true calls=[("proc", true), ("return", true)]
+R1_TRANSPORT seeded=true tcl8.6 bare-call: realm=true analysis=true calls=[("proc", true), ("return", true), ("foo", true)]
+R1_TRANSPORT seeded=true tcl8.6 puts-call: realm=false analysis=false calls=[("proc", true), ("return", true), ("puts", true), ("foo", true)]
+R1_TRANSPORT seeded=true tcl9.0 puts: realm=false analysis=false calls=[("puts", true)]
+R1_TRANSPORT seeded=true tcl9.0 declaration: realm=true analysis=true calls=[("proc", true), ("return", true)]
+R1_TRANSPORT seeded=true tcl9.0 bare-call: realm=true analysis=true calls=[("proc", true), ("return", true), ("foo", true)]
+R1_TRANSPORT seeded=true tcl9.0 puts-call: realm=false analysis=false calls=[("proc", true), ("return", true), ("puts", true), ("foo", true)]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out; finished in 34.71s
+
+CASE_EXIT completed_world_transport_before_and_after_core_surface_seed size= exit=0 Thu Oct 22 15:43:33 UTC 2026
+
+CASE z_braced_indirect_parser_and_scalar_parentheses size= budget=180s Thu Oct 22 15:43:33 UTC 2026
+
+running 1 test
+test z_braced_indirect_parser_and_scalar_parentheses ... N03_INDIRECT helper=false
+N03_INDIRECT tcl8.4: []
+N03_INDIRECT tcl8.5: []
+N03_INDIRECT tcl8.6: []
+N03_INDIRECT jim: []
+N03_SCALAR FirstClose "a(b" -> "a(b"
+N03_SCALAR FirstClose "a(b)c" -> "a(b)c"
+N03_SCALAR Tcl9Nesting "a(b" -> "a(b"
+N03_SCALAR Tcl9Nesting "a(b)c" -> "a(b)c"
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out; finished in 11.28s
+
+CASE_EXIT z_braced_indirect_parser_and_scalar_parentheses size= exit=0 Thu Oct 22 15:43:45 UTC 2026
+R1 positive puts-call control still lacks a completed world; post-fix matrix remains blocked.
+
+CASE scaling_chain_selected size= budget=240s Thu Oct 22 15:43:45 UTC 2026
+
+running 1 test
+test scaling_chain_selected ... SCALE source-chain F=250 build_ms=70.989
+SCALE source-chain F=500 build_ms=252.495
+SCALE source-chain F=1000 build_ms=1085.463
+SCALE source-chain F=2000 build_ms=5692.710
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out; finished in 29.10s
+
+CASE_EXIT scaling_chain_selected size= exit=0 Thu Oct 22 15:44:14 UTC 2026
+
+CASE scaling_lens_selected size=25 budget=180s Thu Oct 22 15:44:14 UTC 2026
+
+running 1 test
+test scaling_lens_selected ... SCALE code-lens-selected P=25 BEGIN_ANALYSIS
+SCALE code-lens-selected P=25 analyse_ms=35242.482 BEGIN_LENSES
+SCALE code-lens-selected P=25 analyse_ms=35242.482 lens_ms=6093.848 lenses=25
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out; finished in 41.43s
+
+CASE_EXIT scaling_lens_selected size=25 exit=0 Thu Oct 22 15:44:55 UTC 2026
+
+CASE scaling_lens_selected size=50 budget=300s Thu Oct 22 15:44:55 UTC 2026
+
+running 1 test
+test scaling_lens_selected ... SCALE code-lens-selected P=50 BEGIN_ANALYSIS
+SCALE code-lens-selected P=50 analyse_ms=150409.102 BEGIN_LENSES
+SCALE code-lens-selected P=50 analyse_ms=150409.102 lens_ms=43231.733 lenses=50
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out; finished in 196.18s
+
+CASE_EXIT scaling_lens_selected size=50 exit=0 Thu Oct 22 15:48:12 UTC 2026
+
+CASE scaling_lens_selected size=100 budget=600s Thu Oct 22 15:48:12 UTC 2026
+
+running 1 test
+test scaling_lens_selected ... SCALE code-lens-selected P=100 BEGIN_ANALYSIS
+SCALE code-lens-selected P=100 analyse_ms=280831.269 BEGIN_LENSES
+SCALE code-lens-selected P=100 analyse_ms=280831.269 lens_ms=134609.430 lenses=100
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 32 filtered out; finished in 415.76s
+
+CASE_EXIT scaling_lens_selected size=100 exit=0 Thu Oct 22 15:55:08 UTC 2026
+Flat P=200 already complete in run6.log
+cleaned Thu Oct 22 15:55:08 UTC 2026

@@ -2,15 +2,15 @@
 
 Area: Replay of the external review's findings on the current tree.
 
-Last updated: 2026-10-22T15:46:08Z
+Last updated: 2026-10-22T15:56:19Z
 
 Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. This agent commits and pushes it after each run and at least every 30 minutes.
 
 ## Resume
 
-**Run7 pending batch is active** (`run-pending.sh`, launched 2026-10-22T15:28:52Z on `0434e7e7`). Its build and active output logs are `../reviews/triage-20261022/run7-pending-build.{json,log}` and `run7-pending.log`; do not commit/rebase these active files. The source is `pending-probe.rs.txt`, copied only to `rust/tcl-spectcl/tests/zz_review_probe.rs`; the runner deletes it after build, runs the fresh executable, and deletes the executable at exit. It checks the nested lowering/refactor seams first, N17 effects contrast, R1 realm/result worlds before/after seed, N03 parser debt, chains and separately budgeted P25/50/100 lens cases. The six-profile server rename matrix runs only if the positive seeded `puts [foo]` control acquires a world.
+**Run7 finished** at 2026-10-22T15:55:08Z on compiled snapshot `0434e7e7`. Every group exited 0: three seams, N17 effect contrast, R1 realm/result/seeding, N03 parser/scalar controls, source chains and P25/50/100 lenses. Temporary source and executable are deleted. Full log: `../reviews/triage-20261022/run7-pending.log`; earlier closed prefix: `run7-progress.log`. Fresh output replay is complete (30 files / 180 engine executions, 10 generated files / 60 matched checks, zero unexpected results). No post-fix rename matrix ran because seeded `puts [foo]` still lacks a completed world.
 
-**When the runner finishes:** inspect every CASE_EXIT, replay `out/run7-pending/` through `replay-oracles.sh run7-pending`, update the report and this file, delete the temporary `.rs`, and commit/push only own files. Keep evidence below 5 MB. Closed progress copies may be committed during a long run, but the live logs must remain untracked to avoid inode loss on rebase.
+**Next:** commit/push this completed batch, fetch latest work and watch for compiler-names R1. The prepared `final-probe.rs.txt` adds a direct N09 taint-dependency projection not yet executed; this can be checked independently while R1 remains pending. The final complete semantic replay is `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-final.sh <new-tag>`. It must be followed by source audit, six-engine output replay and a fresh fetch check. Do not call an interim pre-R1 replay final sign-off.
 
 **Remaining finish condition:** after compiler-names' R1 fix lands, rerun N04/N05/N06/N07 on all six profiles, apply edits and execute them on all six oracles (judge profile-specific edits against the matching grammar). Then recheck every finding/static seam on latest `work`; `run-final.sh` and `final-probe.rs.txt` are prepared for that semantic replay, including a direct N09 taint dependency projection. Run source audit and output replay for that snapshot. No final summary until those requirements are met.
 
@@ -24,12 +24,12 @@ Before every push fetch/rebase `origin/work`, retry rejection, never force or op
 
 ## In progress
 
-- Run7 semantic groups and source chains complete; lens P25 complete, P50 active. Closed progress evidence: `run7-progress.log`. The 30-file / 180-execution replay has 60 matched generated checks and no unexpected result. R1/N17 implementation fixes have not landed in the latest fetched snapshot `9b3f4f27`.
+- Run7 is complete. R1/N17 implementation fixes have not landed in the latest fetched snapshot `f26f6a06`. The next independent check is the N09 taint projection, then the full final semantic replay after R1.
 - Required release gates `make rust-check` and `make prep-pr` are not run; this is evidence-only work under the active `work` development-push exception.
 
 ## Outstanding (in priority order)
 
-1. Run `run-pending.sh` to settle the unexecuted seams, diagnose the still-failing R1 positive control, and complete the lens rows with individual budgets.
+1. Check the prepared N09 taint projection while awaiting R1; all requested pending seam/scaling cases are now settled.
 2. After R1 lands, re-check N04, N05, N06 and N07 on all six profiles, apply returned edits and execute them on the matching engines.
 3. Fetch latest `work` and re-check every finding and static seam before the final summary.
 
@@ -59,3 +59,5 @@ Before every push fetch/rebase `origin/work`, retry rejection, never force or op
 - 2026-10-22T15:24:20Z: full run6 evidence and output replay recorded. Flat analysis (P25/50/100/200) = 23.490 / 73.748 / 237.256 / 630.311 s; index min-of-three = 1.043 / 3.332 / 5.019 / 10.881 s. Source chain F250/500/1000/2000 = 134.775 / 318.125 / 1396.401 / 5055.848 ms. P25 lens query = 6049.759 ms after 61798.1 ms analysis, 25 lenses. All are unoptimised wall-time measurements, not shipping latency.
 
 - 2026-10-22T15:46:08Z: run7 semantic groups complete on `0434e7e7`: 3 seam probes, N17 contrast, R1 realm/result/seeding controls and N03 parser/scalar controls. Both refactors explicitly disabled, zero edits. R1 missing at retained realm for puts before/after seeding. Source-chain F250/500/1000/2000 = 70.989/252.495/1085.463/5692.710 ms; P25 analysis 35242.482 ms, lens 6093.848 ms, 25 lenses. Fresh outputs: 10 files, 60 engine checks, all correct. Larger lenses remain active.
+
+- 2026-10-22T15:56:19Z: run7 finished with every group exit 0. P50 lenses = 43231.733 ms after 150409.102 ms analysis, 50 lenses. P100 = 134609.430 ms after 280831.269 ms analysis, 100 lenses. Small scaling rows complete. Temporary source/executable deleted. Final post-R1 and latest-work requirements remain.
