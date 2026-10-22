@@ -1827,12 +1827,7 @@ impl CodegenCtx<'_> {
             Some((InlineCodegenHookId::InfoCommandsResolve, _)) if args.len() == 2 => {
                 self.emit_inline_info_commands_resolve(args);
             }
-            Some((InlineCodegenHookId::Set, _))
-                if matches!(args, [(name, braced)]
-                    if !self.in_direct_command()
-                        && !tcl_syntax::naming::word_is_dynamic(name, *braced)
-                        && !name.contains('\\')) =>
-            {
+            Some((InlineCodegenHookId::Set, _)) if self.inline_set_load_is_supported(args) => {
                 // `TclCompileSetCmd`: the one-word form is a load.
                 self.used_inline_cmd_subst = true;
                 self.load_var(&args[0].0);
@@ -1882,6 +1877,13 @@ impl CodegenCtx<'_> {
                 self.emit_generic_cmd_subst(cmd, args);
             }
         }
+    }
+
+    fn inline_set_load_is_supported(&self, args: &[(String, bool)]) -> bool {
+        matches!(args, [(name, braced)]
+            if !self.in_direct_command()
+                && !tcl_syntax::naming::word_is_dynamic(name, *braced)
+                && !name.contains('\\'))
     }
 
     fn emit_canonical_inline_string(

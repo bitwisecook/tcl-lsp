@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "6974803cdaf83b60cf9e2cd054bef0d220480ae0",
-  "last_published_snapshot": "39b392963c652b3bc0d8ca95e387b2b00a225b25",
+  "last_source_snapshot": "ab1f5e3b064e31b6e6c0974bef133453f7d563d4",
+  "last_published_snapshot": "f5d78f954555435e6f78573401663c196d1e5007",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,19 +16,11 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-22T20:29:00.143192+00:00",
-  "product_tree_diff": [
-    "rust/tcl-lsp-server/src/current_diagnostics.rs",
-    "rust/tcl-lsp-server/src/lib.rs",
-    "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
-    "rust/tcl-lsp-server/src/recovery_source/tests.rs",
-    "rust/tcl-registry/src/native_compilation.rs",
-    "rust/tcl-registry/src/native_procedure.rs",
-    "rust/tcl-registry/src/native_string_is_compilation.rs"
-  ],
+  "last_published_utc": "2026-10-22T21:03:25.329277+00:00",
+  "product_tree_diff": [],
   "source_lineage_rebased_utc": "2026-10-22T20:32:04.450664+00:00",
-  "source_lineage_note": "Currentactive def9 has seven lint source paths newer than published39b392; 4204767 integration itself had zero product difference. Nextpublisher cherry-picks39b392..HEAD (rewritten lineage), notold697..HEAD.",
-  "unpublished_active_base": "39b392963c652b3bc0d8ca95e387b2b00a225b25",
-  "active_current_head": "def9a5fd7fdece3f785ace02da20f6ed8a8da539",
+  "source_lineage_note": "20:55 cycle published active420/def9/fe802/ab1 checkpoints onto external27c2d and normal-pushedf5d78f. Product equality verified. Active source lineage stays in place during runtime6; next publication selects ab1..HEAD until next mapped active rebase.",
+  "unpublished_active_base": "ab1f5e3b064e31b6e6c0974bef133453f7d563d4",
+  "active_current_head": "ab1f5e3b064e31b6e6c0974bef133453f7d563d4",
   "product_tree_diff_at_integration": []
 }

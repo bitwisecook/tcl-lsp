@@ -22,6 +22,112 @@ pub enum SourceRuntimeReachability {
     Unknown,
 }
 
+/// Exact original words retained by an actual compiler observation. The
+/// snapshot keeps its compiler world and descriptive frame; it never grants a
+/// runtime lookup, variable cell, entered body or successful invocation.
+pub(crate) struct OriginalCompilerArgumentSyntax<'a> {
+    metadata: crate::registry_invocation::InvocationMetadataContext<'a>,
+    original: &'a super::compiled_invocation::SourceOriginalCompilerWords,
+    snapshot: &'a super::SourceLookupSnapshot,
+    analysis_owner: &'a Arc<super::OriginalSourceAnalysisOwner>,
+}
+
+impl<'a> OriginalCompilerArgumentSyntax<'a> {
+    pub(crate) fn metadata(&self) -> crate::registry_invocation::InvocationMetadataContext<'a> {
+        self.metadata
+    }
+
+    pub(crate) fn site(&self) -> &'a CommandAllocationSite {
+        &self.original.site
+    }
+
+    pub(crate) fn image(&self) -> &'a tcl_lexer::SourceImage {
+        self.original.site.source.source_image()
+    }
+
+    pub(crate) fn words(&self) -> &'a [crate::ir::WordExpr] {
+        &self.original.words
+    }
+
+    pub(crate) fn config(&self) -> tcl_lexer::LexerConfig {
+        self.original.config
+    }
+
+    pub(crate) fn realm(&self) -> tcl_dialect::model::InvocationRealm {
+        self.snapshot.realm
+    }
+
+    pub(crate) fn same_analysis(&self, other: &Self) -> bool {
+        Arc::ptr_eq(self.analysis_owner, other.analysis_owner)
+    }
+}
+
+impl SourceInvocationBinding {
+    /// Syntax from the compiler's own full-input snapshot. This is a distinct
+    /// purpose from `original_argument_metadata_for_input`: an abrupt argv read
+    /// can prevent a runtime point while the compiler still visited the words.
+    /// Source-only inherited entries have no compiler policy/word observation
+    /// and cannot manufacture this carrier from their source naming recipe.
+    pub(crate) fn original_compiler_argument_syntax<'a>(
+        &'a self,
+        tokens: &crate::ir::CommandTokens,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<OriginalCompilerArgumentSyntax<'a>> {
+        if tokens.source_binding.as_ref() != Some(self)
+            || tokens.synthetic.is_some()
+            || !tokens.original_words_match_argv_text()
+            || input.has_logical_source_name_context()
+            || input.has_hosted_source_name_context()
+        {
+            return None;
+        }
+        self.native_compiler_dialect()?;
+        self.compiler_source_protocol()?;
+        let original = self.original_compiler_words.as_ref()?;
+        let snapshot = self.compiler_lookup_state.as_ref()?;
+        let analysis_owner = self.original_analysis_owner.as_ref()?;
+        if original.words.as_ref() != tokens.words()
+            || original.config != self.original_argument_lexer_config(tokens)?
+            || snapshot.state.current_source_origin.as_ref() != Some(&original.site.source)
+            || snapshot.state.baseline.registry_snapshot != Some(registry.snapshot().semantic_key())
+            || self.compiler_invocation_realm() != Some(snapshot.realm)
+            || !Arc::ptr_eq(&analysis_owner.source, &original.site.source)
+            || analysis_owner.config != original.config
+        {
+            return None;
+        }
+        original.site.source.original_lexical_command(
+            &original.words,
+            original.site.offset,
+            original.config,
+        )?;
+        let point = snapshot
+            .state
+            .baseline
+            .metadata_context
+            .source_analysis_input()?;
+        if point != input && point != &input.for_nested_source() {
+            return None;
+        }
+        if analysis_owner.metadata.source_analysis_input() != Some(point) {
+            return None;
+        }
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(
+            registry,
+            point,
+            original.config,
+            Some(point.unit_profile()),
+        )?;
+        Some(OriginalCompilerArgumentSyntax {
+            metadata,
+            original,
+            snapshot,
+            analysis_owner,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1714,6 +1820,94 @@ mod original_inline_control_source_tests {
             input,
             tokens,
             _owner: owner,
+        }
+    }
+
+    #[test]
+    fn original_compiler_syntax_keeps_the_actual_input_and_vector_owner() {
+        for environment in ["tcl8.4", "tcl9.1"] {
+            let fixture = fixture(
+                "if {$a} {set one 1}; if {$b} {set two 2}; if {$c} {set three 3}",
+                environment,
+            );
+            let tokens = fixture.tokens.last().unwrap();
+            let binding = tokens.source_binding.as_ref().unwrap();
+            let registry = fixture.input.borrowed_context_registry().commands();
+            let syntax = binding
+                .original_compiler_argument_syntax(tokens, &fixture.input, registry)
+                .expect("actual compiler observation after the earlier undefined read");
+            assert_eq!(syntax.words(), tokens.words());
+            assert_eq!(syntax.config(), fixture.input.lexer_config());
+            assert!(syntax.metadata().source_analysis_input().is_some());
+
+            let foreign_context = Arc::new(
+                fixture
+                    .input
+                    .context_registry()
+                    .with_command_store(Arc::clone(registry)),
+            );
+            let foreign = ResolvedAnalysisInput::new(
+                fixture.input.analyser_profile(),
+                fixture.input.unit_profile(),
+                foreign_context,
+                fixture.input.lexer_config(),
+            );
+            assert!(
+                binding
+                    .original_compiler_argument_syntax(tokens, &foreign, registry)
+                    .is_none()
+            );
+            let mut config = fixture.input.lexer_config();
+            config.leading_bom = tcl_lexer::LeadingBom::Skip;
+            let foreign = ResolvedAnalysisInput::new(
+                fixture.input.analyser_profile(),
+                fixture.input.unit_profile(),
+                fixture.input.context_registry(),
+                config,
+            );
+            assert!(
+                binding
+                    .original_compiler_argument_syntax(tokens, &foreign, registry)
+                    .is_none()
+            );
+            for axis in 0..6 {
+                let mut changed = tokens.clone();
+                match axis {
+                    0 => changed.synthetic = Some(crate::ir::SyntheticMarker::UnseenCall),
+                    1 => changed.argv_texts[1].push('x'),
+                    2 => {
+                        changed
+                            .source_binding
+                            .as_mut()
+                            .unwrap()
+                            .compiler_lookup_state = None
+                    }
+                    3 => changed.source_binding.as_mut().unwrap().compiler_policy = None,
+                    4 => {
+                        changed
+                            .source_binding
+                            .as_mut()
+                            .unwrap()
+                            .original_compiler_words = None
+                    }
+                    _ => {
+                        changed
+                            .source_binding
+                            .as_mut()
+                            .unwrap()
+                            .original_analysis_owner = None
+                    }
+                }
+                assert!(
+                    changed
+                        .source_binding
+                        .as_ref()
+                        .unwrap()
+                        .original_compiler_argument_syntax(&changed, &fixture.input, registry)
+                        .is_none(),
+                    "{environment} axis={axis}"
+                );
+            }
         }
     }
 

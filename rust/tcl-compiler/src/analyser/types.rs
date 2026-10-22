@@ -2412,6 +2412,8 @@ pub struct AnalysisResult {
     pub(super) command_realm: Option<std::sync::Arc<crate::realm::CommandBindingRealm>>,
     pub(super) original_command_world:
         Option<crate::command_binding::OriginalCompletedCommandWorld>,
+    pub(crate) original_source_region:
+        Option<crate::command_binding::OriginalSourceConditionalRegion>,
     pub(super) lexical_declaration_advice: bool,
     /// Actual editing inputs retained independently of the dialect label.
     /// This is not a native execution or implementation-identity proof.
@@ -2916,6 +2918,7 @@ impl PartialEq for AnalysisResult {
             analysis_context_unavailable,
             command_realm,
             original_command_world,
+            original_source_region,
             lexical_declaration_advice,
             resolved_input,
             original_vendor_source_names,
@@ -3047,6 +3050,7 @@ impl AnalysisResult {
             analysis_context_unavailable,
             command_realm,
             original_command_world,
+            original_source_region,
             lexical_declaration_advice,
             resolved_input,
             original_vendor_source_names,
@@ -3153,6 +3157,7 @@ impl AnalysisResult {
             analysis_context_unavailable,
             command_realm,
             original_command_world,
+            original_source_region,
             lexical_declaration_advice,
             resolved_input,
             original_vendor_source_names,
@@ -3735,8 +3740,45 @@ impl AnalysisResult {
             .rebuild_for_current_analysis(source, registry, input, external)
     }
 
+    /// Reborrow the actual source entry without rebuilding a unit. Missing or
+    /// stale ownership refuses; no fresh entry is substituted for this request.
+    #[must_use]
+    pub fn original_source_analysis_entry(
+        &self,
+        source: &str,
+        registry: &tcl_registry::CommandRegistry,
+        external: Option<&crate::unit_scope::CallSiteEvidence>,
+    ) -> Option<std::sync::Arc<crate::command_binding::SourceAnalysisEntry>> {
+        crate::source_graph::current_analysis(source, self)?;
+        let input = self.resolved_input.as_ref()?;
+        let realm = self.retained_command_realm()?;
+        realm.matches_resolved_analysis_input(input).then_some(())?;
+        let entry = self
+            .optimiser_source_origin
+            .as_ref()?
+            .source_analysis_entry_for_current_analysis(source, registry, input, external)?;
+        if entry
+            .source_point_entry
+            .as_ref()
+            .is_some_and(|point| !point.matches_child_analysis(self))
+        {
+            return None;
+        }
+        Some(entry)
+    }
+
     /// Exact temporal source world used by this analysis. Missing evidence
     /// remains unknown; rebuilding a realm from the dialect label cannot
+    /// Exact retained partial-region owner. Whole-document query APIs must not
+    /// treat this as complete coverage; hosts retain publication leases separately.
+    #[must_use]
+    pub fn original_source_region(
+        &self,
+    ) -> Option<&crate::command_binding::OriginalSourceConditionalRegion> {
+        let region = self.original_source_region.as_ref()?;
+        region.matches_region_analysis(self).then_some(region)
+    }
+
     /// replace its native entry, provider or source-instance obligations.
     #[must_use]
     pub fn retained_command_realm(&self) -> Option<&crate::realm::CommandBindingRealm> {
@@ -4275,6 +4317,24 @@ impl AnalysisResult {
             return None;
         }
         let allocation = definition.allocation();
+        if matches!(
+            allocation.site.source.kind(),
+            crate::command_binding::SourceOriginKind::InheritedPoint { .. }
+        ) {
+            if allocation.site.source.source_image().bytes() != source.as_bytes()
+                || !self.matches_inherited_declaration_origin(&allocation.site.source)
+            {
+                return None;
+            }
+            let mut records = self
+                .original_procedure_metadata
+                .iter()
+                .filter(|record| record.declaration_site() == &allocation.site);
+            let first = records.next()?;
+            return records
+                .all(|record| record == first)
+                .then_some(first.metadata());
+        }
         if !matches!(allocation.site.source.kind(), crate::command_binding::SourceOriginKind::Authored(authored) if authored.bytes() == source.as_bytes())
         {
             return None;
@@ -4306,6 +4366,24 @@ impl AnalysisResult {
             return None;
         }
         let allocation = definition.allocation();
+        if matches!(
+            allocation.site.source.kind(),
+            crate::command_binding::SourceOriginKind::InheritedPoint { .. }
+        ) {
+            if allocation.site.source.source_image().bytes() != source.as_bytes()
+                || !self.matches_inherited_declaration_origin(&allocation.site.source)
+            {
+                return None;
+            }
+            let mut records = self
+                .original_class_metadata
+                .iter()
+                .filter(|record| record.declaration_site() == &allocation.site);
+            let first = records.next()?;
+            return records
+                .all(|record| record == first)
+                .then_some(first.metadata());
+        }
         if !matches!(allocation.site.source.kind(), crate::command_binding::SourceOriginKind::Authored(authored) if authored.bytes() == source.as_bytes())
         {
             return None;
@@ -4327,6 +4405,21 @@ impl AnalysisResult {
             .flatten()
             .chain(self.all_classes.get(qualified))
             .find(|declaration| tokens.contains(&declaration.name_span))
+    }
+
+    fn matches_inherited_declaration_origin(
+        &self,
+        origin: &crate::command_binding::SourceOriginId,
+    ) -> bool {
+        let Some(input) = self.resolved_input.as_ref() else {
+            return false;
+        };
+        self.matches_original_source_image(origin.source_image(), input.lexer_config())
+            && self.retained_command_realm().is_some_and(|realm| {
+                realm
+                    .source_bindings_ref()
+                    .matches_inherited_source_origin(origin)
+            })
     }
 
     fn definition_tokens(

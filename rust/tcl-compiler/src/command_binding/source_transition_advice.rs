@@ -32,6 +32,8 @@ mod native_baseline;
 mod produced_prefix;
 mod registered_instance;
 mod source_callback;
+mod source_point;
+pub(super) use source_point::OriginalSourcePointAdviceGraph;
 mod source_class;
 mod source_jim_class;
 pub use source_jim_class::OriginalAuthoredJimClass;
@@ -1615,10 +1617,7 @@ impl AdviceGraph {
         )
     }
     fn lookup_head_key(&self, bytes: &[u8]) -> Option<ByteCommandSlot> {
-        if self.c_source_namespace.is_some()
-            && !self.native_baseline
-            && self.procedure_namespace.is_none()
-        {
+        if self.c_source_namespace.is_some() && !self.native_baseline {
             return self.c_source_head_key(bytes);
         }
         if let Some(namespace) = &self.procedure_namespace {
@@ -1682,10 +1681,7 @@ impl AdviceGraph {
 
     /// Every coordinate [`Self::lookup_head_key`] may try, in its order.
     fn head_lookup_candidates(&self, bytes: &[u8]) -> Option<Vec<ByteCommandSlot>> {
-        if self.c_source_namespace.is_some()
-            && !self.native_baseline
-            && self.procedure_namespace.is_none()
-        {
+        if self.c_source_namespace.is_some() && !self.native_baseline {
             return self.c_source_head_candidates(bytes);
         }
         if let Some(namespace) = &self.procedure_namespace {
@@ -2486,6 +2482,8 @@ struct AdviceTapeInputs<'a> {
 
 #[derive(Clone, Copy)]
 enum SourceAdviceQuery<'a> {
+    NormalSourceOutcome(&'a source_point::NormalSourceOutcomeQuery),
+    SourcePoint(&'a source_point::SourcePointQuery<'a>),
     ClassRelation(source_relation_provider::ClassRelationQuery<'a>),
     LogicalClassRelation(source_relation_provider::LogicalClassRelationQuery<'a>),
     LogicalClassRelationCandidates(
@@ -2721,7 +2719,7 @@ impl AdviceInvocationContext<'_> {
             obligations.push(SourceCommandTransitionObligation::ConditionalCNamespaceApplicability);
         }
         let c_source_namespace = (!graph.native_baseline)
-            .then(|| graph.c_source_namespace.clone())
+            .then(|| graph.c_source_lookup_namespace().cloned())
             .flatten();
         let c_source_path = c_source_namespace.as_ref().and_then(|namespace| {
             (!graph.unknown_paths.contains(namespace)).then(|| {
@@ -2834,6 +2832,7 @@ impl AdviceInvocationContext<'_> {
         invocation: &tcl_lexer::NativeScriptCommandWords,
         callback_scope: logical_navigation::LogicalCallbackScope<'_>,
     ) -> Option<()> {
+        self.begin_normal_source_invocation();
         self.observe_publication_proposal(graph);
         tape.retain_arity_prefix(graph, &invocation.words);
         let retained =
@@ -2934,6 +2933,8 @@ impl AdviceInvocationContext<'_> {
             lineage: &lineage,
         };
         self.retain_arity_debt(graph, selected, &schema)?;
+        self.observe_source_point(graph, selected.native, &schema);
+        self.observe_normal_source_operation(graph, &schema);
         let procedure = self.source_procedure_declaration(graph, selected, &schema);
         if let Some(shape) = schema.authored_source_procedure_arguments() {
             source_class::merge_receipt(
@@ -3062,6 +3063,11 @@ impl super::SourceCommandBindings {
     }
 
     pub(super) fn original_source_transition_seed(&self) -> Option<OriginalSourceTransitionSeed> {
+        if self.final_state.baseline.source_point_entry.is_some()
+            && self.original_inherited_source_entry().is_none()
+        {
+            return None;
+        }
         let origin = self.source_origin()?;
         let config = self.lexer_config?;
         self.matches_original_source_image(origin.source_image(), config)
@@ -3139,16 +3145,18 @@ impl super::SourceCommandBindings {
 /// The baseline retains its real metadata and entry; no body becomes a new entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct OriginalSourceTransitionSeed {
-    origin: Arc<super::SourceOriginId>,
-    config: LexerConfig,
-    baseline: Arc<super::BindingBaseline>,
-    logical_input: Option<crate::analyser::ResolvedAnalysisInput>,
+    pub(super) origin: Arc<super::SourceOriginId>,
+    pub(super) config: LexerConfig,
+    pub(super) baseline: Arc<super::BindingBaseline>,
+    pub(super) logical_input: Option<crate::analyser::ResolvedAnalysisInput>,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OriginalSourceCataloguePurpose {
     CompleteProgram,
     /// Authentic complete commands before the separately retained parse cut.
     CompletePrefix,
+    /// Exact sealed region plan, without whole-image coverage or absence.
+    ConditionalRegion,
 }
 
 impl OriginalSourceTransitionSeed {
@@ -3209,13 +3217,38 @@ impl OriginalSourceTransitionSeed {
         {
             return None;
         }
-        let plan = origin
-            .original_script_words_in(
-                tcl_lexer::Span::new(0, u32::try_from(origin.source_image().bytes().len()).ok()?),
-                config,
-                tcl_lexer::SourceSegmentationPurpose::WholeInput,
-            )
-            .ok()?;
+        if purpose == OriginalSourceCataloguePurpose::ConditionalRegion
+            && !baseline
+                .source_point_entry
+                .as_ref()
+                .is_some_and(|entry| entry.conditional_region().is_some())
+        {
+            return None;
+        }
+        let plan = match baseline
+            .source_point_entry
+            .as_ref()
+            .filter(|entry| entry.conditional_region().is_some())
+        {
+            Some(entry) => {
+                // Region catalogues are positive prefix views only. They may
+                // never certify a whole-file inventory or missing occurrence.
+                if purpose == OriginalSourceCataloguePurpose::CompleteProgram {
+                    return None;
+                }
+                entry.original_region_plan(origin, config)?
+            }
+            None => origin
+                .original_script_words_in(
+                    tcl_lexer::Span::new(
+                        0,
+                        u32::try_from(origin.source_image().bytes().len()).ok()?,
+                    ),
+                    config,
+                    tcl_lexer::SourceSegmentationPurpose::WholeInput,
+                )
+                .ok()?,
+        };
         if plan.fatal_tail.is_some() && purpose == OriginalSourceCataloguePurpose::CompleteProgram {
             return None;
         }
@@ -3234,6 +3267,9 @@ impl OriginalSourceTransitionSeed {
         policy: &AdviceNamingPolicy,
     ) -> Option<AdviceGraph> {
         let baseline = &self.baseline;
+        if let Some(entry) = &baseline.source_point_entry {
+            return entry.source_advice_graph(context)?.child_graph(policy);
+        }
         let mut graph = AdviceGraph::new(context, policy, baseline.dialect?)?;
         if let Some(entry) = &baseline.native_entry {
             graph.retain_native_baseline(context, entry)?;
@@ -3323,6 +3359,7 @@ impl OriginalSourceTransitionSeed {
                 logical_navigation::LogicalCallbackScope::Document,
             )?;
         }
+        advice_context.finish_normal_source_graph(&graph);
         advice_context.retain_future_original_procedure_bodies(&mut tape, &graph);
         advice_context.retain_final_original_procedure_publications(&mut tape, &graph);
         advice_context.retain_final_original_class_publications(&mut tape, &graph);

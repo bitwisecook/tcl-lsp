@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-22T21:01:32.728081+00:00",
+  "cargo_exit": 101,
+  "observed_diagnostics": 23,
+  "scope": "Missing mirror fixture includes only; no artifact/tests. Final guard unchanged. Cargo ended naturally at20:59:48 before authorized SIGINT could be sent; attempted getpgid returned ESRCH, no signal sent.",
+  "final_guard": {
+    "source_and_providers_unchanged": true,
+    "source_count": 35063,
+    "cleanup": "None; mirror, fresh executable, target and logs retained."
+  },
+  "fixture_successor": "Authorized v2 experiments symlink installed only after final guard and independent nonblocking flock succeeded; no canonical/provider/target changes."
+}

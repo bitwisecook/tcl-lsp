@@ -14,6 +14,9 @@ pub fn current_analysis(
     source: &str,
     analysis: &AnalysisResult,
 ) -> Option<(SourceImage, LexerConfig)> {
+    if analysis.original_source_region.is_some() {
+        return None;
+    }
     let image = SourceImage::document(source);
     let config = analysis.body_lexer_config?;
     analysis

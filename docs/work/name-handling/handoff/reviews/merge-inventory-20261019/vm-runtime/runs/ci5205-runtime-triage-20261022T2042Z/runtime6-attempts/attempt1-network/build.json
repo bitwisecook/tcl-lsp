@@ -1,0 +1,21 @@
+{
+  "argv": [
+    "cargo",
+    "test",
+    "--locked",
+    "--manifest-path",
+    "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/Cargo.toml",
+    "--lib",
+    "--no-run",
+    "--message-format=json",
+    "-j",
+    "2"
+  ],
+  "cwd": "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust",
+  "exit": 101,
+  "started_utc": "2026-10-22T20:50:31.572833+00:00",
+  "ended_utc": "2026-10-22T20:50:45.352014+00:00",
+  "bytes": 1366,
+  "stopped": null,
+  "deadline_seconds": null
+}

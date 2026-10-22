@@ -1520,6 +1520,95 @@ impl OriginalExpressionSyntaxGapCompaction {
     }
 }
 
+/// A selected original Expr-role operand whose checked boolean comparison
+/// is complemented without changing either operand's lexical receipt/order.
+/// This is independent of syntax gaps and constant/normal evaluation proofs.
+pub struct OriginalExpressionBooleanInversion {
+    original: tcl_lexer::NativeWord,
+    replacement: String,
+    input: crate::analyser::ResolvedAnalysisInput,
+}
+
+impl OriginalExpressionBooleanInversion {
+    /// Exact original whole operand; no new word claims its source receipt.
+    #[must_use]
+    pub fn original_operand(&self) -> &tcl_lexer::NativeWord {
+        &self.original
+    }
+
+    /// Separately authored and native-decoding-checked whole braced word.
+    #[must_use]
+    pub fn replacement_source_word(&self) -> &str {
+        &self.replacement
+    }
+
+    /// Complete original source/channel and configuration remain unchanged.
+    #[must_use]
+    pub fn matches_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        self.original.image() == image && self.original.config() == config
+    }
+
+    /// Every retained profile, registry and expression-input axis matches.
+    #[must_use]
+    pub fn matches_input(&self, input: &crate::analyser::ResolvedAnalysisInput) -> bool {
+        &self.input == input
+    }
+}
+
+/// Issue an independent boolean inversion only from the same current quiet
+/// selected Expr-role owner. Conditional advice supplies no edit authority.
+#[must_use]
+pub fn original_expression_boolean_comparison_inversion(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    argument: usize,
+    candidate: &str,
+) -> Option<OriginalExpressionBooleanInversion> {
+    let words = source_registry_words(source, analysis, segment)?;
+    let input = analysis.resolved_input.as_ref()?;
+    let context = input.context_registry();
+    if !matches!(words.source(), OriginalRegistrySource::Selected)
+        || !words.operands_preserve_source_lookup()
+        || !words
+            .roles()?
+            .contains(&(argument, tcl_registry::ArgRole::Expr))
+    {
+        return None;
+    }
+    words.with_source_schema(&context, |_| ())?;
+    let original = words.original_argument_word(argument)?.clone();
+    let image = tcl_lexer::SourceImage::document(source);
+    let config = input.lexer_config();
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    analysis
+        .retained_command_realm()?
+        .stamp_original_tokens(&mut tokens);
+    let replacement = tokens
+        .source_binding
+        .as_ref()?
+        .original_expression_boolean_inversion(
+            &tokens,
+            context.commands(),
+            input,
+            &original,
+            candidate,
+        )?;
+    Some(OriginalExpressionBooleanInversion {
+        original,
+        replacement,
+        input: input.clone(),
+    })
+}
+
 /// Issue syntax gaps only for a selected whole original Expr-role operand.
 /// Conditional source advice and observed or changed dispatch cannot issue it.
 #[must_use]
@@ -2104,6 +2193,11 @@ pub fn source_registry_words_at(
 ) -> Option<OriginalRegistryWords> {
     // naming.diagnostic.original-package-source-advice
     // docs/design/analysis/name-resolution-proofs/diagnostic-original-package-source-advice.md
+    if let Some(region) = analysis.original_source_region.as_ref()
+        && !region.owns_original_command_at(analysis, offset)
+    {
+        return None;
+    }
     let config = analysis.body_lexer_config?;
     let image = tcl_lexer::SourceImage::document(source);
     analysis
@@ -2654,6 +2748,11 @@ fn registered_original_words_at<'a>(
     &'a crate::realm::CommandBindingRealm,
     Vec<tcl_lexer::NativeWord>,
 )> {
+    if let Some(region) = analysis.original_source_region.as_ref()
+        && !region.owns_original_command_at(analysis, offset)
+    {
+        return None;
+    }
     let config = analysis.body_lexer_config?;
     let image = tcl_lexer::SourceImage::document(source);
     analysis

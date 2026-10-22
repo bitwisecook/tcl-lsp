@@ -12,6 +12,7 @@ use crate::signature_scan::scope::{SignatureNamespaceScope, SignatureSourceNameI
 
 /// Exact original script handed to the common namespace body walker. This
 /// receipt owns correspondence and Ensure geometry, without completion.
+#[derive(PartialEq, Eq)]
 struct OriginalNamespaceBodyDelegation {
     site: CommandAllocationSite,
     words: Vec<crate::ir::WordExpr>,
@@ -166,6 +167,97 @@ pub(super) fn has_original_namespace_body_delegation(
         .is_some()
 }
 
+/// A selected source-only namespace delegation. It does not establish an
+/// entered Native handler/frame or an enclosing handler's completion.
+#[derive(PartialEq, Eq)]
+pub(super) struct OriginalConditionalNamespaceDelegation {
+    delegation: OriginalNamespaceBodyDelegation,
+}
+
+pub(super) fn conditional_source_namespace_exit(
+    native: SourceNativeInvocation<'_>,
+    facts: &tcl_registry::InvocationFacts,
+    state: &ModuleCommandBindings,
+    context: SourceExecutionContext<'_>,
+    prepared: &super::PreparedSourceNativeBody,
+) -> Option<super::conditional_source::SourceConditionalNamespaceExit> {
+    let delegation = OriginalNamespaceBodyDelegation::capture(
+        native,
+        facts,
+        state,
+        context,
+        &prepared.parent_variables,
+    )?;
+    let policy = state.baseline.execution_name_policy?.native_recipe()?;
+    if !prepared.selection.namespace_activation
+        || state.variable_frame != prepared.selection.frame
+        || state.source_variables.namespace_identity.as_ref()
+            != Some(&prepared.selection.namespace_key)
+        || state.original_namespace_geometry(&prepared.selection.namespace_key, policy)?
+            != delegation.namespace_scope
+        || !state.namespaces.contains(&prepared.selection.namespace_key)
+        || state
+            .unknown_lookup_namespaces
+            .contains(&prepared.selection.namespace_key)
+    {
+        return None;
+    }
+    Some(super::conditional_source::SourceConditionalNamespaceExit {
+        body: delegation.body.clone(),
+        delegation: Arc::new(OriginalConditionalNamespaceDelegation { delegation }),
+        namespace: prepared.selection.namespace_key.clone(),
+        entered: prepared.selection.frame.clone(),
+        parent: prepared.parent_frame.clone(),
+        parent_variables: Arc::clone(&prepared.parent_variables),
+    })
+}
+
+pub(super) fn conditional_namespace_completed(
+    receipt: &super::conditional_source::SourceConditionalNamespaceExit,
+    native: SourceNativeInvocation<'_>,
+    outcomes: &super::SourceOutcomes,
+    context: SourceExecutionContext<'_>,
+    prepared: &super::PreparedSourceNativeBody,
+) -> bool {
+    let Some(normal) = outcomes
+        .normal
+        .as_deref()
+        .filter(|_| outcomes.normal_completion.is_some() && outcomes.abrupt.is_empty())
+    else {
+        return false;
+    };
+    let delegation = &receipt.delegation.delegation;
+    context.body_entry == super::SourceBodyEntryPurpose::Conditional
+        && context.compilation == Default::default()
+        && normal.baseline.source_point_entry.is_some()
+        && quiet(normal)
+        && delegation.site.offset == native.segment.span.start()
+        && normal.current_source_origin.as_ref() == Some(&delegation.site.source)
+        && delegation.words == native.words
+        && delegation.config == context.config
+        && delegation.handler == *native.target
+        && normal.retained_target_is_current(native.target)
+        && receipt.entered == prepared.selection.frame
+        && receipt.namespace == prepared.selection.namespace_key
+        && receipt.parent == prepared.parent_frame
+        && normal.variable_frame == receipt.parent
+        && normal.source_variables.namespace_identity
+            == prepared.parent_variables.namespace_identity
+        && normal.namespaces.contains(&receipt.namespace)
+        && !normal
+            .unknown_lookup_namespaces
+            .contains(&receipt.namespace)
+        && super::retained_script_operand(
+            delegation.argument,
+            native.script_operands(),
+            normal,
+            native.segment.span.start(),
+            context.config,
+        )
+        .as_ref()
+            == Some(&delegation.body)
+}
+
 impl OriginalNamespaceBody {
     pub(super) fn capture(
         native: SourceNativeInvocation<'_>,
@@ -174,6 +266,9 @@ impl OriginalNamespaceBody {
         context: SourceExecutionContext<'_>,
         prepared: &super::PreparedSourceNativeBody,
     ) -> Option<Self> {
+        if state.baseline.source_point_entry.is_some() {
+            return None;
+        }
         let delegation = OriginalNamespaceBodyDelegation::capture(
             native,
             facts,

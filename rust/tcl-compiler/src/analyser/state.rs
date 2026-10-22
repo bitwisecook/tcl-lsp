@@ -1128,6 +1128,7 @@ pub struct Analyser {
     /// Driver-supplied execution entry shared by realm, lowering and diagnostics.
     pub(super) source_analysis_entry:
         Option<std::sync::Arc<crate::command_binding::SourceAnalysisEntry>>,
+    source_region_override: Option<crate::command_binding::OriginalSourceConditionalRegion>,
     /// When `Some`, an isolated proc-body analysis (the per-item path) records
     /// every qualified (`::` / `static::`) variable read that fell through to
     /// the (empty) enclosing global scope here, instead of dropping it.  The
@@ -1659,6 +1660,7 @@ impl Analyser {
             minted_synthetic_names: std::collections::HashSet::new(),
             cu_override: None,
             source_analysis_entry: None,
+            source_region_override: None,
             capture_global_reads: None,
             capture_global_defs: None,
             pending_disabled_commands: Vec::new(),
@@ -2139,23 +2141,41 @@ impl Analyser {
     }
 
     pub(super) fn document_command_realm(&self, source: &str) -> crate::realm::CommandBindingRealm {
+        if let Some(region) = &self.source_region_override {
+            // Only the private region entry installs this override after exact
+            // input/settings checks. It reuses the actual kernel attachment.
+            return crate::realm::conditional_region_realm(region);
+        }
+
         // naming.minifier.logical-source-header
         // docs/design/analysis/name-resolution-proofs/minifier-logical-source-header.md
         // naming.source.original-declared-command-word-contract
         // docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md
         let input = self.resolved_analysis_input();
+        let unavailable_entry = self.source_analysis_entry.as_deref().and_then(|entry| {
+            entry
+                .source_point_entry
+                .as_ref()
+                .filter(|point| !point.accepts_analyser_source_settings(self))
+                .map(|_| crate::command_binding::SourceAnalysisEntry {
+                    metadata_context:
+                        crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable,
+                    ..entry.clone()
+                })
+        });
+        let entry = unavailable_entry
+            .as_ref()
+            .or(self.source_analysis_entry.as_deref());
         let declarations = crate::command_binding::SourceDeclaredCommandContracts::for_document(
             source,
             self.file_path.as_deref(),
             &input,
-            self.source_analysis_entry.as_deref(),
+            entry,
         );
-        crate::realm::document_realm_with_declared_contracts(
-            source,
-            &input,
-            self.source_analysis_entry.as_deref(),
-            &declarations,
-        )
+        crate::realm::document_realm_with_declared_contracts(source, &input, entry, &declarations)
+            .with_analyser_source_settings(Arc::new(
+                super::source_settings::OriginalAnalyserSourceSettings::capture(self),
+            ))
     }
 
     /// Supply a pre-built [`crate::compilation_unit::CompilationUnit`] for the
@@ -2170,6 +2190,104 @@ impl Analyser {
         cu: std::sync::Arc<crate::compilation_unit::CompilationUnit>,
     ) {
         self.cu_override = Some(cu);
+    }
+
+    /// Analyse exactly one issued conditional suffix, reusing its kernel world.
+    /// The result remains a partial view, never a whole-document analysis/CU.
+    pub fn analyse_source_region(
+        &mut self,
+        region: &crate::command_binding::OriginalSourceConditionalRegion,
+        parent: &AnalysisResult,
+        child_prefix: &AnalysisResult,
+    ) -> Option<AnalysisResult> {
+        if self.source_analysis_entry.is_some()
+            || self.source_region_override.is_some()
+            || self.cu_override.is_some()
+            || self.seed_namespace_key.is_some()
+            || !region.matches_dependencies(parent, child_prefix)
+            || self
+                .resolved_input
+                .as_ref()
+                .is_some_and(|input| input != region.input())
+        {
+            return None;
+        }
+        region.configure_analyser(self);
+        self.resolved_input = Some(region.input().clone());
+        let source = region.source_image().try_text().ok()?;
+        let entry = region.entry()?;
+        let contracts = crate::command_binding::SourceDeclaredCommandContracts::for_document(
+            source,
+            self.file_path.as_deref(),
+            region.input(),
+            Some(&entry),
+        );
+        if !region.accepts_analyser(self)
+            || !entry
+                .source_point_entry
+                .as_ref()?
+                .accepts_child_contracts(contracts.with_options(entry.options()))
+        {
+            return None;
+        }
+        self.source_analysis_entry = Some(Arc::new(entry));
+        self.source_region_override = Some(region.clone());
+        self.result.original_source_region = Some(region.clone());
+        let previous_scope = std::mem::take(&mut self.current_scope_path);
+        let mut result = self.analyse_commands(
+            source,
+            region.commands(),
+            region.input().analyser_profile().name,
+            false,
+        );
+        self.source_analysis_entry = None;
+        self.source_region_override = None;
+        self.current_scope_path = previous_scope;
+        // The unavailable early-return path does not take the per-run result.
+        // Never leave this private partial marker on a reused analyser.
+        self.result.original_source_region = None;
+        result.original_source_region = Some(region.clone());
+        region.matches_region_analysis(&result).then_some(result)
+    }
+
+    /// Analyse one source-only child view under the exact retained parent point.
+    /// Missing or incompatible ownership refuses without standalone reanalysis.
+    pub fn analyse_with_source_point_entry(
+        &mut self,
+        source: &str,
+        dialect: &str,
+        point: &crate::command_binding::OriginalSourcePointEntry,
+    ) -> Option<AnalysisResult> {
+        if self.source_analysis_entry.is_some()
+            || self.cu_override.is_some()
+            || self.seed_namespace_key.is_some()
+            || point.namespace_scope().is_none()
+            || !point.accepts_analyser_source_settings(self)
+        {
+            return None;
+        }
+        self.resolve_walk_environment(dialect);
+        let input = self.resolved_analysis_input();
+        let context = input.context_registry();
+        let entry = point.source_analysis_entry(context.commands(), &input)?;
+        let contracts = crate::command_binding::SourceDeclaredCommandContracts::for_document(
+            source,
+            self.file_path.as_deref(),
+            &input,
+            Some(&entry),
+        );
+        if !point.accepts_child_contracts(contracts.with_options(entry.options())) {
+            return None;
+        }
+        self.source_analysis_entry = Some(Arc::new(entry));
+        let result = self.analyse(source, dialect);
+        self.source_analysis_entry = None;
+        (result.resolved_input.as_ref() == Some(point.input())
+            && result.matches_original_source_image(
+                &tcl_lexer::SourceImage::document(source),
+                input.lexer_config(),
+            ))
+        .then_some(result)
     }
 
     /// Analyse a Tcl source for the given dialect, returning a
@@ -2395,6 +2513,33 @@ impl Analyser {
     }
 
     fn seed_walk_namespace(&mut self, source: &str) {
+        if let Some(point) = self
+            .source_analysis_entry
+            .as_ref()
+            .and_then(|entry| entry.source_point_entry.as_ref())
+        {
+            let kind = match point.frame().layout() {
+                crate::var_resolve::VariableExecutionFrame::Procedure { .. } => {
+                    super::types::ScopeKind::Proc
+                }
+                crate::var_resolve::VariableExecutionFrame::Global => {
+                    super::types::ScopeKind::Global
+                }
+                _ => super::types::ScopeKind::Namespace,
+            };
+            let mut scope = super::types::Scope::new(
+                kind,
+                point.namespace().display().as_deref().unwrap_or(""),
+            );
+            scope.naming_scope = point.namespace_scope();
+            scope.body_span = Some(tcl_lexer::Span::new(
+                0,
+                u32::try_from(source.len()).unwrap_or(u32::MAX),
+            ));
+            self.result.global_scope.children.push(scope);
+            self.seed_scope_path = vec![self.result.global_scope.children.len() - 1];
+            return;
+        }
         if let Some(seed) = self.seed_namespace_key.take() {
             self.path_constant_source_namespace = Some(seed.clone());
             let end = u32::try_from(source.len()).unwrap_or(u32::MAX);
@@ -2871,6 +3016,10 @@ impl Analyser {
         self.result.stub_commands = overlay_cmds;
         self.result.stub_expr_defs = overlay_exprs;
 
+        if self.source_region_override.is_some() {
+            self.seed_walk_namespace(source);
+            self.current_scope_path.clone_from(&self.seed_scope_path);
+        }
         let file_env_pushed = self.seed_file_scope_env(source);
         self.analyse_commands_inner(commands);
         if file_env_pushed {
@@ -3601,6 +3750,7 @@ impl Analyser {
         self.defer_proc_bodies = false;
         self.deferred_bodies.clear();
         self.cu_override = None;
+        self.source_region_override = None;
     }
 
     /// Seed the whole-file scoped command environment for this document, if

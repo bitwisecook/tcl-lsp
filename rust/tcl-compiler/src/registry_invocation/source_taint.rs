@@ -25,7 +25,8 @@ use tcl_registry::{CommandRegistry, model::ContextRegistry};
 
 /// Original operands selected at one SSA operation, without a read or value proof.
 pub(crate) struct OriginalSourceTaintReadOperands {
-    words: Vec<crate::ir::WordExpr>,
+    point_tokens: Arc<crate::ir::CommandTokens>,
+    actual_tokens: Arc<crate::ir::CommandTokens>,
     original: Vec<tcl_lexer::NativeWord>,
     config: LexerConfig,
     reads: Option<Vec<(String, crate::ir::SourceSite)>>,
@@ -49,8 +50,8 @@ pub(crate) enum OriginalSourceReadSites<'a> {
 }
 
 impl OriginalSourceTaintReadOperands {
-    pub(crate) const fn config(&self) -> LexerConfig {
-        self.config
+    pub(crate) fn matches_source_point(&self, point: crate::ssa::SsaSourceView<'_>) -> bool {
+        point.source_tokens() == Some(self.point_tokens.as_ref())
     }
 
     /// Lexical occurrences from the exact original argv and its actual
@@ -96,7 +97,8 @@ impl OriginalSourceTaintReadOperands {
     }
 
     pub(crate) fn owns_word(&self, word: &crate::ir::WordExpr) -> bool {
-        self.words
+        self.actual_tokens
+            .words()
             .iter()
             .zip(&self.original)
             .skip(1)
@@ -165,14 +167,23 @@ fn original_taint_script_layout(
         return None;
     }
     let binding = tokens.source_binding.as_ref()?;
-    let lookup = binding.original_compilation_lookup_advice(tokens)?;
-    if lookup.has_unclosed_source_coverage() {
-        return None;
-    }
-    let invocation =
-        super::resolve_original_source_layout(registry, Some(metadata), tokens, &lookup)?;
-    let arguments =
-        selected_taint_script_arguments(&invocation, registry, metadata, lookup.realm())?;
+    let (invocation, realm) = if let Some(lookup) =
+        binding.original_compilation_lookup_advice(tokens)
+    {
+        if lookup.has_unclosed_source_coverage() {
+            return None;
+        }
+        (
+            super::resolve_original_source_layout(registry, Some(metadata), tokens, &lookup)?,
+            lookup.realm(),
+        )
+    } else {
+        let conditional = super::source_taint_arguments::original_direct_source_taint_arguments(
+            registry, metadata, tokens,
+        )?;
+        (conditional.parent, conditional.realm)
+    };
+    let arguments = selected_taint_script_arguments(&invocation, registry, metadata, realm)?;
     Some(OriginalTaintScriptLayout {
         command: invocation.facts.canonical_command,
         effective: invocation.effective,
@@ -239,15 +250,19 @@ pub(crate) fn original_compiled_list_head(
     {
         return None;
     }
-    let parent_binding = parent.source_binding.as_ref()?;
-    parent_binding.original_invocation_metadata_for_input(parent, input, registry)?;
-    let parent_site = parent_binding.invocation_site()?;
-    let realm = parent_binding.original_source_realm_for_input(parent, input, registry)?;
+    let parent_syntax = parent
+        .source_binding
+        .as_ref()?
+        .original_compiler_argument_syntax(parent, input, registry)?;
     let binding = tokens.source_binding.as_ref()?;
-    binding.original_invocation_metadata_for_input(tokens, input, registry)?;
+    let syntax = binding.original_compiler_argument_syntax(tokens, input, registry)?;
     let preparation = binding.original_structured_compilation(tokens)?;
-    if !Arc::ptr_eq(&parent_site.source, &preparation.compilation_site().source)
-        || binding.compiler_invocation_realm() != Some(realm)
+    if !Arc::ptr_eq(
+        &parent_syntax.site().source,
+        &preparation.compilation_site().source,
+    ) || !syntax.same_analysis(&parent_syntax)
+        || syntax.site() != preparation.compilation_site()
+        || syntax.realm() != parent_syntax.realm()
     {
         return None;
     }
@@ -275,9 +290,12 @@ pub(crate) fn original_compiled_list_head(
     {
         return None;
     }
-    let (image, words, offset) = binding.original_compiler_source(tokens)?;
-    let config = binding.original_lexer_config_for_tokens(tokens)?;
-    let original = super::original_native_compiler_words(image, words, offset, config)?;
+    let original = super::original_native_compiler_words(
+        syntax.image(),
+        syntax.words(),
+        syntax.site().offset,
+        syntax.config(),
+    )?;
     let head = tcl_syntax::word_rules::original_static_word_unicode_value(original.get(1)?)?;
     let head = String::from_utf8(head).ok()?;
     (!head.contains('\0') && registry.get(&head).is_some()).then_some(head)
@@ -295,8 +313,17 @@ pub(crate) fn original_source_taint_read_operands(
     let actual = if parent == tokens {
         parent.clone()
     } else {
-        let mut children =
-            crate::word_subst::checked_original_argument_lifted_calls(parent, registry, context)?;
+        let parent_binding = parent.source_binding.as_ref()?;
+        let input = context.source_analysis_input()?;
+        let mut children = if parent_binding
+            .original_argument_metadata_for_input(parent, input, registry)
+            .is_some()
+        {
+            crate::word_subst::checked_original_argument_lifted_calls(parent, registry, context)?
+        } else {
+            let syntax = parent_binding.original_source_argument_syntax(parent, input, registry)?;
+            crate::word_subst::checked_argument_lifted_calls(parent, syntax.config())?
+        };
         let index = children
             .iter()
             .position(|child| child.tokens.as_ref() == Some(tokens))?;
@@ -305,19 +332,51 @@ pub(crate) fn original_source_taint_read_operands(
     let input = context.source_analysis_input()?;
     context.matches_registry(registry).then_some(())?;
     let binding = actual.source_binding.as_ref()?;
-    binding.original_argument_metadata_for_input(&actual, input, registry)?;
-    let config = binding.original_argument_lexer_config(&actual)?;
-    let image = binding.original_argument_source_image(&actual)?;
-    let original = super::original_native_compiler_words(
-        image,
-        actual.words(),
-        actual.argv.first()?.start(),
-        config,
-    )?;
+    let (config, original) = if binding
+        .original_argument_metadata_for_input(&actual, input, registry)
+        .is_some()
+    {
+        let config = binding.original_argument_lexer_config(&actual)?;
+        let image = binding.original_argument_source_image(&actual)?;
+        let original = super::original_native_compiler_words(
+            image,
+            actual.words(),
+            actual.argv.first()?.start(),
+            config,
+        )?;
+        (config, original)
+    } else if let Some(syntax) = binding.original_source_argument_syntax(&actual, input, registry) {
+        let original = super::original_native_compiler_words(
+            syntax.image(),
+            syntax.words(),
+            syntax.offset(),
+            syntax.config(),
+        )?;
+        (syntax.config(), original)
+    } else {
+        let syntax = binding.original_compiler_argument_syntax(&actual, input, registry)?;
+        syntax.metadata().matches_registry(registry).then_some(())?;
+        let original = super::original_native_compiler_words(
+            syntax.image(),
+            syntax.words(),
+            syntax.site().offset,
+            syntax.config(),
+        )?;
+        (syntax.config(), original)
+    };
+    let reads = original_source_read_sites(&actual, &original, config);
+    let script_layout = original_taint_script_layout(registry, context, &actual);
+    let actual_tokens = Arc::new(actual);
+    let point_tokens = if actual_tokens.as_ref() == parent {
+        Arc::clone(&actual_tokens)
+    } else {
+        Arc::new(parent.clone())
+    };
     Some(OriginalSourceTaintReadOperands {
-        reads: original_source_read_sites(&actual, &original, config),
-        script_layout: original_taint_script_layout(registry, context, &actual),
-        words: actual.words().to_vec(),
+        reads,
+        script_layout,
+        point_tokens,
+        actual_tokens,
         original,
         config,
     })
@@ -385,7 +444,8 @@ pub(crate) fn original_expression_taint_read_operands(
     Some(OriginalSourceTaintReadOperands {
         reads: original_source_read_sites(nested, &original, nested_config),
         script_layout: original_taint_script_layout(registry, context, nested),
-        words: nested.words().to_vec(),
+        point_tokens: Arc::new(parent_tokens.clone()),
+        actual_tokens: Arc::new(nested.clone()),
         original,
         config: nested_config,
     })
@@ -693,6 +753,21 @@ pub(crate) fn native_source_taint_invocation(
     Some(NativeSourceTaintInvocation { words, effective })
 }
 
+/// Literal first list element under a closed original Direct pre-argv world.
+/// This is a source result-shape property, never a Native instruction or OK.
+pub(crate) fn original_conditional_list_result_head(
+    registry: &CommandRegistry,
+    metadata: super::InvocationMetadataContext<'_>,
+    parent: &crate::ir::CommandTokens,
+    child: &crate::ir::CommandTokens,
+) -> Option<String> {
+    let selected = super::source_taint_arguments::original_direct_source_taint_arguments(
+        registry, metadata, parent,
+    )?;
+    (selected.child == *child).then_some(())?;
+    selected.literal_list_head
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -863,15 +938,55 @@ mod tests {
         (parent, child)
     }
 
+    fn bytecode_list_fixture(
+        source: &str,
+    ) -> (crate::compilation_unit::CompilationUnit, tcl_vm::Vm) {
+        let context = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+            .unwrap()
+            .default_context_registry();
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let mut entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+            registry,
+            &input,
+            config,
+            Some(profile),
+        );
+        entry.native_entry = Some(std::sync::Arc::new(native));
+        entry.native_compilation.mode =
+            tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject;
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        (unit, owner)
+    }
+
     #[test]
     fn compiled_list_head_uses_one_current_original_compiler_owner() {
         let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let registry = context.commands();
-        let profile = registry.profile().unwrap();
         let source = "set payload [gets stdin]; puts [list puts $payload]";
-        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
-            source, registry, false, profile,
-        );
+        // Direct file evaluation has no Native List instruction. This positive
+        // explicitly requests bytecode and keeps its real registration owner.
+        let (unit, _owner) = bytecode_list_fixture(source);
         let (parent, child) = retained_list_child(&unit, registry);
         let metadata =
             super::super::InvocationMetadataContext::for_module(registry, &unit.ir_module).unwrap();
@@ -879,9 +994,7 @@ mod tests {
             original_compiled_list_head(registry, metadata, parent, &child).as_deref(),
             Some("puts")
         );
-        let foreign = crate::compilation_unit::CompilationUnit::build_for_profile(
-            source, registry, false, profile,
-        );
+        let (foreign, _foreign_owner) = bytecode_list_fixture(source);
         let (_, foreign_child) = retained_list_child(&foreign, registry);
         assert!(original_compiled_list_head(registry, metadata, parent, &foreign_child).is_none());
         let mut changed = child.clone();
@@ -911,11 +1024,38 @@ mod tests {
             "set payload [gets stdin]; puts [list $payload]",
             "set payload [gets stdin]; puts [list {*}{puts} $payload]",
         ] {
+            let (unit, _owner) = bytecode_list_fixture(source);
+            let (parent, child) = retained_list_child(&unit, registry);
+            let metadata =
+                super::super::InvocationMetadataContext::for_module(registry, &unit.ir_module)
+                    .unwrap();
+            assert!(
+                original_compiled_list_head(registry, metadata, parent, &child).is_none(),
+                "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn compiled_list_head_direct_file_refuses_a_compiler_instruction() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        for source in [
+            "set payload [gets stdin]; puts [list puts $payload]",
+            "set payload [gets stdin]; puts [list $payload]",
+            "set payload [gets stdin]; puts [list {*}{puts} $payload]",
+        ] {
+            // C Tcl_EvalEx and its bracket substitutions do not compile this
+            // source. Tcl_EvalObjEx without TCL_EVAL_DIRECT is the positive above.
             let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
                 source,
                 registry,
                 false,
                 registry.profile().unwrap(),
+            );
+            assert_eq!(
+                unit.ir_module.source_entry.native_compilation.mode,
+                tcl_registry::native_compilation::NativeCompilationMode::Direct
             );
             let (parent, child) = retained_list_child(&unit, registry);
             let metadata =

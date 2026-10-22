@@ -1,0 +1,144 @@
+{
+  "utc": "2026-10-22T20:59:54.052539+00:00",
+  "status": "Live current compile diagnostics; final build/guard still pending. Missing mirror input, not canonical product failure.",
+  "rows": [
+    {
+      "diagnostic_path": "src/../../../experiments/name-handling/results/clock-parse-format-args/input.tcl",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/clock-parse-format-args/input.tcl",
+      "exists": true,
+      "sha256": "ed6c3aafb11c64da72d90acd1afc60604914308e8b52abe2d5881e461e90bd1c"
+    },
+    {
+      "diagnostic_path": "src/../../../experiments/name-handling/results/clock-parse-format-args/captured/c8.6.18.stdout.txt",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/clock-parse-format-args/captured/c8.6.18.stdout.txt",
+      "exists": true,
+      "sha256": "85b0a0bacc856d8ebaca03681560fa384ef2ca6065f5d029ab4498c9518b3545"
+    },
+    {
+      "diagnostic_path": "src/../../../experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/input.tcl",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/input.tcl",
+      "exists": true,
+      "sha256": "2d205220a1176bf6ff1f04184cf23d59de717623ef77bad676399a55837a0c55"
+    },
+    {
+      "diagnostic_path": "src/../../../experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-01/8.6.18/values/stdout.txt",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-01/8.6.18/values/stdout.txt",
+      "exists": true,
+      "sha256": "ea212f99db535e7d4b5536c15d12e428e884c02af01a12ffb51d5a09e51d3691"
+    },
+    {
+      "diagnostic_path": "src/cmd_error/tests/../../../../../experiments/name-handling/results/jim-try-reached-message-getters/capture07/execution.stdout",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/jim-try-reached-message-getters/capture07/execution.stdout",
+      "exists": true,
+      "sha256": "3d8d41b56d17a0272ef36886e920fb51b8319c89018a13a4a70d062d3cb72fbe"
+    },
+    {
+      "diagnostic_path": "src/../../../experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question/capture-01/8.6.18/stdout.txt",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-question/capture-01/8.6.18/stdout.txt",
+      "exists": true,
+      "sha256": "4673d5799aec691fa5c5cc66c7ea989c807545255a99a0903ef93a61a8b01e7e"
+    },
+    {
+      "diagnostic_path": "src/../../../experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-rwx-question/capture-01/8.6.18/stdout.txt",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/glob-type-union-rwx-question/capture-01/8.6.18/stdout.txt",
+      "exists": true,
+      "sha256": "3d87c75544986779c8e87b11c3238babf5145cf0c46ae6657924ea4e0c41e95b"
+    },
+    {
+      "diagnostic_path": "src/../../../experiments/name-handling/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt",
+      "exists": true,
+      "sha256": "7a4b6ba9ab1b0f276c9e0a5131901e615fb62f98832ea8ac3f047f9cd5fc28fb"
+    },
+    {
+      "diagnostic_path": "src/../../../experiments/name-handling/results/namespace-forget-global-origin/issue-witness.tcl",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/namespace-forget-global-origin/issue-witness.tcl",
+      "exists": true,
+      "sha256": "9beef406e444256fb12f7edf78ea2d85567346312a1142e7dacccbc551bf8795"
+    },
+    {
+      "diagnostic_path": "src/../../../experiments/name-handling/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/namespace-forget-global-origin/results/tcl8.6.18/stdout.txt",
+      "exists": true,
+      "sha256": "7a4b6ba9ab1b0f276c9e0a5131901e615fb62f98832ea8ac3f047f9cd5fc28fb"
+    },
+    {
+      "diagnostic_path": "src/../../../experiments/name-handling/results/namespace-forget-global-origin/probe.tcl",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/namespace-forget-global-origin/probe.tcl",
+      "exists": true,
+      "sha256": "399bf41f982eeab39a204778f77332cfb46f2ab1493cd7918ad668dee73f2727"
+    },
+    {
+      "diagnostic_path": "src/../../../experiments/name-handling/results/namespace-forget-import-chain/results/tcl8.6.18/stdout.txt",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/namespace-forget-import-chain/results/tcl8.6.18/stdout.txt",
+      "exists": true,
+      "sha256": "e08fca64eea1bc93f9ca597d28d93f55e22cf4318b65b3b7c601c5ee8556a2ba"
+    },
+    {
+      "diagnostic_path": "src/../../../experiments/name-handling/results/namespace-forget-import-chain/probe.tcl",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/namespace-forget-import-chain/probe.tcl",
+      "exists": true,
+      "sha256": "b8e5145b4313987f1c7744a20acec067b155dad8dfc6791d662a8b18bb7aa836"
+    },
+    {
+      "diagnostic_path": "src/interp/native_namespace_names/../../../../../experiments/name-handling/namespace-address-purpose/8.4.20/stdout.bin",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/namespace-address-purpose/8.4.20/stdout.bin",
+      "exists": true,
+      "sha256": "24e5f69c5419d0c685402ebd6d66ff42286712d12d37282eef1adecc7c563037"
+    },
+    {
+      "diagnostic_path": "src/interp/native_namespace_names/../../../../../experiments/name-handling/namespace-address-purpose/8.5.19/stdout.bin",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/namespace-address-purpose/8.5.19/stdout.bin",
+      "exists": true,
+      "sha256": "24e5f69c5419d0c685402ebd6d66ff42286712d12d37282eef1adecc7c563037"
+    },
+    {
+      "diagnostic_path": "src/interp/native_namespace_names/../../../../../experiments/name-handling/namespace-address-purpose/8.6.18/stdout.bin",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/namespace-address-purpose/8.6.18/stdout.bin",
+      "exists": true,
+      "sha256": "21229fc5d39e7dc9496c45b5078e5671b3766f870b6cc6afa82b9d0f3cb593e3"
+    },
+    {
+      "diagnostic_path": "src/interp/native_namespace_names/../../../../../experiments/name-handling/namespace-address-purpose/9.0.4/stdout.bin",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/namespace-address-purpose/9.0.4/stdout.bin",
+      "exists": true,
+      "sha256": "21229fc5d39e7dc9496c45b5078e5671b3766f870b6cc6afa82b9d0f3cb593e3"
+    },
+    {
+      "diagnostic_path": "src/interp/native_namespace_names/../../../../../experiments/name-handling/namespace-address-purpose/9.1.0/stdout.bin",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/namespace-address-purpose/9.1.0/stdout.bin",
+      "exists": true,
+      "sha256": "21229fc5d39e7dc9496c45b5078e5671b3766f870b6cc6afa82b9d0f3cb593e3"
+    },
+    {
+      "diagnostic_path": "src/interp/../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/input.tcl",
+      "exists": true,
+      "sha256": "79d69d16db774196d0e9a20b5953aac511d1ebdcf483574093e6291530630906"
+    },
+    {
+      "diagnostic_path": "src/interp/../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.6.18/stdout.txt",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-01/8.6.18/stdout.txt",
+      "exists": true,
+      "sha256": "b6b8fc42214951b4b59772e7e83e8ceef8a00b47cb92cebdbf8abdf8fde376b1"
+    },
+    {
+      "diagnostic_path": "src/interp/../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/variable-head-input.tcl",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/variable-head-input.tcl",
+      "exists": true,
+      "sha256": "5a0213d075eab51e6a9f17671ae7d7ccd8969470751b14025525a00d2084f268"
+    },
+    {
+      "diagnostic_path": "src/interp/../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt",
+      "exists": true,
+      "sha256": "5554e1a91e5b7f2d4e521fe8f6d61ce21eae76c2767286cf9dba657ec3cde369"
+    },
+    {
+      "diagnostic_path": "src/interp/../../../../experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt",
+      "canonical_path": "/workspace/naming-migration-active/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/retired-namespace-variable-diagnostic-question/capture-02/8.6.18/stdout.txt",
+      "exists": true,
+      "sha256": "5554e1a91e5b7f2d4e521fe8f6d61ce21eae76c2767286cf9dba657ec3cde369"
+    }
+  ]
+}

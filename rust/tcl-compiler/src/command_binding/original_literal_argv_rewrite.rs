@@ -118,6 +118,7 @@ impl OriginalExpressionGapCompaction {
     }
 }
 
+#[derive(Clone, Copy)]
 struct ExpressionRewriteEnvelope<'a> {
     site: &'a CommandAllocationSite,
     config: LexerConfig,
@@ -317,6 +318,109 @@ fn same_pure_expression_tree(
     true
 }
 
+fn same_boolean_comparison_inversion(
+    original: &ExprNode<Vec<u8>>,
+    candidate: &ExprNode<Vec<u8>>,
+    original_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
+    candidate_tokens: &[tcl_lexer::ExprToken<Vec<u8>>],
+) -> bool {
+    use tcl_syntax::expr::{BinOp, UnaryOp};
+    let ExprNode::Unary {
+        op: UnaryOp::Not,
+        operand,
+    } = original
+    else {
+        return false;
+    };
+    let ExprNode::Binary { op, left, right } = operand.as_ref() else {
+        return false;
+    };
+    let ExprNode::Binary {
+        op: next,
+        left: next_left,
+        right: next_right,
+    } = candidate
+    else {
+        return false;
+    };
+    let opposite = match op {
+        BinOp::StrEq => BinOp::StrNe,
+        BinOp::StrNe => BinOp::StrEq,
+        BinOp::In => BinOp::Ni,
+        BinOp::Ni => BinOp::In,
+        _ => return false,
+    };
+    *next == opposite
+        && same_inversion_leaf(left, next_left, original_tokens, candidate_tokens)
+        && same_inversion_leaf(right, next_right, original_tokens, candidate_tokens)
+}
+
+fn same_inversion_leaf(
+    old: &ExprNode<Vec<u8>>,
+    new: &ExprNode<Vec<u8>>,
+    original: &[tcl_lexer::ExprToken<Vec<u8>>],
+    candidate: &[tcl_lexer::ExprToken<Vec<u8>>],
+) -> bool {
+    let pair = match (old, new) {
+        (
+            ExprNode::Literal {
+                text: old_text,
+                start: old_start,
+                end: old_end,
+            },
+            ExprNode::Literal {
+                text: new_text,
+                start: new_start,
+                end: new_end,
+            },
+        )
+        | (
+            ExprNode::String {
+                text: old_text,
+                start: old_start,
+                end: old_end,
+            },
+            ExprNode::String {
+                text: new_text,
+                start: new_start,
+                end: new_end,
+            },
+        ) => Some((old_text, old_start, old_end, new_text, new_start, new_end)),
+        (
+            ExprNode::Var {
+                text: old_text,
+                name: old_name,
+                start: old_start,
+                end: old_end,
+            },
+            ExprNode::Var {
+                text: new_text,
+                name: new_name,
+                start: new_start,
+                end: new_end,
+            },
+        ) if old_name == new_name => {
+            Some((old_text, old_start, old_end, new_text, new_start, new_end))
+        }
+        _ => None,
+    };
+    let Some((old_text, old_start, old_end, new_text, new_start, new_end)) = pair else {
+        return false;
+    };
+    old_text == new_text
+        && original.iter().any(|before| {
+            before.start == *old_start
+                && before.end == *old_end
+                && &before.text == old_text
+                && candidate.iter().any(|after| {
+                    after.start == *new_start
+                        && after.end == *new_end
+                        && &after.text == new_text
+                        && before.kind == after.kind
+                })
+        })
+}
+
 impl SourceInvocationBinding {
     /// Issue a bounded bracing rewrite for one complete static operand of the
     /// genuinely selected expression handler. Argument evaluation, original
@@ -468,6 +572,71 @@ impl SourceInvocationBinding {
         whitespace_gap_spans(bytes, candidate.as_bytes(), content.start())
     }
 
+    /// Independently prove only boolean string/membership complementation.
+    /// Source-role admission remains with the authentic caller; arbitrary AST
+    /// shrinking, changed operands, child commands and ordered numeric rows fail.
+    pub(crate) fn original_expression_boolean_inversion(
+        &self,
+        tokens: &CommandTokens,
+        registry: &CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        operand: &NativeWord,
+        candidate: &str,
+    ) -> Option<String> {
+        let envelope = self.original_registry_syntax_envelope(tokens, registry)?;
+        if input.lexer_config() != envelope.config
+            || input.borrowed_context_registry().commands().snapshot() != registry.snapshot()
+            || operand.config() != envelope.config
+            || operand.image() != envelope.site.source.source_image()
+            || operand.group().kind != WordKind::Braced
+            || operand.group().expand
+        {
+            return None;
+        }
+        let words = crate::registry_invocation::original_native_compiler_words(
+            envelope.site.source.source_image(),
+            tokens.words(),
+            envelope.site.offset,
+            envelope.config,
+        )?;
+        if !words.contains(operand) {
+            return None;
+        }
+        let content = operand.content_span().ok()?;
+        let original = operand.image().bytes().get(content.as_range())?;
+        let mut parser = ExprParseContext::for_profile(input.unit_profile());
+        parser.lexer_grammar = envelope.config.grammar_over(parser.lexer_grammar);
+        let CheckedExprParse::Parsed(tree) =
+            tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(original, &parser)
+        else {
+            return None;
+        };
+        let CheckedExprParse::Parsed(proposed) =
+            tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(
+                candidate.as_bytes(),
+                &parser,
+            )
+        else {
+            return None;
+        };
+        if !same_boolean_comparison_inversion(
+            &tree,
+            &proposed,
+            &expression_syntax_signature(original, &parser, envelope.config)?,
+            &expression_syntax_signature(candidate.as_bytes(), &parser, envelope.config)?,
+        ) {
+            return None;
+        }
+        let policy = self.original_head_name_input(tokens)?.policy();
+        let replacement = braced_source_word(
+            candidate.as_bytes(),
+            operand.image(),
+            envelope.config,
+            policy,
+        )?;
+        Some(replacement)
+    }
+
     fn original_expression_rewrite_envelope(
         &self,
         tokens: &CommandTokens,
@@ -530,7 +699,7 @@ fn original_literal_bracing_operand(
         site,
         config,
         target,
-        state,
+        ..
     } = envelope;
     let head = brace_required(
         tokens,
@@ -565,6 +734,56 @@ fn original_literal_bracing_operand(
     .ok()?;
     captured.literal(0)?;
     let native = brace_required(tokens, "static-native-operand", captured.literal(1))?;
+    let (parser, tree, actual) =
+        checked_finite_literal_expression(tokens, registry, envelope, native, policy)?;
+    let replacement_bytes = match rewrite {
+        ExpressionRewrite::Brace => native,
+        ExpressionRewrite::Gaps(candidate) => {
+            let content = original[1].content_span().ok()?;
+            if original[1].image().bytes().get(content.as_range())? != native
+                || !same_expression_gaps(native, candidate.as_bytes(), &parser, config, &tree)
+            {
+                return None;
+            }
+            candidate.as_bytes()
+        }
+    };
+    let replacement = brace_required(
+        tokens,
+        "candidate-roundtrip",
+        braced_source_word(
+            replacement_bytes,
+            site.source.source_image(),
+            config,
+            policy,
+        ),
+    )?;
+    Some(OriginalLiteralExpressionBracing {
+        site: site.clone(),
+        native: native.to_vec(),
+        replacement,
+        target: target.clone(),
+        policy,
+        parser,
+        tree,
+        registry: registry.snapshot().semantic_key(),
+        normal_dialect: actual,
+        original,
+    })
+}
+
+fn checked_finite_literal_expression(
+    tokens: &CommandTokens,
+    registry: &CommandRegistry,
+    envelope: ExpressionRewriteEnvelope<'_>,
+    native: &[u8],
+    policy: NamePolicyProtocol,
+) -> Option<(
+    ExprParseContext,
+    ExprNode<Vec<u8>>,
+    tcl_registry::InvocationDialect,
+)> {
+    let ExpressionRewriteEnvelope { config, state, .. } = envelope;
     let advice = brace_required(
         tokens,
         "expression-context",
@@ -601,40 +820,7 @@ fn original_literal_bracing_operand(
     {
         return brace_refusal(tokens, "normal-native-evaluation");
     }
-    let replacement_bytes = match rewrite {
-        ExpressionRewrite::Brace => native,
-        ExpressionRewrite::Gaps(candidate) => {
-            let content = original[1].content_span().ok()?;
-            if original[1].image().bytes().get(content.as_range())? != native
-                || !same_expression_gaps(native, candidate.as_bytes(), &parser, config, &tree)
-            {
-                return None;
-            }
-            candidate.as_bytes()
-        }
-    };
-    let replacement = brace_required(
-        tokens,
-        "candidate-roundtrip",
-        braced_source_word(
-            replacement_bytes,
-            site.source.source_image(),
-            config,
-            policy,
-        ),
-    )?;
-    Some(OriginalLiteralExpressionBracing {
-        site: site.clone(),
-        native: native.to_vec(),
-        replacement,
-        target: target.clone(),
-        policy,
-        parser,
-        tree,
-        registry: registry.snapshot().semantic_key(),
-        normal_dialect: actual,
-        original,
-    })
+    Some((parser, tree, actual))
 }
 
 // A changed procedure body can be returned by info body, even when the
@@ -840,6 +1026,124 @@ mod tests {
             commands.last()?,
             candidate,
         )
+    }
+
+    #[test]
+    fn original_boolean_inversion_retains_leaf_and_dispatch_owners() {
+        let receipt = |source: &str, candidate: &str| {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+            let config = analysis.body_lexer_config?;
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            crate::registry_invocation::source_structure::original_expression_boolean_comparison_inversion(
+                source, &analysis, commands.last()?, 0, candidate,
+            )
+        };
+        for (source, candidate) in [
+            ("if {!($a eq \"x\")} {}", "$a ne\"x\""),
+            ("if {!($a ne \"x\")} {}", "$a eq\"x\""),
+            ("if {!($a in $b)} {}", "$a ni$b"),
+            ("if {!($a ni $b)} {}", "$a in$b"),
+        ] {
+            let proof = receipt(source, candidate).expect("actual boolean inversion owner");
+            assert_eq!(proof.replacement_source_word(), format!("{{{candidate}}}"));
+            assert!(proof.matches_source(
+                &SourceImage::document(source),
+                proof.original_operand().config()
+            ));
+            assert!(!proof.matches_source(
+                &SourceImage::document("different"),
+                proof.original_operand().config()
+            ));
+        }
+        for (source, candidate) in [
+            ("if {!($a eq \"x\")} {}", "$a ne\"y\""),
+            ("if {!($a eq $b)} {}", "$b ne$a"),
+            ("if {!($a < $b)} {}", "$a >= $b"),
+            ("if {!($a && $b)} {}", "!$a||!$b"),
+            ("proc if args {}; if {!($a eq $b)} {}", "$a ne$b"),
+            ("unknown_mutation; if {!($a eq $b)} {}", "$a ne$b"),
+            (
+                "trace add execution if enter callback; if {!($a eq $b)} {}",
+                "$a ne$b",
+            ),
+            ("if {!($a eq)} {}", "$a ne$b"),
+        ] {
+            assert!(
+                receipt(source, candidate).is_none(),
+                "{source} -> {candidate}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_boolean_inversion_retains_selected_version_floor() {
+        let receipt = |source: &str, profile: &str, candidate: &str| {
+            let analysis = crate::analyser::Analyser::new().analyse(source, profile);
+            let config = analysis.body_lexer_config?;
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            crate::registry_invocation::source_structure::original_expression_boolean_comparison_inversion(
+                source, &analysis, commands.last()?, 0, candidate,
+            )
+        };
+        assert!(receipt("if {!($a eq $b)} {}", "tcl8.4", "$a ne$b").is_some());
+        for (source, candidate) in [
+            ("if {!($a in $b)} {}", "$a ni$b"),
+            ("if {!($a ni $b)} {}", "$a in$b"),
+        ] {
+            assert!(receipt(source, "tcl8.4", candidate).is_none());
+            assert!(receipt(source, "tcl8.5", candidate).is_some());
+        }
+        for (source, candidate) in [
+            ("if {!($a eq \"unterminated)} {}", "$a ne\"unterminated"),
+            ("if {!($a in $b)} {}", "$a ni"),
+        ] {
+            assert!(receipt(source, "tcl8.6", candidate).is_none());
+        }
+    }
+
+    #[test]
+    fn original_boolean_inversion_checks_leaf_token_coordinates() {
+        let parser = ExprParseContext::for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+        );
+        let config = LexerConfig::for_profile(Some(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").unit_profile(),
+        ));
+        let original = b"!($left eq $right)";
+        let candidate = b"$left ne$right";
+        let CheckedExprParse::Parsed(tree) =
+            tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(original, &parser)
+        else {
+            panic!("checked original");
+        };
+        let CheckedExprParse::Parsed(mut proposed) =
+            tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(candidate, &parser)
+        else {
+            panic!("checked candidate");
+        };
+        let original_tokens = expression_syntax_signature(original, &parser, config).unwrap();
+        let candidate_tokens = expression_syntax_signature(candidate, &parser, config).unwrap();
+        assert!(same_boolean_comparison_inversion(
+            &tree,
+            &proposed,
+            &original_tokens,
+            &candidate_tokens
+        ));
+        let ExprNode::Binary { left, .. } = &mut proposed else {
+            panic!("candidate binary");
+        };
+        let ExprNode::Var { start, .. } = left.as_mut() else {
+            panic!("original variable leaf");
+        };
+        *start += 1;
+        assert!(!same_boolean_comparison_inversion(
+            &tree,
+            &proposed,
+            &original_tokens,
+            &candidate_tokens
+        ));
     }
 
     #[test]

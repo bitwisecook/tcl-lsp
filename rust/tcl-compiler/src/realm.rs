@@ -147,6 +147,14 @@ static EMPTY_REALM: std::sync::LazyLock<CommandBindingRealm> =
     std::sync::LazyLock::new(CommandBindingRealm::default);
 
 impl CommandBindingRealm {
+    pub(crate) fn with_analyser_source_settings(
+        mut self,
+        settings: std::sync::Arc<crate::analyser::source_settings::OriginalAnalyserSourceSettings>,
+    ) -> Self {
+        self.bindings.retain_analyser_source_settings(settings);
+        self
+    }
+
     /// Seal the independently supplied editing inputs with this new source
     /// interpretation. Changing a public result projection cannot replace them.
     pub(crate) fn with_resolved_analysis_input(
@@ -1033,6 +1041,16 @@ pub(crate) fn original_logical_realm_from_source_bindings(
         realm_from_source_bindings(bindings.clone(), context.commands())
             .with_resolved_analysis_input(input.clone()),
     )
+}
+
+pub(crate) fn conditional_region_realm(
+    region: &crate::command_binding::OriginalSourceConditionalRegion,
+) -> CommandBindingRealm {
+    realm_from_source_bindings(
+        region.bindings().clone(),
+        region.input().borrowed_context_registry().commands(),
+    )
+    .with_resolved_analysis_input(region.input().clone())
 }
 
 fn realm_from_source_bindings(

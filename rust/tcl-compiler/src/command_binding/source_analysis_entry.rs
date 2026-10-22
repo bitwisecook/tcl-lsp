@@ -58,6 +58,10 @@ impl SourceDeclaredCommandContracts {
         Arc::new(Self(result))
     }
 
+    pub(super) fn owned_surface(&self) -> tcl_registry::model::DeclaredSurface {
+        self.0.clone()
+    }
+
     pub(crate) fn with_options<'a>(
         &'a self,
         mut options: SourceAnalysisOptions<'a>,
@@ -80,6 +84,8 @@ impl SourceDeclaredCommandContracts {
 /// catalogue availability or a package require spelling.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SourceAnalysisOptions<'a> {
+    /// Authentic source-only parent point; no runtime or Native entry follows.
+    pub source_point_entry: Option<&'a super::OriginalSourcePointEntry>,
     /// Actual metadata ingress, independent of naming/frame/handler entry.
     /// Supplied missing ownership must retain its explicit tag.
     pub metadata_context: crate::registry_invocation::InvocationMetadataInput<'a>,
@@ -350,6 +356,9 @@ impl SourceAnalysisOptions<'_> {
     /// unknown; logical value/frame policies cannot substitute for its engine.
     #[must_use]
     pub fn native_compiler_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+        if self.source_point_entry.is_some() {
+            return None;
+        }
         native_compilation_dialect(self.native_entry, self.invocation_dialect)
     }
 }
@@ -357,6 +366,8 @@ impl SourceAnalysisOptions<'_> {
 /// Owned entry proof carried from source lowering into every later consumer.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct SourceAnalysisEntry {
+    /// Same source-only parent point retained through every analysis consumer.
+    pub source_point_entry: Option<super::OriginalSourcePointEntry>,
     /// Complete actual availability/source ownership, independently of entry.
     pub metadata_context: crate::registry_invocation::OwnedInvocationMetadataContext,
     /// Host storage policy supplied independently of source naming and catalogue.
@@ -503,6 +514,7 @@ impl SourceAnalysisEntry {
     #[must_use]
     pub fn options(&self) -> SourceAnalysisOptions<'_> {
         SourceAnalysisOptions {
+            source_point_entry: self.source_point_entry.as_ref(),
             metadata_context: crate::registry_invocation::InvocationMetadataInput::Retained(
                 &self.metadata_context,
             ),

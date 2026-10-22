@@ -567,8 +567,9 @@ impl WasmModule {
         }
     }
 
-    /// Register an imported host function, returning its function index
-    /// (imports occupy indices `0..imports.len()`, before defined functions).
+    /// Intern an imported host function by module, name and full signature,
+    /// returning its function index. Existing imports retain their indices;
+    /// imports occupy `0..imports.len()`, before defined functions.
     ///
     /// This is the supported way to add imports: it interns the import's
     /// signature into the type section so the emitted `type_idx` is always
@@ -584,6 +585,11 @@ impl WasmModule {
         results: &[ValType],
     ) -> usize {
         let type_idx = self.intern_type(params, results);
+        if let Some(func_idx) = self.imports.iter().position(|import| {
+            import.module == module && import.name == name && import.type_idx == type_idx
+        }) {
+            return func_idx;
+        }
         let func_idx = self.imports.len();
         self.imports.push(WasmImport {
             module: module.to_owned(),
@@ -1461,6 +1467,51 @@ mod tests {
         );
         // Two distinct signatures => two types.
         assert_eq!(m.types.len(), 2);
+    }
+
+    #[test]
+    fn import_interning_keeps_full_identity_and_existing_function_indices() {
+        let mut module = WasmModule::new();
+        let first = module.add_import("tcl", "frame", &[ValType::I32], &[ValType::I32]);
+        let other_module = module.add_import("other", "frame", &[ValType::I32], &[ValType::I32]);
+        let other_name = module.add_import("tcl", "release", &[ValType::I32], &[ValType::I32]);
+        let other_params = module.add_import("tcl", "frame", &[ValType::I64], &[ValType::I32]);
+        let other_results = module.add_import("tcl", "frame", &[ValType::I32], &[ValType::I64]);
+        assert_eq!(
+            [first, other_module, other_name, other_params, other_results],
+            [0, 1, 2, 3, 4]
+        );
+        let repeated = module.add_import("tcl", "frame", &[ValType::I32], &[ValType::I32]);
+        assert_eq!(repeated, first);
+        assert_eq!(module.imports.len(), 5);
+        assert_eq!(module.imports[other_module].module, "other");
+        assert_eq!(module.imports[other_name].name, "release");
+        let types = module.type_section();
+        assert_eq!(
+            types[module.imports[other_params].type_idx].0,
+            [ValType::I64]
+        );
+        assert_eq!(
+            types[module.imports[other_results].type_idx].1,
+            [ValType::I64]
+        );
+        let binary = module.to_bytes();
+        let mut offset = 8;
+        let mut import_count = None;
+        while offset < binary.len() {
+            let section = binary[offset];
+            offset += 1;
+            let (size, used) = read_uleb(&binary[offset..]);
+            offset += used;
+            if section == SectionId::Import as u8 {
+                import_count = Some(read_uleb(&binary[offset..]).0);
+            }
+            offset += usize::try_from(size).unwrap();
+        }
+        // Five host functions plus the independent imported memory.
+        assert_eq!(import_count, Some(6));
+        let wat = module.to_wat();
+        assert_eq!(wat.matches("(import ").count(), 6);
     }
 
     #[test]

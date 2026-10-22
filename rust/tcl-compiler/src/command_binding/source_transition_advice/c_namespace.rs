@@ -29,6 +29,13 @@ impl AdviceGraph {
         Some(policy)
     }
 
+    pub(super) fn c_source_lookup_namespace(&self) -> Option<&ByteNamespacePath> {
+        self.c_source_policy()?;
+        self.procedure_namespace
+            .as_ref()
+            .or(self.c_source_namespace.as_ref())
+    }
+
     fn c_source_input<'a>(&self, input: &'a SourceAdviceNameInput) -> Option<&'a [u8]> {
         let input = input.native_input()?;
         (input.policy() == self.c_source_policy()? && input.original_word_key().is_some())
@@ -42,7 +49,7 @@ impl AdviceGraph {
         self.c_source_policy()?
             .recipe()
             .namespace_address_path(
-                NativeNameContext::new(self.c_source_namespace.as_ref()?),
+                NativeNameContext::new(self.c_source_lookup_namespace()?),
                 self.c_source_input(input)?,
             )
             .ok()
@@ -61,7 +68,7 @@ impl AdviceGraph {
         }
         if self
             .unknown_paths
-            .contains(self.c_source_namespace.as_ref()?)
+            .contains(self.c_source_lookup_namespace()?)
         {
             return None;
         }
@@ -77,7 +84,7 @@ impl AdviceGraph {
     /// `namespace path` entry and the root.
     pub(super) fn c_source_head_candidates(&self, bytes: &[u8]) -> Option<Vec<ByteCommandSlot>> {
         let policy = self.c_source_policy()?;
-        let current = self.c_source_namespace.as_ref()?;
+        let current = self.c_source_lookup_namespace()?;
         let recipe = policy.recipe();
         let context = NativeNameContext::new(current);
         let absolute = recipe
@@ -112,7 +119,7 @@ impl AdviceGraph {
         purpose: AdvicePublicationPurpose,
     ) -> Option<ByteCommandSlot> {
         let recipe = self.c_source_policy()?.recipe();
-        let context = NativeNameContext::new(self.c_source_namespace.as_ref()?);
+        let context = NativeNameContext::new(self.c_source_lookup_namespace()?);
         match purpose {
             AdvicePublicationPurpose::Define => recipe.command_publication_slot(context, bytes),
             AdvicePublicationPurpose::Move => recipe.rename_destination_slot(context, bytes),

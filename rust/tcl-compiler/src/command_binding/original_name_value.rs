@@ -714,6 +714,13 @@ impl OriginalWrittenSourceWords {
     pub(super) fn site(&self) -> &super::CommandAllocationSite {
         &self.site
     }
+
+    pub(super) fn matches_native_words(&self, words: &[tcl_lexer::NativeWord]) -> bool {
+        self.site
+            .source
+            .original_lexical_command(&self.words, self.site.offset, self.config)
+            .is_some_and(|original| original.native_words() == words)
+    }
 }
 
 /// Immutable syntax owner from an authentic original body descent. Its private

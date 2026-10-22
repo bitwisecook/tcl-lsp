@@ -67,6 +67,7 @@ pub mod recovery;
 pub mod scope;
 pub mod snapshot;
 pub mod source_integrity;
+pub(crate) mod source_settings;
 pub mod state;
 pub mod syntax_checks;
 pub mod tk_checks;

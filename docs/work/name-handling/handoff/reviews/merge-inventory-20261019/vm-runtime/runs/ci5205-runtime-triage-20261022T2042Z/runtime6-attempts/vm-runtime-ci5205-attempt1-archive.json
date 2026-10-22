@@ -1,0 +1,6 @@
+{
+  "utc": "2026-10-22T20:52:07.499342+00:00",
+  "old_path": "/tmp/vm-runtime-ci5205-six-run",
+  "archive": "/tmp/vm-runtime-ci5205-six-run-attempt1-network",
+  "reason": "Cargo dependency download network failure before artifacts/tests; final guard unchanged; exact bytes preserved by rename."
+}

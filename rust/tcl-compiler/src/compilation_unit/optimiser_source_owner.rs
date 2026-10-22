@@ -292,6 +292,29 @@ impl OriginalOptimiserSourceOrigin {
         self.0.analysis_context.evaluator_revision
             == u64::from(tcl_registry::pack_hooks::evaluator_generation().0)
     }
+    pub(crate) fn source_analysis_entry_for_current_analysis(
+        &self,
+        source: &str,
+        registry: &CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        external: Option<&crate::unit_scope::CallSiteEvidence>,
+    ) -> Option<Arc<crate::command_binding::SourceAnalysisEntry>> {
+        self.matches_source_request(source, registry, input, external)
+            .then(|| Arc::new(self.0.entry.clone()))
+    }
+    fn matches_source_request(
+        &self,
+        source: &str,
+        registry: &CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        external: Option<&crate::unit_scope::CallSiteEvidence>,
+    ) -> bool {
+        self.0.image == tcl_lexer::SourceImage::document(source)
+            && &self.0.input == input
+            && self.0.registry == registry.snapshot()
+            && self.0.external_call_sites.as_ref() == external
+            && self.is_current_analysis_context()
+    }
     pub(crate) fn rebuild_for_current_analysis(
         &self,
         source: &str,
@@ -299,13 +322,7 @@ impl OriginalOptimiserSourceOrigin {
         input: &crate::analyser::ResolvedAnalysisInput,
         external: Option<&crate::unit_scope::CallSiteEvidence>,
     ) -> Option<CompilationUnit> {
-        if self.0.image != tcl_lexer::SourceImage::document(source)
-            || &self.0.input != input
-            || self.0.registry != registry.snapshot()
-            || self.0.external_call_sites.as_ref() != external
-            || self.0.analysis_context.evaluator_revision
-                != u64::from(tcl_registry::pack_hooks::evaluator_generation().0)
-        {
+        if !self.matches_source_request(source, registry, input, external) {
             return None;
         }
         // Reuse the same private source pipeline once, with the exact original

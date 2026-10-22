@@ -5562,19 +5562,27 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
         );
     }
     for (command, effective, source_metadata) in candidates {
-        let source_metadata = source_metadata.or_else(|| {
-            (!context.source.allows_nominal_metadata())
-                .then(|| {
-                    crate::registry_invocation::original_source_taint_read_operands(
-                        context.registry,
-                        context.source.metadata?,
-                        source,
-                        tokens,
-                    )
-                    .map(|operands| SourceWarningMetadata::Original(Box::new(operands)))
-                })
-                .flatten()
-        });
+        let original_reads = (!context.source.allows_nominal_metadata())
+            .then(|| {
+                crate::registry_invocation::original_source_taint_read_operands(
+                    context.registry,
+                    context.source.metadata?,
+                    source,
+                    tokens,
+                )
+            })
+            .flatten();
+        // The selected Native/hosted candidate remains the invocation owner.
+        // Original read geometry supplements it instead of being skipped when
+        // that stronger selected candidate was already present.
+        let source_metadata = match (source_metadata, original_reads) {
+            (Some(invocation), Some(reads)) => Some(SourceWarningMetadata::WithOriginalReads {
+                invocation: Box::new(invocation),
+                reads: Box::new(reads),
+            }),
+            (None, Some(reads)) => Some(SourceWarningMetadata::Original(Box::new(reads))),
+            (invocation, None) => invocation,
+        };
         if !context.source.allows_nominal_metadata() && source_metadata.is_none() {
             continue;
         }
@@ -6785,6 +6793,37 @@ enum SourceWarningMetadata {
     Hosted(Box<crate::registry_invocation::OriginalConditionalVendorRegistryMetadata>),
     Native(Box<crate::registry_invocation::NativeSourceTaintInvocation>),
     Original(Box<crate::registry_invocation::OriginalSourceTaintReadOperands>),
+    WithOriginalReads {
+        invocation: Box<SourceWarningMetadata>,
+        reads: Box<crate::registry_invocation::OriginalSourceTaintReadOperands>,
+    },
+}
+
+impl SourceWarningMetadata {
+    fn original_reads(
+        &self,
+    ) -> Option<&crate::registry_invocation::OriginalSourceTaintReadOperands> {
+        match self {
+            Self::Original(reads) | Self::WithOriginalReads { reads, .. } => Some(reads),
+            Self::Hosted(_) | Self::Native(_) => None,
+        }
+    }
+
+    fn invocation_metadata(&self) -> &Self {
+        match self {
+            Self::WithOriginalReads { invocation, .. } => invocation.invocation_metadata(),
+            other => other,
+        }
+    }
+}
+
+/// Supplemental source geometry is independent of the selected invocation.
+/// Only Unowned may use that invocation's existing authenticated read domain.
+enum OriginalReadTaintProjection {
+    Unowned,
+    Refused,
+    NoRead,
+    Value(TaintLattice),
 }
 
 /// Conditional original source reads retain exact positioned value authority.
@@ -6794,22 +6833,68 @@ struct SourceWarningRead<'a> {
     point: crate::ssa::SsaSourceView<'a>,
 }
 impl<'a> SourceWarningRead<'a> {
-    fn script_arguments(self, call: &SinkCall<'_>) -> Option<&'a [usize]> {
-        let SourceWarningMetadata::Original(operands) = self.metadata else {
-            return None;
+    fn project_original_read<S: std::hash::BuildHasher>(
+        self,
+        name: &str,
+        original: &WordExpr,
+        taints: &HashMap<ValueKey, TaintLattice, S>,
+    ) -> OriginalReadTaintProjection {
+        let Some(operands) = self.metadata.original_reads() else {
+            return OriginalReadTaintProjection::Unowned;
         };
+        if !operands.matches_source_point(self.point) {
+            return OriginalReadTaintProjection::Refused;
+        }
+        let reads = match operands.read_sites(original, name) {
+            crate::registry_invocation::OriginalSourceReadSites::Unowned => {
+                return OriginalReadTaintProjection::Unowned;
+            }
+            crate::registry_invocation::OriginalSourceReadSites::Unknown => {
+                return OriginalReadTaintProjection::Value(TaintLattice::tainted());
+            }
+            crate::registry_invocation::OriginalSourceReadSites::Known(reads) => reads,
+        };
+        if reads.is_empty() {
+            return OriginalReadTaintProjection::NoRead;
+        }
+        OriginalReadTaintProjection::Value(reads.into_iter().fold(
+            TaintLattice::clean(),
+            |taint, (reference, site)| {
+                let value = self
+                    .point
+                    .read_reference(site, reference)
+                    .and_then(|read| read.version.map(|version| (read.symbol, version)))
+                    .and_then(|key| taints.get(&key).copied())
+                    .unwrap_or_else(TaintLattice::tainted);
+                taint.join(value)
+            },
+        ))
+    }
+
+    fn script_arguments(self, call: &SinkCall<'_>) -> Option<&'a [usize]> {
+        let operands = self.metadata.original_reads()?;
+        operands.matches_source_point(self.point).then_some(())?;
         operands.script_arguments(call.command, call.effective?)
     }
 
     fn references(self, name: &str, original: &WordExpr, config: tcl_lexer::LexerConfig) -> bool {
-        if let SourceWarningMetadata::Original(operands) = self.metadata {
-            return match operands.read_sites(original, name) {
-                crate::registry_invocation::OriginalSourceReadSites::Unowned => false,
-                crate::registry_invocation::OriginalSourceReadSites::Unknown => true,
+        if let Some(operands) = self.metadata.original_reads() {
+            if !operands.matches_source_point(self.point) {
+                return false;
+            }
+            match operands.read_sites(original, name) {
+                crate::registry_invocation::OriginalSourceReadSites::Unowned => {}
+                crate::registry_invocation::OriginalSourceReadSites::Unknown => return true,
                 crate::registry_invocation::OriginalSourceReadSites::Known(reads) => {
-                    !reads.is_empty()
+                    return !reads.is_empty();
                 }
-            };
+            }
+        }
+        if !matches!(
+            self.metadata.invocation_metadata(),
+            SourceWarningMetadata::Native(_) | SourceWarningMetadata::Hosted(_)
+        ) {
+            return false;
         }
         original
             .sole_variable_substitution()
@@ -6824,32 +6909,15 @@ impl<'a> SourceWarningRead<'a> {
         original: &WordExpr,
         taints: &HashMap<ValueKey, TaintLattice, S>,
     ) -> Option<TaintLattice> {
-        if let SourceWarningMetadata::Original(operands) = self.metadata {
-            let reads = match operands.read_sites(original, name) {
-                crate::registry_invocation::OriginalSourceReadSites::Unowned => return None,
-                crate::registry_invocation::OriginalSourceReadSites::Unknown => {
-                    return Some(TaintLattice::tainted());
-                }
-                crate::registry_invocation::OriginalSourceReadSites::Known(reads) => reads,
-            };
-            if reads.is_empty() {
+        match self.project_original_read(name, original, taints) {
+            OriginalReadTaintProjection::Value(value) => return Some(value),
+            OriginalReadTaintProjection::Refused | OriginalReadTaintProjection::NoRead => {
                 return None;
             }
-            return Some(reads.into_iter().fold(
-                TaintLattice::clean(),
-                |taint, (reference, site)| {
-                    let value = self
-                        .point
-                        .read_reference(site, reference)
-                        .and_then(|read| read.version.map(|version| (read.symbol, version)))
-                        .and_then(|key| taints.get(&key).copied())
-                        .unwrap_or_else(TaintLattice::tainted);
-                    taint.join(value)
-                },
-            ));
+            OriginalReadTaintProjection::Unowned => {}
         }
         let (reference, site) = original.sole_variable_substitution()?;
-        let (config, owns_word) = match self.metadata {
+        let (config, owns_word) = match self.metadata.invocation_metadata() {
             SourceWarningMetadata::Hosted(metadata) => (
                 metadata.shape().original_words().first()?.config(),
                 metadata
@@ -6867,9 +6935,10 @@ impl<'a> SourceWarningRead<'a> {
                         .is_some_and(|word| word.span() == original.source().span)
                 }),
             ),
-            SourceWarningMetadata::Original(operands) => {
-                (operands.config(), operands.owns_word(original))
-            }
+            // An absent supplemental domain can fall through only to the
+            // unchanged authenticated Native/hosted invocation owner.
+            SourceWarningMetadata::Original(_)
+            | SourceWarningMetadata::WithOriginalReads { .. } => return None,
         };
         if reference_root_with_config(reference, config) != Some(name) || !owns_word {
             return None;
@@ -6878,13 +6947,14 @@ impl<'a> SourceWarningRead<'a> {
         // contents. Missing cells or versions retain an unknown MAY value;
         // no SSA symbol, presence, effect or Normal receipt is created here.
         let read = self.point.read_reference(site, reference);
-        let key = match self.metadata {
+        let key = match self.metadata.invocation_metadata() {
             SourceWarningMetadata::Hosted(_) | SourceWarningMetadata::Original(_) => {
                 read.and_then(|read| read.version.map(|version| (read.symbol, version)))
             }
             SourceWarningMetadata::Native(_) => {
                 self.point.read_occurrence_reference(site, reference)
             }
+            SourceWarningMetadata::WithOriginalReads { .. } => return None,
         };
         let value = key.and_then(|key| taints.get(&key).copied());
         #[cfg(debug_assertions)]
@@ -8008,7 +8078,7 @@ fn sink_var_position_safe(call: &SinkCall<'_>, code: DiagCode, name: &str) -> bo
             .and_then(|read| read.script_arguments(call))
     {
         // A path/selector operand does not become script text. This projects
-        // only the same compiler-selected source sink candidate's roles;
+        // only the same current compiler or Direct source sink candidate's roles;
         // unknown selection and missing source ownership retain the warning.
         return !call.args.iter().enumerate().any(|(index, arg)| {
             scripts.contains(&(call.argument_offset + index))
@@ -8198,7 +8268,7 @@ fn list_wrapped_arg_command_is_literal(call: &SinkCall<'_>, name: &str) -> bool 
             if !single_script_operand(call, index) {
                 continue;
             }
-            let compiled = call.source.metadata.is_some_and(|metadata| {
+            let quoted_list = call.source.metadata.is_some_and(|metadata| {
                 retained_wrapper_tokens(
                     tokens,
                     call.argument_offset + index,
@@ -8212,11 +8282,16 @@ fn list_wrapped_arg_command_is_literal(call: &SinkCall<'_>, name: &str) -> bool 
                             crate::registry_invocation::original_compiled_list_head(
                                 registry, metadata, tokens, nested,
                             )
+                            .or_else(|| {
+                                crate::registry_invocation::original_conditional_list_result_head(
+                                    registry, metadata, tokens, nested,
+                                )
+                            })
                             .is_some()
                         })
                 })
             });
-            if compiled {
+            if quoted_list {
                 return true;
             }
             let Some(invocations) = proved_wrapper_invocations(
@@ -8360,12 +8435,12 @@ fn retained_wrapper_tokens(
     if sources.is_empty() {
         return None;
     }
-    let dialect = tokens
-        .source_binding
-        .as_ref()?
-        .variable_context
-        .invocation_dialect?;
     let config = if context.allows_nominal_metadata() {
+        let dialect = tokens
+            .source_binding
+            .as_ref()?
+            .variable_context
+            .invocation_dialect?;
         tcl_lexer::LexerConfig::from_grammar(dialect.lexer_grammar)
     } else {
         context.metadata?;
@@ -8936,10 +9011,12 @@ fn option_injection_arguments(
     call: &SinkCall<'_>,
     dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Option<(String, Vec<usize>)> {
-    if let Some(SourceWarningRead {
-        metadata: SourceWarningMetadata::Native(selected),
-        ..
-    }) = call.source_read
+    if let Some(selected) =
+        call.source_read
+            .and_then(|source| match source.metadata.invocation_metadata() {
+                SourceWarningMetadata::Native(selected) => Some(selected),
+                _ => None,
+            })
     {
         let context = call.source.metadata?;
         let input = context.source_analysis_input()?;

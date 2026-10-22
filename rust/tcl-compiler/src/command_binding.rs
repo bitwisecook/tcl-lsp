@@ -311,11 +311,21 @@ pub(crate) use original_name_value::OriginalBodyWrittenWordOwner;
 pub(crate) mod original_variable_compilation;
 mod package_target_survey;
 pub(crate) use package_target_survey::OriginalPackageIndexSourceModel;
+mod conditional_source;
 mod source_analysis_cache;
 mod source_analysis_entry;
+mod source_point_entry;
+pub use conditional_source::{
+    OriginalSourceConditionalContinuation, OriginalSourceConditionalOutcome,
+    OriginalSourceConditionalRegion, OriginalSourceConditionalRegionSet,
+};
+mod source_argument_syntax;
 use source_analysis_entry::native_compilation_dialect;
 pub use source_analysis_entry::{SourceAnalysisEntry, SourceAnalysisOptions};
 pub(crate) use source_analysis_entry::{SourceDeclaredCommandContracts, source_input_dialect};
+pub use source_point_entry::{
+    OriginalSourcePointEntry, OriginalSourcePointObligation, OriginalSourcePointOrigin,
+};
 mod source_loop;
 mod source_representation;
 pub use deferred_method::{
@@ -502,6 +512,14 @@ impl SourceOriginInterner {
 /// Semantic source identity retained behind a cached fingerprint.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SourceOriginKind {
+    /// Source-only child view from an authentic parent point. This is neither
+    /// actual file loading nor an entered Native/runtime source instance.
+    InheritedPoint {
+        /// Privately issued identity; the full entry independently owns state.
+        parent: OriginalSourcePointOrigin,
+        /// Exact child image and source channel supplied for this view.
+        source: tcl_lexer::SourceImage,
+    },
     /// Authored source bytes supplied by the compilation driver.
     Authored(tcl_lexer::SourceImage),
     /// Driver-attested file bytes, retaining distinct file/provider identity.
@@ -586,7 +604,8 @@ impl SourceOriginId {
     #[must_use]
     pub fn source_image(&self) -> &tcl_lexer::SourceImage {
         match self.kind() {
-            SourceOriginKind::Authored(source)
+            SourceOriginKind::InheritedPoint { source, .. }
+            | SourceOriginKind::Authored(source)
             | SourceOriginKind::Loaded { source, .. }
             | SourceOriginKind::Derived { source, .. }
             | SourceOriginKind::ConditionalField { source, .. } => source,
@@ -889,6 +908,7 @@ fn is_repeated_fresh_binding(binding: &MayBinding) -> bool {
 /// baseline behind one [`Arc`] and let the lattice state stay sparse.
 #[derive(Debug, Clone, Default)]
 struct BindingBaseline {
+    source_point_entry: Option<OriginalSourcePointEntry>,
     metadata_context: crate::registry_invocation::OwnedInvocationMetadataContext,
     /// Explicit module-declared frame effects, independent of native cells.
     declared: Arc<crate::ir::DeclaredFrameEffects>,
@@ -924,7 +944,8 @@ struct BindingBaseline {
 
 impl PartialEq for BindingBaseline {
     fn eq(&self, other: &Self) -> bool {
-        self.metadata_context == other.metadata_context
+        self.source_point_entry == other.source_point_entry
+            && self.metadata_context == other.metadata_context
             && self.source_read_config == other.source_read_config
             && self.logical_source_input == other.logical_source_input
             && self.vendor_source_input == other.vendor_source_input
@@ -964,6 +985,9 @@ impl Eq for BindingBaseline {}
 impl BindingBaseline {
     /// Original compiler engine only; handler policies remain in `dialect`.
     fn compilation_dialect(&self) -> Option<tcl_registry::InvocationDialect> {
+        if self.source_point_entry.is_some() {
+            return None;
+        }
         native_compilation_dialect(self.native_entry.as_deref(), self.dialect)
     }
 
@@ -986,6 +1010,9 @@ impl BindingBaseline {
     /// execute, after argv, as `Direct` states. Other worlds keep the
     /// dialect's procedure-object protocol.
     fn body_compilation(&self) -> tcl_registry::native_compilation::NativeCompilationContext {
+        if self.source_point_entry.is_some() {
+            return tcl_registry::native_compilation::NativeCompilationContext::default();
+        }
         if self.hosted_rule_loader_world() {
             return crate::environment_ingress::authoring_native_compilation();
         }
@@ -994,6 +1021,7 @@ impl BindingBaseline {
 
     fn for_registry(registry: &CommandRegistry) -> Self {
         let mut baseline = Self {
+            source_point_entry: None,
             metadata_context:
                 crate::registry_invocation::OwnedInvocationMetadataContext::Standalone,
             declared: Arc::new(crate::ir::DeclaredFrameEffects::default()),
@@ -1052,6 +1080,7 @@ impl BindingBaseline {
 
     fn refresh_fingerprint(&mut self) {
         let mut state = std::collections::hash_map::DefaultHasher::new();
+        self.source_point_entry.hash(&mut state);
         self.registry_snapshot.hash(&mut state);
         self.registry_owner
             .as_ref()
@@ -1392,6 +1421,7 @@ pub struct SourceInvocationBinding {
     compiler_policy: Option<Arc<compiler_inventory::SourceNativeCompilerPolicy>>,
     original_compiler_words: Option<Arc<compiled_invocation::SourceOriginalCompilerWords>>,
     original_written_words: Option<Arc<original_name_value::OriginalWrittenSourceWords>>,
+    original_argument_syntax: Option<Arc<source_argument_syntax::OriginalSourceArgumentSyntax>>,
     conditional_expression_evaluations:
         Option<Arc<[expression_preparation::SourceConditionalExpressionEvaluation]>>,
     pub(crate) lookup_namespace: String,
@@ -2417,6 +2447,9 @@ impl SourceInvocationBinding {
         if self.original_analysis_owner != other.original_analysis_owner {
             self.original_analysis_owner = None;
         }
+        if self.original_argument_syntax != other.original_argument_syntax {
+            self.original_argument_syntax = None;
+        }
         if self.original_authored_source_body_scope != other.original_authored_source_body_scope {
             self.original_authored_source_body_scope = None;
         }
@@ -3186,9 +3219,9 @@ impl CommandAllocation {
                     implementation_id,
                     ..
                 } => !implementation_id.is_empty() && text == source,
-                SourceOriginKind::Derived { .. } | SourceOriginKind::ConditionalField { .. } => {
-                    false
-                }
+                SourceOriginKind::InheritedPoint { .. }
+                | SourceOriginKind::Derived { .. }
+                | SourceOriginKind::ConditionalField { .. } => false,
             }
     }
 }
@@ -3738,6 +3771,9 @@ struct SourceInterpretationEntry {
 /// Retained source-point command and substitution proofs for one analysed script.
 #[derive(Debug, Clone, Default)]
 pub struct SourceCommandBindings {
+    conditional_source: conditional_source::SourceConditionalKernel,
+    analyser_source_settings:
+        Option<Arc<crate::analyser::source_settings::OriginalAnalyserSourceSettings>>,
     original_analysis_owner: Option<Arc<OriginalSourceAnalysisOwner>>,
     // The original analysis retains derived receipts through Module lifetime.
     // Equality and execution identity remain independent of cache warmth.
@@ -3761,6 +3797,8 @@ pub struct SourceCommandBindings {
     deferred_namespace_index: deferred_namespace_index::DeferredNamespaceIndexCache,
     deferred_body_index: deferred_body_index::DeferredBodyIndexCache,
     root_origin: Option<Arc<SourceOriginId>>,
+    original_argument_syntax_commands:
+        SharedSourceInventory<BTreeMap<CommandAllocationSite, Option<tcl_lexer::LexerConfig>>>,
     origin_points: SharedSourceInventory<BTreeMap<Arc<SourceOriginId>, Vec<SourceBindingPoint>>>,
     implicit_math_invocations: SharedSourceInventory<ImplicitMathInvocations>,
     invocation_reads:
@@ -3834,13 +3872,16 @@ pub struct SourceCommandBindings {
 // Derived lookup caches do not change the retained source interpretation.
 impl PartialEq for SourceCommandBindings {
     fn eq(&self, other: &Self) -> bool {
-        self.declaration_preview_depth == other.declaration_preview_depth
+        self.analyser_source_settings == other.analyser_source_settings
+            && self.conditional_source == other.conditional_source
+            && self.declaration_preview_depth == other.declaration_preview_depth
             && self.logical_conditional_source_control == other.logical_conditional_source_control
             && self.lexer_config == other.lexer_config
             && self.declaration_layouts == other.declaration_layouts
             && self.pre_handler_failures == other.pre_handler_failures
             && self.unrepresented_entries == other.unrepresented_entries
             && self.root_origin == other.root_origin
+            && self.original_argument_syntax_commands == other.original_argument_syntax_commands
             && self.origin_points == other.origin_points
             && self.implicit_math_invocations == other.implicit_math_invocations
             && self.invocation_reads == other.invocation_reads
@@ -4792,7 +4833,11 @@ fn root_source_execution_context<'a>(
     source_purpose: tcl_lexer::SourceSegmentationPurpose,
 ) -> SourceExecutionContext<'a> {
     SourceExecutionContext {
-        body_entry: SourceBodyEntryPurpose::Selected,
+        body_entry: if options.source_point_entry.is_some() {
+            SourceBodyEntryPurpose::Conditional
+        } else {
+            SourceBodyEntryPurpose::Selected
+        },
         source_purpose,
         realm: options.invocation_realm,
         compilation: options.native_compilation,
@@ -6430,7 +6475,7 @@ struct SourceNormalCompletion;
 
 /// A closed native leaf handler at this exact original invocation. A body's
 /// normal child result cannot supply the enclosing handler's certificate.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 struct SourceNativeNormalCompletion {
     site: CommandAllocationSite,
     config: tcl_lexer::LexerConfig,
@@ -6456,10 +6501,42 @@ impl SourceNativeNormalCompletion {
     }
 }
 
-#[derive(Clone, Default)]
+/// Selected source-only handler's conditional normal route. This receipt has
+/// no Native value/store, entered-frame or physical compiler interpretation.
+#[derive(Clone, PartialEq, Eq)]
+struct SourceConditionalHandlerNormal {
+    site: CommandAllocationSite,
+    config: tcl_lexer::LexerConfig,
+    words: Vec<crate::ir::WordExpr>,
+    operation: tcl_registry::SemanticOperationId,
+    entry: OriginalSourcePointEntry,
+}
+impl SourceConditionalHandlerNormal {
+    fn matches(
+        &self,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        state: &ModuleCommandBindings,
+        context: SourceExecutionContext<'_>,
+    ) -> bool {
+        state.baseline.source_point_entry.as_ref() == Some(&self.entry)
+            && context.body_entry == SourceBodyEntryPurpose::Conditional
+            && context.compilation == Default::default()
+            && self.config == context.config
+            && self.words == native.words
+            && self.operation == facts.operation
+            && self.site.offset == native.segment.span.start()
+            && state.current_source_origin.as_ref() == Some(&self.site.source)
+            && !state.source_step_observed()
+            && !state.source_execution_observed(None)
+    }
+}
+
+#[derive(Clone, Default, PartialEq, Eq)]
 struct SourceOutcomes {
     normal_completion: Option<SourceNormalCompletion>,
     native_normal_completion: Option<SourceNativeNormalCompletion>,
+    conditional_normal_completion: Option<SourceConditionalHandlerNormal>,
     complete_procedure_return: Option<tcl_registry::completion_route::InvocationCompletionRoute>,
     normal: Option<Box<ModuleCommandBindings>>,
     normal_value: Option<Arc<native_result::EvaluatedSourceValue>>,
@@ -6531,6 +6608,10 @@ impl SourceOutcomes {
         if normal.source_step_observed() || normal.source_execution_observed(None) {
             return;
         }
+        if normal.baseline.source_point_entry.is_some() {
+            self.retain_conditional_handler_completion(native, facts, context);
+            return;
+        }
         self.native_normal_completion = Some(SourceNativeNormalCompletion {
             site: CommandAllocationSite {
                 source: Arc::clone(source),
@@ -6539,6 +6620,42 @@ impl SourceOutcomes {
             config: context.config,
             words: native.words.to_vec(),
             operation: facts.operation,
+        });
+        self.retain_complete_normal_evaluation();
+    }
+
+    fn retain_conditional_handler_completion(
+        &mut self,
+        native: SourceNativeInvocation<'_>,
+        facts: &InvocationFacts,
+        context: SourceExecutionContext<'_>,
+    ) {
+        let Some(normal) = self.normal.as_ref().filter(|_| self.abrupt.is_empty()) else {
+            return;
+        };
+        let Some(entry) = normal.baseline.source_point_entry.as_ref() else {
+            return;
+        };
+        if context.body_entry != SourceBodyEntryPurpose::Conditional
+            || context.compilation != Default::default()
+            || normal.baseline.native_entry.is_some()
+            || normal.source_step_observed()
+            || normal.source_execution_observed(None)
+        {
+            return;
+        }
+        let Some(source) = &normal.current_source_origin else {
+            return;
+        };
+        self.conditional_normal_completion = Some(SourceConditionalHandlerNormal {
+            site: CommandAllocationSite {
+                source: Arc::clone(source),
+                offset: native.segment.span.start(),
+            },
+            config: context.config,
+            words: native.words.to_vec(),
+            operation: facts.operation,
+            entry: entry.clone(),
         });
         self.retain_complete_normal_evaluation();
     }
@@ -7087,6 +7204,19 @@ fn trace_source_original_queries(
 }
 
 impl SourceCommandBindings {
+    pub(crate) fn retain_analyser_source_settings(
+        &mut self,
+        settings: Arc<crate::analyser::source_settings::OriginalAnalyserSourceSettings>,
+    ) {
+        self.analyser_source_settings = Some(settings);
+    }
+
+    pub(crate) fn retained_analyser_source_settings(
+        &self,
+    ) -> Option<&crate::analyser::source_settings::OriginalAnalyserSourceSettings> {
+        self.analyser_source_settings.as_deref()
+    }
+
     pub(crate) fn original_analysis_owner(&self) -> Option<&Arc<OriginalSourceAnalysisOwner>> {
         self.original_analysis_owner.as_ref()
     }
@@ -7278,6 +7408,10 @@ impl SourceCommandBindings {
         let query_start =
             phase_start.map(|_| original_command_table::original_source_query_totals());
         let config = options.native_lexer_config(config);
+        let inherited_frame = options
+            .source_point_entry
+            .map(|entry| entry.frame().clone());
+        let frame = inherited_frame.as_ref().unwrap_or(frame);
         // The survey-scoped interpretation is never shared through the memo.
         let memo_key = if logical_conditional_source_control {
             None
@@ -7299,6 +7433,9 @@ impl SourceCommandBindings {
         }
         let namespace = source_frame_namespace(frame);
         let mut bindings = Self {
+            analyser_source_settings: options
+                .source_point_entry
+                .map(OriginalSourcePointEntry::analyser_source_settings),
             logical_conditional_source_control,
             compilation_scope: options.compilation_scope,
             lexer_config: Some(config),
@@ -7306,7 +7443,13 @@ impl SourceCommandBindings {
         };
         let mut state =
             ModuleCommandBindings::initial_with_options(registry, options, Some(config));
-        state.current_source_origin = Some(Arc::new(SourceOriginId::authored_image(image.clone())));
+        state.current_source_origin = Some(Arc::new(match options.source_point_entry {
+            Some(parent) => SourceOriginId::from_kind(SourceOriginKind::InheritedPoint {
+                parent: parent.source_origin(),
+                source: image.clone(),
+            }),
+            None => SourceOriginId::authored_image(image.clone()),
+        }));
         state.ordinary_literal_pool =
             literal_object_pool::SourceOrdinaryLiteralPool::at_entry(&state, options);
         bindings
@@ -7319,9 +7462,10 @@ impl SourceCommandBindings {
                 config,
             })
         });
-        let namespace_key = frame
-            .namespace_identity()
-            .cloned()
+        let namespace_key = options
+            .source_point_entry
+            .map(|entry| entry.namespace().clone())
+            .or_else(|| frame.namespace_identity().cloned())
             .or_else(|| {
                 options
                     .native_entry
@@ -7362,7 +7506,12 @@ impl SourceCommandBindings {
         trace_source_original_queries(query_start, "walk", source.len());
         #[cfg(any(test, debug_assertions))]
         trace_source_lookup(lookup_start, "walk", source.len());
-        bindings.original_completed_root_state = root_outcomes.completed_normal_world();
+        bindings.conditional_source.root_outcomes = Some(Arc::new(root_outcomes.clone()));
+        bindings.original_completed_root_state = options
+            .source_point_entry
+            .is_none()
+            .then(|| root_outcomes.completed_normal_world())
+            .flatten();
         if let Some(normal) = root_outcomes.normal {
             state = *normal;
         }
@@ -7573,7 +7722,8 @@ impl SourceCommandBindings {
         root: &DeferredSourceBody,
         incoming: &ModuleCommandBindings,
     ) -> bool {
-        root.event.is_none()
+        incoming.baseline.source_point_entry.is_none()
+            && root.event.is_none()
             && !root.receiver_method
             && root.future_frame.is_none()
             && self
@@ -8057,6 +8207,10 @@ impl SourceCommandBindings {
         config: tcl_lexer::LexerConfig,
         registry: &CommandRegistry,
     ) -> bool {
+        if self.final_state.baseline.source_point_entry.is_some() {
+            return false;
+        }
+
         let loaders = self
             .final_state
             .baseline
@@ -8065,6 +8219,7 @@ impl SourceCommandBindings {
             .cloned()
             .collect::<Vec<_>>();
         let options = SourceAnalysisOptions {
+            source_point_entry: None,
             metadata_context: crate::registry_invocation::InvocationMetadataInput::Retained(
                 &self.final_state.baseline.metadata_context,
             ),
@@ -8363,6 +8518,7 @@ impl SourceCommandBindings {
         tokens.variable_accesses = self.variable_accesses_during_expression_invocation(offset);
         tokens.nested_bindings.clear();
         let config = self.lexer_config.unwrap_or_default();
+        let argument_syntax = self.original_argument_syntax_for_tokens(tokens, config);
         for lifted in crate::word_subst::lifted_calls(Some(tokens), config) {
             if let Some(mut nested) = lifted.tokens
                 && let Some(head) = nested.words().first()
@@ -8370,6 +8526,12 @@ impl SourceCommandBindings {
                 let offset = head.source().span.start();
                 nested.source_binding = Some(binding_at(offset));
                 self.stamp_original_logical_declaration_targets(&mut nested);
+                let syntax = argument_syntax
+                    .as_ref()
+                    .and_then(|syntax| syntax.child(&nested));
+                if let Some(binding) = &mut nested.source_binding {
+                    binding.original_argument_syntax = syntax.map(Arc::new);
+                }
                 if let Some(binding) = nested.source_binding {
                     tokens.nested_bindings.push((offset, binding));
                 }
@@ -8419,6 +8581,9 @@ impl SourceCommandBindings {
         ) {
             binding.original_analysis_owner = self.original_analysis_owner.clone();
             binding.original_source_operand_attachment = None;
+        }
+        if let Some(binding) = &mut tokens.source_binding {
+            binding.original_argument_syntax = argument_syntax.map(Arc::new);
         }
         // This attachment authenticates the actual current declaration inventory;
         // a cloned analysis with withdrawn rows cannot reuse a derived cache.
@@ -8682,6 +8847,20 @@ impl SourceCommandBindings {
     /// Semantic lowering must query an exact dispatch site instead.
     #[must_use]
     pub fn projection_at_source(&self, head: &str, offset: u32) -> SourceInvocationBinding {
+        if self
+            .final_state
+            .baseline
+            .source_point_entry
+            .as_ref()
+            .is_some_and(|entry| entry.conditional_region().is_some())
+            && !self.dispatch_points.contains_key(&offset)
+        {
+            return SourceInvocationBinding {
+                unknown: true,
+                ..SourceInvocationBinding::default()
+            };
+        }
+
         let point = self
             .points
             .iter()
@@ -8700,6 +8879,19 @@ impl SourceCommandBindings {
     /// Offset-free consumers must agree across every represented state.
     #[must_use]
     pub fn invocation_unpositioned(&self, head: &str) -> SourceInvocationBinding {
+        if self
+            .final_state
+            .baseline
+            .source_point_entry
+            .as_ref()
+            .is_some_and(|entry| entry.conditional_region().is_some())
+        {
+            return SourceInvocationBinding {
+                unknown: true,
+                ..SourceInvocationBinding::default()
+            };
+        }
+
         if let Some(projection) = self
             .unpositioned_projections
             .0
@@ -8906,6 +9098,9 @@ impl SourceCommandBindings {
         context: &SourceExecutionContext<'_>,
         entry_error: Option<&ModuleCommandBindings>,
     ) -> SourceOutcomes {
+        self.conditional_source
+            .enter_script(image, base, segments, state, context);
+        self.retain_original_argument_syntax_commands(base, segments, state, context);
         let mut outcomes = SourceOutcomes::normal(state);
         outcomes.retain_complete_normal_evaluation();
         if let Some(abrupt) = entry_error {
@@ -8931,6 +9126,13 @@ impl SourceCommandBindings {
                 }
                 break;
             };
+            self.conditional_source.retain_command_plan(
+                index,
+                segment,
+                &continuing,
+                context,
+                outcomes.normal_completion.is_some(),
+            );
             let prefix_complete = outcomes.normal_completion;
             #[cfg(test)]
             let zz_before = continuing.opaque_domain;
@@ -8975,6 +9177,7 @@ impl SourceCommandBindings {
             };
             self.record_continuation_source_point(segment, continuing, context);
         }
+        self.conditional_source.leave_script();
         outcomes
     }
 
@@ -8989,6 +9192,12 @@ impl SourceCommandBindings {
         context: &SourceExecutionContext<'_>,
         prepared: &mut PreparedSourceChunk,
     ) {
+        // A source-point interpretation has no physical compiler ingress.
+        // Its positive lexer/body grammar still diagnoses source syntax; a
+        // missing physical provider cannot become a guest Error alternative.
+        if state.baseline.source_point_entry.is_some() {
+            return;
+        }
         let context = *context;
         prepared.snapshot = (context.compilation_snapshot.is_none()
             && context.compilation.mode
@@ -10689,6 +10898,16 @@ impl SourceCommandBindings {
                     .as_ref()
                     .is_some_and(|normal| proof.matches(native, facts, normal, *context))
             });
+        let conditional_complete =
+            outcomes
+                .conditional_normal_completion
+                .as_ref()
+                .is_some_and(|proof| {
+                    outcomes
+                        .normal
+                        .as_ref()
+                        .is_some_and(|normal| proof.matches(native, facts, normal, *context))
+                });
         if handler_complete && let Some(write) = write {
             self.retain_quiet_normal_variables(
                 native,
@@ -10704,10 +10923,12 @@ impl SourceCommandBindings {
                 tcl_registry::hooks::LoweringHookId::Expr,
             )
             && !handler_complete
+            && !conditional_complete
         {
             outcomes.normal_completion = None;
         }
         outcomes.native_normal_completion = None;
+        outcomes.conditional_normal_completion = None;
         // The default value-only Return has no code/level conversion. Its
         // exact pending successful route becomes Normal only at the actual
         // procedure boundary; options and configured returns remain separate.
@@ -11300,7 +11521,14 @@ impl SourceCommandBindings {
                 native, facts, state, *context, &prepared,
             )
         });
+        let previous_namespace_exit = self.conditional_source.pending_namespace.take();
+        self.conditional_source.pending_namespace =
+            original_namespace_body::conditional_source_namespace_exit(
+                native, facts, state, *context, &prepared,
+            );
+        let conditional_namespace = self.conditional_source.pending_namespace.clone();
         let mut outcomes = self.walk_body_flow(&prepared.flow, native, state, &body_context);
+        self.conditional_source.pending_namespace = previous_namespace_exit;
         if prepared.selection.namespace_activation
             || prepared.parent_frame != prepared.selection.frame
         {
@@ -11311,6 +11539,13 @@ impl SourceCommandBindings {
             .is_some_and(|receipt| receipt.completed(native, &outcomes, *context, &prepared))
         {
             outcomes.retain_closed_native_handler_completion(native, facts, *context);
+        }
+        if conditional_namespace.as_ref().is_some_and(|receipt| {
+            original_namespace_body::conditional_namespace_completed(
+                receipt, native, &outcomes, *context, &prepared,
+            )
+        }) {
+            outcomes.retain_conditional_handler_completion(native, facts, *context);
         }
         outcomes.publish(state);
         outcomes
@@ -14417,6 +14652,23 @@ impl ModuleCommandBindings {
         options: SourceAnalysisOptions<'_>,
         config: Option<tcl_lexer::LexerConfig>,
     ) -> Self {
+        if let Some(entry) = options.source_point_entry {
+            if let Some(state) = entry.child_state(registry, options, config) {
+                return state;
+            }
+            // An invalid inherited point is terminal unavailable history.
+            // It must never fall through to a fresh authoring baseline.
+            let mut baseline = BindingBaseline {
+                source_point_entry: Some(entry.clone()),
+                metadata_context:
+                    crate::registry_invocation::OwnedInvocationMetadataContext::Unavailable,
+                execution_name_policy: None,
+                unknown_entry: true,
+                ..BindingBaseline::for_registry(registry)
+            };
+            baseline.refresh_fingerprint();
+            return Self::initial_entry_from_baseline(registry, Arc::new(baseline));
+        }
         let mut baseline = BindingBaseline::for_registry(registry);
         if options.native_entry.is_some()
             || options.execution_name_policy.is_some()
@@ -14993,10 +15245,15 @@ impl ModuleCommandBindings {
             } else {
                 &module.top_level_namespace
             };
-            let frame = retained_source::source_analysis_frame(
-                options.native_entry,
-                namespace,
-                module.top_level_kind,
+            let frame = options.source_point_entry.map_or_else(
+                || {
+                    retained_source::source_analysis_frame(
+                        options.native_entry,
+                        namespace,
+                        module.top_level_kind,
+                    )
+                },
+                |point| point.frame().clone(),
             );
             let interpreted = SourceCommandBindings::analyse_image_in_frame_with_purpose(
                 &module.source,
@@ -25539,16 +25796,53 @@ mod immutable_source_memo_lifetime_tests {
 mod original_compiled_list_owner_join_tests {
     use super::SourceInvocationBinding;
 
+    fn bytecode_list_fixture(
+        source: &str,
+    ) -> (crate::compilation_unit::CompilationUnit, tcl_vm::Vm) {
+        let context = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
+            .unwrap()
+            .default_context_registry();
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&context),
+            config,
+        );
+        let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
+        let mut entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
+            registry,
+            &input,
+            config,
+            Some(profile),
+        );
+        entry.native_entry = Some(std::sync::Arc::new(native));
+        entry.native_compilation.mode =
+            tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject;
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry,
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            Some(&entry),
+            &input,
+        );
+        (unit, owner)
+    }
+
     #[test]
     fn compiled_list_head_original_owner_refuses_unknown_binding_join() {
         let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
         let registry = context.commands();
-        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
-            "set payload [gets stdin]; puts [list puts $payload]",
-            registry,
-            false,
-            registry.profile().unwrap(),
-        );
+        let (unit, _owner) =
+            bytecode_list_fixture("set payload [gets stdin]; puts [list puts $payload]");
         let ssa = &unit.top_level.ssa;
         let parent = ssa
             .blocks

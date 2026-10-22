@@ -1,0 +1,273 @@
+{
+  "utc": "2026-10-22T21:07:28.451552+00:00",
+  "base_sha256": "79ed82dfb08f687c59a1d3affa2e6056d036e6f81fe7054c251e2bf3f75445c0",
+  "final_draft_sha256": "4aadc3295b5aad6a810768552c0481b3669f8e86883afaa9aa55d339b805ea99",
+  "rows": [
+    {
+      "pattern": "Op::EXIST_SCALAR",
+      "helper": "tick_variable_existence",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 47
+    },
+    {
+      "pattern": "Op::EXIST_STK",
+      "helper": "tick_variable_existence",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 102
+    },
+    {
+      "pattern": "Op::EXIST_ARRAY",
+      "helper": "tick_variable_existence",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 59
+    },
+    {
+      "pattern": "Op::EXIST_ARRAY_STK",
+      "helper": "tick_variable_existence",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 124
+    },
+    {
+      "pattern": "Op::ARRAY_EXISTS_IMM",
+      "helper": "tick_variable_array_shape",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 113
+    },
+    {
+      "pattern": "Op::ARRAY_EXISTS_STK",
+      "helper": "tick_variable_array_shape",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 104
+    },
+    {
+      "pattern": "Op::ARRAY_MAKE_IMM",
+      "helper": "tick_variable_array_shape",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 24
+    },
+    {
+      "pattern": "Op::ARRAY_MAKE_STK",
+      "helper": "tick_variable_array_shape",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 20
+    },
+    {
+      "pattern": "Op::UNSET_STK",
+      "helper": "tick_variable_unset",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 32
+    },
+    {
+      "pattern": "Op::UNSET_SCALAR",
+      "helper": "tick_variable_unset",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 55
+    },
+    {
+      "pattern": "Op::UNSET_ARRAY",
+      "helper": "tick_variable_unset",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 69
+    },
+    {
+      "pattern": "Op::UNSET_ARRAY_STK",
+      "helper": "tick_variable_unset",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 109
+    },
+    {
+      "pattern": "Op::APPEND_SCALAR1 | Op::APPEND_SCALAR4",
+      "helper": "tick_variable_append_value",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 46
+    },
+    {
+      "pattern": "Op::APPEND_ARRAY1 | Op::APPEND_ARRAY4",
+      "helper": "tick_variable_append_value",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 62
+    },
+    {
+      "pattern": "Op::LAPPEND_SCALAR1 | Op::LAPPEND_SCALAR4",
+      "helper": "tick_variable_append_value",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 44
+    },
+    {
+      "pattern": "Op::LAPPEND_ARRAY1 | Op::LAPPEND_ARRAY4",
+      "helper": "tick_variable_append_value",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 60
+    },
+    {
+      "pattern": "Op::APPEND_STK | Op::LAPPEND_STK",
+      "helper": "tick_variable_append_value",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 73
+    },
+    {
+      "pattern": "Op::APPEND_ARRAY_STK | Op::LAPPEND_ARRAY_STK",
+      "helper": "tick_variable_append_value",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 93
+    },
+    {
+      "pattern": "Op::LAPPEND_LIST",
+      "helper": "tick_variable_append_list",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 59
+    },
+    {
+      "pattern": "Op::LAPPEND_LIST_STK",
+      "helper": "tick_variable_append_list",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 59
+    },
+    {
+      "pattern": "Op::LAPPEND_LIST_ARRAY",
+      "helper": "tick_variable_append_list",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 75
+    },
+    {
+      "pattern": "Op::LAPPEND_LIST_ARRAY_STK",
+      "helper": "tick_variable_append_list",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 75
+    },
+    {
+      "pattern": "Op::CONST_IMM",
+      "helper": "tick_variable_constant",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 36
+    },
+    {
+      "pattern": "Op::CONST_STK",
+      "helper": "tick_variable_constant",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 36
+    },
+    {
+      "pattern": "Op::NSUPVAR",
+      "helper": "tick_variable_link",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 126
+    },
+    {
+      "pattern": "Op::UPVAR",
+      "helper": "tick_variable_link",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 115
+    },
+    {
+      "pattern": "Op::VARIABLE",
+      "helper": "tick_variable_link",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 46
+    },
+    {
+      "pattern": "Op::FOREACH_START",
+      "helper": "tick_variable_loop_start",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 402
+    },
+    {
+      "pattern": "Op::FOREACH_STEP",
+      "helper": "tick_variable_loop_step",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 323
+    },
+    {
+      "pattern": "Op::LMAP_COLLECT",
+      "helper": "tick_variable_loop_step",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 121
+    },
+    {
+      "pattern": "Op::FOREACH_END",
+      "helper": "tick_variable_loop_end",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 65
+    },
+    {
+      "pattern": "Op::DICT_FIRST",
+      "helper": "tick_variable_dictionary_iteration",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 248
+    },
+    {
+      "pattern": "Op::DICT_NEXT",
+      "helper": "tick_variable_dictionary_iteration",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 143
+    },
+    {
+      "pattern": "Op::DICT_UPDATE_START",
+      "helper": "tick_variable_dictionary_update",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 78
+    },
+    {
+      "pattern": "Op::DICT_UPDATE_END",
+      "helper": "tick_variable_dictionary_update",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 54
+    },
+    {
+      "pattern": "Op::DICT_EXPAND",
+      "helper": "tick_variable_dictionary_scope",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 47
+    },
+    {
+      "pattern": "Op::DICT_RECOMBINE_IMM | Op::DICT_RECOMBINE_STK",
+      "helper": "tick_variable_dictionary_scope",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 132
+    },
+    {
+      "pattern": "Op::VERIFY_DICT",
+      "helper": "tick_variable_dictionary_scope",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 63
+    },
+    {
+      "pattern": "Op::DICT_PUT",
+      "helper": "tick_variable_dictionary_put",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 116
+    },
+    {
+      "pattern": "Op::DICT_SET",
+      "helper": "tick_variable_dictionary_write",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 165
+    },
+    {
+      "pattern": "Op::DICT_UNSET",
+      "helper": "tick_variable_dictionary_write",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 154
+    },
+    {
+      "pattern": "Op::DICT_INCR_IMM",
+      "helper": "tick_variable_dictionary_write",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 139
+    },
+    {
+      "pattern": "Op::DICT_APPEND",
+      "helper": "tick_variable_dictionary_write",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 118
+    },
+    {
+      "pattern": "Op::DICT_LAPPEND",
+      "helper": "tick_variable_dictionary_write",
+      "literal_preserving_token_identity_after_explicit_macro_inverse": true,
+      "tokens": 120
+    }
+  ],
+  "normalization": "Only comments/whitespace omitted. All punctuation and exact literal text preserved. Only three intentional macro-name changes and explicit self macro argument are inverted.",
+  "status": "Static final-format token comparison only; no Rust type/Cargo/runtime execution"
+}

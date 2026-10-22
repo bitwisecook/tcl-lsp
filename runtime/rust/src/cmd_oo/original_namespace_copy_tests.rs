@@ -10,6 +10,7 @@ thread_local! {
     static REBORN: Cell<NsId> = const { Cell::new(GLOBAL) };
     static ARMED: Cell<bool> = const { Cell::new(false) };
     static FREES: Cell<usize> = const { Cell::new(0) };
+    static COPY_PHASE: RefCell<Option<(Vec<Vec<u8>>, Option<u64>)>> = const { RefCell::new(None) };
 }
 struct Cleanup;
 impl Drop for Cleanup {
@@ -38,10 +39,17 @@ extern "C" fn retire(_: *mut TclObj) {
     }) else {
         return;
     };
-    assert!(interpreter
-        .namespaces_mut()
-        .command_names(DESTINATION.with(Cell::get))
-        .is_empty());
+    let destination = DESTINATION.with(Cell::get);
+    let names = interpreter
+        .namespaces()
+        .command_names(destination)
+        .into_iter()
+        .map(<[u8]>::to_vec)
+        .collect();
+    let generation = interpreter
+        .namespaces()
+        .command_generation(destination, b"p");
+    COPY_PHASE.with(|value| *value.borrow_mut() = Some((names, generation)));
     interpreter.set_result_bytes(b"REACHED COPY");
     match MODE.with(Cell::get) {
         1 => {
@@ -122,6 +130,11 @@ fn original_namespace_copy_checks_occupied_procedure_retirement_before_original_
             };
             let prior = crate::interp::NativeProcedureCommand::new(Vec::new(), displaced, prior);
             interpreter.bind_command_replacement(destination, b"p", Command::Proc(prior));
+            let prior_generation = interpreter
+                .namespaces()
+                .command_generation(destination, b"p")
+                .expect("occupied destination retains its original command generation");
+            COPY_PHASE.with(|value| *value.borrow_mut() = None);
             OWNER.with(|value| *value.borrow_mut() = Some(interpreter.downgrade()));
             let _cleanup = Cleanup;
             MODE.with(|value| value.set(mode));
@@ -131,6 +144,13 @@ fn original_namespace_copy_checks_occupied_procedure_retirement_before_original_
             ARMED.with(|value| value.set(true));
             let reached = interpreter.oo_clone_namespace(source, destination);
             assert_eq!(FREES.with(Cell::get), 1);
+            // C Tcl 8.6 retains the old command hash entry during deleteProc;
+            // unlink and incoming publication follow that callback. Assert here
+            // so a failed software observation does not unwind an extern C call.
+            assert_eq!(
+                COPY_PHASE.with(|value| value.borrow_mut().take()),
+                Some((vec![b"p".to_vec()], Some(prior_generation)))
+            );
             assert_eq!(reached.is_ok(), mode == 0);
             assert_eq!(
                 interpreter

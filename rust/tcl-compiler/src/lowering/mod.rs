@@ -1128,6 +1128,7 @@ pub struct Lowerer<'r> {
     /// Evaluation protocol, independent of the runtime variable frame.
     native_compilation: tcl_registry::native_compilation::NativeCompilationContext,
     native_entry: Option<std::sync::Arc<tcl_runtime_api::NativeCompilationEntry>>,
+    source_point_entry: Option<crate::command_binding::OriginalSourcePointEntry>,
     source_channel: tcl_lexer::SourceChannel,
     incoming_formals: Vec<String>,
     /// `class qualified name -> every instance variable declared for it`,
@@ -1423,6 +1424,7 @@ impl<'r> Lowerer<'r> {
             logical_source_input: None,
             vendor_source_input: None,
             native_entry: None,
+            source_point_entry: None,
             source_channel: tcl_lexer::SourceChannel::Document,
             incoming_formals: Vec::new(),
             class_instance_vars: HashMap::new(),
@@ -1688,6 +1690,19 @@ impl<'r> Lowerer<'r> {
             tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
         #[cfg(any(test, debug_assertions))]
         trace_source_lowering(trace_start, "configured", source.len(), &self.module);
+        if self.source_point_entry.as_ref().is_some_and(|point| {
+            self.target.is_bytecode()
+                || self.module.source_entry.unknown_entry
+                || self
+                    .module
+                    .source_entry
+                    .metadata_context
+                    .source_analysis_input()
+                    != Some(point.input())
+        }) && self.refuse_inherited_runtime_target(source)
+        {
+            return &self.module;
+        }
         let namespace = self.runtime_target_namespace("");
         self.module.top_level_namespace.clone_from(&namespace);
         self.module.top_level =
@@ -1712,6 +1727,9 @@ impl<'r> Lowerer<'r> {
         // compiler IR records rooted constructed keys.  Convert at the shared
         // naming owner without re-parsing the key as a written Tcl word: a
         // leading `::` here may belong to a literal-colon namespace segment.
+        if self.refuse_inherited_runtime_target(source) {
+            return &self.module;
+        }
         let namespace = self.runtime_target_namespace(namespace);
         self.module.top_level_namespace.clone_from(&namespace);
         // This module's top level *is* a procedure body, which the `::top`
@@ -1736,6 +1754,9 @@ impl<'r> Lowerer<'r> {
         self.start_module();
         self.module.source =
             tcl_lexer::SourceImage::from_bytes(source.as_bytes(), self.source_channel);
+        if self.refuse_inherited_runtime_target(source) {
+            return &self.module;
+        }
         let namespace = self.runtime_target_namespace(namespace);
         self.module.top_level_namespace.clone_from(&namespace);
         self.module.top_level =
@@ -1755,7 +1776,23 @@ impl<'r> Lowerer<'r> {
             });
     }
 
+    fn refuse_inherited_runtime_target(&mut self, source: &str) -> bool {
+        if self.source_point_entry.is_none() {
+            return false;
+        }
+        self.module.top_level = unavailable_original_body_script(
+            0,
+            source.len(),
+            "inherited source view has no runtime target",
+        );
+        true
+    }
+
     fn runtime_target_namespace(&mut self, namespace: &str) -> String {
+        if let Some(entry) = &self.source_point_entry {
+            self.module.top_level_namespace_context = Some(entry.namespace().clone());
+            return entry.namespace().display().unwrap_or_default();
+        }
         let key = self.native_entry.as_ref().map_or_else(
             || {
                 Some(crate::command_binding::SourceNamespaceKey::authored(
@@ -1773,6 +1810,11 @@ impl<'r> Lowerer<'r> {
     }
 
     fn source_entry_frame(&self, namespace: &str) -> crate::var_resolve::VariableExecutionFrame {
+        if self.nest_depth == 1
+            && let Some(entry) = &self.source_point_entry
+        {
+            return entry.frame().clone();
+        }
         crate::command_binding::source_analysis_frame(
             self.native_entry
                 .as_deref()
@@ -1833,6 +1875,7 @@ impl<'r> Lowerer<'r> {
         }
         self.module.plain_command_dispatch = self.target.is_trace_visible();
         self.module.source_entry = crate::command_binding::SourceAnalysisEntry {
+            source_point_entry: self.source_point_entry.clone(),
             metadata_context: self.source_metadata_input().retain(),
             hosted_execution_context: self.hosted_execution_context,
             execution_name_policy: self.execution_name_policy,
@@ -2258,6 +2301,26 @@ impl<'r> Lowerer<'r> {
     /// interpreter must pass `unknown_entry`; package advertisements alone do
     /// not establish loader implementation identity.
     pub fn set_source_analysis_options(&mut self, options: SourceAnalysisOptions<'_>) {
+        let options = if options.source_point_entry.is_some_and(|point| {
+            point
+                .child_state(
+                    self.registry,
+                    options,
+                    Some(options.native_lexer_config(self.config)),
+                )
+                .is_none()
+        }) {
+            SourceAnalysisOptions {
+                source_point_entry: options.source_point_entry,
+                metadata_context:
+                    crate::registry_invocation::InvocationMetadataInput::SuppliedSource(None),
+                unknown_entry: true,
+                ..SourceAnalysisOptions::default()
+            }
+        } else {
+            options
+        };
+        self.source_point_entry = options.source_point_entry.cloned();
         self.compilation_scope = options.compilation_scope;
         self.invocation_realm = options.invocation_realm;
         self.incoming_formals = options.incoming_formals.to_vec();
@@ -2357,6 +2420,10 @@ impl<'r> Lowerer<'r> {
             self.config,
             self.registry,
             SourceAnalysisOptions {
+                source_point_entry: self
+                    .source_point_entry
+                    .as_ref()
+                    .filter(|_| self.nest_depth == 1),
                 metadata_context: self.source_metadata_input(),
                 hosted_execution_context: self.hosted_execution_context,
                 execution_name_policy: self.execution_name_policy,

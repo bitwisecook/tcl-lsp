@@ -2895,6 +2895,37 @@ mod tests {
 
     use super::*;
 
+    #[test]
+    fn condition_argv_and_native_emitters_share_actual_abi_import_indices() {
+        let mut module = WasmModule::new();
+        let general = add_general_imports(&mut module, true);
+        let argv = general.aot.unwrap().argv;
+        assert_eq!(general.condition.frame_alloc, argv.frame_alloc);
+        assert_eq!(general.condition.frame_free, argv.frame_free);
+        assert_eq!(general.condition.string_owned, argv.string_owned);
+        assert_eq!(general.condition.object_release, argv.object_release);
+        let _ = native_emit::add_native_imports(&mut module, &mut add_codegen_import);
+        let identities = module
+            .imports
+            .iter()
+            .map(|import| (&import.module, &import.name, import.type_idx))
+            .collect::<HashSet<_>>();
+        assert_eq!(identities.len(), module.imports.len());
+        assert_eq!(
+            add_codegen_import(&mut module, CodegenAbiImportId::CallFrameAlloc),
+            general.condition.frame_alloc
+        );
+        assert_eq!(
+            add_codegen_import(&mut module, CodegenAbiImportId::CallFrameFree),
+            argv.frame_free
+        );
+        let alloc = usize::try_from(argv.frame_alloc).unwrap();
+        assert_eq!(
+            module.imports[alloc].name,
+            CodegenAbiImportId::CallFrameAlloc.descriptor().name
+        );
+    }
+
     /// Plan the top-level statements of `source` under the full analysed tier.
     fn top_level_facts(source: &str) -> FunctionFacts {
         let context =

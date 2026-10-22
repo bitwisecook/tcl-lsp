@@ -1280,8 +1280,10 @@ mod tests {
         assert_eq!(
             i.eval_str(src),
             Code::Ok,
-            "eval {:?}",
-            String::from_utf8_lossy(src)
+            "eval {:?}; native refusal {:?}; result {:?}",
+            String::from_utf8_lossy(src),
+            i.native_execution_refusal(),
+            i.result_bytes()
         );
         i.result_bytes()
     }

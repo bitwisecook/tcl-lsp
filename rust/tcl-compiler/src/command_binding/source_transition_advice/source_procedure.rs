@@ -30,6 +30,7 @@ pub struct OriginalSourceProcedureCall {
     future_body: bool,
     input: Option<crate::analyser::ResolvedAnalysisInput>,
     analysis_owner: Option<Arc<crate::command_binding::OriginalSourceAnalysisOwner>>,
+    inherited_entry: Option<crate::command_binding::OriginalSourcePointEntry>,
 }
 impl OriginalSourceProcedureCall {
     /// Actual complete written vector; reporting invocation labels do not issue it.
@@ -56,6 +57,34 @@ impl OriginalSourceProcedureCall {
         self.matches_analysis(analysis).then_some(())?;
         self.procedure.source_procedure(analysis)
     }
+    /// Header in an actual retained source ancestor of this child's view.
+    /// The host separately validates current physical parent publications.
+    #[must_use]
+    pub fn declaration_in_parent<'a>(
+        &self,
+        child: &crate::analyser::AnalysisResult,
+        parent: &'a crate::analyser::AnalysisResult,
+    ) -> Option<
+        &'a crate::signature_scan::original_name::SourceDeclarationMetadata<
+            crate::analyser::ProcDef,
+        >,
+    > {
+        self.matches_analysis(child).then_some(())?;
+        let input = child.resolved_input.as_ref()?;
+        let realm = child.retained_command_realm()?;
+        let bindings = realm.source_bindings_ref();
+        let point = bindings.original_inherited_source_entry()?;
+        (self.inherited_entry.as_ref() == Some(point)).then_some(())?;
+        let origin = bindings.root_origin.as_ref()?;
+        if !child.matches_original_source_image(origin.source_image(), input.lexer_config())
+            || !matches!(origin.kind(), crate::command_binding::SourceOriginKind::InheritedPoint { parent, .. } if parent == &point.source_origin())
+            || !point.matches_ancestor_analysis(parent)
+        {
+            return None;
+        }
+        self.procedure.source_procedure(parent)
+    }
+
     fn matches_analysis(&self, analysis: &crate::analyser::AnalysisResult) -> bool {
         let (Some(input), Some(owner), Some(realm)) = (
             &self.input,
@@ -75,9 +104,11 @@ impl OriginalSourceProcedureCall {
         mut self,
         input: &crate::analyser::ResolvedAnalysisInput,
         owner: Arc<crate::command_binding::OriginalSourceAnalysisOwner>,
+        inherited_entry: Option<&crate::command_binding::OriginalSourcePointEntry>,
     ) -> Self {
         self.input = Some(input.clone());
         self.analysis_owner = Some(owner);
+        self.inherited_entry = inherited_entry.cloned();
         self
     }
     /// Actual declaration premises remain conditional source obligations.
@@ -144,7 +175,16 @@ impl OriginalSourceProcedureCall {
         config: tcl_lexer::LexerConfig,
         context: &tcl_registry::model::ContextRegistry,
     ) -> bool {
-        self.procedure.declaration.matches_source(image, config)
+        ((self.procedure.declaration.matches_source(image, config)
+            && self
+                .analysis_owner
+                .as_ref()
+                .is_some_and(|owner| owner.source == self.procedure.declaration.site().source))
+            || self.inherited_entry.as_ref().is_some_and(|point| {
+                self.input.as_ref() == Some(point.input())
+                    && point.input().lexer_config() == config
+                    && point.owns_ancestor_origin(self.procedure.declaration.site().source.as_ref())
+            }))
             && self.procedure.declaration.matches_context(context)
             && self
                 .original
@@ -457,6 +497,7 @@ impl AdviceInvocationContext<'_> {
             future_body: graph.future_procedure_source,
             input: None,
             analysis_owner: None,
+            inherited_entry: None,
         };
         super::source_class::merge_receipt(
             &mut tape.native_procedure_calls,
@@ -504,6 +545,9 @@ impl AdviceInvocationContext<'_> {
         procedure: &OriginalSourceProcedureBody,
     ) -> bool {
         let site = procedure.declaration.site();
+        if &site.source != self.origin {
+            return true;
+        }
         tape.scanned_procedure_declarations.insert(site.offset);
         if graph.procedure_path.len() >= MAX_DEPTH
             || graph.procedure_path.contains(site)

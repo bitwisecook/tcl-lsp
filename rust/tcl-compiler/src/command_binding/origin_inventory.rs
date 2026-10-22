@@ -155,6 +155,9 @@ impl SourceInvocationBinding {
         let Some(snapshot) = &self.lookup_state else {
             return false;
         };
+        if snapshot.state.baseline.source_point_entry.is_some() {
+            return false;
+        }
         if snapshot
             .state
             .source_execution_observed(target.identity.as_ref())
@@ -1658,6 +1661,10 @@ impl super::ModuleCommandBindings {
             (None, None) if original.is_standalone() && metadata.is_standalone() => {}
             _ => return None,
         }
+        if self.baseline.source_point_entry.is_some() {
+            // Inherited naming state supplies no implicit invocation purpose.
+            return None;
+        }
         if self.baseline.native_entry.is_some() {
             return Some(OriginalInvocationSourcePurpose::Execution);
         }
@@ -1696,6 +1703,9 @@ impl crate::ir::Module {
             || original.source_analysis_input() != metadata.source_analysis_input()
             || original.is_standalone() != metadata.is_standalone()
         {
+            return None;
+        }
+        if self.source_entry.source_point_entry.is_some() {
             return None;
         }
         if self.source_entry.native_entry.is_some() {

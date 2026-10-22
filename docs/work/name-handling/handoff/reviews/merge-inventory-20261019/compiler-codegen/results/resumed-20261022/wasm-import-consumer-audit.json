@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-22T21:00:40.538654+00:00",
+  "status": "Read-only static Rust consumer audit; no Cargo/source edit",
+  "patch_sha256": "b1ae7f0e0cbf0547b995d3d5bf8fe97503d70edf7d5de6cb5322447827b50b92",
+  "calls": [
+    "rust/tcl-compiler/tests/wasm_execute.rs:570:    let call_slot = m.add_import(\"tcl\", \"tcl_call_slot\", &[ValType::I32], &[ValType::I32]);",
+    "rust/tcl-compiler/src/codegen/wasm/backend.rs:1932:    u32::try_from(module.add_import(descriptor.module, descriptor.name, &parameters, &results))",
+    "rust/tcl-compiler/src/codegen/wasm/ir.rs:1145:        m.add_import(\"tcl\", \"tcl_obj_get_int\", &[ValType::I32], &[ValType::I64]);",
+    "rust/tcl-compiler/src/codegen/wasm/ir.rs:1281:        module.add_import(\"host \\\"\\\\\\0\\n\u00e9\", \"same\", &[], &[]);",
+    "rust/tcl-compiler/src/codegen/wasm/ir.rs:1282:        module.add_import(\"other\", \"same\", &[], &[]);",
+    "rust/tcl-compiler/src/codegen/wasm/ir.rs:1283:        module.add_import(\"host\", \"field \\\"\\\\\\0\\n\u00e9\", &[], &[]);"
+  ],
+  "conclusion": "Within actual Rust source, sole production supported add_import consumer is wasm/backend.rs add_codegen_import; all remaining direct consumers are tests and use distinct imports or captured returned handles. No production consumer outside canonical backend found. Backend captures all import indices before top_idx/procedure_plan/body emission. Direct raw vector pushes only canonical add_import; externally malformed raw imports remain outside repair."
+}

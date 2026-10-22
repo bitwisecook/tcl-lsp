@@ -14,5 +14,11 @@
     "No new allows",
     "No hook selection/operand/Native authority changes",
     "Disjoint from off-tree WASM import interning2paths; no canonical edits/Cargo"
-  ]
+  ],
+  "independent_peer_review": {
+    "role": "coordination-checks",
+    "utc": "2026-10-22T21:01:12+00:00",
+    "status": "STATIC APPROVED; no Clippy/type/behavior execution acceptance",
+    "meaning": "Exact prior Set guard shape/direct/dynamic/backslash order, Set-arm location before load retained; no assertion/API/dispatch change"
+  }
 }

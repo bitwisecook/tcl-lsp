@@ -1,0 +1,173 @@
+{
+  "utc": "2026-10-22T21:03:49.501330+00:00",
+  "scope": "Partial12 exact local minify selectors only; local current source d666 (before source integration), not complete shipping source comparison",
+  "current_result_sha256": "7ddf075738bc1f215f406182e383640fc391aacc838c4aaffff41bbe81fe6935",
+  "source_provider_guards": "original40917source0771728a/providers154210b1 exact; old Jim identity, provisioning repair later",
+  "baseline_run": 39816429638,
+  "baseline_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "rows": [
+    {
+      "binary_id": "tcl-lsp-core",
+      "selector": "minify::tests::expr_string_and_membership_inversion_still_applies",
+      "current_status": "FAIL",
+      "current_exit": 101,
+      "current_artifact_sha256": "43cf7a647a42a350107e85aac13cc986a6370505b42b8c5fc0a0f28d301cd741",
+      "baseline": {
+        "job": "rust-tests-shard-2",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": null,
+        "selector": "minify::tests::expr_string_and_membership_inversion_still_applies",
+        "status": "PASS",
+        "reporter_ordinal": 2805,
+        "reporter_total": 5234,
+        "binary_id": "tcl-lsp-core"
+      },
+      "classification": "baseline_PASS_to_FAIL"
+    },
+    {
+      "binary_id": "tcl-lsp-core",
+      "selector": "minify::tests::keeps_word_operator_spacing",
+      "current_status": "PASS",
+      "current_exit": 0,
+      "current_artifact_sha256": "43cf7a647a42a350107e85aac13cc986a6370505b42b8c5fc0a0f28d301cd741",
+      "baseline": {
+        "job": "rust-tests-shard-2",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": null,
+        "selector": "minify::tests::keeps_word_operator_spacing",
+        "status": "PASS",
+        "reporter_ordinal": 2810,
+        "reporter_total": 5234,
+        "binary_id": "tcl-lsp-core"
+      },
+      "classification": "baseline_PASS_retained"
+    },
+    {
+      "binary_id": "tcl-lsp-core",
+      "selector": "minify::original::tests::native_syntax_compaction_uses_selected_original_expression_gaps",
+      "current_status": "PASS",
+      "current_exit": 0,
+      "current_artifact_sha256": "43cf7a647a42a350107e85aac13cc986a6370505b42b8c5fc0a0f28d301cd741",
+      "baseline": null,
+      "classification": "absent_baseline_unknown_not_regression"
+    },
+    {
+      "binary_id": "tcl-lsp-core",
+      "selector": "minify::original::tests::original_syntax_compaction_keeps_opaque_words_nested_scripts_and_expansion",
+      "current_status": "PASS",
+      "current_exit": 0,
+      "current_artifact_sha256": "43cf7a647a42a350107e85aac13cc986a6370505b42b8c5fc0a0f28d301cd741",
+      "baseline": null,
+      "classification": "absent_baseline_unknown_not_regression"
+    },
+    {
+      "binary_id": "tcl-lsp-core",
+      "selector": "minify::original::tests::original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail",
+      "current_status": "PASS",
+      "current_exit": 0,
+      "current_artifact_sha256": "43cf7a647a42a350107e85aac13cc986a6370505b42b8c5fc0a0f28d301cd741",
+      "baseline": null,
+      "classification": "absent_baseline_unknown_not_regression"
+    },
+    {
+      "binary_id": "tcl-lsp-core",
+      "selector": "minify::original::tests::original_minifier_holds_custom_profile_and_registry_instead_of_resolving_its_label",
+      "current_status": "PASS",
+      "current_exit": 0,
+      "current_artifact_sha256": "43cf7a647a42a350107e85aac13cc986a6370505b42b8c5fc0a0f28d301cd741",
+      "baseline": null,
+      "classification": "absent_baseline_unknown_not_regression"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_edit_workspace",
+      "selector": "minify_strips_comments_and_collapses_whitespace_factorial",
+      "current_status": "FAIL",
+      "current_exit": 101,
+      "current_artifact_sha256": "900059feaf0ec8174d69ef2c75bef1ae0d037aa753f49837c428d544b8ba5442",
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_edit_workspace",
+        "selector": "minify_strips_comments_and_collapses_whitespace_factorial",
+        "status": "PASS",
+        "reporter_ordinal": 1744,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_edit_workspace"
+      },
+      "classification": "baseline_PASS_to_FAIL"
+    },
+    {
+      "binary_id": "tcl-lsp-core::lsp_edit_workspace",
+      "selector": "minify_preserves_string_and_expr_results",
+      "current_status": "PASS",
+      "current_exit": 0,
+      "current_artifact_sha256": "900059feaf0ec8174d69ef2c75bef1ae0d037aa753f49837c428d544b8ba5442",
+      "baseline": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "lsp_edit_workspace",
+        "selector": "minify_preserves_string_and_expr_results",
+        "status": "PASS",
+        "reporter_ordinal": 1742,
+        "reporter_total": 3331,
+        "binary_id": "tcl-lsp-core::lsp_edit_workspace"
+      },
+      "classification": "baseline_PASS_retained"
+    },
+    {
+      "binary_id": "tcl-lsp-core::minify_residual",
+      "selector": "expr_comparison_inversion_string_equal",
+      "current_status": "FAIL",
+      "current_exit": 101,
+      "current_artifact_sha256": "63b227d1235986e4f1f50ab997d641d4de4060bedf9855ffed8b585598b3deab",
+      "baseline": {
+        "job": "rust-tests-shard-5",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "minify_residual",
+        "selector": "expr_comparison_inversion_string_equal",
+        "status": "PASS",
+        "reporter_ordinal": 1672,
+        "reporter_total": 4006,
+        "binary_id": "tcl-lsp-core::minify_residual"
+      },
+      "classification": "baseline_PASS_to_FAIL"
+    },
+    {
+      "binary_id": "tcl-lsp-core::minify_residual",
+      "selector": "expr_comparison_inversion_membership",
+      "current_status": "FAIL",
+      "current_exit": 101,
+      "current_artifact_sha256": "63b227d1235986e4f1f50ab997d641d4de4060bedf9855ffed8b585598b3deab",
+      "baseline": {
+        "job": "rust-tests-shard-5",
+        "package": "tcl-lsp-core",
+        "binary_label_as_rendered": "minify_residual",
+        "selector": "expr_comparison_inversion_membership",
+        "status": "PASS",
+        "reporter_ordinal": 1671,
+        "reporter_total": 4006,
+        "binary_id": "tcl-lsp-core::minify_residual"
+      },
+      "classification": "baseline_PASS_to_FAIL"
+    },
+    {
+      "binary_id": "tcl-lsp-core::minify_residual",
+      "selector": "default_minify_compacts_expression_gaps_and_preserves_oracle_results",
+      "current_status": "FAIL",
+      "current_exit": 101,
+      "current_artifact_sha256": "63b227d1235986e4f1f50ab997d641d4de4060bedf9855ffed8b585598b3deab",
+      "baseline": null,
+      "classification": "absent_baseline_unknown_not_regression"
+    },
+    {
+      "binary_id": "tcl-lsp-core::minify_residual",
+      "selector": "native_word_operators_remove_safe_gaps_without_changing_tokens_or_data",
+      "current_status": "FAIL",
+      "current_exit": 101,
+      "current_artifact_sha256": "63b227d1235986e4f1f50ab997d641d4de4060bedf9855ffed8b585598b3deab",
+      "baseline": null,
+      "classification": "absent_baseline_unknown_not_regression"
+    }
+  ],
+  "complete_baseline_verdict": false
+}

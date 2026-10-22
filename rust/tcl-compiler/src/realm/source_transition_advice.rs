@@ -697,8 +697,14 @@ impl super::CommandBindingRealm {
                 .as_ref()
                 .as_ref()?
                 .native_procedure_calls()
+                .map(|call| {
+                    call.clone().with_input(
+                        input,
+                        Arc::clone(owner),
+                        self.bindings.original_inherited_source_entry(),
+                    )
+                })
                 .filter(|call| call.matches_source_context(image, input.lexer_config(), &context))
-                .map(|call| call.clone().with_input(input, Arc::clone(owner)))
                 .collect(),
         )
     }
@@ -722,9 +728,15 @@ impl super::CommandBindingRealm {
         let call = prepared
             .as_ref()
             .as_ref()?
-            .native_procedure_call_at(offset)?;
+            .native_procedure_call_at(offset)?
+            .clone()
+            .with_input(
+                input,
+                Arc::clone(owner),
+                self.bindings.original_inherited_source_entry(),
+            );
         call.matches_source_context(image, input.lexer_config(), &context)
-            .then(|| call.clone().with_input(input, Arc::clone(owner)))
+            .then_some(call)
     }
 
     /// Final conditional root procedure publications, not a completed runtime world.

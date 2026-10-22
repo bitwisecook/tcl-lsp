@@ -1,0 +1,39 @@
+{
+  "utc": "2026-10-22T21:07:35.767541+00:00",
+  "status": "STATIC APPROVED for bounded extraction; no typing/Clippy/runtime/stack acceptance",
+  "patch_sha256": "bf43b517c31a394afccadbbd78f2e83175be51f509458a50aeed876866bafcc6",
+  "base_sha256": "79ed82dfb08f687c59a1d3affa2e6056d036e6f81fe7054c251e2bf3f75445c0",
+  "final_draft_sha256": "4aadc3295b5aad6a810768552c0481b3669f8e86883afaa9aa55d339b805ea99",
+  "final_arm_comparison": {
+    "path": "/tmp/ccg-review-vm-variable-arm-comparison-v2.json",
+    "sha256": "9bfcfe9835e39001b5c50dd3acd4e7577a42a2baf3ac7a149770cd550c9ba5c6",
+    "arms": 44,
+    "result": "Exact literal AND punctuation-preserving token identity, omitting comments/whitespace only, after the three macro-name/explicit-self inverses. No comma normalization needed."
+  },
+  "dispatcher_comparison": {
+    "actual_opcode_count": 51,
+    "exact_expected_helper_for_every_opcode": true,
+    "unmapped_or_duplicate_opcodes": []
+  },
+  "manual_checks": [
+    "variable_try_op match evaluates fallible operation once; Err returns Tick::Return from helper, outer dispatcher tail-returns that same Tick without postwork",
+    "variable_try_core evaluates operation before Err completion conversion; explicit self is evaluated only in same original receiver/Err locations, all real calls supply self; error.into and completion_from_cmd_error unchanged",
+    "variable_operand_bytes evaluates original operand once into hygienic local, borrows it for native byte check, retains exact failure conversion; no original operand drop or conversion ordering moved",
+    "Module macros resolve Tick and crate paths in same module; macro local identifiers remain hygienic and cannot capture caller locals",
+    "Native foreach start/step early returns, dictionary iterator errors and stack-underflow returns remain inside same body with same owning locals and inner loops; no return was converted to Continue",
+    "Caller frame/asm/instr remain borrowed; no Rc clone or owned guard introduced by helper calls. Pure LVT slice getter/closure moved only to two dictionary helpers needing it; bytecode LVT entries returns borrowed field slice directly",
+    "All helper defaults and outer dispatcher preserve exact original host refusal text/route; no guest/generic fallback",
+    "Instruction stack mutations, compiler/native recipes, C boolean/version checks, iterator roots/drop order, pc and last_options writes retain exact body order"
+  ],
+  "nonblocking_note": "Macro insertion currently separates an existing dict canonicalization docblock from impl Vm and attaches it to variable_try_op. Consider placing macros before that docblock in a separate successor; no instruction behavior or authority finding.",
+  "limits": [
+    "Additional helper call frames/inlining and actual compiler borrow checks unmeasured; no stack budget or assertion change requested",
+    "No approval of unrelated VM181 changes or runtime test acceptance; current VM6 source remains frozen",
+    "No Cargo/probe/canonical Rust edits performed"
+  ],
+  "supersedes": {
+    "path": "/tmp/ccg-review-vm-variable-extraction.json",
+    "sha256": "1a10985eeefb63578a318232313eaf4df727ee78a409d2875b1e9f6d3d923b1a",
+    "reason": "Stronger final body comparison now requires ALL punctuation identical; no optional comma normalization necessary. Earlier generic-normalization receipt is superseded."
+  }
+}

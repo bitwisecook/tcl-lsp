@@ -126,12 +126,14 @@ pub(crate) use source_scoped_body::{
     original_source_scoped_bodies, original_written_script_body_is_empty,
 };
 mod source_taint;
+mod source_taint_arguments;
 pub use source_taint::HostedSourceTaintContext;
 pub(crate) use source_taint::{
     NativeSourceTaintInvocation, OriginalSourceReadSites, OriginalSourceTaintReadOperands,
     actual_taint_script_arguments, hosted_source_taint_invocation, native_source_taint_invocation,
-    original_compiled_list_head, original_expression_taint_read_operands,
-    original_hosted_source_registry_metadata, original_source_taint_read_operands,
+    original_compiled_list_head, original_conditional_list_result_head,
+    original_expression_taint_read_operands, original_hosted_source_registry_metadata,
+    original_source_taint_read_operands,
 };
 mod vendor_advice;
 mod vendor_source_barriers;
@@ -7156,7 +7158,8 @@ pub(crate) fn segmented_body_assistance(
 ) -> Option<Box<InvocationBodyAssistance>> {
     let registry = surface.commands();
     let original = match bindings.source_origin()?.kind() {
-        crate::command_binding::SourceOriginKind::Authored(text)
+        crate::command_binding::SourceOriginKind::InheritedPoint { source: text, .. }
+        | crate::command_binding::SourceOriginKind::Authored(text)
         | crate::command_binding::SourceOriginKind::Loaded { source: text, .. }
         | crate::command_binding::SourceOriginKind::Derived { source: text, .. }
         | crate::command_binding::SourceOriginKind::ConditionalField { source: text, .. } => text,

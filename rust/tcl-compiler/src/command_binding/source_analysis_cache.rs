@@ -46,6 +46,7 @@ impl SourceAnalysisCacheKey {
             frame: frame.clone(),
             registry: registry.snapshot().semantic_key(),
             entry: SourceAnalysisEntry {
+                source_point_entry: options.source_point_entry.cloned(),
                 metadata_context: options.retained_metadata_context(),
                 hosted_execution_context: options.hosted_execution_context,
                 execution_name_policy: options.execution_name_policy,

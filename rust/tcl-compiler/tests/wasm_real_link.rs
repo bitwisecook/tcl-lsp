@@ -501,6 +501,7 @@ fn run_real_native_i64_add(runtime: &Path, program: &str) -> String {
     let registry = CommandRegistry::build_default();
     let unit = CompilationUnit::build_for_dialect(program, &registry, false, "tcl9.0");
     let mut output = compile_wasm(&unit, &registry, native_i64_add_options());
+    report_actual_native_admission(program, &unit, &output);
     assert!(
         matches!(output.plan, WasmCodegenPlan::NativeI64Add { .. }),
         "native proof did not select: {:?}",
@@ -1135,6 +1136,57 @@ fn native_dispatch_bootstrap_wat(query: &str, minimum: i32) -> String {
     )
 }
 
+/// Observational admission report before the unchanged compiled-path assertions.
+fn report_actual_native_admission(
+    program: &str,
+    unit: &CompilationUnit,
+    output: &tcl_compiler::codegen::wasm::WasmCompilation,
+) {
+    use tcl_compiler::native_compilation_admission::{
+        NativeCompilationAdmissionScope, script_admission_plan,
+    };
+    eprintln!(
+        "CCG_WASM_SUMMARY program={program:?} ir_procedures={} unit_procedures={} top_executable={} native_functions={} native_enabled={} native_entry={} compiled_variable_provider={:?} compilation={:?} native_body_owners={} retained_source={} source_metadata={}",
+        unit.ir_module.procedures.len(),
+        unit.procedures.len(),
+        unit.top_level
+            .semantic_facts
+            .executable()
+            .function()
+            .is_some(),
+        output.native.functions.len(),
+        output.native.enabled,
+        unit.ir_module.source_entry.native_entry.is_some(),
+        unit.ir_module.source_entry.compiled_variable_provider,
+        unit.ir_module.source_entry.native_compilation,
+        unit.ir_module.original_native_declaration_body_units.len(),
+        unit.ir_module.retained_source_bindings.is_some(),
+        unit.ir_module.source_metadata_input.is_some(),
+    );
+    eprintln!("CCG_WASM_PLAN {:?}", output.plan);
+    eprintln!(
+        "CCG_WASM_TOP_ADMISSION {:?}",
+        script_admission_plan(
+            &unit.ir_module.top_level,
+            NativeCompilationAdmissionScope::Script
+        )
+    );
+    for (id, procedure) in &unit.ir_module.procedures {
+        eprintln!(
+            "CCG_WASM_PROCEDURE id={id:?} name={:?} declaration={:?} body_admission={:?}",
+            procedure.qualified_name,
+            procedure.declaration_site,
+            script_admission_plan(
+                &procedure.body,
+                NativeCompilationAdmissionScope::ProcedureBody
+            ),
+        );
+    }
+    for (id, report) in &output.native.functions {
+        eprintln!("CCG_WASM_NATIVE id={id:?} report={report:?}");
+    }
+}
+
 /// Compile under the native tier and prove, before anything runs, that the
 /// module really binds `entries` compiled bodies: it imports the runtime's
 /// shared table, declares exactly that many functions for `ref.func`, and
@@ -1147,6 +1199,7 @@ fn compile_native_bound(program: &str, entries: usize) -> Vec<u8> {
         &registry,
         WasmCompileOptions::runtime_linked().native_tier(),
     );
+    report_actual_native_admission(program, &unit, &output);
     assert!(
         output.module.import_table,
         "{program:?} must import the runtime's shared function table"

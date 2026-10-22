@@ -437,10 +437,10 @@ pub(super) fn analysis_with_input(source: &str, input: &ResolvedAnalysisInput) -
 
 /// Gaps belong to authenticated script regions or a separately issued original
 /// expression action proof, never to displayed argument text.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 struct SourceGapEdit {
     span: Span,
-    replacement: &'static str,
+    replacement: String,
 }
 
 fn source_gap_output(
@@ -464,7 +464,7 @@ fn source_gap_output(
                 .get(Span::new(cursor, edit.span.start()).as_range())
                 .ok_or(MinifyRefusal::SourceCorrespondenceChanged)?,
         );
-        output.push_str(edit.replacement);
+        output.push_str(&edit.replacement);
         cursor = edit.span.end();
     }
     output.push_str(
@@ -483,6 +483,34 @@ fn emitted_boundary(offset: u32, edits: &[SourceGapEdit]) -> Result<u32, MinifyR
             - i64::from(edit.span.end() - edit.span.start());
     }
     u32::try_from(emitted).map_err(|_| MinifyRefusal::SourceCorrespondenceChanged)
+}
+
+fn boolean_inversion_edit(
+    source: &str,
+    analysis: &AnalysisResult,
+    command: &tcl_compiler::segmenter::SegmentedCommand,
+    argument: usize,
+    inner: &str,
+    env: super::MinifyEnv<'_>,
+) -> Result<Option<SourceGapEdit>, MinifyRefusal> {
+    // Renderer proposals supply no authority. The original owner accepts only
+    // its narrow boolean-complement law and exact lexical leaf provenance.
+    let candidate = super::shrink_expr_ast(inner, env, 0);
+    if candidate == inner {
+        return Ok(None);
+    }
+    let Some(proof) = tcl_compiler::registry_invocation::source_structure::original_expression_boolean_comparison_inversion(
+        source, analysis, command, argument, &candidate,
+    ) else { return Ok(None); };
+    if !proof.matches_source(&SourceImage::document(source), env.config)
+        || !proof.matches_input(env.input)
+    {
+        return Err(MinifyRefusal::SourceCorrespondenceChanged);
+    }
+    Ok(Some(SourceGapEdit {
+        span: proof.original_operand().span(),
+        replacement: proof.replacement_source_word().to_owned(),
+    }))
 }
 
 fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, MinifyRefusal> {
@@ -533,14 +561,14 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
                 };
                 edits.push(SourceGapEdit {
                     span: Span::new(cursor, word.span().start()),
-                    replacement,
+                    replacement: replacement.to_owned(),
                 });
                 cursor = word.span().end();
             }
         }
         edits.push(SourceGapEdit {
             span: Span::new(cursor, region.end()),
-            replacement: "",
+            replacement: String::new(),
         });
         plans.push((region, plan));
     }
@@ -586,6 +614,12 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
             let Some(inner) = source.get(content.as_range()) else {
                 continue;
             };
+            if let Some(edit) =
+                boolean_inversion_edit(source, analysis, command, argument, inner, env)?
+            {
+                edits.push(edit);
+                continue;
+            }
             // Child scripts keep their independently authenticated script gaps.
             let compacted_candidate =
                 super::strip_expr_whitespace_with_script_compaction(inner, env, 0, false);
@@ -598,12 +632,12 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
             }
             edits.extend(proof.removed_gaps().iter().map(|&span| SourceGapEdit {
                 span,
-                replacement: "",
+                replacement: String::new(),
             }));
             expressions.push(proof);
         }
     }
-    edits.retain(|edit| source.get(edit.span.as_range()) != Some(edit.replacement));
+    edits.retain(|edit| source.get(edit.span.as_range()) != Some(edit.replacement.as_str()));
     edits.sort_by_key(|edit| (edit.span.start(), edit.span.end()));
     edits.dedup();
     if edits

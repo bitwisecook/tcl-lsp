@@ -7046,7 +7046,10 @@ mod original_import_alias_tests {
         let mut interp = native();
         assert_eq!(
             interp.eval_str(b"namespace eval src {proc x {} {return OLD}}"),
-            Code::Ok
+            Code::Ok,
+            "Jim source setup: native refusal {:?}; result {:?}",
+            interp.native_execution_refusal(),
+            interp.result_bytes()
         );
         let key = interp
             .namespaces()
