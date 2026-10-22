@@ -9,7 +9,7 @@ One file per implementation agent, each maintained by that agent. Each lists wha
 | compiler-names | Name lookup in command_binding and the analyser | [compiler-names.md](compiler-names.md) |
 | compiler-codegen | Compile service, codegen, pack native rows | [compiler-codegen.md](compiler-codegen.md) |
 | vm-runtime | SpecTcl execution and acceptance | [vm-runtime.md](vm-runtime.md) |
-| bigip-lsp | BIG-IP/F5 LSP units and editors | [bigip-lsp.md](bigip-lsp.md) |
+| bigip-lsp | BIG-IP/F5 LSP units and editors — moved to its own cloud session (`session_015D7SBpJWNRSxRQ3hL1r73Z`) on 2026-10-22, pushes to `work` directly | [bigip-lsp.md](bigip-lsp.md) |
 | perf | Analysis and pack-load cost | [perf.md](perf.md) |
 | review-triage | External review replay — moved to its own cloud session (`session_01BSEmm28whSWkVVPmv79LuE`) on 2026-10-22, pushes to `work` directly | [review-triage.md](review-triage.md) |
 | coordinator | Routing, snapshots, status, release gate | [coordinator.md](coordinator.md) |
