@@ -1,0 +1,353 @@
+Thu Oct 22 17:38:51 UTC 2026
+49b067ce128422e36b83ba255a75eea5fd0fa9a0
+77ae0143b54f1006ce8cf352cb4bcb4e7137b489135e97f5038c308c55c21a20  rust/tcl-spectcl/tests/zz_review_probe.rs
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          32G  3.7G   27G  13% /
+
+CASE rename_with_registry Thu Oct 22 17:47:40 UTC 2026
+
+running 1 test
+test rename_with_registry ... WORLD r_n05 tcl8.4 completed=false
+r_n05 tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl8.4 completed=true
+r_n07 tcl8.4 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl8.4 completed=true
+r_plain tcl8.4 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_noputs tcl8.4 completed=true
+r_noputs tcl8.4 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl8.4.tcl
+WORLD r_setonly tcl8.4 completed=true
+r_setonly tcl8.4 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl8.4 completed=false
+r_n04wild tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl8.4 completed=false
+r_n04exact tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl8.4 completed=true
+r_n03 tcl8.4 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl8.4.tcl
+WORLD r_n05 tcl8.5 completed=false
+r_n05 tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl8.5 completed=true
+r_n07 tcl8.5 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl8.5 completed=true
+r_plain tcl8.5 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_noputs tcl8.5 completed=true
+r_noputs tcl8.5 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl8.5.tcl
+WORLD r_setonly tcl8.5 completed=true
+r_setonly tcl8.5 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl8.5 completed=false
+r_n04wild tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl8.5 completed=false
+r_n04exact tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl8.5 completed=true
+r_n03 tcl8.5 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl8.5.tcl
+WORLD r_n05 tcl8.6 completed=false
+r_n05 tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl8.6 completed=true
+r_n07 tcl8.6 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl8.6 completed=true
+r_plain tcl8.6 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_noputs tcl8.6 completed=true
+r_noputs tcl8.6 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl8.6.tcl
+WORLD r_setonly tcl8.6 completed=true
+r_setonly tcl8.6 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl8.6 completed=false
+r_n04wild tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl8.6 completed=false
+r_n04exact tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl8.6 completed=true
+r_n03 tcl8.6 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl8.6.tcl
+WORLD r_n05 tcl9.0 completed=false
+r_n05 tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl9.0 completed=true
+r_n07 tcl9.0 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl9.0 completed=true
+r_plain tcl9.0 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_noputs tcl9.0 completed=true
+r_noputs tcl9.0 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl9.0.tcl
+WORLD r_setonly tcl9.0 completed=true
+r_setonly tcl9.0 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl9.0 completed=false
+r_n04wild tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl9.0 completed=false
+r_n04exact tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl9.0 completed=true
+r_n03 tcl9.0 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl9.0.tcl
+WORLD r_n05 tcl9.1 completed=false
+r_n05 tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 tcl9.1 completed=true
+r_n07 tcl9.1 REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding"
+WORLD r_plain tcl9.1 completed=true
+r_plain tcl9.1 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_noputs tcl9.1 completed=true
+r_noputs tcl9.1 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl9.1.tcl
+WORLD r_setonly tcl9.1 completed=true
+r_setonly tcl9.1 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl9.1 completed=false
+r_n04wild tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl9.1 completed=false
+r_n04exact tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl9.1 completed=true
+r_n03 tcl9.1 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl9.1.tcl
+WORLD r_n05 jim completed=false
+r_n05 jim REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 jim completed=false
+r_n07 jim REFUSED "cannot prove the original variable selected by this occurrence"
+WORLD r_plain jim completed=false
+r_plain jim REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_noputs jim completed=false
+r_noputs jim REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_setonly jim completed=false
+r_setonly jim REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04wild jim completed=false
+r_n04wild jim REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+WORLD r_n04exact jim completed=false
+r_n04exact jim REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+WORLD r_n03 jim completed=false
+r_n03 jim REFUSED "cannot prove the original variable selected by this occurrence"
+WORLD r_n06class tcl8.6 completed=true
+r_n06class tcl8.6 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD r_n06method tcl8.6 completed=true
+r_n06method tcl8.6 REFUSED "original-member-collision: another retained source or builtin method occupies the proposed name"
+WORLD r_n06proc tcl8.6 completed=true
+r_n06proc tcl8.6 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD r_classfree tcl8.6 completed=true
+r_classfree tcl8.6 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n06class tcl9.0 completed=true
+r_n06class tcl9.0 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD r_n06method tcl9.0 completed=true
+r_n06method tcl9.0 REFUSED "original-member-collision: another retained source or builtin method occupies the proposed name"
+WORLD r_n06proc tcl9.0 completed=true
+r_n06proc tcl9.0 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD r_classfree tcl9.0 completed=true
+r_classfree tcl9.0 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n06class tcl9.1 completed=true
+r_n06class tcl9.1 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD r_n06method tcl9.1 completed=true
+r_n06method tcl9.1 REFUSED "original-member-collision: another retained source or builtin method occupies the proposed name"
+WORLD r_n06proc tcl9.1 completed=true
+r_n06proc tcl9.1 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD r_classfree tcl9.1 completed=true
+r_classfree tcl9.1 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+R_N06 local->sibling core=Err("incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage") cross_document_edits=0 allows_lexical_rename_advice=false
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 284.24s
+
+CASE_EXIT rename_with_registry exit=0 Thu Oct 22 17:52:25 UTC 2026
+
+CASE n01_identity Thu Oct 22 17:52:25 UTC 2026
+
+running 1 test
+test n01_identity ... N01 tcl8.6 all_procs=["::a:::p"] diags=[]
+N01 tcl8.6 call="{p}]" definitions=[(0, 24)]
+N01 tcl8.6 call="{:p}]" definitions=[(1, 24)]
+N01 tcl9.0 all_procs=["::a:::p"] diags=[]
+N01 tcl9.0 call="{p}]" definitions=[(0, 24)]
+N01 tcl9.0 call="{:p}]" definitions=[(1, 24)]
+N01 tcl9.1 all_procs=["::a:::p"] diags=[]
+N01 tcl9.1 call="{p}]" definitions=[(0, 24)]
+N01 tcl9.1 call="{:p}]" definitions=[(1, 24)]
+N01 empty-tail all_procs=["::n::"] links=[("::a", "::n::")]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 26.01s
+
+CASE_EXIT n01_identity exit=0 Thu Oct 22 17:52:51 UTC 2026
+
+CASE n02_jim Thu Oct 22 17:52:51 UTC 2026
+
+running 1 test
+test n02_jim ... N02 jim all_procs=["::a:::p", "::a::p"] def(a::p)=[] def(a:::p)=[]
+N02 tcl8.6 all_procs=["::a::p"] def(a::p)=[2] def(a:::p)=[2]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 23.08s
+
+CASE_EXIT n02_jim exit=0 Thu Oct 22 17:53:14 UTC 2026
+
+CASE n03_variables Thu Oct 22 17:53:14 UTC 2026
+
+running 1 test
+test n03_variables ... N03 café tcl8.6 def=[(0, 4, 7)] refs=[(0, 4, 7), (2, 5, 9)]
+WORLD n03cafe tcl8.6 completed=true
+n03cafe tcl8.6 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved n03cafe_tcl8.6.tcl
+N03 café tcl9.0 def=[(0, 4, 7)] refs=[(0, 4, 7), (2, 5, 9)]
+WORLD n03cafe tcl9.0 completed=true
+n03cafe tcl9.0 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved n03cafe_tcl9.0.tcl
+N03 café jim def=[] refs=[]
+WORLD n03cafe jim completed=false
+n03cafe jim REFUSED "cannot prove the original variable selected by this occurrence"
+N03 nested-brace tcl8.6 def=[(0, 4, 9)]
+N03 nested-brace tcl9.0 def=[(1, 4, 11)]
+N03 nested-brace tcl9.1 def=[(1, 4, 11)]
+N03 suffix tcl8.6 cursor-on-literal-bar def=[]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 27.64s
+
+CASE_EXIT n03_variables exit=0 Thu Oct 22 17:53:42 UTC 2026
+
+CASE n04_import_rename Thu Oct 22 17:53:42 UTC 2026
+
+running 1 test
+test n04_import_rename ... WORLD n04wild tcl8.4 completed=false
+n04wild tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl8.4 completed=false
+n04exact tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild tcl8.5 completed=false
+n04wild tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl8.5 completed=false
+n04exact tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild tcl8.6 completed=false
+n04wild tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl8.6 completed=false
+n04exact tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild tcl9.0 completed=false
+n04wild tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl9.0 completed=false
+n04exact tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild tcl9.1 completed=false
+n04wild tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl9.1 completed=false
+n04exact tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild jim completed=false
+n04wild jim REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+WORLD n04exact jim completed=false
+n04exact jim REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 77.57s
+
+CASE_EXIT n04_import_rename exit=0 Thu Oct 22 17:55:00 UTC 2026
+
+CASE n05_forced_import Thu Oct 22 17:55:00 UTC 2026
+
+running 1 test
+test n05_forced_import ... N05 tcl8.4 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 tcl8.5 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 tcl8.6 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 tcl9.0 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 tcl9.1 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 jim refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 38.05s
+
+CASE_EXIT n05_forced_import exit=0 Thu Oct 22 17:55:38 UTC 2026
+
+CASE n05_control_plain_rename Thu Oct 22 17:55:38 UTC 2026
+
+running 1 test
+test n05_control_plain_rename ... N05CTL plain tcl8.6 -> Err("incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage")
+N05CTL ns tcl8.6 -> Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage")
+N05CTL plain tcl9.0 -> Err("incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage")
+N05CTL ns tcl9.0 -> Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage")
+N05CTL plain tcl9.1 -> Err("incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage")
+N05CTL ns tcl9.1 -> Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage")
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 21.52s
+
+CASE_EXIT n05_control_plain_rename exit=0 Thu Oct 22 17:56:00 UTC 2026
+
+CASE n06_collisions Thu Oct 22 17:56:00 UTC 2026
+
+running 1 test
+test n06_collisions ... WORLD n06class tcl8.6 completed=true
+n06class tcl8.6 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD n06method tcl8.6 completed=true
+n06method tcl8.6 REFUSED "original-member-collision: another retained source or builtin method occupies the proposed name"
+WORLD n06proc tcl8.6 completed=true
+n06proc tcl8.6 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD n06class tcl9.0 completed=true
+n06class tcl9.0 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD n06method tcl9.0 completed=true
+n06method tcl9.0 REFUSED "original-member-collision: another retained source or builtin method occupies the proposed name"
+WORLD n06proc tcl9.0 completed=true
+n06proc tcl9.0 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD n06class tcl9.1 completed=true
+n06class tcl9.1 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+WORLD n06method tcl9.1 completed=true
+n06method tcl9.1 REFUSED "original-member-collision: another retained source or builtin method occupies the proposed name"
+WORLD n06proc tcl9.1 completed=true
+n06proc tcl9.1 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+N06 local->sibling core=Err("incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage") workspace_has_q=true
+N06 local->sibling cross_document_edits=0 workspace_symbol_rename_edits=None allows_lexical_rename_advice=false
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 111.48s
+
+CASE_EXIT n06_collisions exit=0 Thu Oct 22 17:57:51 UTC 2026
+
+CASE n06_sibling_profile_matrix Thu Oct 22 17:57:51 UTC 2026
+
+running 1 test
+test n06_sibling_profile_matrix ... N06_SIBLING tcl8.4 declaration REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl8.4 call REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl8.5 declaration REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl8.5 call REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl8.6 declaration REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl8.6 call REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl9.0 declaration REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl9.0 call REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl9.1 declaration REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING tcl9.1 call REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+N06_SIBLING jim declaration REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+N06_SIBLING jim call REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 30.92s
+
+CASE_EXIT n06_sibling_profile_matrix exit=0 Thu Oct 22 17:58:22 UTC 2026
+
+CASE n07_speculative_var Thu Oct 22 17:58:22 UTC 2026
+
+running 1 test
+test n07_speculative_var ... N07 tcl8.4 def=[] diags=["W210"] REFUSED RenameRefusal { reason: "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding", range: Some(LspRange { start_line: 1, start_character: 16, end_line: 1, end_character: 18 }) }
+N07 tcl8.5 def=[] diags=["W210"] REFUSED RenameRefusal { reason: "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding", range: Some(LspRange { start_line: 1, start_character: 16, end_line: 1, end_character: 18 }) }
+N07 tcl8.6 def=[] diags=["W210"] REFUSED RenameRefusal { reason: "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding", range: Some(LspRange { start_line: 1, start_character: 16, end_line: 1, end_character: 18 }) }
+N07 tcl9.0 def=[] diags=["W210"] REFUSED RenameRefusal { reason: "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding", range: Some(LspRange { start_line: 1, start_character: 16, end_line: 1, end_character: 18 }) }
+N07 tcl9.1 def=[] diags=["W210"] REFUSED RenameRefusal { reason: "unreferenced-edit: an edit falls outside the occurrences find-references reports for this binding", range: Some(LspRange { start_line: 1, start_character: 16, end_line: 1, end_character: 18 }) }
+N07 jim def=[] diags=[] REFUSED RenameRefusal { reason: "cannot prove the original variable selected by this occurrence", range: None }
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 61.43s
+
+CASE_EXIT n07_speculative_var exit=0 Thu Oct 22 17:59:24 UTC 2026
+
+CASE n08_inliner Thu Oct 22 17:59:24 UTC 2026
+
+running 1 test
+test n08_inliner ... N08 tcl8.4 single-pass=[]
+N08 tcl8.4 changed=false
+N08 tcl8.5 single-pass=[]
+N08 tcl8.5 changed=false
+N08 tcl8.6 single-pass=[]
+N08 tcl8.6 changed=false
+N08 tcl9.0 single-pass=[]
+N08 tcl9.0 changed=false
+N08 tcl9.1 single-pass=[]
+N08 tcl9.1 changed=false
+N08 jim single-pass=[]
+N08 jim changed=false
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 66.98s
+
+CASE_EXIT n08_inliner exit=0 Thu Oct 22 18:00:31 UTC 2026
+
+CASE n08_unit_inference Thu Oct 22 18:00:31 UTC 2026
+
+running 1 test
+test n08_unit_inference ... N08U proc=::n::c return_type=TypeLattice { repr: Overdefined } sccp_mentions GLOBAL=0 LOCAL=0 INIT=0
+N08U proc=::n::p return_type=TypeLattice { repr: Overdefined } sccp_mentions GLOBAL=0 LOCAL=0 INIT=0
+N08U proc=::p return_type=TypeLattice { repr: Overdefined } sccp_mentions GLOBAL=0 LOCAL=0 INIT=0
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 48.64s
+
+CASE_EXIT n08_unit_inference exit=0 Thu Oct 22 18:01:20 UTC 2026
+
+CASE n09_compiler_facts Thu Oct 22 18:01:20 UTC 2026
+
+running 1 test
+test n09_compiler_facts ... 

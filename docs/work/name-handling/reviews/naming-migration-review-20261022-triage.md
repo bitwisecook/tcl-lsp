@@ -8,7 +8,7 @@ This report is updated after every probe run. Remaining post-R1 and latest-work 
 
 ## Validation snapshots
 
-This is an interim report. All independent requested seam/scaling/N17 triage is settled. The post-R1 rename matrix and final latest-work replay remain outstanding. No product code or permanent tests were edited. Required release gates `make rust-check` and `make prep-pr` are unrun under the active `work` development-push exception.
+This is an interim report. All independent requested seam/scaling/N17 triage is settled. The post-R1 rename matrix is complete; the final all-finding replay is active on 49b067ce. No product code or permanent tests were edited. Required release gates `make rust-check` and `make prep-pr` are unrun under the active `work` development-push exception.
 
 | Evidence | Snapshot | Result |
 |---|---|---|
@@ -22,9 +22,11 @@ This is an interim report. All independent requested seam/scaling/N17 triage is 
 | `run7-pending.log` | `0434e7e7` | Three seams and individually bounded P25/50/100 lens rows complete; all groups exit 0. Flat P25/50/100/200 and chains are also measured in run6. |
 | `run10-source-audit.log`, `run10-after-fix-source-audit.log` | `60ce7009`, `6ebc499c` | Static server-only seams, arity ownership and scaling structures; latter includes declared-footprint barrier correction. |
 
-Harness passes mean observational probes completed, not that every product answer was correct. R1 controls in run7 locate the absent completed world before analyser transport: plain puts and puts[foo] lack it in both retained realm and result, before/after core seeding; declaration/bare-call controls retain both. The latest published compiler-names report still records ten positive g4 mismatches. No completed-world fix has yet been verified on this branch by triage.
+Harness passes mean observational probes completed, not that every product answer was correct. R1 controls in run7 locate the absent completed world before analyser transport: plain puts and puts[foo] lack it in both retained realm and result, before/after core seeding; declaration/bare-call controls retain both. R1 landed in ec80a189/79d4e834; its public diagnosis passes 54 subcases (14 positive, 40 negative). Local run14 confirms ordinary puts-call completed worlds on all five C profiles, while import cases remain uncertain and Jim remains limited. The earlier ten-positive-mismatch result is historical.
 
 Earlier setup, incomplete sparse-checkout attempts and stable e2e repeats remain in `cloud-setup.log`, `run5.log`, `run5-e2e-repeat.log` and run6 evidence. Three missing embedded fixture trees were restored; no product verdict is inferred from those checkout failures. Exact probe sources/hashes and per-run provenance distinguish old executable observations from subsequent builds.
+
+**Post-R1 rename replay complete:** run14 compiled on `49b067ce`; server-shaped matrix exited 0 in 284.24s. Closed progress is `run14-progress.log`. All returned edits available at that checkpoint ran on all six engines (`run14-rename-oracles.log` / summary): 33 files / 198 executions, 12 generated files / 12 matching-profile checks, zero unexpected result. Refused N04–N07 cases returned no edit to execute. The rest of the final all-finding replay remains active; its live log stays untracked.
 
 ## Method
 
@@ -53,10 +55,10 @@ Earlier setup, incomplete sparse-checkout attempts and stable e2e repeats remain
 | N01 colliding identities | CHANGED: `all_procs` still collapses; both definition targets FIXED on C 8.6/9.0/9.1; empty-tail link FIXED | unowned (closest compiler-names) | `tcl-compiler/src/analyser/types.rs:2415`, `analyser/handlers.rs` |
 | N02 Jim colon policy | CHANGED: identities distinct; definition abstains under Jim | compiler-names (naming), lsp (definition) | `tcl-syntax/src/naming.rs`, `tcl-lsp-core/src/definition.rs` |
 | N03 variable cursor/profile | C Tcl FIXED; Jim CHANGED (definition/references abstain and rename refuses) | lsp / compiler-names | `tcl-lsp-core/src/definition.rs`, original variable bindings |
-| N04 imported-source rename | Refused, pending R1 | lsp (planner), compiler-names (R1 world) | `tcl-lsp-core/src/original_command_rename.rs`, `rename.rs` |
-| N05 forced-import rename | Refused, pending R1 (references correct) | lsp, compiler-names | same |
-| N06 collision checks | Refused, pending R1. Run6 class/proc and sibling cases refuse with UnknownWorld; methods lack a complete current member roster | lsp | same; `rename.rs` `cross_document_symbol_edits` |
-| N07 speculative proc variable | CHANGED: safe refusal; definition no longer walks to global. Required post-R1 replay pending | lsp | `rename.rs`, `definition.rs` |
+| N04 imported-source rename | CHANGED: post-R1 import cases still safely refuse with unavailable completed world | lsp (planner), compiler-names (R1 world) | `tcl-lsp-core/src/original_command_rename.rs`, `rename.rs` |
+| N05 forced-import rename | CHANGED: references correct; post-R1 rename still refuses import-world uncertainty | lsp, compiler-names | same |
+| N06 collision checks | Same-document class/method/proc-to-class guards FIXED; workspace cases refuse at both origins for coverage, no edits | lsp | same; `rename.rs` `cross_document_symbol_edits` |
+| N07 speculative proc variable | CHANGED: safe refusal confirmed after R1; Jim W210 gap remains | lsp | `rename.rs`, `definition.rs` |
 | N08 inliner subset oracle + nested lowering | FIXED (edits and unit inference) | — | — |
 | N09 type/call/taint | Constructor/call graph FIXED; taint dependency resolver conservatively retains all source candidates | — | — |
 | N10 OO class/relation | CHANGED: relations, qualified miss and path-based definition FIXED; path hover/type hierarchy still empty | lsp | `tcl-lsp-core/src/definition.rs:4260` (`resolve_class_target_at`) |
@@ -112,51 +114,33 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 ### N04: imported-command source rename
 
-- **Status:** refused, pending R1.
-- **Fresh run6:** wildcard and exact forms refuse on all six profiles. `original_completed_command_world()` is false in every case; C profiles report UnknownWorld, Jim reports the original command unavailable. No edit was returned.
-- **Evidence:** `rename_in_program` (run3) from `proc bar` to `baz` returns `REFUSED "unknown-completed-command-world …"` for both the wildcard (`tcl/n04w.tcl`) and the exact-import form, under tcl8.4, tcl8.6 and tcl9.0. Under Jim it refuses with "the original command selected at this cursor is unavailable …". No edit is produced, so nothing ran.
-- **Oracle:** the original prints `1` on all six engines.
-- **Owner:** lsp (`tcl-lsp-core/src/original_command_rename.rs`, which raises `UnknownWorld` at `occupied()`; also `rename.rs`), plus compiler-names for the completed command world (R1).
-- **Fix direction:** one source-rename plan covering imports, exports and derived uses, or refusal of the whole edit. Re-check once R1 lands.
+- **Status:** CHANGED to safe refusal, confirmed after R1 on `49b067ce`.
+- Wildcard and exact imports refuse on all six profiles. C 8.4/8.5/8.6/9.0/9.1 report unavailable completed command world; Jim cannot prove the original command at the cursor. No declaration-only edit or stale import/call edit is offered.
+- The same fresh executable gives a completed world for ordinary `proc foo; puts [foo]` on all five C profiles. Thus the general R1 blocker is repaired; import-specific world/coverage uncertainty remains.
+- The preserved original wildcard input prints `1` on all six engines. There is no returned N04 edit to execute.
+- **Owner:** compiler-names (import-specific facts) / lsp (transactional rename). Supported edits must cover imports/exports/derived uses; refusal contains the original unsafe behavior.
 
 ### N05: forced-import rename vs references
 
-- **Status:** refused, pending R1.
-- **Fresh run6:** all six profiles return only `(2,9)` from references and refuse rename with UnknownWorld. Simple `proc foo; puts [foo]` controls through `rename_with_diagnosis` also refuse on C 8.6/9.0/9.1; the server-shaped controls are later in this active run.
-- **Evidence:** `references` from the `b::foo` declaration gives only `(2,9)`, which is correct. Rename is `REFUSED "unknown-completed-command-world …"`, both through `rename_with_diagnosis` without a registry and through `rename_in_program` with the registry and program view, under tcl8.4, tcl8.6, tcl9.0 and Jim.
-- **Controls (run3):**
-  - `proc foo {} {return A}; puts [foo]` refuses with "incomplete-original-command-coverage".
-  - `set x [foo]` refuses the same way.
-  - Only a bare `foo` call renames. Under Jim every proc rename refuses.
-  - So the refusal is not specific to `-force`.
-- **Oracle:** the original prints `A` on six engines.
-- **Owner and fix direction:** as N04. Reference enumeration and rename must project from the same settled binding.
+- **Status:** CHANGED to safe refusal, references correct after R1.
+- Fresh run14 references include only local declaration `(2,9)` on all six profiles; rename refuses with UnknownWorld and returns no edit. The forced-import call is no longer renamed to the unrelated local implementation.
+- Ordinary C `puts [foo]` controls now have a completed world but still refuse `incomplete-original-command-coverage`; bare `foo` renames declaration/call. `set x [foo]` also refuses coverage. Jim's ordinary control still lacks a completed world.
+- The original forced-import input prints `A` on all engines. No N05 edit was returned for execution.
+- **Owner:** lsp/compiler-names. Remaining limitation is import-specific closure and complete occurrence coverage, not the former broad R1 false guard.
 
 ### N06: rename collision checks
 
-- **Status:** refused, pending R1.
-- **Fresh run6 supersedes the older specific refusals below:** C 8.6/9.0/9.1 refuse class and proc→class with UnknownWorld, and method rename with `unknown-current-source-member-roster`. The general refusal keeps edits disabled but does not establish that the destination-specific collision check now runs. The six-profile sibling matrix also refuses at both origins: all C profiles give UnknownWorld; Jim gives UnknownWorld from the declaration and original-command-unavailable from the call. No edited sibling fixture is produced.
-- **Evidence (`rename_in_program`, tcl8.6 and tcl9.0):**
-  - Class `A`→`B`: `original-command-collision`.
-  - Method `old`→`dest`: `original-member-collision`.
-  - Proc `P`→class `C`: `original-command-collision`.
-  - These are specific destination checks.
-  - Control: a collision-free class rename `A`→`Z` refuses with "incomplete-original-command-coverage".
-  - Local `p`→`q` with a sibling file defining `q`: core refuses (incomplete coverage). `cross_document_symbol_edits` returns 0 edits, and `workspace_symbol_rename_edits` returns `None`, because `WorkspaceIndex::allows_lexical_rename_advice()` is `false`. The declaration-origin server augmentation (`add_cross_document_rename_edits`) still has no destination check (static), but it is unreachable while that gate is false.
-- **Oracle:** 8.6, 9.0 and 9.1 print `A|B`, `OLD DEST` and `P`.
-- **Owner:** lsp (`rename.rs` `cross_document_symbol_edits`; server `add_cross_document_rename_edits` in `tcl-lsp-server/src/lib.rs`).
-- **Fix direction:** one destination check, independent of where the rename starts. Re-check once R1 lands.
+- **Same-document guards: FIXED in tested cases after R1.** On C 8.6/9.0/9.1, class A→B and proc P→existing class C refuse `original-command-collision`; method old→dest refuses `original-member-collision`. All have completed worlds and return zero edits. This now exercises destination-specific protection rather than the former broad world refusal.
+- **Workspace cases: CHANGED / contained by refusal.** Both declaration and call origins refuse on all six profiles. All C variants report incomplete original coverage; Jim reports UnknownWorld from the declaration and original-command-unavailable from the call. `cross_document_symbol_edits` returns zero, workspace rename is unavailable, and lexical workspace rename advice remains false. This does not prove a workspace destination check becomes correct if coverage is later enabled.
+- Collision-free class A→Z still refuses incomplete source coverage on all three OO profiles. The successful bare-call control and variable-prefix edits are replayed on all engines; no collision-case edit was returned to execute.
+- **Owner:** lsp (`original_command_rename`, cross-document helpers and server augmentation). Preserve refusal until workspace/source coverage and destination checks can be proved together.
 
 ### N07: speculative proc-variable binding
 
-- **Status:** CHANGED to safe refusal; required post-R1 replay remains outstanding.
-- **Fresh run6:** definition is empty on all six profiles; no request edits the unrelated global. C profiles report W210 and refuse with `unreferenced-edit`; Jim reports no W210 and refuses because the original variable cannot be proved. This is a safe refusal, with a separate Jim analysis gap. The run6 server-shaped C matrix has a completed world and still refuses with `unreferenced-edit`, so this refusal is not caused by R1. The user-required post-R1 replay remains outstanding.
-- **Evidence for `set g 1; proc p {} {puts $g}`:**
-  - Definition from `$g` is now `[]`; it no longer walks out to the global. W210 is still reported.
-  - Run1, without a registry: rename to `h` edits only the proc-local `$g`. The global is untouched, under tcl8.4, tcl8.6, tcl9.0 and Jim.
-  - Run3, with the registry and program view: `REFUSED "unreferenced-edit: an edit falls outside the occurrences find-references reports"`. Under Jim it refuses with "cannot prove the original variable …".
-- **Owner:** lsp (`rename.rs`, `definition.rs`).
-- **Fix direction:** edit-producing providers need a proven occurrence-to-cell edge.
+- **Status:** CHANGED to safe refusal, required post-R1 check complete.
+- Definition from `$g` is empty on all six profiles; the unrelated global is never edited. All C profiles report W210 and refuse `unreferenced-edit`; Jim has no W210 and refuses because the original variable cannot be proved. The Jim diagnostic gap remains.
+- Server-shaped C cases have a completed world and still refuse for occurrence coverage, so this safety result is independent of the old R1 blocker. No N07 edit is returned to execute.
+- **Owner:** lsp/compiler-names. An edit needs a proven occurrence-to-cell edge.
 
 ### N08: inliner subset oracle
 

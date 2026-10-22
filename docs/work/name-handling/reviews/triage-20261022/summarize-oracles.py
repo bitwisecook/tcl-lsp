@@ -6,6 +6,7 @@ import re
 import sys
 
 tag = sys.argv[1]
+output_tag = sys.argv[2] if len(sys.argv) > 2 else tag
 root = Path(__file__).resolve().parent
 rows = []
 files = []
@@ -59,7 +60,7 @@ matched = []
 unexpected = []
 generated_files = set()
 for file, engine, status, output in rows:
-    if f"/out/{tag}/" not in file:
+    if f"/out/{output_tag}/" not in file:
         continue
     generated_files.add(file)
     name = Path(file).name

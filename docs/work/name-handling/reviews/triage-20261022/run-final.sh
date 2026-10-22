@@ -29,16 +29,18 @@ PY
 [ -x "$exe" ] || exit 2
 rm -f rust/tcl-spectcl/tests/zz_review_probe.rs
 failed=0
-for filter in n01_identity n02_jim n03_variables n04_import_rename n05_forced_import n05_control_plain_rename n06_collisions n06_sibling_profile_matrix n07_speculative_var n08_inliner n08_unit_inference n09_compiler_facts n10_classes n11_packages n12_incremental n13_source_env n14_semantic_tokens n15_minify n16_providers n17_template_registration n17_live_hook n17_control_mylib rename_with_registry seam_; do
+for filter in rename_with_registry n01_identity n02_jim n03_variables n04_import_rename n05_forced_import n05_control_plain_rename n06_collisions n06_sibling_profile_matrix n07_speculative_var n08_inliner n08_unit_inference n09_compiler_facts n10_classes n11_packages n12_incremental n13_source_env n14_semantic_tokens n15_minify n16_providers n17_template_registration n17_live_hook n17_control_mylib seam_; do
     printf '\nCASE %s %s\n' "$filter" "$(date -u)" >> "$log"
-    timeout 600 "$exe" "$filter" --nocapture --test-threads=1 >> "$log" 2>&1
+    budget=600
+    case "$filter" in rename_with_registry|n15_minify) budget=1200;; esac
+    timeout "$budget" "$exe" "$filter" --nocapture --test-threads=1 >> "$log" 2>&1
     status=$?
     printf 'CASE_EXIT %s exit=%s %s\n' "$filter" "$status" "$(date -u)" >> "$log"
     if [ "$status" -ne 0 ]; then failed=1; fi
 done
 cleanup
 # Repeat the user's named existing fold control on this same checkout.
-df -h / >> "$log"
+{ date -u; git rev-parse HEAD; sha256sum rust/tcl-compiler/src/const_subst.rs; df -h /; } >> "$log"
 cargo test --locked -p tcl-spectcl --test pack_source_e2e a_pack_file_folds_a_call_site_in_the_optimiser -- --nocapture --test-threads=1 >> "$log" 2>&1
 status=$?
 rm -f "$target_dir"/debug/deps/pack_source_e2e-*

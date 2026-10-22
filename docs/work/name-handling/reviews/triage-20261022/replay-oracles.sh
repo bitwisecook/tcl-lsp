@@ -4,7 +4,8 @@ set -u
 cd "$(git rev-parse --show-toplevel)"
 E="$PWD/docs/work/name-handling/reviews/triage-20261022"
 tag="${1:?provide the output run tag}"
-log="$E/$tag-oracles.log"
+log_tag="${2:-$tag}"
+log="$E/$log_tag-oracles.log"
 {
     date -u
     git rev-parse HEAD

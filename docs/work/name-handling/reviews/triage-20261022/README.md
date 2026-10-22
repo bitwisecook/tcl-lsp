@@ -4,6 +4,7 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 
 | Item | What it is |
 | --- | --- |
+| `run14-progress.log`, `run14-source-audit.log`, `run14-rename-oracles.log`, `run14-rename-oracle-summary.json` | Post-R1 matrix and current final-replay prefix on 49b067ce; 198 engine executions / 12 matching-profile checks of early edits, no unexpected result. Main replay remains active. |
 | `run13-n17-install*`, `owner-n17-public-axes-excerpt.log` | Post-cleanup hooks install with no decline and retained tcl8.6; API still yields no fold. Owner receipt separately reports missing preflight-provider execution refusal. 174 engine executions / 48 matched output checks pass. |
 | `watch-r1.sh` | Bounded fetch-only source-change monitor; never changes the checkout, writes active log outside git. |
 | `run12-n17-profile*`, `tcl/n17-ascii-hook.tcl` | Exact guarded control fails direct/optimiser folding with both DSLs, dialect options and return variants; all six engines compute 5. 174 engine executions / 48 matched checks, no unexpected output. |
