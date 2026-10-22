@@ -14,4 +14,6 @@ One file per implementation agent, each maintained by that agent. Each lists wha
 | review-triage | External review replay | [review-triage.md](review-triage.md) |
 | coordinator | Routing, snapshots, status, release gate | [coordinator.md](coordinator.md) |
 
+Each file ends with a `## Resume` section (where to pick up, exact commands, where evidence is stored in the repo) so the work survives a restart.
+
 Rules: an agent edits only its own file; it updates it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes; the coordinator's 30-minute WIP snapshot commits and pushes every file here, and checks that each active agent's "Last updated" is no older than an hour.
