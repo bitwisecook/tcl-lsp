@@ -126,7 +126,7 @@ Removed:
 - `native_variable_names.rs:13` (`native_unset`).
 
 The `#[cfg(test)]` modules' attributes and the unflagged ones are untouched. There is no
-runtime change. COMPILE-CHECK
+runtime change. **Not yet compile-checked**: the runtime build is the next step after the pause.
 
 ### 1.6 SpecTcl example ports and goldens
 
@@ -163,7 +163,78 @@ runtime change. COMPILE-CHECK
   none; state_transitions {}; result_stability ReferentiallyTransparent; traits {PURE
   CSE_CANDIDATE} }`. This is the shipped two-word, pure form, which has no `-failindex`.
 
-GOLDENS
+Goldens were regenerated twice. Each time I used a temporary probe that runs exactly
+`golden::render(evaluate_pack(source))` → `golden::golden_path` over
+`golden::shipped_packs`, which is what `rust/xtask/src/pack_goldens.rs` does. I did not
+run `cargo xtask pack-goldens` itself, because of disk; CI's golden check is the backstop.
+The orphan check found 25 goldens and 25 packs, matched by name.
+
+**Pass 1** (the coordinator accepted every class):
+- **1367 command lines are digest-only.** I dropped the CommandSpec fields added since the
+  golden commit `ca698d87c8` and restored the old field order (CommandSpec went from 125
+  to 143 fields, and 37 structs changed). The xxh3 of that rendering reproduces the
+  recorded digest exactly. The struct changes come from the `spec.rs` commits on `work`:
+  `944d156922`, `9d4f72634f`, `4d727e4fe1`, `6c7b06f97f`, `b9fd2b9ac0`, `660d2858bc`,
+  `fd63ff1d26`, `22572db4c6`, `4a9d6c2ae6`, `a1332643cb`, `a3e3d7949c`, `60500bb166`,
+  `191284784c`, `fe7fe4d3a5`, `ab88e9f0df`, `f1e36d8d60`, `5a8dfde489`, `a3c6e6856b`,
+  `3fd8d08e4a`.
+- **148 command lines are the fold of §1.1** (eda_microchip 50, eda_xilinx 58, upf 40).
+  They are exactly the set of commands with a backslash-newline inside a braced row word.
+- **foreach**: the notice moves from line 49 to 52. 52 is the physical `lowering_hook` row;
+  the old golden was wrong.
+- **oo-class**: the port changes listed above. Registrations go 3→2, notices 9→0,
+  `commands 1`.
+- The per-pack table is in `vm-runtime/gold/table.md`, and the scripts are
+  `vm-runtime/gold/*.py`.
+
+**Pass 2, after the port pass.** Only foreach, lsort, return, string, switch and upvar
+changed, and only in their intended spec digests plus the line shifts of the comment rows
+I added. lsort's header moved from `speclib tcl 1.1` to `2.1`, because `-positionals` (2.1)
+and `script_lookup_scope` (2.0) drew "newer vocabulary" notices under 1.1. Its spec digest
+is identical with and without the bump.
+
+### 1.8 Thread-exit abort (priority bug from the lsp agent)
+
+**Symptom.** A tokio worker exits and its `pack_hooks` `HOST` thread-local drops
+`HookHost<TclVmEngine>`. That drops the `Vm` and its `Value`s, and
+`native_retirement::release` calls `PENDING.with` on the already-destroyed retirement
+queue. The resulting panic inside a destructor aborts the process (SIGABRT). It killed
+the tcl-lsp-server lib test process after about 221 tests.
+
+**Fix.** Every thread-local with a destructor that a drop path touches now uses
+`LocalKey::try_with`:
+- `native_retirement::release`: if the queue is gone, the detached header is leaked
+  (`mem::forget`), because dropping it would recurse into dead TLS. `RetirementDrain` and
+  the pop loop are fallible in the same way.
+- `native_jim_pool` `ScopeOwner::drop` and `construct` (`ENTERED`).
+- `DoubleFormatContext::for_dialect` (`DOUBLE_PRECISIONS`), which falls back to a fresh
+  cell at the release default.
+
+Thread-locals that are const `Cell`s without a destructor (`DRAINING`, tcl_syntax number
+`SYNTAX`/`PRINT`) are always accessible, so they were left alone.
+
+**Regression test.** `rust/tcl-vm/tests/thread_exit_retirement.rs`, 2/2.
+- A thread-local `RefCell<Option<Vm>>` is registered before the VM's own thread-locals, so
+  it drops after them. It holds a 64-deep native list.
+- A control test checks that a VM dropped while the thread lives still retires its values.
+- **Negative control:** with only `release` reverted to `PENDING.with`, the binary aborts
+  with exactly the reported "cannot access a Thread Local Storage value during or after
+  destruction: AccessError" (exit 134).
+
+### 1.9 UPF hook coverage (review C.2)
+
+New test `rust/tcl-spectcl/tests/upf_hooks.rs`, 2/2. It takes all 17 executable bodies of
+`specs/upf.tclspec` through the production plan (`hooks::plan_for` over bundled `specs/`)
+and runs them on the production `tclvm_host` with exact expected answers:
+- **15 option-arity hooks with an optional `TRUE|FALSE` value**:
+  - TRUE/FALSE → `consume 1`;
+  - "maybe", a following `-option`, or the end of the words → `consume 0`.
+- **`-feedthrough`, which takes an optional name**: a name → `consume 1`; `-x` or the end →
+  `consume 0`.
+- **The `define_power_model` arg-role resolver**: it marks the trailing word as Body (the
+  1- and 3-index cases), and abstains for a one-word call.
+
+The test also asserts that there are exactly 16+1 bodies and that none is declined.
 
 ### 1.7 tcl-spec-studio tests (no owner; coordinator direction)
 
@@ -189,12 +260,75 @@ GOLDENS
 
 ## 2. Verification
 
-RESULTS
+| Target | Before | After | Notes |
+|---|---|---|---|
+| eval_loader | 24/28 (Sol-48); 27/1/28 (validation, c4fa23c53d) | **28/28** | §1.1 |
+| golden_packs | 1/2/3 (validation) | **3/3** | regenerated goldens, §1.6 |
+| pack_source_e2e | 3/6 | 3/6 | compiler-side, §3; same 3 tests |
+| spec_corpus | not run | 2/5 | the 3 failures are compiler-side or a watchdog budget verdict, §3 |
+| pack_is_real_tcl | not run | **1/1** | |
+| codegen_stamps | 1/28 | 5 ok / 23 failed / 1 capped at 1500 s | +4 from §1.2, no regressions; the rest are compiler-side |
+| upf_hooks (new) | — | **2/2** | §1.9 |
+| tcl-spec-studio spectcl_ports | 10/12 | **12/12** | §1.7 |
+| tcl-spec-studio pack_store | 6/7 | **7/7** | §1.7 |
+| tcl-vm thread_exit_retirement (new) | — | **2/2** | §1.8 |
+| jim_document | — | 9/17/26 | no baseline; Jim class analysis, not yet triaged |
+
+Not run, because I was paused at 13:09Z:
+- jim_own_surface, jim_surface_roster, jim_generation_zero, jim_seed_after_publish;
+- eda_loadables, eda_environment_packs;
+- runtime/rust, both configurations;
+- tcl-vm lib (Sol-48 baseline 1107/1387, per-test statuses in
+  `vm-runtime/sol48-baseline/`);
+- tcl-engine-tclvm lib, embed_api_e2e;
+- clippy.
+
+The per-test statuses of every run are in `vm-runtime/runs/`.
+
 
 ## 3. Compiler-side root causes (reported to the coordinator)
 
-COMPILER
+Each item was reported to the coordinator, who routed it.
+
+1. **Default compile refuses everything.** `BytecodeCompileService::default().compile(src)`
+   returns `NativeCompilationAdmission(NativePreflightRequired)` for every source, even
+   `set x 1`. codegen_stamps' `prepare()` hits this.
+2. **Whole-module compile loses procedures and pack specialisation.** `compile_for_profile`,
+   on both the plain and the overlay service, emits no procedures or procedure provenance
+   and binds nothing. So:
+   - pack alias/codegen_hook stamps produce no `BuiltinAlias` claim;
+   - `const_fold` produces no `PackFacts` claim;
+   - nothing is inlined.
+
+   That is 16 codegen_stamps tests at "original compiled fixture procedure". The raw
+   lowering pipeline gives `ProviderRequired`, and the VM refuses it.
+3. **Pack const_fold hooks never run.** The optimiser (`optimise_raw`) never invokes
+   installed pack const_fold hooks: no O129, with empty host error and crash logs. This
+   breaks pack_source_e2e's fold test and spec_corpus's hostile pack ("0/0 attempted").
+4. **The engine sandbox refuses some string bodies.** It refuses `string cat` and
+   `string is` with `NativePreflightRequired` on the entry-aware route, while
+   `string length`, `string match`, `lindex` and `expr` work. A plain
+   `compile_procedure_for_profile` of the same bodies passes. This breaks pack_source_e2e's
+   reference and derived body tests.
+5. **Shared analysis misses I230.** spec_corpus `shared_unit_matches_legacy…`: for tcl8.6
+   `if {$value}`, legacy gives I230 and shared gives nothing.
+6. **codegen_stamps matrix test is too slow.** `every_shape_of_inlined_body…` takes more
+   than 25 min, because every `compile_script_with_entry` re-assembles `ContextRegistry`.
+   This is lowering cost.
+7. **N17**: codegen `$a:b` variable grammar → wrong registration.
+8. **`install.rs` native_compilation for pack rows**: compiler-codegen's change, which most
+   remaining codegen_stamps failures wait on.
+
 
 ## 4. Not done / remaining
 
-REMAINING
+- Everything listed under "Not run" in §2. The Resume section of
+  `docs/work/name-handling/outstanding/vm-runtime.md` gives the exact commands.
+- Triage of the `jim_document` failures (`vm-runtime/runs/after8.jim_document.failures.txt`).
+- `cmd_package`: there is no test for the protocol-release change, because no cheap fixture
+  exists. `set_runtime_version` re-pins the profile, so the two releases only diverge for
+  an authored package provider.
+- `spectcl_ports`: the report prints `[stale]` rows only on failure. I did not check
+  whether any documented row now matches.
+- The previous agent's §2.3 parked items stay parked under the scope decision.
+

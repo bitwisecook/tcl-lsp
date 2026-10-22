@@ -63,3 +63,7 @@ The probe compares O129 output for the pack registry (`registry_for_dialect_with
 - `string cat` native compiler (registry + codegen + runtime/rust); registry filter 4/4 (base 3/4).
 - `dict update`/`dict with` release_compiled.
 - Measured before → after (same binary, toggle): codegen_stamps 3/28 → 5/28 (heavy matrix skipped), tcl-vm word_value 3/3 → 3/3, mathfunc 7/9 → 7/9, cmd_string 13/51 → 13/51, tcl-debugger lib 17/17 → 17/17; tcl-compiler lib filters (compile_service, codegen, compiled_preflight, runtime_entry, inlining, optimiser, interprocedural, compilation_unit) 1101 → 1116 ok, 17 gains; 2 pass→fail were the old "missing entry ⇒ provider required" contract tests in codegen/native_failure.rs, rewritten to the user decision (unknown entry keeps the obligation; entry-less fresh compile presents the 8.4 compiler's own rejection, equal to a captured fresh entry's).
+
+## Coordinator note (2026-10-22T13:25Z)
+
+`optimiser/const_subst.rs` is assigned to compiler-codegen (`user-decisions-20261022T1317Z.json`; the user asked the coordinator to choose). Confirm the hypothesis with the fold probe first, then apply the proposed fix: the world barrier applies only to a declared `world_effects` footprint. Add a regression test showing that an undeclared-effect pack hook folds only the call it replaces, and that every other call stays fail-closed.
