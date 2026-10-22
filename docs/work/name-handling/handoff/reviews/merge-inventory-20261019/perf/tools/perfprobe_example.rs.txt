@@ -25,7 +25,9 @@ fn generate(kind: &str, n: usize) -> String {
         "upvar" => {
             s.push_str("proc inc {name} {upvar 1 $name v; incr v}\n");
             for i in 0..n {
-                s.push_str(&format!("proc c{i} {{}} {{set x{i} 1; inc x{i}; return $x{i}}}\nc{i}\n"));
+                s.push_str(&format!(
+                    "proc c{i} {{}} {{set x{i} 1; inc x{i}; return $x{i}}}\nc{i}\n"
+                ));
             }
         }
         _ => panic!("kind"),
@@ -33,11 +35,20 @@ fn generate(kind: &str, n: usize) -> String {
     s
 }
 
-fn analyse_mode(src: &str, dialect: &str, old: bool) -> (u128, tcl_compiler::analyser::AnalysisResult) {
+fn analyse_mode(
+    src: &str,
+    dialect: &str,
+    old: bool,
+    input: Option<&tcl_compiler::analyser::ResolvedAnalysisInput>,
+) -> (u128, tcl_compiler::analyser::AnalysisResult) {
     tcl_compiler::realm::ZZ_NO_MEMO.store(old, Ordering::Relaxed);
     tcl_lexer::ZZ_OLD.store(old, Ordering::Relaxed);
     let t = Instant::now();
-    let r = Analyser::new().analyse(src, dialect);
+    let mut analyser = Analyser::new();
+    if let Some(input) = input {
+        analyser = analyser.with_resolved_input(input.clone());
+    }
+    let r = analyser.analyse(src, dialect);
     let ms = t.elapsed().as_millis();
     tcl_compiler::realm::ZZ_NO_MEMO.store(false, Ordering::Relaxed);
     tcl_lexer::ZZ_OLD.store(false, Ordering::Relaxed);
@@ -49,24 +60,102 @@ fn diff(r0: &tcl_compiler::analyser::AnalysisResult, r1: &tcl_compiler::analyser
     let d1: Vec<_> = r1.diagnostics.iter().map(|d| format!("{d:?}")).collect();
     eprintln!("MISMATCH diagnostics_equal={}", d0 == d1);
     if std::env::var_os("ZZ_DIFF").is_some() {
-        let a = format!("{r0:#?}");
-        let b = format!("{r1:#?}");
-        let sa: std::collections::BTreeSet<&str> = a.lines().collect();
-        let sb: std::collections::BTreeSet<&str> = b.lines().collect();
-        for l in sa.difference(&sb).take(15) { eprintln!("- {l}"); }
-        for l in sb.difference(&sa).take(15) { eprintln!("+ {l}"); }
+        // Only diagnostics: the complete AnalysisResult PartialEq remains the verdict.
+        // Formatting the complete retained graph duplicates its shared subgraphs.
+        macro_rules! field {
+            ($name:ident) => {
+                if r0.$name != r1.$name {
+                    eprintln!("FIELD_DIFF {}", stringify!($name));
+                }
+            };
+        }
+        field!(analysis_context_unavailable);
+        field!(resolved_input);
+        field!(global_scope);
+        field!(all_procs);
+        field!(original_procedure_metadata);
+        field!(proc_declaration_sites);
+        field!(superseded_procs);
+        field!(all_classes);
+        field!(original_class_metadata);
+        field!(original_class_configuration_metadata);
+        field!(original_object_configuration_metadata);
+        field!(superseded_classes);
+        field!(class_body_spans);
+        field!(all_variables);
+        field!(all_defined_symbols);
+        field!(diagnostics);
+        field!(command_invocations);
+        field!(package_requires);
+        field!(package_provides);
+        field!(package_ifneededs);
+        field!(package_prefer_latest);
+        field!(has_dynamic_providers);
+        field!(source_targets);
+        field!(path_constant_assignments);
+        field!(command_aliases);
+        field!(alias_offsets);
+        field!(renamed_commands);
+        field!(rename_offsets);
+        field!(ensemble_subcommand_targets);
+        field!(prefixless_ensembles);
+        field!(namespace_imports);
+        field!(namespace_forgets);
+        field!(destroyed_commands);
+        field!(namespace_exports);
+        field!(namespace_paths);
+        field!(namespace_path_computed);
+        field!(auto_path_entries);
+        field!(qualified_var_refs);
+        field!(original_variable_symbols);
+        field!(original_variable_write_advice);
+        field!(original_variable_symbol_conflicts);
+        field!(namespace_refs);
+        field!(namespace_name_unknowns);
+        field!(dynamic_variable_names);
+        field!(namespace_overrides);
+        field!(stub_commands);
+        field!(stub_expr_defs);
+        field!(regex_patterns);
+        field!(suppressed_lines);
+        field!(unknown_proc_info);
+        field!(instance_classes);
+        field!(created_instance_commands);
+        field!(instance_command_bindings);
+        field!(ambiguous_instance_names);
+        field!(object_methods);
+        field!(object_member_state);
+        field!(unresolved_command_sites);
+        field!(scoped_command_regions);
+        field!(scoped_sibling_defs);
+        field!(hierarchy_cache);
+        field!(dialect);
+        field!(body_lexer_config);
+        field!(library_versions);
+        if r0.retained_command_realm() != r1.retained_command_realm() {
+            eprintln!("FIELD_DIFF command_realm");
+        }
+        if r0.original_completed_command_world() != r1.original_completed_command_world() {
+            eprintln!("FIELD_DIFF original_command_world");
+        }
     }
 }
 
 /// old1, new, old2: `det` is old1 == old2; `eq` is new == old2 (or old1).
 fn run(src: &str, dialect: &str, compare: bool) -> (u128, u128, bool) {
+    let retained_input = std::env::var_os("ZZ_RETAIN_INPUT").is_some().then(|| {
+        Analyser::new()
+            .prepare_analysis_input(dialect)
+            .expect("complete available input")
+    });
+    let input = retained_input.as_ref();
     if !compare {
-        let (ms, _) = analyse_mode(src, dialect, false);
+        let (ms, _) = analyse_mode(src, dialect, false, input);
         return (ms, 0, true);
     }
-    let (_, old1) = analyse_mode(src, dialect, true);
-    let (new_ms, new) = analyse_mode(src, dialect, false);
-    let (old_ms, old2) = analyse_mode(src, dialect, true);
+    let (_, old1) = analyse_mode(src, dialect, true, input);
+    let (new_ms, new) = analyse_mode(src, dialect, false, input);
+    let (old_ms, old2) = analyse_mode(src, dialect, true, input);
     let det = old1 == old2;
     let eq = new == old2 || new == old1;
     if !det {
@@ -96,7 +185,10 @@ fn main() {
                     if !eq {
                         bad += 1;
                     }
-                    println!("{} memo_ms={m} plain_ms={p} eq={eq} {path}", if eq { "OK" } else { "BAD" });
+                    println!(
+                        "{} memo_ms={m} plain_ms={p} eq={eq} {path}",
+                        if eq { "OK" } else { "BAD" }
+                    );
                 }
                 Err(_) => {
                     bad += 1;

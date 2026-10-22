@@ -1,0 +1,9 @@
+{
+  "production_base": "8a01a718 + full batch forced old by ZZ_OLD_ENV=1",
+  "old1_equals_old2": false,
+  "middle_old_matches_either_old": false,
+  "diagnostics_equal": true,
+  "proof": "The existing full AnalysisResult PartialEq computed false before entering the diagnostic formatter. No field was removed from the equality check.",
+  "diagnostic_formatting": "Cancelled expensive whole-graph Debug formatting after the mismatch was recorded; future diagnostic probe reports field equality without formatting the complete graph.",
+  "complete_corpus_verdict": "blocked; old-only nondeterminism requires investigation, not a batch regression verdict."
+}

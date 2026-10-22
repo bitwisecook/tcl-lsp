@@ -7,12 +7,12 @@ The clean split patches are refreshed: six perf-owned files, two compiler-owned
 files, no temporary switch and no new Clippy allowance. The formal-advice memo
 API also compiles independently of the routed realm caller.
 
-Current evidence (2026-10-22 16:18 UTC):
+Current evidence (2026-10-22 16:52 UTC):
 
-- origin/rust `fcb7927f` timings complete for 102 Tcl + 15 iRules, synthetic
+- origin/rust `fcb7927f` timings cover 101 original UTF-8 Tcl inputs plus the added class fixture (102 text cases), and all 15 iRules; the original byte fixture is a separate native codegen control. Also synthetic
   calls/procs/upvar, all four tclIndex prefixes and ordinary LSP shapes.
 - lexer lib: 583 passed / the same 3 failed in each switch mode; zero pass-to-fail.
-- full ordered PackSet Debug comparison PASSED at base 8a01a718, deterministic old runs. Corpus still running, completed rows exactly equal; tclIndex 10/40/100 equal, 253 pending. Ordinary LSP measurements complete. Latest e4a01bbe proof build and lexer/compiler runs started in separate evidence directory. Initial SpecTcl eval_loader has the same 26 pass / 2 fail in both modes, but one failure is missing sparse pack inventory; complete-input rerun is queued. Golden interpreter control is active. Compiler/server verdicts remain pending.
+- full ordered PackSet Debug comparison PASSED at base 8a01a718, deterministic old runs. Base corpus blocked by all-old aliases nondeterminism and an intentional byte fixture in the text roster (now separated, preserving native coverage); tclIndex 10/40/100 equal, 253 pending. Ordinary LSP measurements complete. Latest e4a01bbe proof build and lexer/compiler runs started in separate evidence directory. Initial SpecTcl eval_loader has the same 26 pass / 2 fail in both modes, but one failure is missing sparse pack inventory; complete-input rerun is queued. Golden interpreter control is active. Compiler/server verdicts remain pending.
 - Clippy: cleaned owned-only snapshot has zero diagnostics in the six owned files; 783 diagnostics elsewhere remain. No workspace-green claim.
 - `perf-analyser-images.patch` plus `perf-analyser-segments.patch`: unproven compiler-names drafts, not applied; see residual-routing.md.
 

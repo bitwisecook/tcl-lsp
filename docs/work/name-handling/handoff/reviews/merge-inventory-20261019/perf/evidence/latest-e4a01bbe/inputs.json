@@ -19,5 +19,8 @@
     "perf-owned.patch": "90b9958661276a302d901d67fdc86c98ebb8abccb85a9ef5704fb811cae9fc76"
   },
   "profiles": "optimized probes: opt-level=1, line tables, debug assertions; test profile: opt-level=0, debug=0; all incremental=0",
-  "previous_binaries": "8a01a718 proof binaries retain distinct filenames and input bytes; new build does not overwrite them"
+  "previous_binaries": "8a01a718 proof binaries retain distinct filenames and input bytes; new build does not overwrite them",
+  "target_dir": "/workspace/tcl-lsp-work/target-latest",
+  "corpus_manifest_sha256": "1af1d00ff415d77d7da1a8441b63b664acd8cd2d834c730f455c383b678875c0",
+  "corpus_audit": "../corpus-roster-audit.json"
 }

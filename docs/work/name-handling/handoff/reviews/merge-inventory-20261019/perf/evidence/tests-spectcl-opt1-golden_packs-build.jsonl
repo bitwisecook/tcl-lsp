@@ -1,0 +1,2 @@
+{"$message_type":"diagnostic","message":"crate `tcl_compiler` required to be available in rlib format, but was not found in this form","code":null,"level":"error","spans":[],"children":[],"rendered":"error: crate `tcl_compiler` required to be available in rlib format, but was not found in this form\n\n"}
+{"$message_type":"diagnostic","message":"aborting due to 1 previous error","code":null,"level":"error","spans":[],"children":[],"rendered":"error: aborting due to 1 previous error\n\n"}

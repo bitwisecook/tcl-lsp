@@ -123,3 +123,11 @@ and must not be used as an uninstrumented latency ratio. The captured stack
 is index100-live-stack-symbols.out. The separate PackSet control compares the
 complete ordered Debug structures, not sorted lines: deterministic=true and
 equal_complete_debug=true (packset-base-8a01a718-threeway.out).
+
+Corpus audit: the original 102-path roster produced only 101 origin analysis
+rows; native_deep_array_word.tcl contains intentional non-UTF-8 bytes. The
+corrected ordinary roster adds classes.tcl, whose origin time is 740 ms, for
+102 text inputs. The byte fixture remains a separately tested native-codegen
+control; see corpus-roster-audit.json. The ordinary LSP rows above are
+provisional: they asserted surviving lenses but must be repeated with the new
+positive-reference-title assertion before ruling out unavailable reports.

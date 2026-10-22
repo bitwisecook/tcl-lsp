@@ -28,3 +28,7 @@ test the_block_readers_still_report_from_the_evaluated_path ... ok
 test the_new_two_point_oh_words_load_identically_on_both_routes ... ok
 test the_ratified_words_load_identically_on_both_routes ... ok
 test every_shipped_pack_loads_identically_with_and_without_the_static_fast_path has been running for over 60 seconds
+test every_shipped_pack_loads_identically_with_and_without_the_static_fast_path ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2613.62s
+

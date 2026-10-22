@@ -170,3 +170,11 @@ det=false
 BAD memo_ms=16793 plain_ms=10497 eq=false rust/tcl-compiler/tests/data/name-consumers/aliases.tcl
 det=true
 OK memo_ms=18006 plain_ms=25366 eq=true rust/tcl-compiler/tests/data/native_source_normal_results/source.tcl
+det=true
+OK memo_ms=7352 plain_ms=19351 eq=true rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/probe.tcl
+det=true
+OK memo_ms=20492 plain_ms=25965 eq=true rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/path_stop.tcl
+
+thread 'main' (25135) panicked at rust/tcl-compiler/examples/zz_perfprobe.rs:101:53:
+every corpus input must be readable: Error { kind: InvalidData, message: "stream did not contain valid UTF-8" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

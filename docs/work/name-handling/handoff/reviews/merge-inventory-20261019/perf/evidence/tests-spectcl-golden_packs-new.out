@@ -23,4 +23,3 @@ failures:
     every_shipped_pack_upgrades_to_2_0_and_loads_identically
 
 test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3537.36s
-

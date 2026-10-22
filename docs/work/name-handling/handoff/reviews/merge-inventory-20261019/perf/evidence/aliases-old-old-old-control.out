@@ -1,0 +1,2 @@
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_equal=true

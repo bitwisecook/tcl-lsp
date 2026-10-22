@@ -84,7 +84,6 @@ rust/tcl-compiler/tests/data/name-consumers/aliases.tcl
 rust/tcl-compiler/tests/data/native_source_normal_results/source.tcl
 rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/probe.tcl
 rust/tcl-compiler/tests/data/native_namespace_unknown_lookup/path_stop.tcl
-rust/tcl-compiler/tests/data/native_deep_array_word.tcl
 rust/tcl-compiler/tests/data/native_double_completion/source.tcl
 rust/tcl-compiler/tests/data/native_deep_array_source.tcl
 rust/tcl-compiler/tests/data/native_integer_contents_results/source.tcl
@@ -100,3 +99,4 @@ tests/fixtures/tcl9/completion-options-alias.tcl
 tests/fixtures/tcl9/array-get-read-traces.tcl
 tests/fixtures/tcl9/expanded-command-head.tcl
 tests/external/backend_constraints.tcl
+rust/tcl-compiler/tests/data/name-consumers/classes.tcl

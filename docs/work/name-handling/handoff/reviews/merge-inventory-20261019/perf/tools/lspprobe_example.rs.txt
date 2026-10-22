@@ -48,6 +48,9 @@ fn main() {
             let lenses = tcl_lsp_core::code_lens::code_lenses(&source, profile, Some(&analysis), None, uri);
             let lenses_us = start.elapsed().as_micros();
             assert_eq!(lenses.len(), n, "an unavailable provider is not a fast successful result");
+            assert!(lenses.iter().all(|lens| matches!(lens.command_title.as_str(), "1 reference" | "at least 1 reference")),
+                "each fixture procedure must retain its one positive call; unavailable reports are not a speedup: {:?}",
+                lenses.iter().map(|lens| &lens.command_title).collect::<Vec<_>>());
             black_box(lenses);
             println!("document n={n} repetition={repetition} analyse_us={analyse_us} index_us={index_us} existence_100_us={existence_us} lenses_us={lenses_us}");
         }

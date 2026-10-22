@@ -4,5 +4,11 @@
     "seconds": 1482.833,
     "passed": 28,
     "failed": 0
+  },
+  "eval_loader/old": {
+    "returncode": 0,
+    "seconds": 2614.057,
+    "passed": 28,
+    "failed": 0
   }
 }

@@ -108,6 +108,7 @@ for stage, (package, targets, suites) in stages.items():
                     except subprocess.TimeoutExpired:
                         code = "timeout180"
                 text = log.read_text()
+                log.write_text(text.rstrip() + "\n")
                 rows = dict(re.findall(r"^test (.+?) \.\.\. (ok|FAILED|ignored)$", text, re.M))
                 if expected_server_tests is not None:
                     assert set(rows) <= expected_server_tests, f"unexpected tests in {log}"

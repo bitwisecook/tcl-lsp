@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 16:18 UTC
+Last updated: 2026-10-22 16:52 UTC
 
 Maintained by the perf agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -37,13 +37,27 @@ allowance. The corpus probe now fails on unreadable inputs, panics and
 mismatches. The PackSet probe compares the entire Debug structure in an
 old1/new/old2 run, preserving order and field association.
 
-All **102 `.tcl` + 15 `.irul` inputs are present**. The origin/rust timing run
+The original 102-path Tcl roster contained **101 UTF-8 sources and one
+intentional byte-native input** (native_deep_array_word.tcl contains 0xff).
+The old baseline silently skipped it; the original claim of 102 timed analyses
+was incorrect. corpus-original-102.txt preserves that exact roster. The current
+corpus.txt retains all 101 text inputs and adds name-consumers/classes.tcl,
+for 102 genuine AnalysisResult cases. corpus-native-bytes.txt retains the
+original byte input, exercised with its existing native codegen test in both
+modes. The added origin timing completed (740 ms). corpus-roster-audit.json
+records exact counts, hashes and channels; no lossy UTF-8 decoding is used.
+All **102 text `.tcl` + 15 `.irul` inputs are present**. The origin/rust timing run
 has completed on all of them, the synthetic cases, exact Tk tclIndex prefixes,
 and actual LSP document/index/existence/code-lens and source-chain shapes.
 These baseline timing-only rows do not compare AnalysisResult across branches.
 The optimized base-8a01a718 build finished in 90m 59s. Its full-batch
-old/new/old corpus run is executing; completed rows remain equal, not a complete
-corpus verdict. A separate complete ordered PackSet Debug comparison PASSED:
+old/new/old corpus run STOPPED: the aliases.tcl case does not equal either
+old result (diagnostics match), then strict UTF-8 reading rejected the byte
+fixture. No complete corpus verdict. An all-old control (ZZ_OLD_ENV=1) also
+computes old1 != old2 and middle != either endpoint, so this is not yet a batch
+regression. The expensive full Debug rendering was stopped only after the
+complete PartialEq returned false; aliases-old-only-control-classification.json
+records that fact. No equality assertion is weakened. A separate complete ordered PackSet Debug comparison PASSED:
 old1=62828 ms, new=25493 ms, old2=120495 ms, deterministic=true,
 equal_complete_debug=true. Exact output: packset-base-8a01a718-threeway.out.
 10/40/100-line tclIndex results are exactly equal; the 253-line old run is
@@ -76,6 +90,29 @@ and two routed files, no switch. `tools/refresh_patches.py ROOT --snapshot
 /tmp/perf-clean-batch --check-toggled` reproduces the proof tree byte-for-byte.
 
 ## In progress
+
+- Alias field diagnostics: /tmp/perf-alias-diagnostic-build.log, command waiting
+  for the latest compiler test build to finish in target-tests, then builds
+  zz_diagprobe with the same normal test-profile libraries. It runs old-only
+  and old/new/old with both ordinary ingress and one retained complete input
+  generation (ZZ_RETAIN_INPUT=1). The latter is diagnostic, not yet the corpus
+  verdict. The probe now prints differing public field names plus retained
+  realm/world equality rather than formatting the complete shared graph.
+  All final verdicts still use the complete AnalysisResult PartialEq.
+- Native-byte fixture control waits for that same compiled compiler test binary,
+  copies it privately, and runs native_array_indices_emit_iteratively_from_the_full_original_arena
+  in both modes. It asserts the original 2000 array instructions and x-ff literal
+  through the existing test, with no changed Rust assertions. Results go under
+  evidence/latest-e4a01bbe/tests-compiler-native-array-bytes-*.out.
+- Latest lexer finished: 583 pass / same 3 fail in both modes; zero pass-to-fail.
+  The base golden new run finished 2 pass / 1 fail after 3537.662 s: eda_xilinx's
+  interpreted upgrade reached its unchanged 30-minute wall-clock budget. Old
+  golden remains active, so no comparison verdict for that suite yet.
+- Ordinary LSP lens rows previously asserted declaration/index/lens survival,
+  which alone cannot exclude unavailable reference reports. The template now
+  ALSO requires each fixture's one positive reference title. Re-run both origin
+  and latest document measurements with that stronger control before reporting
+  the final ordinary-path table. The older rows are provisional for this reason.
 
 - Latest proof build/run: /tmp/perf-run-latest.sh, target-latest, separate
   zz_latest_perfprobe/zz_latest_spectclprobe sources and binaries. Logs:
