@@ -46012,6 +46012,54 @@ info exists ::N::v\uD800";
         );
     }
 
+    /// The discovered-installation leg of the workspace scan, exercised over a
+    /// pinned fixture install (the harness never surveys the host's own Tcl,
+    /// user decision 2026-10-19T11:00Z `product_fixes`): a package under the
+    /// installation's `auto_path` and a `tclIndex` autoload entry both reach
+    /// the resolver, and a rescan reuses the memoised index survey.
+    #[tokio::test]
+    async fn scan_workspace_folders_surveys_a_pinned_discovered_installation() {
+        let sys = TmpWs::new("pinned-install");
+        sys.write(
+            "lib/fixpkg1.0/pkgIndex.tcl",
+            "package ifneeded fixpkg 1.0 [list source [file join $dir fixpkg.tcl]]\n",
+        );
+        sys.write("lib/fixpkg1.0/fixpkg.tcl", "package provide fixpkg 1.0\n");
+        sys.write(
+            "lib/fixpkg1.0/tclIndex",
+            "# Tcl autoload index file, version 2.0\n\
+             set auto_index(fix_helper) [list source [file join $dir fixpkg.tcl]]\n",
+        );
+        let lib_root = sys.0.join("lib");
+        let mut backend = test_backend();
+        assert!(
+            backend.discovered_tcl.get().is_some_and(Vec::is_empty),
+            "the harness presets an empty host-installation survey",
+        );
+        backend.discovered_tcl = Arc::new(std::sync::OnceLock::from(vec![
+            core_tcl_install::TclInstallation {
+                version: "8.6".to_owned(),
+                tcl_library: lib_root.join("tcl8.6"),
+                auto_path: vec![lib_root.clone()],
+            },
+        ]));
+        backend.scan_workspace_folders().await.unwrap();
+        {
+            let resolver = backend.package_resolver.read().await;
+            assert!(resolver.provides("fixpkg"));
+            assert!(
+                resolver.auto_command_names().contains(&"fix_helper"),
+                "{:?}",
+                resolver.auto_command_names()
+            );
+        }
+        let first = backend.package_resolver.read().await.revision();
+        backend.scan_workspace_folders().await.unwrap();
+        let resolver = backend.package_resolver.read().await;
+        assert!(resolver.provides("fixpkg"), "a rescan keeps the survey");
+        assert_ne!(resolver.revision(), first, "a rescan rebuilds the database");
+    }
+
     /// Fix #3: `scan_workspace_folders` must (re)build the package resolver from
     /// the editor library paths / discovered installations EVEN with no workspace
     /// roots, so a single-file / no-folder session's W120 refinement sees the
@@ -47283,7 +47331,13 @@ info exists ::N::v\uD800";
             autoloaded_library_uris: Arc::new(Mutex::new(HashSet::new())),
             rehomed_source_seeds: Arc::new(Mutex::new(HashMap::new())),
             rehoming_gate: Arc::new(tokio::sync::Mutex::new(())),
-            discovered_tcl: Arc::new(std::sync::OnceLock::new()),
+            // The test harness never surveys the machine's own Tcl
+            // installation: what is installed varies by host and its index
+            // survey dominated server test time (user decision
+            // 2026-10-19T11:00Z `product_fixes`: "test backend not scanning
+            // the host install"). Tests that exercise discovered installations
+            // supply a pinned fixture install explicitly.
+            discovered_tcl: Arc::new(std::sync::OnceLock::from(Vec::new())),
             editor_library_paths: Mutex::new(Vec::new()),
             workspace_scan_max_files: Mutex::new(WORKSPACE_SCAN_FILE_CAP),
             package_prefer_latest_default: Mutex::new(false),
