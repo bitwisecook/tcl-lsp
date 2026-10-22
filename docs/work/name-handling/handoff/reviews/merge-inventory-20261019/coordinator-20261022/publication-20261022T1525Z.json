@@ -1,0 +1,55 @@
+{
+  "source_before": "fabfda18ba8e9a6df92a9c7fe07ead9a73cf78ee",
+  "utc": "2026-10-22T15:24:56.565026+00:00",
+  "changed_product_files": {
+    "rust/tcl-lsp-core/tests/lsp_edit_workspace.rs": {
+      "sha256": "1886fedcb411ecd26c538f8a1b0b197662d868bc4088ac5b6a5f6e3c1722b65b",
+      "mtime_ns": 1792681603092385943
+    },
+    "rust/tcl-lsp-server/src/lib.rs": {
+      "sha256": "0828fe1331fda3650ef486350d7fbcce43d6dce00c80b732fb472a1a5c71a5f2",
+      "mtime_ns": 1792681942364560103
+    },
+    "rust/tcl-lsp-server/tests/e2e.rs": {
+      "sha256": "91898596f3bebef2e7e04541f291141d8bb5e4766f218d41794b1f4ab2b29a47",
+      "mtime_ns": 1792682660659666764
+    },
+    "rust/tcl-lsp-server/tests/e2e/naming_lifecycle.rs": {
+      "sha256": "66c4a566eb4f55d8e64c6c61bc3f3c5a8629d6d15112dc664fec8d7b8e24ab97",
+      "mtime_ns": 1792682078059884840
+    }
+  },
+  "outstanding_reported_stamps": {
+    "compiler": "2026-10-22T15:24Z (compiler role resumed in the active checkout)",
+    "vm-runtime": "2026-10-22T15:22Z (blocked on the shared build sequence; shadow lint patch prepared)",
+    "lsp": "2026-10-22T15:21:21Z",
+    "compiler-names": "2026-10-22T15:07Z (agent-reported work only)",
+    "coordinator": "2026-10-22T15:24:34Z",
+    "perf": "2026-10-22 14:38 UTC",
+    "bigip-lsp": "2026-10-22T14:58Z",
+    "compiler-codegen": "2026-10-22T15:06Z (RESUMED; agent-reported, not validation)",
+    "review-triage": "2026-10-22T14:42:43Z"
+  },
+  "external_perf_stamp_from_fetched_work": "2026-10-22T15:16Z",
+  "note": "Source perf ledger is older than publisher ledger. Publication retains the external update; source files and mtimes are not rewritten.",
+  "after_commit": "db2623ed2dbe4e0c8d5302732bf5c7bd55e106b9",
+  "checked_utc": "2026-10-22T15:25:44.816181+00:00",
+  "changed_during_snapshot": [
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_lifecycle.rs",
+      "before": {
+        "sha256": "66c4a566eb4f55d8e64c6c61bc3f3c5a8629d6d15112dc664fec8d7b8e24ab97",
+        "mtime_ns": 1792682078059884840
+      },
+      "after": {
+        "sha256": "89c2f26fe580d567de0ad632faef7cc3f8042653f605dd52c6ad6804623cf808",
+        "mtime_ns": 1792682731345305760
+      }
+    }
+  ],
+  "changed_during_snapshot_note": "The only observed changed file was a test-owner edit making the D3 helper reusable by D1/D2/D5. Git did not rebase or check out any active source file. This is not a whole-source guarded capture.",
+  "published_wip": "24bb8bb2d8eb2ce43679c20e6dfd569c66d042a5",
+  "product_tree_diff": [],
+  "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
+  "release_admission": false
+}

@@ -1,0 +1,8 @@
+{
+  "version": "0.2.129",
+  "archive_url": "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/0.2.129/wasm-bindgen-0.2.129-x86_64-unknown-linux-musl.tar.gz",
+  "sha256": "82d12bb940e2d4e72e0d5605387fc1b8ca179044e012b620f0ce4e7440e8320e",
+  "digest_authority": "GitHub release asset digest from official wasm-bindgen repository",
+  "binary": "/workspace/naming-toolchains/wasm-bindgen-0.2.129-x86_64-unknown-linux-musl/wasm-bindgen",
+  "scope": "Tool availability only; no browser or WASI gate has run."
+}

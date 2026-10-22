@@ -2,7 +2,7 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "fabfda18b",
+  "last_source_snapshot": "db2623ed2dbe4e0c8d5302732bf5c7bd55e106b9",
   "last_published_snapshot": "fabfda18b",
   "source_branch": "work",
   "publisher_branch": "work",
@@ -15,5 +15,8 @@
     "Record source/published commit mapping and diff both trees excluding docs/work/name-handling. Any product divergence must remain explicit and be integrated into active source only between build windows.",
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
-  ]
+  ],
+  "last_published_wip": "24bb8bb2d8eb2ce43679c20e6dfd569c66d042a5",
+  "last_product_tree_diff": [],
+  "source_build_checkout_untouched_by_git": true
 }
