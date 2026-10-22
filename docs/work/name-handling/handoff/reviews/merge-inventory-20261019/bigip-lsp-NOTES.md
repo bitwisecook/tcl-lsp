@@ -43,8 +43,10 @@ as observations of that earlier build; this section is the current status.
   `bigip-lsp/clippy-owned-scoped-20261022.json` and the three blocker indexes
   retain exact commands/locations. Fresh server scoped lint has zero owned findings after five minimal F5
   shared-lib hunks (semicolon, three equivalent assertions, one boxed test
-  future). Generic server findings: 35 normal + 193 test-target messages,
-  including duplicates. Final command is finishing generic registry checks.
+  future), pushed in `d1ebce88` atop newer coordinator changes. Generic
+  server findings: 35 normal + 193 test-target messages, including duplicates;
+  `bigip-lsp/clippy-server-blockers-20261022.json` retains complete locations.
+  Every requested unblocked check is finished; this agent is stopped.
 
 All test executables were built, run and deleted within their wrapping
 command. Source inputs came from Registry/KCS/docs; no F5 runtime behavior

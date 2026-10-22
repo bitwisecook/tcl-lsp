@@ -246,7 +246,7 @@
     "xtask_outside_editor_generator_scope": 53,
     "generic_registry": 176
   },
-  "limits": "Full dependency-inclusive gate still fails in Compiler/VM. Core normal-library has 54 generic findings, zero owned. Server check remains pending until F5 source is restored after the negative comparison. Core test lint is not claimed green.",
+  "limits": "Full dependency-inclusive gate still fails in Compiler/VM. Core normal-library has 54 generic findings, zero owned; core test lint is not claimed green. Completed server normal/test check has zero owned F5 findings, with 35 normal-library plus 193 test-target generic messages (includes duplicates); integration/e2e test lint is gated by generic library failures. Integrated-tip validation remains an external-review section F gate.",
   "environment": {
     "CARGO_INCREMENTAL": "0",
     "CARGO_PROFILE_TEST_DEBUG": "0",
@@ -257,5 +257,13 @@
   "raw_sha256": {
     "bigip-clippy-roots-complete.jsonl": "b3549ce652b5af7e3bd80e1841c6cbeebd0f8afe5c44c1a37c315f993dfee6bb",
     "bigip-clippy-roots-complete-build.log": "edd462893dce7c4ae993fcbff0f56ccfc8bf644b0602ade3b5b30bae4243ca9a"
+  },
+  "server_verification": {
+    "command": "Same selected package graph plus -p tcl-lsp-server; --lib --bins --tests --no-deps -- -D warnings",
+    "exit_code": 101,
+    "owned_f5_server_findings": 0,
+    "generic_diagnostic_messages": 228,
+    "source_sha256": "92f15c40ea163a30d62570ccb99f43de78998c67e96860c95cd219547e4a9675",
+    "receipt": "clippy-server-blockers-20261022.json"
   }
 }

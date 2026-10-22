@@ -1,0 +1,2758 @@
+{
+  "date_utc": "2026-10-22T18:08:48Z",
+  "source": "aeecf397 plus owned lint changes f26f6a06/e4a01bbe/9d6804c9 and the five F5-only lib.rs lint hunks (shared-file SHA-256 below)",
+  "rust": "1.99.1 stable",
+  "command": "cargo clippy --locked --keep-going -p tcl-bigip -p tcl-bigip-io -p tcl-bigip-query -p tcl-irules -p f5-xc -p f5-cli -p tcl-f5mku -p bigip-report-gen-rust -p tcl-registry -p xtask -p tcl-lsp-server --lib --bins --tests --no-deps --message-format=json -- -D warnings",
+  "server_diagnostic_messages": 228,
+  "normal_library_findings": 35,
+  "test_target_findings": 193,
+  "owned_f5_server_findings": [],
+  "scope": "All remaining server messages are in generic provider/code paths or tests, including six in the returned current_diagnostics.rs. Normal-library and test-target messages include duplicates. No edits to generic functions. Entire full gate is not green. Integration/e2e test lint remains gated by the generic library failures. Source-pinned results do not validate later coordinator product changes.",
+  "source_sha256": "92f15c40ea163a30d62570ccb99f43de78998c67e96860c95cd219547e4a9675",
+  "errors": [
+    {
+      "code": "clippy::empty_line_after_doc_comments",
+      "message": "empty line after doc comment",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 19378,
+          "column": 5,
+          "nearest_preceding_function": "resolve_target_locations"
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 26596,
+          "column": 24,
+          "nearest_preceding_function": "diag_inputs"
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 28895,
+          "column": 25,
+          "nearest_preceding_function": "refresh_source_rehoming_locked"
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 29112,
+          "column": 26,
+          "nearest_preceding_function": "open_but_unindexed_symbols"
+        }
+      ]
+    },
+    {
+      "code": "clippy::needless_pass_by_value",
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 186,
+          "column": 14,
+          "nearest_preceding_function": "lens_command"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_enum_variant",
+      "message": "large size difference between variants",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 1251,
+          "column": 1,
+          "nearest_preceding_function": "coarse_semantic_source_changed"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_enum_variant",
+      "message": "large size difference between variants",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 1315,
+          "column": 1,
+          "nearest_preceding_function": "into_index_row"
+        }
+      ]
+    },
+    {
+      "code": "clippy::type_complexity",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 5008,
+          "column": 25,
+          "nearest_preceding_function": "cache_and_enqueue_with_sources"
+        }
+      ]
+    },
+    {
+      "code": "clippy::needless_pass_by_value",
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 7658,
+          "column": 15,
+          "nearest_preceding_function": "lift_report_with_payloads"
+        }
+      ]
+    },
+    {
+      "code": "clippy::type_complexity",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 8670,
+          "column": 13,
+          "nearest_preceding_function": "add_entry_point_diagnostic_consumers"
+        }
+      ]
+    },
+    {
+      "code": "clippy::used_underscore_binding",
+      "message": "used underscore-prefixed binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 8920,
+          "column": 10,
+          "nearest_preceding_function": "publish_diagnostics_result_with_sources"
+        }
+      ]
+    },
+    {
+      "code": "clippy::too_many_arguments",
+      "message": "this function has too many arguments (11/7)",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 12021,
+          "column": 5,
+          "nearest_preceding_function": "publish_admitted_disk_results_while_rehoming_locked"
+        }
+      ]
+    },
+    {
+      "code": "clippy::type_complexity",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 12217,
+          "column": 23,
+          "nearest_preceding_function": "apply_disk_publication"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 31952 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 12526,
+          "column": 9,
+          "nearest_preceding_function": "commit_open_document"
+        }
+      ]
+    },
+    {
+      "code": "clippy::too_many_arguments",
+      "message": "this function has too many arguments (8/7)",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 13158,
+          "column": 5,
+          "nearest_preceding_function": "set_live_db_source_locked"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17096 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 16643,
+          "column": 27,
+          "nearest_preceding_function": "compute_definition"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16792 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 16665,
+          "column": 58,
+          "nearest_preceding_function": "compute_definition"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17496 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 16741,
+          "column": 36,
+          "nearest_preceding_function": "compute_definition"
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 18837,
+          "column": 9,
+          "nearest_preceding_function": "logical_member_source_targets_for_snapshot"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_enum_variant",
+      "message": "large size difference between variants",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 18837,
+          "column": 9,
+          "nearest_preceding_function": "logical_member_source_targets_for_snapshot"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16848 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 18904,
+          "column": 29,
+          "nearest_preceding_function": "logical_class_member_locations_for_snapshot"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16848 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 18929,
+          "column": 29,
+          "nearest_preceding_function": "logical_member_source_hover"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16728 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 19845,
+          "column": 58,
+          "nearest_preceding_function": "reference_locations"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17208 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 21655,
+          "column": 20,
+          "nearest_preceding_function": "cross_file_method_hover"
+        }
+      ]
+    },
+    {
+      "code": "clippy::too_many_arguments",
+      "message": "this function has too many arguments (8/7)",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 21783,
+          "column": 5,
+          "nearest_preceding_function": "add_workspace_resolved_rename_edits"
+        }
+      ]
+    },
+    {
+      "code": "clippy::too_many_arguments",
+      "message": "this function has too many arguments (8/7)",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 27911,
+          "column": 5,
+          "nearest_preceding_function": "report_pack_reload"
+        }
+      ]
+    },
+    {
+      "code": "clippy::too_many_arguments",
+      "message": "this function has too many arguments (9/7)",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 29604,
+          "column": 5,
+          "nearest_preceding_function": "analyse_and_merge_scanned_files"
+        }
+      ]
+    },
+    {
+      "code": "clippy::manual_async_fn",
+      "message": "this function can be simplified using the `async fn` syntax",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 30787,
+          "column": 5,
+          "nearest_preceding_function": "shutdown"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 32008 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 30916,
+          "column": 20,
+          "nearest_preceding_function": "did_open"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 32021,
+          "column": 25,
+          "nearest_preceding_function": "goto_definition"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 32080,
+          "column": 13,
+          "nearest_preceding_function": "goto_declaration"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17096 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 32376,
+          "column": 29,
+          "nearest_preceding_function": "references"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16872 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 32403,
+          "column": 13,
+          "nearest_preceding_function": "references"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16792 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 34800,
+          "column": 54,
+          "nearest_preceding_function": "hover"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17536 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 34863,
+          "column": 30,
+          "nearest_preceding_function": "hover"
+        }
+      ]
+    },
+    {
+      "code": "clippy::empty_line_after_doc_comments",
+      "message": "empty line after doc comment",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 19378,
+          "column": 5,
+          "nearest_preceding_function": "resolve_target_locations"
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 26596,
+          "column": 24,
+          "nearest_preceding_function": "diag_inputs"
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 27033,
+          "column": 24,
+          "nearest_preceding_function": "full_diagnostics_for"
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 28895,
+          "column": 25,
+          "nearest_preceding_function": "refresh_source_rehoming_locked"
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 29112,
+          "column": 26,
+          "nearest_preceding_function": "open_but_unindexed_symbols"
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40193,
+          "column": 21,
+          "nearest_preceding_function": "original_namespace_rename_uses_typed_workspace_collisions_and_source_plans"
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "line": 2764,
+          "column": 9,
+          "nearest_preceding_function": "publish_diagnostics_result"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "line": 2934,
+          "column": 9,
+          "nearest_preceding_function": "legacy_cache_withdraws_config_only_changes_before_unchanged"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "line": 2950,
+          "column": 9,
+          "nearest_preceding_function": "legacy_cache_withdraws_config_only_changes_before_unchanged"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "line": 2995,
+          "column": 9,
+          "nearest_preceding_function": "workspace_cache_preserves_actual_report_version_and_whole_source"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "line": 3015,
+          "column": 9,
+          "nearest_preceding_function": "workspace_cache_preserves_actual_report_version_and_whole_source"
+        }
+      ]
+    },
+    {
+      "code": "clippy::ref_option",
+      "message": "it is more idiomatic to use `Option<&T>` instead of `&Option<T>`",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+          "line": 3196,
+          "column": 5,
+          "nearest_preceding_function": "same_optional_arc"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_stack_arrays",
+      "message": "allocating a local array larger than 16384 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 227,
+          "column": 20,
+          "nearest_preceding_function": "unindexed_tokens_refuse_withdrawn_source_metadata_and_availability"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 228,
+          "column": 9,
+          "nearest_preceding_function": "unindexed_tokens_refuse_withdrawn_source_metadata_and_availability"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 229,
+          "column": 9,
+          "nearest_preceding_function": "unindexed_tokens_refuse_withdrawn_source_metadata_and_availability"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 235,
+          "column": 5,
+          "nearest_preceding_function": "unindexed_tokens_refuse_withdrawn_source_metadata_and_availability"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_stack_arrays",
+      "message": "allocating a local array larger than 16384 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 510,
+          "column": 22,
+          "nearest_preceding_function": "workspace_class_analysis_refuses_withdrawn_base_before_cached_hints"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 602,
+          "column": 5,
+          "nearest_preceding_function": "closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 635,
+          "column": 5,
+          "nearest_preceding_function": "startup_index_and_factory_reindex_keep_checked_document_roles"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 666,
+          "column": 5,
+          "nearest_preceding_function": "source_rehoming_keeps_workspace_roles_in_the_actual_seed_namespace"
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 728,
+          "column": 5,
+          "nearest_preceding_function": "workspace_index_seed_refuses_stale_and_withdrawn_source_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_stack_arrays",
+      "message": "allocating a local array larger than 16384 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 711,
+          "column": 21,
+          "nearest_preceding_function": "workspace_index_seed_refuses_stale_and_withdrawn_source_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 744,
+          "column": 5,
+          "nearest_preceding_function": "workspace_index_seed_refuses_stale_and_withdrawn_source_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 900,
+          "column": 5,
+          "nearest_preceding_function": "optimise_document_keeps_workspace_roles_and_refuses_unavailable_input"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 922,
+          "column": 5,
+          "nearest_preceding_function": "optimise_document_keeps_workspace_roles_and_refuses_unavailable_input"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 983,
+          "column": 5,
+          "nearest_preceding_function": "document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 1010,
+          "column": 5,
+          "nearest_preceding_function": "document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 1318,
+          "column": 5,
+          "nearest_preceding_function": "configured_factory_rounds_refuse_stale_publication_and_withdraw_unavailable_library_hints"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 1396,
+          "column": 5,
+          "nearest_preceding_function": "project_evidence_publication_withdraws_incomplete_checked_contributors"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 1609,
+          "column": 5,
+          "nearest_preceding_function": "original_formatter_requests_keep_checked_availability_raw_coordinates_and_withdrawn_input"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+          "line": 1695,
+          "column": 5,
+          "nearest_preceding_function": "original_formatter_requests_keep_checked_availability_raw_coordinates_and_withdrawn_input"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "line": 107,
+          "column": 9,
+          "nearest_preceding_function": "refused_open_and_unknown_change_publish_no_document_source_or_index"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "line": 259,
+          "column": 9,
+          "nearest_preceding_function": "unicode_and_nonfile_receipts_reach_salsa_and_fresh_analysis"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "line": 462,
+          "column": 5,
+          "nearest_preceding_function": "virtual_registered_path_reaches_actual_source_and_fresh_analysis"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "line": 524,
+          "column": 5,
+          "nearest_preceding_function": "unregistered_virtual_open_requires_no_native_host_or_vfs_upsert"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+          "line": 734,
+          "column": 9,
+          "nearest_preceding_function": "opening_waiting_for_index_cannot_retire_after_mapping_withdrawal"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs",
+          "line": 195,
+          "column": 5,
+          "nearest_preceding_function": "original_workspace_diagnostics_keep_current_source_advice_after_foreign_reports"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs",
+          "line": 243,
+          "column": 5,
+          "nearest_preceding_function": "explicit_lexical_workspace_diagnostics_retain_their_compatibility_behaviour"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs",
+          "line": 391,
+          "column": 5,
+          "nearest_preceding_function": "original_workspace_reporting_refuses_pack_generations_and_withdrawn_source_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/provider_source/tests.rs",
+          "line": 229,
+          "column": 5,
+          "nearest_preceding_function": "disk_package_providers_keep_source_dialect_and_refuse_uncaptured_paths"
+        }
+      ]
+    },
+    {
+      "code": "clippy::needless_pass_by_value",
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 186,
+          "column": 14,
+          "nearest_preceding_function": "lens_command"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 2254,
+          "column": 9,
+          "nearest_preceding_function": "readonly_member_wire_retains_owner_and_partial_coverage"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 2456,
+          "column": 13,
+          "nearest_preceding_function": "unavailable_member_wire_has_no_clickable_empty_census"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 2538,
+          "column": 9,
+          "nearest_preceding_function": "logical_hierarchy_wire_uses_issued_class_and_real_cross_document_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 2548,
+          "column": 9,
+          "nearest_preceding_function": "logical_hierarchy_wire_uses_issued_class_and_real_cross_document_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 2557,
+          "column": 9,
+          "nearest_preceding_function": "logical_hierarchy_wire_uses_issued_class_and_real_cross_document_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 2622,
+          "column": 9,
+          "nearest_preceding_function": "logical_hierarchy_final_snapshot_rejects_changed_relation_parent_with_current_target"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 2698,
+          "column": 9,
+          "nearest_preceding_function": "typed_hierarchy_debt_survives_wire_publication_and_parent_currentness"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 20536 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 2824,
+          "column": 24,
+          "nearest_preceding_function": "actual_call_handlers_use_opaque_current_source_selection_not_client_fields"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 20536 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 2829,
+          "column": 24,
+          "nearest_preceding_function": "actual_call_handlers_use_opaque_current_source_selection_not_client_fields"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 20536 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 3285,
+          "column": 17,
+          "nearest_preceding_function": "fresh_backend_rejects_prior_session_call_on_both_real_endpoints"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 20536 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 3290,
+          "column": 17,
+          "nearest_preceding_function": "fresh_backend_rejects_prior_session_call_on_both_real_endpoints"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 20536 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 3295,
+          "column": 17,
+          "nearest_preceding_function": "fresh_backend_rejects_prior_session_call_on_both_real_endpoints"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 20536 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 3297,
+          "column": 17,
+          "nearest_preceding_function": "fresh_backend_rejects_prior_session_call_on_both_real_endpoints"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 3846,
+          "column": 9,
+          "nearest_preceding_function": "actual_code_action_endpoint_publishes_the_original_document_version"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+          "line": 4045,
+          "column": 9,
+          "nearest_preceding_function": "coarse_tokens_retain_actual_configured_input_and_final_source_owner"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "line": 320,
+          "column": 5,
+          "nearest_preceding_function": "malformed_recovery_refuses_populated_unavailable_missing_and_foreign_sources"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_stack_arrays",
+      "message": "allocating a local array larger than 16384 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/recovery_source/tests.rs",
+          "line": 368,
+          "column": 20,
+          "nearest_preceding_function": "malformed_recovery_refuses_populated_unavailable_missing_and_foreign_sources"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16528 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "line": 98,
+          "column": 36,
+          "nearest_preceding_function": "every_row_publishes_its_shown_set"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16528 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "line": 145,
+          "column": 36,
+          "nearest_preceding_function": "every_row_offers_fixes_for_shown_findings_only"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16528 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/policy_truth_table.rs",
+          "line": 210,
+          "column": 33,
+          "nearest_preceding_function": "every_rewrite_row_applies_through_optimise_document"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_enum_variant",
+      "message": "large size difference between variants",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 1251,
+          "column": 1,
+          "nearest_preceding_function": "coarse_semantic_source_changed"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_enum_variant",
+      "message": "large size difference between variants",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 1315,
+          "column": 1,
+          "nearest_preceding_function": "into_index_row"
+        }
+      ]
+    },
+    {
+      "code": "clippy::type_complexity",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 5008,
+          "column": 25,
+          "nearest_preceding_function": "cache_and_enqueue_with_sources"
+        }
+      ]
+    },
+    {
+      "code": "clippy::needless_pass_by_value",
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 7658,
+          "column": 15,
+          "nearest_preceding_function": "lift_report_with_payloads"
+        }
+      ]
+    },
+    {
+      "code": "clippy::type_complexity",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 8670,
+          "column": 13,
+          "nearest_preceding_function": "add_entry_point_diagnostic_consumers"
+        }
+      ]
+    },
+    {
+      "code": "clippy::type_complexity",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 8685,
+          "column": 13,
+          "nearest_preceding_function": "publish_diagnostics_result"
+        }
+      ]
+    },
+    {
+      "code": "clippy::used_underscore_binding",
+      "message": "used underscore-prefixed binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 8920,
+          "column": 10,
+          "nearest_preceding_function": "publish_diagnostics_result_with_sources"
+        }
+      ]
+    },
+    {
+      "code": "clippy::used_underscore_binding",
+      "message": "used underscore-prefixed binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 12007,
+          "column": 13,
+          "nearest_preceding_function": "publish_disk_results_while_rehoming_locked"
+        }
+      ]
+    },
+    {
+      "code": "clippy::too_many_arguments",
+      "message": "this function has too many arguments (11/7)",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 12021,
+          "column": 5,
+          "nearest_preceding_function": "publish_admitted_disk_results_while_rehoming_locked"
+        }
+      ]
+    },
+    {
+      "code": "clippy::type_complexity",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 12217,
+          "column": 23,
+          "nearest_preceding_function": "apply_disk_publication"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 31952 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 12526,
+          "column": 9,
+          "nearest_preceding_function": "commit_open_document"
+        }
+      ]
+    },
+    {
+      "code": "clippy::too_many_arguments",
+      "message": "this function has too many arguments (8/7)",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 13158,
+          "column": 5,
+          "nearest_preceding_function": "set_live_db_source_locked"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17096 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 16643,
+          "column": 27,
+          "nearest_preceding_function": "compute_definition"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16792 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 16665,
+          "column": 58,
+          "nearest_preceding_function": "compute_definition"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17496 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 16741,
+          "column": 36,
+          "nearest_preceding_function": "compute_definition"
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 17037,
+          "column": 9,
+          "nearest_preceding_function": "original_method_locations_at"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16792 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 17028,
+          "column": 20,
+          "nearest_preceding_function": "original_method_locations_at"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16792 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 17116,
+          "column": 9,
+          "nearest_preceding_function": "original_method_hover_at"
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 18837,
+          "column": 9,
+          "nearest_preceding_function": "logical_member_source_targets_for_snapshot"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_enum_variant",
+      "message": "large size difference between variants",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 18837,
+          "column": 9,
+          "nearest_preceding_function": "logical_member_source_targets_for_snapshot"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16848 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 18904,
+          "column": 29,
+          "nearest_preceding_function": "logical_class_member_locations_for_snapshot"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16848 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 18929,
+          "column": 29,
+          "nearest_preceding_function": "logical_member_source_hover"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16728 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 19845,
+          "column": 58,
+          "nearest_preceding_function": "reference_locations"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17208 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 21655,
+          "column": 20,
+          "nearest_preceding_function": "cross_file_method_hover"
+        }
+      ]
+    },
+    {
+      "code": "clippy::too_many_arguments",
+      "message": "this function has too many arguments (8/7)",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 21783,
+          "column": 5,
+          "nearest_preceding_function": "add_workspace_resolved_rename_edits"
+        }
+      ]
+    },
+    {
+      "code": "clippy::too_many_arguments",
+      "message": "this function has too many arguments (8/7)",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 27911,
+          "column": 5,
+          "nearest_preceding_function": "report_pack_reload"
+        }
+      ]
+    },
+    {
+      "code": "clippy::too_many_arguments",
+      "message": "this function has too many arguments (9/7)",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 29604,
+          "column": 5,
+          "nearest_preceding_function": "analyse_and_merge_scanned_files"
+        }
+      ]
+    },
+    {
+      "code": "clippy::manual_async_fn",
+      "message": "this function can be simplified using the `async fn` syntax",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 30787,
+          "column": 5,
+          "nearest_preceding_function": "shutdown"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 32008 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 30916,
+          "column": 20,
+          "nearest_preceding_function": "did_open"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 32021,
+          "column": 25,
+          "nearest_preceding_function": "goto_definition"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 32080,
+          "column": 13,
+          "nearest_preceding_function": "goto_declaration"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17096 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 32376,
+          "column": 29,
+          "nearest_preceding_function": "references"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16872 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 32403,
+          "column": 13,
+          "nearest_preceding_function": "references"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16792 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 34800,
+          "column": 54,
+          "nearest_preceding_function": "hover"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17536 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 34863,
+          "column": 30,
+          "nearest_preceding_function": "hover"
+        }
+      ]
+    },
+    {
+      "code": "clippy::needless_continue",
+      "message": "this `continue` expression is redundant",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39291,
+          "column": 88,
+          "nearest_preceding_function": "new"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 20088 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39386,
+          "column": 13,
+          "nearest_preceding_function": "original_declaration_inventory_excludes_foreign_buffers_and_keeps_unknown_tcl_terminal"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39403,
+          "column": 9,
+          "nearest_preceding_function": "original_declaration_inventory_excludes_foreign_buffers_and_keeps_unknown_tcl_terminal"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 20088 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39448,
+          "column": 13,
+          "nearest_preceding_function": "original_implementation_queries_keep_workspace_method_and_class_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 20088 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39458,
+          "column": 13,
+          "nearest_preceding_function": "original_implementation_queries_keep_workspace_method_and_class_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16872 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39546,
+          "column": 26,
+          "nearest_preceding_function": "original_workspace_references_and_lenses_share_owned_byte_declarations"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16872 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39559,
+          "column": 26,
+          "nearest_preceding_function": "original_workspace_references_and_lenses_share_owned_byte_declarations"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39579,
+          "column": 9,
+          "nearest_preceding_function": "original_workspace_references_and_lenses_share_owned_byte_declarations"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16872 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39580,
+          "column": 13,
+          "nearest_preceding_function": "original_workspace_references_and_lenses_share_owned_byte_declarations"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39618,
+          "column": 9,
+          "nearest_preceding_function": "original_workspace_reference_misses_never_reparse_reporting_names"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16872 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39619,
+          "column": 13,
+          "nearest_preceding_function": "original_workspace_reference_misses_never_reparse_reporting_names"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39625,
+          "column": 9,
+          "nearest_preceding_function": "original_workspace_reference_misses_never_reparse_reporting_names"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39632,
+          "column": 9,
+          "nearest_preceding_function": "original_workspace_reference_misses_never_reparse_reporting_names"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39694,
+          "column": 9,
+          "nearest_preceding_function": "original_type_hierarchy_wire_preserves_owner_and_rejects_labels_and_stale_source"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39704,
+          "column": 9,
+          "nearest_preceding_function": "original_type_hierarchy_wire_preserves_owner_and_rejects_labels_and_stale_source"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 39713,
+          "column": 9,
+          "nearest_preceding_function": "original_type_hierarchy_wire_preserves_owner_and_rejects_labels_and_stale_source"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40095,
+          "column": 9,
+          "nearest_preceding_function": "original_indexed_variable_and_namespace_queries_withdraw_stale_foreign_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40116,
+          "column": 9,
+          "nearest_preceding_function": "original_indexed_variable_and_namespace_queries_withdraw_stale_foreign_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40129,
+          "column": 9,
+          "nearest_preceding_function": "original_indexed_variable_and_namespace_queries_withdraw_stale_foreign_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40136,
+          "column": 9,
+          "nearest_preceding_function": "original_indexed_variable_and_namespace_queries_withdraw_stale_foreign_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17976 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40285,
+          "column": 9,
+          "nearest_preceding_function": "original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 20944 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40295,
+          "column": 57,
+          "nearest_preceding_function": "original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 20944 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40310,
+          "column": 56,
+          "nearest_preceding_function": "original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17104 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40327,
+          "column": 57,
+          "nearest_preceding_function": "original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40336,
+          "column": 13,
+          "nearest_preceding_function": "original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40361,
+          "column": 9,
+          "nearest_preceding_function": "original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40362,
+          "column": 13,
+          "nearest_preceding_function": "original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17104 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40369,
+          "column": 13,
+          "nearest_preceding_function": "original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40434,
+          "column": 29,
+          "nearest_preceding_function": "original_method_queries_preserve_lexical_variable_provider_priority"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17104 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40439,
+          "column": 17,
+          "nearest_preceding_function": "original_method_queries_preserve_lexical_variable_provider_priority"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 40650,
+          "column": 9,
+          "nearest_preceding_function": "original_package_classes_use_shared_current_factory_slots"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 41447,
+          "column": 9,
+          "nearest_preceding_function": "auto_source_graph_inherits_entry_requires"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 41460,
+          "column": 9,
+          "nearest_preceding_function": "explicit_entry_points_override_source_graph"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 41619,
+          "column": 9,
+          "nearest_preceding_function": "cross_file_call_with_a_fitting_count_is_silent"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 41718,
+          "column": 9,
+          "nearest_preceding_function": "a_namespaced_proc_does_not_settle_a_bare_global_call"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 41830,
+          "column": 9,
+          "nearest_preceding_function": "nothing_settles_when_the_document_has_dynamic_providers"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 42295,
+          "column": 9,
+          "nearest_preceding_function": "a_document_that_sources_nothing_inherits_nothing_and_does_not_abstain"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 42556,
+          "column": 9,
+          "nearest_preceding_function": "report_publication_retains_unavailable_generation_status"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16568 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 43525,
+          "column": 21,
+          "nearest_preceding_function": "optimise_document_command_honours_noqa_issue_2119"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16568 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 43526,
+          "column": 20,
+          "nearest_preceding_function": "optimise_document_command_honours_noqa_issue_2119"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 45320,
+          "column": 9,
+          "nearest_preceding_function": "original_callback_pull_uses_current_source_and_external_headers"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 45354,
+          "column": 9,
+          "nearest_preceding_function": "original_callback_pull_uses_current_source_and_external_headers"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 45403,
+          "column": 9,
+          "nearest_preceding_function": "original_callback_push_and_pull_keep_known_source_barriers"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 45404,
+          "column": 9,
+          "nearest_preceding_function": "original_callback_push_and_pull_keep_known_source_barriers"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 46257,
+          "column": 20,
+          "nearest_preceding_function": "definition_resolves_through_a_document_auto_path_package"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 46393,
+          "column": 9,
+          "nearest_preceding_function": "retained_source_and_package_paths_consume_actual_plans"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 46394,
+          "column": 9,
+          "nearest_preceding_function": "retained_source_and_package_paths_consume_actual_plans"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 46514,
+          "column": 24,
+          "nearest_preceding_function": "definition_lands_in_the_package_release_tcl_would_load"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 46634,
+          "column": 20,
+          "nearest_preceding_function": "a_versioned_require_indexes_the_release_it_asks_for"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 47715,
+          "column": 9,
+          "nearest_preceding_function": "did_open_stores_document"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 47734,
+          "column": 9,
+          "nearest_preceding_function": "did_change_replaces_document_text"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 47811,
+          "column": 9,
+          "nearest_preceding_function": "did_close_drops_the_diagnostics_slot"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 48027,
+          "column": 9,
+          "nearest_preceding_function": "reopen_after_master_switch_off_reresolves_diagnostics_inputs"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 48060,
+          "column": 9,
+          "nearest_preceding_function": "reopen_after_master_switch_off_reresolves_diagnostics_inputs"
+        }
+      ]
+    },
+    {
+      "code": "clippy::type_complexity",
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 52108,
+          "column": 17,
+          "nearest_preceding_function": "analyse_one_captured_workspace_file"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 52950,
+          "column": 9,
+          "nearest_preceding_function": "dropping_one_factory_reindexes_its_consumers_while_retaining_others"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 53328,
+          "column": 17,
+          "nearest_preceding_function": "did_open_waiting_for_db_leaves_requests_serviceable_1849"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 53449,
+          "column": 17,
+          "nearest_preceding_function": "did_open_waiting_for_db_files_leaves_requests_serviceable_1849"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 53531,
+          "column": 17,
+          "nearest_preceding_function": "did_open_queues_stale_index_retirement_before_later_readers_1854"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33296 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 53633,
+          "column": 9,
+          "nearest_preceding_function": "unrelated_backend_snapshot_does_not_block_live_publication_1854"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 54324,
+          "column": 17,
+          "nearest_preceding_function": "disk_reindex_yields_to_a_racing_live_buffer_1800"
+        }
+      ]
+    },
+    {
+      "code": "clippy::needless_continue",
+      "message": "this `continue` expression is redundant",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 55090,
+          "column": 84,
+          "nearest_preceding_function": "unique_scratch_dir"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 55587,
+          "column": 20,
+          "nearest_preceding_function": "cross_document_definition_resolves_sibling_proc"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 55634,
+          "column": 20,
+          "nearest_preceding_function": "cross_document_definition_resolves_wildcard_imported_proc"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 55676,
+          "column": 20,
+          "nearest_preceding_function": "cross_document_wildcard_import_does_not_resolve_unexported_sibling"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 55816,
+          "column": 20,
+          "nearest_preceding_function": "cross_document_definition_skipped_when_local_match_exists"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 56309,
+          "column": 17,
+          "nearest_preceding_function": "a_stalled_turn_names_the_await_it_is_suspended_at"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17760 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 58087,
+          "column": 20,
+          "nearest_preceding_function": "references_handler_reaches_own_calls_in_a_pure_consumer_document"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 58403,
+          "column": 9,
+          "nearest_preceding_function": "original_autoload_navigation_joins_current_source_declaration_identity"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 58412,
+          "column": 9,
+          "nearest_preceding_function": "original_autoload_navigation_joins_current_source_declaration_identity"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 58426,
+          "column": 9,
+          "nearest_preceding_function": "original_autoload_navigation_joins_current_source_declaration_identity"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 61233,
+          "column": 17,
+          "nearest_preceding_function": "stale_watched_delete_preserves_reopened_source_1854"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 62555,
+          "column": 9,
+          "nearest_preceding_function": "workspace_symbols_skip_closed_reads_after_fallback_limit_1854"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17760 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 63764,
+          "column": 22,
+          "nearest_preceding_function": "references_handler_merges_local_and_cross_document"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17760 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 64654,
+          "column": 20,
+          "nearest_preceding_function": "references_handler_includes_cross_file_method_sites"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 64689,
+          "column": 20,
+          "nearest_preceding_function": "cross_file_method_definition_jumps_to_inherited_declaration"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 64721,
+          "column": 20,
+          "nearest_preceding_function": "goto_definition_follows_inherited_method_cross_file"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 64754,
+          "column": 20,
+          "nearest_preceding_function": "cross_file_definition_selects_the_dispatch_entry_945"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 64783,
+          "column": 20,
+          "nearest_preceding_function": "cross_file_definition_refuses_an_unexported_method_945"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17760 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 64852,
+          "column": 20,
+          "nearest_preceding_function": "references_handler_from_consumer_cursor_finds_family"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 17856 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 64874,
+          "column": 20,
+          "nearest_preceding_function": "goto_definition_from_consumer_cursor_finds_cross_file_method"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 33184 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 66306,
+          "column": 9,
+          "nearest_preceding_function": "will_rename_retains_client_version_and_literal_source_value"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 67238,
+          "column": 9,
+          "nearest_preceding_function": "actual_cross_document_classmethod_receivers_require_known_non_itcl_metadata"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 67246,
+          "column": 9,
+          "nearest_preceding_function": "actual_cross_document_classmethod_receivers_require_known_non_itcl_metadata"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 67258,
+          "column": 9,
+          "nearest_preceding_function": "actual_cross_document_classmethod_receivers_require_known_non_itcl_metadata"
+        }
+      ]
+    },
+    {
+      "code": "clippy::cast_possible_truncation",
+      "message": "casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 67356,
+          "column": 22,
+          "nearest_preceding_function": "closed_read_retains_actual_decoder_report_and_pre_normalised_text"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 67513,
+          "column": 9,
+          "nearest_preceding_function": "configured_receipt_requires_real_selected_sources_and_same_installed_generation"
+        }
+      ]
+    },
+    {
+      "code": "clippy::cloned_ref_to_slice_refs",
+      "message": "unnecessary use of `clone` to create a slice from a reference",
+      "primary": [
+        {
+          "path": "/rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/macros/mod.rs",
+          "line": 45,
+          "column": 24,
+          "nearest_preceding_function": ""
+        }
+      ],
+      "rendered_callsite": "error: unnecessary use of `clone` to create a slice from a reference\n     --> rust/tcl-lsp-server/src/lib.rs:67641:9\n      |\n67641 |         assert_eq!(merged, [diagnostic.clone()]);\n      |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n      |\n      = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#cloned_ref_to_slice_refs\n      = note: `-D clippy::cloned-ref-to-slice-refs` implied by `-D warnings`\n      = help: to override `-D warnings` add `#[allow(clippy::cloned_ref_to_slice_refs)]`\n\n"
+    },
+    {
+      "code": "clippy::cloned_ref_to_slice_refs",
+      "message": "unnecessary use of `clone` to create a slice from a reference",
+      "primary": [
+        {
+          "path": "/rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/macros/mod.rs",
+          "line": 45,
+          "column": 24,
+          "nearest_preceding_function": ""
+        }
+      ],
+      "rendered_callsite": "error: unnecessary use of `clone` to create a slice from a reference\n     --> rust/tcl-lsp-server/src/lib.rs:67661:9\n      |\n67661 | /         assert_eq!(\n67662 | |             backend.diagnostic_publisher.with_pack_notices(\n67663 | |                 PackNoticeContext {\n67664 | |                     uri: &uri,\n...     |\n67673 | |             [diagnostic.clone()]\n67674 | |         );\n      | |_________^\n      |\n      = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.99.0/index.html#cloned_ref_to_slice_refs\n\n"
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 67675,
+          "column": 9,
+          "nearest_preceding_function": "pack_notice_union_requires_matching_source_and_publication_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 67691,
+          "column": 9,
+          "nearest_preceding_function": "pack_notice_union_requires_matching_source_and_publication_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 67708,
+          "column": 9,
+          "nearest_preceding_function": "pack_notice_union_requires_matching_source_and_publication_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 67725,
+          "column": 9,
+          "nearest_preceding_function": "pack_notice_union_requires_matching_source_and_publication_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 67743,
+          "column": 9,
+          "nearest_preceding_function": "pack_notice_union_requires_matching_source_and_publication_owners"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 67867,
+          "column": 9,
+          "nearest_preceding_function": "original_cross_document_declaration_keeps_caller_revision_after_remote_analysis"
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_futures",
+      "message": "large future with a size of 16792 bytes",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 68028,
+          "column": 21,
+          "nearest_preceding_function": "actual_native_member_candidate_cannot_renew_a_dependency_revision"
+        }
+      ]
+    },
+    {
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "line": 68053,
+          "column": 9,
+          "nearest_preceding_function": "actual_native_member_candidate_cannot_renew_a_dependency_revision"
+        }
+      ]
+    }
+  ],
+  "raw_sha256": {
+    "bigip-clippy-server-after.jsonl": "b8000686c6f803018cc6ac16f158efeaab358f105db96c23a027691040f9a3cb",
+    "bigip-clippy-server-after-build.log": "f671ab9e681b7351b9662209b14a42eb4b10d37ac1232559f658172121086c6c"
+  },
+  "exit_code": 101,
+  "owned_lint_hunks_pushed": "d1ebce88 (five F5-only lib.rs hunks applied atop newer coordinator lib.rs, preserving upstream changes)"
+}
