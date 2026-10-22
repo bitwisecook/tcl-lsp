@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-22T21:26:07.111650+00:00",
+  "status": "OFF-TREE documentation-only correction for5denied missing_docs; rustfmt --check0 and current canonical git apply --check0; no type/test acceptance",
+  "path": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+  "before_sha256": "955473d6fd6fe81457ae560a4b804b7513239bfc7499e9ed2d1d826c4c0918e6",
+  "after_sha256": "c76ee55d98930f51469ed3b66709b48fbe53a9cd4ef110f0620ac9467cc58288",
+  "patch_sha256": "332825c1338e5d5234a06bdf4165ba40c1714c4892aead824aa6e3cbb2062158",
+  "receipt": "/tmp/compiler-names-n13-typecheck-20261022T212208Z",
+  "declarations": [
+    "RegionSet.regions",
+    "RegionSet.complete",
+    "OriginalSourceConditionalOutcome",
+    "Outcome.matches_prefix_analysis",
+    "Region.matches_dependencies"
+  ]
+}

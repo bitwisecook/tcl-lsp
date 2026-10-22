@@ -1,0 +1,15 @@
+{
+  "argv": [
+    "cargo",
+    "check",
+    "--locked",
+    "--keep-going",
+    "-p",
+    "tcl-compiler",
+    "--all-targets",
+    "--message-format=json"
+  ],
+  "cargo_pid": 140855,
+  "process_group": 140855,
+  "utc": "2026-10-22T21:22:16.004178+00:00"
+}

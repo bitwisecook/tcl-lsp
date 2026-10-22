@@ -180,10 +180,14 @@ impl PartialEq for OriginalSourceConditionalRegionSet {
 }
 impl Eq for OriginalSourceConditionalRegionSet {}
 impl OriginalSourceConditionalRegionSet {
+    /// Actual issued views in inner-to-outer continuation order. An incomplete
+    /// set retains only produced views, without a whole-file inventory.
     #[must_use]
     pub fn regions(&self) -> &[OriginalSourceConditionalRegion] {
         &self.0.regions
     }
+    /// Whether every saved continuation frame has a normal conditional outcome.
+    /// This does not assert physical source-load completion or whole-file entry.
     #[must_use]
     pub fn complete(&self) -> bool {
         self.0.complete
@@ -199,6 +203,9 @@ impl OriginalSourceConditionalRegionSet {
     }
 }
 
+/// Source-only normal outcome of one exact retained continuation chain.
+/// Its predecessor and region owners supply no physical source-load completion,
+/// runtime entry or compiler visit.
 #[derive(Clone)]
 pub struct OriginalSourceConditionalOutcome(ConditionalOutcomeKind);
 #[derive(Clone)]
@@ -254,6 +261,8 @@ impl OriginalSourceConditionalOutcome {
             }
         }
     }
+    /// Rejoin this outcome to the same still-current original prefix analysis.
+    /// Host publication and ancestor retirement checks remain independent.
     #[must_use]
     pub fn matches_prefix_analysis(&self, prefix: &crate::analyser::AnalysisResult) -> bool {
         self.prefix_point().matches_parent_analysis(prefix)
@@ -524,6 +533,8 @@ fn walk_region_uncached(
 }
 
 impl OriginalSourceConditionalRegion {
+    /// Rejoin the exact parent and opaque child prefix retained by this region.
+    /// The host must separately validate physical document and publication leases.
     #[must_use]
     pub fn matches_dependencies(
         &self,

@@ -1,0 +1,16 @@
+{
+  "after-providers.json": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+  "after-source.json": "307a11dee1d329b22905cb7859d6aed2c8424516258b51ea85a3e6120080f43d",
+  "api-documentation-correction-receipt.json": "fbcf8b8bc893581a2a4f6429d08f60fd9212c7ff10a1be2a32bafa6b07bfbc62",
+  "api-documentation-correction.patch.txt": "332825c1338e5d5234a06bdf4165ba40c1714c4892aead824aa6e3cbb2062158",
+  "before-providers.json": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+  "before-source.json": "66bdadbcd3992194f7b98fbd323ae138ee53475fac07391e11fec18a5aa28e1c",
+  "compiler-artifacts.json": "568a0be74eb0e64b32dfbb774235afcb3c883a48011321588c6ae3911206adeb",
+  "compiler-result.json": "6c7eecc60898b2bb4a8afe49fb1b3749ee360c0091dec7ef7ed00940a2fc3e33",
+  "compiler-started.json": "a14767311a382531fe03929db3c3da112529a8f8112df37524b3a5adea5edc46",
+  "compiler.stderr.log": "03ffa56ec89c8d3d082965c517a39a09f6a0d71babb1ec5bc01afddc0d21579b",
+  "compiler.stdout.jsonl": "bed3e8a754db531fcffb94c34151e357b48dc3cd06192f46f46f40438748311d",
+  "lock-claimed.json": "88b43dcd6674b407361b18ec52f477ff9e8d912e703d22c7479a58c2dac0c3e7",
+  "lock-released.json": "3f75cb5fca1e9015c4fe0eb6cafa39abbb31c083ea0a104e44b3b78f0d5e8bbf",
+  "summary.json": "6f30b4f76b141f75937149e9d764d601873ee4c1fd8a7a4529108c36832a8bc0"
+}

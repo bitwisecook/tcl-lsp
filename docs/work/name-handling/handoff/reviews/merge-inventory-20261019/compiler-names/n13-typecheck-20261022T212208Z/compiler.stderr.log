@@ -1,0 +1,2 @@
+    Checking tcl-compiler v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler)
+error: could not compile `tcl-compiler` (lib) due to 5 previous errors

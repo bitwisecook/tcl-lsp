@@ -2,7 +2,7 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-22T21:22:02Z (agent-reported work only)
+Last updated: 2026-10-22T21:27:14Z (agent-reported work only)
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -118,6 +118,8 @@ Perf aliases evidence reviewed read-only after staged GO: all-old control proves
 - g3: `crlf_class…` and `substituted_heads…` ok. `completed_world…` failed on positive cases, caused by the strict `::unknown` kind check, which is now relaxed.
 
 ## Resume
+
+- **Integrated typecheck retry CLOSED21:26:08Z:** checkpoint88ae4788e contains only the exact two constructor None initialisers beyond afde product. Compiler all-targets check exits101 with exactly5denied missing_docs,0warnings and no type mismatch emitted; consumers and test execution remain unreached. Full source6531/6531 and actual provider/library hashes unchanged, HEAD88ae unchanged;135133logbytes/no truncation/diskabort; lock released and runner reaped. Complete separate receipts archived in compiler-names/n13-typecheck-20261022T212208Z. Docs-only correction SHA332825c1338e5d5234a06bdf4165ba40c1714c4892aead824aa6e3cbb2062158 documents RegionSet.regions/complete, Outcome, matches_prefix_analysis and Region.matches_dependencies, preserving source-only/physical-publication limits. Rustfmt/current apply-check0, off-tree awaiting coordinator window; no failed gate is treated as type/functional admission.
 
 - **Actual integrated N13/C6 typecheck CLOSED at21:21:27Z:** compiler --all-targets cargo101 with exactly2E0063 constructor omissions (`original_argument_syntax` absent from SourceInvocationBinding Default at1684 and source_binding_projection_in at13446), zero warnings; Core/server/DB phase was not reached. Source before/after6531/6531 and actual provider/library hashes unchanged, HEADafde9bfdb unchanged, no disk abort,132784retained bytes/no truncation. Whole lock released and own runner reaped. Complete source/provider/artifact/log/exit receipts are in compiler-names/n13-typecheck-20261022T211529Z. Compiler peer-consented exact two-None correction `/tmp/compiler-names-n13-typecheck-fix-v1/proposal.patch` SHAa1dbe5458591b267a125a2d9ff7d649bdfcbc44ba22fc5fbe8f56df63fbd9239 passes rustfmt/current canonical apply-check, remains off-tree pending coordinator window. This is a failed typecheck, zero tests, no N13 functional admission.
 

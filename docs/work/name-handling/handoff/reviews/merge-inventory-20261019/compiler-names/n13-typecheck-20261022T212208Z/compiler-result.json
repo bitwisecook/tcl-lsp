@@ -1,0 +1,195 @@
+{
+  "argv": [
+    "cargo",
+    "check",
+    "--locked",
+    "--keep-going",
+    "-p",
+    "tcl-compiler",
+    "--all-targets",
+    "--message-format=json"
+  ],
+  "cargo_exit": 101,
+  "disk_abort": false,
+  "error_count": 5,
+  "errors": [
+    {
+      "code": "missing_docs",
+      "message": "missing documentation for a method",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 6885,
+          "byte_start": 6826,
+          "column_end": 64,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 184,
+          "line_start": 184,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 64,
+              "highlight_start": 5,
+              "text": "    pub fn regions(&self) -> &[OriginalSourceConditionalRegion] {"
+            }
+          ]
+        }
+      ],
+      "rendered": "error: missing documentation for a method\n   --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:184:5\n    |\n184 |     pub fn regions(&self) -> &[OriginalSourceConditionalRegion] {\n    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n    |\nnote: the lint level is defined here\n   --> rust/tcl-compiler/src/lib.rs:83:9\n    |\n 83 | #![deny(missing_docs)]\n    |         ^^^^^^^^^^^^\n\n"
+    },
+    {
+      "code": "missing_docs",
+      "message": "missing documentation for a method",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 6968,
+          "byte_start": 6938,
+          "column_end": 35,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 188,
+          "line_start": 188,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 35,
+              "highlight_start": 5,
+              "text": "    pub fn complete(&self) -> bool {"
+            }
+          ]
+        }
+      ],
+      "rendered": "error: missing documentation for a method\n   --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:188:5\n    |\n188 |     pub fn complete(&self) -> bool {\n    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n"
+    },
+    {
+      "code": "missing_docs",
+      "message": "missing documentation for a struct",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 7469,
+          "byte_start": 7426,
+          "column_end": 44,
+          "column_start": 1,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 203,
+          "line_start": 203,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 44,
+              "highlight_start": 1,
+              "text": "pub struct OriginalSourceConditionalOutcome(ConditionalOutcomeKind);"
+            }
+          ]
+        }
+      ],
+      "rendered": "error: missing documentation for a struct\n   --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:203:1\n    |\n203 | pub struct OriginalSourceConditionalOutcome(ConditionalOutcomeKind);\n    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n"
+    },
+    {
+      "code": "missing_docs",
+      "message": "missing documentation for a method",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 9498,
+          "byte_start": 9411,
+          "column_end": 92,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 258,
+          "line_start": 258,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 92,
+              "highlight_start": 5,
+              "text": "    pub fn matches_prefix_analysis(&self, prefix: &crate::analyser::AnalysisResult) -> bool {"
+            }
+          ]
+        }
+      ],
+      "rendered": "error: missing documentation for a method\n   --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:258:5\n    |\n258 |     pub fn matches_prefix_analysis(&self, prefix: &crate::analyser::AnalysisResult) -> bool {\n    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\n"
+    },
+    {
+      "code": "missing_docs",
+      "message": "missing documentation for a method",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 20273,
+          "byte_start": 20110,
+          "column_end": 14,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 532,
+          "line_start": 528,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 33,
+              "highlight_start": 5,
+              "text": "    pub fn matches_dependencies("
+            },
+            {
+              "highlight_end": 15,
+              "highlight_start": 1,
+              "text": "        &self,"
+            },
+            {
+              "highlight_end": 50,
+              "highlight_start": 1,
+              "text": "        parent: &crate::analyser::AnalysisResult,"
+            },
+            {
+              "highlight_end": 56,
+              "highlight_start": 1,
+              "text": "        child_prefix: &crate::analyser::AnalysisResult,"
+            },
+            {
+              "highlight_end": 14,
+              "highlight_start": 1,
+              "text": "    ) -> bool {"
+            }
+          ]
+        }
+      ],
+      "rendered": "error: missing documentation for a method\n   --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:528:5\n    |\n528 | /     pub fn matches_dependencies(\n529 | |         &self,\n530 | |         parent: &crate::analyser::AnalysisResult,\n531 | |         child_prefix: &crate::analyser::AnalysisResult,\n532 | |     ) -> bool {\n    | |_____________^\n\n"
+    }
+  ],
+  "logs_truncated": false,
+  "minimum_free_bytes": 12704337920,
+  "overlong_json_lines": 0,
+  "parse_errors": 0,
+  "passed": false,
+  "retained_bytes": 135133,
+  "retention_budget": 20971520,
+  "stderr_bytes": 167,
+  "stdout_bytes": 134966,
+  "termination_scope": "Only this Popen-created Cargo session/process group; no cleanup/deletion",
+  "utc": "2026-10-22T21:25:46.540333+00:00",
+  "warning_count": 0,
+  "warnings": []
+}
