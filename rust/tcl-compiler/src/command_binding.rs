@@ -146,7 +146,7 @@ pub use source_catalogue_advice::{
     OriginalCatalogueSourceCandidate, OriginalCatalogueSourceObligation,
 };
 pub(crate) use source_transition_advice::LogicalSourceClassRelationProvider;
-pub use source_transition_advice::OriginalConditionalLambdaFormattingBody;
+pub use source_transition_advice::{OriginalAuthoredJimClass, OriginalConditionalLambdaFormattingBody};
 pub use source_transition_advice::{
     LogicalExternalClassMemberSelector, OriginalLogicalAbsoluteCommandCandidate,
     OriginalLogicalCallbackCandidates, OriginalLogicalCommandCandidates,
@@ -25505,5 +25505,62 @@ mod immutable_source_memo_lifetime_tests {
         assert!(owner.upgrade().is_none());
         let _ = equal.original_lexical_projection();
         assert!(memo_lifetime.upgrade().is_none());
+    }
+}
+
+#[cfg(test)]
+mod original_compiled_list_owner_join_tests {
+    use super::SourceInvocationBinding;
+
+    #[test]
+    fn compiled_list_head_original_owner_refuses_unknown_binding_join() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+            "set payload [gets stdin]; puts [list puts $payload]",
+            registry,
+            false,
+            registry.profile().unwrap(),
+        );
+        let ssa = &unit.top_level.ssa;
+        let parent = ssa
+            .blocks
+            .iter()
+            .flat_map(|(block, data)| {
+                (0..data.statements.len()).filter_map(move |index| {
+                    crate::ssa::SsaSourceView::at_statement(ssa, *block, index).source_tokens()
+                })
+            })
+            .find(|tokens| tokens.argv_texts.first().is_some_and(|head| head == "puts"))
+            .unwrap();
+        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
+            registry,
+            &unit.ir_module,
+        )
+        .unwrap();
+        let mut joined =
+            crate::word_subst::checked_original_argument_lifted_calls(parent, registry, metadata)
+                .unwrap()
+                .into_iter()
+                .find_map(|child| child.tokens)
+                .unwrap();
+        assert_eq!(
+            crate::registry_invocation::original_compiled_list_head(
+                registry, metadata, parent, &joined,
+            )
+            .as_deref(),
+            Some("puts")
+        );
+        joined
+            .source_binding
+            .as_mut()
+            .unwrap()
+            .join(&SourceInvocationBinding::default());
+        assert!(
+            crate::registry_invocation::original_compiled_list_head(
+                registry, metadata, parent, &joined,
+            )
+            .is_none()
+        );
     }
 }

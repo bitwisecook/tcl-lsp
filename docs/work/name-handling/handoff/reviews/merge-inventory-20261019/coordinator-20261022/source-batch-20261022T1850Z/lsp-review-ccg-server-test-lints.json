@@ -1,0 +1,59 @@
+{
+  "reviewed_utc": "2026-10-22T18:34:56.711106+00:00",
+  "status": "independent static review only; no Cargo/typecheck/test execution",
+  "patch_sha256": "2ef1a225f18caa24d37289b4e91fdaec064d81882ba2dd9069040a6e2e2253cc",
+  "assertions_checked": 75,
+  "empty_len_equals_zero": 62,
+  "nonempty_len_not_zero": 13,
+  "future_wrappers_checked": 64,
+  "nested_sites_checked": 3,
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "roundtrip_proposed_sha256": "f2dd3285c8d8c3163f20101b3918c9601a5e2d3afaf994bfb3e915dcf59c2298",
+      "function_selectors_equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "roundtrip_proposed_sha256": "746270ce2e97d83d9b835e0a6abf2ffb3cb2d7556813995409a998b2d712251f",
+      "function_selectors_equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "roundtrip_proposed_sha256": "6b1da61287561a0fa2fccc346a9f7628b56702d21dfbd5a9e18c1dd9678df012",
+      "function_selectors_equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_path_admission_tests.rs",
+      "roundtrip_proposed_sha256": "89d32a3776a9cd8ee9898cb3021a7c0e850877dad54ed4a0ba4248abf2c698c8",
+      "function_selectors_equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs",
+      "roundtrip_proposed_sha256": "a4465336e0a460156b281fd733d87dcbdf2405a47ca6001de696878adfa1113d",
+      "function_selectors_equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/policy_truth_table.rs",
+      "roundtrip_proposed_sha256": "268df6382999a13194f3279422d5e47fa3abcc9c1fdd675f985b32ff7291549e",
+      "function_selectors_equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/provider_source/tests.rs",
+      "roundtrip_proposed_sha256": "ed4522c80aa0b53e0326c509a13d2ce59fc3dfa92cba9bd0b8ef1ac75898c138",
+      "function_selectors_equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "roundtrip_proposed_sha256": "6c44589507300a0d1ea963949e52cb723cd73fad611dd533bc3f1994ceb4b7db",
+      "function_selectors_equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/recovery_source/tests.rs",
+      "roundtrip_proposed_sha256": "ea1eef9f604d96186da13e19aa360f2de88c458988d0b32465cd1ff57d713374",
+      "function_selectors_equal": true
+    }
+  ],
+  "source_read_review": "all changed emptiness receivers are standard Vec/String/collections or known helper Vec returns (defined_original_commands*, compute_inherited_requires, classmethod_dispatch_names, WorkspaceIndex::classes_named); no custom alternative empty semantics found",
+  "limits": "Pin<Box<F>> preserves Future::Output, once evaluation and original await; fresh compiler/lint/runtime checks still required"
+}

@@ -1,0 +1,79 @@
+--- a/rust/tcl-compiler/src/registry_invocation/source_taint.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_taint.rs
+@@ -901,13 +901,6 @@
+             .unwrap()
+             .native_compiler_admission = None;
+         assert!(original_compiled_list_head(registry, metadata, parent, &unadmitted).is_none());
+-        let mut joined = child;
+-        joined
+-            .source_binding
+-            .as_mut()
+-            .unwrap()
+-            .join(&crate::command_binding::SourceInvocationBinding::default());
+-        assert!(original_compiled_list_head(registry, metadata, parent, &joined).is_none());
+     }
+ 
+     #[test]
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -25507,3 +25507,60 @@
+         assert!(memo_lifetime.upgrade().is_none());
+     }
+ }
++
++#[cfg(test)]
++mod original_compiled_list_owner_join_tests {
++    use super::SourceInvocationBinding;
++
++    #[test]
++    fn compiled_list_head_original_owner_refuses_unknown_binding_join() {
++        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
++        let registry = context.commands();
++        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
++            "set payload [gets stdin]; puts [list puts $payload]",
++            registry,
++            false,
++            registry.profile().unwrap(),
++        );
++        let ssa = &unit.top_level.ssa;
++        let parent = ssa
++            .blocks
++            .iter()
++            .flat_map(|(block, data)| {
++                (0..data.statements.len()).filter_map(move |index| {
++                    crate::ssa::SsaSourceView::at_statement(ssa, *block, index).source_tokens()
++                })
++            })
++            .find(|tokens| tokens.argv_texts.first().is_some_and(|head| head == "puts"))
++            .unwrap();
++        let metadata = crate::registry_invocation::InvocationMetadataContext::for_module(
++            registry,
++            &unit.ir_module,
++        )
++        .unwrap();
++        let mut joined =
++            crate::word_subst::checked_original_argument_lifted_calls(parent, registry, metadata)
++                .unwrap()
++                .into_iter()
++                .find_map(|child| child.tokens)
++                .unwrap();
++        assert_eq!(
++            crate::registry_invocation::original_compiled_list_head(
++                registry, metadata, parent, &joined,
++            )
++            .as_deref(),
++            Some("puts")
++        );
++        joined
++            .source_binding
++            .as_mut()
++            .unwrap()
++            .join(&SourceInvocationBinding::default());
++        assert!(
++            crate::registry_invocation::original_compiled_list_head(
++                registry, metadata, parent, &joined,
++            )
++            .is_none()
++        );
++    }
++}

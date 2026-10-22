@@ -2,7 +2,7 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "0d7434a2f656c43a9e370838fa110b4d30139768",
+  "last_source_snapshot": "e75345a7ef7827c6bbeaf564a8d1c387608cc8a8",
   "last_published_snapshot": "e75345a7ef7827c6bbeaf564a8d1c387608cc8a8",
   "source_branch": "work",
   "publisher_branch": "work",
@@ -17,9 +17,7 @@
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
   "last_published_utc": "2026-10-22T18:28:00.157143+00:00",
-  "product_tree_diff": [
-    "rust/tcl-lsp-server/src/lib.rs"
-  ],
-  "source_lineage_rebased_utc": "2026-10-22T17:45:50.449702+00:00",
-  "source_lineage_note": "Active0d743 snapshot mapped to published e75345 after publisher depth1fetch/FF tobe53, cherry-pick, freshdepth1fetch/rebase/normalpush. Active R3 Rust/C/Cargo bytes unchanged. External5servermechanicalhunks remain unintegrated in activecheck; nextbetween-buildsourceintegrationrequired."
+  "product_tree_diff": [],
+  "source_lineage_rebased_utc": "2026-10-22T18:49:22.058432+00:00",
+  "source_lineage_note": "Active rebased onto published e753; equivalent prior checkpoints skipped; product tree equals publisher. New rebased doc commits remain unpublished."
 }

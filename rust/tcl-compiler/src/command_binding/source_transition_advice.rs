@@ -33,6 +33,8 @@ mod produced_prefix;
 mod registered_instance;
 mod source_callback;
 mod source_class;
+mod source_jim_class;
+pub use source_jim_class::OriginalAuthoredJimClass;
 mod source_constructor_effects;
 pub use source_constructor_effects::{
     OriginalSourceConstructorBodyAttempt, OriginalSourceConstructorBodyCoverage,
@@ -718,6 +720,7 @@ enum AdviceCell {
     CreatedInterpreter(Box<interpreter_handle::CreatedInterpreterSourceCell>),
     RegisteredInstance(Arc<OriginalSourceRegisteredInstance>),
     SourceClass(Arc<OriginalSourceClassDeclaration>),
+    AuthoredJimClass(Arc<OriginalAuthoredJimClass>),
     SourceProcedure(Arc<source_procedure::OriginalSourceProcedureBody>),
     LogicalSourceProcedure {
         definition: Arc<OriginalSourceCommandTransition>,
@@ -850,6 +853,7 @@ pub(crate) struct OriginalSourceTransitionAdviceTape {
     registered_factories: BTreeMap<u32, Option<Arc<OriginalSourceRegisteredInstance>>>,
     registered_handles: BTreeMap<u32, Option<Arc<OriginalSourceRegisteredHandleBinding>>>,
     class_declarations: BTreeMap<u32, Option<Arc<OriginalSourceClassDeclaration>>>,
+    authored_jim_classes: BTreeMap<u32, Option<Arc<OriginalAuthoredJimClass>>>,
     class_declaration_facets: BTreeMap<u32, Vec<source_class::SourceClassDeclarationFacet>>,
     constructor_calls: BTreeMap<u32, Option<OriginalSourceConstructorCall>>,
     class_proc_calls: BTreeMap<u32, Option<source_class::OriginalSourceClassProcCall>>,
@@ -1404,6 +1408,9 @@ impl OriginalSourceTransitionAdviceTape {
         self.registry_barriers.extend(other.registry_barriers);
         self.interpreter_bodies.extend(other.interpreter_bodies);
         self.interpreter_paths.extend(other.interpreter_paths);
+        for (offset, receipt) in other.authored_jim_classes {
+            source_class::merge_receipt(&mut self.authored_jim_classes, offset, receipt);
+        }
         self.extend_class_inventory(other.class_declarations, other.constructor_calls);
         self.extend_class_proc_calls(other.class_proc_calls);
         for (_, facets) in other.class_declaration_facets {
@@ -1821,6 +1828,7 @@ impl AdviceGraph {
             | AdviceCell::SourceProcedure(_)
             | AdviceCell::LogicalSourceProcedure { .. }
             | AdviceCell::SourceClass(_)
+            | AdviceCell::AuthoredJimClass(_)
             | AdviceCell::ClassInstance(_)
             | AdviceCell::RegisteredInstance(_)
             | AdviceCell::Alias { .. } => true,
@@ -1853,6 +1861,7 @@ impl AdviceGraph {
                 | AdviceCell::CreatedInterpreter(_)
                 | AdviceCell::RegisteredInstance(_)
                 | AdviceCell::SourceClass(_)
+                | AdviceCell::AuthoredJimClass(_)
                 | AdviceCell::ClassInstance(_)
                 | AdviceCell::SourceProcedure(_)
                 | AdviceCell::LogicalSourceProcedure { .. }
@@ -2097,6 +2106,9 @@ impl AdviceGraph {
             }
             AdviceCell::SourceClass(class) => {
                 AdviceCell::SourceClass(Arc::new(class.moved(to_key.clone(), receipt)))
+            }
+            AdviceCell::AuthoredJimClass(class) => {
+                AdviceCell::AuthoredJimClass(Arc::new(class.moved(to_key.clone(), receipt)))
             }
             AdviceCell::SourceProcedure(procedure) => {
                 AdviceCell::SourceProcedure(Arc::new(procedure.moved(to_key.clone(), receipt)))
@@ -2940,6 +2952,7 @@ impl AdviceInvocationContext<'_> {
         )?;
         self.retain_interpreter_paths(tape, selected, graph, &schema);
         let factory = self.registered_factory(graph, selected, &schema);
+        let authored_jim = self.authored_jim_class_source(graph, selected, &schema, None);
         let class = self.retain_source_class_declaration(tape, graph, selected, &schema);
         self.retain_source_configured_class(tape, graph, selected, &schema);
         self.retain_source_class_operand_references(
@@ -2960,6 +2973,7 @@ impl AdviceInvocationContext<'_> {
         Self::install_source_class_handle(graph, class_handle);
         self.retain_source_class_adoptions(tape, graph, class.as_ref());
         Self::install_source_class(tape, graph, class);
+        Self::install_authored_jim_class(tape, graph, authored_jim);
         source_procedure::install_original_procedure(graph, procedure);
         Some(())
     }

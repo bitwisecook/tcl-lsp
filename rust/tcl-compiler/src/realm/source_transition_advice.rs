@@ -465,6 +465,32 @@ impl super::CommandBindingRealm {
             .then(|| receipt.clone())
     }
 
+    /// Distinct conditional Jim source header and parent-bound base providers.
+    /// Reborrowing this source tape issues no Native class, argument or receiver.
+    pub(crate) fn original_authored_jim_class(
+        &self,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        original: &[tcl_lexer::NativeWord],
+    ) -> Option<Arc<crate::command_binding::OriginalAuthoredJimClass>> {
+        self.matches_resolved_analysis_input(input).then_some(())?;
+        let image = self.original_source_image()?;
+        let config = input.lexer_config();
+        self.matches_original_source_image(image, config)
+            .then_some(())?;
+        let context = input.context_registry();
+        let prepared = self.source_advice.get_or_prepare(&context, || {
+            self.bindings
+                .original_source_transition_advice_tape(&context)
+        });
+        let receipt = prepared
+            .as_ref()
+            .as_ref()?
+            .authored_jim_class(original.first()?.span().start())?;
+        (receipt.matches_source_context(image, config, &context)
+            && receipt.factory().original_words() == original)
+            .then(|| Arc::clone(receipt))
+    }
+
     /// Exact source class factory selected independently of class report maps.
     pub(crate) fn original_source_class_declaration(
         &self,

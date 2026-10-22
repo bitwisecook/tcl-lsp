@@ -1,0 +1,13 @@
+{
+  "started_utc": "2026-10-22T18:49:03.658743+00:00",
+  "before_head": "7e9fc45b149930c4576f5b8a5c909b8f77b4f8d3",
+  "onto": "e75345a7ef7827c6bbeaf564a8d1c387608cc8a8",
+  "before_product_diff": [
+    "rust/tcl-lsp-server/src/lib.rs"
+  ],
+  "preflight": "merge-tree reported docs-only conflicts from equivalent source/publisher checkpoints; no worktree/index mutation; no claimed expected full tree",
+  "status": "rebase complete; committed product tree equals publisher e753; reviewed candidate batch still pending",
+  "finished_utc": "2026-10-22T18:49:22.058432+00:00",
+  "after_head": "e02b4c438e2884d112c8482f809f0392b409fc46",
+  "after_product_diff": []
+}

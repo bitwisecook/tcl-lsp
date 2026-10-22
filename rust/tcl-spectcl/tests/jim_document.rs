@@ -531,3 +531,290 @@ fn a_tcl_document_has_no_jim_class() {
         "{findings:?}"
     );
 }
+
+// Off-tree tests proposed for jim_document.rs; use its existing run/jim/findings_of helpers.
+use tcl_compiler::registry_invocation::source_structure::source_authored_jim_class_at;
+
+fn authored_class_at(
+    source: &str,
+    result: &AnalysisResult,
+    spelling: &str,
+) -> std::sync::Arc<tcl_compiler::command_binding::OriginalAuthoredJimClass> {
+    let offset = u32::try_from(source.find(spelling).expect("original class source")).unwrap();
+    source_authored_jim_class_at(source, result, offset)
+        .expect("original authored Jim source receipt")
+}
+
+#[test]
+fn authored_jim_dictionary_and_odd_shape_use_the_original_list_fields() {
+    for per_item in [false, true] {
+        let source = jim("class Point {x 0 y 0}\n");
+        let result = run(&source, per_item);
+        let original = authored_class_at(&source, &result, "class Point");
+        assert_eq!(
+            original
+                .variable_fields()
+                .unwrap()
+                .iter()
+                .map(|field| field.value())
+                .collect::<Vec<_>>(),
+            ["x", "0", "y", "0"]
+        );
+        assert!(original.base_fields().unwrap().is_empty());
+        assert!(!original.bases_unknown());
+        assert_eq!(result.all_classes["::Point"].variables, ["x", "y"]);
+        assert!(
+            tcl_compiler::registry_invocation::source_structure::source_class_declaration_at(
+                &source,
+                &result,
+                original.factory().site().offset
+            )
+            .is_none(),
+            "no Native class receipt was issued"
+        );
+        let odd = jim("class P {x 0 y}\n");
+        let odd_result = run(&odd, per_item);
+        assert_eq!(
+            findings_of(&odd_result, &odd),
+            [(DiagCode::E005, "{x 0 y}".to_owned())]
+        );
+        assert_eq!(odd_result.all_classes["::P"].variables, ["x", "y"]);
+    }
+}
+
+#[test]
+fn authored_jim_bases_join_the_source_provider_at_the_original_parent() {
+    let source = jim("class Point {x 0 y 0}\nclass Point3 Point {z 0}\n");
+    for per_item in [false, true] {
+        let result = run(&source, per_item);
+        let original = authored_class_at(&source, &result, "class Point3");
+        assert_eq!(
+            original
+                .base_fields()
+                .unwrap()
+                .iter()
+                .map(|field| field.value())
+                .collect::<Vec<_>>(),
+            ["Point"]
+        );
+        assert_eq!(original.inherited_variables(&result), ["x", "y"]);
+        assert_eq!(result.all_classes["::Point3"].variables, ["x", "y", "z"]);
+        assert_eq!(result.all_classes["::Point3"].superclasses, ["Point"]);
+        assert!(
+            result.all_classes["::Point3"].relation_lookups["Point"].is_none(),
+            "no Native relation lookup donated"
+        );
+    }
+}
+
+#[test]
+fn authored_jim_computed_lists_keep_unknown_distinct_from_absent() {
+    let source = jim("class Dyn $bases {x 0}\nclass Vars $vars\n");
+    for per_item in [false, true] {
+        let result = run(&source, per_item);
+        let dynamic = authored_class_at(&source, &result, "class Dyn");
+        let variables = authored_class_at(&source, &result, "class Vars");
+        assert!(dynamic.bases_unknown());
+        assert!(dynamic.base_fields().is_none());
+        assert!(result.all_classes["::Dyn"].inheritance_unknown);
+        assert!(!variables.bases_unknown());
+        assert!(variables.base_fields().unwrap().is_empty());
+        assert!(variables.variable_fields().is_none());
+        assert!(!result.all_classes["::Vars"].inheritance_unknown);
+        assert!(result.all_classes["::Vars"].variables.is_empty());
+    }
+}
+
+#[test]
+fn authored_jim_foreign_source_input_and_replacement_cannot_supply_a_provider() {
+    let source = jim("class Point {x 0}\nclass Derived Point {z 0}\n");
+    let result = run(&source, false);
+    let original = authored_class_at(&source, &result, "class Derived");
+    let offset = original.factory().site().offset;
+    assert!(
+        source_authored_jim_class_at(&source.replace("Point", "Other"), &result, offset).is_none()
+    );
+    let mut foreign = result.clone();
+    let environment = resolve_environment("tcl8.6");
+    foreign.resolved_input = Some(tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        environment.unit_profile(),
+        environment.unit_profile(),
+        environment.default_context_registry(),
+        result.body_lexer_config.unwrap(),
+    ));
+    assert!(source_authored_jim_class_at(&source, &foreign, offset).is_none());
+    assert!(original.inherited_variables(&foreign).is_empty());
+    for mutation in ["rename Point {}", "proc Point {} {}"] {
+        let changed = jim(&format!(
+            "class Point {{x 0}}\n{mutation}\nclass Derived Point {{z 0}}\n"
+        ));
+        let changed_result = run(&changed, false);
+        let changed_original = authored_class_at(&changed, &changed_result, "class Derived");
+        assert!(
+            changed_original
+                .inherited_variables(&changed_result)
+                .is_empty(),
+            "{mutation}"
+        );
+        assert_eq!(changed_result.all_classes["::Derived"].variables, ["z"]);
+    }
+}
+
+#[test]
+fn authored_jim_wrong_and_expanded_layouts_or_replaced_definer_decline() {
+    for body in [
+        "class P",
+        "class P a b c",
+        "class P {*}$words",
+        "proc class args {}; class P {x 0}",
+    ] {
+        let source = jim(body);
+        let result = run(&source, false);
+        let offset = u32::try_from(source.rfind("class P").unwrap()).unwrap();
+        assert!(
+            source_authored_jim_class_at(&source, &result, offset).is_none(),
+            "{body}"
+        );
+    }
+    let source = jim("class Dyn $bases {x 0}\nclass Derived Dyn {z 0}\n");
+    let result = run(&source, false);
+    let derived = authored_class_at(&source, &result, "class Derived");
+    assert!(
+        derived.inherited_variables(&result).is_empty(),
+        "unknown-layout class cannot issue a base provider"
+    );
+}
+
+#[test]
+fn authored_jim_renamed_provider_keeps_its_source_and_computed_replacement_retires_it() {
+    let moved = jim("class Point {x 0}\nrename Point Moved\nclass Derived Moved {z 0}\n");
+    let moved_result = run(&moved, false);
+    let derived = authored_class_at(&moved, &moved_result, "class Derived");
+    let provider = derived.base_provider(0).expect("moved source provider");
+    assert_eq!(
+        provider.factory().site().offset,
+        u32::try_from(moved.find("class Point").unwrap()).unwrap()
+    );
+    assert_eq!(derived.base_fields().unwrap()[0].value(), "Moved");
+    assert_eq!(derived.inherited_variables(&moved_result), ["x"]);
+    assert_eq!(moved_result.all_classes["::Derived"].variables, ["x", "z"]);
+    let replaced = jim("class Point {x 0}\nclass Point $dict\nclass Derived Point {z 0}\n");
+    let replaced_result = run(&replaced, false);
+    let replaced_derived = authored_class_at(&replaced, &replaced_result, "class Derived");
+    assert!(
+        replaced_derived.base_provider(0).is_none(),
+        "replacement retires the actual source cell"
+    );
+    assert!(
+        replaced_derived
+            .inherited_variables(&replaced_result)
+            .is_empty()
+    );
+    assert_eq!(replaced_result.all_classes["::Derived"].variables, ["z"]);
+}
+
+#[test]
+fn older_jim_retains_positive_logical_source_purpose_without_native_promotion() {
+    use tcl_compiler::analyser::ResolvedAnalysisInput;
+    use tcl_dialect::{
+        DialectProfile,
+        model::{DialectPoint, Release},
+    };
+    tcl_spectcl::core_surfaces::ensure();
+    let profile = DialectProfile::projected_from_point(
+        "jim-class-explicit-logical079",
+        &[],
+        "Explicit Jim Logical class source",
+        DialectPoint::canonical(Release::JIM_0_79),
+    )
+    .intern();
+    let input = ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        tcl_registry::model::ingress::context_for_profile(profile),
+        tcl_lexer::LexerConfig::for_profile(Some(profile)),
+    );
+    assert!(input.has_logical_source_name_context());
+    let source = "class Point {x 0}\nclass Derived Point {z 0}\nclass Dyn $bases {w 0}\n";
+    let result = Analyser::new()
+        .with_resolved_input(input.clone())
+        .analyse(source, profile.name);
+    let original = authored_class_at(source, &result, "class Derived");
+    assert_eq!(original.factory().logical_source_input(), Some(&input));
+    assert!(original.base_provider(0).is_some());
+    assert_eq!(original.inherited_variables(&result), ["x"]);
+    assert_eq!(result.all_classes["::Derived"].variables, ["x", "z"]);
+    assert!(result.all_classes["::Dyn"].inheritance_unknown);
+    assert!(result.all_classes["::Derived"].source_name.is_none());
+    assert!(result.all_classes["::Derived"].relation_lookups["Point"].is_none());
+    let mut absent = result.clone();
+    absent.resolved_input = None;
+    assert!(
+        source_authored_jim_class_at(source, &absent, original.factory().site().offset).is_none()
+    );
+    assert!(original.inherited_variables(&absent).is_empty());
+    let modern_source = jim("class Point {x 0}\n");
+    let modern = run(&modern_source, false);
+    let modern_original = authored_class_at(&modern_source, &modern, "class Point");
+    assert!(modern_original.factory().logical_source_input().is_none());
+    assert!(
+        !modern
+            .resolved_input
+            .as_ref()
+            .unwrap()
+            .has_logical_source_name_context()
+    );
+}
+
+#[test]
+fn nested_jim_headers_retain_the_authentic_conditional_source_parent() {
+    use tcl_compiler::analyser::ResolvedAnalysisInput;
+    use tcl_dialect::{
+        DialectProfile,
+        model::{DialectPoint, Release},
+    };
+    tcl_spectcl::core_surfaces::ensure();
+    let profile = DialectProfile::projected_from_point(
+        "jim-class-nested-logical079",
+        &[],
+        "Explicit nested Logical Jim class source",
+        DialectPoint::canonical(Release::JIM_0_79),
+    )
+    .intern();
+    let logical = ResolvedAnalysisInput::new(
+        profile,
+        profile,
+        tcl_registry::model::ingress::context_for_profile(profile),
+        tcl_lexer::LexerConfig::for_profile(Some(profile)),
+    );
+    for body in [
+        "namespace eval Holder {class Point {x 0}; class Derived Point {z 0}}\n",
+        "if {1} {class Point {x 0}; class Derived Point {z 0}}\n",
+        "proc build {} {class Point {x 0}; class Derived Point {z 0}}\n",
+    ] {
+        let source = jim(body);
+        for retained in [None, Some(logical.clone())] {
+            let result = if let Some(input) = retained {
+                Analyser::new()
+                    .with_resolved_input(input)
+                    .analyse(&source, profile.name)
+            } else {
+                run(&source, false)
+            };
+            let point = authored_class_at(&source, &result, "class Point");
+            let derived = authored_class_at(&source, &result, "class Derived");
+            assert!(point.parent_body().is_some(), "{body}");
+            assert!(derived.parent_body().is_some(), "{body}");
+            assert_eq!(derived.inherited_variables(&result), ["x"], "{body}");
+            let class = result
+                .all_classes
+                .values()
+                .find(|class| class.name == "Derived")
+                .unwrap();
+            assert_eq!(class.variables, ["x", "z"], "{body}");
+            assert!(class.source_name.is_none(), "no Native name/class owner");
+            assert!(derived.factory().obligations().contains(
+                &tcl_compiler::command_binding::SourceCommandTransitionObligation::ConditionalOriginalBodyCatalogueApplicability));
+        }
+    }
+}

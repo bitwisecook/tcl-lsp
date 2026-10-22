@@ -9345,7 +9345,9 @@ mod tests {
                 .contains(&(3, tcl_registry::ArgRole::Body))
         );
         assert!(!shape.invocation.facts.arg_roles_complete);
-        let roles = shape.source_roles.as_ref().unwrap();
+        let Some(StructuredSourceRoles::Logical(roles)) = shape.source_roles.as_ref() else {
+            panic!("the original Logical role issuer must retain its own purpose");
+        };
         let bodies = roles.case_body_operands().unwrap();
         assert!(!bodies.selection_unknown && !bodies.no_match_possible);
         assert_eq!(bodies.bodies[0].argument, 3);

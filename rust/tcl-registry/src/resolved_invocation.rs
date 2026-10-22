@@ -1332,6 +1332,22 @@ pub struct AuthoredSourceArity<'r> {
     pub count: InvocationArgumentCount,
 }
 
+/// Conditional list-operand geometry of the selected Jim class source form.
+/// This retains the authored recipe only; no Native argument, class allocation,
+/// handler entry, body admission or published command follows from it.
+#[derive(Debug, Clone, Copy)]
+pub struct AuthoredSourceJimClassLists {
+    /// Exact selected family descriptor, independently of runtime occupation.
+    pub grammar: &'static crate::definer::DefinitionBodyGrammar,
+    /// Selected authored Jim simulation for Original source. Logical source
+    /// retains its independent full input at the caller and issues no recipe.
+    pub policy: Option<tcl_syntax::naming::NamePolicyProtocol>,
+    /// Effective original operand containing bases; absence means no base operand.
+    pub bases: Option<usize>,
+    /// Effective original operand containing the instance-variable dictionary.
+    pub variables: usize,
+}
+
 /// Lambda-literal source position and guaranteed trailing argument geometry.
 /// This is descriptive call syntax, not an entered lambda or parameter binding.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -5754,6 +5770,65 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             .checked_add(leading)?
             .checked_add(usize::from(relative))?;
         (argument < count).then_some(AuthoredSourceCommandPublication { argument, kind })
+    }
+
+    /// Original Jim class list layout under this selected source schema.
+    /// Dynamic operands retain their positions; unknown argv cardinality and
+    /// unsupported source protocols decline. Consumers must retain the actual
+    /// original words and context rather than reparsing reporting strings.
+    #[must_use]
+    pub fn authored_source_jim_class_lists(
+        &self,
+        purpose: crate::source_name_ownership::SourceRolePurpose,
+    ) -> Option<AuthoredSourceJimClassLists> {
+        use tcl_syntax::naming::{NamePolicyAuthority, NativeNameProtocol};
+        let selected = self.authored_source_descriptors();
+        let grammar = selected.command.definition_body?;
+        if selected.subcommand.is_some()
+            || self.semantics.argument_offset != 0
+            || grammar.family != crate::definer::DefinerFamily::JimClass
+        {
+            return None;
+        }
+        let arguments = self.words.arguments();
+        let count = arguments.exact_argv_len()?;
+        let arity = self.authored_source_arity()?;
+        if !(2..=3).contains(&count)
+            || arity.count.indeterminate
+            || !arity.arity.accepts(arity.count.minimum)
+        {
+            return None;
+        }
+        let dialect = arguments.dialect()?;
+        if dialect.family() != Some(tcl_dialect::model::Family::Jim)
+            || dialect.lexer_grammar.escapes != tcl_dialect::EscapeSyntax::Jim
+            || dialect.word_values != tcl_syntax::word_rules::WordValueRules::JIM
+        {
+            return None;
+        }
+        let policy = match purpose {
+            crate::source_name_ownership::SourceRolePurpose::Original => {
+                let policy = dialect.authored_name_policy()?;
+                if policy.authority() != NamePolicyAuthority::AuthoredSimulation
+                    || policy.recipe() != NativeNameProtocol::Jim084
+                {
+                    return None;
+                }
+                Some(policy)
+            }
+            crate::source_name_ownership::SourceRolePurpose::Logical => {
+                // The caller must retain the positive Logical source owner.
+                // An unavailable Native recipe alone supplies no such owner.
+                dialect.native_name_protocol().is_none().then_some(())?;
+                None
+            }
+        };
+        Some(AuthoredSourceJimClassLists {
+            grammar,
+            policy,
+            bases: grammar.source_base_class_list_argument(count),
+            variables: count.checked_sub(1)?,
+        })
     }
 
     /// Conditional callable class of this selected factory descriptor.

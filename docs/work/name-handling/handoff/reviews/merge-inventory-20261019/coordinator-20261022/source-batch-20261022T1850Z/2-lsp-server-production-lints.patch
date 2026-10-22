@@ -1,0 +1,1090 @@
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -1009,6 +1009,12 @@
+     bytes: Vec<u8>,
+ }
+ 
++#[derive(Clone)]
++enum LogicalMemberSourceCaller {
++    Command(Box<core_workspace_index::WorkspaceLogicalCommandCall>),
++    Member(Box<tcl_lsp_core::original_indexed_location::LogicalIndexedMemberLocation>),
++}
++
+ struct ReadonlyDeclarationTarget {
+     uri: Uri,
+     document: DocumentState,
+@@ -1156,6 +1162,14 @@
+     class_factory_generation: u64,
+ }
+ 
++#[derive(Clone, Copy)]
++struct LiveSourceContents<'a> {
++    admission: &'a DocumentPathAdmission,
++    text: &'a str,
++    dialect: &'a str,
++    project_member: bool,
++}
++
+ struct FreshAnalysisDriver {
+     path_admission: Arc<DocumentPathAdmission>,
+     source_store: Arc<dyn vfs::SourceStore>,
+@@ -1243,7 +1257,7 @@
+ }
+ 
+ enum DiskScanOutcome {
+-    Available(ScannedDocument),
++    Available(Box<ScannedDocument>),
+     Absent(Arc<DocumentPathAdmission>),
+     Unavailable(DocumentSourceUnavailable),
+ }
+@@ -1261,6 +1275,21 @@
+     Unavailable,
+ }
+ 
++type AdmittedDiskReplacement<'a> = (
++    &'a (Uri, String, String, AnalysisResult),
++    &'a Arc<DocumentPathAdmission>,
++);
++
++#[derive(Clone, Copy)]
++struct DiskPublicationInputs<'a> {
++    replacements: &'a [(Uri, String, String, AnalysisResult)],
++    admissions: &'a [Arc<DocumentPathAdmission>],
++    removals: &'a [Uri],
++    removal_admissions: &'a [Arc<DocumentPathAdmission>],
++    expected_analyser_inputs_epoch: Option<u64>,
++    expected_class_factory_generation: Option<u64>,
++}
++
+ #[derive(Default)]
+ struct AdmittedDiskBatch {
+     removal_admissions: Vec<Arc<DocumentPathAdmission>>,
+@@ -1268,6 +1297,14 @@
+     admissions: Vec<Arc<DocumentPathAdmission>>,
+     expected_analyser_inputs_epoch: Option<u64>,
+     expected_class_factory_generation: Option<u64>,
++}
++
++struct ScanAnalysisInputs {
++    analyser_inputs_epoch: u64,
++    class_factory_generation: u64,
++    document_dialect_overrides: Arc<HashMap<String, String>>,
++    folder_dialects: Vec<(Uri, String)>,
++    default_dialect: String,
+ }
+ 
+ struct ScannedDocument {
+@@ -1315,7 +1352,7 @@
+ enum RehomingDocumentSnapshot {
+     /// Published source bytes, plus the open revision to re-check before the
+     /// index write (`None` means the source was closed and came from Salsa).
+-    Ready(DocumentState, Option<u64>),
++    Ready(Box<DocumentState>, Option<u64>),
+     /// An open revision is waiting to acquire the rehoming gate and publish.
+     Pending,
+     /// The URI has neither an open buffer nor a tracked Salsa source.
+@@ -4805,6 +4842,11 @@
+     client_supports_pull: bool,
+ }
+ 
++type DiagnosticSourceContext<'a> = (
++    &'a Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
++    &'a HashMap<Uri, DocumentState>,
++);
++
+ /// Exact cache/mailbox publication identity, transported with its own ack.
+ struct IssuedDiagnosticPublication {
+     result_id: String,
+@@ -5005,10 +5047,7 @@
+         &self,
+         diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
+         workspace_sources: Option<&Arc<WorkspaceDiagnosticSources>>,
+-        source_context: Option<(
+-            &Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
+-            &HashMap<Uri, DocumentState>,
+-        )>,
++        source_context: Option<DiagnosticSourceContext<'_>>,
+     ) -> Option<IssuedDiagnosticPublication> {
+         let published = match self.spec_packs {
+             Some(spec_packs) => Some(spec_packs.lock().await),
+@@ -7605,7 +7644,7 @@
+ ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+     let report = published_report(doc, produced, layers, directives, analysis);
+     let payloads = rewrite_wire::original_rewrite_payloads(doc, &report, analysis, source);
+-    lift_report_with_payloads(doc.text, &report, payloads)
++    lift_report_with_payloads(doc.text, &report, &payloads)
+ }
+ 
+ /// `produced` plus the report's own producers under `layers` and
+@@ -7649,13 +7688,13 @@
+     text: &str,
+     report: &core_policy::Report,
+ ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+-    lift_report_with_payloads(text, report, rewrite_payloads(report))
++    lift_report_with_payloads(text, report, &rewrite_payloads(report))
+ }
+ 
+ fn lift_report_with_payloads(
+     text: &str,
+     report: &core_policy::Report,
+-    payloads: HashMap<*const core_policy::Finding, serde_json::Value>,
++    payloads: &HashMap<*const core_policy::Finding, serde_json::Value>,
+ ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+     use tower_lsp_server::ls_types::{DiagnosticTag, NumberOrString};
+     let line_index = tcl_lexer::LineIndex::new_lsp(text);
+@@ -8661,17 +8700,19 @@
+     }
+ }
+ 
++type DiagnosticProviderResult = (
++    Result<(), DiagnosticUnavailable>,
++    Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError>,
++    Option<WorkspaceCommandQueries>,
++);
++
+ /// Publish the lifted diagnostics: re-check currency, refresh the workspace
+ /// index, atomically commit the pull cache + mailbox state, await delivery
+ /// outside all global guards, and log timing. Always
+ /// settled (`true`) — a stale revision or a lift-revision panic both keep the
+ /// prior diagnostics rather than retrying.
+ struct DiagnosticPublicationSources {
+-    result: (
+-        Result<(), DiagnosticUnavailable>,
+-        Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError>,
+-        Option<WorkspaceCommandQueries>,
+-    ),
++    result: DiagnosticProviderResult,
+     workspace_sources: Option<Arc<WorkspaceDiagnosticSources>>,
+ }
+ 
+@@ -8682,11 +8723,7 @@
+     rehomed_source_seeds: &Arc<Mutex<HashMap<String, Vec<String>>>>,
+     rehoming_gate: &Arc<tokio::sync::Mutex<()>>,
+     analysis: &Arc<AnalysisResult>,
+-    result: (
+-        Result<(), DiagnosticUnavailable>,
+-        Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError>,
+-        Option<WorkspaceCommandQueries>,
+-    ),
++    result: DiagnosticProviderResult,
+     timing: PublishTiming<'_>,
+ ) -> bool {
+     publish_diagnostics_result_with_sources(
+@@ -8745,7 +8782,7 @@
+     } else {
+         None
+     };
+-    let _source_inputs = if workspace_sources
++    let source_inputs = if workspace_sources
+         .as_ref()
+         .is_some_and(|sources| !sources.is_empty())
+     {
+@@ -8917,7 +8954,7 @@
+     // Client backpressure is isolated in the persistent publisher. Waiting for
+     // the authoritative delivery preserves the timing-marker contract, but the
+     // global documents map and rehoming gate have both been released first.
+-    drop(_source_inputs);
++    drop(source_inputs);
+     match publication.receipt.await {
+         Ok(DiagnosticPublishOutcome::Delivered) => {}
+         Ok(DiagnosticPublishOutcome::Superseded) => {
+@@ -9025,6 +9062,13 @@
+     /// anything has been published.
+     seq: u64,
+     packs: Arc<tcl_spectcl::PackSet>,
++}
++
++#[derive(Clone, Copy)]
++struct PackReloadSourceViews<'a> {
++    loader_inputs: &'a tcl_spectcl::pack::LoadedSourceInputs,
++    studio_snapshot: &'a studio_source::StudioSourceSnapshot,
++    overlays: &'a [(&'static tcl_dialect::DialectProfile, Arc<CommandRegistry>)],
+ }
+ 
+ /// A successfully settled pack generation and its actual discovery input.
+@@ -10987,6 +11031,14 @@
+ }
+ 
+ #[derive(Clone, Copy)]
++struct WorkspaceRenameCaller<'a> {
++    uri: &'a Uri,
++    source: &'a str,
++    analysis: &'a AnalysisResult,
++    position: Position,
++}
++
++#[derive(Clone, Copy)]
+ struct WorkspaceSourcePlanToken {
+     index_generation: u64,
+     inventory_revision: u64,
+@@ -11963,12 +12015,14 @@
+             .publish_admitted_disk_results_while_rehoming_locked(
+                 &disk_publication,
+                 rehoming,
+-                &batch.rows,
+-                &batch.admissions,
+-                removals,
+-                &batch.removal_admissions,
+-                batch.expected_analyser_inputs_epoch,
+-                batch.expected_class_factory_generation,
++                DiskPublicationInputs {
++                    replacements: &batch.rows,
++                    admissions: &batch.admissions,
++                    removals,
++                    removal_admissions: &batch.removal_admissions,
++                    expected_analyser_inputs_epoch: batch.expected_analyser_inputs_epoch,
++                    expected_class_factory_generation: batch.expected_class_factory_generation,
++                },
+                 removal_policy,
+                 site,
+             )
+@@ -12006,12 +12060,14 @@
+         self.publish_admitted_disk_results_while_rehoming_locked(
+             _disk_publication,
+             rehoming_guard,
+-            replacements,
+-            &admissions,
+-            removals,
+-            &removal_admissions,
+-            None,
+-            None,
++            DiskPublicationInputs {
++                replacements,
++                admissions: &admissions,
++                removals,
++                removal_admissions: &removal_admissions,
++                expected_analyser_inputs_epoch: None,
++                expected_class_factory_generation: None,
++            },
+             removal_policy,
+             site,
+         )
+@@ -12022,12 +12078,7 @@
+         &'a self,
+         _disk_publication: &tokio::sync::MutexGuard<'_, ()>,
+         rehoming_guard: tokio::sync::MutexGuard<'a, ()>,
+-        replacements: &[(Uri, String, String, AnalysisResult)],
+-        admissions: &[Arc<DocumentPathAdmission>],
+-        removals: &[Uri],
+-        removal_admissions: &[Arc<DocumentPathAdmission>],
+-        expected_analyser_inputs_epoch: Option<u64>,
+-        expected_class_factory_generation: Option<u64>,
++        inputs: DiskPublicationInputs<'_>,
+         removal_policy: DiskRemovalPolicy<'_>,
+         site: &'static str,
+     ) -> DocumentSourceResult<(
+@@ -12035,6 +12086,14 @@
+         tokio::sync::MutexGuard<'a, ()>,
+         DiskPublicationOutcome,
+     )> {
++        let DiskPublicationInputs {
++            replacements,
++            admissions,
++            removals,
++            removal_admissions,
++            expected_analyser_inputs_epoch,
++            expected_class_factory_generation,
++        } = inputs;
+         assert_eq!(removals.len(), removal_admissions.len());
+         for (uri, admission) in removals.iter().zip(removal_admissions) {
+             admission.check_uri(uri)?;
+@@ -12214,10 +12273,7 @@
+         locks: PublicationLocks<'_>,
+         removals: &[&Uri],
+         index_only_removals: &[&Uri],
+-        replacements: &[(
+-            &(Uri, String, String, AnalysisResult),
+-            &Arc<DocumentPathAdmission>,
+-        )],
++        replacements: &[AdmittedDiskReplacement<'_>],
+         removal_admissions: &[Arc<DocumentPathAdmission>],
+         store: &dyn vfs::SourceStore,
+         published_paths: &PublishedSourcePaths,
+@@ -12523,13 +12579,13 @@
+         dialect: &str,
+         version: i32,
+     ) -> DocumentSourceResult<bool> {
+-        self.commit_open_document_with_seed(
++        Box::pin(self.commit_open_document_with_seed(
+             uri,
+             text,
+             dialect,
+             version,
+             self.fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned()),
+-        )
++        ))
+         .await
+     }
+ 
+@@ -12619,10 +12675,12 @@
+                     } = locks;
+                     Self::set_live_db_source_locked(
+                         source,
+-                        &admission,
+-                        text,
+-                        dialect,
+-                        true,
++                        LiveSourceContents {
++                            admission: &admission,
++                            text,
++                            dialect,
++                            project_member: true,
++                        },
+                         self.store.as_ref(),
+                         &mut || {
+                             last_semantic_tokens.remove(uri);
+@@ -12740,10 +12798,12 @@
+ 
+             Self::set_live_db_source_locked(
+                 locks,
+-                &admission,
+-                text,
+-                dialect,
+-                !orphaned,
++                LiveSourceContents {
++                    admission: &admission,
++                    text,
++                    dialect,
++                    project_member: !orphaned,
++                },
+                 self.store.as_ref(),
+                 &mut || {},
+                 self.source_path_admissions.as_ref(),
+@@ -12857,10 +12917,12 @@
+                 let OpenPublicationLocks { source, mut index } = locks;
+                 Self::set_live_db_source_locked(
+                     source,
+-                    &admission,
+-                    text,
+-                    dialect,
+-                    !orphaned,
++                    LiveSourceContents {
++                        admission: &admission,
++                        text,
++                        dialect,
++                        project_member: !orphaned,
++                    },
+                     self.store.as_ref(),
+                     &mut || {
+                         index.remove_document(uri.as_str());
+@@ -13157,14 +13219,17 @@
+     /// cross-document project membership for edited open orphans.
+     fn set_live_db_source_locked(
+         locks: LiveSourceLocks<'_>,
+-        admission: &DocumentPathAdmission,
+-        text: &str,
+-        dialect: &str,
+-        project_member: bool,
++        source: LiveSourceContents<'_>,
+         store: &dyn vfs::SourceStore,
+         publish_derived: &mut dyn FnMut(),
+         published_paths: &PublishedSourcePaths,
+     ) -> DocumentSourceResult<()> {
++        let LiveSourceContents {
++            admission,
++            text,
++            dialect,
++            project_member,
++        } = source;
+         admission.check_current(store)?;
+         let uri = admission.uri();
+         let LiveSourceLocks {
+@@ -15441,12 +15506,14 @@
+                 .publish_admitted_disk_results_while_rehoming_locked(
+                     &disk_publication,
+                     rehoming_guard,
+-                    &[],
+-                    &[],
+-                    &candidates,
+-                    &admissions,
+-                    None,
+-                    None,
++                    DiskPublicationInputs {
++                        replacements: &[],
++                        admissions: &[],
++                        removals: &candidates,
++                        removal_admissions: &admissions,
++                        expected_analyser_inputs_epoch: None,
++                        expected_class_factory_generation: None,
++                    },
+                     DiskRemovalPolicy::ClosedOnly,
+                     "drop_index_under_folders",
+                 )
+@@ -15541,14 +15608,14 @@
+                 Ok(seed) => seed,
+                 Err(error) => return DiskScanOutcome::Unavailable(error),
+             };
+-            DiskScanOutcome::Available(ScannedDocument {
++            DiskScanOutcome::Available(Box::new(ScannedDocument {
+                 uri,
+                 text,
+                 dialect,
+                 expected_analyser_inputs_epoch: None,
+                 expected_class_factory_generation: None,
+                 seed,
+-            })
++            }))
+         })
+         .await
+         {
+@@ -15631,7 +15698,7 @@
+         let mut removal_admissions = Vec::new();
+         for (uri, scanned) in results {
+             match scanned {
+-                DiskScanOutcome::Available(document) => replacements.push(document),
++                DiskScanOutcome::Available(document) => replacements.push(*document),
+                 DiskScanOutcome::Absent(admission) => {
+                     to_remove.push(uri);
+                     removal_admissions.push(admission);
+@@ -15689,7 +15756,7 @@
+         let _: () = match scanned {
+             DiskScanOutcome::Unavailable(error) => return Err(error),
+             DiskScanOutcome::Available(scanned) => {
+-                let rows = self.current_scanned_rows(vec![scanned]).await?;
++                let rows = self.current_scanned_rows(vec![*scanned]).await?;
+                 self.publish_scanned_disk_results(
+                     &rows,
+                     &[],
+@@ -16640,15 +16707,14 @@
+             if analysis.resolved_input.as_ref().is_some_and(
+                 tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+             ) {
+-                return Ok(self
+-                    .logical_namespace_locations_for_snapshot(
+-                        (uri.clone(), doc.clone(), source_generation),
+-                        &analysis,
+-                        pos,
+-                        source_epoch,
+-                        LogicalNamespaceLocationsPurpose::Definitions,
+-                    )
+-                    .await?);
++                return Ok(Box::pin(self.logical_namespace_locations_for_snapshot(
++                    (uri.clone(), doc.clone(), source_generation),
++                    &analysis,
++                    pos,
++                    source_epoch,
++                    LogicalNamespaceLocationsPurpose::Definitions,
++                ))
++                .await?);
+             }
+             return Ok(self
+                 .original_namespace_locations(uri, &doc.text, &analysis, &symbol, true, true)
+@@ -16662,13 +16728,13 @@
+                 .namespace_declaration_locations(uri, &doc.text, &analysis, &cell)
+                 .await?);
+         }
+-        if let std::ops::ControlFlow::Break(locations) = self
+-            .original_method_locations_for_snapshot(
++        if let std::ops::ControlFlow::Break(locations) =
++            Box::pin(self.original_method_locations_for_snapshot(
+                 (uri.clone(), doc.clone(), source_generation),
+                 &analysis,
+                 pos,
+                 source_epoch,
+-            )
++            ))
+             .await?
+         {
+             return Ok(locations);
+@@ -16738,14 +16804,13 @@
+         }
+         if analysis.resolved_input.as_ref().is_some_and(
+             tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+-        ) && let Some(locations) = self
+-            .logical_class_member_locations_for_snapshot(
+-                (uri.clone(), doc.clone(), source_generation),
+-                &analysis,
+-                pos,
+-                source_epoch,
+-            )
+-            .await?
++        ) && let Some(locations) = Box::pin(self.logical_class_member_locations_for_snapshot(
++            (uri.clone(), doc.clone(), source_generation),
++            &analysis,
++            pos,
++            source_epoch,
++        ))
++        .await?
+         {
+             return Ok(locations);
+         }
+@@ -18833,11 +18898,6 @@
+         if actual.line != position.line || actual.character.get() != position.character {
+             return Ok(None);
+         }
+-        #[derive(Clone)]
+-        enum Caller {
+-            Command(core_workspace_index::WorkspaceLogicalCommandCall),
+-            Member(tcl_lsp_core::original_indexed_location::LogicalIndexedMemberLocation),
+-        }
+         let selected = {
+             let _rehoming = self.rehomed_index_guard().await?;
+             let index = self.workspace_index.read().await;
+@@ -18847,7 +18907,10 @@
+                 analysis,
+                 offset,
+             ) {
+-                Some((Caller::Command(selected.call), selected.targets))
++                Some((
++                    LogicalMemberSourceCaller::Command(Box::new(selected.call)),
++                    selected.targets,
++                ))
+             } else {
+                 index
+                     .logical_self_member_targets_at(
+@@ -18856,7 +18919,12 @@
+                         analysis,
+                         offset,
+                     )
+-                    .map(|selected| (Caller::Member(selected.caller), selected.targets))
++                    .map(|selected| {
++                        (
++                            LogicalMemberSourceCaller::Member(Box::new(selected.caller)),
++                            selected.targets,
++                        )
++                    })
+             }
+         };
+         let Some((original_caller, selected_targets)) = selected else {
+@@ -18880,14 +18948,18 @@
+                 analysis: current,
+                 generation,
+                 location: match &original_caller {
+-                    Caller::Command(call) => ReadonlyDeclarationLocation::LogicalMember {
+-                        location: Box::new(location),
+-                        call: Box::new(call.clone()),
+-                    },
+-                    Caller::Member(caller) => ReadonlyDeclarationLocation::LogicalSelfMember {
+-                        location: Box::new(location),
+-                        caller: Box::new(caller.clone()),
+-                    },
++                    LogicalMemberSourceCaller::Command(call) => {
++                        ReadonlyDeclarationLocation::LogicalMember {
++                            location: Box::new(location),
++                            call: call.clone(),
++                        }
++                    }
++                    LogicalMemberSourceCaller::Member(caller) => {
++                        ReadonlyDeclarationLocation::LogicalSelfMember {
++                            location: Box::new(location),
++                            caller: caller.clone(),
++                        }
++                    }
+                 },
+             });
+         }
+@@ -18901,9 +18973,9 @@
+         position: Position,
+         epoch: u64,
+     ) -> DocumentSourceResult<Option<Vec<Location>>> {
+-        let Some(targets) = self
+-            .logical_member_source_targets_for_snapshot(&caller, analysis, position)
+-            .await?
++        let Some(targets) =
++            Box::pin(self.logical_member_source_targets_for_snapshot(&caller, analysis, position))
++                .await?
+         else {
+             return Ok(None);
+         };
+@@ -18926,9 +18998,9 @@
+             document.clone(),
+             self.live_publication_uri_generation(uri),
+         );
+-        let Some(targets) = self
+-            .logical_member_source_targets_for_snapshot(&caller, analysis, position)
+-            .await?
++        let Some(targets) =
++            Box::pin(self.logical_member_source_targets_for_snapshot(&caller, analysis, position))
++                .await?
+         else {
+             return Ok(None);
+         };
+@@ -19376,7 +19448,6 @@
+     /// Anything else (a bareword argument, whitespace, a `$var`) resolves to
+     /// nothing (an empty set), so no coincidental word links to a sibling
+     /// symbol.
+-
+     async fn resolve_workspace_symbols_indexed_for_purpose(
+         &self,
+         uri: &Uri,
+@@ -19842,14 +19913,14 @@
+                 .namespace_reference_locations(uri, analysis, &cell, include_declaration)
+                 .await;
+         }
+-        if let std::ops::ControlFlow::Break(locations) = self
+-            .readonly_original_method_reference_locations_at(
++        if let std::ops::ControlFlow::Break(locations) =
++            Box::pin(self.readonly_original_method_reference_locations_at(
+                 uri,
+                 &doc.text,
+                 analysis,
+                 position,
+                 include_declaration,
+-            )
++            ))
+             .await?
+         {
+             return Ok(locations);
+@@ -21652,9 +21723,7 @@
+             return Ok(None);
+         };
+         if input.has_logical_source_name_context() {
+-            return self
+-                .logical_member_source_hover(uri, doc, analysis, pos)
+-                .await;
++            return Box::pin(self.logical_member_source_hover(uri, doc, analysis, pos)).await;
+         }
+         // Hosted semantics remain in their separately deferred consumer. Generic
+         // source advice cannot seed this report-selected dispatch implementation.
+@@ -21782,14 +21851,17 @@
+     /// discipline as the in-document rename).
+     async fn add_workspace_resolved_rename_edits(
+         &self,
+-        uri: &Uri,
+-        source: &str,
+-        analysis: &AnalysisResult,
+-        pos: Position,
++        caller: WorkspaceRenameCaller<'_>,
+         new_name: &str,
+         changes: &mut std::collections::HashMap<Uri, Vec<TextEdit>>,
+         source_plan: &mut WorkspaceSourcePlanToken,
+     ) -> DocumentSourceResult<()> {
++        let WorkspaceRenameCaller {
++            uri,
++            source,
++            analysis,
++            position: pos,
++        } = caller;
+         let (rehoming_guard, symbols) = self
+             .resolved_symbol_index_snapshot_for_binding(uri, source, analysis, pos)
+             .await?;
+@@ -22229,10 +22301,12 @@
+                 .await;
+         }
+         self.add_workspace_resolved_rename_edits(
+-            ctx.uri,
+-            ctx.source,
+-            ctx.analysis,
+-            ctx.pos,
++            WorkspaceRenameCaller {
++                uri: ctx.uri,
++                source: ctx.source,
++                analysis: ctx.analysis,
++                position: ctx.pos,
++            },
+             ctx.new_name,
+             changes,
+             source_plan,
+@@ -26593,7 +26667,7 @@
+         let epoch = self.diag_inputs_epoch();
+         let (disabled, non_ascii_mode) = self.resolved_analysis_settings(uri).await;
+         let policy_layers = self.resolved_policy_layers(uri).await;
+-        let (pack_seq, pack_set) = {
++        let (pack_generation, pack_set) = {
+             let published = self.spec_packs.lock().await;
+             (published.seq, Arc::clone(&published.packs))
+         };
+@@ -26626,7 +26700,7 @@
+             client: self.client.clone(),
+             diagnostic_publisher: Arc::clone(&self.diagnostic_publisher),
+             registry,
+-            pack_seq,
++            pack_seq: pack_generation,
+             pack_set: Arc::clone(&pack_set),
+             spec_packs: Arc::clone(&self.spec_packs),
+             disabled,
+@@ -27883,9 +27957,11 @@
+             registration.as_ref(),
+             changed,
+             seq,
+-            &loader_inputs,
+-            &studio_snapshot,
+-            &overlays,
++            PackReloadSourceViews {
++                loader_inputs: &loader_inputs,
++                studio_snapshot: &studio_snapshot,
++                overlays: &overlays,
++            },
+         )
+         .await?;
+         self.settle_pack_reload(changed, trigger).await?;
+@@ -27914,10 +27990,13 @@
+         registration: Option<&tcl_spectcl::PackSetRegistration>,
+         changed: bool,
+         seq: u64,
+-        loader_inputs: &tcl_spectcl::pack::LoadedSourceInputs,
+-        studio_snapshot: &studio_source::StudioSourceSnapshot,
+-        overlays: &[(&'static tcl_dialect::DialectProfile, Arc<CommandRegistry>)],
++        sources: PackReloadSourceViews<'_>,
+     ) -> DocumentSourceResult<()> {
++        let PackReloadSourceViews {
++            loader_inputs,
++            studio_snapshot,
++            overlays,
++        } = sources;
+         // Shipped-command collisions are not load notices — the loader has no
+         // registry to compare against, so `PackSet::notices` cannot carry
+         // them. They are computed here, against the session dialect's plain
+@@ -28714,7 +28793,10 @@
+         };
+         drop(docs);
+         if let Some((doc, revision)) = live {
+-            return Ok(RehomingDocumentSnapshot::Ready(doc, Some(revision)));
++            return Ok(RehomingDocumentSnapshot::Ready(
++                Box::new(doc),
++                Some(revision),
++            ));
+         }
+ 
+         let snapshot = {
+@@ -28735,7 +28817,7 @@
+             {
+                 RehomingDocumentSnapshot::Pending
+             } else if let Some(snapshot) = snapshot {
+-                RehomingDocumentSnapshot::Ready(snapshot, None)
++                RehomingDocumentSnapshot::Ready(Box::new(snapshot), None)
+             } else {
+                 RehomingDocumentSnapshot::Missing
+             },
+@@ -28869,8 +28951,8 @@
+             if work.is_empty() {
+                 return Ok(());
+             }
+-            for (uri_s, seeds) in work {
+-                let Ok(uri) = Uri::from_str(&uri_s) else {
++            for (owner_uri_text, seeds) in work {
++                let Ok(uri) = Uri::from_str(&owner_uri_text) else {
+                     continue;
+                 };
+                 // Never call `read_document` while holding `rehoming_gate`:
+@@ -28909,9 +28991,15 @@
+                     return Ok(());
+                 }
+                 if Self::is_standalone_view(&seeds) {
+-                    self.rehomed_source_seeds.lock().await.remove(&uri_s);
++                    self.rehomed_source_seeds
++                        .lock()
++                        .await
++                        .remove(&owner_uri_text);
+                 } else {
+-                    self.rehomed_source_seeds.lock().await.insert(uri_s, seeds);
++                    self.rehomed_source_seeds
++                        .lock()
++                        .await
++                        .insert(owner_uri_text, seeds);
+                 }
+             }
+         }
+@@ -29109,15 +29197,17 @@
+                 // Retain the checked source/input owner alongside fallback
+                 // symbols. Pending buffers keep their genuine fresh seed;
+                 // published database inputs retain the existing readonly owner.
+-                let Some(analysis) = self.capture_workspace_symbol_analysis(&uri, &doc).await?
++                let Some(source_owner) = self.capture_workspace_symbol_analysis(&uri, &doc).await?
+                 else {
+                     continue;
+                 };
+                 pending.add_document(
+                     uri.as_str(),
+-                    readonly_reference_reports::WorkspaceSymbolSourceAnalysis::analysis(&analysis),
++                    readonly_reference_reports::WorkspaceSymbolSourceAnalysis::analysis(
++                        &source_owner,
++                    ),
+                 );
+-                analyses.insert(uri.as_str().to_owned(), Some(analysis));
++                analyses.insert(uri.as_str().to_owned(), Some(source_owner));
+                 fallback_sources
+                     .insert(uri.as_str().to_owned(), Some(doc.normalised_for_analysis()));
+             }
+@@ -29371,11 +29461,13 @@
+             .analyse_and_merge_scanned_files(
+                 files,
+                 open,
+-                scan_analyser_inputs_epoch,
+-                scan_class_factory_generation,
+-                document_dialect_overrides,
+-                folder_dialects,
+-                default_dialect,
++                ScanAnalysisInputs {
++                    analyser_inputs_epoch: scan_analyser_inputs_epoch,
++                    class_factory_generation: scan_class_factory_generation,
++                    document_dialect_overrides,
++                    folder_dialects,
++                    default_dialect,
++                },
+                 resolver,
+             )
+             .await?;
+@@ -29605,13 +29697,16 @@
+         &self,
+         files: Vec<PathBuf>,
+         open: HashSet<Uri>,
+-        scan_analyser_inputs_epoch: u64,
+-        scan_class_factory_generation: u64,
+-        document_dialect_overrides: Arc<HashMap<String, String>>,
+-        folder_dialects: Vec<(Uri, String)>,
+-        default_dialect: String,
++        inputs: ScanAnalysisInputs,
+         mut resolver: PackageResolver,
+     ) -> DocumentSourceResult<(PackageResolver, usize, bool, bool)> {
++        let ScanAnalysisInputs {
++            analyser_inputs_epoch: scan_analyser_inputs_epoch,
++            class_factory_generation: scan_class_factory_generation,
++            document_dialect_overrides,
++            folder_dialects,
++            default_dialect,
++        } = inputs;
+         let open = Arc::new(open);
+         let folder_dialects = Arc::new(folder_dialects);
+         let concurrency =
+@@ -29698,7 +29793,7 @@
+                     );
+                     match driver.analyse(&text, &dialect, None) {
+                         Ok(seed) => WorkspaceScanCandidate::Scanned(DiskScanOutcome::Available(
+-                            ScannedDocument {
++                            Box::new(ScannedDocument {
+                                 uri,
+                                 text,
+                                 dialect,
+@@ -29707,7 +29802,7 @@
+                                     scan_class_factory_generation,
+                                 ),
+                                 seed,
+-                            },
++                            }),
+                         )),
+                         Err(error) => {
+                             WorkspaceScanCandidate::Scanned(DiskScanOutcome::Unavailable(error))
+@@ -29747,7 +29842,7 @@
+                         // performed no declaration walk certify absence.
+                         coverage_complete = false;
+                     }
+-                    batch.push(item);
++                    batch.push(*item);
+                 }
+             }
+             if batch.len() >= SCAN_MERGE_BATCH_SIZE {
+@@ -30784,26 +30879,24 @@
+             .await;
+     }
+ 
+-    fn shutdown(&self) -> impl Future<Output = jsonrpc::Result<()>> {
+-        async move {
+-            let retired = self.studio_sources.lock().await.close();
+-            if retired {
+-                self.reload_spec_packs(ReloadTrigger::StudioSource).await?;
+-                if !self
+-                    .studio_sources
+-                    .lock()
+-                    .await
+-                    .shutdown_publication_complete()
+-                {
+-                    return Err(jsonrpc::Error {
+-                        code: jsonrpc::ErrorCode::InternalError,
+-                        message: "Studio source withdrawal publication is unavailable".into(),
+-                        data: None,
+-                    });
+-                }
++    async fn shutdown(&self) -> jsonrpc::Result<()> {
++        let retired = self.studio_sources.lock().await.close();
++        if retired {
++            self.reload_spec_packs(ReloadTrigger::StudioSource).await?;
++            if !self
++                .studio_sources
++                .lock()
++                .await
++                .shutdown_publication_complete()
++            {
++                return Err(jsonrpc::Error {
++                    code: jsonrpc::ErrorCode::InternalError,
++                    message: "Studio source withdrawal publication is unavailable".into(),
++                    data: None,
++                });
+             }
+-            Ok(())
+-        }
++        }
++        Ok(())
+     }
+ 
+     async fn did_open(&self, params: DidOpenTextDocumentParams) {
+@@ -30913,8 +31006,7 @@
+         // wins rather than being overwritten by this open. The ordinary
+         // unindexed-open-document fallback covers the short gap until live
+         // analysis republishes the buffer.
+-        if !(match self
+-            .commit_open_document(&uri, &text, &dialect_for_diags, version)
++        if !(match Box::pin(self.commit_open_document(&uri, &text, &dialect_for_diags, version))
+             .await
+         {
+             Ok(value) => value,
+@@ -32018,7 +32110,7 @@
+             .uri
+             .clone();
+         let pos = params.text_document_position_params.position;
+-        let locations = self.compute_definition(&uri, pos).await?;
++        let locations = Box::pin(self.compute_definition(&uri, pos)).await?;
+         if locations.is_empty() {
+             return Ok(None);
+         }
+@@ -32077,7 +32169,7 @@
+             // No in-document declaration / definition — try the
+             // cross-document index (a sibling-file proc / class), the
+             // same fallback go-to-definition uses.
+-            self.compute_definition(&uri, pos).await?
++            Box::pin(self.compute_definition(&uri, pos)).await?
+         } else {
+             ranges
+                 .into_iter()
+@@ -32373,17 +32465,16 @@
+             tcl_compiler::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+         ) && Self::original_namespace_symbol(&doc.text, &analysis, pos).is_some()
+         {
+-            let locations = self
+-                .logical_namespace_locations_for_snapshot(
+-                    (uri.clone(), doc.clone(), source_generation),
+-                    &analysis,
+-                    pos,
+-                    source_epoch,
+-                    LogicalNamespaceLocationsPurpose::References {
+-                        include_declaration: include_decl,
+-                    },
+-                )
+-                .await?;
++            let locations = Box::pin(self.logical_namespace_locations_for_snapshot(
++                (uri.clone(), doc.clone(), source_generation),
++                &analysis,
++                pos,
++                source_epoch,
++                LogicalNamespaceLocationsPurpose::References {
++                    include_declaration: include_decl,
++                },
++            ))
++            .await?;
+             return Ok((!locations.is_empty()).then_some(locations));
+         }
+         let logical_namespace_variable = analysis.resolved_input.as_ref().is_some_and(|input| input.has_logical_source_name_context()
+@@ -32400,8 +32491,7 @@
+             )
+             .await?
+         } else {
+-            self.reference_locations(&uri, &doc, &analysis, pos, include_decl)
+-                .await?
++            Box::pin(self.reference_locations(&uri, &doc, &analysis, pos, include_decl)).await?
+         };
+         if locations.is_empty() {
+             return Ok(None);
+@@ -33681,7 +33771,7 @@
+                 data["sourceReferenceCoverage"] =
+                     serde_json::json!(readonly_reference_reports::coverage_tag(report.coverage));
+             }
+-            lens.command = Some(report.lens_command(uri, position));
++            lens.command = Some(report.lens_command(&uri, position));
+             return Ok(lens);
+         }
+         let mut lens = lens;
+@@ -34797,13 +34887,13 @@
+                 kind: CoreHoverKind::Markdown,
+             })));
+         }
+-        if let std::ops::ControlFlow::Break(hover) = self
+-            .original_method_hover_for_snapshot(
++        if let std::ops::ControlFlow::Break(hover) =
++            Box::pin(self.original_method_hover_for_snapshot(
+                 (uri.clone(), doc.clone(), source_generation),
+                 &analysis,
+                 pos,
+                 source_epoch,
+-            )
++            ))
+             .await?
+         {
+             return Ok(hover.map(lift_hover));
+@@ -34860,9 +34950,8 @@
+         // command-head tiers because a method-name token is never a command
+         // head — its head is `my` / `$obj` — so it would otherwise never
+         // reach any cross-document tier at all.
+-        if let Some(hover) = self
+-            .cross_file_method_hover(&uri, &doc, &analysis, pos)
+-            .await?
++        if let Some(hover) =
++            Box::pin(self.cross_file_method_hover(&uri, &doc, &analysis, pos)).await?
+         {
+             return Ok(Some(lift_hover(hover)));
+         }
+@@ -52210,11 +52299,13 @@
+             .analyse_and_merge_scanned_files(
+                 vec![path],
+                 HashSet::new(),
+-                epoch,
+-                factory_generation,
+-                document_overrides,
+-                folder_dialects,
+-                default_dialect,
++                ScanAnalysisInputs {
++                    analyser_inputs_epoch: epoch,
++                    class_factory_generation: factory_generation,
++                    document_dialect_overrides: document_overrides,
++                    folder_dialects,
++                    default_dialect,
++                },
+                 PackageResolver::new(),
+             )
+             .await
+@@ -52436,11 +52527,13 @@
+             .analyse_and_merge_scanned_files(
+                 vec![open_path, absent_path],
+                 HashSet::from([open_uri]),
+-                epoch,
+-                factory_generation,
+-                document_overrides,
+-                folder_dialects,
+-                default_dialect,
++                ScanAnalysisInputs {
++                    analyser_inputs_epoch: epoch,
++                    class_factory_generation: factory_generation,
++                    document_dialect_overrides: document_overrides,
++                    folder_dialects,
++                    default_dialect,
++                },
+                 PackageResolver::new(),
+             )
+             .await
+--- a/rust/tcl-lsp-server/src/readonly_reference_reports.rs
++++ b/rust/tcl-lsp-server/src/readonly_reference_reports.rs
+@@ -183,7 +183,7 @@
+ 
+     pub(super) fn lens_command(
+         self,
+-        uri: Uri,
++        uri: &Uri,
+         position: Position,
+     ) -> tower_lsp_server::ls_types::Command {
+         let title = tcl_lsp_core::code_lens::readonly_reference_count_title(
+@@ -1265,7 +1265,7 @@
+                 locations,
+                 coverage: report.coverage(),
+             }
+-            .lens_command(selected.clone(), range.start);
++            .lens_command(selected, range.start);
+             Some(tower_lsp_server::ls_types::CodeLens {
+                 range,
+                 command: Some(command),
+@@ -2449,7 +2449,7 @@
+                 coverage,
+             };
+             let command = report.lens_command(
+-                "file:///readonly-empty.tcl".parse().unwrap(),
++                &"file:///readonly-empty.tcl".parse().unwrap(),
+                 Position::new(0, 0),
+             );
+             assert_eq!(command.title, "References unavailable");
+@@ -2461,7 +2461,7 @@
+             coverage: ReadonlyReferenceCoverage::ExistingInventory,
+         };
+         let command = report.lens_command(
+-            "file:///readonly-empty.tcl".parse().unwrap(),
++            &"file:///readonly-empty.tcl".parse().unwrap(),
+             Position::new(0, 0),
+         );
+         assert_eq!(command.title, "0 references");

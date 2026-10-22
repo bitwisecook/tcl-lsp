@@ -1,0 +1,43 @@
+{
+  "reviewed_utc": "2026-10-22T18:35:59.019284+00:00",
+  "patch_sha256": "b82481c0f3c92d4817e69c590b1ff9e6c07c4ba05238519d2eea8c4744243c3e",
+  "review": "Independent VM/runtime static peer review only. No implementation, application, Cargo, provider execution, consumer changes or measured pass claim.",
+  "recommendation": "Hold first draft pending registry-owned source continuation/full effect eligibility and fixed controls.",
+  "findings": [
+    {
+      "severity": "blocking",
+      "boundary": "RemoteBodyScan::summary quiet predicate",
+      "finding": "No declared source normal-continuation gate, and full world accesses/interpreter scopes/reentrancy are not inspected. Only legacy command_table_mutation and frame_effect are checked; SourceExecutableValueCapability::Absent and SourceCallbackRetention::Absent cannot replace a closed source world-effect/flow contract.",
+      "concrete_static_witness": "break/continue registry rows explicitly have world_effects EMPTY, no callback, exact0arity and TRANSFERS_CONTROL plus BREAKS_LOOP/CONTINUES_LOOP. Those traits are absent from the quiet veto, so control-only rows satisfy the other local quiet conditions yet terminate the prefix. return has pending completion-state effects that this predicate also does not inspect. No draft execution has been measured.",
+      "existing_contracts": [
+        "ResolvedInvocation::authored_source_invocation_completion(actual selected source grammar) distinguishes FallsThrough/ReturnsResult/Terminates/Unknown without Native Normal grant.",
+        "ResolvedInvocation::authored_source_effects_and_state_transitions(actual dialect) retains full conditional effects, unknown fallback and transition applicability.",
+        "EffectFootprint::accesses/callback/requires_world_barrier include state domains, interpreter scope and reentrancy; readonly selected schema alone is not closure."
+      ],
+      "needed_controls": [
+        "Abrupt return/break/continue before and between binding/call, including nested operand abrupt transfer.",
+        "Explicit variable/execution/command observer, completion/interpreter/frame effect with no convenient marker trait.",
+        "Unknown/residual full footprint cannot be followed by pending-binding reinstall.",
+        "TRACE-only exception, if supported, must be narrow registry-authored source obligation; blanket callback-kind TRACE is not general quiet/reentrancy proof."
+      ]
+    },
+    {
+      "severity": "blocking_positive_admission",
+      "boundary": "ILX init/call/notify selected descriptor declarations",
+      "finding": "Current real ILX specs declare remote_method and legacy NetworkIo side effects but no world_effects. Current registry effects() and authored_source_effects_and_state_transitions use conservative UNKNOWN when the whole declaration chain is absent. Thus the required positive fixture currently has no closed source effect authority and is likely refused by current UNKNOWN guard; that is not measured. Preserve refusal rather than silently infer EMPTY from remote_method/no-script traits. A typed registry-owned source continuity/effect contract needs review before positive admission."
+    },
+    {
+      "severity": "scope_limit",
+      "boundary": "source_remote_handle_calls aggregation",
+      "finding": "Whole lexical body plans refuse fatal tail, but missing owner/schema/quiet footprint stops a body prefix, and outer aggregation skips refused bodies. Some(Vec) therefore enumerates bounded positive source candidates; it is not a complete remote-call inventory or absence proof. Document this or retain an explicit completeness/refusal facet if consumers need absence."
+    }
+  ],
+  "sound_boundaries": [
+    "VendorSourceVariableBody::new authenticates complete original selected Procedure/Event body/declaration/roles/context; home() and unique smallest owner are retained per statement. Source graph current analysis/image/config/Registry checks prevent stale/foreign input reuse.",
+    "ConstructionValue + HandleName::Word + keyword and exact whole single-command RHS retain selected setter and OpensHandle schema; scope/extension must be static nonempty validUTF8/NULfree. Later CallsMethod family and scalar original handle word must match.",
+    "Writes are projected from the selected schema. Supported named writes retire old entries even when replacement RHS is unsupported; opaque or unsupported writes stop subsequent associations. Pending binding is installed only after operand quiet checks and selected write withdrawal.",
+    "Unknown/expanded/compound RHS, array/compound handle read, cross-body source and mismatched family do not gain a relation. Operand traversal checks all nested command effects before pending installation; no evaluated handle/runtime target is constructed.",
+    "No Native SourceHandleKey/HandleScope or allocated runtime-cell/receiver authority is issued by the draft implementation; labels stay source data and unresolved handler/result/observer/body premises remain explicit."
+  ],
+  "coordination": "Compiler independently agreed first-draft control/full-footprint gap and keeps it held; BIGIP external session remains sole consumer owner."
+}

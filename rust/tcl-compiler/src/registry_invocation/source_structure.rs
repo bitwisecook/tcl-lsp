@@ -2615,6 +2615,18 @@ pub fn source_configured_class_words_at(
     source_transition_words_from_advice(source, config, &context, reference.consumer().clone())
 }
 
+/// Conditional Jim class lists and base providers from the genuine source tape.
+/// This is separate from Native class-declaration and allocated receiver authority.
+#[must_use]
+pub fn source_authored_jim_class_at(
+    source: &str,
+    analysis: &AnalysisResult,
+    offset: u32,
+) -> Option<std::sync::Arc<crate::command_binding::OriginalAuthoredJimClass>> {
+    let (input, realm, native) = registered_original_words_at(source, analysis, offset)?;
+    realm.original_authored_jim_class(input, &native)
+}
+
 /// Exact original selected class declaration at its authentic source occurrence.
 #[must_use]
 pub fn source_class_declaration_at(

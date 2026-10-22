@@ -226,7 +226,7 @@ async fn disk_package_providers_keep_source_dialect_and_refuse_uncaptured_paths(
         tcl_lsp_core::profile_for_dialect("tcl9.0")
     );
     assert!(current.analysis.all_procs.contains_key("::provided"));
-    assert!(!defined_original_commands_from_analysis(&current.text, &current.analysis).is_empty());
+    assert_ne!(defined_original_commands_from_analysis(&current.text, &current.analysis).len(), 0);
     assert!(matches!(
         supplied.inventory(
             Path::new("/library/absent.tcl"),

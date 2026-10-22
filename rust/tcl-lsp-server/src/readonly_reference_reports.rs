@@ -183,7 +183,7 @@ impl OriginalReadonlyReferenceReport {
 
     pub(super) fn lens_command(
         self,
-        uri: Uri,
+        uri: &Uri,
         position: Position,
     ) -> tower_lsp_server::ls_types::Command {
         let title = tcl_lsp_core::code_lens::readonly_reference_count_title(
@@ -1265,7 +1265,7 @@ impl Backend {
                 locations,
                 coverage: report.coverage(),
             }
-            .lens_command(selected.clone(), range.start);
+            .lens_command(selected, range.start);
             Some(tower_lsp_server::ls_types::CodeLens {
                 range,
                 command: Some(command),
@@ -2251,13 +2251,13 @@ mod tests {
         );
         assert_eq!(report.locations.len(), 2);
         assert!(report.locations.iter().all(|location| location.uri == uri));
-        assert!(
+        assert_eq!(
             backend
                 .original_declaration_reference_locations(&identity, &uri, false)
                 .await
                 .unwrap()
-                .is_empty()
-        );
+                .len()
+        , 0);
         let lenses = backend
             .code_lens(CodeLensParams {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
@@ -2449,11 +2449,11 @@ mod tests {
                 coverage,
             };
             let command = report.lens_command(
-                "file:///readonly-empty.tcl".parse().unwrap(),
+                &"file:///readonly-empty.tcl".parse().unwrap(),
                 Position::new(0, 0),
             );
             assert_eq!(command.title, "References unavailable");
-            assert!(command.command.is_empty());
+            assert_eq!(command.command.len(), 0);
             assert!(command.arguments.is_none());
         }
         let report = OriginalReadonlyReferenceReport {
@@ -2461,7 +2461,7 @@ mod tests {
             coverage: ReadonlyReferenceCoverage::ExistingInventory,
         };
         let command = report.lens_command(
-            "file:///readonly-empty.tcl".parse().unwrap(),
+            &"file:///readonly-empty.tcl".parse().unwrap(),
             Position::new(0, 0),
         );
         assert_eq!(command.title, "0 references");
@@ -2535,33 +2535,33 @@ mod logical_hierarchy_tests {
         assert_eq!(children[0].uri, child);
         let mut unissued = item.clone();
         unissued.data = None;
-        assert!(
+        assert_eq!(
             backend
                 .type_hierarchy_walk(unissued, false)
                 .await
                 .unwrap()
                 .unwrap()
-                .is_empty()
-        );
+                .len()
+        , 0);
         let mut foreign = item.clone();
         foreign.uri = base.clone();
-        assert!(
+        assert_eq!(
             backend
                 .type_hierarchy_walk(foreign, false)
                 .await
                 .unwrap()
                 .unwrap()
-                .is_empty()
-        );
+                .len()
+        , 0);
         register(&backend, &child, &format!("{child_source}\n# changed")).await;
-        assert!(
+        assert_eq!(
             backend
                 .type_hierarchy_walk(item, false)
                 .await
                 .unwrap()
                 .unwrap()
-                .is_empty()
-        );
+                .len()
+        , 0);
     }
 
     #[tokio::test]
@@ -2619,13 +2619,13 @@ mod logical_hierarchy_tests {
                 .into_items();
         assert_eq!(items.len(), 1);
         register(&backend, &child, "oo::class create Child {}").await;
-        assert!(
+        assert_eq!(
             backend
                 .finish_logical_hierarchy_items(&documents, &items, epoch, generation)
                 .await
                 .unwrap()
-                .is_empty()
-        );
+                .len()
+        , 0);
     }
 }
 
@@ -2695,13 +2695,13 @@ mod conditional_navigation_publication_tests {
             "oo::class create Base {}; oo::class create Child {}",
         )
         .await;
-        assert!(
+        assert_eq!(
             backend
                 .finish_logical_hierarchy_advice(&[document], &advice, epoch, generation)
                 .await
                 .unwrap()
-                .is_empty()
-        );
+                .len()
+        , 0);
     }
 
     #[tokio::test]
@@ -2821,12 +2821,12 @@ mod logical_call_wire_tests {
         item.range = Range::default();
         item.selection_range = Range::default();
         let params = serde_json::from_value(serde_json::json!({"item":item})).unwrap();
-        let incoming = backend.incoming_calls(params).await.unwrap().unwrap();
+        let incoming = Box::pin(backend.incoming_calls(params)).await.unwrap().unwrap();
         assert_eq!(incoming.len(), 1);
         assert_eq!(incoming[0].from.uri, caller);
         assert_eq!(incoming[0].from.name, "::caller");
         let params = serde_json::from_value(serde_json::json!({"item":incoming[0].from})).unwrap();
-        let outgoing = backend.outgoing_calls(params).await.unwrap().unwrap();
+        let outgoing = Box::pin(backend.outgoing_calls(params)).await.unwrap().unwrap();
         assert_eq!(outgoing.len(), 1);
         assert_eq!(outgoing[0].to.uri, target);
         assert!(outgoing[0].to.data.is_some());
@@ -3282,19 +3282,19 @@ mod logical_call_backend_session_tests {
         for (backend, item) in [(&first, &old), (&second, &current)] {
             let params = serde_json::from_value(serde_json::json!({"item":item})).unwrap();
             assert_eq!(
-                backend.incoming_calls(params).await.unwrap().unwrap().len(),
+                Box::pin(backend.incoming_calls(params)).await.unwrap().unwrap().len(),
                 1
             );
             let params = serde_json::from_value(serde_json::json!({"item":item})).unwrap();
             assert_eq!(
-                backend.outgoing_calls(params).await.unwrap().unwrap().len(),
+                Box::pin(backend.outgoing_calls(params)).await.unwrap().unwrap().len(),
                 1
             );
         }
         let params = serde_json::from_value(serde_json::json!({"item":old})).unwrap();
-        assert!(second.incoming_calls(params).await.unwrap().is_none());
+        assert!(Box::pin(second.incoming_calls(params)).await.unwrap().is_none());
         let params = serde_json::from_value(serde_json::json!({"item":old})).unwrap();
-        assert!(second.outgoing_calls(params).await.unwrap().is_none());
+        assert!(Box::pin(second.outgoing_calls(params)).await.unwrap().is_none());
     }
 }
 
@@ -3843,7 +3843,7 @@ mod code_action_source_version_tests {
         assert_eq!(documents.len(), 1);
         assert_eq!(documents[0].text_document.uri, uri);
         assert_eq!(documents[0].text_document.version, Some(23));
-        assert!(!documents[0].edits.is_empty());
+        assert_ne!(documents[0].edits.len(), 0);
         assert_eq!(
             backend.documents.lock("unchanged source action").await[&uri]
                 .text
@@ -4042,7 +4042,7 @@ mod coarse_semantic_source_tests {
         assert!(tcl_compiler::source_graph::current_analysis(&snapshot.text, analysis).is_some());
         let data =
             super::super::configured_coarse_semantic_tokens(&snapshot.text, analysis).unwrap();
-        assert!(!data.is_empty());
+        assert_ne!(data.len(), 0);
         let original = data.clone();
         let issued = backend
             .with_current_coarse_semantic_source(&source, || {

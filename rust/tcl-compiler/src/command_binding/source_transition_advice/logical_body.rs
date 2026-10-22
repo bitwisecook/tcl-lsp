@@ -882,6 +882,12 @@ impl LogicalBodyWalk<'_, '_> {
         let (scope, handle, class_handle, operand_barrier) = owner;
         let native = invocation.native;
         let factory = self.context.registered_factory(graph, invocation, schema);
+        let authored_jim = self.context.authored_jim_class_source(
+            graph,
+            invocation,
+            schema,
+            Some(scope.body_arc()),
+        );
         let class = self.context.source_class_declaration_in_body(
             tape,
             graph,
@@ -918,6 +924,7 @@ impl LogicalBodyWalk<'_, '_> {
             .install_registered_results(tape, graph, factory, handle);
         AdviceInvocationContext::install_source_class_handle(graph, class_handle);
         AdviceInvocationContext::install_source_class(tape, graph, class);
+        AdviceInvocationContext::install_authored_jim_class(tape, graph, authored_jim);
         Some(())
     }
 

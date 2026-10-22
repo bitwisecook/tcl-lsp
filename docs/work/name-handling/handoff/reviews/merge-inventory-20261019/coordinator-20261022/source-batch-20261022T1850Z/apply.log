@@ -1,0 +1,31 @@
+patching file rust/tcl-lsp-server/src/current_diagnostics.rs
+patching file rust/tcl-lsp-server/src/lib.rs
+patching file rust/tcl-lsp-server/src/original_document_metadata_tests.rs
+patching file rust/tcl-lsp-server/src/original_document_path_admission_tests.rs
+patching file rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs
+patching file rust/tcl-lsp-server/src/policy_truth_table.rs
+patching file rust/tcl-lsp-server/src/provider_source/tests.rs
+patching file rust/tcl-lsp-server/src/readonly_reference_reports.rs
+patching file rust/tcl-lsp-server/src/recovery_source/tests.rs
+patching file rust/tcl-lsp-server/src/lib.rs
+patching file rust/tcl-lsp-server/src/readonly_reference_reports.rs
+patching file rust/tcl-lsp-server/src/lib.rs
+Hunk #1 succeeded at 5195 (offset 39 lines).
+Hunk #2 succeeded at 42533 (offset 89 lines).
+Hunk #3 succeeded at 45080 (offset 89 lines).
+Hunk #4 succeeded at 63979 (offset 93 lines).
+patching file rust/tcl-registry/src/resolved_invocation.rs
+patching file rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+patching file rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_class.rs
+patching file rust/tcl-compiler/src/command_binding.rs
+patching file rust/tcl-compiler/src/realm/source_transition_advice.rs
+patching file rust/tcl-compiler/src/registry_invocation/source_structure.rs
+patching file rust/tcl-compiler/src/analyser/commands.rs
+patching file rust/tcl-compiler/src/analyser/oo.rs
+patching file rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+patching file rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs
+patching file rust/tcl-spectcl/tests/jim_document.rs
+patching file rust/tcl-lsp-server/tests/e2e/spec_packs.rs
+patching file rust/tcl-compiler/src/registry_invocation/source_taint.rs
+patching file rust/tcl-compiler/src/command_binding.rs
+patching file rust/tcl-compiler/src/registry_invocation.rs

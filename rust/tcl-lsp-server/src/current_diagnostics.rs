@@ -2931,7 +2931,7 @@ mod tests {
                 .await
                 .unwrap(),
         );
-        assert!(!original.items.is_empty());
+        assert_ne!(original.items.len(), 0);
         let previous = original.result_id.unwrap();
         backend
             .feature_toggles
@@ -2947,7 +2947,7 @@ mod tests {
                 .unwrap(),
         );
         assert_ne!(cleared.result_id.as_deref(), Some(previous.as_str()));
-        assert!(cleared.items.is_empty());
+        assert_eq!(cleared.items.len(), 0);
         {
             let cache = backend.pull_diag_cache.lock().await;
             assert!(matches!(
@@ -2992,7 +2992,7 @@ mod tests {
                 .await
                 .unwrap(),
         );
-        assert!(!original.items.is_empty());
+        assert_ne!(original.items.len(), 0);
         let previous = original.result_id.unwrap();
         expected.version = 2;
         expected.source.clear();
@@ -3012,7 +3012,7 @@ mod tests {
             report.full_document_diagnostic_report.result_id.as_deref(),
             Some(previous.as_str())
         );
-        assert!(report.full_document_diagnostic_report.items.is_empty());
+        assert_eq!(report.full_document_diagnostic_report.items.len(), 0);
     }
 
     #[tokio::test]

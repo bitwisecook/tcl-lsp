@@ -1486,6 +1486,19 @@ impl BodyWalk<'_, '_> {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
         class_handle: Option<super::source_instance::PendingSourceClassHandle>,
     ) {
+        // The independent readonly catalogue owns Jim source syntax even when
+        // this walk has no execution/mutation-completeness inventory.
+        let jim_parent = self
+            .source_body
+            .as_ref()
+            .or_else(|| match &self.catalogue_body {
+                Some(super::OriginalSourceCatalogueBody::Script(body)) => Some(body),
+                _ => None,
+            });
+        let authored_jim = jim_parent.and_then(|body| {
+            self.context
+                .authored_jim_class_source(graph, invocation, schema, Some(body))
+        });
         let class = self
             .inventory
             .as_mut()
@@ -1522,6 +1535,13 @@ impl BodyWalk<'_, '_> {
         if let Some(tape) = &mut self.inventory {
             AdviceInvocationContext::install_source_class(tape, graph, class);
         }
+        AdviceInvocationContext::install_authored_jim_class(
+            self.inventory
+                .as_mut()
+                .unwrap_or(&mut self.authored_prefixes),
+            graph,
+            authored_jim,
+        );
     }
     fn retain_child_schema(
         &mut self,

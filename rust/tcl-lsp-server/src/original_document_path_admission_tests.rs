@@ -104,8 +104,8 @@ async fn refused_open_and_unknown_change_publish_no_document_source_or_index() {
         "file:///open%2Fsplit.tcl",
     ] {
         let target = uri(raw);
-        backend
-            .did_open(opened(&target, "proc rejected {} {}"))
+        Box::pin(backend
+            .did_open(opened(&target, "proc rejected {} {}")))
             .await;
         backend
             .did_change(changed(&target, "proc changed_rejected {} {}"))
@@ -256,7 +256,7 @@ async fn unicode_and_nonfile_receipts_reach_salsa_and_fresh_analysis() {
         uri("untitled:checked-source"),
     ] {
         let source = "set retained 1";
-        backend.did_open(opened(&target, source)).await;
+        Box::pin(backend.did_open(opened(&target, source))).await;
         let state = backend
             .documents
             .lock("path_admission_test")
@@ -459,7 +459,7 @@ async fn virtual_registered_path_reaches_actual_source_and_fresh_analysis() {
     let actual = PathBuf::from("/actual-browser-mount/distinct-é.tcl");
     store.upsert_uri(target.as_str(), &actual, b"set retained 1".to_vec());
     backend.store = store.clone();
-    backend.did_open(opened(&target, "set retained 1")).await;
+    Box::pin(backend.did_open(opened(&target, "set retained 1"))).await;
     let doc = backend
         .documents
         .lock("virtual_path_test")
@@ -521,7 +521,7 @@ async fn unregistered_virtual_open_requires_no_native_host_or_vfs_upsert() {
         tcl_lsp_core::file_uri::FileUriEscaping::Unreserved,
     )
     .unwrap());
-    backend.did_open(opened(&target, "set browser 1")).await;
+    Box::pin(backend.did_open(opened(&target, "set browser 1"))).await;
     let docs = backend.documents.lock("virtual_open_test").await;
     let admission = docs.get(&target).unwrap().path_admission.as_ref().unwrap();
     assert!(matches!(
@@ -731,8 +731,8 @@ async fn opening_waiting_for_index_cannot_retire_after_mapping_withdrawal() {
     let worker_backend = Arc::clone(&backend);
     let worker_target = target.clone();
     let opening = tokio::spawn(async move {
-        worker_backend
-            .did_open(opened(&worker_target, "set new_open 1"))
+        Box::pin(worker_backend
+            .did_open(opened(&worker_target, "set new_open 1")))
             .await;
     });
     tokio::time::timeout(std::time::Duration::from_secs(180), async {

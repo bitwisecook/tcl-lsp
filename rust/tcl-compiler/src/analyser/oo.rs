@@ -110,7 +110,6 @@ struct OriginalJimClassLists {
     bases_dynamic: bool,
     superclasses: Vec<String>,
     variable_words: Vec<String>,
-    source_bases: Option<Vec<crate::signature_scan::scope::SignatureSourceNameInput>>,
 }
 
 struct ClassBodyCtx<'a> {
@@ -2610,13 +2609,14 @@ impl Analyser {
         args: &[String],
         arg_tokens: &[Token],
         scope_path: &[usize],
+        cmd_tok: Token,
     ) -> bool {
         self.handle_jim_class_source(super::original_definer::ClassDefinerCall {
             cmd_name,
             args,
             arg_tokens,
             scope_path,
-            cmd_tok: None,
+            cmd_tok: Some(cmd_tok),
             original: None,
         })
     }
@@ -2630,16 +2630,21 @@ impl Analyser {
             args,
             arg_tokens,
             scope_path,
-            original,
-            ..
+            original: _,
+            cmd_tok,
         } = call;
-        if !original
-            .map(super::original_definer::OriginalClassDefinerSource::grammar)
-            .or_else(|| self.definition_grammar(cmd_name))
-            .is_some_and(|grammar| grammar.family == tcl_registry::definer::DefinerFamily::JimClass)
-        {
+        let Some(authored) = cmd_tok
+            .and_then(|token| {
+                crate::registry_invocation::source_structure::source_authored_jim_class_at(
+                    &self.source,
+                    &self.result,
+                    token.span.start(),
+                )
+            })
+            .filter(|source| source.matches_arguments(args, arg_tokens))
+        else {
             return false;
-        }
+        };
         // The definer's own arity is 2 or 3; any other shape is left to the
         // arity check.
         if !(2..=3).contains(&args.len()) || arg_tokens.len() != args.len() {
@@ -2657,18 +2662,12 @@ impl Analyser {
             bases_dynamic,
             superclasses,
             variable_words,
-            source_bases,
-        } = self.original_jim_class_lists(original, args);
+        } = Self::original_jim_class_lists(&authored);
         self.report_original_jim_dictionary_shape(cmd_name, &variable_words, arg_tokens[vars_at]);
         let own_variables: Vec<String> = variable_words.into_iter().step_by(2).collect();
         // A derived class's variable dictionary is its bases' merged with its
         // own, so a method body sees every inherited instance variable too.
-        let mut variables = self.inherited_jim_class_variables(
-            &superclasses,
-            source_bases.as_deref(),
-            original,
-            scope_path,
-        );
+        let mut variables = authored.inherited_variables(&self.result);
         for variable in own_variables {
             if !variables.contains(&variable) {
                 variables.push(variable);
@@ -2676,17 +2675,9 @@ impl Analyser {
         }
 
         let doc = std::mem::take(&mut self.last_comment);
-        let original_name = original
-            .and_then(super::original_definer::OriginalClassDefinerSource::original_name)
-            .or_else(|| self.original_provider_class_name(name_span));
-        let source_name = original_name.as_ref().and_then(|original| {
-            crate::signature_scan::scope::SignatureSourceCommand::provider_advice_from_key(
-                &self.declaration_namespace_scope(scope_path)?,
-                original.name_input(),
-            )
-        });
         let mut class = ClassDef {
-            source_name,
+            // The distinct authored source receipt supplies no Native class name.
+            source_name: None,
             name: simple,
             qualified_name: qualified.clone(),
             name_span,
@@ -2699,10 +2690,12 @@ impl Analyser {
             doc,
             ..Default::default()
         };
-        self.retain_original_jim_relation_lookups(&mut class, source_bases, scope_path);
-        self.retain_original_provider_class(original_name.as_ref(), &class);
+        // Source-only base relations never donate a Native naming lookup.
+        for base in &class.superclasses {
+            class.relation_lookups.insert(base.clone(), None);
+        }
         self.register_defined_class(qualified.clone(), class, scope_path);
-        self.adopt_recorded_two_word_procs(&qualified, scope_path, original);
+        self.adopt_recorded_two_word_procs(&qualified, scope_path, None);
         true
     }
 
@@ -2733,117 +2726,22 @@ impl Analyser {
     }
 
     fn original_jim_class_lists(
-        &self,
-        original: Option<&super::original_definer::OriginalClassDefinerSource>,
-        args: &[String],
+        original: &crate::command_binding::OriginalAuthoredJimClass,
     ) -> OriginalJimClassLists {
-        let vars_at = args.len() - 1;
-        let rules = self.word_rules();
-        let words_of = |text: &str| -> Vec<String> {
-            if crate::naming::is_dynamic_word(text) {
-                return Vec::new();
-            }
-            rules
-                .split_list(text)
-                .map(|elements| elements.iter().map(ToString::to_string).collect())
-                .unwrap_or_default()
-        };
-        let base_at = original
-            .and_then(|source| source.grammar().source_base_class_list_argument(args.len()));
-        let source_bases = base_at
-            .and_then(|ordinal| original?.native_argument_input(ordinal))
-            .and_then(
-                crate::signature_scan::scope::SignatureSourceNameInput::original_list_elements,
-            );
-        let Some(purpose) = self.retained_source_advice_purpose() else {
-            return OriginalJimClassLists {
-                bases_dynamic: true,
-                superclasses: Vec::new(),
-                variable_words: Vec::new(),
-                source_bases: None,
-            };
-        };
-        let native = purpose != crate::command_binding::OriginalInvocationSourcePurpose::Logical;
-        let bases_dynamic = if native {
-            base_at.is_some() && source_bases.is_none()
-        } else {
-            args.len() == 3 && crate::naming::is_dynamic_word(&args[1])
-        };
-        let superclasses = if native {
-            source_bases.as_ref().map_or_else(Vec::new, |inputs| {
-                inputs
-                    .iter()
-                    .filter_map(|input| std::str::from_utf8(input.bytes()).ok().map(str::to_owned))
-                    .collect()
-            })
-        } else if args.len() == 3 {
-            words_of(&args[1])
-        } else {
-            Vec::new()
-        };
-        let variable_words = if native {
-            original
-                .and_then(|source| source.native_argument_input(vars_at))
-                .and_then(
-                    crate::signature_scan::scope::SignatureSourceNameInput::original_list_elements,
-                )
-                .map_or_else(Vec::new, |inputs| {
-                    inputs
-                        .iter()
-                        .filter_map(|input| {
-                            std::str::from_utf8(input.bytes()).ok().map(str::to_owned)
-                        })
-                        .collect()
-                })
-        } else {
-            words_of(&args[vars_at])
-        };
         OriginalJimClassLists {
-            bases_dynamic,
-            superclasses,
-            variable_words,
-            source_bases,
-        }
-    }
-
-    fn retain_original_jim_relation_lookups(
-        &self,
-        class: &mut ClassDef,
-        source_bases: Option<Vec<crate::signature_scan::scope::SignatureSourceNameInput>>,
-        scope_path: &[usize],
-    ) {
-        let Some(purpose) = self.retained_source_advice_purpose() else {
-            return;
-        };
-        let native = purpose != crate::command_binding::OriginalInvocationSourcePurpose::Logical;
-        if native {
-            for input in source_bases.into_iter().flatten() {
-                let Ok(written) = std::str::from_utf8(input.bytes()) else {
-                    continue;
-                };
-                class.relation_lookups.insert(
-                    written.to_owned(),
-                    self.declaration_namespace_scope(scope_path)
-                        .and_then(|namespace| {
-                            crate::signature_scan::scope::SignatureSourceLookup::from_input(
-                                namespace, &input,
-                            )
-                        }),
-                );
-            }
-        } else {
-            for written in &class.superclasses {
-                class.relation_lookups.insert(
-                    written.clone(),
-                    self.declaration_name_policy().and_then(|policy| {
-                        crate::signature_scan::scope::SignatureSourceLookup::new(
-                            policy,
-                            self.declaration_namespace_scope(scope_path)?,
-                            written.clone(),
-                        )
-                    }),
-                );
-            }
+            bases_dynamic: original.bases_unknown(),
+            superclasses: original
+                .base_fields()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|field| field.value().to_owned())
+                .collect(),
+            variable_words: original
+                .variable_fields()
+                .unwrap_or_default()
+                .iter()
+                .map(|field| field.value().to_owned())
+                .collect(),
         }
     }
 
@@ -2863,54 +2761,6 @@ impl Analyser {
             format!("Wrong argument-count shape for '{command}': the variable dictionary has an odd number of elements, so '{}' has no value", words[words.len() - 1]),
             super::types::Severity::Error,
         ));
-    }
-
-    fn inherited_jim_class_variables(
-        &self,
-        superclasses: &[String],
-        inputs: Option<&[crate::signature_scan::scope::SignatureSourceNameInput]>,
-        original: Option<&super::original_definer::OriginalClassDefinerSource>,
-        scope_path: &[usize],
-    ) -> Vec<String> {
-        let classes: Vec<_> = if let Some(original) = original {
-            inputs
-                .into_iter()
-                .flatten()
-                .filter_map(|input| {
-                    let reference =
-                        crate::registry_invocation::source_structure::source_class_reference_at(
-                            &self.source,
-                            &self.result,
-                            original.declaration().factory().site().offset,
-                            input,
-                        )?;
-                    Some(
-                        reference
-                            .class_declaration()
-                            .source_class(&self.result)?
-                            .metadata()
-                            .clone(),
-                    )
-                })
-                .collect()
-        } else {
-            superclasses
-                .iter()
-                .filter_map(|base| {
-                    self.resolve_user_class_in(base, scope_path)
-                        .and_then(|qualified| self.result.all_classes.get(&qualified).cloned())
-                })
-                .collect()
-        };
-        let mut variables = Vec::new();
-        for class in classes {
-            for variable in class.variables {
-                if !variables.contains(&variable) {
-                    variables.push(variable);
-                }
-            }
-        }
-        variables
     }
 
     /// Attach genuine two-word procedure declarations to this source class.

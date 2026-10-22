@@ -901,13 +901,6 @@ mod tests {
             .unwrap()
             .native_compiler_admission = None;
         assert!(original_compiled_list_head(registry, metadata, parent, &unadmitted).is_none());
-        let mut joined = child;
-        joined
-            .source_binding
-            .as_mut()
-            .unwrap()
-            .join(&crate::command_binding::SourceInvocationBinding::default());
-        assert!(original_compiled_list_head(registry, metadata, parent, &joined).is_none());
     }
 
     #[test]

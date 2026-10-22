@@ -1828,7 +1828,7 @@ impl Analyser {
             return self.handle_oo_class_command(cmd_name, args, arg_tokens, scope_path, cmd_tok)
                 || self.handle_snit_type_command(cmd_name, args, arg_tokens, scope_path)
                 || self.handle_itcl_class_command(cmd_name, args, arg_tokens, scope_path)
-                || self.handle_jim_class_command(cmd_name, args, arg_tokens, scope_path)
+                || self.handle_jim_class_command(cmd_name, args, arg_tokens, scope_path, cmd_tok)
                 || self
                     .handle_jim_class_member_call(cmd_name, args, arg_tokens, scope_path, cmd_tok)
                 || self.handle_interp_handle_eval_command_original(
@@ -5072,7 +5072,9 @@ impl Analyser {
                         .handle_oo_class_command(&cmd_name, args, arg_tokens, scope_path, cmd_tok)
                         || self.handle_snit_type_command(&cmd_name, args, arg_tokens, scope_path)
                         || self.handle_itcl_class_command(&cmd_name, args, arg_tokens, scope_path)
-                        || self.handle_jim_class_command(&cmd_name, args, arg_tokens, scope_path)
+                        || self.handle_jim_class_command(
+                            &cmd_name, args, arg_tokens, scope_path, cmd_tok,
+                        )
                         || self.handle_jim_class_member_call(
                             &cmd_name, args, arg_tokens, scope_path, cmd_tok,
                         );

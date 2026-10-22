@@ -317,7 +317,7 @@ async fn malformed_recovery_refuses_populated_unavailable_missing_and_foreign_so
     let source = "package require own\nproc unfinished {";
     let current = recover(&backend, &uri, source).await;
     assert!(package_names(&backend).await.names.contains("provided"));
-    assert!(!current.package_requires.is_empty());
+    assert_ne!(current.package_requires.len(), 0);
     let registry = backend.registry_for_dialect("tcl8.6").await;
     let dialects = provider_source::ProviderDialectInputs::capture(&backend).await;
     let providers = ProviderCaptureInputs {

@@ -1,0 +1,53 @@
+diff --git a/rust/tcl-lsp-server/src/lib.rs b/rust/tcl-lsp-server/src/lib.rs
+index 8aa083a773..4457ce4baf 100644
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -5156,7 +5156,7 @@ async fn run_diagnostics_f5_dialect(
+         Some(result_id) => {
+             delivery
+                 .complete_f5_model_pass(inputs.text, result_id)
+-                .await
++                .await;
+         }
+         None => {
+             delivery
+@@ -42444,13 +42444,13 @@ info exists ::N::v\uD800";
+             "iruleslx": { "rules": { "prod": ["irules"] } }
+         }))
+         .expect("folder config");
+-        assert!(fc.iruleslx.is_empty());
++        assert_eq!(fc.iruleslx, [] as [IlxPluginSpec; 0]);
+         // …and an empty workspace path is not a declaration either.
+         let blank = parse_folder_config(&serde_json::json!({
+             "iruleslx": { "plugins": { "prod": "  " } }
+         }))
+         .expect("folder config");
+-        assert!(blank.iruleslx.is_empty());
++        assert_eq!(blank.iruleslx, [] as [IlxPluginSpec; 0]);
+     }
+ 
+     #[test]
+@@ -44991,7 +44991,10 @@ info exists ::N::v\uD800";
+     async fn xc_findings_refuse_an_analysis_of_other_source() {
+         let src = "when HTTP_REQUEST {\n    pool my_pool\n}";
+         let analysis = irules_document_analysis(src).await;
+-        assert!(!xc_findings(src, &analysis).is_empty());
++        assert_ne!(
++            xc_findings(src, &analysis),
++            [] as [tcl_lsp_core::diagnostic_policy::Finding; 0]
++        );
+         let edited = "when HTTP_REQUEST {\n    pool other_pool\n}";
+         assert!(
+             xc_findings(edited, &analysis).is_empty(),
+@@ -63883,7 +63886,10 @@ proc p {} {
+                 include_declaration: true,
+             },
+         };
+-        let result = backend.references(params).await.expect("ok").expect("some");
++        let result = Box::pin(backend.references(params))
++            .await
++            .expect("ok")
++            .expect("some");
+         // Pool declaration (line 0) + the virtual's `pool /Common/p` (line 3).
+         assert_eq!(result.len(), 2, "{result:?}");
+         assert!(result.iter().all(|l| l.uri == uri));
