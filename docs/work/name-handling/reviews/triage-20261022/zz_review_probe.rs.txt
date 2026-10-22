@@ -692,13 +692,19 @@ fn n16_providers() {
 #[test]
 fn seam_nested_passthrough_irules() {
     use tcl_compiler::compilation_unit::CompilationUnit;
-    let src = "proc run {body} {uplevel 1 $body}\nwhen HTTP_REQUEST {\n    set x abc\n    if {$x contains \"a\"} {log local0. direct}\n    run {if {$x contains \"a\"} {log local0. inl}}\n}\n";
-    let tclsrc = "proc run {body} {uplevel 1 $body}\nproc t {} {\n    set x abc\n    if {$x eq \"a\"} {puts direct}\n    run {if {$x eq \"a\"} {puts inl}}\n}\n";
-    for (dialect, s, op) in [("f5-irules", src, "Contains"), ("tcl8.6", tclsrc, "Eq")] {
+    let cases = [
+        ("f5-irules", "proc run {body} {uplevel 1 $body}\nwhen HTTP_REQUEST {\n    set x abc\n    if {$x contains \"a\"} {log local0. direct}\n    call run {if {$x contains \"a\"} {log local0. inl}}\n}\n"),
+        ("f5-irules", "proc run {body} {uplevel 1 $body}\nproc t {} {\n    set x abc\n    if {$x contains \"a\"} {log local0. direct}\n    run {if {$x contains \"a\"} {log local0. inl}}\n}\n"),
+        ("tcl8.6", "proc run {body} {uplevel 1 $body}\nproc t {} {\n    set x abc\n    if {$x eq \"a\"} {puts direct}\n    run {if {$x eq \"a\"} {puts inl}}\n}\n"),
+    ];
+    for (dialect, s) in cases {
         let registry = tcl_spectcl::bundled::registry_for_dialect(dialect);
         let cu = CompilationUnit::build_for_profile(s, &registry, false, profile(dialect));
         let dbg = format!("{:?}", cu.ir_module);
-        println!("SEAM nested {dialect} op={op} count_op={} count_Block={} count_Raw={}", dbg.matches(&format!("op: {op}")).count(), dbg.matches("Block {").count(), dbg.matches("Raw").count());
+        let mut ops: Vec<String> = dbg.match_indices("op: ").map(|(i, _)| dbg[i + 4..].chars().take_while(|c| c.is_alphanumeric()).collect()).collect();
+        ops.sort();
+        let conds: Vec<String> = dbg.match_indices("condition: ").map(|(i, _)| dbg[i + 11..].chars().take_while(|c| c.is_alphanumeric()).collect()).collect();
+        println!("SEAM nested {dialect} ops={ops:?} if-conditions={conds:?} blocks={}", dbg.matches("Block {").count());
     }
 }
 
@@ -717,7 +723,7 @@ fn seam_extract_inline() {
             edits.sort_by(|a, b| b.start.cmp(&a.start));
             for e in edits { out.replace_range(e.start as usize..e.end as usize, &e.new_text); }
             save("seam_inline.tcl", &out);
-            println!("SEAM inline_proc title={:?} saved seam_inline.tcl", r.title);
+            println!("SEAM inline_proc title={:?} edits={} disabled={:?} saved seam_inline.tcl", r.title, r.edits.len(), r.disabled);
         }
         None => println!("SEAM inline_proc: none offered"),
     }
@@ -735,7 +741,7 @@ fn seam_extract_inline() {
             edits.sort_by(|a, b| b.start.cmp(&a.start));
             for e in edits { out.replace_range(e.start as usize..e.end as usize, &e.new_text); }
             save("seam_extract.tcl", &out);
-            println!("SEAM extract_variable(result) offered; saved seam_extract.tcl");
+            println!("SEAM extract_variable(result) offered edits={} disabled={:?}; saved seam_extract.tcl", r.edits.len(), r.disabled);
         }
         None => println!("SEAM extract_variable(result): none offered"),
     }
