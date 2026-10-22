@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T11:10Z
+Last updated: 2026-10-22T12:40Z
 
 Maintained by the bigip-lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -10,26 +10,28 @@ Full unit table and evidence: `docs/work/name-handling/handoff/reviews/merge-inv
 
 ## In progress
 
-- Triage of server e2e failures (run 10:35–10:59Z): `issue1707_ilx_methods`
-  12 of 16 fail (incl. definition/hover paths this work did not change, and the
-  new closed-sibling test), `commands::xc_translate_{items_are_status_tagged,
-  returns_terraform_and_json_documents,console_format_returns_pasteable_documents}`,
-  `commands::diagram_*`, `issue1326_encoding::w109_disabled_still_abstains_for_bigip_and_apl_documents`
-  and others fail; messages were not captured. Needs one re-run of the failing
-  e2e tests with output (waiting for ≥2 GB free on /).
+- Clippy on tcl-bigip, tcl-bigip-query, tcl-registry, tcl-lsp-core,
+  tcl-lsp-server, xtask (lib/bins/tests) — running.
 
 ## Outstanding (in priority order)
 
-1. Re-run the failing e2e tests with output; fix whatever the BIG-IP/ILX/XC changes broke, attribute the rest.
-2. Clippy (`-D warnings`) on tcl-bigip, tcl-bigip-query, tcl-registry,
-   tcl-lsp-core, tcl-lsp-server, xtask — never run (disk).
-3. Re-run the 3 `xtask gen_editor_configs` tests after the emacs README
+1. Fix any clippy finding on lines this work changed.
+2. Re-run the 3 `xtask gen_editor_configs` tests after the emacs README
    regeneration (`gen-editor-configs --check` already OK).
-4. Hand the final report back (SubagentHandback) with the notes file current.
+3. Hand the final report back with the notes file current.
 
 ## Blocked (on whom, and what is needed)
 
-- Items 1–3 need ≥2 GB free on / per build; the shared disk is at ~1.5 GB.
+- A passing ILX e2e run (`issue1707_ilx_methods`, incl. the new closed-sibling
+  test): blocked on upstream — `ILX::call $handle` no longer resolves the
+  `set handle [ILX::init …]` handle (`IlxMethodCall.target` is None; definition
+  and hover, untouched here, fail the same way), and first diagnostics take >30 s.
+  Owner: compiler / tcl-irules value tracking.
+- XC e2e `xc_translate_*` (3): standalone translator finds no source owner for
+  `if` conditions (f5-xc CI-5201 failures). Owner: compiler/irules source context.
+- BIG-IP/APL pull diagnostics refused as `Unsupported` in `current_diagnostics.rs`
+  (e2e `w109_disabled_still_abstains_for_bigip_and_apl_documents`). Owner: lsp
+  agent's current-diagnostics pipeline; needs an F5-dialect current report.
 - Not in this agent's scope, recorded for owners: `tests::workspace_folder_add_reschedules_non_xc_document_too`
   hangs (plain-Tcl folder-add rescheduling; lsp agent); 7 core `semantic_tokens`
   integration failures in sslictcl/spectcl/TclOO bodies and
@@ -40,6 +42,8 @@ Full unit table and evidence: `docs/work/name-handling/handoff/reviews/merge-inv
   list (needs `tree-sitter generate` + rev bump).
 
 ## Done since the last update (with evidence: test counts, commit or snapshot)
+
+- Server e2e run and per-test attribution (notes file, "Verification" table).
 
 All 35 BIG-IP units implemented (DONE 32, ALREADY 3); committed in WIP
 snapshots up to 56893780b9 and later.
