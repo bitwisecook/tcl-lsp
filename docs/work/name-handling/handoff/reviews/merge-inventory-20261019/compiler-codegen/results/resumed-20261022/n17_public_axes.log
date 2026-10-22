@@ -1,0 +1,169 @@
+   Compiling tcl-spectcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 13.01s
+     Running tests/zz_ccg_fold_probe.rs (target/debug/deps/zz_ccg_fold_probe-201ad6e95391feb4)
+running 1 test
+test zz_ccg_fold_probe ... ZZP explicit notices=[]
+ZZP explicit install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+ZZP explicit direct=None direct86=None errors=["mylib::strlen const_fold: execution refused: native compiler preflight provider required"] crashes=[]
+ZZP explicit empty install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+ZZP explicit direct_empty=None direct_empty86=None errors=["mylib::strlen const_fold: execution refused: native compiler preflight provider required"] crashes=[]
+ZZP explicit world=undeclared catalogue_declared=false catalogue_barrier=true
+ZZP explicit world=undeclared formals="" install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+ZZP explicit world=undeclared formals="" procedures=["::f"]
+ZZP explicit world=undeclared formals="" folds=[] metadata=true
+ZZP explicit world=undeclared formals="" lifted=mylib::strlen realm=Some(RuleLoader) execution=Some(true) handler=Some(true) arguments_normal=true invocation_normal=false
+ZZP explicit world=undeclared formals="" original=Some(("mylib::strlen", true)) completed=Some(("mylib::strlen", true))
+ZZP explicit world=undeclared formals="" errors=["mylib::strlen const_fold: execution refused: native compiler preflight provider required"] crashes=[]
+ZZP explicit world=undeclared formals="x" install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+ZZP explicit world=undeclared formals="x" procedures=["::f"]
+ZZP explicit world=undeclared formals="x" folds=[] metadata=true
+ZZP explicit world=undeclared formals="x" lifted=mylib::strlen realm=Some(RuleLoader) execution=Some(true) handler=Some(true) arguments_normal=true invocation_normal=false
+ZZP explicit world=undeclared formals="x" original=Some(("mylib::strlen", true)) completed=Some(("mylib::strlen", true))
+ZZP explicit world=undeclared formals="x" errors=["mylib::strlen const_fold: execution refused: native compiler preflight provider required"] crashes=[]
+ZZP explicit world=empty catalogue_declared=true catalogue_barrier=false
+ZZP explicit world=empty formals="" install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+ZZP explicit world=empty formals="" procedures=["::f"]
+ZZP explicit world=empty formals="" folds=[] metadata=true
+ZZP explicit world=empty formals="" lifted=mylib::strlen realm=Some(RuleLoader) execution=Some(true) handler=Some(true) arguments_normal=true invocation_normal=false
+ZZP explicit world=empty formals="" original=Some(("mylib::strlen", false)) completed=Some(("mylib::strlen", false))
+ZZP explicit world=empty formals="" errors=["mylib::strlen const_fold: execution refused: native compiler preflight provider required"] crashes=[]
+ZZP explicit world=empty formals="x" install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+ZZP explicit world=empty formals="x" procedures=["::f"]
+ZZP explicit world=empty formals="x" folds=[] metadata=true
+ZZP explicit world=empty formals="x" lifted=mylib::strlen realm=Some(RuleLoader) execution=Some(true) handler=Some(true) arguments_normal=true invocation_normal=false
+ZZP explicit world=empty formals="x" original=Some(("mylib::strlen", false)) completed=Some(("mylib::strlen", false))
+ZZP explicit world=empty formals="x" errors=["mylib::strlen const_fold: execution refused: native compiler preflight provider required"] crashes=[]
+ZZP explicit world=write catalogue_declared=true catalogue_barrier=true
+ZZP explicit world=write formals="" install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+ZZP explicit world=write formals="" procedures=["::f"]
+ZZP explicit world=write formals="" folds=[] metadata=true
+ZZP explicit world=write formals="" lifted=mylib::strlen realm=Some(RuleLoader) execution=Some(true) handler=Some(true) arguments_normal=true invocation_normal=false
+ZZP explicit world=write formals="" original=Some(("mylib::strlen", true)) completed=Some(("mylib::strlen", true))
+ZZP explicit world=write formals="" errors=[] crashes=[]
+ZZP explicit world=write formals="x" install=[HookInstallation { command: "mylib::strlen", owner: Command, family: ConstFold, slot: Some(HookSlot { family: ConstFold, index: 0 }), declined: None }]
+ZZP explicit world=write formals="x" procedures=["::f"]
+ZZP explicit world=write formals="x" folds=[] metadata=true
+ZZP explicit world=write formals="x" lifted=mylib::strlen realm=Some(RuleLoader) execution=Some(true) handler=Some(true) arguments_normal=true invocation_normal=false
+ZZP explicit world=write formals="x" original=Some(("mylib::strlen", true)) completed=Some(("mylib::strlen", true))
+ZZP explicit world=write formals="x" errors=[] crashes=[]
+VMD expr42 world="" formals=Some("") notices=[PackNotice { path: "vm-derived-diagnosis.tclspec", line: 1, context: "command vendor::f", message: "`runtime_backing tcl-body {-pack-text …}` carries the body in the pack, so an upgrade of the library it models diverges from it silently; sites that rest on it turn plain dispatch on the first mismatch", severity: Information, subject: None }]
+VMD expr42 world="" formals=Some("") install=[HookInstallation { command: "vendor::f", owner: Command, family: Evaluate, slot: Some(HookSlot { family: Evaluate, index: 0 }), declined: None }]
+VMD expr42 world="" formals=Some("") semantics=Declared("vendor::f")
+VMD expr42 world="" formals=Some("") declaration=Some(DeclaredSemantics { scope: "vendor::f", structure: DeclaredStructure { effects: [], result: None, stores: None, iterate: None }, evaluation: Implementation(DeclaredImplementation { capability: EvaluatorCapability { identity: ImplementationIdentity { pack: "vendor", id: "vendor::f.reference", content_hash: 15613638811841526897 }, host: BoundedTcl, target: Needs(0), inputs: [Operand { index: 0, exactness: Exact }], depends: [TclProfile, ImplementationIdentity], budget: ImplementationBudget { commands: None, wall_clock_ms: None, value_bytes: None }, completion: NormalOnly }, slot: Some(HookSlot { family: Evaluate, index: 0 }), extension: None }), option_declines: [] })
+VMD expr42 world="" formals=Some("") procedures=1 names=["::p"]
+VMD expr42 world="" formals=Some("") trust vendor::f: whole=true observed=true
+VMD expr42 world="" formals=Some("") trust set: whole=true observed=true
+VMD expr42 world="" formals=Some("") trust return: whole=true observed=true
+VMD expr42 world="" formals=Some("") known-all-versions=[(1, Overdefined)]
+VMD expr42 world="" formals=Some("") known=Some(Overdefined) routes=[]
+VMD expr42 world="" formals=Some("") errors=[] crashes=[]
+VMD expr42 world="" formals=Some("x") notices=[PackNotice { path: "vm-derived-diagnosis.tclspec", line: 1, context: "command vendor::f", message: "`runtime_backing tcl-body {-pack-text …}` carries the body in the pack, so an upgrade of the library it models diverges from it silently; sites that rest on it turn plain dispatch on the first mismatch", severity: Information, subject: None }]
+VMD expr42 world="" formals=Some("x") install=[HookInstallation { command: "vendor::f", owner: Command, family: Evaluate, slot: Some(HookSlot { family: Evaluate, index: 0 }), declined: None }]
+VMD expr42 world="" formals=Some("x") semantics=Declared("vendor::f")
+VMD expr42 world="" formals=Some("x") declaration=Some(DeclaredSemantics { scope: "vendor::f", structure: DeclaredStructure { effects: [], result: None, stores: None, iterate: None }, evaluation: Implementation(DeclaredImplementation { capability: EvaluatorCapability { identity: ImplementationIdentity { pack: "vendor", id: "vendor::f.reference", content_hash: 15613638811841526897 }, host: BoundedTcl, target: Needs(0), inputs: [Operand { index: 0, exactness: Exact }], depends: [TclProfile, ImplementationIdentity], budget: ImplementationBudget { commands: None, wall_clock_ms: None, value_bytes: None }, completion: NormalOnly }, slot: Some(HookSlot { family: Evaluate, index: 0 }), extension: None }), option_declines: [] })
+VMD expr42 world="" formals=Some("x") procedures=1 names=["::p"]
+VMD expr42 world="" formals=Some("x") trust vendor::f: whole=true observed=true
+VMD expr42 world="" formals=Some("x") trust set: whole=true observed=true
+VMD expr42 world="" formals=Some("x") trust return: whole=true observed=true
+VMD expr42 world="" formals=Some("x") known-all-versions=[(1, Overdefined)]
+VMD expr42 world="" formals=Some("x") known=Some(Overdefined) routes=[]
+VMD expr42 world="" formals=Some("x") errors=[] crashes=[]
+VMD expr42 world="" formals=None notices=[PackNotice { path: "vm-derived-diagnosis.tclspec", line: 1, context: "command vendor::f", message: "`runtime_backing tcl-body {-pack-text …}` carries the body in the pack, so an upgrade of the library it models diverges from it silently; sites that rest on it turn plain dispatch on the first mismatch", severity: Information, subject: None }]
+VMD expr42 world="" formals=None install=[HookInstallation { command: "vendor::f", owner: Command, family: Evaluate, slot: Some(HookSlot { family: Evaluate, index: 0 }), declined: None }]
+VMD expr42 world="" formals=None semantics=Declared("vendor::f")
+VMD expr42 world="" formals=None declaration=Some(DeclaredSemantics { scope: "vendor::f", structure: DeclaredStructure { effects: [], result: None, stores: None, iterate: None }, evaluation: Implementation(DeclaredImplementation { capability: EvaluatorCapability { identity: ImplementationIdentity { pack: "vendor", id: "vendor::f.reference", content_hash: 15613638811841526897 }, host: BoundedTcl, target: Needs(0), inputs: [Operand { index: 0, exactness: Exact }], depends: [TclProfile, ImplementationIdentity], budget: ImplementationBudget { commands: None, wall_clock_ms: None, value_bytes: None }, completion: NormalOnly }, slot: Some(HookSlot { family: Evaluate, index: 0 }), extension: None }), option_declines: [] })
+VMD expr42 world="" formals=None available-before=true
+VMD expr42 world="" formals=None direct=Evaluation(EvaluationAnswer { result: Some("42"), stores: [] })
+VMD expr42 world="" formals=None available-after=true
+VMD expr42 world="" formals=None errors=[] crashes=[]
+VMD expr42 world="world_effects none" formals=Some("") notices=[PackNotice { path: "vm-derived-diagnosis.tclspec", line: 1, context: "command vendor::f", message: "`runtime_backing tcl-body {-pack-text …}` carries the body in the pack, so an upgrade of the library it models diverges from it silently; sites that rest on it turn plain dispatch on the first mismatch", severity: Information, subject: None }]
+VMD expr42 world="world_effects none" formals=Some("") install=[HookInstallation { command: "vendor::f", owner: Command, family: Evaluate, slot: Some(HookSlot { family: Evaluate, index: 0 }), declined: None }]
+VMD expr42 world="world_effects none" formals=Some("") semantics=Declared("vendor::f")
+VMD expr42 world="world_effects none" formals=Some("") declaration=Some(DeclaredSemantics { scope: "vendor::f", structure: DeclaredStructure { effects: [], result: None, stores: None, iterate: None }, evaluation: Implementation(DeclaredImplementation { capability: EvaluatorCapability { identity: ImplementationIdentity { pack: "vendor", id: "vendor::f.reference", content_hash: 15613638811841526897 }, host: BoundedTcl, target: Needs(0), inputs: [Operand { index: 0, exactness: Exact }], depends: [TclProfile, ImplementationIdentity], budget: ImplementationBudget { commands: None, wall_clock_ms: None, value_bytes: None }, completion: NormalOnly }, slot: Some(HookSlot { family: Evaluate, index: 0 }), extension: None }), option_declines: [] })
+VMD expr42 world="world_effects none" formals=Some("") procedures=1 names=["::p"]
+VMD expr42 world="world_effects none" formals=Some("") trust vendor::f: whole=true observed=true
+VMD expr42 world="world_effects none" formals=Some("") trust set: whole=true observed=true
+VMD expr42 world="world_effects none" formals=Some("") trust return: whole=true observed=true
+VMD expr42 world="world_effects none" formals=Some("") known-all-versions=[(1, Overdefined)]
+VMD expr42 world="world_effects none" formals=Some("") known=Some(Overdefined) routes=[]
+VMD expr42 world="world_effects none" formals=Some("") errors=[] crashes=[]
+VMD expr42 world="world_effects none" formals=Some("x") notices=[PackNotice { path: "vm-derived-diagnosis.tclspec", line: 1, context: "command vendor::f", message: "`runtime_backing tcl-body {-pack-text …}` carries the body in the pack, so an upgrade of the library it models diverges from it silently; sites that rest on it turn plain dispatch on the first mismatch", severity: Information, subject: None }]
+VMD expr42 world="world_effects none" formals=Some("x") install=[HookInstallation { command: "vendor::f", owner: Command, family: Evaluate, slot: Some(HookSlot { family: Evaluate, index: 0 }), declined: None }]
+VMD expr42 world="world_effects none" formals=Some("x") semantics=Declared("vendor::f")
+VMD expr42 world="world_effects none" formals=Some("x") declaration=Some(DeclaredSemantics { scope: "vendor::f", structure: DeclaredStructure { effects: [], result: None, stores: None, iterate: None }, evaluation: Implementation(DeclaredImplementation { capability: EvaluatorCapability { identity: ImplementationIdentity { pack: "vendor", id: "vendor::f.reference", content_hash: 15613638811841526897 }, host: BoundedTcl, target: Needs(0), inputs: [Operand { index: 0, exactness: Exact }], depends: [TclProfile, ImplementationIdentity], budget: ImplementationBudget { commands: None, wall_clock_ms: None, value_bytes: None }, completion: NormalOnly }, slot: Some(HookSlot { family: Evaluate, index: 0 }), extension: None }), option_declines: [] })
+VMD expr42 world="world_effects none" formals=Some("x") procedures=1 names=["::p"]
+VMD expr42 world="world_effects none" formals=Some("x") trust vendor::f: whole=true observed=true
+VMD expr42 world="world_effects none" formals=Some("x") trust set: whole=true observed=true
+VMD expr42 world="world_effects none" formals=Some("x") trust return: whole=true observed=true
+VMD expr42 world="world_effects none" formals=Some("x") known-all-versions=[(1, Overdefined)]
+VMD expr42 world="world_effects none" formals=Some("x") known=Some(Overdefined) routes=[]
+VMD expr42 world="world_effects none" formals=Some("x") errors=[] crashes=[]
+VMD expr42 world="world_effects none" formals=None notices=[PackNotice { path: "vm-derived-diagnosis.tclspec", line: 1, context: "command vendor::f", message: "`runtime_backing tcl-body {-pack-text …}` carries the body in the pack, so an upgrade of the library it models diverges from it silently; sites that rest on it turn plain dispatch on the first mismatch", severity: Information, subject: None }]
+VMD expr42 world="world_effects none" formals=None install=[HookInstallation { command: "vendor::f", owner: Command, family: Evaluate, slot: Some(HookSlot { family: Evaluate, index: 0 }), declined: None }]
+VMD expr42 world="world_effects none" formals=None semantics=Declared("vendor::f")
+VMD expr42 world="world_effects none" formals=None declaration=Some(DeclaredSemantics { scope: "vendor::f", structure: DeclaredStructure { effects: [], result: None, stores: None, iterate: None }, evaluation: Implementation(DeclaredImplementation { capability: EvaluatorCapability { identity: ImplementationIdentity { pack: "vendor", id: "vendor::f.reference", content_hash: 15613638811841526897 }, host: BoundedTcl, target: Needs(0), inputs: [Operand { index: 0, exactness: Exact }], depends: [TclProfile, ImplementationIdentity], budget: ImplementationBudget { commands: None, wall_clock_ms: None, value_bytes: None }, completion: NormalOnly }, slot: Some(HookSlot { family: Evaluate, index: 0 }), extension: None }), option_declines: [] })
+VMD expr42 world="world_effects none" formals=None available-before=true
+VMD expr42 world="world_effects none" formals=None direct=Evaluation(EvaluationAnswer { result: Some("42"), stores: [] })
+VMD expr42 world="world_effects none" formals=None available-after=true
+VMD expr42 world="world_effects none" formals=None errors=[] crashes=[]
+VMD catxy world="" formals=Some("") notices=[PackNotice { path: "vm-derived-diagnosis.tclspec", line: 1, context: "command vendor::f", message: "`runtime_backing tcl-body {-pack-text …}` carries the body in the pack, so an upgrade of the library it models diverges from it silently; sites that rest on it turn plain dispatch on the first mismatch", severity: Information, subject: None }]
+VMD catxy world="" formals=Some("") install=[HookInstallation { command: "vendor::f", owner: Command, family: Evaluate, slot: Some(HookSlot { family: Evaluate, index: 0 }), declined: None }]
+VMD catxy world="" formals=Some("") semantics=Declared("vendor::f")
+VMD catxy world="" formals=Some("") declaration=Some(DeclaredSemantics { scope: "vendor::f", structure: DeclaredStructure { effects: [], result: None, stores: None, iterate: None }, evaluation: Implementation(DeclaredImplementation { capability: EvaluatorCapability { identity: ImplementationIdentity { pack: "vendor", id: "vendor::f.reference", content_hash: 5214367834327695098 }, host: BoundedTcl, target: Needs(0), inputs: [Operand { index: 0, exactness: Exact }, Operand { index: 1, exactness: Exact }], depends: [TclProfile, ImplementationIdentity], budget: ImplementationBudget { commands: None, wall_clock_ms: None, value_bytes: None }, completion: NormalOnly }, slot: Some(HookSlot { family: Evaluate, index: 0 }), extension: None }), option_declines: [] })
+VMD catxy world="" formals=Some("") procedures=1 names=["::p"]
+VMD catxy world="" formals=Some("") trust vendor::f: whole=true observed=true
+VMD catxy world="" formals=Some("") trust set: whole=true observed=true
+VMD catxy world="" formals=Some("") trust return: whole=true observed=true
+VMD catxy world="" formals=Some("") known-all-versions=[(1, Overdefined)]
+VMD catxy world="" formals=Some("") known=Some(Overdefined) routes=[]
+VMD catxy world="" formals=Some("") errors=[] crashes=[]
+VMD catxy world="" formals=Some("x") notices=[PackNotice { path: "vm-derived-diagnosis.tclspec", line: 1, context: "command vendor::f", message: "`runtime_backing tcl-body {-pack-text …}` carries the body in the pack, so an upgrade of the library it models diverges from it silently; sites that rest on it turn plain dispatch on the first mismatch", severity: Information, subject: None }]
+VMD catxy world="" formals=Some("x") install=[HookInstallation { command: "vendor::f", owner: Command, family: Evaluate, slot: Some(HookSlot { family: Evaluate, index: 0 }), declined: None }]
+VMD catxy world="" formals=Some("x") semantics=Declared("vendor::f")
+VMD catxy world="" formals=Some("x") declaration=Some(DeclaredSemantics { scope: "vendor::f", structure: DeclaredStructure { effects: [], result: None, stores: None, iterate: None }, evaluation: Implementation(DeclaredImplementation { capability: EvaluatorCapability { identity: ImplementationIdentity { pack: "vendor", id: "vendor::f.reference", content_hash: 5214367834327695098 }, host: BoundedTcl, target: Needs(0), inputs: [Operand { index: 0, exactness: Exact }, Operand { index: 1, exactness: Exact }], depends: [TclProfile, ImplementationIdentity], budget: ImplementationBudget { commands: None, wall_clock_ms: None, value_bytes: None }, completion: NormalOnly }, slot: Some(HookSlot { family: Evaluate, index: 0 }), extension: None }), option_declines: [] })
+VMD catxy world="" formals=Some("x") procedures=1 names=["::p"]
+VMD catxy world="" formals=Some("x") trust vendor::f: whole=true observed=true
+VMD catxy world="" formals=Some("x") trust set: whole=true observed=true
+VMD catxy world="" formals=Some("x") trust return: whole=true observed=true
+VMD catxy world="" formals=Some("x") known-all-versions=[(1, Overdefined)]
+VMD catxy world="" formals=Some("x") known=Some(Overdefined) routes=[]
+VMD catxy world="" formals=Some("x") errors=[] crashes=[]
+VMD catxy world="" formals=None notices=[PackNotice { path: "vm-derived-diagnosis.tclspec", line: 1, context: "command vendor::f", message: "`runtime_backing tcl-body {-pack-text …}` carries the body in the pack, so an upgrade of the library it models diverges from it silently; sites that rest on it turn plain dispatch on the first mismatch", severity: Information, subject: None }]
+VMD catxy world="" formals=None install=[HookInstallation { command: "vendor::f", owner: Command, family: Evaluate, slot: Some(HookSlot { family: Evaluate, index: 0 }), declined: None }]
+VMD catxy world="" formals=None semantics=Declared("vendor::f")
+VMD catxy world="" formals=None declaration=Some(DeclaredSemantics { scope: "vendor::f", structure: DeclaredStructure { effects: [], result: None, stores: None, iterate: None }, evaluation: Implementation(DeclaredImplementation { capability: EvaluatorCapability { identity: ImplementationIdentity { pack: "vendor", id: "vendor::f.reference", content_hash: 5214367834327695098 }, host: BoundedTcl, target: Needs(0), inputs: [Operand { index: 0, exactness: Exact }, Operand { index: 1, exactness: Exact }], depends: [TclProfile, ImplementationIdentity], budget: ImplementationBudget { commands: None, wall_clock_ms: None, value_bytes: None }, completion: NormalOnly }, slot: Some(HookSlot { family: Evaluate, index: 0 }), extension: None }), option_declines: [] })
+VMD catxy world="" formals=None available-before=true
+VMD catxy world="" formals=None direct=Evaluation(EvaluationAnswer { result: Some("xy"), stores: [] })
+VMD catxy world="" formals=None available-after=true
+VMD catxy world="" formals=None errors=[] crashes=[]
+VMD catxy world="world_effects none" formals=Some("") notices=[PackNotice { path: "vm-derived-diagnosis.tclspec", line: 1, context: "command vendor::f", message: "`runtime_backing tcl-body {-pack-text …}` carries the body in the pack, so an upgrade of the library it models diverges from it silently; sites that rest on it turn plain dispatch on the first mismatch", severity: Information, subject: None }]
+VMD catxy world="world_effects none" formals=Some("") install=[HookInstallation { command: "vendor::f", owner: Command, family: Evaluate, slot: Some(HookSlot { family: Evaluate, index: 0 }), declined: None }]
+VMD catxy world="world_effects none" formals=Some("") semantics=Declared("vendor::f")
+VMD catxy world="world_effects none" formals=Some("") declaration=Some(DeclaredSemantics { scope: "vendor::f", structure: DeclaredStructure { effects: [], result: None, stores: None, iterate: None }, evaluation: Implementation(DeclaredImplementation { capability: EvaluatorCapability { identity: ImplementationIdentity { pack: "vendor", id: "vendor::f.reference", content_hash: 5214367834327695098 }, host: BoundedTcl, target: Needs(0), inputs: [Operand { index: 0, exactness: Exact }, Operand { index: 1, exactness: Exact }], depends: [TclProfile, ImplementationIdentity], budget: ImplementationBudget { commands: None, wall_clock_ms: None, value_bytes: None }, completion: NormalOnly }, slot: Some(HookSlot { family: Evaluate, index: 0 }), extension: None }), option_declines: [] })
+VMD catxy world="world_effects none" formals=Some("") procedures=1 names=["::p"]
+VMD catxy world="world_effects none" formals=Some("") trust vendor::f: whole=true observed=true
+VMD catxy world="world_effects none" formals=Some("") trust set: whole=true observed=true
+VMD catxy world="world_effects none" formals=Some("") trust return: whole=true observed=true
+VMD catxy world="world_effects none" formals=Some("") known-all-versions=[(1, Overdefined)]
+VMD catxy world="world_effects none" formals=Some("") known=Some(Overdefined) routes=[]
+VMD catxy world="world_effects none" formals=Some("") errors=[] crashes=[]
+VMD catxy world="world_effects none" formals=Some("x") notices=[PackNotice { path: "vm-derived-diagnosis.tclspec", line: 1, context: "command vendor::f", message: "`runtime_backing tcl-body {-pack-text …}` carries the body in the pack, so an upgrade of the library it models diverges from it silently; sites that rest on it turn plain dispatch on the first mismatch", severity: Information, subject: None }]
+VMD catxy world="world_effects none" formals=Some("x") install=[HookInstallation { command: "vendor::f", owner: Command, family: Evaluate, slot: Some(HookSlot { family: Evaluate, index: 0 }), declined: None }]
+VMD catxy world="world_effects none" formals=Some("x") semantics=Declared("vendor::f")
+VMD catxy world="world_effects none" formals=Some("x") declaration=Some(DeclaredSemantics { scope: "vendor::f", structure: DeclaredStructure { effects: [], result: None, stores: None, iterate: None }, evaluation: Implementation(DeclaredImplementation { capability: EvaluatorCapability { identity: ImplementationIdentity { pack: "vendor", id: "vendor::f.reference", content_hash: 5214367834327695098 }, host: BoundedTcl, target: Needs(0), inputs: [Operand { index: 0, exactness: Exact }, Operand { index: 1, exactness: Exact }], depends: [TclProfile, ImplementationIdentity], budget: ImplementationBudget { commands: None, wall_clock_ms: None, value_bytes: None }, completion: NormalOnly }, slot: Some(HookSlot { family: Evaluate, index: 0 }), extension: None }), option_declines: [] })
+VMD catxy world="world_effects none" formals=Some("x") procedures=1 names=["::p"]
+VMD catxy world="world_effects none" formals=Some("x") trust vendor::f: whole=true observed=true
+VMD catxy world="world_effects none" formals=Some("x") trust set: whole=true observed=true
+VMD catxy world="world_effects none" formals=Some("x") trust return: whole=true observed=true
+VMD catxy world="world_effects none" formals=Some("x") known-all-versions=[(1, Overdefined)]
+VMD catxy world="world_effects none" formals=Some("x") known=Some(Overdefined) routes=[]
+VMD catxy world="world_effects none" formals=Some("x") errors=[] crashes=[]
+VMD catxy world="world_effects none" formals=None notices=[PackNotice { path: "vm-derived-diagnosis.tclspec", line: 1, context: "command vendor::f", message: "`runtime_backing tcl-body {-pack-text …}` carries the body in the pack, so an upgrade of the library it models diverges from it silently; sites that rest on it turn plain dispatch on the first mismatch", severity: Information, subject: None }]
+VMD catxy world="world_effects none" formals=None install=[HookInstallation { command: "vendor::f", owner: Command, family: Evaluate, slot: Some(HookSlot { family: Evaluate, index: 0 }), declined: None }]
+VMD catxy world="world_effects none" formals=None semantics=Declared("vendor::f")
+VMD catxy world="world_effects none" formals=None declaration=Some(DeclaredSemantics { scope: "vendor::f", structure: DeclaredStructure { effects: [], result: None, stores: None, iterate: None }, evaluation: Implementation(DeclaredImplementation { capability: EvaluatorCapability { identity: ImplementationIdentity { pack: "vendor", id: "vendor::f.reference", content_hash: 5214367834327695098 }, host: BoundedTcl, target: Needs(0), inputs: [Operand { index: 0, exactness: Exact }, Operand { index: 1, exactness: Exact }], depends: [TclProfile, ImplementationIdentity], budget: ImplementationBudget { commands: None, wall_clock_ms: None, value_bytes: None }, completion: NormalOnly }, slot: Some(HookSlot { family: Evaluate, index: 0 }), extension: None }), option_declines: [] })
+VMD catxy world="world_effects none" formals=None available-before=true
+VMD catxy world="world_effects none" formals=None direct=Evaluation(EvaluationAnswer { result: Some("xy"), stores: [] })
+VMD catxy world="world_effects none" formals=None available-after=true
+VMD catxy world="world_effects none" formals=None errors=[] crashes=[]
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 118.06s

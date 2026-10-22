@@ -1,0 +1,4 @@
+warning: spurious network error (3 tries remaining): [7] Could not connect to server (Failed to connect to static.crates.io:443 over proxy proxy after 7 ms: Could not connect to server)
+warning: spurious network error (2 tries remaining): [7] Could not connect to server (Failed to connect to static.crates.io:443 over proxy proxy after 0 ms: Could not connect to server)
+warning: spurious network error (1 try remaining): [7] Could not connect to server (Failed to connect to static.crates.io:443 over proxy proxy after 0 ms: Could not connect to server)
+error: failed to download from `https://static.crates.io/crates/crc32fast/1.5.2/download`

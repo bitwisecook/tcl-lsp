@@ -1,0 +1,46 @@
+{
+  "source": "proc show {name value} {puts [list $name $value]}\nshow delay [after 0]\nshow delay_pending [llength [after info]]\nset id [after 0 {}]\nshow empty_timer_pending [llength [after info]]\nshow empty_timer_payload [after info $id]\nafter cancel $id\nset id [after 0 set ::mark 1]\nshow multiword_timer_payload [after info $id]\nafter cancel $id\nset id [after idle set ::mark 2]\nshow multiword_idle_payload [after info $id]\nafter cancel $id\nshow after_info [after info]\nshow after_cancel [after cancel nonexistent]\nshow event_getter [fileevent stdout writable]\nfileevent stdout writable {set ::mark 3}\nshow event_setter [fileevent stdout writable]\nfileevent stdout writable {}\nshow event_removed [fileevent stdout writable]\n",
+  "source_sha256": "f8d6fe21a1b92d63ece492331e2baefa3456b410b48b9943325b0436548e646e",
+  "providers": [
+    {
+      "version": "8.4",
+      "executable": "/workspace/naming-toolchains/bin/tclsh8.4",
+      "sha256": "d47422869429a960bccf50aee8a56ce7a6a4250e7d54235b4fe5628eef3420d1",
+      "exit": 0,
+      "stdout": "delay {}\ndelay_pending 0\nempty_timer_pending 1\nempty_timer_payload {{} timer}\nmultiword_timer_payload {{set ::mark 1} timer}\nmultiword_idle_payload {{set ::mark 2} idle}\nafter_info {}\nafter_cancel {}\nevent_getter {}\nevent_setter {set ::mark 3}\nevent_removed {}\n",
+      "stderr": ""
+    },
+    {
+      "version": "8.5",
+      "executable": "/workspace/naming-toolchains/bin/tclsh8.5",
+      "sha256": "9a9d095dbb73cad65fb94e0ba5535f4ac2eacc7ad724221c2a7a10cfba293c72",
+      "exit": 0,
+      "stdout": "delay {}\ndelay_pending 0\nempty_timer_pending 1\nempty_timer_payload {{} timer}\nmultiword_timer_payload {{set ::mark 1} timer}\nmultiword_idle_payload {{set ::mark 2} idle}\nafter_info {}\nafter_cancel {}\nevent_getter {}\nevent_setter {set ::mark 3}\nevent_removed {}\n",
+      "stderr": ""
+    },
+    {
+      "version": "8.6",
+      "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+      "sha256": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+      "exit": 0,
+      "stdout": "delay {}\ndelay_pending 0\nempty_timer_pending 1\nempty_timer_payload {{} timer}\nmultiword_timer_payload {{set ::mark 1} timer}\nmultiword_idle_payload {{set ::mark 2} idle}\nafter_info {}\nafter_cancel {}\nevent_getter {}\nevent_setter {set ::mark 3}\nevent_removed {}\n",
+      "stderr": ""
+    },
+    {
+      "version": "9.0",
+      "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+      "sha256": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+      "exit": 0,
+      "stdout": "delay {}\ndelay_pending 0\nempty_timer_pending 1\nempty_timer_payload {{} timer}\nmultiword_timer_payload {{set ::mark 1} timer}\nmultiword_idle_payload {{set ::mark 2} idle}\nafter_info {}\nafter_cancel {}\nevent_getter {}\nevent_setter {set ::mark 3}\nevent_removed {}\n",
+      "stderr": ""
+    },
+    {
+      "version": "9.1",
+      "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
+      "sha256": "8cbf4f56b0831bc96f057e37cf762d12e981f44d3fd42f1c5ae130880c79ad06",
+      "exit": 0,
+      "stdout": "delay {}\ndelay_pending 0\nempty_timer_pending 1\nempty_timer_payload {{} timer}\nmultiword_timer_payload {{set ::mark 1} timer}\nmultiword_idle_payload {{set ::mark 2} idle}\nafter_info {}\nafter_cancel {}\nevent_getter {}\nevent_setter {set ::mark 3}\nevent_removed {}\n",
+      "stderr": ""
+    }
+  ]
+}

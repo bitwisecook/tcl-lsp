@@ -1,0 +1,33 @@
+{
+  "verification": "Direct GitHub Actions REST metadata read by coordinator; per-test coverage is separate and pending.",
+  "runs": [
+    {
+      "id": 39304840863,
+      "run_number": 5201,
+      "head_branch": "work",
+      "head_sha": "efc58507c1f0a92828b291c940c4439c91dbba46",
+      "event": "workflow_dispatch",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-10-19T18:42:59Z",
+      "updated_at": "2026-10-20T01:00:22Z",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39304840863",
+      "run_attempt": 1
+    },
+    {
+      "id": 38927177325,
+      "run_number": 5199,
+      "head_branch": "rust",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-16T15:50:29Z",
+      "updated_at": "2026-10-16T16:06:22Z",
+      "html_url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/38927177325",
+      "run_attempt": 1
+    }
+  ],
+  "conclusion": "Run5201 is a work-branch historical comparison, not origin/rust. Run5199 matches exact origin/rust fcb; success does not alone establish executed package/binary/selector coverage.",
+  "release_admission": false
+}

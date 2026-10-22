@@ -1,0 +1,42 @@
+{
+  "name": "n17_const_fold_after",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "tcl-spec-hooks",
+    "--test",
+    "const_fold_e2e",
+    "--",
+    "--test-threads=1"
+  ],
+  "start_utc": "2026-10-22T16:31:19.202742+00:00",
+  "free_bytes_before": 12108201984,
+  "head_before": "b978c7e6e0496322578b423e244146ff07bcc347",
+  "agent_reported": true,
+  "guarded_validation": false,
+  "source_before": {
+    "manifest": "/tmp/ccg-n17_const_fold_after-source-before.json.gz",
+    "sha256": "1bbe2857b2d87a8f526d5420341bfd7063e634942b167c2913471a426e7ef506",
+    "file_count": 35072,
+    "missing_count": 0,
+    "missing_first_200": [],
+    "missing_list_truncated": false
+  },
+  "source_after": {
+    "manifest": "/tmp/ccg-n17_const_fold_after-source-after.json.gz",
+    "sha256": "1bbe2857b2d87a8f526d5420341bfd7063e634942b167c2913471a426e7ef506",
+    "file_count": 35072,
+    "missing_count": 0,
+    "missing_first_200": [],
+    "missing_list_truncated": false
+  },
+  "exit": 101,
+  "elapsed_seconds": 19.250698922000083,
+  "end_utc": "2026-10-22T16:31:55.577202+00:00",
+  "head_after": "b978c7e6e0496322578b423e244146ff07bcc347",
+  "log_sha256": "00afe538f03606a0d505bbf3005669138b0e320ce4bca24467d6eefc261b2cda",
+  "free_bytes_after": 12108197888,
+  "executable_cleanup": "retained: no executable younger than 60 minutes may be deleted"
+}

@@ -1,0 +1,47 @@
+   Compiling hybrid-array v0.4.15
+   Compiling crc32fast v1.5.2
+   Compiling simd-adler32 v0.3.10
+   Compiling adler2 v2.0.1
+   Compiling miniz_oxide v0.9.1
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.1
+   Compiling sha1 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling tcl-cmd-core v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling tcl-host-native v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-host-native)
+   Compiling tcl-runtime v0.1.0 (/workspace/naming-migration-active/tcl-lsp/runtime/rust)
+   Compiling tcl-regex v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry)
+   Compiling flate2 v1.1.10
+   Compiling tcl-vm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-compiler v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spec-hooks)
+    Finished `test` profile [unoptimized] target(s) in 18m 44s
+     Running tests/const_fold_e2e.rs (target/debug/deps/const_fold_e2e-52a57acc75ad4b5a)
+running 6 tests
+test a_dynamic_word_never_reaches_the_body ... ok
+test a_pack_fold_body_folds_in_the_optimiser_pipeline ... FAILED
+test a_thread_without_the_host_abstains_rather_than_folding ... ok
+test a_versioned_pack_fold_is_told_the_profiles_evaluation_point ... FAILED
+test the_body_abstains_the_way_the_native_folder_declines ... ok
+test the_pack_fold_agrees_with_the_native_folder_on_the_same_inputs ... FAILED
+failures:
+thread 'a_pack_fold_body_folds_in_the_optimiser_pipeline' (69704) panicked at rust/tcl-spec-hooks/tests/const_fold_e2e.rs:131:5:
+assertion `left == right` failed: the optimiser must fold the pack-declared command
+  left: []
+ right: ["5"]
+thread 'a_versioned_pack_fold_is_told_the_profiles_evaluation_point' (69706) panicked at rust/tcl-spec-hooks/tests/const_fold_e2e.rs:243:9:
+assertion `left == right` failed: tcl8.6: []
+  left: None
+ right: Some("8.6")
+thread 'the_pack_fold_agrees_with_the_native_folder_on_the_same_inputs' (69708) panicked at rust/tcl-spec-hooks/tests/const_fold_e2e.rs:109:9:
+assertion `left == right` failed: pack and native folders disagree on ""
+  left: None
+ right: Some("0")
+failures:
+test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 28.37s
+error: test failed, to rerun pass `-p tcl-spec-hooks --test const_fold_e2e`

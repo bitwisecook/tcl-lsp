@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T16:25:41.275560+00:00
+Last updated: 2026-10-22T16:55:39.331038+00:00
 
 ## In progress
 
@@ -89,3 +89,19 @@ Last updated: 2026-10-22T16:25:41.275560+00:00
 - External files are fresh: BIG-IP16:06, perf16:18, triage16:12:43. Old-base complete PackSet equality does not establish latest/full corpus equality; compiler patch remains withheld. BIG-IP loaned current_diagnostics.rs is handed back for production while its isolated comparison restores exact bytes.
 - Publication remains isolated from active compilation. Twenty-five external BIG-IP/Core lint source/test files are retained in published work but not yet integrated into active builds; combined-tree acceptance is outstanding. No active checkout/rebase, target cleanup, audit admissions or validated-row changes.
 - Native D1-D5 and browser/WASI D6 fixtures remain unexecuted. Read-only support maps exact release gate commands/prerequisites. Next scheduled cycle16:55:37UTC.
+
+### Baseline identity correction and new run (16:44 UTC)
+
+- Direct API metadata proves CI5201 is manual `work` at `efc58507c1`, not origin/rust. Green origin/rust5199 at `fcb7927f02` skipped native LSP/e2e and four Rust shards and has no retained inventories. Neither supports zero pass-to-fail. Existing historical work-to-work comparisons remain attributed as such.
+- Started exact-current-rust full baseline CI run39816429638 at16:44:07Z, hosted, native_release_build_proof=false. Actual head verifiedfcb; workflow dispatch selects full changed closures and branch release/publish jobs are disabled by tag conditions. No source push/tag/PR. Monitor at16:55; capture complete package/binary/selector outcomes and actual toolchain/features.
+- Active prefetch completed at16:42 without changing HEAD/index/source. All20 old shallow boundaries retained; exact missing parents fetched depth1 only. Batched cached-header guard prepared to avoid repeated per-commit process spawning; real296-commit walk and missing-tip fail-closed control preserve shallow bytes.
+
+### Current cycle and routing (16:55 UTC)
+
+- N17 suites have matching35,072-file source guards: boundary4/4, pack-source3/6, hook-fold3/6. Combined explicit diagnostic identifies native compiler preflight provider required; caller formals/declaredness are not that failure. Derived rows and exact cleanup follow.
+- Exact temporary-toggle cleanup passes dry-copy assertions and seven syntax parses after one exact comment-pattern maintenance fix; canonical cleanup is pending final measurements.
+- Generic Core54 lint inventory is published and routed; all roles have off-tree lint/API candidates, none is a current zero-warning verdict.
+- CI5201 is historical work at efc58507, not origin/rust. Green origin/rust5199 skipped native LSP and four shards and has no retained selector inventory.
+- Started full nonpublishing baseline CI39816429638 on exact origin/rustfcb at16:44:07Z; complete test outcomes are pending, cargo-deny already failed separately. No source push/tag/PR.
+- Bounded active work prefetch completed without changing HEAD/index/source; old20 shallow boundaries retained. Combined-tree source integration follows CCG stable handback.
+- External role files remain under60minutes. Perf equality is incomplete and routed compiler patch remains withheld. No audit admissions, validated product row or sectionF checkbox changed.

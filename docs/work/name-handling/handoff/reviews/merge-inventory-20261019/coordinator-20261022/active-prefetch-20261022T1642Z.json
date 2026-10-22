@@ -1,0 +1,168 @@
+{
+  "utc": "2026-10-22T16:42:11.037066+00:00",
+  "operation": "Prefetch only for upcoming mapped-source rebase; no checkout/index/worktree/HEAD changes",
+  "head_unchanged": "b978c7e6e0496322578b423e244146ff07bcc347",
+  "remote": "6ebc499ccfce5a48e70ec61fe9957eff2d057f6f",
+  "last_published_is_ancestor": true,
+  "boundary_receipts": [
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "fd5c12bf5cb2ad835659156c3370ab5dbe20a2b9"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "4f8bec5d803dd625738d0fea4b727e1c807e0da9"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "6e9c7459f1e7262266b6b2ea1970444c1b3bb84f"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "4ab2ac7fd890e1b08b5779a400e7efc8b44eae3f"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "e4a01bbed36b9b2f4b64dc6d8623daed41f4867b"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "60ce7009f7cf8826c2300bbea9c97e71608531c6"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "128e1bb4d6e01de4f4d847d99f7c59159c1c3630"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "f93058f06ad6311fdde16b37e06eaa8517f0ca22"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "119852a31a22af64859c4d95e3ef5210284b3264"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "7ce934e9ac8788ab89481311db5333797b3bb219"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "f26f6a06e1fe2e77cd26ab0a4af9ce820cfb3089"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "3e30ee4b0049f1746635a42bca230568b0e758a0"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "9cf500301f1a0242919c3379ed4cc35c7f409221"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "033d53c396271b64ff461c064a0dddd6929e8dbe"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "9b3f4f273265bc2d0ac9e674d3eb3c061828abbe"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "1bfa1e340427623095dceef5c359dfae1656666d"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "e9450e4804617f60b782a2661e0979fec37c99c2"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "0434e7e71259ef138a9dd3982a950b6d98ed62e6"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 0,
+      "missing_commit_objects": [
+        "a5aeb5a7ed49aa18d8dce36e861f63c53af006ac"
+      ],
+      "still_shallow": true
+    },
+    {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 20,
+      "missing_commit_objects": [],
+      "still_shallow": true
+    }
+  ],
+  "shallow": "true"
+}

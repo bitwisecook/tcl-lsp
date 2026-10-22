@@ -2,7 +2,7 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T16:24:05Z (canonical Rust/tests frozen; structural lint draft prepared off-tree; no VM build started)
+Last updated: 2026-10-22T16:35:09Z (canonical Rust/tests frozen; structural lint draft prepared off-tree; no VM build started)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -68,6 +68,19 @@ combined patch applies in check-only mode across 47 paths with zero canonical
 base drift. All remain uncompiled/unrun; these are no lint-clearance or semantic
 claims. The canonical Rust/test freeze is observed, including both D4 files;
 latest D4 source write was 15:54:30.558808839Z. No VM cargo process has started.
+
+Required `pack_source_e2e` blocker triage is read-only while CCG owns its
+single functional/diagnostic chain. CCG's current full-target receipt reports
+3/6; derived expression42 and release-specific string-cat both yield no constant.
+Static boundaries and exact source hashes are in
+`/tmp/vm-runtime-derived-triage.json`; a public diagnostic helper is prepared at
+`/tmp/vm-runtime-derived-probe.rs` for CCG's one combined temporary target.
+It compares caller formals and declared world effects, prints SCCP routes/host
+errors, and tests direct Evaluate transport on a separate fresh host. Derived
+capabilities contain no Binding dependencies, while release-pinned host setup
+is lazy; installation success alone cannot locate the abstention. Actual refusal
+and any SSA-version shift remain unproved pending that diagnostic. No VM Cargo
+process or canonical Rust/test edits were used for this triage.
 
 The scratch runner is `/tmp/vm-runtime-preflight/seq-safe.sh`: one `cargo test`
 build/run per target, draining filtered logs capped at 20 MB, recording exit and

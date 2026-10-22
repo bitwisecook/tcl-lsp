@@ -1,0 +1,22 @@
+{
+  "purpose": "Avoid spawning one Git process per commit on every candidate boundary. One cat-file --batch reads exact cached commit headers with GIT_NO_LAZY_FETCH=1; parent traversal/20 preserved boundaries unchanged.",
+  "cached_real_tip_control": {
+    "sha": "6ebc499ccfce5a48e70ec61fe9957eff2d057f6f",
+    "cached_commit_headers": 296,
+    "missing": 0,
+    "would_restore_tip": true
+  },
+  "missing_tip_control": {
+    "preserved_existing_boundaries": 20,
+    "restored_cached_tip_boundaries": 0,
+    "missing_commit_objects": [
+      "0000000000000000000000000000000000000000"
+    ],
+    "still_shallow": true,
+    "cached_commit_headers": 1,
+    "dry_run": true
+  },
+  "shallow_file_sha_unchanged": "15b188c6491bc14252896eb8a1745454642c255d3f3fd99dc7c242a31fff9c5a",
+  "writes": "Atomic conservative boundary update only after original contents recheck; no checkout/source/index/HEAD/target mutations",
+  "product_validation": false
+}

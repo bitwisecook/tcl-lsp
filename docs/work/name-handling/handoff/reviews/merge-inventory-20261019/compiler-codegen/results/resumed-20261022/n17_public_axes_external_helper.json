@@ -1,0 +1,10 @@
+{
+  "agent_reported": true,
+  "guarded_validation": false,
+  "utc_after_test": "2026-10-22T16:55:38.604344+00:00",
+  "external_helper_path": "/tmp/vm-runtime-derived-probe.rs",
+  "before": "d91e79ba33f0f96368228329b7067e3eecb385bd6c2aedeb4d8e7f5f6902a49a",
+  "after": "d91e79ba33f0f96368228329b7067e3eecb385bd6c2aedeb4d8e7f5f6902a49a",
+  "external_source_unchanged": true,
+  "scope": "Separate continuity check for /tmp include; not part of canonical 35072-file manifest."
+}

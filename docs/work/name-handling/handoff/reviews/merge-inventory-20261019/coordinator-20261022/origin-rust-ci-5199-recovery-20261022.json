@@ -1,0 +1,139 @@
+{
+  "recorded_at_utc": "2026-10-22",
+  "repository": "bitwisecook/tcl-lsp",
+  "purpose": "Recover exact origin/rust baseline CI evidence; this is a coverage inventory, not a pass-to-fail verdict.",
+  "run": {
+    "run_id": 38927177325,
+    "display_run_number": 5199,
+    "event": "push",
+    "branch": "rust",
+    "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+    "status": "completed",
+    "conclusion": "success",
+    "created_at": "2026-10-16T15:50:29Z",
+    "updated_at": "2026-10-16T16:06:22Z",
+    "metadata_source": "GitHub Actions run/jobs APIs, fetched read-only on 2026-10-22"
+  },
+  "retained_evidence": {
+    "run_artifact_api": "GET actions/runs/38927177325/artifacts",
+    "artifacts": [],
+    "job_summaries": "Available, including step names/statuses/conclusions; no per-test selector or outcome records in job metadata.",
+    "complete_package_binary_selector_listing": false,
+    "job_logs_downloaded": false,
+    "job_log_size_preflight": "The connected job-log tool provides no size metadata before downloading; logs were not fetched under the bounded-download requirement.",
+    "result": "Cannot recover a complete baseline nextest or e2e outcome manifest from retained run artifacts/API metadata. No zero-pass-to-fail verdict is supportable from this run alone."
+  },
+  "executed_gates": [
+    {
+      "job": "rust-check",
+      "step": "Run fast CI gate (format + Clippy + generated-file drift)",
+      "conclusion": "success"
+    },
+    {
+      "job": "rust-tests-shard (1/5)",
+      "step": "cargo nextest run (binary-aware workspace shard)",
+      "conclusion": "success",
+      "scope": "One of five workspace shards only; workspace invocation excludes tcl-lsp-server, tcl-irule-test, f5-cli, tcl-fuzz, and tcl-engine-wasm; workflow command uses --all-features.",
+      "listing_upload_steps": "skipped"
+    },
+    {
+      "job": "rust-tests-heavy",
+      "step": "cargo nextest run (VM-sim heavies + tcl-fuzz plumbing)",
+      "conclusion": "success",
+      "command_scope": "cargo nextest run -p tcl-irule-test -p f5-cli -p tcl-fuzz --all-features"
+    },
+    {
+      "job": "wasm-real-link",
+      "steps": [
+        "make check-c-extension-wasm (toolchain required)",
+        "cargo test --test wasm_real_link --test wasm_tiers (toolchain required)",
+        "cargo test -p tcl-engine-wasm (toolchain required)",
+        "cargo check -p tcl-lsp-server (wasm32-wasip1)"
+      ],
+      "conclusion": "success",
+      "scope_note": "Includes WASI-target compilation of tcl-lsp-server, not its native test suite or native LSP protocol e2e suite."
+    },
+    {
+      "job": "cargo-deny",
+      "conclusion": "success"
+    }
+  ],
+  "green_but_not_executed_or_incomplete": [
+    {
+      "jobs": ["rust-tests-shard (2/5)", "rust-tests-shard (3/5)", "rust-tests-shard (4/5)", "rust-tests-shard (5/5)"],
+      "status": "success",
+      "nextest_step": "skipped",
+      "implication": "Four of five workspace shards did not run."
+    },
+    {
+      "job": "rust-tests-doctest",
+      "command": "cargo test --workspace --all-features --doc --no-fail-fast",
+      "step": "skipped"
+    },
+    {
+      "jobs": ["lsp-e2e archive", "lsp-e2e-partition (1/3)", "lsp-e2e-partition (2/3)", "lsp-e2e-partition (3/3)"],
+      "status": "success",
+      "archive_and_partition_execution": "skipped",
+      "implication": "No native lsp_e2e execution/results; no native LSP server tests are represented by the shard suite either."
+    },
+    {
+      "job": "build-tcl-lsp-server",
+      "status": "success",
+      "server_build_and_upload": "skipped"
+    },
+    {
+      "jobs": ["lsp-server-wasm", "lsp-server-wasi"],
+      "status": "success",
+      "browser_or_wasi_lsp_server_test_steps": "skipped"
+    },
+    {
+      "jobs": ["test-ext-partition (1, one)", "test-ext-partition (2, two)", "test-ext-partition (3, three)", "test-ext-multi-folder", "test-ext-web"],
+      "status": "success",
+      "extension-host and browser-host test/build steps": "skipped"
+    },
+    {
+      "job": "spectcl-compat",
+      "status": "success",
+      "exact SpecTcl + Tcl compatibility gate": "skipped"
+    },
+    {
+      "job": "runtime-rust-tests",
+      "status": "success",
+      "standalone runtime tests": "skipped"
+    },
+    {
+      "job": "web-frontends",
+      "status": "success",
+      "front-end install/check steps": "skipped"
+    }
+  ],
+  "toolchain_and_features": {
+    "workflow_source": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/fcb7927f02b5395753247b322fdd7be87ae5c731/.github/workflows/ci.yml",
+    "rust_setup": "toolchain: stable (floating); run job metadata proves setup step succeeded, but does not expose exact rustc version.",
+    "cargo_env": ["CARGO_INCREMENTAL=0", "CARGO_PROFILE_DEV_DEBUG=0"],
+    "root_workspace_tests": "--all-features in workflow; only shard 1/5 actually executed.",
+    "exact_runtime_toolchain_version": "unknown from retained metadata; do not substitute current rustup stable for the historical run version."
+  },
+  "workflow_source_refs": {
+    "dispatch_inputs_and_publish_warning": ".github/workflows/ci.yml:14-38",
+    "dispatch_runner_selection": ".github/workflows/ci.yml:404-427",
+    "path_classifier_fail_closed": ".github/workflows/ci.yml:264-410; scripts/dev/changed-paths.sh:54-90",
+    "root_shard_gate_and_excludes": ".github/workflows/ci.yml:1213-1450",
+    "doctest_gate": ".github/workflows/ci.yml:1528-1544",
+    "spectcl_gate": ".github/workflows/ci.yml:1611-1678",
+    "lsp_native_e2e": ".github/workflows/ci.yml:2113-2200, 2323-2450",
+    "tag_only_release": ".github/workflows/ci.yml:2722",
+    "tag_only_marketplace_publish": ".github/workflows/ci.yml:3707"
+  },
+  "safe_dispatch_assessment": {
+    "workflow_supports_workflow_dispatch": true,
+    "inputs": {
+      "rust_tests_runner": ["tank", "hosted"],
+      "native_release_build_proof": "boolean"
+    },
+    "safe_nonpublishing_shape": "Dispatch only a branch ref (refs/heads/rust, not v* tag), select rust_tests_runner=hosted if avoiding the self-hosted tank, and native_release_build_proof=false. Release and marketplace publishers are guarded by refs/tags/v*; the branch-only native release matrix is enabled by the proof input and remains off here. The path classifier intentionally supports only push and pull_request; workflow_dispatch fails closed and sets all test/path closures changed, while already-green reuse is only considered for branch push or version tags. Thus dispatch runs the broad test graph instead of silently carrying forward this run.",
+    "exact_sha_limitation": "GitHub dispatch selects a ref; current metadata did not establish that fcb7927f... is still a dispatchable branch/tag ref. Dispatching current rust may test a different SHA. No dispatch was initiated.",
+    "source_refs": ".github/workflows/ci.yml:14-38, 311-410; scripts/dev/changed-paths.sh:54-90; scripts/dev/already-green.sh:117-143"
+  },
+  "decision": "Run 5199 is a valid green run identity, but it is not a complete baseline selector/outcome inventory. In particular it contains no native LSP test outcomes and no shard 2 results. Compare only selectors with complete matched baseline outcomes; all uncovered selectors remain unknown."
+}

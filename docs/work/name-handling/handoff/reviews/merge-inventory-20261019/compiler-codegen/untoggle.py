@@ -8,7 +8,7 @@ def edit(p, pairs):
 T='// TEMP measurement toggle (compiler-codegen), remove before hand-back.\n'
 edit('rust/tcl-compiler/src/command_binding/compiled_preflight.rs',[
 ('''    let native_entry_unavailable = state.baseline.native_entry.is_none()
-        // '''+T+'''        && (state.baseline.unknown_entry || std::env::var_os("ZZ_CCG_BASELINE").is_some());''',
+        '''+T+'''        && (state.baseline.unknown_entry || std::env::var_os("ZZ_CCG_BASELINE").is_some());''',
 '''    let native_entry_unavailable =
         state.baseline.native_entry.is_none() && state.baseline.unknown_entry;'''),
 ('''    #[track_caller]

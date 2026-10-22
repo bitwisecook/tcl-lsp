@@ -1,0 +1,22 @@
+{
+  "agent_reported": true,
+  "guarded_validation": false,
+  "utc": "2026-10-22T16:37:21.313830+00:00",
+  "canonical_cleanup_performed": false,
+  "script_sha256": "6abd8c834fd050294ab14a4b48109c2cbd2c1b745f1c47be0e3eeff54df0d9e0",
+  "exact_pattern_maintenance": "Removed redundant literal '// ' before T, which already begins '// TEMP'. Existing assertions/replacement outputs unchanged.",
+  "manual_precondition": "Remove only documented extra TEMP comment inside require_provider before exact script.",
+  "offtree_exact_assertions": "all pass after exact pattern correction and one-comment precondition",
+  "remaining_source_files": 7,
+  "probe_deleted_offtree": true,
+  "rustfmt_parse": "7/7 parse without modifying canonical",
+  "expected_cleanup_file_hashes": {
+    "rust/tcl-compiler/src/codegen/control_flow.rs": "33a7869f64f8acc08aace5986623f13203874912c81fd73dff22e5843f67dab7",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs": "596cb4cb041a65f871dc5e2d9298562d3386c3a6c937ecc91808a9302b993ab2",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight.rs": "f7f3afd5824c7a61f913bfbe13f1cc84306dbeb94e986d71a54473719534ed2d",
+    "rust/tcl-compiler/src/compile_service.rs": "231c5d0d6793c5b8a986d8b10c3e5f61d585d272e78207c9225fcc7f4fd9ce5d",
+    "rust/tcl-compiler/src/optimiser/manager.rs": "db5bcde9fd386da944ac4e3dfedd801779833100c2503874cceacfc7883b3734",
+    "rust/tcl-registry/src/native_string_operand_compilation.rs": "0de1d462e5405e632e92be2b9c754a33a15cb5222636a0e2001f9d73e8a5ac5e",
+    "rust/tcl-spectcl/src/install.rs": "97dbee735cf3ed81e57263bdcb99005ec78eefb9dbb11c0fc51969b04f252cd1"
+  }
+}

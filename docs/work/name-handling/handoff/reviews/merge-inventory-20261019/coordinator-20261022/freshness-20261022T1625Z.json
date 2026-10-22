@@ -1,0 +1,34 @@
+{
+  "checked_utc": "2026-10-22T16:27:40Z",
+  "scheduled_cycle": "2026-10-22T16:25:37Z",
+  "external_sources": [
+    {
+      "role": "bigip-lsp",
+      "sha": "3fe512fc25106651e13a156bbe8f29b18efaf11c",
+      "updated": "Last updated: 2026-10-22T16:06Z"
+    },
+    {
+      "role": "perf",
+      "sha": "544b91abf1728d3ff1a92ea767c63a98ccf2804f",
+      "updated": "Last updated: 2026-10-22 16:18 UTC"
+    },
+    {
+      "role": "review-triage",
+      "sha": "95c30a7be559555e73ab949d65689641cbce560c",
+      "updated": "Last updated: 2026-10-22T16:12:43Z"
+    }
+  ],
+  "publication_checkout_headers": {
+    "bigip-lsp": "2026-10-22T16:21Z",
+    "perf": "2026-10-22T16:18Z",
+    "review-triage": "2026-10-22T16:12:43Z"
+  },
+  "all_under_60_minutes": true,
+  "active_checkout_note": "External status files in the frozen active checkout are stale relative to fetched work. Freshness is checked against remote/publisher files without overwriting the active source tree.",
+  "routes": [
+    "Core54 inventory extracted to /tmp for LSP; Luna prepares limited mechanical draft off-tree.",
+    "Perf realm/interprocedural patch withheld until explicitly proven on required latest-source checks.",
+    "ILX authenticated source relation stays compiler-owned; diagnostic latency is LSP/compiler/perf and budgets remain unchanged."
+  ],
+  "release_admission": false
+}

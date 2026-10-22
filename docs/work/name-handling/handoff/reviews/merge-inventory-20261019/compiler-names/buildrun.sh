@@ -33,7 +33,7 @@ run() {
 }
 case "$STAGE" in
     early)
-        run main completed_world_follows
+        ZZ_PROBE_OPAQUE=1 run main completed_world_follows
         ZZ_PROBE_ENSEMBLE=1 ZZ_PROBE_OPAQUE=1 run zz zz_probe_import_and_crlf
         for filter in original_readonly_worker_formal crlf_class_method substituted_heads_and_consumed; do run "$filter" "$filter"; done
         ZZ_PROBE_LOWER=1 run w210 w210_pkgindex

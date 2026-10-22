@@ -1,0 +1,68 @@
+[
+  {
+    "version": "8.6",
+    "name": "rex",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "executable_sha256": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+    "source": "proc ::rex args {return ROOT}\nnamespace eval ::a {oo::class create C {method pick {} {return LOCAL}}; set made [C create rex]; puts [list MADE $made VALUE [rex pick] ROOT [::rex]]}\n",
+    "source_sha256": "42fb1d4d6112732f752b69d497c1f6612344b4ecf27afe09af1b4f9b13d243a9",
+    "stdout": "MADE ::a::rex VALUE LOCAL ROOT ROOT\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "8.6",
+    "name": ":rex",
+    "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+    "executable_sha256": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+    "source": "proc ::rex args {return ROOT}\nnamespace eval ::a {oo::class create C {method pick {} {return LOCAL}}; set made [C create :rex]; puts [list MADE $made VALUE [:rex pick] ROOT [::rex]]}\n",
+    "source_sha256": "886a1457a2285fa7fca7354487230a6dc72cd25950e285ddd0f9b4bae62983e3",
+    "stdout": "MADE ::a:::rex VALUE LOCAL ROOT ROOT\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "9.0",
+    "name": "rex",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "executable_sha256": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+    "source": "proc ::rex args {return ROOT}\nnamespace eval ::a {oo::class create C {method pick {} {return LOCAL}}; set made [C create rex]; puts [list MADE $made VALUE [rex pick] ROOT [::rex]]}\n",
+    "source_sha256": "42fb1d4d6112732f752b69d497c1f6612344b4ecf27afe09af1b4f9b13d243a9",
+    "stdout": "MADE ::a::rex VALUE LOCAL ROOT ROOT\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "9.0",
+    "name": ":rex",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+    "executable_sha256": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+    "source": "proc ::rex args {return ROOT}\nnamespace eval ::a {oo::class create C {method pick {} {return LOCAL}}; set made [C create :rex]; puts [list MADE $made VALUE [:rex pick] ROOT [::rex]]}\n",
+    "source_sha256": "886a1457a2285fa7fca7354487230a6dc72cd25950e285ddd0f9b4bae62983e3",
+    "stdout": "MADE ::a:::rex VALUE LOCAL ROOT ROOT\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "9.1",
+    "name": "rex",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
+    "executable_sha256": "8cbf4f56b0831bc96f057e37cf762d12e981f44d3fd42f1c5ae130880c79ad06",
+    "source": "proc ::rex args {return ROOT}\nnamespace eval ::a {oo::class create C {method pick {} {return LOCAL}}; set made [C create rex]; puts [list MADE $made VALUE [rex pick] ROOT [::rex]]}\n",
+    "source_sha256": "42fb1d4d6112732f752b69d497c1f6612344b4ecf27afe09af1b4f9b13d243a9",
+    "stdout": "MADE ::a::rex VALUE LOCAL ROOT ROOT\n",
+    "stderr": "",
+    "exit": 0
+  },
+  {
+    "version": "9.1",
+    "name": ":rex",
+    "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
+    "executable_sha256": "8cbf4f56b0831bc96f057e37cf762d12e981f44d3fd42f1c5ae130880c79ad06",
+    "source": "proc ::rex args {return ROOT}\nnamespace eval ::a {oo::class create C {method pick {} {return LOCAL}}; set made [C create :rex]; puts [list MADE $made VALUE [:rex pick] ROOT [::rex]]}\n",
+    "source_sha256": "886a1457a2285fa7fca7354487230a6dc72cd25950e285ddd0f9b4bae62983e3",
+    "stdout": "MADE ::a:::rex VALUE LOCAL ROOT ROOT\n",
+    "stderr": "",
+    "exit": 0
+  }
+]

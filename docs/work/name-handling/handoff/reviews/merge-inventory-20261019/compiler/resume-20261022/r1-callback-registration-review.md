@@ -1,0 +1,13 @@
+# R1 callback registration review
+
+Recorded: 2026-10-22T16:38:23Z. Compiler source/test freeze remains active. No Cargo validation is claimed.
+
+The initial callback guard interpreted CallbackKinds::UNKNOWN.contains(any kind) as registration, and ordinary variable TRACE capability as installation. Names' revised guard separates those effects from registration. Review found that deferred after/fileevent/chan event scripts also require a guard: their bodies are Structural, and a concatenated after script intentionally has no positive single-script ordinal. The deferred ordinal API explicitly cannot prove callback absence.
+
+The reviewed off-tree closure freezes SourceCallbackRetention (Absent / MayRetain / Unproven) from the same selected ResolvedInvocation into InvocationFacts. It uses the existing retained-prefix/deferred query and guards unresolved selectors/prefix layouts. Available Body-valued options remain Unproven, since the old retained-prefix query excludes those options. The compiler consumes a refusal whenever this fact is not Absent and retains independent precise command-prefix/host effects, declared trace-add/namespace-unknown transitions and variable-trace installation guards. Ordinary puts/set and own-frame procedure declarations can remain Absent. Getter/removal forms remain conservative; no precision for those forms is claimed.
+
+Three drafted registry tests cover these capabilities and both facts/facts_after_success. They have rustfmt parse and patch-apply checks only. The source patch remains `/tmp/compiler-r1-retention-facts.patch` until the coordinator releases the source hold and rebase. Names owns the consumer patch and first public normal-library diagnosis; compiler owns applying the registry fact and subsequent C6 diagnosis. Original regression filters remain mandatory.
+
+The adjacent `r1-callback-registration-native-oracles.json` records exact source, source/executable SHA256, five resolved C Tcl executable paths, exit status/stdout/stderr. Tcl8.4/8.5/8.6/9.0/9.1 all exited0 with empty stderr and identical observations: after0 without a script leaves no pending handler; after0{} still registers an empty script; multiword timer/idle forms retain the concatenated script; fileevent getter returns the current script and literal{} removes it. These are registration inventory observations without entering the event loop, not current compiler test results.
+
+Exact getter/removal precision is a separate registry-selected descriptor follow-up (Never / ScriptTail / OptionalScript with declared empty-removal semantics), not a reason to use positive-only ordinal absence as proof.

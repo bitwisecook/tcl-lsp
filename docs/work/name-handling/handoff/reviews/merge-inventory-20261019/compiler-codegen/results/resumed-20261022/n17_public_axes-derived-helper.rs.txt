@@ -1,0 +1,180 @@
+//! Temporary public-API diagnosis only: no acceptance assertions.
+use std::path::PathBuf;
+use std::rc::Rc;
+
+use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_registry::invocation_words::InvocationWordKind;
+use tcl_registry::pack_hooks::{self, HookCall, HookWord};
+use tcl_registry::value_transfer::{DeclaredEvaluation, SemanticsDeclaration};
+use tcl_spec_hooks::tclvm_host;
+use tcl_spectcl::discovery::{Origin, PackFile, Tier};
+use tcl_spectcl::hooks;
+
+pub fn run() {
+    for (label, dialect, definition, operands) in [
+        (
+            "expr42",
+            "tcl9.0",
+            "proc vendor::f {x} {expr {$x * 2}}",
+            &["21"][..],
+        ),
+        (
+            "catxy",
+            "tcl8.6",
+            "proc vendor::f {a b} {string cat $a $b}",
+            &["x", "y"][..],
+        ),
+    ] {
+        for world in ["", "world_effects none"] {
+            for formals in ["", "x"] {
+                run_row(label, dialect, definition, operands, world, Some(formals));
+            }
+            // Fresh host for the direct call: compiler health/caches cannot
+            // repair or poison this independent transport observation.
+            run_row(label, dialect, definition, operands, world, None);
+        }
+    }
+}
+
+fn run_row(
+    label: &str,
+    dialect: &'static str,
+    definition: &str,
+    operands: &[&str],
+    world: &str,
+    formals: Option<&str>,
+) {
+    let source = format!(
+        "speclib vendor 2.0 {{ command vendor::f {{ arity {}\n{world}\nruntime_backing tcl-body {{-pack-text {{{definition}}} -evaluate}}\n}} }}",
+        operands.len(),
+    );
+    let packs = tcl_spectcl::pack::load_in_memory(vec![(
+        PackFile {
+            tier: Tier::Workspace,
+            path: PathBuf::from("vm-derived-diagnosis.tclspec"),
+            origin: Origin::DotDir,
+            dependency_tier: None,
+        },
+        source,
+    )]);
+    let key = format!("{label} world={world:?} formals={formals:?}");
+    eprintln!("VMD {key} notices={:?}", packs.notices);
+    let plan = hooks::plan_for(&packs);
+    let host = Rc::new(tclvm_host());
+    for programs in plan.packs() {
+        eprintln!(
+            "VMD {key} install={:?}",
+            host.install_pack_hooks(programs.clone())
+        );
+    }
+    pack_hooks::install_host(host.clone());
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
+    let Some(spec) = registry.get("vendor::f") else {
+        eprintln!("VMD {key} missing installed spec");
+        pack_hooks::clear_host();
+        return;
+    };
+    eprintln!("VMD {key} semantics={:?}", spec.semantics);
+    if let SemanticsDeclaration::Declared(semantics) = spec.semantics {
+        eprintln!("VMD {key} declaration={:?}", semantics.as_declared());
+    }
+    if let Some(formals) = formals {
+        let script = format!(
+            "proc ::p {{{formals}}} {{\n set known [vendor::f {}]\n return $known\n}}\n",
+            operands.join(" "),
+        );
+        let unit = CompilationUnit::build_for_dialect(&script, &registry, false, dialect);
+        let mut procedure_names: Vec<_> = unit
+            .ir_module
+            .procedures
+            .values()
+            .map(|body| body.qualified_name.as_str())
+            .collect();
+        procedure_names.sort_unstable();
+        eprintln!(
+            "VMD {key} procedures={} names={procedure_names:?}",
+            procedure_names.len()
+        );
+        for head in ["vendor::f", "set", "return"] {
+            eprintln!(
+                "VMD {key} trust {head}: whole={} observed={}",
+                unit.command_mutations.trusts(head),
+                unit.command_mutations.observed_binding_is_the_builtin(head)
+            );
+        }
+        for (id, body) in &unit.ir_module.procedures {
+            if body.qualified_name == "::p" {
+                let function = unit
+                    .procedures
+                    .get(id)
+                    .expect("original fixture procedure analysis");
+                let known = function
+                    .ssa
+                    .var_symbol("known")
+                    .and_then(|symbol| function.sccp.values.get(&(symbol, 1)));
+                let versions: Vec<_> =
+                    function
+                        .ssa
+                        .var_symbol("known")
+                        .map_or_else(Vec::new, |symbol| {
+                            let mut entries: Vec<_> = function
+                                .sccp
+                                .values
+                                .iter()
+                                .filter(|((actual, _), _)| *actual == symbol)
+                                .map(|((_, version), value)| (*version, value))
+                                .collect();
+                            entries.sort_by_key(|(version, _)| *version);
+                            entries
+                        });
+                eprintln!("VMD {key} known-all-versions={versions:?}");
+                eprintln!(
+                    "VMD {key} known={known:?} routes={:?}",
+                    function.sccp.explanations
+                );
+            }
+        }
+    } else if let SemanticsDeclaration::Declared(semantics) = spec.semantics {
+        if let Some(declared) = semantics.as_declared() {
+            if let DeclaredEvaluation::Implementation(implementation) = &declared.evaluation {
+                if let Some(slot) = implementation.slot {
+                    let words: Vec<_> = operands
+                        .iter()
+                        .map(|value| HookWord {
+                            value,
+                            kind: InvocationWordKind::Literal,
+                        })
+                        .collect();
+                    let call = HookCall {
+                        words: &words,
+                        version: tcl_dialect::TclVersion::from_version_string(
+                            dialect.strip_prefix("tcl").expect("probe Tcl profile"),
+                        ),
+                        in_event_body: false,
+                        option: None,
+                        constraints: None,
+                        dialect: Some(dialect),
+                        targets: &[],
+                        budget: implementation.capability.budget,
+                        depends: implementation.capability.depends,
+                    };
+                    eprintln!(
+                        "VMD {key} available-before={}",
+                        pack_hooks::slot_available(slot)
+                    );
+                    eprintln!("VMD {key} direct={:?}", pack_hooks::dispatch(slot, &call));
+                    eprintln!(
+                        "VMD {key} available-after={}",
+                        pack_hooks::slot_available(slot)
+                    );
+                }
+            }
+        }
+    }
+    eprintln!(
+        "VMD {key} errors={:?} crashes={:?}",
+        host.error_log(),
+        host.crash_records()
+    );
+    pack_hooks::clear_host();
+}

@@ -1,0 +1,12 @@
+{
+  "agent_reported": true,
+  "guarded_validation": false,
+  "utc": "2026-10-22T16:52:55.430457+00:00",
+  "scope": "ONE temporary public diagnostic, no acceptance assertions; original E2E assertions unchanged",
+  "canonical_probe_sha256": "a93beded9bf7b8fb502d831eca66bb5a88938823addeb6a5ffbde67ce48f7820",
+  "external_helper_path": "/tmp/vm-runtime-derived-probe.rs",
+  "external_helper_sha256_before": "d91e79ba33f0f96368228329b7067e3eecb385bd6c2aedeb4d8e7f5f6902a49a",
+  "external_helper_in_canonical_manifest": false,
+  "external_helper_evidence": "n17_public_axes-derived-helper.rs.txt",
+  "direct_host_isolation": "Explicit abcde/empty inputs and each analysis row use fresh hosts; derived helper direct dispatch separate from compiler rows."
+}

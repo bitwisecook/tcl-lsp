@@ -1,0 +1,83 @@
+{
+  "recorded_at_utc": "2026-10-22T16:46:19Z",
+  "repository": "bitwisecook/tcl-lsp",
+  "run": {
+    "id": 39816429638,
+    "number": 5203,
+    "url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39816429638",
+    "event": "workflow_dispatch",
+    "ref": "rust",
+    "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+    "created_at": "2026-10-22T16:44:07Z",
+    "status_api_snapshot": "queued (run-level status lagged behind job statuses)",
+    "inputs_reported_by_dispatch_owner": {
+      "rust_tests_runner": "hosted",
+      "native_release_build_proof": false
+    }
+  },
+  "snapshot": {
+    "job_count": 22,
+    "all_required_closures_scheduled": true,
+    "observed": {
+      "running_or_queued": [
+        "rust-check (queued)",
+        "rust-tests-shard 1/5 (running)",
+        "rust-tests-shard 2/5 (queued)",
+        "rust-tests-shard 3/5 (running; nextest pending at snapshot)",
+        "rust-tests-shard 4/5 (queued)",
+        "rust-tests-shard 5/5 (queued)",
+        "rust-tests-heavy (queued)",
+        "rust-tests-doctest (running; cargo test --doc pending at snapshot)",
+        "lsp-e2e archive (running; archive build pending at snapshot)",
+        "spectcl-compat (running)",
+        "build-tcl-lsp-server (queued)",
+        "test-ext-web (running; browser LSP build and web host smoke pending)",
+        "lsp-server-wasm (running)",
+        "lsp-server-wasi (queued)",
+        "test-ext-partition and multi-folder consumers expected after server build; not yet present in this API snapshot",
+        "runtime-rust-tests (running)",
+        "wasm-real-link (running)",
+        "web-frontends (running)",
+        "python (queued)"
+      ],
+      "completed_failure": [
+        "cargo-deny: cargo deny check (all locked workspaces) failed"
+      ],
+      "condition_skipped": [
+        "macos-wasm-check",
+        "native release matrix (native_release_build_proof=false)"
+      ]
+    },
+    "release_publish": {
+      "tag_only_release_and_marketplace_jobs": "not present in this branch-ref job graph; workflow conditions require refs/tags/v*",
+      "dispatch_ref": "refs/heads/rust",
+      "native_release_build_proof": false
+    },
+    "artifacts_at_snapshot": []
+  },
+  "artifact_names_to_collect_after_completion": [
+    "rust-tests-listing-1",
+    "rust-tests-listing-2",
+    "rust-tests-listing-3",
+    "rust-tests-listing-4",
+    "rust-tests-listing-5",
+    "rust-tests-metadata",
+    "lsp-e2e-archive",
+    "lsp-e2e-proof",
+    "lsp-e2e-result-1",
+    "lsp-e2e-result-2",
+    "lsp-e2e-result-3",
+    "tcl-lsp-server-release",
+    "wasi-module",
+    "vscode-test-partition-one",
+    "vscode-test-partition-two",
+    "vscode-test-partition-three",
+    "vscode-test-multi-folder"
+  ],
+  "artifact_retention_days": 1,
+  "notes": [
+    "One read-only status/job/artifact snapshot only; no polling, rerun, cancellation, or dispatch was performed by this reviewer.",
+    "Run is on the exact origin/rust SHA, so its eventual selected listings/results can support a matched baseline for selectors actually executed.",
+    "cargo-deny has already failed; root should inspect the existing job failure through its normal monitor before considering any action."
+  ]
+}

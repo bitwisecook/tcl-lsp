@@ -1,0 +1,183 @@
+// TEMP public diagnostic, removed by exact untoggle cleanup.
+use std::rc::Rc;
+use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_registry::pack_hooks;
+use tcl_spec_hooks::tclvm_host;
+use tcl_spectcl::discovery::{Origin, PackFile, Tier};
+use tcl_spectcl::hooks;
+#[path = "/tmp/vm-runtime-derived-probe.rs"]
+mod vm_runtime_derived_probe;
+
+#[test]
+fn zz_ccg_fold_probe() {
+    let source = r"
+speclib mylib 1 {
+ command mylib::strlen {
+  arity 1
+  arg 0 -role Value
+  const_fold -inputs {words} {words ctx} {
+   set subject [lindex $words 0]
+   if {![string is ascii $subject]} { return }
+   fold [string length $subject]
+  }
+ }
+}";
+    let packs = tcl_spectcl::pack::load_in_memory(vec![(
+        PackFile {
+            tier: Tier::Workspace,
+            path: std::path::PathBuf::from("ccg-explicit-axes.tclspec"),
+            origin: Origin::DotDir,
+            dependency_tier: None,
+        },
+        source.to_owned(),
+    )]);
+    eprintln!("ZZP explicit notices={:?}", packs.notices);
+    let plan = hooks::plan_for(&packs);
+    let host = Rc::new(tclvm_host());
+    for programs in plan.packs() {
+        eprintln!(
+            "ZZP explicit install={:?}",
+            host.install_pack_hooks(programs.clone())
+        );
+    }
+    pack_hooks::install_host(host.clone());
+    let installed = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+    let original = installed
+        .get("mylib::strlen")
+        .expect("installed hook")
+        .clone();
+    eprintln!(
+        "ZZP explicit direct={:?} direct86={:?} errors={:?} crashes={:?}",
+        original.run_const_fold(&["abcde"], None),
+        original.run_const_fold(&["abcde"], Some(tcl_dialect::TclVersion::V8_6)),
+        host.error_log(),
+        host.crash_records()
+    );
+    pack_hooks::clear_host();
+    let empty_host = Rc::new(tclvm_host());
+    for programs in plan.packs() {
+        eprintln!(
+            "ZZP explicit empty install={:?}",
+            empty_host.install_pack_hooks(programs.clone())
+        );
+    }
+    pack_hooks::install_host(empty_host.clone());
+    eprintln!(
+        "ZZP explicit direct_empty={:?} direct_empty86={:?} errors={:?} crashes={:?}",
+        original.run_const_fold(&[""], None),
+        original.run_const_fold(&[""], Some(tcl_dialect::TclVersion::V8_6)),
+        empty_host.error_log(),
+        empty_host.crash_records()
+    );
+    pack_hooks::clear_host();
+    for (world, effects) in [
+        ("undeclared", None),
+        (
+            "empty",
+            Some(tcl_registry::world_effect::WorldEffectDescriptor::EMPTY),
+        ),
+        (
+            "write",
+            Some(tcl_registry::world_effect::WorldEffectDescriptor::VARIABLE_WRITE),
+        ),
+    ] {
+        let mut registry =
+            installed.project_for_profile(installed.profile().expect("retained profile"));
+        let mut spec = original.clone();
+        spec.world_effects = effects;
+        registry.insert(spec);
+        let schema = registry
+            .resolve_invocation("mylib::strlen", &["abcde"], registry.own_surface_query())
+            .expect("selected catalogue schema");
+        eprintln!(
+            "ZZP explicit world={world} catalogue_declared={} catalogue_barrier={}",
+            schema.semantics.world_effects.is_declared(),
+            schema.effects().requires_world_barrier()
+        );
+        for formals in ["", "x"] {
+            let host = Rc::new(tclvm_host());
+            for programs in plan.packs() {
+                eprintln!(
+                    "ZZP explicit world={world} formals={formals:?} install={:?}",
+                    host.install_pack_hooks(programs.clone())
+                );
+            }
+            pack_hooks::install_host(host.clone());
+            let text = format!("proc ::f {{{formals}}} {{\n set y [mylib::strlen abcde]\n}}\n");
+            let folds: Vec<_> = tcl_compiler::optimiser::optimise_raw(&text, &registry, None)
+                .into_iter()
+                .map(|x| (x.code.as_str().to_owned(), x.replacement))
+                .collect();
+            let unit = CompilationUnit::build_for_dialect(&text, &registry, false, "tcl8.6");
+            eprintln!(
+                "ZZP explicit world={world} formals={formals:?} procedures={:?}",
+                unit.ir_module
+                    .procedures
+                    .values()
+                    .map(|body| body.qualified_name.as_str())
+                    .collect::<Vec<_>>()
+            );
+            let context = tcl_compiler::registry_invocation::InvocationMetadataContext::for_module(
+                &registry,
+                &unit.ir_module,
+            );
+            eprintln!(
+                "ZZP explicit world={world} formals={formals:?} folds={folds:?} metadata={}",
+                context.is_some()
+            );
+            for (_, body) in &unit.ir_module.procedures {
+                if body.qualified_name != "::f" {
+                    continue;
+                }
+                for statement in &body.body.statements {
+                    for call in tcl_compiler::word_subst::lifted_calls(
+                        statement.tokens(),
+                        tcl_lexer::LexerConfig::from_grammar(
+                            registry.profile().expect("profile").grammar,
+                        )
+                        .nested(),
+                    ) {
+                        let Some(tokens) = call.tokens.as_ref() else {
+                            eprintln!("ZZP explicit lifted={} no retained tokens", call.command);
+                            continue;
+                        };
+                        if let Some(binding) = tokens.source_binding.as_ref() {
+                            eprintln!(
+                                "ZZP explicit world={world} formals={formals:?} lifted={} realm={:?} execution={:?} handler={:?} arguments_normal={} invocation_normal={}",
+                                call.command,
+                                binding.invocation_realm(),
+                                binding.proved_execution_target().map(|x| x.registry_backed),
+                                binding.proved_handler_target().map(|x| x.registry_backed),
+                                binding.original_arguments_complete_normally(tokens),
+                                binding.original_invocation_completes_normally(tokens)
+                            );
+                        }
+                        if let Some(context) = context {
+                            let original=tcl_compiler::registry_invocation::original_structured_invocation_with_metadata_context(&registry,context,tokens);
+                            let completed=tcl_compiler::registry_invocation::resolved_tokens_invocation_with_metadata_context(&registry,Some(context),tokens);
+                            eprintln!(
+                                "ZZP explicit world={world} formals={formals:?} original={:?} completed={:?}",
+                                original.as_ref().map(|x| (
+                                    &x.facts.canonical_command,
+                                    x.facts.effects.requires_world_barrier()
+                                )),
+                                completed.as_ref().map(|x| (
+                                    &x.facts.canonical_command,
+                                    x.facts.effects.requires_world_barrier()
+                                ))
+                            );
+                        }
+                    }
+                }
+            }
+            eprintln!(
+                "ZZP explicit world={world} formals={formals:?} errors={:?} crashes={:?}",
+                host.error_log(),
+                host.crash_records()
+            );
+            pack_hooks::clear_host();
+        }
+    }
+    pack_hooks::clear_host();
+    vm_runtime_derived_probe::run();
+}
