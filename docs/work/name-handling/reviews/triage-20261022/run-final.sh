@@ -4,7 +4,8 @@ set -u
 cd "$(git rev-parse --show-toplevel)"
 E=docs/work/name-handling/reviews/triage-20261022
 tag="${1:-run8-final}"
-log="$E/$tag.log"+[ ! -e "$log" ] || exit 2
+log="$E/$tag.log"
+[ ! -e "$log" ] || exit 2
 export CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0
 export TCL_LSP_REQUIRE_TCLSH=9.0,8.6 TCL_LSP_JIMSH="$PWD/tmp/jimtcl-oracle/jimsh"
 export ZZ_SCRATCH="$PWD/$E/out/$tag"

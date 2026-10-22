@@ -23,6 +23,8 @@ The run7 harness passes mean each observational probe completed, not that every 
 
 Cloud setup and earlier failures are preserved in `cloud-setup.log`, `run5.log` and `run5-e2e-repeat.log`. Run5's main/scaling probes did not execute because compile-time fixtures were omitted from the selective checkout; those three fixture trees are restored. Its initial e2e diagnostic segment was lost when a tracked live log's inode changed on rebase, so only the stable repeat and subsequent run6 e2e are used to classify that failure. Initial six-engine input replay is `cloud-baseline-oracles.log` (19 files / 114 executions).
 
+**Interim all-finding replay active on `60ce7009`:** `run10-progress.log` records the completed prefix through N06, all observational groups exiting 0 with the same product results. Static audit: `run10-source-audit.log`. No run10 oracle result is claimed yet, and the still-running `run10-current.log` is intentionally untracked. The initial wrapper startup failure was fixed before compilation; it executed no tests (`run10-startup.log`).
+
 ## Method
 
 - **Oracles.** Each Tcl repro from the review (`triage-20261022/tcl/`) was run with `triage-20261022/oracle.sh <file>` on six engines: `tclsh8.4` (8.4.20), `tclsh8.5` (8.5.19), `tclsh8.6` (8.6.18), `tclsh9.0` (9.0.4), `tclsh9.1` (9.1.0) and Jim 0.84 (`tmp/jimtcl-oracle/jimsh`). Every oracle answer matches the review's expected outcome, including feature-unavailable rows: TclOO is missing on 8.4, 8.5 and Jim, and `namespace path` on 8.4 and Jim.
@@ -171,7 +173,7 @@ Each row gives the evidence (probe call or command and the observed output), the
 - **Fresh run6:** the nearer class gives `Object(::n::Foo)`. A nearer non-class procedure blocks global class inference, leaving `::n::c` `Overdefined`.
 - The path fixture now has a `::n::c` summary with `direct_calls=["::lib::p"]`; the other summaries are `::lib::p` and `::p` with no direct calls. The earlier missing-caller result is no longer current. C Tcl's expected result is `LIB`.
 - The legacy analyser `resolved_qualified_name` field is `None` for the `p` occurrence; the current call graph does not choose the wrong global procedure.
-- **Scope:** taint output was not independently executed. The review's demonstrated wrong definite call edge is corrected; this does not claim a complete new taint conformance matrix.
+- **Scope:** taint lattices and warning outputs were not independently executed. The review's demonstrated wrong definite call edge is corrected; this does not claim a complete new taint conformance matrix.
 
 - **Fresh run9 (`128e1bb4`):** constructor `::n::c` returns `Object(::n::Foo)`; a nearer non-class `::n::Foo` widens to `Overdefined`. Direct calls are only `::n::c → ::lib::p`. The public taint `resolved_callees` projection retains all three source ProcedureIds for `::n::c`, and none for either leaf. This eliminates the old wrong singleton from that projection by conservative widening; taint lattices and warning precision were not independently validated. Evidence: `run9-n09.log`.
 

@@ -1,0 +1,163 @@
+Thu Oct 22 16:06:18 UTC 2026
+60ce7009f7cf8826c2300bbea9c97e71608531c6
+0950f3fb53914e1a25230ce4292eadb37b9a4ffec0315fc77f811c399aeb9034  rust/tcl-spectcl/tests/zz_review_probe.rs
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          32G  3.7G   27G  13% /
+
+CASE n01_identity Thu Oct 22 16:06:30 UTC 2026
+
+running 1 test
+test n01_identity ... N01 tcl8.6 all_procs=["::a:::p"] diags=[]
+N01 tcl8.6 call="{p}]" definitions=[(0, 24)]
+N01 tcl8.6 call="{:p}]" definitions=[(1, 24)]
+N01 tcl9.0 all_procs=["::a:::p"] diags=[]
+N01 tcl9.0 call="{p}]" definitions=[(0, 24)]
+N01 tcl9.0 call="{:p}]" definitions=[(1, 24)]
+N01 tcl9.1 all_procs=["::a:::p"] diags=[]
+N01 tcl9.1 call="{p}]" definitions=[(0, 24)]
+N01 tcl9.1 call="{:p}]" definitions=[(1, 24)]
+N01 empty-tail all_procs=["::n::"] links=[("::a", "::n::")]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 45.55s
+
+CASE_EXIT n01_identity exit=0 Thu Oct 22 16:07:15 UTC 2026
+
+CASE n02_jim Thu Oct 22 16:07:15 UTC 2026
+
+running 1 test
+test n02_jim ... N02 jim all_procs=["::a:::p", "::a::p"] def(a::p)=[] def(a:::p)=[]
+N02 tcl8.6 all_procs=["::a::p"] def(a::p)=[2] def(a:::p)=[2]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 22.34s
+
+CASE_EXIT n02_jim exit=0 Thu Oct 22 16:07:38 UTC 2026
+
+CASE n03_variables Thu Oct 22 16:07:38 UTC 2026
+
+running 1 test
+test n03_variables ... N03 café tcl8.6 def=[(0, 4, 7)] refs=[(0, 4, 7), (2, 5, 9)]
+WORLD n03cafe tcl8.6 completed=false
+n03cafe tcl8.6 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved n03cafe_tcl8.6.tcl
+N03 café tcl9.0 def=[(0, 4, 7)] refs=[(0, 4, 7), (2, 5, 9)]
+WORLD n03cafe tcl9.0 completed=false
+n03cafe tcl9.0 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved n03cafe_tcl9.0.tcl
+N03 café jim def=[] refs=[]
+WORLD n03cafe jim completed=false
+n03cafe jim REFUSED "cannot prove the original variable selected by this occurrence"
+N03 nested-brace tcl8.6 def=[(0, 4, 9)]
+N03 nested-brace tcl9.0 def=[(1, 4, 11)]
+N03 nested-brace tcl9.1 def=[(1, 4, 11)]
+N03 suffix tcl8.6 cursor-on-literal-bar def=[]
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 26.71s
+
+CASE_EXIT n03_variables exit=0 Thu Oct 22 16:08:05 UTC 2026
+
+CASE n04_import_rename Thu Oct 22 16:08:05 UTC 2026
+
+running 1 test
+test n04_import_rename ... WORLD n04wild tcl8.4 completed=false
+n04wild tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl8.4 completed=false
+n04exact tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild tcl8.5 completed=false
+n04wild tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl8.5 completed=false
+n04exact tcl8.5 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild tcl8.6 completed=false
+n04wild tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl8.6 completed=false
+n04exact tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild tcl9.0 completed=false
+n04wild tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl9.0 completed=false
+n04exact tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild tcl9.1 completed=false
+n04wild tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04exact tcl9.1 completed=false
+n04exact tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n04wild jim completed=false
+n04wild jim REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+WORLD n04exact jim completed=false
+n04exact jim REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 71.26s
+
+CASE_EXIT n04_import_rename exit=0 Thu Oct 22 16:09:16 UTC 2026
+
+CASE n05_forced_import Thu Oct 22 16:09:16 UTC 2026
+
+running 1 test
+test n05_forced_import ... N05 tcl8.4 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 tcl8.5 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 tcl8.6 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 tcl9.0 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 tcl9.1 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 jim refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 46.16s
+
+CASE_EXIT n05_forced_import exit=0 Thu Oct 22 16:10:02 UTC 2026
+
+CASE n05_control_plain_rename Thu Oct 22 16:10:02 UTC 2026
+
+running 1 test
+test n05_control_plain_rename ... N05CTL plain tcl8.6 -> Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage")
+N05CTL ns tcl8.6 -> Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage")
+N05CTL plain tcl9.0 -> Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage")
+N05CTL ns tcl9.0 -> Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage")
+N05CTL plain tcl9.1 -> Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage")
+N05CTL ns tcl9.1 -> Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage")
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 26.03s
+
+CASE_EXIT n05_control_plain_rename exit=0 Thu Oct 22 16:10:28 UTC 2026
+
+CASE n06_collisions Thu Oct 22 16:10:28 UTC 2026
+
+running 1 test
+test n06_collisions ... WORLD n06class tcl8.6 completed=false
+n06class tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n06method tcl8.6 completed=false
+n06method tcl8.6 REFUSED "unknown-current-source-member-roster: the current class has no complete source member roster including builtin names"
+WORLD n06proc tcl8.6 completed=false
+n06proc tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n06class tcl9.0 completed=false
+n06class tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n06method tcl9.0 completed=false
+n06method tcl9.0 REFUSED "unknown-current-source-member-roster: the current class has no complete source member roster including builtin names"
+WORLD n06proc tcl9.0 completed=false
+n06proc tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n06class tcl9.1 completed=false
+n06class tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD n06method tcl9.1 completed=false
+n06method tcl9.1 REFUSED "unknown-current-source-member-roster: the current class has no complete source member roster including builtin names"
+WORLD n06proc tcl9.1 completed=false
+n06proc tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+N06 local->sibling core=Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage") workspace_has_q=true
+N06 local->sibling cross_document_edits=0 workspace_symbol_rename_edits=None allows_lexical_rename_advice=false
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 76.62s
+
+CASE_EXIT n06_collisions exit=0 Thu Oct 22 16:11:45 UTC 2026
+
+CASE n06_sibling_profile_matrix Thu Oct 22 16:11:45 UTC 2026
+
+running 1 test
+test n06_sibling_profile_matrix ... N06_SIBLING tcl8.4 declaration REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+N06_SIBLING tcl8.4 call REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+N06_SIBLING tcl8.5 declaration REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+N06_SIBLING tcl8.5 call REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+N06_SIBLING tcl8.6 declaration REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+N06_SIBLING tcl8.6 call REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+N06_SIBLING tcl9.0 declaration REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+N06_SIBLING tcl9.0 call REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+N06_SIBLING tcl9.1 declaration REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+N06_SIBLING tcl9.1 call REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"

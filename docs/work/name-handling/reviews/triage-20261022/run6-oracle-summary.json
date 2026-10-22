@@ -4,5 +4,5 @@
   "generated_output_files": 76,
   "matched_profile_checks": 126,
   "unexpected_matched_results": [],
-  "note": "All six engines ran every file. Generated edits are judged on their matching profile; C Unicode-prefix edits intentionally differ under Jim lexical rules."
+  "note": "Every file ran on all six engines; profile-specific edits are judged on their matching engine. Unknown generated fixtures require manual review. This output comparison does not by itself prove edit coverage or collision safety."
 }

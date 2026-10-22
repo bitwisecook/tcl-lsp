@@ -1,0 +1,5 @@
+Thu Oct 22 16:06:18 UTC 2026
+60ce7009f7cf8826c2300bbea9c97e71608531c6
+Captured initial wrapper launch output (no build or test started):
+docs/work/name-handling/reviews/triage-20261022/run-final.sh: line 7: log: unbound variable
+Cause: joined assignment/existence guard in evidence runner; corrected before retry.
