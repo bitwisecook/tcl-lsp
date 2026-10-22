@@ -6,7 +6,7 @@ Evidence, scripts and logs: [triage-20261022/](triage-20261022/README.md). Live 
 
 **Run16 complete; final replay refreshed for the new source batch.** All 27 semantic observational probes plus one fresh small scaling probe complete on `2d1b85ad` (five groups, every exit 0). The existing `pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser` now passes, and the fresh declared-effect/unclosed-argument regression passes on `0412d5e4`, whose product source is identical. All 107 Tcl files ran on all six engines: 642 executions, 86 generated outputs, 186 matching-profile checks, zero unexpected result. No product code or permanent tests were edited.
 
-The fetch after run16 brought `b572c36d` (Jim class ownership and server metadata/lint integration), with tip `5d054dc7`. A complete fresh grouped replay is required before final sign-off; run17 is next. Release gates `make rust-check` and `make prep-pr` remain unrun under the active `work` development-push exception.
+The fetch after run16 brought `b572c36d` (Jim class ownership and server metadata/lint integration), with tip `5d054dc7`. Run17 compiled successfully on `45766fc3` in 9m14s; its full grouped replay is active before final sign-off. Release gates `make rust-check` and `make prep-pr` remain unrun under the active `work` development-push exception.
 
 ## Validation snapshots
 
@@ -15,7 +15,7 @@ The fetch after run16 brought `b572c36d` (Jim class ownership and server metadat
 | `run16-latest.log`, `final-probe.rs.txt` | compiled `2d1b85ad` | 27 semantic probes + 1 small scaling probe; all five groups exit 0. Named existing fold e2e rebuilt on source-identical `0412d5e4`: 1 passed, 14.50s. |
 | `run16-latest-oracles.log` / summary | run16 generated sources | 107 files / 642 engine executions, 86 generated files / 186 matching-profile checks, zero unexpected result. |
 | `run16-declared-effects.log` | `0412d5e4` | Existing declared-effect/unclosed-argument barrier regression: 1 passed, 57.84s. |
-| `run16-source-audit.log` | `2d1b85ad` | All static seams inspected; no missing search patterns. Server-only claims remain static. |
+| `run16-source-audit.log.gz` | `2d1b85ad` | All static seams inspected; no missing search patterns. Server-only claims remain static. |
 | `run14-*` | `49b067ce`, after R1 | Rename matrix complete. Main replay intentionally interrupted after N15 for broad metadata integration; completed outputs pass 78 matching checks. |
 | `run15-*` | `be53f58c` | Build failed with 18 compiler + 4 VM errors; zero probes. Corrected by `e75345a7`, as run16 demonstrates. |
 | `run10-*`, `run11-*`, `run12-*`, `run13-*` | exact hashes in logs | Earlier N17 progression: simple live hooks fixed; guarded body installed but declined execution. Superseded by run16's successful exact-body and existing e2e checks. |
@@ -48,7 +48,7 @@ Earlier sparse-checkout build failures and stable historical fold failures remai
 
 | Finding / seam | Status | Owner | Current files |
 |---|---|---|---|
-| N01 colliding identities | CHANGED: `all_procs` still collapses; both definition targets FIXED on C 8.6/9.0/9.1; empty-tail link FIXED | unowned (closest compiler-names) | `tcl-compiler/src/analyser/types.rs:2415`, `analyser/handlers.rs` |
+| N01 colliding identities | CHANGED: `all_procs` still collapses; both definition targets FIXED on C 8.6/9.0/9.1; empty-tail link FIXED | compiler-names / lsp | `tcl-compiler/src/analyser/types.rs`, `analyser/handlers.rs` |
 | N02 Jim colon policy | CHANGED: identities distinct; definition abstains under Jim | compiler-names (naming), lsp (definition) | `tcl-syntax/src/naming.rs`, `tcl-lsp-core/src/definition.rs` |
 | N03 variable cursor/profile | C Tcl FIXED; Jim CHANGED (definition/references abstain and rename refuses) | lsp / compiler-names | `tcl-lsp-core/src/definition.rs`, original variable bindings |
 | N04 imported-source rename | CHANGED: post-R1 import cases still safely refuse with unavailable completed world | lsp (planner), compiler-names (R1 world) | `tcl-lsp-core/src/original_command_rename.rs`, `rename.rs` |
@@ -57,10 +57,10 @@ Earlier sparse-checkout build failures and stable historical fold failures remai
 | N07 speculative proc variable | CHANGED: safe refusal confirmed after R1; Jim W210 gap remains | lsp | `rename.rs`, `definition.rs` |
 | N08 inliner subset oracle | FIXED (edits and unit inference) | — | — |
 | N09 type/call/taint | Constructor/call graph FIXED; taint dependency resolver conservatively retains all source candidates | — | — |
-| N10 OO class/relation | CHANGED: relations, qualified miss and path-based definition FIXED; path hover/type hierarchy still empty | lsp | `tcl-lsp-core/src/definition.rs:4260` (`resolve_class_target_at`) |
-| N11 packages | CHANGED: `if {0}` provider classified `Conditional` and still selected; `merge_library_files` early return REPRODUCES (static); `auto_qualify` Unicode FIXED | lsp | `tcl-lsp-core/src/package_resolver.rs`, `package_resolver/reachability.rs`, `tcl-lsp-server/src/lib.rs:17823` |
+| N10 OO class/relation | CHANGED: relations, qualified miss and path-based definition FIXED; path hover/type hierarchy still empty | lsp | `tcl-lsp-core/src/definition.rs` (`resolve_class_target_at`) |
+| N11 packages | CHANGED: `if {0}` provider classified `Conditional` and still selected; `merge_library_files` is test-only; production request isolation unmeasured; `auto_qualify` Unicode FIXED | lsp | `tcl-lsp-core/src/package_resolver.rs`, `package_resolver/reachability.rs`, `tcl-lsp-server/src/lib.rs` |
 | N12 incremental lifecycle | FIXED | — | — |
-| N13 source environment | REPRODUCES (path not inherited); 5-round and 4-round caps present (static) | lsp, unowned (`analyser/state.rs`) | `tcl-compiler/src/analyser/state.rs:2197`, `tcl-lsp-core/src/workspace_index.rs:3354`, `tcl-lsp-server/src/lib.rs:28775` |
+| N13 source environment | Namespace-only API limitation REPRODUCES; server inheritance unmeasured; 5-round/4-round caps remain (static) | compiler-names / lsp | `tcl-compiler/src/analyser/state.rs`, `tcl-lsp-core/src/workspace_index.rs`, `tcl-lsp-server/src/lib.rs` |
 | N14 callback arity / semantic roles | FIXED (arity by reading the code; tokens executed) | — | — |
 | N15 minifier compaction | CHANGED (refuses `MissingAlphaRenameContract`); output behaviour-preserving | lsp | `tcl-lsp-core/src/minify.rs`, `minify/original.rs` |
 | N16 provider fallbacks | FIXED (4/4 rows) | — | — |
@@ -68,7 +68,7 @@ Earlier sparse-checkout build failures and stable historical fold failures remai
 | N17 live hook | FIXED in requested repros: exact guarded body folds in all 8 contexts; named pack e2e passes; declared barriers preserved | — | `run16-latest.log`, `run16-declared-effects.log` |
 | Seam `ns_var_global_fallback` | FIXED (static) | — | — |
 | Seam `WorkspaceIndex::registry_for` | FIXED (static) | — | — |
-| Seam `analyse_with_workspace_classes` | CHANGED (static): resolved input, resource inputs and base-analysis identity retained; source-entry parity not shown | lsp | `tcl-lsp-server/src/lib.rs:20036–20120` |
+| Seam `analyse_with_workspace_classes` | CHANGED (static): resolved input, resource inputs and base analysis retained; source-entry parity not shown | lsp | `tcl-lsp-server/src/lib.rs` |
 | Seam nested passthrough lowering | CHANGED: iRules retains generic calls and declines inlining; Tcl control inlines with parsed condition. Context forwarding FIXED (static) | compiler | `tcl-compiler/src/inline_uplevel.rs` |
 | Seam `insert_rebound_candidates` | NOT-APPLICABLE (removed) | — | — |
 | Seam `method_barrier` | FIXED (static) | — | — |
@@ -83,11 +83,11 @@ Each row gives the evidence (probe call or command and the observed output), the
 ### N01: colliding / display identities
 
 - **Status:** CHANGED. The `all_procs` display-key map still collapses two slots. Navigation now distinguishes both declarations; the empty-tail part remains FIXED.
-- **Fresh run6:** on C 8.6, 9.0 and 9.1 the calls in `{p}]` and `{:p}]` target `(0,24)` and `(1,24)` respectively. This is corrected navigation despite the single `::a:::p` metadata entry; the map collision alone is not evidence that these current definition calls select the wrong entity.
+- **Executed result (run6, repeated in run16):** on C 8.6, 9.0 and 9.1 the calls in `{p}]` and `{:p}]` target `(0,24)` and `(1,24)` respectively. This is corrected navigation despite the single `::a:::p` metadata entry; the map collision alone is not evidence that these current definition calls select the wrong entity.
 - **Evidence:** `Analyser::new().analyse(src, "tcl8.6"|"tcl9.0")` on the review's `a:`/`:p` script (`tcl/n01.tcl`) gives `all_procs=["::a:::p"]`: one entry for two runtime slots. `diags=[]`, so the review's false unknown-command diagnostic is gone.
 - **Oracle:** 8.6, 9.0 and 9.1 print `LEFT|RIGHT`. 8.4 and 8.5 reject `proc :p`. Jim prints `RIGHT|RIGHT`.
 - **Empty tail:** for `tcl/n01b.tcl`, `WorkspaceIndex::command_links()` gives `("::a", "::n::")`. The target is preserved, so this part is FIXED. The oracle prints `EMPTY` on all C releases.
-- **Owner:** unowned. `analyser/types.rs` (the `all_procs: HashMap<String, ProcDef>` key at line 2415) and `analyser/handlers.rs` (proc intake) are not on any agent's list; the closest owner is compiler-names. Both files are clean in `git status`.
+- **Owner:** compiler-names / lsp. The legacy `all_procs: HashMap<String, ProcDef>` projection remains in `analyser/types.rs`; typed occurrence metadata now prevents the wrong navigation targets in this repro. This distinguishes display-map debt from current wrong identity settlement.
 - **Fix direction:** carry typed namespace/command identity from declaration intake; never reparse display text as identity.
 
 ### N02: Jim colon policy
@@ -103,14 +103,14 @@ Each row gives the evidence (probe call or command and the observed output), the
 ### N03: variable cursor/profile
 
 - **Status:** C Tcl FIXED in the cursor/rename repros; Jim CHANGED to conservative abstention/refusal.
-- **Fresh run6:** for `set caf A; set café B; puts $café`, all five C profiles edit the `caf` declaration and only the `$caf` prefix. Each matching-engine output is `Aé`. Under Jim, with core surfaces seeded as production does, definition/references are empty and rename refuses because the original variable cannot be proved. No Jim output edit is returned.
+- **Executed result (run6, repeated in run16):** for `set caf A; set café B; puts $café`, all five C profiles edit the `caf` declaration and only the `$caf` prefix. Each matching-engine output is `Aé`. Under Jim, with core surfaces seeded as production does, definition/references are empty and rename refuses because the original variable cannot be proved. No Jim output edit is returned.
 - **Nested braces:** C 8.6 selects `a{b`; C 9.0/9.1 select `a{b}`. The oracle prints `X}` on C 8.x/Jim and `Y` on C 9.x. A cursor on the literal `bar` suffix of `$foo-bar` gives no definition.
 - **Fresh run7 parser debt check:** scalar names `a(b` and `a(b)c` remain intact under both `FirstClose` and `Tcl9Nesting`. The valid first-close `${a{b}(status)` script has no diagnostics on C 8.4/8.5/8.6/Jim, although the profileless `is_braced_indirect_array_ref` helper returns false. That helper alone is not evidence of a current diagnostic failure. The same script is invalid on C 9.x, as recorded by the oracles.
 - **Source:** `template_variable_reference_at`, original-variable proofs and the shared style-aware array-name splitter. Remaining Jim provider coverage belongs to lsp/compiler-names.
 
 ### N04: imported-command source rename
 
-- **Status:** CHANGED to safe refusal, confirmed after R1 on `49b067ce`.
+- **Status:** CHANGED to safe refusal, confirmed after R1 on `49b067ce` and repeated on `2d1b85ad`.
 - Wildcard and exact imports refuse on all six profiles. C 8.4/8.5/8.6/9.0/9.1 report unavailable completed command world; Jim cannot prove the original command at the cursor. No declaration-only edit or stale import/call edit is offered.
 - The same fresh executable gives a completed world for ordinary `proc foo; puts [foo]` on all five C profiles. Thus the general R1 blocker is repaired; import-specific world/coverage uncertainty remains.
 - The preserved original wildcard input prints `1` on all six engines. There is no returned N04 edit to execute.
@@ -119,7 +119,7 @@ Each row gives the evidence (probe call or command and the observed output), the
 ### N05: forced-import rename vs references
 
 - **Status:** CHANGED to safe refusal, references correct after R1.
-- Fresh run14 references include only local declaration `(2,9)` on all six profiles; rename refuses with UnknownWorld and returns no edit. The forced-import call is no longer renamed to the unrelated local implementation.
+- Fresh run16 references include only local declaration `(2,9)` on all six profiles; rename refuses with UnknownWorld and returns no edit. The forced-import call is no longer renamed to the unrelated local implementation.
 - Ordinary C `puts [foo]` controls now have a completed world but still refuse `incomplete-original-command-coverage`; bare `foo` renames declaration/call. `set x [foo]` also refuses coverage. Jim's ordinary control still lacks a completed world.
 - The original forced-import input prints `A` on all engines. No N05 edit was returned for execution.
 - **Owner:** lsp/compiler-names. Remaining limitation is import-specific closure and complete occurrence coverage, not the former broad R1 false guard.
@@ -151,7 +151,7 @@ Each row gives the evidence (probe call or command and the observed output), the
 ### N09: compiler type / call / taint
 
 - **Status:** FIXED for the executed constructor and direct-call repros.
-- **Fresh run6:** the nearer class gives `Object(::n::Foo)`. A nearer non-class procedure blocks global class inference, leaving `::n::c` `Overdefined`.
+- **Executed result (run6, repeated in run16):** the nearer class gives `Object(::n::Foo)`. A nearer non-class procedure blocks global class inference, leaving `::n::c` `Overdefined`.
 - The path fixture now has a `::n::c` summary with `direct_calls=["::lib::p"]`; the other summaries are `::lib::p` and `::p` with no direct calls. The earlier missing-caller result is no longer current. C Tcl's expected result is `LIB`.
 - The legacy analyser `resolved_qualified_name` field is `None` for the `p` occurrence; the current call graph does not choose the wrong global procedure.
 - **Scope:** taint lattices and warning outputs were not independently executed. The review's demonstrated wrong definite call edge is corrected; this does not claim a complete new taint conformance matrix.
@@ -161,7 +161,7 @@ Each row gives the evidence (probe call or command and the observed output), the
 ### N10: OO class / relation resolution
 
 - **Status:** CHANGED.
-- **Fresh run6 relation site:** `supertypes("::B::Child")=["::A::Base"]`, matching C Tcl 8.6–9.1. FIXED.
+- **Relation site (run6, repeated in run16):** `supertypes("::B::Child")=["::A::Base"]`, matching C Tcl 8.6–9.1. FIXED.
 - **Missing qualified class:** `superclass ::missing::Base` gives `[]`, without unrelated unique-tail rescue. FIXED.
 - **Path-based class call:** `C new` inside `app` with path `::lib` now has definition `[0]`, the correct class declaration. Hover remains `None` and type hierarchy remains `[]`; these provider gaps persist.
 - **Owner:** lsp. The old “classes never consult namespace path” code in `resolve_class_target_at` is behind a legacy advice gate. That comment is not proof that current definition ignores the path; the executed definition result now demonstrates otherwise.
@@ -175,9 +175,9 @@ Each row gives the evidence (probe call or command and the observed output), the
   - `resolve_require_for_profile(tcl8.6)` returns `[p1.tcl, p2.tcl]`.
   - `PackageInfo::availability(Some(V8_6))` gives 1.0 `Available` and 2.0 `Conditional`. The static `if {0}` is not evaluated to `Unavailable`, so p2 is still offered.
 - **`auto_qualify`:** `("café","::")` gives `["café"]`. Unicode is preserved, so this part is FIXED.
-- **`merge_library_files`** (`tcl-lsp-server/src/lib.rs:17823`): it still returns early when `workspace_command_exists` finds any candidate. REPRODUCES (static).
+- **Server scope (static):** `merge_library_files` and its `ensure_autoload_indexed` caller are `#[cfg(test)]`. Their any-existing-command shortcut does **not** establish a current production bug. Production `ensure_logical_library_candidates` starts from checked source coordinates, publishes selected library analyses, then revalidates caller text, resolver revision and the exact request before reading current candidates. `required_library_files` uses each source requirement/preference and resolved profile. The review’s multi-request provider-isolation scenario was not executed; no full server fix or regression is claimed.
 - **Owner:** lsp (`package_resolver.rs`, `package_resolver/reachability.rs`, `tcl-lsp-server/src/lib.rs`).
-- **Fix direction:** filter unavailable registrations before selection, and keep provider/domain provenance in merged library facts.
+- **Remaining evidence gap:** the public API probe still offers the conditional registration. A server multi-request test must establish provider eligibility and provenance for the actual requesting view; the test-only helper cannot answer that.
 
 ### N12: incremental lifecycle invalidation
 
@@ -187,11 +187,12 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 ### N13: source environment / convergence
 
-- **Status:** REPRODUCES.
+- **Status:** REPRODUCES in the explicit namespace-only API repro; server integration remains unmeasured.
 - **Evidence:** `Analyser::analyse_with_source_namespace("proc run {} {helper}", "tcl8.6", "::app")` resolves `helper` to `::app::helper`.
 - **Oracle** (`tcl/n13p.tcl`, path `::lib`): `good` on 8.5–9.1.
-- **Static:** `imported_constants` has `ROUND_CAP = 5` (`workspace_index.rs:3354`), and the server's `refresh_source_rehoming_locked` loops `for _round in 0..4` (`tcl-lsp-server/src/lib.rs:28775`). The seed is still a namespace string (`analyser/state.rs:2197`).
-- **Owner:** lsp (`workspace_index.rs`, server), plus unowned `analyser/state.rs`.
+- **Static:** `imported_constants` has `ROUND_CAP = 5` (`workspace_index.rs`), and the server's `refresh_source_rehoming_locked` loops `for _round in 0..4` (`tcl-lsp-server/src/lib.rs`). The seed is still a namespace string (`analyser/state.rs`).
+- **Scope:** the call supplies only a namespace string, so its result demonstrates that API’s context limitation. It does not execute a full source-point server request, nor establish that every newer source-entry path loses inherited context.
+- **Owner:** compiler-names (`analyser/state.rs` source inputs) / lsp (`workspace_index.rs`, server).
 - **Fix direction:** source views carry inherited path/import/environment state, with dependency-driven convergence and an explicit incomplete outcome.
 
 ### N14: callback arity and semantic roles
@@ -228,19 +229,19 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 ### Section 3.2 / 3.3 seams
 
-- **`ns_var_global_fallback`: FIXED (static).** It reads `resolved_profile()` first and falls back to the catalogue string only without resolved input (`analyser/types.rs:4286`; 944d156922).
-- **`WorkspaceIndex::registry_for`: FIXED (static).** It borrows the document's retained input registry, guarded by its semantic key (`workspace_index.rs:3727`, `fn registry` at 1479; 8aa4dfea79).
+- **`ns_var_global_fallback`: FIXED (static).** It reads `resolved_profile()` first and falls back to the catalogue string only without resolved input (`analyser/types.rs`; 944d156922).
+- **`WorkspaceIndex::registry_for`: FIXED (static).** It borrows the document's retained input registry, guarded by its semantic key (`workspace_index.rs`, `fn registry` at 1479; 8aa4dfea79).
 - **`analyse_with_workspace_classes`: CHANGED (static).**
   - Retained: `base.resolved_input`, `resource_analyser_inputs`, and a cache keyed on fingerprint, the base analysis `Arc` and resource inputs.
   - Not visibly forwarded: the source-analysis entry or seed.
   - No parity test was found.
-  - Location: `tcl-lsp-server/src/lib.rs:20036–20120`. Owner: lsp.
-- **Nested passthrough lowering: CHANGED / conservative decline.** Fresh run7 walks actual `Statement` nodes from every top-level/procedure/body-unit root. Both iRules forms (`call run` in an event and `run` in a proc) retain generic `if`/dispatcher calls, with no inlined block and no typed direct condition. The old `Binary(Contains)` direct versus `Raw` inlined mismatch is therefore not present on this path; it would overstate the evidence to claim that specialised iRules inlining is working. The ordinary Tcl control produces one inlined `Block` and a parsed `Binary(StrEq)` direct condition; the literal inlined `if` is retained generically.
+  - Location: `tcl-lsp-server/src/lib.rs`. Owner: lsp.
+- **Nested passthrough lowering: CHANGED / conservative decline.** Run7 and run16 walk actual `Statement` nodes from every top-level/procedure/body-unit root. Both iRules forms (`call run` in an event and `run` in a proc) retain generic `if`/dispatcher calls, with no inlined block and no typed direct condition. The old `Binary(Contains)` direct versus `Raw` inlined mismatch is therefore not present on this path; it would overstate the evidence to claim that specialised iRules inlining is working. The ordinary Tcl control produces one inlined `Block` and a parsed `Binary(StrEq)` direct condition; the literal inlined `if` is retained generically.
   - Static context forwarding is repaired: `try_inline_callsite` obtains site-analysed bindings with `analyse_script_at_site`, calls `set_source_analysis_options(entry.options())`, and lowers with those bindings. A declined specialisation is permitted by the lowering contract; no product fix was made by triage.
 - **`insert_rebound_candidates`: NOT-APPLICABLE.** Removed in cf8f1bc85b and replaced by `collect_namespace_resolution` (`command_binding.rs`).
 - **`method_barrier`: FIXED (static).** The global-first and first-tail `class_head_component` was removed (944d156922). `hierarchy_components` unions only retained relation candidates and widens on unknowns; test `retained_dispatch_does_not_select_an_unrelated_class_tail`.
-- **Linked-editing self-name fallback: FIXED (static).** `OriginalLinkedSourceSpelling::capture` requires `invocation_targets_declaration` or a call-declaration match. The literal fallback survives only as a `#[cfg(test)]` helper. Executed (run4): for `proc greet {} {greet}` plus an unrelated `n::greet`, `linked_editing_ranges` from the declaration gives `[(0,5),(0,15)]`, the declaration and its own resolved self-call only.
-- **Extract/inline refactors: explicit disabled refusals.** Fresh run7 reports:
+- **Linked-editing self-name fallback: FIXED (executed and static).** `OriginalLinkedSourceSpelling::capture` requires `invocation_targets_declaration` or a call-declaration match. The literal fallback survives only as a `#[cfg(test)]` helper. Executed again in run16: for `proc greet {} {greet}` plus an unrelated `n::greet`, `linked_editing_ranges` from the declaration gives `[(0,5),(0,15)]`, the declaration and its own resolved self-call only.
+- **Extract/inline refactors: explicit disabled refusals.** Run7 and run16 report:
   - `inline_proc`: zero edits; `disabled = "the copied command's implementation is not preserved in the caller namespace"`.
   - `extract_variable(.., "result")`: zero edits; `disabled = "The selection is not a pure original complete word at a reached local source point"`.
   - These repros are contained by disabled actions; they are not silently offered successful zero-edit transformations. Their scratch sources are unchanged. This does not claim every extract/inline feature is globally disabled or broken.

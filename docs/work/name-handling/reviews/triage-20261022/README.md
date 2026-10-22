@@ -4,13 +4,14 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 
 | Item | What it is |
 | --- | --- |
+| `run17-latest-build.json`, `run17-latest-build.log`, `run17-source-audit.log` | Fresh post-b572 integration compiles on 45766fc3 in 9m14s; grouped replay active. Static audit corrects N11 shortcut to test-only and captures the production admission path. |
 | `run16-latest.log`, `run16-latest-oracles.log`, summary, `out/run16-latest/`, `run16-declared-effects.log` | Complete on 2d1b85ad: 27 semantic + 1 scaling probes; named fold e2e and declared-barrier regression pass. 642 engine executions / 186 matching checks, zero unexpected result. |
-| `run16-progress.log`, `run16-source-audit.log`, `run16-rename-*` | Closed earlier prefix, static audit and early rename replay; full completed run16 supersedes the prefix. |
+| `run16-progress.log`, `run16-source-audit.log.gz`, `run16-rename-*` | Closed earlier prefix, static audit and early rename replay; full completed run16 supersedes the prefix. |
 | `compressed-audits.json`, historical `.log.gz` | Lossless audit compression with original content hashes; read using gzip -dc. |
 | `run15-latest*`, `run15-build-error-summary.json`, `run15-build-errors.log` | Historical be53f58c integration failed before probes: 18 compiler + 4 VM errors, Rust1.99.1, exit101. Full structured/rendered diagnostics; zero tests. |
 | `run-latest.sh` | Complete grouped serial latest-tree replay, plus fresh small scaling point and existing fold e2e. Core registry startup is shared; hook-mutating tests and seams run in separate processes. |
 | `run14-final.log`, `run14-partial-*`, `out/run14-final.tar.gz`, `out/run14-final.manifest.json` | Run14 completed 19 groups through N15, then was interrupted for a187c859 integration. 534 engine executions / 78 matching checks pass. Archive retains all 71 output files byte-for-byte; extract under a scratch directory if needed. |
-| `run14-progress.log`, `run14-source-audit.log`, `run14-rename-oracles.log`, `run14-rename-oracle-summary.json` | Post-R1 matrix and current final-replay prefix on 49b067ce; 198 engine executions / 12 matching-profile checks of early edits, no unexpected result. Main replay was later intentionally interrupted for new integration. |
+| `run14-progress.log`, `run14-source-audit.log.gz`, `run14-rename-oracles.log`, `run14-rename-oracle-summary.json` | Post-R1 matrix and current final-replay prefix on 49b067ce; 198 engine executions / 12 matching-profile checks of early edits, no unexpected result. Main replay was later intentionally interrupted for new integration. |
 | `run13-n17-install*`, `owner-n17-public-axes-excerpt.log` | Post-cleanup hooks install with no decline and retained tcl8.6; API still yields no fold. Owner receipt separately reports missing preflight-provider execution refusal. 174 engine executions / 48 matched output checks pass. |
 | `watch-r1.sh` | Bounded fetch-only source-change monitor; never changes the checkout, writes active log outside git. |
 | `run12-n17-profile*`, `tcl/n17-ascii-hook.tcl` | Exact guarded control fails direct/optimiser folding with both DSLs, dialect options and return variants; all six engines compute 5. 174 engine executions / 48 matched checks, no unexpected output. |

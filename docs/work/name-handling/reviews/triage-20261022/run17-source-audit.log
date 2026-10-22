@@ -1,17 +1,17 @@
-Thu Oct 22 17:41:38 UTC 2026
-revision 49b067ce128422e36b83ba255a75eea5fd0fa9a0
+Thu Oct 22 19:17:59 UTC 2026
+revision 45766fc341446388e383d6de5bb3ed6274443237
 
 ### N01 identity maps rust/tcl-compiler/src/analyser/types.rs
-2413:     pub global_scope: Scope,
-2414:     /// Procs keyed by qualified name.
-2415:     pub all_procs: HashMap<String, ProcDef>,
-2416:     /// Authentic original declaration records, including byte-distinct names
-2417:     /// whose Unicode presentation collides. UI maps are projections only.
-2459:     pub superseded_procs: HashMap<String, Vec<ProcDef>>,
-2460:     /// Classes keyed by qualified name.
-2461:     pub all_classes: HashMap<String, ClassDef>,
-2462:     /// Genuine Logical headers retain insertion names separately from report labels.
-2463:     pub(super) logical_procedure_declarations: Vec<LogicalSourceProcedureDeclaration>,
+2425:     pub global_scope: Scope,
+2426:     /// Procs keyed by qualified name.
+2427:     pub all_procs: HashMap<String, ProcDef>,
+2428:     /// Authentic original declaration records, including byte-distinct names
+2429:     /// whose Unicode presentation collides. UI maps are projections only.
+2471:     pub superseded_procs: HashMap<String, Vec<ProcDef>>,
+2472:     /// Classes keyed by qualified name.
+2473:     pub all_classes: HashMap<String, ClassDef>,
+2474:     /// Genuine Logical headers retain insertion names separately from report labels.
+2475:     pub(super) logical_procedure_declarations: Vec<LogicalSourceProcedureDeclaration>,
 
 ### N08 nested context rust/tcl-compiler/src/inline_uplevel.rs
 640:             }
@@ -148,99 +148,344 @@ revision 49b067ce128422e36b83ba255a75eea5fd0fa9a0
 4363:             .map(tcl_compiler::analyser::types::LogicalSourceProcedureDeclaration::metadata);
 4364:     }
 
-### N11 library selection rust/tcl-lsp-server/src/lib.rs
-17865:     /// parser fixtures through [`Self::ensure_autoload_indexed`].
-17866:     #[cfg(test)]
-17867:     async fn merge_library_files(
-17868:         &self,
-17869:         word: &str,
-17870:         namespace: &str,
-17871:         files: Vec<PathBuf>,
-17872:     ) -> DocumentSourceResult<Option<String>> {
-17873:         if files.is_empty() {
-17874:             return Ok(None);
-17875:         }
-17876:         let candidates = tcl_lsp_core::package_resolver::auto_qualify(word, namespace);
-17877:         // The index and `all_procs` key absolute (`::`-prefixed) names, while
-17878:         // `auto_qualify` yields a bare name for a global command.
-17879:         let absolute: Vec<String> = candidates
-17880:             .iter()
-17881:             .map(|cand| {
-17882:                 if tcl_syntax::naming::unroot_rooted_key(cand).is_some() {
-17883:                     cand.clone()
-17884:                 } else {
-17885:                     tcl_syntax::naming::root_unrooted_key(cand)
-17886:                 }
-17887:             })
-17888:             .collect();
-17889:         {
-17890:             let index = self.workspace_index.read().await;
-17891:             if let Some(existing) = absolute
-17892:                 .iter()
-17893:                 .find(|cand| index.workspace_command_exists(cand))
-17894:             {
-17895:                 return Ok(Some(existing.clone()));
-17896:             }
-17897:         }
-17898:         let mut resolved = None;
-17899:         let inputs_epoch = self.diag_inputs_epoch();
-17900:         let factory_generation = *self.class_factory_generation.read().await;
-17901:         let mut analysed = Vec::new();
-17902:         for path in files {
-17903:             let Some(target_uri) = canonical_file_uri(&path) else {
-17904:                 continue;
-17905:             };
-17906:             let Some(target_doc) = self.read_document(&target_uri).await? else {
-17907:                 continue;
-17908:             };
-17909:             let Some(receipt) = self
-17910:                 .capture_workspace_symbol_analysis(&target_uri, &target_doc)
-17911:                 .await?
-17912:             else {
-17913:                 continue;
-17914:             };
-17915:             let file_analysis = receipt.analysis();
-17916:             if resolved.is_none() {
-17917:                 resolved = absolute
-17918:                     .iter()
-17919:                     .find(|cand| {
-17920:                         file_analysis.all_procs.contains_key(*cand)
-17921:                             || file_analysis.all_classes.contains_key(*cand)
-17922:                     })
-17923:                     .cloned();
-17924:             }
-17925:             analysed.push((target_uri, target_doc, receipt));
-17926:         }
-17927:         if analysed.is_empty() {
-17928:             return Ok(resolved);
-17929:         }
-17930: 
-17931:         if !self
-17932:             .publish_checked_library_analyses(&analysed, inputs_epoch, factory_generation)
-17933:             .await?
-17934:         {
-17935:             return Ok(None);
-17936:         }
-17937:         Ok(resolved)
-17938:     }
-17939: 
-17940:     async fn library_publication_source(
-17941:         &self,
-17942:         uri: &Uri,
-17943:         document: DocumentState,
-17944:     ) -> Option<LibraryPublicationSource> {
-17945:         let documents = self.documents.lock("library_source_capture").await;
-17946:         let source = LibraryPublicationSource {
-17947:             uri: uri.clone(),
-17948:             open_revision: documents.get(uri).map(|current| current.revision),
-17949:             uri_generation: self.live_publication_uri_generation(uri),
-17950:             document,
-17951:         };
-17952:         source.matches_open_documents(&documents).then_some(source)
-17953:     }
-17954: 
-17955:     async fn publish_original_library_analyses(
-17956:         &self,
+### N11 test-only library helper rust/tcl-lsp-server/src/lib.rs
+17930:     /// parser fixtures through [`Self::ensure_autoload_indexed`].
+17931:     #[cfg(test)]
+17932:     async fn merge_library_files(
+17933:         &self,
+17934:         word: &str,
+17935:         namespace: &str,
+17936:         files: Vec<PathBuf>,
+17937:     ) -> DocumentSourceResult<Option<String>> {
+17938:         if files.is_empty() {
+17939:             return Ok(None);
+17940:         }
+17941:         let candidates = tcl_lsp_core::package_resolver::auto_qualify(word, namespace);
+17942:         // The index and `all_procs` key absolute (`::`-prefixed) names, while
+17943:         // `auto_qualify` yields a bare name for a global command.
+17944:         let absolute: Vec<String> = candidates
+17945:             .iter()
+17946:             .map(|cand| {
+17947:                 if tcl_syntax::naming::unroot_rooted_key(cand).is_some() {
+17948:                     cand.clone()
+17949:                 } else {
+17950:                     tcl_syntax::naming::root_unrooted_key(cand)
+17951:                 }
+17952:             })
+17953:             .collect();
+17954:         {
+17955:             let index = self.workspace_index.read().await;
+17956:             if let Some(existing) = absolute
+17957:                 .iter()
+17958:                 .find(|cand| index.workspace_command_exists(cand))
+17959:             {
+17960:                 return Ok(Some(existing.clone()));
+17961:             }
+17962:         }
+17963:         let mut resolved = None;
+17964:         let inputs_epoch = self.diag_inputs_epoch();
+17965:         let factory_generation = *self.class_factory_generation.read().await;
+17966:         let mut analysed = Vec::new();
+17967:         for path in files {
+17968:             let Some(target_uri) = canonical_file_uri(&path) else {
+17969:                 continue;
+17970:             };
+17971:             let Some(target_doc) = self.read_document(&target_uri).await? else {
+17972:                 continue;
+17973:             };
+17974:             let Some(receipt) = self
+17975:                 .capture_workspace_symbol_analysis(&target_uri, &target_doc)
+17976:                 .await?
+17977:             else {
+17978:                 continue;
+17979:             };
+17980:             let file_analysis = receipt.analysis();
+17981:             if resolved.is_none() {
+17982:                 resolved = absolute
+17983:                     .iter()
+17984:                     .find(|cand| {
+17985:                         file_analysis.all_procs.contains_key(*cand)
+17986:                             || file_analysis.all_classes.contains_key(*cand)
+17987:                     })
+17988:                     .cloned();
+17989:             }
+17990:             analysed.push((target_uri, target_doc, receipt));
+17991:         }
+17992:         if analysed.is_empty() {
+17993:             return Ok(resolved);
+17994:         }
+17995: 
+17996:         if !self
+17997:             .publish_checked_library_analyses(&analysed, inputs_epoch, factory_generation)
+17998:             .await?
+17999:         {
+18000:             return Ok(None);
+18001:         }
+18002:         Ok(resolved)
+18003:     }
+18004: 
+18005:     async fn library_publication_source(
+18006:         &self,
+18007:         uri: &Uri,
+18008:         document: DocumentState,
+18009:     ) -> Option<LibraryPublicationSource> {
+18010:         let documents = self.documents.lock("library_source_capture").await;
+18011:         let source = LibraryPublicationSource {
+18012:             uri: uri.clone(),
+18013:             open_revision: documents.get(uri).map(|current| current.revision),
+18014:             uri_generation: self.live_publication_uri_generation(uri),
+18015:             document,
+18016:         };
+18017:         source.matches_open_documents(&documents).then_some(source)
+18018:     }
+18019: 
+18020:     async fn publish_original_library_analyses(
+18021:         &self,
+
+### N11 production library admission rust/tcl-lsp-server/src/lib.rs
+17716:     /// those typed slots directly; rendered names are returned only after a
+17717:     /// current source declaration has been selected from the index.
+17718:     async fn ensure_logical_library_candidates(
+17719:         &self,
+17720:         uri: &Uri,
+17721:         source: &str,
+17722:         analysis: &AnalysisResult,
+17723:         pos: Position,
+17724:     ) -> DocumentSourceResult<
+17725:         Option<(
+17726:             Vec<core_workspace_index::LogicalWorkspaceCommandCandidate>,
+17727:             u64,
+17728:         )>,
+17729:     > {
+17730:         let index = tcl_lexer::LineIndex::new(source);
+17731:         let offset =
+17732:             index.offset_at_utf16(pos.line, tcl_lexer::Utf16Col::new(pos.character), source);
+17733:         let Some(request) = tcl_compiler::registry_invocation::source_structure::
+17734:             source_logical_command_candidates_at(source, analysis, offset)
+17735:         else {
+17736:             return Ok(None);
+17737:         };
+17738:         if request.has_earlier_unknown_mutations() || request.has_lookup_operand_effects() {
+17739:             return Ok(None);
+17740:         }
+17741:         let Some(coordinates) = request.external_header_coordinates() else {
+17742:             return Ok(None);
+17743:         };
+17744: 
+17745:         drop(self.workspace_scan_gate.lock().await);
+17746:         let (mut files, mut resolver_revision) = {
+17747:             let resolver = self.package_resolver.read().await;
+17748:             let files = coordinates
+17749:                 .iter()
+17750:                 .find_map(|coordinate| {
+17751:                     let files = resolver.resolve_logical_auto_command(coordinate);
+17752:                     (!files.is_empty()).then_some(files)
+17753:                 })
+17754:                 .unwrap_or_default();
+17755:             (files, resolver.revision())
+17756:         };
+17757:         if files.is_empty() {
+17758:             for file in self.required_library_files(uri, analysis).await {
+17759:                 if !files.contains(&file) {
+17760:                     files.push(file);
+17761:                 }
+17762:             }
+17763:             let inheritance = self.source_inheritance_for(uri, analysis).await;
+17764:             if let Some(original) = inheritance.original.as_ref() {
+17765:                 let available = original.available_at(offset, None);
+17766:                 let target = analysis.resolved_profile().and_then(|profile| {
+17767:                     tcl_registry::InvocationDialect::of_profile(profile).tcl_version
+17768:                 });
+17769:                 let resolver = self.package_resolver.read().await;
+17770:                 for requirement in &available {
+17771:                     for file in resolver.resolve_requirement_advice(requirement, target) {
+17772:                         if !files.contains(&file) {
+17773:                             files.push(file);
+17774:                         }
+17775:                     }
+17776:                 }
+17777:             }
+17778:             resolver_revision = self.package_resolver.read().await.revision();
+17779:         }
+17780:         if !files.is_empty() {
+17781:             let inputs_epoch = self.diag_inputs_epoch();
+17782:             let factory_generation = *self.class_factory_generation.read().await;
+17783:             let mut analysed = Vec::new();
+17784:             for path in files {
+17785:                 let Some(target_uri) = canonical_file_uri(&path) else {
+17786:                     continue;
+17787:                 };
+17788:                 let Some(snapshot) = self.read_document(&target_uri).await? else {
+17789:                     continue;
+17790:                 };
+17791:                 let Some(receipt) = self
+17792:                     .capture_workspace_symbol_analysis(&target_uri, &snapshot)
+17793:                     .await?
+17794:                 else {
+17795:                     continue;
+17796:                 };
+17797:                 analysed.push((target_uri, snapshot, receipt));
+17798:             }
+17799:             if !analysed.is_empty()
+17800:                 && !self
+17801:                     .publish_checked_library_analyses(&analysed, inputs_epoch, factory_generation)
+17802:                     .await?
+17803:             {
+17804:                 return Ok(None);
+17805:             }
+17806:         }
+17807: 
+17808:         // Revalidate the caller's complete source and exact query after all
+17809:         // asynchronous capture/publication work. A stale request leaves no
+17810:         // selected provider candidate.
+17811:         let Some(current) = self.read_document(uri).await? else {
+17812:             return Ok(None);
+17813:         };
+17814:         if current.text.as_ref() != source {
+17815:             return Ok(None);
+17816:         }
+17817:         if self.package_resolver.read().await.revision() != resolver_revision {
+17818:             return Ok(None);
+17819:         }
+17820:         let current_analysis = self
+17821:             .analysis_for(uri, current.text.clone(), current.dialect.clone())
+17822:             .await?;
+17823:         let Some(current_request) = tcl_compiler::registry_invocation::source_structure::
+17824:             source_logical_command_candidates_at(source, &current_analysis, offset)
+17825:         else {
+17826:             return Ok(None);
+17827:         };
+17828:         if current_request != request {
+17829:             return Ok(None);
+17830:         }
+17831:         let index = self.workspace_index.read().await;
+17832:         Ok(Some((
+17833:             index
+17834:                 .logical_command_candidates(&request, uri.as_str())
+17835:                 .into_iter()
+17836:                 .filter(|candidate| index.logical_command_candidate_is_current(candidate))
+17837:                 .collect(),
+17838:             resolver_revision,
+17839:         )))
+17840:     }
+17841: 
+17842:     #[cfg(test)]
+17843:     async fn ensure_autoload_indexed(
+17844:         &self,
+17845:         word: &str,
+17846:         namespace: &str,
+17847:     ) -> DocumentSourceResult<Option<String>> {
+17848:         drop(self.workspace_scan_gate.lock().await);
+17849:         let files = {
+17850:             let resolver = self.package_resolver.read().await;
+17851:             resolver.resolve_auto_command(word, namespace)
+17852:         };
+17853:         self.merge_library_files(word, namespace, files).await
+17854:     }
+17855: 
+17856:     async fn required_library_files(&self, uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf> {
+17857:         if analysis.package_requires.is_empty() {
+17858:             return Vec::new();
+17859:         }
+17860:         drop(self.workspace_scan_gate.lock().await);
+17861:         // This document's own `auto_path` mutations, folded in first: the
+17862:         // workspace scan already did this for every file it read from disk,
+17863:         // but an **open** document is deliberately skipped by that scan (its
+17864:         // buffer, not the disk copy, is authoritative), and a document opened
+17865:         // after the scan was never seen at all.  Bounded by this one
+17866:         // document's entries, and a directory the resolver has already
+17867:         // scanned costs nothing, so this stays a miss-path lookup rather than
+17868:         // a rescan.
+17869:         {
+17870:             let dirs = document_auto_path_dirs(uri, analysis);
+17871:             if !dirs.is_empty() {
+17872:                 let mut resolver = self.package_resolver.write().await;
+17873:                 for dir in &dirs {
+17874:                     resolver.scan_path_in(self.store.as_ref(), dir);
+17875:                 }
+17876:             }
+17877:         }
+17878:         // The interpreter's `package prefer` state on entry to this document:
+17879:         // the mode a file that (transitively) `source`s it already latched.
+
+### N11 production require view rust/tcl-lsp-server/src/lib.rs
+17854:     }
+17855: 
+17856:     async fn required_library_files(&self, uri: &Uri, analysis: &AnalysisResult) -> Vec<PathBuf> {
+17857:         if analysis.package_requires.is_empty() {
+17858:             return Vec::new();
+17859:         }
+17860:         drop(self.workspace_scan_gate.lock().await);
+17861:         // This document's own `auto_path` mutations, folded in first: the
+17862:         // workspace scan already did this for every file it read from disk,
+17863:         // but an **open** document is deliberately skipped by that scan (its
+17864:         // buffer, not the disk copy, is authoritative), and a document opened
+17865:         // after the scan was never seen at all.  Bounded by this one
+17866:         // document's entries, and a directory the resolver has already
+17867:         // scanned costs nothing, so this stays a miss-path lookup rather than
+17868:         // a rescan.
+17869:         {
+17870:             let dirs = document_auto_path_dirs(uri, analysis);
+17871:             if !dirs.is_empty() {
+17872:                 let mut resolver = self.package_resolver.write().await;
+17873:                 for dir in &dirs {
+17874:                     resolver.scan_path_in(self.store.as_ref(), dir);
+17875:                 }
+17876:             }
+17877:         }
+17878:         // The interpreter's `package prefer` state on entry to this document:
+17879:         // the mode a file that (transitively) `source`s it already latched.
+17880:         // The state is interpreter-global, and along the `source` graph "ran
+17881:         // first" is a static fact, so a `package prefer latest` in the entry
+17882:         // file really is in force here.
+17883:         let inherited_prefer = {
+17884:             let index = self.workspace_index.read().await;
+17885:             if index.source_ancestor_prefers_latest_from_resolved(uri.as_str()) {
+17886:                 tcl_lsp_core::package_resolver::PackagePrefer::Latest
+17887:             } else {
+17888:                 self.default_package_prefer().await
+17889:             }
+17890:         };
+17891: 
+17892:         {
+17893:             let resolver = self.package_resolver.read().await;
+17894:             let mut files: Vec<PathBuf> = Vec::new();
+17895:             for req in &analysis.package_requires {
+17896:                 // The document's own constraint decides which release is
+17897:                 // indexed: `package require widget 2.0` against a workspace
+17898:                 // holding 1.5 and 2.3 must navigate into 2.3 (C Tcl's
+17899:                 // `SelectPackage` rule — see
+17900:                 // `PackageResolver::resolve_require`), not whichever directory
+17901:                 // the scan happened to read first.  `-exact` is carried
+17902:                 // through, so `package require -exact widget 2.0` navigates
+17903:                 // into 2.0 or nothing at all — never into 2.3.
+17904:                 // The `package prefer` mode is taken **at this require's own
+17905:                 // position**, so a document that raised the interpreter to
+17906:                 // `latest` above it navigates into the prerelease it really
+17907:                 // loads.
+17908:                 let prefer = tcl_lsp_core::package_resolver::package_prefer_at(
+17909:                     analysis,
+17910:                     req.range.start(),
+17911:                     inherited_prefer,
+17912:                 );
+17913:                 let requirement = tcl_lsp_core::package_resolver::PackageRequirementAdvice::from_source_requirement(req, prefer);
+17914:                 let target = analysis.resolved_profile().and_then(|profile| {
+17915:                     tcl_registry::InvocationDialect::of_profile(profile).tcl_version
+17916:                 });
+17917:                 for f in resolver.resolve_requirement_advice(&requirement, target) {
+17918:                     if !files.contains(&f) {
+17919:                         files.push(f);
+17920:                     }
+17921:                 }
+17922:             }
+17923:             files
+17924:         }
+17925:     }
+17926: 
+17927:     /// Merge `files` (library / package implementation files) into the shared
+17928:     /// workspace index and report which auto-qualified candidate of
+17929:     /// `word` in `namespace` they define, if any. Used by the autoload
+17930:     /// parser fixtures through [`Self::ensure_autoload_indexed`].
 
 ### N13 propagation bound rust/tcl-lsp-core/src/workspace_index.rs
 3370:         &self,
@@ -332,108 +577,108 @@ revision 49b067ce128422e36b83ba255a75eea5fd0fa9a0
 3456:                 }
 
 ### N13 rehoming bound rust/tcl-lsp-server/src/lib.rs
-28817:     /// [`Self::refresh_source_rehoming`] with the transaction gate already held.
-28818:     async fn refresh_source_rehoming_locked(&self) -> DocumentSourceResult<()> {
-28819:         for _round in 0..4 {
-28820:             // One index read per round, scoped to the seed-map fold and
-28821:             // released before any other store is awaited: the per-document
-28822:             // loop below takes the document map, the Salsa stores and the
-28823:             // index writer in turn, and none of that runs under a reader
-28824:             // that would hold a queued writer (and every reader behind it)
-28825:             // off the index for the whole pass.
-28826:             let desired = {
-28827:                 let index = self.workspace_index.read().await;
-28828:                 index.retag("refresh_source_rehoming: source_seed_map");
-28829:                 // Documents whose only source site is the global namespace are
-28830:                 // dropped here: their desired view *is* the standalone analysis
-28831:                 // the index already holds, and [`Self::rehomed_source_seeds`]
-28832:                 // records that as absence.  Leaving them in stops an ordinary
-28833:                 // top-level `source b.tcl` from ever converging: the queue below
-28834:                 // would compare `recorded.get(uri)` against `Some(["::"])` while
-28835:                 // the store *removes* such an entry, so the same document is
-28836:                 // re-analysed and re-indexed on every round of every call, for
-28837:                 // ever, invalidating every index-generation memo with it.
-28838:                 index.has_source_edges().then(|| {
-28839:                     index
-28840:                         .source_seed_map(resolve_source_edge)
-28841:                         .into_iter()
-28842:                         .filter(|(_, seeds)| !Self::is_standalone_view(seeds))
-28843:                         .collect::<HashMap<String, std::collections::BTreeSet<String>>>()
-28844:                 })
-28845:             };
-28846:             let recorded = self.rehomed_source_seeds.lock().await.clone();
-28847:             let desired = match desired {
-28848:                 Some(desired) => desired,
-28849:                 None if recorded.is_empty() => return Ok(()),
-28850:                 None => HashMap::new(),
-28851:             };
-28852:             let mut work: Vec<(String, Vec<String>)> = Vec::new();
-28853:             for (uri, seeds) in &desired {
-28854:                 let seeds: Vec<String> = seeds.iter().cloned().collect();
-28855:                 if recorded.get(uri) != Some(&seeds) {
-28856:                     work.push((uri.clone(), seeds));
-28857:                 }
-28858:             }
-28859:             for (uri, seeds) in &recorded {
-28860:                 if !desired.contains_key(uri) && !Self::is_standalone_view(seeds) {
-28861:                     // No longer re-homed anywhere: restore the standalone view.
-28862:                     // The invariant makes a recorded standalone view impossible,
-28863:                     // so the second test never fires; it stays because queuing
-28864:                     // one would be work the store immediately undoes — the
-28865:                     // non-convergence this pass must never re-admit.
-28866:                     work.push((uri.clone(), vec![Self::STANDALONE_SEED.to_owned()]));
-28867:                 }
-28868:             }
-28869:             if work.is_empty() {
-28870:                 return Ok(());
-28871:             }
-28872:             for (uri_s, seeds) in work {
-28873:                 let Ok(uri) = Uri::from_str(&uri_s) else {
-28874:                     continue;
-28875:                 };
-28876:                 // Never call `read_document` while holding `rehoming_gate`:
-28877:                 // that reader waits for a publication-pending open document,
-28878:                 // while live publication needs this same gate to finish. Read
-28879:                 // a published open snapshot directly, or the tracked Salsa
-28880:                 // source for a closed document. A pending live revision makes
-28881:                 // this pass retire immediately so its publisher can take the
-28882:                 // gate; the next query reconciles the newly published view.
-28883:                 let (doc, open_revision) = match self.rehoming_document_snapshot(&uri).await? {
-28884:                     RehomingDocumentSnapshot::Ready(doc, revision) => (doc, revision),
-28885:                     RehomingDocumentSnapshot::Pending => return Ok(()),
-28886:                     RehomingDocumentSnapshot::Missing => continue,
-28887:                 };
-28888:                 let mut analyses = Vec::with_capacity(seeds.len());
-28889:                 for namespace in &seeds {
-28890:                     let admission = self.document_path_admission(&uri).await?;
-28891:                     let driver = self.fresh_analysis_driver(admission).await;
-28892:                     let text = Arc::clone(&doc.text);
-28893:                     let dialect = doc.dialect.clone();
-28894:                     let namespace = namespace.clone();
-28895:                     let analysis = crate::rt::spawn_blocking(move || {
-28896:                         driver.analyse(&text, &dialect, Some(&namespace))
-28897:                     })
-28898:                     .await
-28899:                     .map_err(|_| DocumentSourceUnavailable::Worker { uri: uri.clone() })??;
-28900:                     analysis
-28901:                         .path_admission
-28902:                         .check_for(&uri, self.store.as_ref())?;
-28903:                     analyses.push(analysis);
-28904:                 }
-28905:                 if !self
-28906:                     .publish_rehomed_if_current(&uri, open_revision, &doc.text, &analyses)
-28907:                     .await?
-28908:                 {
-28909:                     return Ok(());
-28910:                 }
-28911:                 if Self::is_standalone_view(&seeds) {
-28912:                     self.rehomed_source_seeds.lock().await.remove(&uri_s);
-28913:                 } else {
-28914:                     self.rehomed_source_seeds.lock().await.insert(uri_s, seeds);
-28915:                 }
-28916:             }
-28917:         }
-28918:         Ok(())
+28899:     /// [`Self::refresh_source_rehoming`] with the transaction gate already held.
+28900:     async fn refresh_source_rehoming_locked(&self) -> DocumentSourceResult<()> {
+28901:         for _round in 0..4 {
+28902:             // One index read per round, scoped to the seed-map fold and
+28903:             // released before any other store is awaited: the per-document
+28904:             // loop below takes the document map, the Salsa stores and the
+28905:             // index writer in turn, and none of that runs under a reader
+28906:             // that would hold a queued writer (and every reader behind it)
+28907:             // off the index for the whole pass.
+28908:             let desired = {
+28909:                 let index = self.workspace_index.read().await;
+28910:                 index.retag("refresh_source_rehoming: source_seed_map");
+28911:                 // Documents whose only source site is the global namespace are
+28912:                 // dropped here: their desired view *is* the standalone analysis
+28913:                 // the index already holds, and [`Self::rehomed_source_seeds`]
+28914:                 // records that as absence.  Leaving them in stops an ordinary
+28915:                 // top-level `source b.tcl` from ever converging: the queue below
+28916:                 // would compare `recorded.get(uri)` against `Some(["::"])` while
+28917:                 // the store *removes* such an entry, so the same document is
+28918:                 // re-analysed and re-indexed on every round of every call, for
+28919:                 // ever, invalidating every index-generation memo with it.
+28920:                 index.has_source_edges().then(|| {
+28921:                     index
+28922:                         .source_seed_map(resolve_source_edge)
+28923:                         .into_iter()
+28924:                         .filter(|(_, seeds)| !Self::is_standalone_view(seeds))
+28925:                         .collect::<HashMap<String, std::collections::BTreeSet<String>>>()
+28926:                 })
+28927:             };
+28928:             let recorded = self.rehomed_source_seeds.lock().await.clone();
+28929:             let desired = match desired {
+28930:                 Some(desired) => desired,
+28931:                 None if recorded.is_empty() => return Ok(()),
+28932:                 None => HashMap::new(),
+28933:             };
+28934:             let mut work: Vec<(String, Vec<String>)> = Vec::new();
+28935:             for (uri, seeds) in &desired {
+28936:                 let seeds: Vec<String> = seeds.iter().cloned().collect();
+28937:                 if recorded.get(uri) != Some(&seeds) {
+28938:                     work.push((uri.clone(), seeds));
+28939:                 }
+28940:             }
+28941:             for (uri, seeds) in &recorded {
+28942:                 if !desired.contains_key(uri) && !Self::is_standalone_view(seeds) {
+28943:                     // No longer re-homed anywhere: restore the standalone view.
+28944:                     // The invariant makes a recorded standalone view impossible,
+28945:                     // so the second test never fires; it stays because queuing
+28946:                     // one would be work the store immediately undoes — the
+28947:                     // non-convergence this pass must never re-admit.
+28948:                     work.push((uri.clone(), vec![Self::STANDALONE_SEED.to_owned()]));
+28949:                 }
+28950:             }
+28951:             if work.is_empty() {
+28952:                 return Ok(());
+28953:             }
+28954:             for (owner_uri_text, seeds) in work {
+28955:                 let Ok(uri) = Uri::from_str(&owner_uri_text) else {
+28956:                     continue;
+28957:                 };
+28958:                 // Never call `read_document` while holding `rehoming_gate`:
+28959:                 // that reader waits for a publication-pending open document,
+28960:                 // while live publication needs this same gate to finish. Read
+28961:                 // a published open snapshot directly, or the tracked Salsa
+28962:                 // source for a closed document. A pending live revision makes
+28963:                 // this pass retire immediately so its publisher can take the
+28964:                 // gate; the next query reconciles the newly published view.
+28965:                 let (doc, open_revision) = match self.rehoming_document_snapshot(&uri).await? {
+28966:                     RehomingDocumentSnapshot::Ready(doc, revision) => (doc, revision),
+28967:                     RehomingDocumentSnapshot::Pending => return Ok(()),
+28968:                     RehomingDocumentSnapshot::Missing => continue,
+28969:                 };
+28970:                 let mut analyses = Vec::with_capacity(seeds.len());
+28971:                 for namespace in &seeds {
+28972:                     let admission = self.document_path_admission(&uri).await?;
+28973:                     let driver = self.fresh_analysis_driver(admission).await;
+28974:                     let text = Arc::clone(&doc.text);
+28975:                     let dialect = doc.dialect.clone();
+28976:                     let namespace = namespace.clone();
+28977:                     let analysis = crate::rt::spawn_blocking(move || {
+28978:                         driver.analyse(&text, &dialect, Some(&namespace))
+28979:                     })
+28980:                     .await
+28981:                     .map_err(|_| DocumentSourceUnavailable::Worker { uri: uri.clone() })??;
+28982:                     analysis
+28983:                         .path_admission
+28984:                         .check_for(&uri, self.store.as_ref())?;
+28985:                     analyses.push(analysis);
+28986:                 }
+28987:                 if !self
+28988:                     .publish_rehomed_if_current(&uri, open_revision, &doc.text, &analyses)
+28989:                     .await?
+28990:                 {
+28991:                     return Ok(());
+28992:                 }
+28993:                 if Self::is_standalone_view(&seeds) {
+28994:                     self.rehomed_source_seeds
+28995:                         .lock()
+28996:                         .await
+28997:                         .remove(&owner_uri_text);
+28998:                 } else {
+28999:                     self.rehomed_source_seeds
+29000:                         .lock()
 
 ### N13 source entry rust/tcl-compiler/src/analyser/state.rs
 2195:     /// candidate — exactly the `namespace eval <seed> { <file> }` semantics,
@@ -777,33 +1022,33 @@ revision 49b067ce128422e36b83ba255a75eea5fd0fa9a0
 240:         &self,
 
 ### N17 default effects rust/tcl-registry/src/resolved_invocation.rs
-2593:         coverage: &TransitionEffectCoverages,
-2594:     ) -> EffectFootprint {
-2595:         let mut footprint = if self.semantics.world_effects.is_declared() {
-2596:             self.semantics
-2597:                 .world_effects
-2598:                 .resolve_with_transition_coverage(self.words.arguments(), coverage)
-2599:         } else {
-2600:             EffectFootprint::conservative_unknown_invocation()
-2601:         };
-2602:         // Selected transitions own command-table mutation and its coverage.
-2603:         footprint.extend(self.legacy_effect_footprint(command_table_mutation, coverage));
-2604:         footprint
-2605:     }
-2606: 
-2607:     /// Legacy hints declared by this actual selected descriptor and form.
-2608:     /// An empty slice remains unknown, never a search for an older available
-2609:     /// declaration. Availability, normal entry and full effects are separate.
-2610:     #[must_use]
-2611:     pub fn selected_side_effect_hints(&self) -> &'r [SideEffect] {
-2612:         self.semantics.side_effects
-2613:     }
-2614: 
-2615:     fn legacy_effect_footprint(
-2616:         &self,
-2617:         command_table_mutation: bool,
-2618:         coverage: &TransitionEffectCoverages,
-2619:     ) -> EffectFootprint {
+2672:         coverage: &TransitionEffectCoverages,
+2673:     ) -> EffectFootprint {
+2674:         let mut footprint = if self.semantics.world_effects.is_declared() {
+2675:             self.semantics
+2676:                 .world_effects
+2677:                 .resolve_with_transition_coverage(self.words.arguments(), coverage)
+2678:         } else {
+2679:             EffectFootprint::conservative_unknown_invocation()
+2680:         };
+2681:         // Selected transitions own command-table mutation and its coverage.
+2682:         footprint.extend(self.legacy_effect_footprint(command_table_mutation, coverage));
+2683:         footprint
+2684:     }
+2685: 
+2686:     /// Legacy hints declared by this actual selected descriptor and form.
+2687:     /// An empty slice remains unknown, never a search for an older available
+2688:     /// declaration. Availability, normal entry and full effects are separate.
+2689:     #[must_use]
+2690:     pub fn selected_side_effect_hints(&self) -> &'r [SideEffect] {
+2691:         self.semantics.side_effects
+2692:     }
+2693: 
+2694:     fn legacy_effect_footprint(
+2695:         &self,
+2696:         command_table_mutation: bool,
+2697:         coverage: &TransitionEffectCoverages,
+2698:     ) -> EffectFootprint {
 
 ### extract guard rust/tcl-lsp-core/src/refactor/extract_variable.rs
 85:         return None;
@@ -862,74 +1107,74 @@ revision 49b067ce128422e36b83ba255a75eea5fd0fa9a0
 216:     }
 217:     if !analysis.allows_lexical_declaration_advice() {
 218:         return original_inline_body(
-219:             source, call, proc_def, analysis, &walk, &body, &nested, numbers,
-220:         );
-221:     }
-222:     let bindings = bind_arguments(source, call, proc_def, &walk)?;
-223:     reject_frame_sensitive_body(source, &body, &nested, &walk)?;
-224:     reject_body_variable_writes(source, &body, &nested, &walk)?;
-225:     let references = body_variable_references(source, &body, &nested, &walk)?;
-226:     reject_args_reference(&references, proc_def, analysis)?;
-227:     substitute_bindings(
-228:         source,
-229:         &body,
-230:         &nested,
-231:         &bindings,
-232:         &walk,
-233:         numbers,
-234:         &references,
-235:     )
-236: }
-237: 
-238: /// Rewrite only the selected original allocation and exact formal/argv
-239: /// topology. Frozen values never erase a written variable or command read.
-240: fn original_inline_body(
-241:     source: &str,
-242:     call: &tcl_compiler::segmenter::SegmentedCommand,
-243:     proc_def: &tcl_compiler::analyser::ProcDef,
-244:     analysis: &AnalysisResult,
-245:     walk: &super::FrameWalk<'_>,
-246:     body: &BodyCommand,
-247:     nested: &[tcl_compiler::segmenter::SegmentedCommand],
-248:     numbers: NumberSyntax,
-249: ) -> Result<String, String> {
-250:     use tcl_compiler::registry_invocation::{
-251:         InvocationWordOrigin, effective_command_words, frozen_argument_words,
-252:     };
-253:     use tcl_syntax::formal_params::FormalByteArgumentBinding;
-254:     let unavailable =
-255:         || "the original parameter or call operand topology is unavailable".to_owned();
-256:     let record = analysis
-257:         .original_procedure_declarations()
-258:         .find(|record| std::ptr::eq(record.metadata(), proc_def))
-259:         .ok_or_else(unavailable)?;
-260:     let registry = analysis.resolved_registry().ok_or_else(unavailable)?;
-261:     let formals = analysis
-262:         .original_procedure_formals(record, registry)
-263:         .ok_or_else(unavailable)?;
-264:     let config = analysis.body_lexer_config.ok_or_else(unavailable)?;
-265:     let image = tcl_lexer::SourceImage::document(source);
-266:     if !formals.matches_source(&image, config) {
-267:         return Err(unavailable());
-268:     }
-269:     let tokens = walk.tokens(source, call);
-270:     let binding = tokens.source_binding.as_ref().ok_or_else(unavailable)?;
-271:     let effective = effective_command_words(&tokens).ok_or_else(unavailable)?;
-272:     let frozen = frozen_argument_words(&tokens, &effective);
-273:     let mut arguments = Vec::with_capacity(frozen.len());
-274:     for (origin, value) in effective.origins.iter().skip(1).zip(&frozen) {
-275:         let bytes = value
-276:             .literal_bytes()
-277:             .ok_or_else(|| "an argument's complete native value is unknown".to_owned())?;
-278:         match origin {
-279:             InvocationWordOrigin::Written(written) => {
-280:                 let input = binding
-281:                     .original_written_name_input(&tokens, *written)
-282:                     .ok_or_else(unavailable)?;
-283:                 let key = input.original_word_key().ok_or_else(|| {
-284:                     "inlining would remove an observable written argument evaluation".to_owned()
-285:                 })?;
-286:                 if key.bytes() != bytes {
+219:             source,
+220:             call,
+221:             proc_def,
+222:             analysis,
+223:             &walk,
+224:             InlineBodySyntax {
+225:                 command: &body,
+226:                 nested: &nested,
+227:                 numbers,
+228:             },
+229:         );
+230:     }
+231:     let bindings = bind_arguments(source, call, proc_def, &walk)?;
+232:     reject_frame_sensitive_body(source, &body, &nested, &walk)?;
+233:     reject_body_variable_writes(source, &body, &nested, &walk)?;
+234:     let references = body_variable_references(source, &body, &nested, &walk)?;
+235:     reject_args_reference(&references, proc_def, analysis)?;
+236:     substitute_bindings(
+237:         source,
+238:         &body,
+239:         &nested,
+240:         &bindings,
+241:         &walk,
+242:         numbers,
+243:         &references,
+244:     )
+245: }
+246: 
+247: #[derive(Clone, Copy)]
+248: struct InlineBodySyntax<'a> {
+249:     command: &'a BodyCommand,
+250:     nested: &'a [tcl_compiler::segmenter::SegmentedCommand],
+251:     numbers: NumberSyntax,
+252: }
+253: 
+254: /// Rewrite only the selected original allocation and exact formal/argv
+255: /// topology. Frozen values never erase a written variable or command read.
+256: fn original_inline_body(
+257:     source: &str,
+258:     call: &tcl_compiler::segmenter::SegmentedCommand,
+259:     proc_def: &tcl_compiler::analyser::ProcDef,
+260:     analysis: &AnalysisResult,
+261:     walk: &super::FrameWalk<'_>,
+262:     syntax: InlineBodySyntax<'_>,
+263: ) -> Result<String, String> {
+264:     use tcl_compiler::registry_invocation::{
+265:         InvocationWordOrigin, effective_command_words, frozen_argument_words,
+266:     };
+267:     use tcl_syntax::formal_params::FormalByteArgumentBinding;
+268:     let InlineBodySyntax {
+269:         command: body,
+270:         nested,
+271:         numbers,
+272:     } = syntax;
+273:     let unavailable =
+274:         || "the original parameter or call operand topology is unavailable".to_owned();
+275:     let record = analysis
+276:         .original_procedure_declarations()
+277:         .find(|record| std::ptr::eq(record.metadata(), proc_def))
+278:         .ok_or_else(unavailable)?;
+279:     let registry = analysis.resolved_registry().ok_or_else(unavailable)?;
+280:     let formals = analysis
+281:         .original_procedure_formals(record, registry)
+282:         .ok_or_else(unavailable)?;
+283:     let config = analysis.body_lexer_config.ok_or_else(unavailable)?;
+284:     let image = tcl_lexer::SourceImage::document(source);
+285:     if !formals.matches_source(&image, config) {
+286:         return Err(unavailable());
 
 ### N15 refusal rust/tcl-lsp-core/src/minify/original.rs
 64:     UnsupportedLexicalContext,
@@ -1186,28 +1431,28 @@ revision 49b067ce128422e36b83ba255a75eea5fd0fa9a0
 1131:         profile.name = "explicit-lexical-authoring";
 
 ### profile seam rust/tcl-compiler/src/analyser/types.rs
-4284:     /// (the stricter 9.0 semantics).
-4285:     #[must_use]
-4286:     pub fn ns_var_global_fallback(&self) -> bool {
-4287:         self.resolved_profile()
-4288:             .or_else(|| tcl_dialect::DialectProfile::find(&self.dialect))
-4289:             .is_some_and(tcl_dialect::DialectProfile::namespace_var_global_fallback)
-4290:     }
-4291: 
-4292:     /// Whether byte offset `off` falls inside any recorded proc or class
-4293:     /// definition body — code there runs at *call* time, not load time, so
-4294:     /// anything it declares (a nested `proc`, a `rename`, an alias) exists
-4295:     /// only conditionally, when and if the enclosing definition is actually
-4296:     /// invoked. Shared by the analyser's own W123 gate
-4297:     /// (`registry_name_deleted_before`) and `tcl-lsp-core`'s call-target
-4298:     /// resolver (`resolve_called_proc`), so both agree on what "load-time"
-4299:     /// means for the same underlying question: a `proc ::set {...}` written
-4300:     /// inside another proc's body must not permanently outrank the real
-4301:     /// `set` builtin for every call site in the workspace, the same way a
-4302:     /// `rename ::set {}` written there must not permanently un-resolve it.
-4303:     #[must_use]
-4304:     pub fn offset_is_inside_any_definition_body(&self, off: u32) -> bool {
-4305:         self.all_procs
+4216:     /// (the stricter 9.0 semantics).
+4217:     #[must_use]
+4218:     pub fn ns_var_global_fallback(&self) -> bool {
+4219:         self.resolved_profile()
+4220:             .or_else(|| tcl_dialect::DialectProfile::find(&self.dialect))
+4221:             .is_some_and(tcl_dialect::DialectProfile::namespace_var_global_fallback)
+4222:     }
+4223: 
+4224:     /// Whether byte offset `off` falls inside any recorded proc or class
+4225:     /// definition body — code there runs at *call* time, not load time, so
+4226:     /// anything it declares (a nested `proc`, a `rename`, an alias) exists
+4227:     /// only conditionally, when and if the enclosing definition is actually
+4228:     /// invoked. Shared by the analyser's own W123 gate
+4229:     /// (`registry_name_deleted_before`) and `tcl-lsp-core`'s call-target
+4230:     /// resolver (`resolve_called_proc`), so both agree on what "load-time"
+4231:     /// means for the same underlying question: a `proc ::set {...}` written
+4232:     /// inside another proc's body must not permanently outrank the real
+4233:     /// `set` builtin for every call site in the workspace, the same way a
+4234:     /// `rename ::set {}` written there must not permanently un-resolve it.
+4235:     #[must_use]
+4236:     pub fn offset_is_inside_any_definition_body(&self, off: u32) -> bool {
+4237:         self.all_procs
 
 ### registry seam rust/tcl-lsp-core/src/workspace_index.rs
 1484:     /// exact store must still match the retained input. No Native capability
@@ -1256,108 +1501,108 @@ revision 49b067ce128422e36b83ba255a75eea5fd0fa9a0
 3764:             .contains(unroot_rooted_key(qualified_name).unwrap_or(qualified_name))
 
 ### class reanalysis seam rust/tcl-lsp-server/src/lib.rs
-20092:     }
-20093: 
-20094:     async fn analyse_with_workspace_classes_from_analysis(
-20095:         &self,
-20096:         uri: &Uri,
-20097:         source: &str,
-20098:         dialect: &'static tcl_dialect::DialectProfile,
-20099:         base: Arc<AnalysisResult>,
-20100:     ) -> Arc<AnalysisResult> {
-20101:         // Typed unavailable status and missing/stale source ownership are
-20102:         // terminal before either a cache hit or a secondary source walk.
-20103:         if tcl_compiler::source_graph::current_analysis(source, &base).is_none() {
-20104:             return base;
-20105:         }
-20106:         let Some(input) = base.resolved_input.clone() else {
-20107:             return base;
-20108:         };
-20109:         let resource = self.resource_analyser_inputs(Some(uri)).await;
-20110:         let (workspace_classes, workspace_bare_word_classes) = {
-20111:             let index = self.workspace_index.read().await;
-20112:             (
-20113:                 index.all_class_qnames(),
-20114:                 index.bare_word_construction_class_qnames(),
-20115:             )
-20116:         };
-20117:         // The class-factory oracle travels with the class-name set:
-20118:         // without it this tier would not see a class the document
-20119:         // manufactures through a cross-file metaclass at all, and a method
-20120:         // lookup on one would miss where the cached tier resolves it.
-20121:         let workspace_class_factories = self.class_factories_for(uri).await;
-20122:         let fingerprint = workspace_class_analysis_fingerprint(
-20123:             source,
-20124:             dialect,
-20125:             &workspace_classes,
-20126:             &workspace_bare_word_classes,
-20127:             workspace_class_factories.as_deref(),
-20128:         );
-20129:         if let Some(hit) = self
-20130:             .workspace_class_analyses
-20131:             .lock()
-20132:             .await
-20133:             .get(uri)
-20134:             .filter(|entry| {
-20135:                 entry.fingerprint == fingerprint
-20136:                     && entry.source_analysis.as_ref() == Some(&base)
-20137:                     && entry.resource_inputs.as_ref() == Some(&resource)
-20138:                     && tcl_compiler::source_graph::current_analysis(source, &entry.analysis)
-20139:                         .is_some()
-20140:             })
-20141:         {
-20142:             return Arc::clone(&hit.analysis);
-20143:         }
-20144:         let owned_source = source.to_owned();
-20145:         let analysis_resource = resource.clone();
-20146:         let analysis: Arc<AnalysisResult> = crate::rt::spawn_blocking(move || {
-20147:             Arc::new(
-20148:                 analysis_resource
-20149:                     .apply(tcl_compiler::analyser::Analyser::new())
-20150:                     .with_resolved_input(input.clone())
-20151:                     .with_workspace_classes(workspace_classes)
-20152:                     .with_workspace_bare_word_classes(workspace_bare_word_classes)
-20153:                     .with_workspace_class_factories(workspace_class_factories)
-20154:                     .analyse(&owned_source, input.analyser_profile().name),
-20155:             )
-20156:         })
-20157:         .await
-20158:         .unwrap_or_else(|_| Arc::clone(&base));
-20159:         if tcl_compiler::source_graph::current_analysis(source, &analysis).is_none() {
-20160:             return analysis;
-20161:         }
-20162:         self.workspace_class_analyses.lock().await.insert(
-20163:             uri.clone(),
-20164:             WorkspaceClassAnalysis {
-20165:                 fingerprint,
-20166:                 source_analysis: Some(base),
-20167:                 resource_inputs: Some(resource),
-20168:                 analysis: Arc::clone(&analysis),
-20169:             },
-20170:         );
-20171:         analysis
-20172:     }
-20173: 
-20174:     /// Resolve the `TclOO` method `(class, name, access)` under the cursor.
-20175:     /// Tries the cached (single-file) analysis first; if that finds nothing
-20176:     /// — the common pure-consumer case where `$obj`'s class is defined in
-20177:     /// another file and so is invisible to the file-local instance
-20178:     /// inference — retries against an analysis carrying the workspace
-20179:     /// class oracle.
-20180:     /// [`Self::resolve_method_target`] without the access context — the shape
-20181:     /// the rename entry points want.
-20182:     ///
-20183:     /// Rename and Find-All-References must resolve the cursor through the
-20184:     /// *same* tiers go-to-definition does, or a class-side call in a pure
-20185:     /// consumer file navigates but cannot be renamed.
-20186:     async fn resolve_method_rename_target(
-20187:         &self,
-20188:         uri: &Uri,
-20189:         doc: &DocumentState,
-20190:         analysis: &AnalysisResult,
-20191:         pos: Position,
-20192:     ) -> DocumentSourceResult<Option<(String, String, bool)>> {
-20193:         Ok(self
+20163:     }
+20164: 
+20165:     async fn analyse_with_workspace_classes_from_analysis(
+20166:         &self,
+20167:         uri: &Uri,
+20168:         source: &str,
+20169:         dialect: &'static tcl_dialect::DialectProfile,
+20170:         base: Arc<AnalysisResult>,
+20171:     ) -> Arc<AnalysisResult> {
+20172:         // Typed unavailable status and missing/stale source ownership are
+20173:         // terminal before either a cache hit or a secondary source walk.
+20174:         if tcl_compiler::source_graph::current_analysis(source, &base).is_none() {
+20175:             return base;
+20176:         }
+20177:         let Some(input) = base.resolved_input.clone() else {
+20178:             return base;
+20179:         };
+20180:         let resource = self.resource_analyser_inputs(Some(uri)).await;
+20181:         let (workspace_classes, workspace_bare_word_classes) = {
+20182:             let index = self.workspace_index.read().await;
+20183:             (
+20184:                 index.all_class_qnames(),
+20185:                 index.bare_word_construction_class_qnames(),
+20186:             )
+20187:         };
+20188:         // The class-factory oracle travels with the class-name set:
+20189:         // without it this tier would not see a class the document
+20190:         // manufactures through a cross-file metaclass at all, and a method
+20191:         // lookup on one would miss where the cached tier resolves it.
+20192:         let workspace_class_factories = self.class_factories_for(uri).await;
+20193:         let fingerprint = workspace_class_analysis_fingerprint(
+20194:             source,
+20195:             dialect,
+20196:             &workspace_classes,
+20197:             &workspace_bare_word_classes,
+20198:             workspace_class_factories.as_deref(),
+20199:         );
+20200:         if let Some(hit) = self
+20201:             .workspace_class_analyses
+20202:             .lock()
+20203:             .await
+20204:             .get(uri)
+20205:             .filter(|entry| {
+20206:                 entry.fingerprint == fingerprint
+20207:                     && entry.source_analysis.as_ref() == Some(&base)
+20208:                     && entry.resource_inputs.as_ref() == Some(&resource)
+20209:                     && tcl_compiler::source_graph::current_analysis(source, &entry.analysis)
+20210:                         .is_some()
+20211:             })
+20212:         {
+20213:             return Arc::clone(&hit.analysis);
+20214:         }
+20215:         let owned_source = source.to_owned();
+20216:         let analysis_resource = resource.clone();
+20217:         let analysis: Arc<AnalysisResult> = crate::rt::spawn_blocking(move || {
+20218:             Arc::new(
+20219:                 analysis_resource
+20220:                     .apply(tcl_compiler::analyser::Analyser::new())
+20221:                     .with_resolved_input(input.clone())
+20222:                     .with_workspace_classes(workspace_classes)
+20223:                     .with_workspace_bare_word_classes(workspace_bare_word_classes)
+20224:                     .with_workspace_class_factories(workspace_class_factories)
+20225:                     .analyse(&owned_source, input.analyser_profile().name),
+20226:             )
+20227:         })
+20228:         .await
+20229:         .unwrap_or_else(|_| Arc::clone(&base));
+20230:         if tcl_compiler::source_graph::current_analysis(source, &analysis).is_none() {
+20231:             return analysis;
+20232:         }
+20233:         self.workspace_class_analyses.lock().await.insert(
+20234:             uri.clone(),
+20235:             WorkspaceClassAnalysis {
+20236:                 fingerprint,
+20237:                 source_analysis: Some(base),
+20238:                 resource_inputs: Some(resource),
+20239:                 analysis: Arc::clone(&analysis),
+20240:             },
+20241:         );
+20242:         analysis
+20243:     }
+20244: 
+20245:     /// Resolve the `TclOO` method `(class, name, access)` under the cursor.
+20246:     /// Tries the cached (single-file) analysis first; if that finds nothing
+20247:     /// — the common pure-consumer case where `$obj`'s class is defined in
+20248:     /// another file and so is invisible to the file-local instance
+20249:     /// inference — retries against an analysis carrying the workspace
+20250:     /// class oracle.
+20251:     /// [`Self::resolve_method_target`] without the access context — the shape
+20252:     /// the rename entry points want.
+20253:     ///
+20254:     /// Rename and Find-All-References must resolve the cursor through the
+20255:     /// *same* tiers go-to-definition does, or a class-side call in a pure
+20256:     /// consumer file navigates but cannot be renamed.
+20257:     async fn resolve_method_rename_target(
+20258:         &self,
+20259:         uri: &Uri,
+20260:         doc: &DocumentState,
+20261:         analysis: &AnalysisResult,
+20262:         pos: Position,
+20263:     ) -> DocumentSourceResult<Option<(String, String, bool)>> {
+20264:         Ok(self
 
 ### method barrier seam rust/tcl-compiler/src/optimiser/method_barrier.rs
 231: /// obligations, external ancestry and unavailable reporting projections widen
@@ -1417,8 +1662,8 @@ revision 49b067ce128422e36b83ba255a75eea5fd0fa9a0
 285: /// Dispatch facts for every module proc, closed over the proc call graph
 286: /// (a proc that calls a proc that dispatches `$obj m` dispatches it too,
 287: /// on behalf of whoever called it).
-288: fn proc_dispatch_facts<'a>(
-289:     ir: &'a IrModule,
+288: fn proc_dispatch_facts(
+289:     ir: &IrModule,
 290:     registry: &CommandRegistry,
 291:     comp_of: &HashMap<String, usize>,
 292: ) -> HashMap<crate::ir::ProcedureId, DispatchFacts> {
@@ -1647,75 +1892,75 @@ revision 49b067ce128422e36b83ba255a75eea5fd0fa9a0
 7578:     /// None establishes no complete candidate inventory or namespace absence.
 
 ### 4.1 source order paths rust/tcl-lsp-core/src/source_graph.rs
-1618: /// [`ancestor_prefer_latest_raised`] already applies to the same edges.
-1619: #[derive(Debug, Clone, Default)]
-1620: pub struct RunOrder {
-1621:     /// None is the explicitly constructed compatibility model. Workspace
-1622:     /// navigation always retains Some, including unavailable source owners.
-1623:     source_contexts: Option<UriMap<SourceOrderContext>>,
-1624:     /// Root-ward path of every document the graph knows: root-first positions
-1625:     /// of the `source` statements that enter the next document down.  Empty
-1626:     /// for a root.
-1627:     paths: UriMap<Vec<Placed>>,
-1628:     /// Root document of every keyed document (itself, for a root).
-1629:     root_of: UriMap<String>,
-1630:     /// Documents with no unique position — re-sourced from two sites, or on a
-1631:     /// cycle.  Every cross-document comparison touching one abstains.
-1632:     ambiguous: UriSet,
-1633:     /// [`Self::alternatives`]'s answer, per **document** rather than per root.
-1634:     ///
-1635:     /// The `package require` sites that load a document's tree are a fact about
-1636:     /// its root, and whether the document may use them is a fact about its own
-1637:     /// ambiguity — both fixed at build time.  Resolving that per call meant up
-1638:     /// to three hash probes on owned URI strings inside the import walk, and
-1639:     /// the `package_entries.is_empty()` fast path that was supposed to make it
-1640:     /// free vanished the moment *any* document in the workspace contributed a
-1641:     /// package edge.  Folding it into one probe of one map costs
-1642:     /// nothing extra: the site vectors are shared with `Arc`, so a root's
-1643:     /// entry is stored once however many documents it covers, and a workspace
-1644:     /// with no package edge leaves the map empty and every probe a miss.
-1645:     package_alternatives: UriMap<Arc<[OwnedRunPoint]>>,
-1646: }
-1647: 
-1648: /// A [`RunPoint`] the order has to keep past the borrow it was built from —
-1649: /// the `package require` sites in [`RunOrder::package_entries`].
-1650: #[derive(Debug, Clone, PartialEq, Eq)]
-1651: struct OwnedRunPoint {
-1652:     uri: String,
-1653:     at: u32,
-1654:     enclosing_body: Option<tcl_lexer::Span>,
-1655: }
-1656: 
-1657: impl OwnedRunPoint {
-1658:     fn as_point(&self) -> RunPoint<'_> {
-1659:         RunPoint {
-1660:             uri: &self.uri,
-1661:             at: self.at,
-1662:             enclosing_body: self.enclosing_body,
-1663:         }
-1664:     }
-1665: }
-1666: 
-1667: impl RunOrder {
-1668:     /// Build an explicitly constructed source-order hypothesis. This pure
-1669:     /// compatibility ingress authenticates no execution or original source.
-1670:     /// Workspace navigation uses `for_source_navigation` and typed answers.
-1671:     ///
-1672:     /// `edges` are `(parent, child)` with the parent-side position of the
-1673:     /// statement that brings `child` into the run; the caller has already
-1674:     /// dropped non-literal and unresolvable `source` targets and applied the
-1675:     /// `package require` soundness gates.  A child `source`d from two distinct
-1676:     /// sites — or from itself — is marked ambiguous, as is everything below it
-1677:     /// and every document on a cycle.
-1678:     ///
-1679:     /// [`RunEdgeKind::PackageRequire`] edges are kept **out** of the tree: a
-1680:     /// package is loaded once, by whichever require runs first, so a provider
-1681:     /// required from twenty files has twenty upper bounds and no unique
-1682:     /// position.  They are recorded as [`Self::alternatives`] instead, which is
-1683:     /// all the bound can support.  A document that is both `source`d and
-1684:     /// `package require`d **is** ambiguous — it would then have a tree position
-1685:     /// claiming it ran exactly there and a bound saying it had already run
-1686:     /// earlier, and those can contradict.
-1687:     #[must_use]
-1688:     pub fn build(edges: &[RunEdge]) -> Self {
-1689:         Self::build_with_source_refusals(edges, UriSet::default())
+1636: /// [`ancestor_prefer_latest_raised`] already applies to the same edges.
+1637: #[derive(Debug, Clone, Default)]
+1638: pub struct RunOrder {
+1639:     /// None is the explicitly constructed compatibility model. Workspace
+1640:     /// navigation always retains Some, including unavailable source owners.
+1641:     source_contexts: Option<UriMap<SourceOrderContext>>,
+1642:     /// Root-ward path of every document the graph knows: root-first positions
+1643:     /// of the `source` statements that enter the next document down.  Empty
+1644:     /// for a root.
+1645:     paths: UriMap<Vec<Placed>>,
+1646:     /// Root document of every keyed document (itself, for a root).
+1647:     root_of: UriMap<String>,
+1648:     /// Documents with no unique position — re-sourced from two sites, or on a
+1649:     /// cycle.  Every cross-document comparison touching one abstains.
+1650:     ambiguous: UriSet,
+1651:     /// [`Self::alternatives`]'s answer, per **document** rather than per root.
+1652:     ///
+1653:     /// The `package require` sites that load a document's tree are a fact about
+1654:     /// its root, and whether the document may use them is a fact about its own
+1655:     /// ambiguity — both fixed at build time.  Resolving that per call meant up
+1656:     /// to three hash probes on owned URI strings inside the import walk, and
+1657:     /// the `package_entries.is_empty()` fast path that was supposed to make it
+1658:     /// free vanished the moment *any* document in the workspace contributed a
+1659:     /// package edge.  Folding it into one probe of one map costs
+1660:     /// nothing extra: the site vectors are shared with `Arc`, so a root's
+1661:     /// entry is stored once however many documents it covers, and a workspace
+1662:     /// with no package edge leaves the map empty and every probe a miss.
+1663:     package_alternatives: UriMap<Arc<[OwnedRunPoint]>>,
+1664: }
+1665: 
+1666: /// A [`RunPoint`] the order has to keep past the borrow it was built from —
+1667: /// the `package require` sites in [`RunOrder::package_entries`].
+1668: #[derive(Debug, Clone, PartialEq, Eq)]
+1669: struct OwnedRunPoint {
+1670:     uri: String,
+1671:     at: u32,
+1672:     enclosing_body: Option<tcl_lexer::Span>,
+1673: }
+1674: 
+1675: impl OwnedRunPoint {
+1676:     fn as_point(&self) -> RunPoint<'_> {
+1677:         RunPoint {
+1678:             uri: &self.uri,
+1679:             at: self.at,
+1680:             enclosing_body: self.enclosing_body,
+1681:         }
+1682:     }
+1683: }
+1684: 
+1685: impl RunOrder {
+1686:     /// Build an explicitly constructed source-order hypothesis. This pure
+1687:     /// compatibility ingress authenticates no execution or original source.
+1688:     /// Workspace navigation uses `for_source_navigation` and typed answers.
+1689:     ///
+1690:     /// `edges` are `(parent, child)` with the parent-side position of the
+1691:     /// statement that brings `child` into the run; the caller has already
+1692:     /// dropped non-literal and unresolvable `source` targets and applied the
+1693:     /// `package require` soundness gates.  A child `source`d from two distinct
+1694:     /// sites — or from itself — is marked ambiguous, as is everything below it
+1695:     /// and every document on a cycle.
+1696:     ///
+1697:     /// [`RunEdgeKind::PackageRequire`] edges are kept **out** of the tree: a
+1698:     /// package is loaded once, by whichever require runs first, so a provider
+1699:     /// required from twenty files has twenty upper bounds and no unique
+1700:     /// position.  They are recorded as [`Self::alternatives`] instead, which is
+1701:     /// all the bound can support.  A document that is both `source`d and
+1702:     /// `package require`d **is** ambiguous — it would then have a tree position
+1703:     /// claiming it ran exactly there and a bound saying it had already run
+1704:     /// earlier, and those can contradict.
+1705:     #[must_use]
+1706:     pub fn build(edges: &[RunEdge]) -> Self {
+1707:         Self::build_with_source_refusals(edges, UriSet::default())

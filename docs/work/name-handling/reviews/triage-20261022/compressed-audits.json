@@ -30,6 +30,18 @@
       "archive": "run10-after-fix-source-audit.log.gz",
       "uncompressed_sha256": "e6190b4b8b001d64ff01cf23de6b5c3d3c3a6ce6996ee91de24f4b4625fcd89f",
       "uncompressed_bytes": 84225
+    },
+    {
+      "original": "run14-source-audit.log",
+      "archive": "run14-source-audit.log.gz",
+      "uncompressed_sha256": "d3504a276819fbe7ff560a285c95eccd08c24624b01e05ca81deabdfcd902c5d",
+      "uncompressed_bytes": 84225
+    },
+    {
+      "original": "run16-source-audit.log",
+      "archive": "run16-source-audit.log.gz",
+      "uncompressed_sha256": "537e08d16b31d499962f5c34cd055df092d1e06fe6df01ed4333fc3029df36e7",
+      "uncompressed_bytes": 83574
     }
   ]
 }
