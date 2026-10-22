@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-22T11:00Z",
+  "source": "AskUserQuestion answer in chat",
+  "decisions": {
+    "rust_pr_gate": {
+      "choice": "Gate on the external review's section F",
+      "meaning": "The PR to `rust` opens only when, in addition to zero pass-to-fail against origin/rust, the release sign-off checklist in docs/work/name-handling/reviews/naming-migration-review-20261022.md section F is met: every section B row (N01-N17 and the section 3.2/3.3 seams) has a recorded fix, a tested conservative refusal or a justified out-of-scope disposition; supported static cases use authoritative dialect/environment-aware identities; SpecTcl meets C.1-C.2 (EDA, Jim core packs, UPF executable hooks, N17 fixed); the six section D server scenarios pass; enabled source transformations preserve behaviour in matched oracle fixtures; shipping-build latency, cancellation and memory results meet the recorded contract; required repository/host gates pass on the shipping commit; release notes state temporary restrictions and the deferred runtime/backend scope.",
+      "scope_note": "Consistent with decision 2026-10-21T13:10Z: VM/runtime migration stays deferred; functional SpecTcl defects are fixed."
+    }
+  }
+}
