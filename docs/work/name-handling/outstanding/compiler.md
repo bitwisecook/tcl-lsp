@@ -138,3 +138,9 @@ Files I have touched since e34d8a427e (details in `sol-49-NOTES.md`):
   - `diagnostics::fp` 447 → 479
   - remaining blockers are listed above
 - **Pre-C6 batch:** 0 pass-to-fail from my changes across `irules_event_checks`, `irules_checks`, `diagnostics::tests`/`fp`, `registry_invocation`, `signature_scan`, `taint`, `lowering`.
+
+## Coordinator note (2026-10-22T13:30Z)
+
+- The "reached" question is decided (`user-decisions-20261022T1317Z.json`): analysis models the code once loaded and running, so for after-load entries the preview-depth-0 walk that records actual compiler visits stays the modelled call (no separate reachability value). Apply narrow test corrections to the 8 `command_binding::` tests where they contradict this, citing that decision and the 2026-10-21T08:20Z decision; ask the user about any case that does not fit.
+- hover_residual: the schema is lost on the tcl-lsp-core side (`hover.rs` / `original_invocation.rs`), so it belongs to the lsp role (noted in outstanding/lsp.md).
+- Review N09/N10 residuals (no call-graph summary for `::n::c`; a class selected through `namespace path` gets no hover, type hierarchy or definition) are routed to compiler.

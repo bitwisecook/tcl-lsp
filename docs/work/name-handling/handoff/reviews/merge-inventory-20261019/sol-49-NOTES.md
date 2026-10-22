@@ -118,3 +118,11 @@ Owned paths: `rust/tcl-compiler` (except the files handed to compiler-codegen an
 | `source_graph::` | 1 / 2 | no baseline | both failures are §6 |
 | `source_class::tests` | 6 pre-existing failures, unchanged | 0 | the new D tests pass |
 | `depth_guard` new tests | pass (about 20 s each) | — | — |
+
+## 8. State at the 13:10Z pause
+
+- **Temporary code in the tree.** It compiles and must be removed before merge:
+  - `zz_sol49_dict_for_probe` in `fp/sh.rs`
+  - `zz_sol49_hover_schema_probe` in `registry_invocation/source_structure.rs`
+  - `zz_sol49_any(line!())` trace calls in `deferred_writes/supplied.rs` and `deferred_writes.rs`: each stands for `true` (or an `&&` operand that is true).
+- **C6 measurement status, probe findings and the exact resume command:** see `docs/work/name-handling/outstanding/compiler.md` (## Resume). The evidence is in `compiler/` next to this file.

@@ -64,3 +64,4 @@ Files touched by me (all already in snapshots up to `ddb21ae4db` except docs): t
 ## Coordinator note (2026-10-22T13:20Z)
 
 The Default-tier minify question is decided (`user-decisions-20261022T1317Z.json`): minify removes all whitespace it can, including inside braced expressions. `minify_preserves_string_and_expr_results` and `minify_strips_comments_and_collapses_whitespace_factorial` are correct as written; fix the native minify path to strip expression whitespace. No origin/rust check is needed for that decision.
+- hover_residual (from compiler, 13:30Z): for `regexp {plainword} $line` the compiler still returns the pattern schema; the hover is lost in tcl-lsp-core (`hover.rs` or `original_invocation.rs`). This is yours.
