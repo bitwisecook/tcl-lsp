@@ -1,0 +1,254 @@
+---- references_external_obj_method_inside_proc_body_subst stdout ----
+
+thread 'references_external_obj_method_inside_proc_body_subst' (20027) panicked at rust/tcl-lsp-core/tests/references_residual.rs:445:5:
+`[$d bark]` inside the proc body (line 6) missing: [LspRange { start_line: 1, start_character: 11, end_line: 1, end_character: 15 }]
+   0: __rustc::rust_begin_unwind
+---- itcl_class_proc_dispatch::fp_a_shadowing_proc_wins_over_the_class_proc stdout ----
+
+thread 'itcl_class_proc_dispatch::fp_a_shadowing_proc_wins_over_the_class_proc' (20332) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:626:9:
+assertion `left == right` failed: the shadowing proc's declaration + the `::app` call — not the class proc, and not the global call that still reaches the class proc
+  left: []
+ right: [5, 6]
+--
+---- itcl_class_proc_dispatch::fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc stdout ----
+
+thread 'itcl_class_proc_dispatch::fn_to_tp_the_class_resolver_pre_empts_a_global_namespace_proc' (20331) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:602:9:
+assertion `left == right` failed: go-to-definition from global reaches the plain proc
+  left: []
+ right: [0]
+--
+---- itcl_class_proc_dispatch::tp_every_dispatch_spelling_is_a_reference stdout ----
+
+thread 'itcl_class_proc_dispatch::tp_every_dispatch_spelling_is_a_reference' (20338) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:464:9:
+assertion `left == right` failed: decl + bare sibling + self-qualified + namespace-relative + absolute + global-relative
+  left: [2]
+ right: [2, 3, 4, 6, 8, 9]
+--
+---- itcl_class_proc_dispatch::tp_references_from_the_call_site_match_the_declaration stdout ----
+
+thread 'itcl_class_proc_dispatch::tp_references_from_the_call_site_match_the_declaration' (20372) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:476:9:
+assertion `left == right` failed
+  left: []
+ right: [2]
+--
+---- namespace_scoped_class_dispatch::fn_to_tp_an_explicit_namespace_import_is_followed stdout ----
+
+thread 'namespace_scoped_class_dispatch::fn_to_tp_an_explicit_namespace_import_is_followed' (20530) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:1356:9:
+assertion `left == right` failed: decl + the bare dispatch through the imported name
+  left: [2]
+ right: [2, 8]
+--
+---- namespace_scoped_class_dispatch::tn_object_command_dispatch_is_scoped_to_its_creation_namespace stdout ----
+
+thread 'namespace_scoped_class_dispatch::tn_object_command_dispatch_is_scoped_to_its_creation_namespace' (20697) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:1322:9:
+assertion `left == right` failed: ::b::Widget::make: decl + its OWN `rex make`, never ::a's
+  left: [9]
+ right: [9, 12]
+--
+---- pkgindex_dir::fp_other_undefined_var_in_pkgindex_still_fires stdout ----
+
+thread 'pkgindex_dir::fp_other_undefined_var_in_pkgindex_still_fires' (21035) panicked at rust/tcl-lsp-core/tests/name_resolution.rs:1004:9:
+an undefined `$missing` is still read-before-set in pkgIndex.tcl
+   0: __rustc::rust_begin_unwind
+---- code_actions_offer_the_reached_body_for_inlining stdout ----
+
+thread 'code_actions_offer_the_reached_body_for_inlining' (21055) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:379:5:
+with no covering export the local body is offered: ""
+   0: __rustc::rust_begin_unwind
+--
+---- inline_proc_inlines_the_reached_body_not_the_shadowed_local stdout ----
+
+thread 'inline_proc_inlines_the_reached_body_not_the_shadowed_local' (21131) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:337:5:
+with no covering export the local body is the right substitution: ""
+   0: __rustc::rust_begin_unwind
+--
+---- prepare_rename_offers_the_reached_definition stdout ----
+
+thread 'prepare_rename_offers_the_reached_definition' (21135) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:606:5:
+assertion `left == right` failed: prepare keeps the local when nothing is imported
+  left: None
+ right: Some(5)
+--
+---- rename_retargets_with_the_shadow stdout ----
+
+thread 'rename_retargets_with_the_shadow' (21174) panicked at rust/tcl-lsp-core/tests/force_import_shadow_consumers.rs:572:33:
+no refusal on a resolvable call: RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 5, start_character: 5, end_line: 5, end_character: 11 }) }
+   0: __rustc::rust_begin_unwind
+---- a_barrier_stub_fences_its_scope_from_renaming stdout ----
+
+thread 'a_barrier_stub_fences_its_scope_from_renaming' (21259) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:744:5:
+without `-barrier` the local is compacted; got "proc main {} {set local 1;spy;return $local}"
+   0: __rustc::rust_begin_unwind
+--
+---- a_deferred_registry_body_is_a_call_graph_edge stdout ----
+
+thread 'a_deferred_registry_body_is_a_call_graph_edge' (21260) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:231:5:
+a scheduled script's calls are the scheduler's own; got []
+   0: __rustc::rust_begin_unwind
+--
+---- a_mutator_stub_keeps_the_store_it_reads stdout ----
+
+thread 'a_mutator_stub_keeps_the_store_it_reads' (21269) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:710:5:
+without `-mutator` the declared write kills the store; got []
+   0: __rustc::rust_begin_unwind
+--
+---- a_pure_stub_keeps_its_caller_pure stdout ----
+
+thread 'a_pure_stub_keeps_its_caller_pure' (21274) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:664:5:
+the registry baseline: a pure wrapper's unused result goes; got []
+   0: __rustc::rust_begin_unwind
+--
+---- a_stated_mutation_narrows_an_extension_stub_and_a_stated_barrier_survives_it stdout ----
+
+thread 'a_stated_mutation_narrows_an_extension_stub_and_a_stated_barrier_survives_it' (21276) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:955:5:
+a command that only rewrites its target fences nothing; got "proc main {} {set local 1;ext_mut;return $local}"
+   0: __rustc::rust_begin_unwind
+--
+---- a_stated_purity_narrows_an_extension_stub_and_leaves_its_safety stdout ----
+
+thread 'a_stated_purity_narrows_an_extension_stub_and_leaves_its_safety' (21303) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:919:5:
+a declared-pure extension command is pure to the summary
+   0: __rustc::rust_begin_unwind
+--
+---- a_stub_callback_naming_another_proc_leaves_the_fold_standing stdout ----
+
+thread 'a_stub_callback_naming_another_proc_leaves_the_fold_standing' (21306) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:574:5:
+a callback naming another proc must not withhold helper's fold; got []
+   0: __rustc::rust_begin_unwind
+--
+---- a_stub_declared_body_is_analysed_as_a_script stdout ----
+
+thread 'a_stub_declared_body_is_analysed_as_a_script' (21479) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:185:5:
+assertion `left == right` failed: the stubbed body's own commands are resolved; got []
+  left: 0
+ right: 1
+--
+---- a_scope_alias_stub_aliases_its_local stdout ----
+
+thread 'a_scope_alias_stub_aliases_its_local' (21275) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:818:5:
+without `-scope_alias`, `cb` still holds `other` and the fold stands; got ["W307"]
+   0: __rustc::rust_begin_unwind
+--
+---- an_extension_stub_fences_its_scope_from_renaming stdout ----
+
+thread 'an_extension_stub_fences_its_scope_from_renaming' (21492) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:875:5:
+a stub that says nothing of the command fences nothing; got "proc main {} {set local 1;ext_spy;return $local}"
+   0: __rustc::rust_begin_unwind
+--
+---- a_stub_that_redeclares_a_catalogued_command_answers_nearest_wins stdout ----
+
+thread 'a_stub_that_redeclares_a_catalogued_command_answers_nearest_wins' (21488) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:979:5:
+the catalogue's `after` runs its script; got []
+   0: __rustc::rust_begin_unwind
+--
+---- an_extension_stub_is_hidden_in_a_safe_interpreter stdout ----
+
+thread 'an_extension_stub_is_hidden_in_a_safe_interpreter' (21493) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:889:5:
+native code is hidden in a safe interpreter; got []
+   0: __rustc::rust_begin_unwind
+--
+---- an_omitted_optional_slot_shifts_the_body_role stdout ----
+
+thread 'an_omitted_optional_slot_shifts_the_body_role' (21494) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:388:5:
+the body lands on the supplied word; got []
+   0: __rustc::rust_begin_unwind
+--
+---- an_unsafe_stub_is_hidden_in_a_safe_interpreter stdout ----
+
+thread 'an_unsafe_stub_is_hidden_in_a_safe_interpreter' (21502) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:835:5:
+the registry baseline: `exec` is hidden in a safe interpreter; got []
+   0: __rustc::rust_begin_unwind
+--
+---- registry_body_role_is_a_call_graph_edge stdout ----
+
+thread 'registry_body_role_is_a_call_graph_edge' (21520) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:98:5:
+a registry body command's script is the caller's own calls; got []
+   0: __rustc::rust_begin_unwind
+--
+---- registry_command_prefix_role_is_a_call_graph_edge stdout ----
+
+thread 'registry_command_prefix_role_is_a_call_graph_edge' (21523) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:271:5:
+a registry callback position is an edge; got []
+   0: __rustc::rust_begin_unwind
+--
+---- stub_body_role_is_a_call_graph_edge stdout ----
+
+thread 'stub_body_role_is_a_call_graph_edge' (21556) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:119:5:
+a stub-declared body must contribute the same edge a registry body does; got []
+   0: __rustc::rust_begin_unwind
+--
+---- stub_command_prefix_role_is_a_call_graph_edge stdout ----
+
+thread 'stub_command_prefix_role_is_a_call_graph_edge' (21557) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:289:5:
+a stub-declared callback position is an edge; got []
+   0: __rustc::rust_begin_unwind
+--
+---- stub_var_role_suppresses_only_the_name_it_declares stdout ----
+
+thread 'stub_var_role_suppresses_only_the_name_it_declares' (21647) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:463:5:
+assertion `left == right` failed: only the undeclared `other` is read before set; got []
+  left: 0
+ right: 1
+--
+---- stub_expr_role_is_a_call_graph_edge stdout ----
+
+thread 'stub_expr_role_is_a_call_graph_edge' (21646) panicked at rust/tcl-lsp-core/tests/stub_arg_roles.rs:219:5:
+a stub-declared expression operand's substitutions are calls; got []
+   0: __rustc::rust_begin_unwind
+---- linked_editing_links_namespace_relative_self_call stdout ----
+
+thread 'linked_editing_links_namespace_relative_self_call' (21727) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:878:10:
+namespace-relative self-call should link to the declaration
+   0: __rustc::rust_begin_unwind
+--
+---- minify_compact_isolated_renames_proc_everywhere_and_preserves_result stdout ----
+
+thread 'minify_compact_isolated_renames_proc_everywhere_and_preserves_result' (21744) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:384:5:
+assertion `left == right` failed
+  left: "proc fact {n} {if {$n <= 1} { return 1 };return [expr {$n * [fact [expr {$n - 1}]]}]};puts [fact 5]"
+ right: "proc a {n} {if {$n<=1} {return 1};return [expr {$n*[a [expr {$n-1}]]}]};puts [a 5]"
+--
+---- minify_compact_renames_local_var_at_def_and_read stdout ----
+
+thread 'minify_compact_renames_local_var_at_def_and_read' (21750) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:428:5:
+assertion `left == right` failed
+  left: "proc add {a b} {set sum [expr {$a + $b}];return $sum};puts [add 2 3]"
+ right: "proc a {a b} {set c [expr {$a+$b}];return $c};puts [a 2 3]"
+--
+---- minify_preserves_string_and_expr_results stdout ----
+
+thread 'minify_preserves_string_and_expr_results' (21758) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:313:5:
+assertion `left == right` failed
+  left: "set s \"hello world\";puts [string toupper $s];puts [expr {3 + 4 * 2}]"
+ right: "set s \"hello world\";puts [string toupper $s];puts [expr {3+4*2}]"
+--
+---- minify_strips_comments_and_collapses_whitespace_factorial stdout ----
+
+thread 'minify_strips_comments_and_collapses_whitespace_factorial' (21800) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:272:5:
+assertion `left == right` failed
+  left: "proc fact {n} {if {$n <= 1} { return 1 };return [expr {$n * [fact [expr {$n - 1}]]}]};puts [fact 5]"
+ right: "proc fact {n} {if {$n<=1} {return 1};return [expr {$n*[fact [expr {$n-1}]]}]};puts [fact 5]"
+--
+---- workspace_symbols_classmethod_surfaces_as_method stdout ----
+
+thread 'workspace_symbols_classmethod_surfaces_as_method' (21817) panicked at rust/tcl-lsp-core/tests/lsp_edit_workspace.rs:223:5:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+---- residual_hover_option_word_of_command stdout ----
+
+thread 'residual_hover_option_word_of_command' (19590) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:407:54:
+option hover
+   0: __rustc::rust_begin_unwind
+--
+---- residual_hover_regexp_literal_pattern_notes_no_metacharacters stdout ----
+
+thread 'residual_hover_regexp_literal_pattern_notes_no_metacharacters' (19638) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:293:48:
+regexp literal hover
+   0: __rustc::rust_begin_unwind
+--
+---- residual_hover_regexp_pattern_anchors_and_class stdout ----
+
+thread 'residual_hover_regexp_pattern_anchors_and_class' (19695) panicked at rust/tcl-lsp-core/tests/hover_residual.rs:266:48:
+regexp hover
+   0: __rustc::rust_begin_unwind

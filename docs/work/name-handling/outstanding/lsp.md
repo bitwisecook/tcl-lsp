@@ -2,28 +2,30 @@
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-22T12:50Z
+Last updated: 2026-10-22T13:09Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Where to pick up: integration batch `p8` (p7 targets + hover_residual) was started at 2026-10-22T12:50Z; scratch logs `out-p8-*.log` / `status-p8-*.txt`. Next: tcl-lsp-server lib as ONE process again (vm-runtime fixed the thread-exit SIGABRT, coordinator 2026-10-22 ~12:50Z) with `--test-threads=2` and a whole-run timeout, compare with srv4; then lsp-core lib (minify tests first, for the N15 list), tcl-lsp-db lib, clippy.
+State: PAUSED at 2026-10-22T13:09Z on coordinator/user instruction. No build or test is running; every executable my commands built was deleted. No source edits in flight (last source edits: N05 rename guard, N15 minify gate, references_residual rulings A/B — all compile-checked before the pause).
 
-Commands (from the repo root; scripts in `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/`, copy them to a scratch dir and set `S` inside them to that dir first):
+Partial results of integration batch `p8` (current tree, built 13:01Z; evidence `merge-inventory-20261019/lsp/status-p8-*.txt`, `p8-failure-messages.txt`, `p8-summary.txt`):
+- hover_completion **56/56**; hover_residual 33/36 (3 compiler §3c, unchanged); references_residual **23/24** (new negative test passes; ruling-B positive `references_external_obj_method_inside_proc_body_subst` still fails: `[$d bark]` at line 6 not reported even with `global d` — next: check whether the `global d` link reaches the method-dispatch reference path in `references.rs`/`method_symbol.rs`); name_resolution **70/77** (itcl ×4, C6, tn_object, C9); force_import_shadow_consumers **7/11** (4 never-passed unshadowed halves).
+- stub_arg_roles 15/35 and lsp_edit_workspace 31/37: first measurement in this session, failures not yet classified. lsp_edit_workspace: 2 minify **compact** tests are N15 (now refused → change expectation per N15 rule, cite review N15 + decision 2026-10-22T11:00Z); 2 Default-tier minify tests (`minify_preserves_string_and_expr_results`, `minify_strips_comments_and_collapses_whitespace_factorial`) expect expression-internal whitespace removal (`{3+4*2}`) that the native "whole original words" path no longer does — NOT caused by N15; needs an origin/rust check and a decision; `linked_editing_links_namespace_relative_self_call`, `workspace_symbols_classmethod_surfaces_as_method` unclassified.
+- references_rename: stopped after 14 tests (both N05 regressions pass; 3 failures so far), `status-p8-references_rename-partial.txt`. minify_residual: not run.
 
-- integration batch (build + run + delete in one command):
-  `runmulti.sh tcl-lsp-core p7 hover_completion force_import_shadow_consumers references_residual references_rename minify_residual name_resolution lsp_edit_workspace stub_arg_roles`
-- a lib crate, one process per test, 400 s cap, 3 parallel (survives the thread-exit TLS abort and hangs):
-  `PAR=3 TESTTIMEOUT=400 runmods.sh tcl-lsp-server srv5` (same for `tcl-lsp-core`, `tcl-lsp-db`)
-- environment used by all: `CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0 TCL_LSP_REQUIRE_TCLSH=9.0,8.6 TCL_LSP_JIMSH=$PWD/tmp/jimtcl-oracle/jimsh`; check `df -h /` ≥ 2.3 GB first.
+Exact next commands (from the repo root; scripts in `merge-inventory-20261019/lsp/`, copy to a scratch dir and set `S` inside them first; check `df -h /` ≥ 2.3 GB and no other big rustc):
+1. `runmulti.sh tcl-lsp-core p9 references_rename minify_residual` (build + run + delete in one command).
+2. tcl-lsp-server lib as ONE process again (vm-runtime fixed the thread-exit SIGABRT): `cargo test -p tcl-lsp-server --lib --no-run` then in the same command `timeout 5400 <exe> --test-threads=2`, `rm <exe>`; confirm no abort; compare with srv4 (694/140/6, `server-lib-srv4-failures.txt`).
+3. tcl-lsp-core lib, minify module first (`minify::` filter) to produce the N15 changed-expectation list (each with origin/rust status), then the whole lib; tcl-lsp-db lib; clippy.
+Environment for all: `CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0 TCL_LSP_REQUIRE_TCLSH=9.0,8.6 TCL_LSP_JIMSH=$PWD/tmp/jimtcl-oracle/jimsh`.
 
-Evidence in the repo (`merge-inventory-20261019/lsp/`): `server-lib-srv4-status.txt` (tcl-lsp-server lib per test on the ~11:05Z tree: 694 ok / 140 FAILED / 6 TIMEOUT of 840; binary predates the N05/N15 edits), `status-nr0.txt`, `status-p4-*.txt`, `status-p5-*.txt` (integration targets), `probe-results.txt` (timings, object-dispatch, itcl, completion and relation probes), `folder-add-hang-bt.txt` (gdb samples), `zz_lsp_agent_probe.rs.txt` (probe source, not a test). Hand-back draft: `merge-inventory-20261019/lsp-NOTES.md`.
+Files touched by me (all already in snapshots up to `ddb21ae4db` except docs): tcl-lsp-core `definition.rs`, `hover.rs`, `hover/original_registry.rs`, `completion.rs`, `completion/original_variables.rs`, `references.rs`, `rename.rs`, `method_symbol.rs`, `original_declaration.rs`, `call_hierarchy.rs`, `inlay_hints.rs`, `signature_help.rs`, `refactor/inline_proc.rs`, `package_resolver/original_names.rs`, `minify/original.rs`; tests `force_import_shadow_consumers.rs`, `hover_residual.rs`, `references_residual.rs`, `references_rename.rs`, `minify_residual.rs`; tcl-lsp-server `fresh_analysis_cache.rs` (new), `lib.rs`. Docs: this file, `merge-inventory-20261019/lsp-NOTES.md` (sections 1–5 written; §1/§2 numbers need the p8/p9 update), evidence dir `merge-inventory-20261019/lsp/`.
 
 ## In progress
 
-- tcl-lsp-server lib run on the current tree, one process per test (400 s cap) because the whole-binary run aborts at thread exit (vm-runtime TLS bug, see Blocked); fresh binary, host-install survey now off in the test harness: collect failures, separate Server108-cache-caused from pre-existing; verify `fresh_analysis_is_reused_only_for_an_unchanged_input_revision`, `scan_workspace_folders_surveys_a_pinned_discovered_installation`, and the two 180 s tests (`workspace_symbol_caps_its_answer`, `startup_index_and_factory_reindex_keep_checked_document_roles`).
-- Re-run lsp-core integration targets after the latest edits: hover_completion (past-end-of-line `$` completion clamp), force_import_shadow_consumers (references/rename agreement test), references_residual, name_resolution.
+- (paused) integration re-measurement p8/p9, see Resume.
 
 ## Outstanding (in priority order)
 
@@ -47,6 +49,7 @@ Evidence in the repo (`merge-inventory-20261019/lsp/`): `server-lib-srv4-status.
 
 ## Done since the last update (with evidence: test counts, commit or snapshot)
 
+- p8 (13:01Z tree): hover_completion 56/56, references_residual 23/24, name_resolution 70/77, force_import 7/11, hover_residual 33/36 (`lsp/status-p8-*.txt`). Saved srv4 per-test failure table `lsp/server-lib-srv4-failures.txt`. lsp-NOTES.md §2, §3, §5 written.
 - Review N05 (pending measurement): `rename_in_program` refuses any edit that find-references from the same cursor does not report (overlap check, `unreferenced-edit`); `references_rename` N05 regressions (forced import, before/after `-force`, `forget`, redefinition after `-force`) assert edits ⊆ references and unchanged tclsh output for accepted renames. Cross-file case covered by force_import_shadow_consumers agreement test.
 - Review N15 (pending measurement): lexical ("tcl") Compact/Aggressive minify now refuse alpha renaming exactly like the native path (`LEXICAL_NAMING_PASSES = false` in minify/original.rs; the old `compact_names` passes are no longer reachable from any public entry, including the server's minifyDocument); `minify_residual` N15 regression asserts the refusal and executed output on tcl / tcl8.6 / tcl9.0.
 - references_residual rulings (A) real `incr x` write/read collision, (B) `global d` fixture + negative no-global case — applied, compile-checked, pending run.

@@ -1,0 +1,15 @@
+disk avail 2609M
+hover_residual exit 101
+hover_residual ok=33 fail=3
+references_residual exit 101
+references_residual ok=23 fail=1
+name_resolution exit 101
+name_resolution ok=70 fail=7
+force_import_shadow_consumers exit 101
+force_import_shadow_consumers ok=7 fail=4
+stub_arg_roles exit 101
+stub_arg_roles ok=15 fail=20
+lsp_edit_workspace exit 101
+lsp_edit_workspace ok=31 fail=6
+hover_completion exit 0
+hover_completion ok=56 fail=0
