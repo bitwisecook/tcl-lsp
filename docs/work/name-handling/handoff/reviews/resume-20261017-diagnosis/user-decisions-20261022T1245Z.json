@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-22T12:45Z",
+  "source": "AskUserQuestion answer in chat",
+  "decisions": {
+    "disk_pressure": {
+      "choice": "Move agents out",
+      "meaning": "The bigip-lsp, perf and review-triage agents move to separate cloud sessions on branch `work`, each with its own disk, resuming from their outstanding/<role>.md Resume sections and the evidence stored in the repo. They push their own commits to `work` (rebasing onto the latest), and the coordinator's 30-minute cycle reads their outstanding files after fetching."
+    }
+  }
+}
