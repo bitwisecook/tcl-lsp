@@ -1,0 +1,77 @@
+{
+  "utc": "2026-10-22T20:15:23.807602+00:00",
+  "patch": "/tmp/compiler-c6-source-argument-owner.patch",
+  "sha256": "70ae99fb2d8b1b16a6385600d6254f3bca3511de0d7890576a9a8e08e5616ada",
+  "status": "OFF-TREE first review draft; parser formatting and exact applycheck only; no typecheck/application/Cargo/semantic acceptance. Includes prior compiler-owner756 production+controls, no fixture3174 changes.",
+  "authority": "Distinct actual whole-input kernel segmented command/config inventory and sealed root/complete checked substitution vectors under actual original analysis owner. No compiler/dispatch/frame/descriptor/value/Normal grants. Region/body purpose remains refused absent dedicated issued inventory.",
+  "limitations": "Does not fix original Direct List literal TN: current authentic conditional List descriptor/result proof is separate outstanding work. Actual compiler snapshot variance unchanged.",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "1affe6ac4b4c516306afb517d227223ba386b826532f85fe87b74f7bbc9c5c1b",
+      "after_sha256": "7b1352258c6d926706893b561dc25e68679f340d204fd6bbcc0e83fda2c876cb",
+      "diff_lines": 84,
+      "hunks": [
+        "@@ -311,6 +311,7 @@",
+        "@@ -1390,6 +1391,7 @@",
+        "@@ -2414,6 +2416,9 @@",
+        "@@ -3759,6 +3764,8 @@",
+        "@@ -3839,6 +3846,7 @@",
+        "@@ -8361,6 +8369,7 @@",
+        "@@ -8368,6 +8377,12 @@",
+        "@@ -8417,6 +8432,9 @@",
+        "@@ -8904,6 +8922,7 @@"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_argument_syntax.rs",
+      "before_sha256": null,
+      "after_sha256": "4171cada7a25a134b9e36ebf81ae38e5e8e64700f74c72fd063f6895ef06548e",
+      "diff_lines": 393,
+      "hunks": [
+        "@@ -0,0 +1,390 @@"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "before_sha256": "03e25731908184ff3101bdad20acb58ef982050d27fa6db1cc9d9171f1fba31e",
+      "after_sha256": "73e0e0c372db70e50fa459f986a16f62f77d1c1cfc3436cafd4a9475f141bdaf",
+      "diff_lines": 210,
+      "hunks": [
+        "@@ -20,6 +20,112 @@",
+        "@@ -1718,6 +1824,94 @@"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_taint.rs",
+      "before_sha256": "fa5e3c7e7702b5c73d8d9b8d06328764c4f7a1f0f67c50d0745d8889ba202023",
+      "after_sha256": "6dbd969ab66cfc96cc55ab5823d5928140b836078fcc3ca1193431beec1abf5f",
+      "diff_lines": 170,
+      "hunks": [
+        "@@ -25,7 +25,8 @@",
+        "@@ -49,8 +50,8 @@",
+        "@@ -96,7 +97,8 @@",
+        "@@ -239,15 +241,19 @@",
+        "@@ -275,9 +281,12 @@",
+        "@@ -295,8 +304,17 @@",
+        "@@ -305,19 +323,51 @@",
+        "@@ -385,7 +435,8 @@"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/taint.rs",
+      "before_sha256": "e44f95cda281895ce898d006fe3e3f89c843f15fb551e498adaf9496a78ac8eb",
+      "after_sha256": "22faf1f3acda6c5361899039d2fbfcbfcb71398aba2a9e81754a31a76d77cdfb",
+      "diff_lines": 244,
+      "hunks": [
+        "@@ -5562,19 +5562,27 @@",
+        "@@ -6785,6 +6793,37 @@",
+        "@@ -6794,22 +6833,68 @@",
+        "@@ -6824,32 +6909,15 @@",
+        "@@ -6867,9 +6935,10 @@",
+        "@@ -6878,13 +6947,14 @@",
+        "@@ -8936,10 +9006,12 @@"
+      ]
+    }
+  ]
+}

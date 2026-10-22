@@ -1,0 +1,57 @@
+   Compiling thiserror v2.0.21
+   Compiling smallvec v1.16.3
+   Compiling tcl-lexer v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lexer)
+   Compiling allocator-api2 v0.2.21
+   Compiling hashbrown v0.17.1
+   Compiling indexmap v2.14.2
+   Compiling asn1-rs v0.7.2
+   Compiling tcl-syntax v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-syntax)
+   Compiling serde_json v1.0.154
+   Compiling serde v1.0.229
+   Compiling der-parser v10.0.0
+   Compiling oid-registry v0.8.1
+   Compiling x509-parser v0.18.1
+   Compiling tcl-runtime-api v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bytecode)
+   Compiling ref-cast v1.0.27
+   Compiling tcl-engine-api v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-engine-api)
+   Compiling fluent-uri v0.4.1
+   Compiling parking_lot_core v0.9.12
+   Compiling tracing v0.1.44
+   Compiling parking_lot v0.12.5
+   Compiling typeid v1.0.3
+   Compiling portable-atomic v1.15.0
+   Compiling tcl-pkg-model v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-pkg-model)
+   Compiling crossbeam-queue v0.3.14
+   Compiling tcl-regex v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry)
+   Compiling hashlink v0.12.2
+   Compiling salsa-macro-rules v0.28.5
+   Compiling thin-vec v0.2.21
+   Compiling inventory v0.3.25
+   Compiling intrusive-collections v0.10.3
+   Compiling boxcar v0.2.14
+   Compiling salsa v0.28.5
+   Compiling tcl-compiler v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm)
+warning: method `native_argument_input` is never used
+  --> rust/tcl-compiler/src/analyser/original_definer.rs:79:19
+   |
+19 | impl OriginalClassDefinerSource {
+   | ------------------------------- method in this implementation
+...
+79 |     pub(super) fn native_argument_input(
+   |                   ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+   Compiling tcl-sslictcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db)
+    Finished `test` profile [unoptimized] target(s) in 12m 35s

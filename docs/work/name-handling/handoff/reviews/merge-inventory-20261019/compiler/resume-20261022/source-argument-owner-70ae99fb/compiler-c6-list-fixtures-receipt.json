@@ -1,0 +1,34 @@
+{
+  "patch": "/tmp/compiler-c6-list-compiler-fixtures.patch",
+  "sha256": "3174c5a67f9baa2517c107c96c0224180d56f91b89bc46a603b766b5985a25d6",
+  "status": "OFF-TREE fixture-only correction; original source strings and assertions retained, explicit compiler entry replaces Direct positive setup, original Direct sources retained in additional negative. No Cargo/typecheck/run.",
+  "authority": [
+    "tmp/tcl8.6.18/generic/tclBasic.c5050 Tcl_EvalEx without compiler",
+    "tmp/tcl8.6.18/generic/tclParse.c2298 brackets use TclEvalEx",
+    "tmp/tcl8.6.18/generic/tclBasic.c6204 object compiler path unless TCL_EVAL_DIRECT",
+    "rust/tcl-compiler/src/environment_ingress.rs62 authoring Direct",
+    "rust/tcl-compiler/src/command_binding/compiled_invocation.rs1017 Direct returns Generic"
+  ],
+  "fixture_difference": "BytecodeObject context+actual independently captured native registration and complete retained input; VM owner kept alive. No requested source is executed or runtime completion attested.",
+  "filters": "compiled_list_head_ now expected4 instead of3 (one new Direct three-source refusal control); original fp_tnt_03 unchanged and unresolved.",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_taint.rs",
+      "before_sha256": "fa5e3c7e7702b5c73d8d9b8d06328764c4f7a1f0f67c50d0745d8889ba202023",
+      "after_sha256": "c5d24af5c3c149a85ba9817f03e2a6747de8df7a9e7dc544577e5b0c198934d8",
+      "hunks": [
+        "@@ -863,15 +863,55 @@",
+        "@@ -879,9 +919,7 @@",
+        "@@ -911,11 +949,38 @@"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "1affe6ac4b4c516306afb517d227223ba386b826532f85fe87b74f7bbc9c5c1b",
+      "after_sha256": "4aa4b1ed094c0df4db2bac020335f6d1757dbd6b76ba38ff856460a52c87f924",
+      "hunks": [
+        "@@ -25512,16 +25512,53 @@"
+      ]
+    }
+  ]
+}

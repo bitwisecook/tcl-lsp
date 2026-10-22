@@ -1,0 +1,174 @@
+--- a/rust/tcl-compiler/src/registry_invocation/source_taint.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_taint.rs
+@@ -863,15 +863,55 @@
+         (parent, child)
+     }
+ 
++    fn bytecode_list_fixture(
++        source: &str,
++    ) -> (crate::compilation_unit::CompilationUnit, tcl_vm::Vm) {
++        let context = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
++            .unwrap()
++            .default_context_registry();
++        let registry = context.commands();
++        let profile = registry.profile().unwrap();
++        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
++        let input = crate::analyser::ResolvedAnalysisInput::new(
++            profile,
++            profile,
++            std::sync::Arc::clone(&context),
++            config,
++        );
++        let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
++        let mut entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
++            registry,
++            &input,
++            config,
++            Some(profile),
++        );
++        entry.native_entry = Some(std::sync::Arc::new(native));
++        entry.native_compilation.mode =
++            tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject;
++        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
++            source,
++            crate::compilation_unit::UnitBuildOptions {
++                registry,
++                defer_top_level: false,
++                config,
++                dialect: Some(profile),
++                external_call_sites: None,
++                declared_commands: None,
++            },
++            Some(&entry),
++            &input,
++        );
++        (unit, owner)
++    }
++
+     #[test]
+     fn compiled_list_head_uses_one_current_original_compiler_owner() {
+         let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+         let registry = context.commands();
+-        let profile = registry.profile().unwrap();
+         let source = "set payload [gets stdin]; puts [list puts $payload]";
+-        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+-            source, registry, false, profile,
+-        );
++        // Direct file evaluation has no Native List instruction. This positive
++        // explicitly requests bytecode and keeps its real registration owner.
++        let (unit, _owner) = bytecode_list_fixture(source);
+         let (parent, child) = retained_list_child(&unit, registry);
+         let metadata =
+             super::super::InvocationMetadataContext::for_module(registry, &unit.ir_module).unwrap();
+@@ -879,9 +919,7 @@
+             original_compiled_list_head(registry, metadata, parent, &child).as_deref(),
+             Some("puts")
+         );
+-        let foreign = crate::compilation_unit::CompilationUnit::build_for_profile(
+-            source, registry, false, profile,
+-        );
++        let (foreign, _foreign_owner) = bytecode_list_fixture(source);
+         let (_, foreign_child) = retained_list_child(&foreign, registry);
+         assert!(original_compiled_list_head(registry, metadata, parent, &foreign_child).is_none());
+         let mut changed = child.clone();
+@@ -911,11 +949,38 @@
+             "set payload [gets stdin]; puts [list $payload]",
+             "set payload [gets stdin]; puts [list {*}{puts} $payload]",
+         ] {
++            let (unit, _owner) = bytecode_list_fixture(source);
++            let (parent, child) = retained_list_child(&unit, registry);
++            let metadata =
++                super::super::InvocationMetadataContext::for_module(registry, &unit.ir_module)
++                    .unwrap();
++            assert!(
++                original_compiled_list_head(registry, metadata, parent, &child).is_none(),
++                "{source}"
++            );
++        }
++    }
++
++    #[test]
++    fn compiled_list_head_direct_file_refuses_a_compiler_instruction() {
++        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
++        let registry = context.commands();
++        for source in [
++            "set payload [gets stdin]; puts [list puts $payload]",
++            "set payload [gets stdin]; puts [list $payload]",
++            "set payload [gets stdin]; puts [list {*}{puts} $payload]",
++        ] {
++            // C Tcl_EvalEx and its bracket substitutions do not compile this
++            // source. Tcl_EvalObjEx without TCL_EVAL_DIRECT is the positive above.
+             let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                 source,
+                 registry,
+                 false,
+                 registry.profile().unwrap(),
++            );
++            assert_eq!(
++                unit.ir_module.source_entry.native_compilation.mode,
++                tcl_registry::native_compilation::NativeCompilationMode::Direct
+             );
+             let (parent, child) = retained_list_child(&unit, registry);
+             let metadata =
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -25512,16 +25512,53 @@
+ mod original_compiled_list_owner_join_tests {
+     use super::SourceInvocationBinding;
+ 
++    fn bytecode_list_fixture(
++        source: &str,
++    ) -> (crate::compilation_unit::CompilationUnit, tcl_vm::Vm) {
++        let context = tcl_registry::model::ingress::resolve_known_environment("tcl8.6")
++            .unwrap()
++            .default_context_registry();
++        let registry = context.commands();
++        let profile = registry.profile().unwrap();
++        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
++        let input = crate::analyser::ResolvedAnalysisInput::new(
++            profile,
++            profile,
++            std::sync::Arc::clone(&context),
++            config,
++        );
++        let (owner, native) = crate::environment_ingress::captured_native_entry_with_owner(profile);
++        let mut entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
++            registry,
++            &input,
++            config,
++            Some(profile),
++        );
++        entry.native_entry = Some(std::sync::Arc::new(native));
++        entry.native_compilation.mode =
++            tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject;
++        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
++            source,
++            crate::compilation_unit::UnitBuildOptions {
++                registry,
++                defer_top_level: false,
++                config,
++                dialect: Some(profile),
++                external_call_sites: None,
++                declared_commands: None,
++            },
++            Some(&entry),
++            &input,
++        );
++        (unit, owner)
++    }
++
+     #[test]
+     fn compiled_list_head_original_owner_refuses_unknown_binding_join() {
+         let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+         let registry = context.commands();
+-        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+-            "set payload [gets stdin]; puts [list puts $payload]",
+-            registry,
+-            false,
+-            registry.profile().unwrap(),
+-        );
++        let (unit, _owner) =
++            bytecode_list_fixture("set payload [gets stdin]; puts [list puts $payload]");
+         let ssa = &unit.top_level.ssa;
+         let parent = ssa
+             .blocks

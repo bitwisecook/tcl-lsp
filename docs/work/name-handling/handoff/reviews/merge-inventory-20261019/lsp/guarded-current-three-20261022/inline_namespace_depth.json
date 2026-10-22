@@ -1,0 +1,16 @@
+{
+  "selector": "refactor::inline_variable::tests::deeply_nested_namespaces_survive_scope_walk",
+  "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_lsp_core-15c44a715e01e5f9",
+  "artifact_before_sha256": "43cf7a647a42a350107e85aac13cc986a6370505b42b8c5fc0a0f28d301cd741",
+  "artifact_after_sha256": "43cf7a647a42a350107e85aac13cc986a6370505b42b8c5fc0a0f28d301cd741",
+  "exit_code": 0,
+  "timed_out": false,
+  "budget_seconds": 180,
+  "seconds": 111.32,
+  "passed": true,
+  "log_sha256": "ef0af93fed3d2a265e9cae5b16f6da724f6567332ad838952761581500bd50c4",
+  "diagnostic_environment": {
+    "TCL_LSP_TRACE_SOURCE_PHASES": null,
+    "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+  }
+}

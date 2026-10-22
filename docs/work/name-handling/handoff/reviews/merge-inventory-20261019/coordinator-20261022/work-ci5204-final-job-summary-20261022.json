@@ -1,0 +1,286 @@
+{
+  "utc": "2026-10-22T20:12:44.794612+00:00",
+  "run_id": 39840492769,
+  "run_number": 5204,
+  "head_sha": "7cca49ca73b67aab94bcd9aa27a3a358273e4d78",
+  "complete_job_inventory": true,
+  "jobs_api_total_count": 43,
+  "retrieved_job_count": 43,
+  "connector_limit": "Default wrapper returned first30; gh API per_page100 reconciled all43.",
+  "raw_jobs_sha256": "2815b9c6cad4b83b8944c62c759f23b8092042a7f940b45d986f2a9bc2c10b0b",
+  "conclusions": {
+    "success": 2,
+    "failure": 22,
+    "skipped": 19
+  },
+  "jobs": [
+    {
+      "id": 120039916764,
+      "name": "channel",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120039917005,
+      "name": "cargo-deny",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042245799,
+      "name": "rust-check",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042245895,
+      "name": "build-tcl-lsp-server",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042246058,
+      "name": "lsp-e2e archive",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042246069,
+      "name": "rust-tests-doctest",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042246071,
+      "name": "python",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042246077,
+      "name": "lsp-server-wasi",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042246083,
+      "name": "lsp-server-wasm",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042246118,
+      "name": "spectcl-compat",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042246152,
+      "name": "runtime-rust-tests",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042246158,
+      "name": "wasm-real-link",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042246270,
+      "name": "web-frontends",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "id": 120042246313,
+      "name": "rust-tests-heavy",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042246426,
+      "name": "test-ext-web",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042246569,
+      "name": "rust-tests-shard (2/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042246589,
+      "name": "rust-tests-shard (5/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042246822,
+      "name": "rust-tests-shard (3/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042247010,
+      "name": "rust-tests-shard (4/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042247441,
+      "name": "rust-tests-shard (1/5)",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120042248710,
+      "name": "native ${{ matrix.platform.id }} / ${{ matrix.program.id }}",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120042249204,
+      "name": "macos-wasm-check",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120046364770,
+      "name": "lsp-e2e",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120046367358,
+      "name": "lsp-e2e-partition (${{ matrix.partition }})",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120046959909,
+      "name": "pr-gate",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120048289684,
+      "name": "test-ext",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120048290742,
+      "name": "test-ext-multi-folder",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120048290773,
+      "name": "test-ext-partition",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120050980189,
+      "name": "rust-tests",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "id": 120051039274,
+      "name": "create-release",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120051040095,
+      "name": "build-claude-skills",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120051040206,
+      "name": "build-zed",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120051040314,
+      "name": "linux-release-portability",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120051040539,
+      "name": "publish-native-binaries",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120051041164,
+      "name": "build-sublime",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120051042079,
+      "name": "build-jetbrains",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120054982216,
+      "name": "build-vsix",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120054982362,
+      "name": "publish-checksums",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120054982979,
+      "name": "publish-jetbrains-marketplace",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120054983025,
+      "name": "publish-vsix-marketplace",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120054983663,
+      "name": "cleanup-old-artifacts",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120054983779,
+      "name": "publish-vsix-openvsx",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "id": 120054983974,
+      "name": "cleanup-untagged-artifacts",
+      "status": "completed",
+      "conclusion": "skipped"
+    }
+  ],
+  "failure_attribution": {
+    "main_rust_tests_lsp_compat_python_native": "known unused compiler helper warning denied; main testlisting/execution not reached",
+    "browser_wasi_web": "same warning plus stale pack_seq identifier",
+    "rust_check": "216 rustfmt hunks/65unique paths, later strict checks not reached",
+    "cargo_deny": "root four audit checks pass, archived snapshot lock lacks manifest; remainingactualroots unrun",
+    "standalone_runtime": "partial53FAIL thenTLSabort; two exact baselinePASS\u2192FAIL,51unmatched new selectors",
+    "aggregates": "pr-gate/rust-tests/lsp-e2e/test-ext fail because prerequisites fail"
+  },
+  "test_outcome_comparison": "No complete current-versus-rust verdict. Main24312 baselinePASS identities have no current executed outcome from this compile-blocked run.",
+  "release_publish": "All19skipconditions include release/publication jobs; no tag/PR/merge/release"
+}

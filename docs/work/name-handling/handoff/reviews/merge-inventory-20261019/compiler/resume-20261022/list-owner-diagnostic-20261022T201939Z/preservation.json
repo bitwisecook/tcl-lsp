@@ -1,0 +1,5 @@
+{
+  "scratch_receipt": "/tmp/compiler-c6-original/20261022T201939.354678Z",
+  "source_manifests": "Losslessly gzip compressed and deduplicated only by full original byte SHA256. Every original filename retains its SHA256/byte length in source-manifest-map.json.",
+  "target_executables": "Retained at original paths; hashes and ages captured in per-filter artifact receipts. No executable is copied or deleted."
+}

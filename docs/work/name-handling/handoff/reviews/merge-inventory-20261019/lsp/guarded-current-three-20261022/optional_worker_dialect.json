@@ -1,0 +1,20 @@
+{
+  "selector": "original_optimiser_memo_transport_tests::body_optimiser_memo_retains_the_actual_optional_worker_dialect",
+  "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_lsp_db-1f388ae6cac99f49",
+  "artifact_before_sha256": "f1b5c5c274bed00078d8dfff0f15226def8e9bb4600010d0aa2ee182a9104a4a",
+  "artifact_after_sha256": "f1b5c5c274bed00078d8dfff0f15226def8e9bb4600010d0aa2ee182a9104a4a",
+  "exit_code": 0,
+  "timed_out": false,
+  "budget_seconds": 180,
+  "seconds": 2.65,
+  "passed": true,
+  "log_sha256": "335acbf22e13a300856b8a346427a334cbf84c8af65356859c32b070ddd1fdbc",
+  "diagnostic_environment": {
+    "TCL_LSP_TRACE_SOURCE_PHASES": null,
+    "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+  },
+  "current_body_owner_provenance": {
+    "path": "/tmp/lsp-native-p2f/db-owner-correction-provenance.json",
+    "sha256": "b35d70a69a6dae9c68f5c9821e080834dc415d2dfb2af3d621d1fa541643b5ef"
+  }
+}

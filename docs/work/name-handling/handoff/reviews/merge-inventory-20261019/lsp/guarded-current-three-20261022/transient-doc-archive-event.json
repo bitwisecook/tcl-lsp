@@ -1,0 +1,38 @@
+{
+  "utc_observed": "2026-10-22T19:59:39.719866+00:00",
+  "event": "Root-reported temporary documentation archive files added during CURRENT3; owner instructed to rename extensions to .rs.txt/.tcl.txt",
+  "scope": "Existing canonical capture-inputs.py explicitly excludes every docs/work/name-handling/ path before hashing; none of these four archives is in initial40917-file capture. This is an explicit scope limit, not a whole-repository unchanged claim. Final captured-scope and provider comparisons remain pending.",
+  "capture_script_sha256": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474",
+  "rows": [
+    {
+      "original_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/baseline-cmd_alias.rs",
+      "observed_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/baseline-cmd_alias.rs.txt",
+      "bytes": 73003,
+      "sha256": "5105c00da950c1560fc382b0de4a1b7c981a7c3e3562b39bb1e11b0609ca61bd",
+      "in_initial_source_capture": false
+    },
+    {
+      "original_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/baseline-cmd_error.rs",
+      "observed_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/baseline-cmd_error.rs.txt",
+      "bytes": 40344,
+      "sha256": "425bbcd7b2ce89f893184094a7374c603b583061dfb86bbec74dce37c066b92c",
+      "in_initial_source_capture": false
+    },
+    {
+      "original_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/finite-c-oracles/aliases.tcl",
+      "observed_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/finite-c-oracles/aliases.tcl.txt",
+      "bytes": 96,
+      "sha256": "1a075844d3539d9311e24f3e4218d6545af95de5155f55107477221af54e5ac4",
+      "in_initial_source_capture": false
+    },
+    {
+      "original_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/finite-c-oracles/catch84.tcl",
+      "observed_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/finite-c-oracles/catch84.tcl.txt",
+      "bytes": 135,
+      "sha256": "467dde88232b702441a8e8784efd2c835b8c2ea4882ae3fb183945f729117981",
+      "in_initial_source_capture": false
+    }
+  ],
+  "owner_reported_completion_utc": "2026-10-22T19:59:32Z",
+  "owner_reported_bytes_match_observed": true
+}

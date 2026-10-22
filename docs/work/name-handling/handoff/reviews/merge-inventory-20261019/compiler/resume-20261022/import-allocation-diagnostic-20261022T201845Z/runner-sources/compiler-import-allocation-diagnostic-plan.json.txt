@@ -1,0 +1,23 @@
+{
+  "prepared_utc": "2026-10-22T19:37:08.529274+00:00",
+  "status": "READY OFF-TREE PLAN ONLY; no Cargo queued; explicit root GO required",
+  "scope": "ONE root-scoped original import allocation diagnostic, pending explicit post-LSP GO; not queued",
+  "names_plan_sha256": "997c27f4c049ae76b90749730b70192bf02e2583ba2d36c8b96a5f21ce9ddd4f",
+  "required_filters": [
+    {
+      "label": "diagnostic-original-import-allocation",
+      "selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE": "1",
+        "ZZ_PROBE_OPAQUE": "1"
+      },
+      "diagnostic_only": true
+    }
+  ],
+  "expectations": [
+    "Expected unchanged original failing assertion. Existing traces only; no probe/source/instrumentation installation. Capture first native namespace/import guard refusal; do not rewrite assertion. Root explicit GO after LSPCURRENT3 and necessary phase replays, before new source batch."
+  ],
+  "guards": "Global lock over entire suite; all local workspace source/fixture/Cargo input inventory + current Rust diff; provider wrappers/actual workers/Rust tools/transitive shared binaries before/after; 5second disk monitor interrupts only own Cargo process group below2GiB; per-log20MiB filtered cap; no executable cleanup"
+}

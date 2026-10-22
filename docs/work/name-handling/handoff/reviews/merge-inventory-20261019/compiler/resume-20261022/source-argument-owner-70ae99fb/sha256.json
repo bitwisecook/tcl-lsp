@@ -1,0 +1,8 @@
+{
+  "compiler-c6-list-fixtures-receipt.json": "8653989f5d61b2cc431c68a3a08a874fa915cb0cc6a709ad8557a7b46bbacde0",
+  "compiler-c6-list-compiler-fixtures.patch": "3174c5a67f9baa2517c107c96c0224180d56f91b89bc46a603b766b5985a25d6",
+  "compiler-c6-source-argument-owner-receipt.json": "958ee6e70c76ce8c5c886b6ce91e3047eceaa46f81b731a92455dfeb64a1c7ac",
+  "compiler-c6-source-argument-owner.patch": "70ae99fb2d8b1b16a6385600d6254f3bca3511de0d7890576a9a8e08e5616ada",
+  "compiler-c6-list-protocol-source-authority.json": "87e26de8db1a8d4c1434ea3cb69087167079271309841a4e8a809d1a0673f5f4",
+  "compiler-c6-actual-compiler-owner.patch": "7566239922f5a38b7b63ab23548961a39a880e80c37ba67fdacd62a94059f0eb"
+}

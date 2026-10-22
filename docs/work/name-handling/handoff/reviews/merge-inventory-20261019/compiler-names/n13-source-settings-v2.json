@@ -1,0 +1,53 @@
+{
+  "status": "OFF-TREE PARTIAL settings seam successor to stage4+entryadapter; syntax parsed only, no typecheck/Cargo/tests",
+  "created_utc": "2026-10-22T20:04:50.796848+00:00",
+  "patch": "/tmp/compiler-names-n13-source-settings-v2.patch",
+  "sha256": "5dc59a0822c2c9194515e52b2b3aed267302a2168d4390c35749e8259494d2e1",
+  "composes_after": "/tmp/compiler-names-n13-entry-reborrow.patch",
+  "api": [
+    "OriginalSourcePointEntry::configure_analyser(parent,&mut Analyser)->bool",
+    "AnalysisResult::configure_source_analyser(source,registry,&mut Analyser)->bool",
+    "AnalysisResult::accepts_source_analyser_settings(source,registry,&Analyser)->bool"
+  ],
+  "settings": [
+    "extra/recovery commands",
+    "pack overlay",
+    "library versions",
+    "declared targets",
+    "package provides",
+    "deep traits",
+    "structure/defer modes",
+    "workspace classes/bare classes/factories/subclass methods"
+  ],
+  "boundary": "settings live in retained source realm and full point payload; actual equality remains complete, hash is bucket subset only; physical child path/diagnostic policies separate",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/mod.rs",
+      "after_sha256": "9550ef401ee80f594f253ba736691453649a4c9c0b3b1a6014f56ea7c51f2e53"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/state.rs",
+      "after_sha256": "42dcd306c228ca0b1d90cce87ce2f8505a49ec42b95bc5ba042570f3fe98c344"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/source_settings.rs",
+      "after_sha256": "16dd686e56d646e69a82140e9d7eb13837ba8a43ff2f7609cffde7321ed00d2c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "after_sha256": "052609e2f998cc768e0bce22ca8600df06221bd1da90912e13e2e352de0f1a56"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "after_sha256": "86882ff05af942e4f0f538ee59843c7f0ed88e48ae7f200f8a2d1a32b502238c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "after_sha256": "a775205bbc10703ea722e632faa7f4e90b8dfb04c33706c95294c18ac915de79"
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm.rs",
+      "after_sha256": "f65db00b29cb488cf02326d791e0ab9157de768ea17a083dd6f32d4d7106c00f"
+    }
+  ]
+}

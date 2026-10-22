@@ -1,0 +1,1780 @@
+running 1 test
+test executable_regions::checked_potential_source_tests::checked_potential_source_retains_depth_exhaustion_as_incomplete ... ANALYSER_PHASE bytes=2332 stage=initial ms=0
+ANALYSER_PHASE bytes=2332 stage=realm-start ms=177
+SOURCE_ROOT_OWNER_WORK stage=initial query=branch scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=snapshot scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=layout scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=receiver-body scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-segmentation scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-word-tokens scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=compiler-selection scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-arguments scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=native-invocation-preparation scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=point-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=continuation-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=selected-command scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight-publication scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-publication scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-memo scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-capture scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=2332 stage=initial ms=112 points=0 layouts=0
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=2332 stage=initial retained_owners=1 requests=0 captures=0 reuses=0 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=2332 stage=initial requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=2332 stage=initial scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=initial query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=initial query=slot-paths scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=initial query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=initial query=metadata-advice scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=initial query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=initial query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=initial query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=branch scope=thread-cumulative-inclusive calls=1250 us=3301
+SOURCE_ROOT_OWNER_WORK stage=walk query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=snapshot scope=thread-cumulative-inclusive calls=1 us=4
+SOURCE_ROOT_OWNER_WORK stage=walk query=fingerprint scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=equality scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight scope=thread-cumulative-inclusive calls=1 us=1040411
+SOURCE_ROOT_OWNER_WORK stage=walk query=layout scope=thread-cumulative-inclusive calls=65 us=31333
+SOURCE_ROOT_OWNER_WORK stage=walk query=body scope=thread-cumulative-inclusive calls=65 us=718
+SOURCE_ROOT_OWNER_WORK stage=walk query=receiver-body scope=thread-cumulative-inclusive calls=65 us=57
+SOURCE_ROOT_OWNER_WORK stage=walk query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-segmentation scope=thread-cumulative-inclusive calls=65 us=27720
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-word-tokens scope=thread-cumulative-inclusive calls=65 us=9942
+SOURCE_ROOT_OWNER_WORK stage=walk query=compiler-selection scope=thread-cumulative-inclusive calls=129 us=1359752
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-arguments scope=thread-cumulative-inclusive calls=65 us=125526
+SOURCE_ROOT_OWNER_WORK stage=walk query=native-invocation-preparation scope=thread-cumulative-inclusive calls=65 us=40687
+SOURCE_ROOT_OWNER_WORK stage=walk query=point-capture scope=thread-cumulative-inclusive calls=65 us=174981
+SOURCE_ROOT_OWNER_WORK stage=walk query=continuation-capture scope=thread-cumulative-inclusive calls=65 us=1918
+SOURCE_ROOT_OWNER_WORK stage=walk query=selected-command scope=thread-cumulative-inclusive calls=65 us=52820777
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight-publication scope=thread-cumulative-inclusive calls=1 us=1047
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-publication scope=thread-cumulative-inclusive calls=65 us=20116
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-memo scope=thread-cumulative-inclusive calls=904 us=162756
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-capture scope=thread-cumulative-inclusive calls=260 us=141037
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=2332 stage=walk ms=3013 points=130 layouts=65
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=2332 stage=walk retained_owners=1 requests=904 captures=260 reuses=644 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=2332 stage=walk requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=2332 stage=walk scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=walk query=command-key scope=cumulative-inclusive calls=7743 ms=190 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=walk query=slot-paths scope=cumulative-inclusive calls=3807 ms=257 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=walk query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=walk query=metadata-advice scope=cumulative-inclusive calls=130 ms=24 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=walk query=lookup-key scope=cumulative-inclusive calls=4326 ms=99 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=walk query=baseline scope=cumulative-inclusive calls=8518 ms=138 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=walk query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=2332 stage=walk calls=8518 ms=133
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=0
+SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=0 outcomes=0 layouts=65
+SOURCE_DEFERRED_PHASE stage=called ms=0 roots=0 outcomes=0 layouts=65
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=3 visits=0 pending=65 layouts=65
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=113 visits=0 pending=0 layouts=65
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=4 visits=0 pending=65 layouts=65
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=212 visits=0 pending=65 layouts=65
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=385 visits=64 pending=64 layouts=128
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=540 visits=128 pending=64 layouts=192
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=652 visits=192 pending=64 layouts=256
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=797 visits=256 pending=63 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=901 visits=320 pending=63 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=999 visits=384 pending=63 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=1096 visits=448 pending=62 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=1177 visits=512 pending=62 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=1266 visits=576 pending=62 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=1358 visits=640 pending=61 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=1451 visits=704 pending=61 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=1555 visits=768 pending=61 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=1654 visits=832 pending=60 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=1754 visits=896 pending=60 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=1841 visits=960 pending=60 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=1949 visits=1024 pending=59 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=2081 visits=1088 pending=59 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=2201 visits=1152 pending=59 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=2315 visits=1216 pending=58 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=2440 visits=1280 pending=58 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=2544 visits=1344 pending=58 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=2652 visits=1408 pending=57 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=2789 visits=1472 pending=57 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=2940 visits=1536 pending=57 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3057 visits=1600 pending=56 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3192 visits=1664 pending=56 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3314 visits=1728 pending=56 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3426 visits=1792 pending=55 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3539 visits=1856 pending=55 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3644 visits=1920 pending=55 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3780 visits=1984 pending=55 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3902 visits=2048 pending=54 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=4022 visits=2112 pending=54 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=4184 visits=2176 pending=54 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=4366 visits=2240 pending=53 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=4567 visits=2304 pending=53 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=4671 visits=2368 pending=53 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=4837 visits=2432 pending=52 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=4970 visits=2496 pending=52 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=5079 visits=2560 pending=52 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=5235 visits=2624 pending=51 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=5371 visits=2688 pending=51 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=5496 visits=2752 pending=51 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=5605 visits=2816 pending=50 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=5904 visits=2880 pending=50 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=6761 visits=2944 pending=50 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=7609 visits=3008 pending=50 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=7947 visits=3072 pending=49 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=8100 visits=3136 pending=49 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=8240 visits=3200 pending=49 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=8411 visits=3264 pending=48 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=8611 visits=3328 pending=48 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=8788 visits=3392 pending=48 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=9124 visits=3456 pending=47 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=10349 visits=3520 pending=47 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=10789 visits=3584 pending=47 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=11108 visits=3648 pending=46 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=12039 visits=3712 pending=46 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=12309 visits=3776 pending=46 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=12445 visits=3840 pending=46 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=12575 visits=3904 pending=45 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=12707 visits=3968 pending=45 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=12900 visits=4032 pending=45 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=13009 visits=4096 pending=44 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=13152 visits=4160 pending=44 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=13261 visits=4224 pending=44 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=13368 visits=4288 pending=43 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=13583 visits=4352 pending=43 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=13708 visits=4416 pending=43 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=13851 visits=4480 pending=43 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=13983 visits=4544 pending=42 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=14121 visits=4608 pending=42 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=14257 visits=4672 pending=42 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=14374 visits=4736 pending=41 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=14497 visits=4800 pending=41 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=14661 visits=4864 pending=41 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=14891 visits=4928 pending=41 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=15088 visits=4992 pending=40 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=15345 visits=5056 pending=40 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=15534 visits=5120 pending=40 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=15766 visits=5184 pending=39 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=16031 visits=5248 pending=39 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=16218 visits=5312 pending=39 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=16372 visits=5376 pending=38 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=16558 visits=5440 pending=38 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=16736 visits=5504 pending=38 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=16917 visits=5568 pending=38 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=17071 visits=5632 pending=37 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=17207 visits=5696 pending=37 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=17331 visits=5760 pending=37 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=17451 visits=5824 pending=36 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=17586 visits=5888 pending=36 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=17723 visits=5952 pending=36 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=17860 visits=6016 pending=36 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=17979 visits=6080 pending=35 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=18091 visits=6144 pending=35 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=18201 visits=6208 pending=35 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=18298 visits=6272 pending=34 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=18424 visits=6336 pending=34 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=18545 visits=6400 pending=34 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=18679 visits=6464 pending=34 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=18793 visits=6528 pending=33 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=19069 visits=6592 pending=33 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=19255 visits=6656 pending=33 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=19461 visits=6720 pending=32 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=19648 visits=6784 pending=32 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=19832 visits=6848 pending=32 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=20017 visits=6912 pending=32 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=20182 visits=6976 pending=31 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=20372 visits=7040 pending=31 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=20575 visits=7104 pending=31 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=20835 visits=7168 pending=30 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=21041 visits=7232 pending=30 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=21244 visits=7296 pending=30 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=21426 visits=7360 pending=30 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=21590 visits=7424 pending=29 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=21796 visits=7488 pending=29 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=21988 visits=7552 pending=29 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=22159 visits=7616 pending=28 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=22327 visits=7680 pending=28 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=22538 visits=7744 pending=28 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=22705 visits=7808 pending=28 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=22856 visits=7872 pending=27 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=23061 visits=7936 pending=27 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=23331 visits=8000 pending=27 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=23536 visits=8064 pending=27 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=23715 visits=8128 pending=26 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=23938 visits=8192 pending=26 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=24152 visits=8256 pending=26 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=24342 visits=8320 pending=25 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=24592 visits=8384 pending=25 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=24862 visits=8448 pending=25 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=25112 visits=8512 pending=25 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=25309 visits=8576 pending=24 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=25542 visits=8640 pending=24 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=25807 visits=8704 pending=24 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=26083 visits=8768 pending=24 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=26265 visits=8832 pending=23 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=26490 visits=8896 pending=23 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=26681 visits=8960 pending=23 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=26851 visits=9024 pending=22 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=27074 visits=9088 pending=22 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=27282 visits=9152 pending=22 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=27484 visits=9216 pending=22 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=27655 visits=9280 pending=21 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=27907 visits=9344 pending=21 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=28164 visits=9408 pending=21 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=28382 visits=9472 pending=21 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=28615 visits=9536 pending=20 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=28887 visits=9600 pending=20 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=29380 visits=9664 pending=20 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=29809 visits=9728 pending=19 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=30194 visits=9792 pending=19 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=30628 visits=9856 pending=19 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=30992 visits=9920 pending=19 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=31235 visits=9984 pending=18 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=31657 visits=10048 pending=18 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=32125 visits=10112 pending=18 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=33133 visits=10176 pending=18 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=33330 visits=10240 pending=17 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=33528 visits=10304 pending=17 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=33676 visits=10368 pending=17 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=33832 visits=10432 pending=17 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=33973 visits=10496 pending=16 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=34133 visits=10560 pending=16 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=34289 visits=10624 pending=16 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=34445 visits=10688 pending=15 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=34612 visits=10752 pending=15 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=34776 visits=10816 pending=15 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=34949 visits=10880 pending=15 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=35083 visits=10944 pending=14 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=35266 visits=11008 pending=14 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=35462 visits=11072 pending=14 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=35628 visits=11136 pending=14 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=35769 visits=11200 pending=13 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=35944 visits=11264 pending=13 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=36162 visits=11328 pending=13 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=36508 visits=11392 pending=13 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=36829 visits=11456 pending=12 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=37025 visits=11520 pending=12 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=37192 visits=11584 pending=12 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=37340 visits=11648 pending=12 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=37479 visits=11712 pending=11 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=37637 visits=11776 pending=11 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=37787 visits=11840 pending=11 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=37946 visits=11904 pending=11 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=38071 visits=11968 pending=10 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=38241 visits=12032 pending=10 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=38400 visits=12096 pending=10 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=38555 visits=12160 pending=9 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=38708 visits=12224 pending=9 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=38886 visits=12288 pending=9 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=39055 visits=12352 pending=9 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=39240 visits=12416 pending=8 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=39398 visits=12480 pending=8 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=39574 visits=12544 pending=8 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=39846 visits=12608 pending=8 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=40006 visits=12672 pending=7 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=40284 visits=12736 pending=7 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=40892 visits=12800 pending=7 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=41181 visits=12864 pending=7 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=41402 visits=12928 pending=6 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=41763 visits=12992 pending=6 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=42065 visits=13056 pending=6 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=42240 visits=13120 pending=6 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=42387 visits=13184 pending=5 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=42550 visits=13248 pending=5 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=42742 visits=13312 pending=5 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=42971 visits=13376 pending=5 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=43110 visits=13440 pending=4 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=43291 visits=13504 pending=4 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=43478 visits=13568 pending=4 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=43650 visits=13632 pending=4 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=43809 visits=13696 pending=3 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=44039 visits=13760 pending=3 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=44255 visits=13824 pending=3 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=44438 visits=13888 pending=3 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=44594 visits=13952 pending=2 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=44785 visits=14016 pending=2 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=45015 visits=14080 pending=2 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=45213 visits=14144 pending=2 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=46073 visits=14208 pending=1 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=46174 visits=14272 pending=1 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=46277 visits=14336 pending=1 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=46381 visits=14400 pending=1 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=46508 visits=14464 pending=0 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=46605 visits=14528 pending=0 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=46704 visits=14592 pending=0 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=46797 visits=14656 pending=0 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-drained ms=46844 visits=14690 pending=0 layouts=259
+SOURCE_LAYOUT_SYNTAX_SUMMARY visits=14690 inputs=258 parsed_commands=258
+SOURCE_LAYOUT_PHASE stage=nested-complete ms=47046 visits=0 pending=0 layouts=259
+SOURCE_DEFERRED_PHASE stage=layouts ms=47046 roots=0 outcomes=0 layouts=259
+SOURCE_ROOT_OWNER_WORK stage=deferred query=branch scope=thread-cumulative-inclusive calls=1250 us=3301
+SOURCE_ROOT_OWNER_WORK stage=deferred query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=snapshot scope=thread-cumulative-inclusive calls=1 us=4
+SOURCE_ROOT_OWNER_WORK stage=deferred query=fingerprint scope=thread-cumulative-inclusive calls=65 us=39974
+SOURCE_ROOT_OWNER_WORK stage=deferred query=equality scope=thread-cumulative-inclusive calls=434784 us=16692231
+SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight scope=thread-cumulative-inclusive calls=1 us=1040411
+SOURCE_ROOT_OWNER_WORK stage=deferred query=layout scope=thread-cumulative-inclusive calls=65 us=31333
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body scope=thread-cumulative-inclusive calls=65 us=718
+SOURCE_ROOT_OWNER_WORK stage=deferred query=receiver-body scope=thread-cumulative-inclusive calls=65 us=57
+SOURCE_ROOT_OWNER_WORK stage=deferred query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-segmentation scope=thread-cumulative-inclusive calls=65 us=27720
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-word-tokens scope=thread-cumulative-inclusive calls=453 us=62056
+SOURCE_ROOT_OWNER_WORK stage=deferred query=compiler-selection scope=thread-cumulative-inclusive calls=129 us=1359752
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-arguments scope=thread-cumulative-inclusive calls=65 us=125526
+SOURCE_ROOT_OWNER_WORK stage=deferred query=native-invocation-preparation scope=thread-cumulative-inclusive calls=65 us=40687
+SOURCE_ROOT_OWNER_WORK stage=deferred query=point-capture scope=thread-cumulative-inclusive calls=65 us=174981
+SOURCE_ROOT_OWNER_WORK stage=deferred query=continuation-capture scope=thread-cumulative-inclusive calls=65 us=1918
+SOURCE_ROOT_OWNER_WORK stage=deferred query=selected-command scope=thread-cumulative-inclusive calls=65 us=52820777
+SOURCE_ROOT_OWNER_WORK stage=deferred query=preflight-publication scope=thread-cumulative-inclusive calls=1 us=1047
+SOURCE_ROOT_OWNER_WORK stage=deferred query=source-publication scope=thread-cumulative-inclusive calls=65 us=20116
+SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-memo scope=thread-cumulative-inclusive calls=30479 us=1024785
+SOURCE_ROOT_OWNER_WORK stage=deferred query=lexical-capture scope=thread-cumulative-inclusive calls=454 us=229172
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=deferred query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=2332 stage=deferred ms=50063 points=130 layouts=259
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=2332 stage=deferred retained_owners=1 requests=30479 captures=454 reuses=30025 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=2332 stage=deferred requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=2332 stage=deferred scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=deferred query=command-key scope=cumulative-inclusive calls=81843 ms=2343 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=deferred query=slot-paths scope=cumulative-inclusive calls=33447 ms=3446 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=deferred query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=deferred query=metadata-advice scope=cumulative-inclusive calls=130 ms=24 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=deferred query=lookup-key scope=cumulative-inclusive calls=48786 ms=1149 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=deferred query=baseline scope=cumulative-inclusive calls=67798 ms=1188 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=deferred query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=2332 stage=deferred calls=67798 ms=1139
+SOURCE_ROOT_OWNER_WORK stage=complete query=branch scope=thread-cumulative-inclusive calls=1250 us=3301
+SOURCE_ROOT_OWNER_WORK stage=complete query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=snapshot scope=thread-cumulative-inclusive calls=1 us=4
+SOURCE_ROOT_OWNER_WORK stage=complete query=fingerprint scope=thread-cumulative-inclusive calls=65 us=39974
+SOURCE_ROOT_OWNER_WORK stage=complete query=equality scope=thread-cumulative-inclusive calls=434784 us=16692231
+SOURCE_ROOT_OWNER_WORK stage=complete query=preflight scope=thread-cumulative-inclusive calls=1 us=1040411
+SOURCE_ROOT_OWNER_WORK stage=complete query=layout scope=thread-cumulative-inclusive calls=65 us=31333
+SOURCE_ROOT_OWNER_WORK stage=complete query=body scope=thread-cumulative-inclusive calls=65 us=718
+SOURCE_ROOT_OWNER_WORK stage=complete query=receiver-body scope=thread-cumulative-inclusive calls=65 us=57
+SOURCE_ROOT_OWNER_WORK stage=complete query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-segmentation scope=thread-cumulative-inclusive calls=65 us=27720
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-word-tokens scope=thread-cumulative-inclusive calls=454 us=62565
+SOURCE_ROOT_OWNER_WORK stage=complete query=compiler-selection scope=thread-cumulative-inclusive calls=129 us=1359752
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-arguments scope=thread-cumulative-inclusive calls=65 us=125526
+SOURCE_ROOT_OWNER_WORK stage=complete query=native-invocation-preparation scope=thread-cumulative-inclusive calls=65 us=40687
+SOURCE_ROOT_OWNER_WORK stage=complete query=point-capture scope=thread-cumulative-inclusive calls=65 us=174981
+SOURCE_ROOT_OWNER_WORK stage=complete query=continuation-capture scope=thread-cumulative-inclusive calls=65 us=1918
+SOURCE_ROOT_OWNER_WORK stage=complete query=selected-command scope=thread-cumulative-inclusive calls=65 us=52820777
+SOURCE_ROOT_OWNER_WORK stage=complete query=preflight-publication scope=thread-cumulative-inclusive calls=1 us=1047
+SOURCE_ROOT_OWNER_WORK stage=complete query=source-publication scope=thread-cumulative-inclusive calls=65 us=20116
+SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-memo scope=thread-cumulative-inclusive calls=30481 us=1024840
+SOURCE_ROOT_OWNER_WORK stage=complete query=lexical-capture scope=thread-cumulative-inclusive calls=454 us=229172
+SOURCE_ROOT_OWNER_WORK stage=complete query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=complete query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=2332 stage=complete ms=50492 points=130 layouts=259
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=2332 stage=complete retained_owners=1 requests=30481 captures=454 reuses=30027 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=2332 stage=complete requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=2332 stage=complete scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=complete query=command-key scope=cumulative-inclusive calls=81848 ms=2343 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=complete query=slot-paths scope=cumulative-inclusive calls=33449 ms=3448 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=complete query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=complete query=metadata-advice scope=cumulative-inclusive calls=130 ms=24 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=complete query=lookup-key scope=cumulative-inclusive calls=48789 ms=1149 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=complete query=baseline scope=cumulative-inclusive calls=67802 ms=1191 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=complete query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+ANALYSER_PHASE bytes=2332 stage=realm-complete ms=50686
+ANALYSER_PHASE bytes=2332 stage=retained-inventory ms=51008
+ANALYSER_PHASE bytes=2332 stage=segmented ms=51013
+ANALYSER_PHASE bytes=2332 stage=walk-start ms=51013
+SOURCE_INVOCATION_PROJECT site=8 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=16 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=24 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=32 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=40 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=48 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=56 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=64 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=72 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=80 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=88 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=96 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=104 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=112 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=120 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=128 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=136 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=144 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=152 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=160 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=168 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=176 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=184 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=192 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=200 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=208 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=216 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=224 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=232 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=240 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=248 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=256 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=264 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=272 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=280 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=288 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=296 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=304 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=312 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=320 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=328 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=336 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=344 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=352 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=360 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=368 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=376 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=384 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=392 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=400 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=408 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=416 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=424 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=432 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=440 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=448 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=456 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=464 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=472 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=480 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=488 ms=1 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=496 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=504 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=512 ms=0 targets=1 unknown=false
+SOURCE_INVOCATION_PROJECT site=0 ms=0 targets=1 unknown=false
+ANALYSER_TOKEN_PREPARE bytes=2332 site=0 ms=33 nested=64
+ANALYSER_COMMAND_PHASE bytes=2332 site=0 stage=original-names ms=53
+ANALYSER_TOKEN_PREPARE bytes=2332 site=0 ms=29 nested=64
+ANALYSER_COMMAND_PHASE bytes=2332 site=0 stage=scoped-bodies ms=960
+ANALYSER_COMMAND_PHASE bytes=2332 site=0 stage=variable-receivers ms=1019
+ANALYSER_COMMAND_PHASE bytes=2332 site=0 stage=direct-invocations ms=1049
+ANALYSER_COMMAND_PHASE bytes=2332 site=0 stage=nested-invocations ms=1153
+ANALYSER_COMMAND_PHASE bytes=2332 site=0 stage=callback-invocations ms=1205
+ANALYSER_COMMAND_PHASE bytes=2332 site=0 stage=command-name-invocations ms=1208
+ANALYSER_COMMAND_PHASE bytes=2332 site=0 stage=namespace-role-facts ms=1246
+ANALYSER_COMMAND_PHASE bytes=2332 site=0 stage=nested-diagnostics ms=1275
+ANALYSER_COMMAND_PHASE bytes=2332 site=0 stage=variable-command-sites ms=1277
+ANALYSER_COMMAND_PHASE bytes=2332 site=0 stage=procedure-resolution ms=1340
+ANALYSER_COMMAND_PHASE bytes=2332 site=0 stage=expression-diagnostics ms=1410
+ANALYSER_COMMAND_PHASE bytes=2332 site=0 stage=dispatch-diagnostics ms=1911
+ANALYSER_TOKEN_PREPARE bytes=2332 site=8 ms=11 nested=63
+ANALYSER_COMMAND_PHASE bytes=2332 site=8 stage=original-names ms=24
+ANALYSER_TOKEN_PREPARE bytes=2332 site=8 ms=12 nested=63
+ANALYSER_COMMAND_PHASE bytes=2332 site=8 stage=scoped-bodies ms=554
+ANALYSER_COMMAND_PHASE bytes=2332 site=8 stage=variable-receivers ms=607
+ANALYSER_COMMAND_PHASE bytes=2332 site=8 stage=direct-invocations ms=659
+ANALYSER_COMMAND_PHASE bytes=2332 site=8 stage=nested-invocations ms=743
+ANALYSER_COMMAND_PHASE bytes=2332 site=8 stage=callback-invocations ms=779
+ANALYSER_COMMAND_PHASE bytes=2332 site=8 stage=command-name-invocations ms=782
+ANALYSER_COMMAND_PHASE bytes=2332 site=8 stage=namespace-role-facts ms=798
+ANALYSER_COMMAND_PHASE bytes=2332 site=8 stage=nested-diagnostics ms=820
+ANALYSER_COMMAND_PHASE bytes=2332 site=8 stage=variable-command-sites ms=822
+ANALYSER_COMMAND_PHASE bytes=2332 site=8 stage=procedure-resolution ms=858
+ANALYSER_COMMAND_PHASE bytes=2332 site=8 stage=expression-diagnostics ms=920
+ANALYSER_COMMAND_PHASE bytes=2332 site=8 stage=dispatch-diagnostics ms=993
+ANALYSER_TOKEN_PREPARE bytes=2332 site=16 ms=6 nested=62
+ANALYSER_COMMAND_PHASE bytes=2332 site=16 stage=original-names ms=14
+ANALYSER_TOKEN_PREPARE bytes=2332 site=16 ms=6 nested=62
+ANALYSER_COMMAND_PHASE bytes=2332 site=16 stage=scoped-bodies ms=82
+ANALYSER_COMMAND_PHASE bytes=2332 site=16 stage=variable-receivers ms=104
+ANALYSER_COMMAND_PHASE bytes=2332 site=16 stage=direct-invocations ms=125
+ANALYSER_COMMAND_PHASE bytes=2332 site=16 stage=nested-invocations ms=166
+ANALYSER_COMMAND_PHASE bytes=2332 site=16 stage=callback-invocations ms=193
+ANALYSER_COMMAND_PHASE bytes=2332 site=16 stage=command-name-invocations ms=196
+ANALYSER_COMMAND_PHASE bytes=2332 site=16 stage=namespace-role-facts ms=212
+ANALYSER_COMMAND_PHASE bytes=2332 site=16 stage=nested-diagnostics ms=227
+ANALYSER_COMMAND_PHASE bytes=2332 site=16 stage=variable-command-sites ms=229
+ANALYSER_COMMAND_PHASE bytes=2332 site=16 stage=procedure-resolution ms=262
+ANALYSER_COMMAND_PHASE bytes=2332 site=16 stage=expression-diagnostics ms=591
+ANALYSER_COMMAND_PHASE bytes=2332 site=16 stage=dispatch-diagnostics ms=1161
+ANALYSER_TOKEN_PREPARE bytes=2332 site=24 ms=12 nested=61
+ANALYSER_COMMAND_PHASE bytes=2332 site=24 stage=original-names ms=25
+ANALYSER_TOKEN_PREPARE bytes=2332 site=24 ms=5 nested=61
+ANALYSER_COMMAND_PHASE bytes=2332 site=24 stage=scoped-bodies ms=114
+ANALYSER_COMMAND_PHASE bytes=2332 site=24 stage=variable-receivers ms=133
+ANALYSER_COMMAND_PHASE bytes=2332 site=24 stage=direct-invocations ms=154
+ANALYSER_COMMAND_PHASE bytes=2332 site=24 stage=nested-invocations ms=205
+ANALYSER_COMMAND_PHASE bytes=2332 site=24 stage=callback-invocations ms=257
+ANALYSER_COMMAND_PHASE bytes=2332 site=24 stage=command-name-invocations ms=260
+ANALYSER_COMMAND_PHASE bytes=2332 site=24 stage=namespace-role-facts ms=286
+ANALYSER_COMMAND_PHASE bytes=2332 site=24 stage=nested-diagnostics ms=302
+ANALYSER_COMMAND_PHASE bytes=2332 site=24 stage=variable-command-sites ms=304
+ANALYSER_COMMAND_PHASE bytes=2332 site=24 stage=procedure-resolution ms=360
+ANALYSER_COMMAND_PHASE bytes=2332 site=24 stage=expression-diagnostics ms=439
+ANALYSER_COMMAND_PHASE bytes=2332 site=24 stage=dispatch-diagnostics ms=541
+ANALYSER_TOKEN_PREPARE bytes=2332 site=32 ms=6 nested=60
+ANALYSER_COMMAND_PHASE bytes=2332 site=32 stage=original-names ms=13
+ANALYSER_TOKEN_PREPARE bytes=2332 site=32 ms=9 nested=60
+ANALYSER_COMMAND_PHASE bytes=2332 site=32 stage=scoped-bodies ms=180
+ANALYSER_COMMAND_PHASE bytes=2332 site=32 stage=variable-receivers ms=254
+ANALYSER_COMMAND_PHASE bytes=2332 site=32 stage=direct-invocations ms=279
+ANALYSER_COMMAND_PHASE bytes=2332 site=32 stage=nested-invocations ms=453
+ANALYSER_COMMAND_PHASE bytes=2332 site=32 stage=callback-invocations ms=492
+ANALYSER_COMMAND_PHASE bytes=2332 site=32 stage=command-name-invocations ms=495
+ANALYSER_COMMAND_PHASE bytes=2332 site=32 stage=namespace-role-facts ms=512
+ANALYSER_COMMAND_PHASE bytes=2332 site=32 stage=nested-diagnostics ms=530
+ANALYSER_COMMAND_PHASE bytes=2332 site=32 stage=variable-command-sites ms=533
+ANALYSER_COMMAND_PHASE bytes=2332 site=32 stage=procedure-resolution ms=577
+ANALYSER_COMMAND_PHASE bytes=2332 site=32 stage=expression-diagnostics ms=669
+ANALYSER_COMMAND_PHASE bytes=2332 site=32 stage=dispatch-diagnostics ms=783
+ANALYSER_TOKEN_PREPARE bytes=2332 site=40 ms=9 nested=59
+ANALYSER_COMMAND_PHASE bytes=2332 site=40 stage=original-names ms=24
+ANALYSER_TOKEN_PREPARE bytes=2332 site=40 ms=8 nested=59
+ANALYSER_COMMAND_PHASE bytes=2332 site=40 stage=scoped-bodies ms=146
+ANALYSER_COMMAND_PHASE bytes=2332 site=40 stage=variable-receivers ms=188
+ANALYSER_COMMAND_PHASE bytes=2332 site=40 stage=direct-invocations ms=240
+ANALYSER_COMMAND_PHASE bytes=2332 site=40 stage=nested-invocations ms=348
+ANALYSER_COMMAND_PHASE bytes=2332 site=40 stage=callback-invocations ms=378
+ANALYSER_COMMAND_PHASE bytes=2332 site=40 stage=command-name-invocations ms=383
+ANALYSER_COMMAND_PHASE bytes=2332 site=40 stage=namespace-role-facts ms=423
+ANALYSER_COMMAND_PHASE bytes=2332 site=40 stage=nested-diagnostics ms=462
+ANALYSER_COMMAND_PHASE bytes=2332 site=40 stage=variable-command-sites ms=466
+ANALYSER_COMMAND_PHASE bytes=2332 site=40 stage=procedure-resolution ms=515
+ANALYSER_COMMAND_PHASE bytes=2332 site=40 stage=expression-diagnostics ms=613
+ANALYSER_COMMAND_PHASE bytes=2332 site=40 stage=dispatch-diagnostics ms=703
+ANALYSER_TOKEN_PREPARE bytes=2332 site=48 ms=7 nested=58
+ANALYSER_COMMAND_PHASE bytes=2332 site=48 stage=original-names ms=15
+ANALYSER_TOKEN_PREPARE bytes=2332 site=48 ms=16 nested=58
+ANALYSER_COMMAND_PHASE bytes=2332 site=48 stage=scoped-bodies ms=142
+ANALYSER_COMMAND_PHASE bytes=2332 site=48 stage=variable-receivers ms=179
+ANALYSER_COMMAND_PHASE bytes=2332 site=48 stage=direct-invocations ms=206
+ANALYSER_COMMAND_PHASE bytes=2332 site=48 stage=nested-invocations ms=256
+ANALYSER_COMMAND_PHASE bytes=2332 site=48 stage=callback-invocations ms=281
+ANALYSER_COMMAND_PHASE bytes=2332 site=48 stage=command-name-invocations ms=283
+ANALYSER_COMMAND_PHASE bytes=2332 site=48 stage=namespace-role-facts ms=299
+ANALYSER_COMMAND_PHASE bytes=2332 site=48 stage=nested-diagnostics ms=318
+ANALYSER_COMMAND_PHASE bytes=2332 site=48 stage=variable-command-sites ms=320
+ANALYSER_COMMAND_PHASE bytes=2332 site=48 stage=procedure-resolution ms=361
+ANALYSER_COMMAND_PHASE bytes=2332 site=48 stage=expression-diagnostics ms=422
+ANALYSER_COMMAND_PHASE bytes=2332 site=48 stage=dispatch-diagnostics ms=502
+ANALYSER_TOKEN_PREPARE bytes=2332 site=56 ms=8 nested=57
+ANALYSER_COMMAND_PHASE bytes=2332 site=56 stage=original-names ms=17
+ANALYSER_TOKEN_PREPARE bytes=2332 site=56 ms=6 nested=57
+ANALYSER_COMMAND_PHASE bytes=2332 site=56 stage=scoped-bodies ms=78
+ANALYSER_COMMAND_PHASE bytes=2332 site=56 stage=variable-receivers ms=96
+ANALYSER_COMMAND_PHASE bytes=2332 site=56 stage=direct-invocations ms=112
+ANALYSER_COMMAND_PHASE bytes=2332 site=56 stage=nested-invocations ms=153
+ANALYSER_COMMAND_PHASE bytes=2332 site=56 stage=callback-invocations ms=179
+ANALYSER_COMMAND_PHASE bytes=2332 site=56 stage=command-name-invocations ms=182
+ANALYSER_COMMAND_PHASE bytes=2332 site=56 stage=namespace-role-facts ms=201
+ANALYSER_COMMAND_PHASE bytes=2332 site=56 stage=nested-diagnostics ms=219
+ANALYSER_COMMAND_PHASE bytes=2332 site=56 stage=variable-command-sites ms=221
+ANALYSER_COMMAND_PHASE bytes=2332 site=56 stage=procedure-resolution ms=270
+ANALYSER_COMMAND_PHASE bytes=2332 site=56 stage=expression-diagnostics ms=353
+ANALYSER_COMMAND_PHASE bytes=2332 site=56 stage=dispatch-diagnostics ms=514
+ANALYSER_TOKEN_PREPARE bytes=2332 site=64 ms=6 nested=56
+ANALYSER_COMMAND_PHASE bytes=2332 site=64 stage=original-names ms=13
+ANALYSER_TOKEN_PREPARE bytes=2332 site=64 ms=4 nested=56
+ANALYSER_COMMAND_PHASE bytes=2332 site=64 stage=scoped-bodies ms=71
+ANALYSER_COMMAND_PHASE bytes=2332 site=64 stage=variable-receivers ms=89
+ANALYSER_COMMAND_PHASE bytes=2332 site=64 stage=direct-invocations ms=106
+ANALYSER_COMMAND_PHASE bytes=2332 site=64 stage=nested-invocations ms=271
+ANALYSER_COMMAND_PHASE bytes=2332 site=64 stage=callback-invocations ms=292
+ANALYSER_COMMAND_PHASE bytes=2332 site=64 stage=command-name-invocations ms=294
+ANALYSER_COMMAND_PHASE bytes=2332 site=64 stage=namespace-role-facts ms=312
+ANALYSER_COMMAND_PHASE bytes=2332 site=64 stage=nested-diagnostics ms=330
+ANALYSER_COMMAND_PHASE bytes=2332 site=64 stage=variable-command-sites ms=332
+ANALYSER_COMMAND_PHASE bytes=2332 site=64 stage=procedure-resolution ms=368
+ANALYSER_COMMAND_PHASE bytes=2332 site=64 stage=expression-diagnostics ms=420
+ANALYSER_COMMAND_PHASE bytes=2332 site=64 stage=dispatch-diagnostics ms=568
+ANALYSER_TOKEN_PREPARE bytes=2332 site=72 ms=6 nested=55
+ANALYSER_COMMAND_PHASE bytes=2332 site=72 stage=original-names ms=17
+ANALYSER_TOKEN_PREPARE bytes=2332 site=72 ms=6 nested=55
+ANALYSER_COMMAND_PHASE bytes=2332 site=72 stage=scoped-bodies ms=90
+ANALYSER_COMMAND_PHASE bytes=2332 site=72 stage=variable-receivers ms=111
+ANALYSER_COMMAND_PHASE bytes=2332 site=72 stage=direct-invocations ms=135
+ANALYSER_COMMAND_PHASE bytes=2332 site=72 stage=nested-invocations ms=211
+ANALYSER_COMMAND_PHASE bytes=2332 site=72 stage=callback-invocations ms=238
+ANALYSER_COMMAND_PHASE bytes=2332 site=72 stage=command-name-invocations ms=246
+ANALYSER_COMMAND_PHASE bytes=2332 site=72 stage=namespace-role-facts ms=287
+ANALYSER_COMMAND_PHASE bytes=2332 site=72 stage=nested-diagnostics ms=309
+ANALYSER_COMMAND_PHASE bytes=2332 site=72 stage=variable-command-sites ms=311
+ANALYSER_COMMAND_PHASE bytes=2332 site=72 stage=procedure-resolution ms=352
+ANALYSER_COMMAND_PHASE bytes=2332 site=72 stage=expression-diagnostics ms=416
+ANALYSER_COMMAND_PHASE bytes=2332 site=72 stage=dispatch-diagnostics ms=520
+ANALYSER_TOKEN_PREPARE bytes=2332 site=80 ms=7 nested=54
+ANALYSER_COMMAND_PHASE bytes=2332 site=80 stage=original-names ms=14
+ANALYSER_TOKEN_PREPARE bytes=2332 site=80 ms=5 nested=54
+ANALYSER_COMMAND_PHASE bytes=2332 site=80 stage=scoped-bodies ms=84
+ANALYSER_COMMAND_PHASE bytes=2332 site=80 stage=variable-receivers ms=104
+ANALYSER_COMMAND_PHASE bytes=2332 site=80 stage=direct-invocations ms=124
+ANALYSER_COMMAND_PHASE bytes=2332 site=80 stage=nested-invocations ms=173
+ANALYSER_COMMAND_PHASE bytes=2332 site=80 stage=callback-invocations ms=195
+ANALYSER_COMMAND_PHASE bytes=2332 site=80 stage=command-name-invocations ms=197
+ANALYSER_COMMAND_PHASE bytes=2332 site=80 stage=namespace-role-facts ms=214
+ANALYSER_COMMAND_PHASE bytes=2332 site=80 stage=nested-diagnostics ms=227
+ANALYSER_COMMAND_PHASE bytes=2332 site=80 stage=variable-command-sites ms=229
+ANALYSER_COMMAND_PHASE bytes=2332 site=80 stage=procedure-resolution ms=261
+ANALYSER_COMMAND_PHASE bytes=2332 site=80 stage=expression-diagnostics ms=316
+ANALYSER_COMMAND_PHASE bytes=2332 site=80 stage=dispatch-diagnostics ms=5584
+ANALYSER_TOKEN_PREPARE bytes=2332 site=88 ms=6 nested=53
+ANALYSER_COMMAND_PHASE bytes=2332 site=88 stage=original-names ms=14
+ANALYSER_TOKEN_PREPARE bytes=2332 site=88 ms=6 nested=53
+ANALYSER_COMMAND_PHASE bytes=2332 site=88 stage=scoped-bodies ms=103
+ANALYSER_COMMAND_PHASE bytes=2332 site=88 stage=variable-receivers ms=121
+ANALYSER_COMMAND_PHASE bytes=2332 site=88 stage=direct-invocations ms=138
+ANALYSER_COMMAND_PHASE bytes=2332 site=88 stage=nested-invocations ms=202
+ANALYSER_COMMAND_PHASE bytes=2332 site=88 stage=callback-invocations ms=226
+ANALYSER_COMMAND_PHASE bytes=2332 site=88 stage=command-name-invocations ms=228
+ANALYSER_COMMAND_PHASE bytes=2332 site=88 stage=namespace-role-facts ms=246
+ANALYSER_COMMAND_PHASE bytes=2332 site=88 stage=nested-diagnostics ms=267
+ANALYSER_COMMAND_PHASE bytes=2332 site=88 stage=variable-command-sites ms=269
+ANALYSER_COMMAND_PHASE bytes=2332 site=88 stage=procedure-resolution ms=560
+ANALYSER_COMMAND_PHASE bytes=2332 site=88 stage=expression-diagnostics ms=2597
+ANALYSER_COMMAND_PHASE bytes=2332 site=88 stage=dispatch-diagnostics ms=3015
+ANALYSER_TOKEN_PREPARE bytes=2332 site=96 ms=7 nested=52
+ANALYSER_COMMAND_PHASE bytes=2332 site=96 stage=original-names ms=13
+ANALYSER_TOKEN_PREPARE bytes=2332 site=96 ms=7 nested=52
+ANALYSER_COMMAND_PHASE bytes=2332 site=96 stage=scoped-bodies ms=695
+ANALYSER_COMMAND_PHASE bytes=2332 site=96 stage=variable-receivers ms=724
+ANALYSER_COMMAND_PHASE bytes=2332 site=96 stage=direct-invocations ms=739
+ANALYSER_COMMAND_PHASE bytes=2332 site=96 stage=nested-invocations ms=4819
+ANALYSER_COMMAND_PHASE bytes=2332 site=96 stage=callback-invocations ms=4911
+ANALYSER_COMMAND_PHASE bytes=2332 site=96 stage=command-name-invocations ms=4915
+ANALYSER_COMMAND_PHASE bytes=2332 site=96 stage=namespace-role-facts ms=4942
+ANALYSER_COMMAND_PHASE bytes=2332 site=96 stage=nested-diagnostics ms=4966
+ANALYSER_COMMAND_PHASE bytes=2332 site=96 stage=variable-command-sites ms=4970
+ANALYSER_COMMAND_PHASE bytes=2332 site=96 stage=procedure-resolution ms=5039
+ANALYSER_COMMAND_PHASE bytes=2332 site=96 stage=expression-diagnostics ms=5186
+ANALYSER_COMMAND_PHASE bytes=2332 site=96 stage=dispatch-diagnostics ms=5301
+ANALYSER_TOKEN_PREPARE bytes=2332 site=104 ms=5 nested=51
+ANALYSER_COMMAND_PHASE bytes=2332 site=104 stage=original-names ms=11
+ANALYSER_TOKEN_PREPARE bytes=2332 site=104 ms=5 nested=51
+ANALYSER_COMMAND_PHASE bytes=2332 site=104 stage=scoped-bodies ms=72
+ANALYSER_COMMAND_PHASE bytes=2332 site=104 stage=variable-receivers ms=122
+ANALYSER_COMMAND_PHASE bytes=2332 site=104 stage=direct-invocations ms=143
+ANALYSER_COMMAND_PHASE bytes=2332 site=104 stage=nested-invocations ms=546
+ANALYSER_COMMAND_PHASE bytes=2332 site=104 stage=callback-invocations ms=898
+ANALYSER_COMMAND_PHASE bytes=2332 site=104 stage=command-name-invocations ms=904
+ANALYSER_COMMAND_PHASE bytes=2332 site=104 stage=namespace-role-facts ms=950
+ANALYSER_COMMAND_PHASE bytes=2332 site=104 stage=nested-diagnostics ms=1050
+ANALYSER_COMMAND_PHASE bytes=2332 site=104 stage=variable-command-sites ms=1085
+ANALYSER_COMMAND_PHASE bytes=2332 site=104 stage=procedure-resolution ms=1174
+ANALYSER_COMMAND_PHASE bytes=2332 site=104 stage=expression-diagnostics ms=1318
+ANALYSER_COMMAND_PHASE bytes=2332 site=104 stage=dispatch-diagnostics ms=1504
+ANALYSER_TOKEN_PREPARE bytes=2332 site=112 ms=5 nested=50
+ANALYSER_COMMAND_PHASE bytes=2332 site=112 stage=original-names ms=13
+ANALYSER_TOKEN_PREPARE bytes=2332 site=112 ms=6 nested=50
+ANALYSER_COMMAND_PHASE bytes=2332 site=112 stage=scoped-bodies ms=94
+ANALYSER_COMMAND_PHASE bytes=2332 site=112 stage=variable-receivers ms=124
+ANALYSER_COMMAND_PHASE bytes=2332 site=112 stage=direct-invocations ms=141
+ANALYSER_COMMAND_PHASE bytes=2332 site=112 stage=nested-invocations ms=290
+ANALYSER_COMMAND_PHASE bytes=2332 site=112 stage=callback-invocations ms=398
+ANALYSER_COMMAND_PHASE bytes=2332 site=112 stage=command-name-invocations ms=405
+ANALYSER_COMMAND_PHASE bytes=2332 site=112 stage=namespace-role-facts ms=445
+ANALYSER_COMMAND_PHASE bytes=2332 site=112 stage=nested-diagnostics ms=559
+ANALYSER_COMMAND_PHASE bytes=2332 site=112 stage=variable-command-sites ms=586
+ANALYSER_COMMAND_PHASE bytes=2332 site=112 stage=procedure-resolution ms=645
+ANALYSER_COMMAND_PHASE bytes=2332 site=112 stage=expression-diagnostics ms=1237
+ANALYSER_COMMAND_PHASE bytes=2332 site=112 stage=dispatch-diagnostics ms=1842
+ANALYSER_TOKEN_PREPARE bytes=2332 site=120 ms=10 nested=49
+ANALYSER_COMMAND_PHASE bytes=2332 site=120 stage=original-names ms=30
+ANALYSER_TOKEN_PREPARE bytes=2332 site=120 ms=6 nested=49
+ANALYSER_COMMAND_PHASE bytes=2332 site=120 stage=scoped-bodies ms=207
+ANALYSER_COMMAND_PHASE bytes=2332 site=120 stage=variable-receivers ms=228
+ANALYSER_COMMAND_PHASE bytes=2332 site=120 stage=direct-invocations ms=254
+ANALYSER_COMMAND_PHASE bytes=2332 site=120 stage=nested-invocations ms=331
+ANALYSER_COMMAND_PHASE bytes=2332 site=120 stage=callback-invocations ms=361
+ANALYSER_COMMAND_PHASE bytes=2332 site=120 stage=command-name-invocations ms=370
+ANALYSER_COMMAND_PHASE bytes=2332 site=120 stage=namespace-role-facts ms=391
+ANALYSER_COMMAND_PHASE bytes=2332 site=120 stage=nested-diagnostics ms=413
+ANALYSER_COMMAND_PHASE bytes=2332 site=120 stage=variable-command-sites ms=415
+ANALYSER_COMMAND_PHASE bytes=2332 site=120 stage=procedure-resolution ms=491
+ANALYSER_COMMAND_PHASE bytes=2332 site=120 stage=expression-diagnostics ms=711
+ANALYSER_COMMAND_PHASE bytes=2332 site=120 stage=dispatch-diagnostics ms=1144
+ANALYSER_TOKEN_PREPARE bytes=2332 site=128 ms=16 nested=48
+ANALYSER_COMMAND_PHASE bytes=2332 site=128 stage=original-names ms=44
+ANALYSER_TOKEN_PREPARE bytes=2332 site=128 ms=22 nested=48
+ANALYSER_COMMAND_PHASE bytes=2332 site=128 stage=scoped-bodies ms=259
+ANALYSER_COMMAND_PHASE bytes=2332 site=128 stage=variable-receivers ms=883
+ANALYSER_COMMAND_PHASE bytes=2332 site=128 stage=direct-invocations ms=1218
+ANALYSER_COMMAND_PHASE bytes=2332 site=128 stage=nested-invocations ms=1524
+ANALYSER_COMMAND_PHASE bytes=2332 site=128 stage=callback-invocations ms=1603
+ANALYSER_COMMAND_PHASE bytes=2332 site=128 stage=command-name-invocations ms=1614
+ANALYSER_COMMAND_PHASE bytes=2332 site=128 stage=namespace-role-facts ms=1679
+ANALYSER_COMMAND_PHASE bytes=2332 site=128 stage=nested-diagnostics ms=1745
+ANALYSER_COMMAND_PHASE bytes=2332 site=128 stage=variable-command-sites ms=1752
+ANALYSER_COMMAND_PHASE bytes=2332 site=128 stage=procedure-resolution ms=1824
+ANALYSER_COMMAND_PHASE bytes=2332 site=128 stage=expression-diagnostics ms=1908
+ANALYSER_COMMAND_PHASE bytes=2332 site=128 stage=dispatch-diagnostics ms=2177
+ANALYSER_TOKEN_PREPARE bytes=2332 site=136 ms=27 nested=47
+ANALYSER_COMMAND_PHASE bytes=2332 site=136 stage=original-names ms=55
+ANALYSER_TOKEN_PREPARE bytes=2332 site=136 ms=19 nested=47
+ANALYSER_COMMAND_PHASE bytes=2332 site=136 stage=scoped-bodies ms=273
+ANALYSER_COMMAND_PHASE bytes=2332 site=136 stage=variable-receivers ms=342
+ANALYSER_COMMAND_PHASE bytes=2332 site=136 stage=direct-invocations ms=395
+ANALYSER_COMMAND_PHASE bytes=2332 site=136 stage=nested-invocations ms=559
+ANALYSER_COMMAND_PHASE bytes=2332 site=136 stage=callback-invocations ms=630
+ANALYSER_COMMAND_PHASE bytes=2332 site=136 stage=command-name-invocations ms=637
+ANALYSER_COMMAND_PHASE bytes=2332 site=136 stage=namespace-role-facts ms=707
+ANALYSER_COMMAND_PHASE bytes=2332 site=136 stage=nested-diagnostics ms=774
+ANALYSER_COMMAND_PHASE bytes=2332 site=136 stage=variable-command-sites ms=782
+ANALYSER_COMMAND_PHASE bytes=2332 site=136 stage=procedure-resolution ms=872
+ANALYSER_COMMAND_PHASE bytes=2332 site=136 stage=expression-diagnostics ms=1082
+ANALYSER_COMMAND_PHASE bytes=2332 site=136 stage=dispatch-diagnostics ms=1411
+ANALYSER_TOKEN_PREPARE bytes=2332 site=144 ms=12 nested=46
+ANALYSER_COMMAND_PHASE bytes=2332 site=144 stage=original-names ms=30
+ANALYSER_TOKEN_PREPARE bytes=2332 site=144 ms=13 nested=46
+ANALYSER_COMMAND_PHASE bytes=2332 site=144 stage=scoped-bodies ms=205
+ANALYSER_COMMAND_PHASE bytes=2332 site=144 stage=variable-receivers ms=271
+ANALYSER_COMMAND_PHASE bytes=2332 site=144 stage=direct-invocations ms=327
+ANALYSER_COMMAND_PHASE bytes=2332 site=144 stage=nested-invocations ms=507
+ANALYSER_COMMAND_PHASE bytes=2332 site=144 stage=callback-invocations ms=594
+ANALYSER_COMMAND_PHASE bytes=2332 site=144 stage=command-name-invocations ms=601
+ANALYSER_COMMAND_PHASE bytes=2332 site=144 stage=namespace-role-facts ms=655
+ANALYSER_COMMAND_PHASE bytes=2332 site=144 stage=nested-diagnostics ms=697
+ANALYSER_COMMAND_PHASE bytes=2332 site=144 stage=variable-command-sites ms=703
+ANALYSER_COMMAND_PHASE bytes=2332 site=144 stage=procedure-resolution ms=805
+ANALYSER_COMMAND_PHASE bytes=2332 site=144 stage=expression-diagnostics ms=910
+ANALYSER_COMMAND_PHASE bytes=2332 site=144 stage=dispatch-diagnostics ms=1099
+ANALYSER_TOKEN_PREPARE bytes=2332 site=152 ms=5 nested=45
+ANALYSER_COMMAND_PHASE bytes=2332 site=152 stage=original-names ms=11
+ANALYSER_TOKEN_PREPARE bytes=2332 site=152 ms=7 nested=45
+ANALYSER_COMMAND_PHASE bytes=2332 site=152 stage=scoped-bodies ms=71
+ANALYSER_COMMAND_PHASE bytes=2332 site=152 stage=variable-receivers ms=89
+ANALYSER_COMMAND_PHASE bytes=2332 site=152 stage=direct-invocations ms=116
+ANALYSER_COMMAND_PHASE bytes=2332 site=152 stage=nested-invocations ms=171
+ANALYSER_COMMAND_PHASE bytes=2332 site=152 stage=callback-invocations ms=196
+ANALYSER_COMMAND_PHASE bytes=2332 site=152 stage=command-name-invocations ms=200
+ANALYSER_COMMAND_PHASE bytes=2332 site=152 stage=namespace-role-facts ms=217
+ANALYSER_COMMAND_PHASE bytes=2332 site=152 stage=nested-diagnostics ms=236
+ANALYSER_COMMAND_PHASE bytes=2332 site=152 stage=variable-command-sites ms=238
+ANALYSER_COMMAND_PHASE bytes=2332 site=152 stage=procedure-resolution ms=273
+ANALYSER_COMMAND_PHASE bytes=2332 site=152 stage=expression-diagnostics ms=338
+ANALYSER_COMMAND_PHASE bytes=2332 site=152 stage=dispatch-diagnostics ms=439
+ANALYSER_TOKEN_PREPARE bytes=2332 site=160 ms=5 nested=44
+ANALYSER_COMMAND_PHASE bytes=2332 site=160 stage=original-names ms=12
+ANALYSER_TOKEN_PREPARE bytes=2332 site=160 ms=4 nested=44
+ANALYSER_COMMAND_PHASE bytes=2332 site=160 stage=scoped-bodies ms=68
+ANALYSER_COMMAND_PHASE bytes=2332 site=160 stage=variable-receivers ms=93
+ANALYSER_COMMAND_PHASE bytes=2332 site=160 stage=direct-invocations ms=109
+ANALYSER_COMMAND_PHASE bytes=2332 site=160 stage=nested-invocations ms=167
+ANALYSER_COMMAND_PHASE bytes=2332 site=160 stage=callback-invocations ms=188
+ANALYSER_COMMAND_PHASE bytes=2332 site=160 stage=command-name-invocations ms=191
+ANALYSER_COMMAND_PHASE bytes=2332 site=160 stage=namespace-role-facts ms=222
+ANALYSER_COMMAND_PHASE bytes=2332 site=160 stage=nested-diagnostics ms=245
+ANALYSER_COMMAND_PHASE bytes=2332 site=160 stage=variable-command-sites ms=247
+ANALYSER_COMMAND_PHASE bytes=2332 site=160 stage=procedure-resolution ms=276
+ANALYSER_COMMAND_PHASE bytes=2332 site=160 stage=expression-diagnostics ms=358
+ANALYSER_COMMAND_PHASE bytes=2332 site=160 stage=dispatch-diagnostics ms=481
+ANALYSER_TOKEN_PREPARE bytes=2332 site=168 ms=4 nested=43
+ANALYSER_COMMAND_PHASE bytes=2332 site=168 stage=original-names ms=12
+ANALYSER_TOKEN_PREPARE bytes=2332 site=168 ms=5 nested=43
+ANALYSER_COMMAND_PHASE bytes=2332 site=168 stage=scoped-bodies ms=90
+ANALYSER_COMMAND_PHASE bytes=2332 site=168 stage=variable-receivers ms=108
+ANALYSER_COMMAND_PHASE bytes=2332 site=168 stage=direct-invocations ms=127
+ANALYSER_COMMAND_PHASE bytes=2332 site=168 stage=nested-invocations ms=202
+ANALYSER_COMMAND_PHASE bytes=2332 site=168 stage=callback-invocations ms=222
+ANALYSER_COMMAND_PHASE bytes=2332 site=168 stage=command-name-invocations ms=225
+ANALYSER_COMMAND_PHASE bytes=2332 site=168 stage=namespace-role-facts ms=240
+ANALYSER_COMMAND_PHASE bytes=2332 site=168 stage=nested-diagnostics ms=257
+ANALYSER_COMMAND_PHASE bytes=2332 site=168 stage=variable-command-sites ms=260
+ANALYSER_COMMAND_PHASE bytes=2332 site=168 stage=procedure-resolution ms=300
+ANALYSER_COMMAND_PHASE bytes=2332 site=168 stage=expression-diagnostics ms=371
+ANALYSER_COMMAND_PHASE bytes=2332 site=168 stage=dispatch-diagnostics ms=460
+ANALYSER_TOKEN_PREPARE bytes=2332 site=176 ms=4 nested=42
+ANALYSER_COMMAND_PHASE bytes=2332 site=176 stage=original-names ms=10
+ANALYSER_TOKEN_PREPARE bytes=2332 site=176 ms=4 nested=42
+ANALYSER_COMMAND_PHASE bytes=2332 site=176 stage=scoped-bodies ms=68
+ANALYSER_COMMAND_PHASE bytes=2332 site=176 stage=variable-receivers ms=85
+ANALYSER_COMMAND_PHASE bytes=2332 site=176 stage=direct-invocations ms=116
+ANALYSER_COMMAND_PHASE bytes=2332 site=176 stage=nested-invocations ms=177
+ANALYSER_COMMAND_PHASE bytes=2332 site=176 stage=callback-invocations ms=199
+ANALYSER_COMMAND_PHASE bytes=2332 site=176 stage=command-name-invocations ms=201
+ANALYSER_COMMAND_PHASE bytes=2332 site=176 stage=namespace-role-facts ms=219
+ANALYSER_COMMAND_PHASE bytes=2332 site=176 stage=nested-diagnostics ms=246
+ANALYSER_COMMAND_PHASE bytes=2332 site=176 stage=variable-command-sites ms=251
+ANALYSER_COMMAND_PHASE bytes=2332 site=176 stage=procedure-resolution ms=280
+ANALYSER_COMMAND_PHASE bytes=2332 site=176 stage=expression-diagnostics ms=354
+ANALYSER_COMMAND_PHASE bytes=2332 site=176 stage=dispatch-diagnostics ms=456
+ANALYSER_TOKEN_PREPARE bytes=2332 site=184 ms=4 nested=41
+ANALYSER_COMMAND_PHASE bytes=2332 site=184 stage=original-names ms=10
+ANALYSER_TOKEN_PREPARE bytes=2332 site=184 ms=4 nested=41
+ANALYSER_COMMAND_PHASE bytes=2332 site=184 stage=scoped-bodies ms=75
+ANALYSER_COMMAND_PHASE bytes=2332 site=184 stage=variable-receivers ms=91
+ANALYSER_COMMAND_PHASE bytes=2332 site=184 stage=direct-invocations ms=111
+ANALYSER_COMMAND_PHASE bytes=2332 site=184 stage=nested-invocations ms=164
+ANALYSER_COMMAND_PHASE bytes=2332 site=184 stage=callback-invocations ms=204
+ANALYSER_COMMAND_PHASE bytes=2332 site=184 stage=command-name-invocations ms=207
+ANALYSER_COMMAND_PHASE bytes=2332 site=184 stage=namespace-role-facts ms=225
+ANALYSER_COMMAND_PHASE bytes=2332 site=184 stage=nested-diagnostics ms=247
+ANALYSER_COMMAND_PHASE bytes=2332 site=184 stage=variable-command-sites ms=249
+ANALYSER_COMMAND_PHASE bytes=2332 site=184 stage=procedure-resolution ms=280
+ANALYSER_COMMAND_PHASE bytes=2332 site=184 stage=expression-diagnostics ms=350
+ANALYSER_COMMAND_PHASE bytes=2332 site=184 stage=dispatch-diagnostics ms=450
+ANALYSER_TOKEN_PREPARE bytes=2332 site=192 ms=6 nested=40
+ANALYSER_COMMAND_PHASE bytes=2332 site=192 stage=original-names ms=13
+ANALYSER_TOKEN_PREPARE bytes=2332 site=192 ms=4 nested=40
+ANALYSER_COMMAND_PHASE bytes=2332 site=192 stage=scoped-bodies ms=73
+ANALYSER_COMMAND_PHASE bytes=2332 site=192 stage=variable-receivers ms=96
+ANALYSER_COMMAND_PHASE bytes=2332 site=192 stage=direct-invocations ms=113
+ANALYSER_COMMAND_PHASE bytes=2332 site=192 stage=nested-invocations ms=180
+ANALYSER_COMMAND_PHASE bytes=2332 site=192 stage=callback-invocations ms=201
+ANALYSER_COMMAND_PHASE bytes=2332 site=192 stage=command-name-invocations ms=204
+ANALYSER_COMMAND_PHASE bytes=2332 site=192 stage=namespace-role-facts ms=219
+ANALYSER_COMMAND_PHASE bytes=2332 site=192 stage=nested-diagnostics ms=233
+ANALYSER_COMMAND_PHASE bytes=2332 site=192 stage=variable-command-sites ms=235
+ANALYSER_COMMAND_PHASE bytes=2332 site=192 stage=procedure-resolution ms=270
+ANALYSER_COMMAND_PHASE bytes=2332 site=192 stage=expression-diagnostics ms=339
+ANALYSER_COMMAND_PHASE bytes=2332 site=192 stage=dispatch-diagnostics ms=440
+ANALYSER_TOKEN_PREPARE bytes=2332 site=200 ms=4 nested=39
+ANALYSER_COMMAND_PHASE bytes=2332 site=200 stage=original-names ms=11
+ANALYSER_TOKEN_PREPARE bytes=2332 site=200 ms=4 nested=39
+ANALYSER_COMMAND_PHASE bytes=2332 site=200 stage=scoped-bodies ms=64
+ANALYSER_COMMAND_PHASE bytes=2332 site=200 stage=variable-receivers ms=90
+ANALYSER_COMMAND_PHASE bytes=2332 site=200 stage=direct-invocations ms=103
+ANALYSER_COMMAND_PHASE bytes=2332 site=200 stage=nested-invocations ms=166
+ANALYSER_COMMAND_PHASE bytes=2332 site=200 stage=callback-invocations ms=190
+ANALYSER_COMMAND_PHASE bytes=2332 site=200 stage=command-name-invocations ms=192
+ANALYSER_COMMAND_PHASE bytes=2332 site=200 stage=namespace-role-facts ms=206
+ANALYSER_COMMAND_PHASE bytes=2332 site=200 stage=nested-diagnostics ms=221
+ANALYSER_COMMAND_PHASE bytes=2332 site=200 stage=variable-command-sites ms=224
+ANALYSER_COMMAND_PHASE bytes=2332 site=200 stage=procedure-resolution ms=258
+ANALYSER_COMMAND_PHASE bytes=2332 site=200 stage=expression-diagnostics ms=349
+ANALYSER_COMMAND_PHASE bytes=2332 site=200 stage=dispatch-diagnostics ms=439
+ANALYSER_TOKEN_PREPARE bytes=2332 site=208 ms=4 nested=38
+ANALYSER_COMMAND_PHASE bytes=2332 site=208 stage=original-names ms=10
+ANALYSER_TOKEN_PREPARE bytes=2332 site=208 ms=4 nested=38
+ANALYSER_COMMAND_PHASE bytes=2332 site=208 stage=scoped-bodies ms=61
+ANALYSER_COMMAND_PHASE bytes=2332 site=208 stage=variable-receivers ms=92
+ANALYSER_COMMAND_PHASE bytes=2332 site=208 stage=direct-invocations ms=107
+ANALYSER_COMMAND_PHASE bytes=2332 site=208 stage=nested-invocations ms=205
+ANALYSER_COMMAND_PHASE bytes=2332 site=208 stage=callback-invocations ms=226
+ANALYSER_COMMAND_PHASE bytes=2332 site=208 stage=command-name-invocations ms=230
+ANALYSER_COMMAND_PHASE bytes=2332 site=208 stage=namespace-role-facts ms=245
+ANALYSER_COMMAND_PHASE bytes=2332 site=208 stage=nested-diagnostics ms=257
+ANALYSER_COMMAND_PHASE bytes=2332 site=208 stage=variable-command-sites ms=260
+ANALYSER_COMMAND_PHASE bytes=2332 site=208 stage=procedure-resolution ms=292
+ANALYSER_COMMAND_PHASE bytes=2332 site=208 stage=expression-diagnostics ms=365
+ANALYSER_COMMAND_PHASE bytes=2332 site=208 stage=dispatch-diagnostics ms=479
+ANALYSER_TOKEN_PREPARE bytes=2332 site=216 ms=3 nested=37
+ANALYSER_COMMAND_PHASE bytes=2332 site=216 stage=original-names ms=12
+ANALYSER_TOKEN_PREPARE bytes=2332 site=216 ms=4 nested=37
+ANALYSER_COMMAND_PHASE bytes=2332 site=216 stage=scoped-bodies ms=74
+ANALYSER_COMMAND_PHASE bytes=2332 site=216 stage=variable-receivers ms=110
+ANALYSER_COMMAND_PHASE bytes=2332 site=216 stage=direct-invocations ms=142
+ANALYSER_COMMAND_PHASE bytes=2332 site=216 stage=nested-invocations ms=201
+ANALYSER_COMMAND_PHASE bytes=2332 site=216 stage=callback-invocations ms=223
+ANALYSER_COMMAND_PHASE bytes=2332 site=216 stage=command-name-invocations ms=225
+ANALYSER_COMMAND_PHASE bytes=2332 site=216 stage=namespace-role-facts ms=242
+ANALYSER_COMMAND_PHASE bytes=2332 site=216 stage=nested-diagnostics ms=257
+ANALYSER_COMMAND_PHASE bytes=2332 site=216 stage=variable-command-sites ms=261
+ANALYSER_COMMAND_PHASE bytes=2332 site=216 stage=procedure-resolution ms=293
+ANALYSER_COMMAND_PHASE bytes=2332 site=216 stage=expression-diagnostics ms=415
+ANALYSER_COMMAND_PHASE bytes=2332 site=216 stage=dispatch-diagnostics ms=525
+ANALYSER_TOKEN_PREPARE bytes=2332 site=224 ms=10 nested=36
+ANALYSER_COMMAND_PHASE bytes=2332 site=224 stage=original-names ms=25
+ANALYSER_TOKEN_PREPARE bytes=2332 site=224 ms=9 nested=36
+ANALYSER_COMMAND_PHASE bytes=2332 site=224 stage=scoped-bodies ms=111
+ANALYSER_COMMAND_PHASE bytes=2332 site=224 stage=variable-receivers ms=139
+ANALYSER_COMMAND_PHASE bytes=2332 site=224 stage=direct-invocations ms=178
+ANALYSER_COMMAND_PHASE bytes=2332 site=224 stage=nested-invocations ms=339
+ANALYSER_COMMAND_PHASE bytes=2332 site=224 stage=callback-invocations ms=367
+ANALYSER_COMMAND_PHASE bytes=2332 site=224 stage=command-name-invocations ms=370
+ANALYSER_COMMAND_PHASE bytes=2332 site=224 stage=namespace-role-facts ms=383
+ANALYSER_COMMAND_PHASE bytes=2332 site=224 stage=nested-diagnostics ms=398
+ANALYSER_COMMAND_PHASE bytes=2332 site=224 stage=variable-command-sites ms=403
+ANALYSER_COMMAND_PHASE bytes=2332 site=224 stage=procedure-resolution ms=437
+ANALYSER_COMMAND_PHASE bytes=2332 site=224 stage=expression-diagnostics ms=564
+ANALYSER_COMMAND_PHASE bytes=2332 site=224 stage=dispatch-diagnostics ms=648
+ANALYSER_TOKEN_PREPARE bytes=2332 site=232 ms=5 nested=35
+ANALYSER_COMMAND_PHASE bytes=2332 site=232 stage=original-names ms=11
+ANALYSER_TOKEN_PREPARE bytes=2332 site=232 ms=4 nested=35
+ANALYSER_COMMAND_PHASE bytes=2332 site=232 stage=scoped-bodies ms=75
+ANALYSER_COMMAND_PHASE bytes=2332 site=232 stage=variable-receivers ms=88
+ANALYSER_COMMAND_PHASE bytes=2332 site=232 stage=direct-invocations ms=106
+ANALYSER_COMMAND_PHASE bytes=2332 site=232 stage=nested-invocations ms=184
+ANALYSER_COMMAND_PHASE bytes=2332 site=232 stage=callback-invocations ms=211
+ANALYSER_COMMAND_PHASE bytes=2332 site=232 stage=command-name-invocations ms=215
+ANALYSER_COMMAND_PHASE bytes=2332 site=232 stage=namespace-role-facts ms=228
+ANALYSER_COMMAND_PHASE bytes=2332 site=232 stage=nested-diagnostics ms=241
+ANALYSER_COMMAND_PHASE bytes=2332 site=232 stage=variable-command-sites ms=244
+ANALYSER_COMMAND_PHASE bytes=2332 site=232 stage=procedure-resolution ms=272
+ANALYSER_COMMAND_PHASE bytes=2332 site=232 stage=expression-diagnostics ms=343
+ANALYSER_COMMAND_PHASE bytes=2332 site=232 stage=dispatch-diagnostics ms=441
+ANALYSER_TOKEN_PREPARE bytes=2332 site=240 ms=5 nested=34
+ANALYSER_COMMAND_PHASE bytes=2332 site=240 stage=original-names ms=12
+ANALYSER_TOKEN_PREPARE bytes=2332 site=240 ms=3 nested=34
+ANALYSER_COMMAND_PHASE bytes=2332 site=240 stage=scoped-bodies ms=65
+ANALYSER_COMMAND_PHASE bytes=2332 site=240 stage=variable-receivers ms=84
+ANALYSER_COMMAND_PHASE bytes=2332 site=240 stage=direct-invocations ms=101
+ANALYSER_COMMAND_PHASE bytes=2332 site=240 stage=nested-invocations ms=224
+ANALYSER_COMMAND_PHASE bytes=2332 site=240 stage=callback-invocations ms=259
+ANALYSER_COMMAND_PHASE bytes=2332 site=240 stage=command-name-invocations ms=262
+ANALYSER_COMMAND_PHASE bytes=2332 site=240 stage=namespace-role-facts ms=278
+ANALYSER_COMMAND_PHASE bytes=2332 site=240 stage=nested-diagnostics ms=293
+ANALYSER_COMMAND_PHASE bytes=2332 site=240 stage=variable-command-sites ms=295
+ANALYSER_COMMAND_PHASE bytes=2332 site=240 stage=procedure-resolution ms=321
+ANALYSER_COMMAND_PHASE bytes=2332 site=240 stage=expression-diagnostics ms=402
+ANALYSER_COMMAND_PHASE bytes=2332 site=240 stage=dispatch-diagnostics ms=518
+ANALYSER_TOKEN_PREPARE bytes=2332 site=248 ms=6 nested=33
+ANALYSER_COMMAND_PHASE bytes=2332 site=248 stage=original-names ms=19
+ANALYSER_TOKEN_PREPARE bytes=2332 site=248 ms=4 nested=33
+ANALYSER_COMMAND_PHASE bytes=2332 site=248 stage=scoped-bodies ms=95
+ANALYSER_COMMAND_PHASE bytes=2332 site=248 stage=variable-receivers ms=113
+ANALYSER_COMMAND_PHASE bytes=2332 site=248 stage=direct-invocations ms=129
+ANALYSER_COMMAND_PHASE bytes=2332 site=248 stage=nested-invocations ms=1001
+ANALYSER_COMMAND_PHASE bytes=2332 site=248 stage=callback-invocations ms=1054
+ANALYSER_COMMAND_PHASE bytes=2332 site=248 stage=command-name-invocations ms=1060
+ANALYSER_COMMAND_PHASE bytes=2332 site=248 stage=namespace-role-facts ms=1082
+ANALYSER_COMMAND_PHASE bytes=2332 site=248 stage=nested-diagnostics ms=1111
+ANALYSER_COMMAND_PHASE bytes=2332 site=248 stage=variable-command-sites ms=1117
+ANALYSER_COMMAND_PHASE bytes=2332 site=248 stage=procedure-resolution ms=1169
+ANALYSER_COMMAND_PHASE bytes=2332 site=248 stage=expression-diagnostics ms=1263
+ANALYSER_COMMAND_PHASE bytes=2332 site=248 stage=dispatch-diagnostics ms=1431
+ANALYSER_TOKEN_PREPARE bytes=2332 site=256 ms=4 nested=32
+ANALYSER_COMMAND_PHASE bytes=2332 site=256 stage=original-names ms=10
+ANALYSER_TOKEN_PREPARE bytes=2332 site=256 ms=4 nested=32
+ANALYSER_COMMAND_PHASE bytes=2332 site=256 stage=scoped-bodies ms=77
+ANALYSER_COMMAND_PHASE bytes=2332 site=256 stage=variable-receivers ms=97
+ANALYSER_COMMAND_PHASE bytes=2332 site=256 stage=direct-invocations ms=126
+ANALYSER_COMMAND_PHASE bytes=2332 site=256 stage=nested-invocations ms=599
+ANALYSER_COMMAND_PHASE bytes=2332 site=256 stage=callback-invocations ms=953
+ANALYSER_COMMAND_PHASE bytes=2332 site=256 stage=command-name-invocations ms=960
+ANALYSER_COMMAND_PHASE bytes=2332 site=256 stage=namespace-role-facts ms=979
+ANALYSER_COMMAND_PHASE bytes=2332 site=256 stage=nested-diagnostics ms=996
+ANALYSER_COMMAND_PHASE bytes=2332 site=256 stage=variable-command-sites ms=1003
+ANALYSER_COMMAND_PHASE bytes=2332 site=256 stage=procedure-resolution ms=1040
+ANALYSER_COMMAND_PHASE bytes=2332 site=256 stage=expression-diagnostics ms=1186
+ANALYSER_COMMAND_PHASE bytes=2332 site=256 stage=dispatch-diagnostics ms=1500
+ANALYSER_TOKEN_PREPARE bytes=2332 site=264 ms=9 nested=31
+ANALYSER_COMMAND_PHASE bytes=2332 site=264 stage=original-names ms=17
+ANALYSER_TOKEN_PREPARE bytes=2332 site=264 ms=9 nested=31
+ANALYSER_COMMAND_PHASE bytes=2332 site=264 stage=scoped-bodies ms=102
+ANALYSER_COMMAND_PHASE bytes=2332 site=264 stage=variable-receivers ms=133
+ANALYSER_COMMAND_PHASE bytes=2332 site=264 stage=direct-invocations ms=150
+ANALYSER_COMMAND_PHASE bytes=2332 site=264 stage=nested-invocations ms=336
+ANALYSER_COMMAND_PHASE bytes=2332 site=264 stage=callback-invocations ms=369
+ANALYSER_COMMAND_PHASE bytes=2332 site=264 stage=command-name-invocations ms=371
+ANALYSER_COMMAND_PHASE bytes=2332 site=264 stage=namespace-role-facts ms=394
+ANALYSER_COMMAND_PHASE bytes=2332 site=264 stage=nested-diagnostics ms=419
+ANALYSER_COMMAND_PHASE bytes=2332 site=264 stage=variable-command-sites ms=425
+ANALYSER_COMMAND_PHASE bytes=2332 site=264 stage=procedure-resolution ms=476
+ANALYSER_COMMAND_PHASE bytes=2332 site=264 stage=expression-diagnostics ms=1325
+ANALYSER_COMMAND_PHASE bytes=2332 site=264 stage=dispatch-diagnostics ms=1756
+ANALYSER_TOKEN_PREPARE bytes=2332 site=272 ms=4 nested=30
+ANALYSER_COMMAND_PHASE bytes=2332 site=272 stage=original-names ms=9
+ANALYSER_TOKEN_PREPARE bytes=2332 site=272 ms=4 nested=30
+ANALYSER_COMMAND_PHASE bytes=2332 site=272 stage=scoped-bodies ms=86
+ANALYSER_COMMAND_PHASE bytes=2332 site=272 stage=variable-receivers ms=105
+ANALYSER_COMMAND_PHASE bytes=2332 site=272 stage=direct-invocations ms=131
+ANALYSER_COMMAND_PHASE bytes=2332 site=272 stage=nested-invocations ms=244
+ANALYSER_COMMAND_PHASE bytes=2332 site=272 stage=callback-invocations ms=274
+ANALYSER_COMMAND_PHASE bytes=2332 site=272 stage=command-name-invocations ms=280
+ANALYSER_COMMAND_PHASE bytes=2332 site=272 stage=namespace-role-facts ms=309
+ANALYSER_COMMAND_PHASE bytes=2332 site=272 stage=nested-diagnostics ms=328
+ANALYSER_COMMAND_PHASE bytes=2332 site=272 stage=variable-command-sites ms=331
+ANALYSER_COMMAND_PHASE bytes=2332 site=272 stage=procedure-resolution ms=385
+ANALYSER_COMMAND_PHASE bytes=2332 site=272 stage=expression-diagnostics ms=577
+ANALYSER_COMMAND_PHASE bytes=2332 site=272 stage=dispatch-diagnostics ms=1567
+ANALYSER_TOKEN_PREPARE bytes=2332 site=280 ms=13 nested=29
+ANALYSER_COMMAND_PHASE bytes=2332 site=280 stage=original-names ms=48
+ANALYSER_TOKEN_PREPARE bytes=2332 site=280 ms=29 nested=29
+ANALYSER_COMMAND_PHASE bytes=2332 site=280 stage=scoped-bodies ms=258
+ANALYSER_COMMAND_PHASE bytes=2332 site=280 stage=variable-receivers ms=325
+ANALYSER_COMMAND_PHASE bytes=2332 site=280 stage=direct-invocations ms=374
+ANALYSER_COMMAND_PHASE bytes=2332 site=280 stage=nested-invocations ms=681
+ANALYSER_COMMAND_PHASE bytes=2332 site=280 stage=callback-invocations ms=800
+ANALYSER_COMMAND_PHASE bytes=2332 site=280 stage=command-name-invocations ms=843
+ANALYSER_COMMAND_PHASE bytes=2332 site=280 stage=namespace-role-facts ms=924
+ANALYSER_COMMAND_PHASE bytes=2332 site=280 stage=nested-diagnostics ms=987
+ANALYSER_COMMAND_PHASE bytes=2332 site=280 stage=variable-command-sites ms=992
+ANALYSER_COMMAND_PHASE bytes=2332 site=280 stage=procedure-resolution ms=1036
+ANALYSER_COMMAND_PHASE bytes=2332 site=280 stage=expression-diagnostics ms=1178
+ANALYSER_COMMAND_PHASE bytes=2332 site=280 stage=dispatch-diagnostics ms=1413
+ANALYSER_TOKEN_PREPARE bytes=2332 site=288 ms=6 nested=28
+ANALYSER_COMMAND_PHASE bytes=2332 site=288 stage=original-names ms=14
+ANALYSER_TOKEN_PREPARE bytes=2332 site=288 ms=4 nested=28
+ANALYSER_COMMAND_PHASE bytes=2332 site=288 stage=scoped-bodies ms=90
+ANALYSER_COMMAND_PHASE bytes=2332 site=288 stage=variable-receivers ms=127
+ANALYSER_COMMAND_PHASE bytes=2332 site=288 stage=direct-invocations ms=173
+ANALYSER_COMMAND_PHASE bytes=2332 site=288 stage=nested-invocations ms=336
+ANALYSER_COMMAND_PHASE bytes=2332 site=288 stage=callback-invocations ms=379
+ANALYSER_COMMAND_PHASE bytes=2332 site=288 stage=command-name-invocations ms=385
+ANALYSER_COMMAND_PHASE bytes=2332 site=288 stage=namespace-role-facts ms=414
+ANALYSER_COMMAND_PHASE bytes=2332 site=288 stage=nested-diagnostics ms=439
+ANALYSER_COMMAND_PHASE bytes=2332 site=288 stage=variable-command-sites ms=444
+ANALYSER_COMMAND_PHASE bytes=2332 site=288 stage=procedure-resolution ms=508
+ANALYSER_COMMAND_PHASE bytes=2332 site=288 stage=expression-diagnostics ms=687
+ANALYSER_COMMAND_PHASE bytes=2332 site=288 stage=dispatch-diagnostics ms=897
+ANALYSER_TOKEN_PREPARE bytes=2332 site=296 ms=8 nested=27
+ANALYSER_COMMAND_PHASE bytes=2332 site=296 stage=original-names ms=18
+ANALYSER_TOKEN_PREPARE bytes=2332 site=296 ms=8 nested=27
+ANALYSER_COMMAND_PHASE bytes=2332 site=296 stage=scoped-bodies ms=99
+ANALYSER_COMMAND_PHASE bytes=2332 site=296 stage=variable-receivers ms=147
+ANALYSER_COMMAND_PHASE bytes=2332 site=296 stage=direct-invocations ms=168
+ANALYSER_COMMAND_PHASE bytes=2332 site=296 stage=nested-invocations ms=230
+ANALYSER_COMMAND_PHASE bytes=2332 site=296 stage=callback-invocations ms=247
+ANALYSER_COMMAND_PHASE bytes=2332 site=296 stage=command-name-invocations ms=250
+ANALYSER_COMMAND_PHASE bytes=2332 site=296 stage=namespace-role-facts ms=259
+ANALYSER_COMMAND_PHASE bytes=2332 site=296 stage=nested-diagnostics ms=272
+ANALYSER_COMMAND_PHASE bytes=2332 site=296 stage=variable-command-sites ms=274
+ANALYSER_COMMAND_PHASE bytes=2332 site=296 stage=procedure-resolution ms=296
+ANALYSER_COMMAND_PHASE bytes=2332 site=296 stage=expression-diagnostics ms=365
+ANALYSER_COMMAND_PHASE bytes=2332 site=296 stage=dispatch-diagnostics ms=461
+ANALYSER_TOKEN_PREPARE bytes=2332 site=304 ms=2 nested=26
+ANALYSER_COMMAND_PHASE bytes=2332 site=304 stage=original-names ms=6
+ANALYSER_TOKEN_PREPARE bytes=2332 site=304 ms=4 nested=26
+ANALYSER_COMMAND_PHASE bytes=2332 site=304 stage=scoped-bodies ms=54
+ANALYSER_COMMAND_PHASE bytes=2332 site=304 stage=variable-receivers ms=68
+ANALYSER_COMMAND_PHASE bytes=2332 site=304 stage=direct-invocations ms=82
+ANALYSER_COMMAND_PHASE bytes=2332 site=304 stage=nested-invocations ms=154
+ANALYSER_COMMAND_PHASE bytes=2332 site=304 stage=callback-invocations ms=170
+ANALYSER_COMMAND_PHASE bytes=2332 site=304 stage=command-name-invocations ms=172
+ANALYSER_COMMAND_PHASE bytes=2332 site=304 stage=namespace-role-facts ms=184
+ANALYSER_COMMAND_PHASE bytes=2332 site=304 stage=nested-diagnostics ms=197
+ANALYSER_COMMAND_PHASE bytes=2332 site=304 stage=variable-command-sites ms=198
+ANALYSER_COMMAND_PHASE bytes=2332 site=304 stage=procedure-resolution ms=223
+ANALYSER_COMMAND_PHASE bytes=2332 site=304 stage=expression-diagnostics ms=315
+ANALYSER_COMMAND_PHASE bytes=2332 site=304 stage=dispatch-diagnostics ms=425
+ANALYSER_TOKEN_PREPARE bytes=2332 site=312 ms=17 nested=25
+ANALYSER_COMMAND_PHASE bytes=2332 site=312 stage=original-names ms=38
+ANALYSER_TOKEN_PREPARE bytes=2332 site=312 ms=6 nested=25
+ANALYSER_COMMAND_PHASE bytes=2332 site=312 stage=scoped-bodies ms=191
+ANALYSER_COMMAND_PHASE bytes=2332 site=312 stage=variable-receivers ms=230
+ANALYSER_COMMAND_PHASE bytes=2332 site=312 stage=direct-invocations ms=262
+ANALYSER_COMMAND_PHASE bytes=2332 site=312 stage=nested-invocations ms=423
+ANALYSER_COMMAND_PHASE bytes=2332 site=312 stage=callback-invocations ms=467
+ANALYSER_COMMAND_PHASE bytes=2332 site=312 stage=command-name-invocations ms=475
+ANALYSER_COMMAND_PHASE bytes=2332 site=312 stage=namespace-role-facts ms=511
+ANALYSER_COMMAND_PHASE bytes=2332 site=312 stage=nested-diagnostics ms=541
+ANALYSER_COMMAND_PHASE bytes=2332 site=312 stage=variable-command-sites ms=547
+ANALYSER_COMMAND_PHASE bytes=2332 site=312 stage=procedure-resolution ms=611
+ANALYSER_COMMAND_PHASE bytes=2332 site=312 stage=expression-diagnostics ms=927
+ANALYSER_COMMAND_PHASE bytes=2332 site=312 stage=dispatch-diagnostics ms=1182
+ANALYSER_TOKEN_PREPARE bytes=2332 site=320 ms=2 nested=24
+ANALYSER_COMMAND_PHASE bytes=2332 site=320 stage=original-names ms=7
+ANALYSER_TOKEN_PREPARE bytes=2332 site=320 ms=2 nested=24
+ANALYSER_COMMAND_PHASE bytes=2332 site=320 stage=scoped-bodies ms=48
+ANALYSER_COMMAND_PHASE bytes=2332 site=320 stage=variable-receivers ms=59
+ANALYSER_COMMAND_PHASE bytes=2332 site=320 stage=direct-invocations ms=76
+ANALYSER_COMMAND_PHASE bytes=2332 site=320 stage=nested-invocations ms=232
+ANALYSER_COMMAND_PHASE bytes=2332 site=320 stage=callback-invocations ms=248
+ANALYSER_COMMAND_PHASE bytes=2332 site=320 stage=command-name-invocations ms=251
+ANALYSER_COMMAND_PHASE bytes=2332 site=320 stage=namespace-role-facts ms=261
+ANALYSER_COMMAND_PHASE bytes=2332 site=320 stage=nested-diagnostics ms=275
+ANALYSER_COMMAND_PHASE bytes=2332 site=320 stage=variable-command-sites ms=277
+ANALYSER_COMMAND_PHASE bytes=2332 site=320 stage=procedure-resolution ms=308
+ANALYSER_COMMAND_PHASE bytes=2332 site=320 stage=expression-diagnostics ms=427
+ANALYSER_COMMAND_PHASE bytes=2332 site=320 stage=dispatch-diagnostics ms=531
+ANALYSER_TOKEN_PREPARE bytes=2332 site=328 ms=3 nested=23
+ANALYSER_COMMAND_PHASE bytes=2332 site=328 stage=original-names ms=8
+ANALYSER_TOKEN_PREPARE bytes=2332 site=328 ms=4 nested=23
+ANALYSER_COMMAND_PHASE bytes=2332 site=328 stage=scoped-bodies ms=51
+ANALYSER_COMMAND_PHASE bytes=2332 site=328 stage=variable-receivers ms=64
+ANALYSER_COMMAND_PHASE bytes=2332 site=328 stage=direct-invocations ms=74
+ANALYSER_COMMAND_PHASE bytes=2332 site=328 stage=nested-invocations ms=158
+ANALYSER_COMMAND_PHASE bytes=2332 site=328 stage=callback-invocations ms=173
+ANALYSER_COMMAND_PHASE bytes=2332 site=328 stage=command-name-invocations ms=176
+ANALYSER_COMMAND_PHASE bytes=2332 site=328 stage=namespace-role-facts ms=187
+ANALYSER_COMMAND_PHASE bytes=2332 site=328 stage=nested-diagnostics ms=198
+ANALYSER_COMMAND_PHASE bytes=2332 site=328 stage=variable-command-sites ms=200
+ANALYSER_COMMAND_PHASE bytes=2332 site=328 stage=procedure-resolution ms=221
+ANALYSER_COMMAND_PHASE bytes=2332 site=328 stage=expression-diagnostics ms=304
+ANALYSER_COMMAND_PHASE bytes=2332 site=328 stage=dispatch-diagnostics ms=390
+ANALYSER_TOKEN_PREPARE bytes=2332 site=336 ms=3 nested=22
+ANALYSER_COMMAND_PHASE bytes=2332 site=336 stage=original-names ms=8
+ANALYSER_TOKEN_PREPARE bytes=2332 site=336 ms=1 nested=22
+ANALYSER_COMMAND_PHASE bytes=2332 site=336 stage=scoped-bodies ms=46
+ANALYSER_COMMAND_PHASE bytes=2332 site=336 stage=variable-receivers ms=63
+ANALYSER_COMMAND_PHASE bytes=2332 site=336 stage=direct-invocations ms=88
+ANALYSER_COMMAND_PHASE bytes=2332 site=336 stage=nested-invocations ms=207
+ANALYSER_COMMAND_PHASE bytes=2332 site=336 stage=callback-invocations ms=231
+ANALYSER_COMMAND_PHASE bytes=2332 site=336 stage=command-name-invocations ms=235
+ANALYSER_COMMAND_PHASE bytes=2332 site=336 stage=namespace-role-facts ms=247
+ANALYSER_COMMAND_PHASE bytes=2332 site=336 stage=nested-diagnostics ms=262
+ANALYSER_COMMAND_PHASE bytes=2332 site=336 stage=variable-command-sites ms=264
+ANALYSER_COMMAND_PHASE bytes=2332 site=336 stage=procedure-resolution ms=289
+ANALYSER_COMMAND_PHASE bytes=2332 site=336 stage=expression-diagnostics ms=373
+ANALYSER_COMMAND_PHASE bytes=2332 site=336 stage=dispatch-diagnostics ms=487
+ANALYSER_TOKEN_PREPARE bytes=2332 site=344 ms=10 nested=21
+ANALYSER_COMMAND_PHASE bytes=2332 site=344 stage=original-names ms=65
+ANALYSER_TOKEN_PREPARE bytes=2332 site=344 ms=5 nested=21
+ANALYSER_COMMAND_PHASE bytes=2332 site=344 stage=scoped-bodies ms=146
+ANALYSER_COMMAND_PHASE bytes=2332 site=344 stage=variable-receivers ms=166
+ANALYSER_COMMAND_PHASE bytes=2332 site=344 stage=direct-invocations ms=190
+ANALYSER_COMMAND_PHASE bytes=2332 site=344 stage=nested-invocations ms=355
+ANALYSER_COMMAND_PHASE bytes=2332 site=344 stage=callback-invocations ms=376
+ANALYSER_COMMAND_PHASE bytes=2332 site=344 stage=command-name-invocations ms=379
+ANALYSER_COMMAND_PHASE bytes=2332 site=344 stage=namespace-role-facts ms=392
+ANALYSER_COMMAND_PHASE bytes=2332 site=344 stage=nested-diagnostics ms=405
+ANALYSER_COMMAND_PHASE bytes=2332 site=344 stage=variable-command-sites ms=407
+ANALYSER_COMMAND_PHASE bytes=2332 site=344 stage=procedure-resolution ms=435
+ANALYSER_COMMAND_PHASE bytes=2332 site=344 stage=expression-diagnostics ms=555
+ANALYSER_COMMAND_PHASE bytes=2332 site=344 stage=dispatch-diagnostics ms=671
+ANALYSER_TOKEN_PREPARE bytes=2332 site=352 ms=2 nested=20
+ANALYSER_COMMAND_PHASE bytes=2332 site=352 stage=original-names ms=10
+ANALYSER_TOKEN_PREPARE bytes=2332 site=352 ms=2 nested=20
+ANALYSER_COMMAND_PHASE bytes=2332 site=352 stage=scoped-bodies ms=57
+ANALYSER_COMMAND_PHASE bytes=2332 site=352 stage=variable-receivers ms=72
+ANALYSER_COMMAND_PHASE bytes=2332 site=352 stage=direct-invocations ms=83
+ANALYSER_COMMAND_PHASE bytes=2332 site=352 stage=nested-invocations ms=199
+ANALYSER_COMMAND_PHASE bytes=2332 site=352 stage=callback-invocations ms=223
+ANALYSER_COMMAND_PHASE bytes=2332 site=352 stage=command-name-invocations ms=227
+ANALYSER_COMMAND_PHASE bytes=2332 site=352 stage=namespace-role-facts ms=247
+ANALYSER_COMMAND_PHASE bytes=2332 site=352 stage=nested-diagnostics ms=266
+ANALYSER_COMMAND_PHASE bytes=2332 site=352 stage=variable-command-sites ms=268
+ANALYSER_COMMAND_PHASE bytes=2332 site=352 stage=procedure-resolution ms=290
+ANALYSER_COMMAND_PHASE bytes=2332 site=352 stage=expression-diagnostics ms=382
+ANALYSER_COMMAND_PHASE bytes=2332 site=352 stage=dispatch-diagnostics ms=469
+ANALYSER_TOKEN_PREPARE bytes=2332 site=360 ms=3 nested=19
+ANALYSER_COMMAND_PHASE bytes=2332 site=360 stage=original-names ms=8
+ANALYSER_TOKEN_PREPARE bytes=2332 site=360 ms=6 nested=19
+ANALYSER_COMMAND_PHASE bytes=2332 site=360 stage=scoped-bodies ms=81
+ANALYSER_COMMAND_PHASE bytes=2332 site=360 stage=variable-receivers ms=102
+ANALYSER_COMMAND_PHASE bytes=2332 site=360 stage=direct-invocations ms=122
+ANALYSER_COMMAND_PHASE bytes=2332 site=360 stage=nested-invocations ms=258
+ANALYSER_COMMAND_PHASE bytes=2332 site=360 stage=callback-invocations ms=280
+ANALYSER_COMMAND_PHASE bytes=2332 site=360 stage=command-name-invocations ms=283
+ANALYSER_COMMAND_PHASE bytes=2332 site=360 stage=namespace-role-facts ms=296
+ANALYSER_COMMAND_PHASE bytes=2332 site=360 stage=nested-diagnostics ms=306
+ANALYSER_COMMAND_PHASE bytes=2332 site=360 stage=variable-command-sites ms=308
+ANALYSER_COMMAND_PHASE bytes=2332 site=360 stage=procedure-resolution ms=332
+ANALYSER_COMMAND_PHASE bytes=2332 site=360 stage=expression-diagnostics ms=424
+ANALYSER_COMMAND_PHASE bytes=2332 site=360 stage=dispatch-diagnostics ms=519
+ANALYSER_TOKEN_PREPARE bytes=2332 site=368 ms=3 nested=18
+ANALYSER_COMMAND_PHASE bytes=2332 site=368 stage=original-names ms=7
+ANALYSER_TOKEN_PREPARE bytes=2332 site=368 ms=2 nested=18
+ANALYSER_COMMAND_PHASE bytes=2332 site=368 stage=scoped-bodies ms=43
+ANALYSER_COMMAND_PHASE bytes=2332 site=368 stage=variable-receivers ms=54
+ANALYSER_COMMAND_PHASE bytes=2332 site=368 stage=direct-invocations ms=64
+ANALYSER_COMMAND_PHASE bytes=2332 site=368 stage=nested-invocations ms=130
+ANALYSER_COMMAND_PHASE bytes=2332 site=368 stage=callback-invocations ms=144
+ANALYSER_COMMAND_PHASE bytes=2332 site=368 stage=command-name-invocations ms=146
+ANALYSER_COMMAND_PHASE bytes=2332 site=368 stage=namespace-role-facts ms=156
+ANALYSER_COMMAND_PHASE bytes=2332 site=368 stage=nested-diagnostics ms=170
+ANALYSER_COMMAND_PHASE bytes=2332 site=368 stage=variable-command-sites ms=173
+ANALYSER_COMMAND_PHASE bytes=2332 site=368 stage=procedure-resolution ms=192
+ANALYSER_COMMAND_PHASE bytes=2332 site=368 stage=expression-diagnostics ms=300
+ANALYSER_COMMAND_PHASE bytes=2332 site=368 stage=dispatch-diagnostics ms=371
+ANALYSER_TOKEN_PREPARE bytes=2332 site=376 ms=3 nested=17
+ANALYSER_COMMAND_PHASE bytes=2332 site=376 stage=original-names ms=7
+ANALYSER_TOKEN_PREPARE bytes=2332 site=376 ms=1 nested=17
+ANALYSER_COMMAND_PHASE bytes=2332 site=376 stage=scoped-bodies ms=46
+ANALYSER_COMMAND_PHASE bytes=2332 site=376 stage=variable-receivers ms=57
+ANALYSER_COMMAND_PHASE bytes=2332 site=376 stage=direct-invocations ms=65
+ANALYSER_COMMAND_PHASE bytes=2332 site=376 stage=nested-invocations ms=145
+ANALYSER_COMMAND_PHASE bytes=2332 site=376 stage=callback-invocations ms=158
+ANALYSER_COMMAND_PHASE bytes=2332 site=376 stage=command-name-invocations ms=160
+ANALYSER_COMMAND_PHASE bytes=2332 site=376 stage=namespace-role-facts ms=172
+ANALYSER_COMMAND_PHASE bytes=2332 site=376 stage=nested-diagnostics ms=219
+ANALYSER_COMMAND_PHASE bytes=2332 site=376 stage=variable-command-sites ms=228
+ANALYSER_COMMAND_PHASE bytes=2332 site=376 stage=procedure-resolution ms=263
+ANALYSER_COMMAND_PHASE bytes=2332 site=376 stage=expression-diagnostics ms=417
+ANALYSER_COMMAND_PHASE bytes=2332 site=376 stage=dispatch-diagnostics ms=525
+ANALYSER_TOKEN_PREPARE bytes=2332 site=384 ms=2 nested=16
+ANALYSER_COMMAND_PHASE bytes=2332 site=384 stage=original-names ms=5
+ANALYSER_TOKEN_PREPARE bytes=2332 site=384 ms=3 nested=16
+ANALYSER_COMMAND_PHASE bytes=2332 site=384 stage=scoped-bodies ms=56
+ANALYSER_COMMAND_PHASE bytes=2332 site=384 stage=variable-receivers ms=67
+ANALYSER_COMMAND_PHASE bytes=2332 site=384 stage=direct-invocations ms=77
+ANALYSER_COMMAND_PHASE bytes=2332 site=384 stage=nested-invocations ms=176
+ANALYSER_COMMAND_PHASE bytes=2332 site=384 stage=callback-invocations ms=188
+ANALYSER_COMMAND_PHASE bytes=2332 site=384 stage=command-name-invocations ms=191
+ANALYSER_COMMAND_PHASE bytes=2332 site=384 stage=namespace-role-facts ms=200
+ANALYSER_COMMAND_PHASE bytes=2332 site=384 stage=nested-diagnostics ms=209
+ANALYSER_COMMAND_PHASE bytes=2332 site=384 stage=variable-command-sites ms=211
+ANALYSER_COMMAND_PHASE bytes=2332 site=384 stage=procedure-resolution ms=233
+ANALYSER_COMMAND_PHASE bytes=2332 site=384 stage=expression-diagnostics ms=314
+ANALYSER_COMMAND_PHASE bytes=2332 site=384 stage=dispatch-diagnostics ms=405
+ANALYSER_TOKEN_PREPARE bytes=2332 site=392 ms=1 nested=15
+ANALYSER_COMMAND_PHASE bytes=2332 site=392 stage=original-names ms=4
+ANALYSER_TOKEN_PREPARE bytes=2332 site=392 ms=2 nested=15
+ANALYSER_COMMAND_PHASE bytes=2332 site=392 stage=scoped-bodies ms=56
+ANALYSER_COMMAND_PHASE bytes=2332 site=392 stage=variable-receivers ms=68
+ANALYSER_COMMAND_PHASE bytes=2332 site=392 stage=direct-invocations ms=79
+ANALYSER_COMMAND_PHASE bytes=2332 site=392 stage=nested-invocations ms=194
+ANALYSER_COMMAND_PHASE bytes=2332 site=392 stage=callback-invocations ms=208
+ANALYSER_COMMAND_PHASE bytes=2332 site=392 stage=command-name-invocations ms=212
+ANALYSER_COMMAND_PHASE bytes=2332 site=392 stage=namespace-role-facts ms=220
+ANALYSER_COMMAND_PHASE bytes=2332 site=392 stage=nested-diagnostics ms=229
+ANALYSER_COMMAND_PHASE bytes=2332 site=392 stage=variable-command-sites ms=231
+ANALYSER_COMMAND_PHASE bytes=2332 site=392 stage=procedure-resolution ms=251
+ANALYSER_COMMAND_PHASE bytes=2332 site=392 stage=expression-diagnostics ms=352
+ANALYSER_COMMAND_PHASE bytes=2332 site=392 stage=dispatch-diagnostics ms=455
+ANALYSER_TOKEN_PREPARE bytes=2332 site=400 ms=1 nested=14
+ANALYSER_COMMAND_PHASE bytes=2332 site=400 stage=original-names ms=5
+ANALYSER_TOKEN_PREPARE bytes=2332 site=400 ms=1 nested=14
+ANALYSER_COMMAND_PHASE bytes=2332 site=400 stage=scoped-bodies ms=45
+ANALYSER_COMMAND_PHASE bytes=2332 site=400 stage=variable-receivers ms=57
+ANALYSER_COMMAND_PHASE bytes=2332 site=400 stage=direct-invocations ms=70
+ANALYSER_COMMAND_PHASE bytes=2332 site=400 stage=nested-invocations ms=150
+ANALYSER_COMMAND_PHASE bytes=2332 site=400 stage=callback-invocations ms=162
+ANALYSER_COMMAND_PHASE bytes=2332 site=400 stage=command-name-invocations ms=165
+ANALYSER_COMMAND_PHASE bytes=2332 site=400 stage=namespace-role-facts ms=175
+ANALYSER_COMMAND_PHASE bytes=2332 site=400 stage=nested-diagnostics ms=190
+ANALYSER_COMMAND_PHASE bytes=2332 site=400 stage=variable-command-sites ms=195
+ANALYSER_COMMAND_PHASE bytes=2332 site=400 stage=procedure-resolution ms=212
+ANALYSER_COMMAND_PHASE bytes=2332 site=400 stage=expression-diagnostics ms=292
+ANALYSER_COMMAND_PHASE bytes=2332 site=400 stage=dispatch-diagnostics ms=455
+ANALYSER_TOKEN_PREPARE bytes=2332 site=408 ms=1 nested=13
+ANALYSER_COMMAND_PHASE bytes=2332 site=408 stage=original-names ms=4
+ANALYSER_TOKEN_PREPARE bytes=2332 site=408 ms=4 nested=13
+ANALYSER_COMMAND_PHASE bytes=2332 site=408 stage=scoped-bodies ms=58
+ANALYSER_COMMAND_PHASE bytes=2332 site=408 stage=variable-receivers ms=80
+ANALYSER_COMMAND_PHASE bytes=2332 site=408 stage=direct-invocations ms=95
+ANALYSER_COMMAND_PHASE bytes=2332 site=408 stage=nested-invocations ms=199
+ANALYSER_COMMAND_PHASE bytes=2332 site=408 stage=callback-invocations ms=225
+ANALYSER_COMMAND_PHASE bytes=2332 site=408 stage=command-name-invocations ms=231
+ANALYSER_COMMAND_PHASE bytes=2332 site=408 stage=namespace-role-facts ms=254
+ANALYSER_COMMAND_PHASE bytes=2332 site=408 stage=nested-diagnostics ms=279
+ANALYSER_COMMAND_PHASE bytes=2332 site=408 stage=variable-command-sites ms=287
+ANALYSER_COMMAND_PHASE bytes=2332 site=408 stage=procedure-resolution ms=334
+ANALYSER_COMMAND_PHASE bytes=2332 site=408 stage=expression-diagnostics ms=479
+ANALYSER_COMMAND_PHASE bytes=2332 site=408 stage=dispatch-diagnostics ms=581
+ANALYSER_TOKEN_PREPARE bytes=2332 site=416 ms=1 nested=12
+ANALYSER_COMMAND_PHASE bytes=2332 site=416 stage=original-names ms=4
+ANALYSER_TOKEN_PREPARE bytes=2332 site=416 ms=3 nested=12
+ANALYSER_COMMAND_PHASE bytes=2332 site=416 stage=scoped-bodies ms=39
+ANALYSER_COMMAND_PHASE bytes=2332 site=416 stage=variable-receivers ms=50
+ANALYSER_COMMAND_PHASE bytes=2332 site=416 stage=direct-invocations ms=61
+ANALYSER_COMMAND_PHASE bytes=2332 site=416 stage=nested-invocations ms=141
+ANALYSER_COMMAND_PHASE bytes=2332 site=416 stage=callback-invocations ms=151
+ANALYSER_COMMAND_PHASE bytes=2332 site=416 stage=command-name-invocations ms=154
+ANALYSER_COMMAND_PHASE bytes=2332 site=416 stage=namespace-role-facts ms=161
+ANALYSER_COMMAND_PHASE bytes=2332 site=416 stage=nested-diagnostics ms=169
+ANALYSER_COMMAND_PHASE bytes=2332 site=416 stage=variable-command-sites ms=170
+ANALYSER_COMMAND_PHASE bytes=2332 site=416 stage=procedure-resolution ms=191
+ANALYSER_COMMAND_PHASE bytes=2332 site=416 stage=expression-diagnostics ms=296
+ANALYSER_COMMAND_PHASE bytes=2332 site=416 stage=dispatch-diagnostics ms=450
+ANALYSER_TOKEN_PREPARE bytes=2332 site=424 ms=2 nested=11
+ANALYSER_COMMAND_PHASE bytes=2332 site=424 stage=original-names ms=5
+ANALYSER_TOKEN_PREPARE bytes=2332 site=424 ms=1 nested=11
+ANALYSER_COMMAND_PHASE bytes=2332 site=424 stage=scoped-bodies ms=40
+ANALYSER_COMMAND_PHASE bytes=2332 site=424 stage=variable-receivers ms=49
+ANALYSER_COMMAND_PHASE bytes=2332 site=424 stage=direct-invocations ms=59
+ANALYSER_COMMAND_PHASE bytes=2332 site=424 stage=nested-invocations ms=204
+ANALYSER_COMMAND_PHASE bytes=2332 site=424 stage=callback-invocations ms=222
+ANALYSER_COMMAND_PHASE bytes=2332 site=424 stage=command-name-invocations ms=228
+ANALYSER_COMMAND_PHASE bytes=2332 site=424 stage=namespace-role-facts ms=240
+ANALYSER_COMMAND_PHASE bytes=2332 site=424 stage=nested-diagnostics ms=251
+ANALYSER_COMMAND_PHASE bytes=2332 site=424 stage=variable-command-sites ms=254
+ANALYSER_COMMAND_PHASE bytes=2332 site=424 stage=procedure-resolution ms=277
+ANALYSER_COMMAND_PHASE bytes=2332 site=424 stage=expression-diagnostics ms=375
+ANALYSER_COMMAND_PHASE bytes=2332 site=424 stage=dispatch-diagnostics ms=480
+ANALYSER_TOKEN_PREPARE bytes=2332 site=432 ms=2 nested=10
+ANALYSER_COMMAND_PHASE bytes=2332 site=432 stage=original-names ms=5
+ANALYSER_TOKEN_PREPARE bytes=2332 site=432 ms=0 nested=10
+ANALYSER_COMMAND_PHASE bytes=2332 site=432 stage=scoped-bodies ms=35
+ANALYSER_COMMAND_PHASE bytes=2332 site=432 stage=variable-receivers ms=49
+ANALYSER_COMMAND_PHASE bytes=2332 site=432 stage=direct-invocations ms=59
+ANALYSER_COMMAND_PHASE bytes=2332 site=432 stage=nested-invocations ms=143
+ANALYSER_COMMAND_PHASE bytes=2332 site=432 stage=callback-invocations ms=153
+ANALYSER_COMMAND_PHASE bytes=2332 site=432 stage=command-name-invocations ms=156
+ANALYSER_COMMAND_PHASE bytes=2332 site=432 stage=namespace-role-facts ms=163
+ANALYSER_COMMAND_PHASE bytes=2332 site=432 stage=nested-diagnostics ms=178
+ANALYSER_COMMAND_PHASE bytes=2332 site=432 stage=variable-command-sites ms=181
+ANALYSER_COMMAND_PHASE bytes=2332 site=432 stage=procedure-resolution ms=198
+ANALYSER_COMMAND_PHASE bytes=2332 site=432 stage=expression-diagnostics ms=297
+ANALYSER_COMMAND_PHASE bytes=2332 site=432 stage=dispatch-diagnostics ms=478
+ANALYSER_TOKEN_PREPARE bytes=2332 site=440 ms=1 nested=9
+ANALYSER_COMMAND_PHASE bytes=2332 site=440 stage=original-names ms=4
+ANALYSER_TOKEN_PREPARE bytes=2332 site=440 ms=1 nested=9
+ANALYSER_COMMAND_PHASE bytes=2332 site=440 stage=scoped-bodies ms=48
+ANALYSER_COMMAND_PHASE bytes=2332 site=440 stage=variable-receivers ms=72
+ANALYSER_COMMAND_PHASE bytes=2332 site=440 stage=direct-invocations ms=91
+ANALYSER_COMMAND_PHASE bytes=2332 site=440 stage=nested-invocations ms=276
+ANALYSER_COMMAND_PHASE bytes=2332 site=440 stage=callback-invocations ms=289
+ANALYSER_COMMAND_PHASE bytes=2332 site=440 stage=command-name-invocations ms=292
+ANALYSER_COMMAND_PHASE bytes=2332 site=440 stage=namespace-role-facts ms=300
+ANALYSER_COMMAND_PHASE bytes=2332 site=440 stage=nested-diagnostics ms=308
+ANALYSER_COMMAND_PHASE bytes=2332 site=440 stage=variable-command-sites ms=312
+ANALYSER_COMMAND_PHASE bytes=2332 site=440 stage=procedure-resolution ms=328
+ANALYSER_COMMAND_PHASE bytes=2332 site=440 stage=expression-diagnostics ms=429
+ANALYSER_COMMAND_PHASE bytes=2332 site=440 stage=dispatch-diagnostics ms=517
+ANALYSER_TOKEN_PREPARE bytes=2332 site=448 ms=1 nested=8
+ANALYSER_COMMAND_PHASE bytes=2332 site=448 stage=original-names ms=5
+ANALYSER_TOKEN_PREPARE bytes=2332 site=448 ms=0 nested=8
+ANALYSER_COMMAND_PHASE bytes=2332 site=448 stage=scoped-bodies ms=33
+ANALYSER_COMMAND_PHASE bytes=2332 site=448 stage=variable-receivers ms=45
+ANALYSER_COMMAND_PHASE bytes=2332 site=448 stage=direct-invocations ms=57
+ANALYSER_COMMAND_PHASE bytes=2332 site=448 stage=nested-invocations ms=149
+ANALYSER_COMMAND_PHASE bytes=2332 site=448 stage=callback-invocations ms=161
+ANALYSER_COMMAND_PHASE bytes=2332 site=448 stage=command-name-invocations ms=164
+ANALYSER_COMMAND_PHASE bytes=2332 site=448 stage=namespace-role-facts ms=171
+ANALYSER_COMMAND_PHASE bytes=2332 site=448 stage=nested-diagnostics ms=178
+ANALYSER_COMMAND_PHASE bytes=2332 site=448 stage=variable-command-sites ms=180
+ANALYSER_COMMAND_PHASE bytes=2332 site=448 stage=procedure-resolution ms=195
+ANALYSER_COMMAND_PHASE bytes=2332 site=448 stage=expression-diagnostics ms=310
+ANALYSER_COMMAND_PHASE bytes=2332 site=448 stage=dispatch-diagnostics ms=399
+ANALYSER_TOKEN_PREPARE bytes=2332 site=456 ms=1 nested=7
+ANALYSER_COMMAND_PHASE bytes=2332 site=456 stage=original-names ms=4
+ANALYSER_TOKEN_PREPARE bytes=2332 site=456 ms=0 nested=7
+ANALYSER_COMMAND_PHASE bytes=2332 site=456 stage=scoped-bodies ms=32
+ANALYSER_COMMAND_PHASE bytes=2332 site=456 stage=variable-receivers ms=41
+ANALYSER_COMMAND_PHASE bytes=2332 site=456 stage=direct-invocations ms=50
+ANALYSER_COMMAND_PHASE bytes=2332 site=456 stage=nested-invocations ms=166
+ANALYSER_COMMAND_PHASE bytes=2332 site=456 stage=callback-invocations ms=178
+ANALYSER_COMMAND_PHASE bytes=2332 site=456 stage=command-name-invocations ms=181
+ANALYSER_COMMAND_PHASE bytes=2332 site=456 stage=namespace-role-facts ms=191
+ANALYSER_COMMAND_PHASE bytes=2332 site=456 stage=nested-diagnostics ms=203
+ANALYSER_COMMAND_PHASE bytes=2332 site=456 stage=variable-command-sites ms=205
+ANALYSER_COMMAND_PHASE bytes=2332 site=456 stage=procedure-resolution ms=222
+ANALYSER_COMMAND_PHASE bytes=2332 site=456 stage=expression-diagnostics ms=317
+ANALYSER_COMMAND_PHASE bytes=2332 site=456 stage=dispatch-diagnostics ms=402
+ANALYSER_TOKEN_PREPARE bytes=2332 site=464 ms=1 nested=6
+ANALYSER_COMMAND_PHASE bytes=2332 site=464 stage=original-names ms=3
+ANALYSER_TOKEN_PREPARE bytes=2332 site=464 ms=0 nested=6
+ANALYSER_COMMAND_PHASE bytes=2332 site=464 stage=scoped-bodies ms=32
+ANALYSER_COMMAND_PHASE bytes=2332 site=464 stage=variable-receivers ms=46
+ANALYSER_COMMAND_PHASE bytes=2332 site=464 stage=direct-invocations ms=55
+ANALYSER_COMMAND_PHASE bytes=2332 site=464 stage=nested-invocations ms=189
+ANALYSER_COMMAND_PHASE bytes=2332 site=464 stage=callback-invocations ms=214
+ANALYSER_COMMAND_PHASE bytes=2332 site=464 stage=command-name-invocations ms=222
+ANALYSER_COMMAND_PHASE bytes=2332 site=464 stage=namespace-role-facts ms=231
+ANALYSER_COMMAND_PHASE bytes=2332 site=464 stage=nested-diagnostics ms=243
+ANALYSER_COMMAND_PHASE bytes=2332 site=464 stage=variable-command-sites ms=252
+ANALYSER_COMMAND_PHASE bytes=2332 site=464 stage=procedure-resolution ms=272
+ANALYSER_COMMAND_PHASE bytes=2332 site=464 stage=expression-diagnostics ms=398
+ANALYSER_COMMAND_PHASE bytes=2332 site=464 stage=dispatch-diagnostics ms=496
+ANALYSER_TOKEN_PREPARE bytes=2332 site=472 ms=1 nested=5
+ANALYSER_COMMAND_PHASE bytes=2332 site=472 stage=original-names ms=4
+ANALYSER_TOKEN_PREPARE bytes=2332 site=472 ms=1 nested=5
+ANALYSER_COMMAND_PHASE bytes=2332 site=472 stage=scoped-bodies ms=47
+ANALYSER_COMMAND_PHASE bytes=2332 site=472 stage=variable-receivers ms=58
+ANALYSER_COMMAND_PHASE bytes=2332 site=472 stage=direct-invocations ms=71
+ANALYSER_COMMAND_PHASE bytes=2332 site=472 stage=nested-invocations ms=173
+ANALYSER_COMMAND_PHASE bytes=2332 site=472 stage=callback-invocations ms=183
+ANALYSER_COMMAND_PHASE bytes=2332 site=472 stage=command-name-invocations ms=187
+ANALYSER_COMMAND_PHASE bytes=2332 site=472 stage=namespace-role-facts ms=197
+ANALYSER_COMMAND_PHASE bytes=2332 site=472 stage=nested-diagnostics ms=206
+ANALYSER_COMMAND_PHASE bytes=2332 site=472 stage=variable-command-sites ms=209
+ANALYSER_COMMAND_PHASE bytes=2332 site=472 stage=procedure-resolution ms=227
+ANALYSER_COMMAND_PHASE bytes=2332 site=472 stage=expression-diagnostics ms=372
+ANALYSER_COMMAND_PHASE bytes=2332 site=472 stage=dispatch-diagnostics ms=497
+ANALYSER_TOKEN_PREPARE bytes=2332 site=480 ms=1 nested=4
+ANALYSER_COMMAND_PHASE bytes=2332 site=480 stage=original-names ms=3
+ANALYSER_TOKEN_PREPARE bytes=2332 site=480 ms=1 nested=4
+ANALYSER_COMMAND_PHASE bytes=2332 site=480 stage=scoped-bodies ms=33
+ANALYSER_COMMAND_PHASE bytes=2332 site=480 stage=variable-receivers ms=42
+ANALYSER_COMMAND_PHASE bytes=2332 site=480 stage=direct-invocations ms=54
+ANALYSER_COMMAND_PHASE bytes=2332 site=480 stage=nested-invocations ms=168
+ANALYSER_COMMAND_PHASE bytes=2332 site=480 stage=callback-invocations ms=175
+ANALYSER_COMMAND_PHASE bytes=2332 site=480 stage=command-name-invocations ms=178
+ANALYSER_COMMAND_PHASE bytes=2332 site=480 stage=namespace-role-facts ms=187
+ANALYSER_COMMAND_PHASE bytes=2332 site=480 stage=nested-diagnostics ms=194
+ANALYSER_COMMAND_PHASE bytes=2332 site=480 stage=variable-command-sites ms=196
+ANALYSER_COMMAND_PHASE bytes=2332 site=480 stage=procedure-resolution ms=208
+ANALYSER_COMMAND_PHASE bytes=2332 site=480 stage=expression-diagnostics ms=287
+ANALYSER_COMMAND_PHASE bytes=2332 site=480 stage=dispatch-diagnostics ms=352
+ANALYSER_TOKEN_PREPARE bytes=2332 site=488 ms=0 nested=3
+ANALYSER_COMMAND_PHASE bytes=2332 site=488 stage=original-names ms=2
+ANALYSER_TOKEN_PREPARE bytes=2332 site=488 ms=1 nested=3
+ANALYSER_COMMAND_PHASE bytes=2332 site=488 stage=scoped-bodies ms=28
+ANALYSER_COMMAND_PHASE bytes=2332 site=488 stage=variable-receivers ms=37
+ANALYSER_COMMAND_PHASE bytes=2332 site=488 stage=direct-invocations ms=44
+ANALYSER_COMMAND_PHASE bytes=2332 site=488 stage=nested-invocations ms=150
+ANALYSER_COMMAND_PHASE bytes=2332 site=488 stage=callback-invocations ms=158
+ANALYSER_COMMAND_PHASE bytes=2332 site=488 stage=command-name-invocations ms=161
+ANALYSER_COMMAND_PHASE bytes=2332 site=488 stage=namespace-role-facts ms=171
+ANALYSER_COMMAND_PHASE bytes=2332 site=488 stage=nested-diagnostics ms=178
+ANALYSER_COMMAND_PHASE bytes=2332 site=488 stage=variable-command-sites ms=182
+ANALYSER_COMMAND_PHASE bytes=2332 site=488 stage=procedure-resolution ms=197
+ANALYSER_COMMAND_PHASE bytes=2332 site=488 stage=expression-diagnostics ms=321
+ANALYSER_COMMAND_PHASE bytes=2332 site=488 stage=dispatch-diagnostics ms=498
+ANALYSER_TOKEN_PREPARE bytes=2332 site=496 ms=0 nested=2
+ANALYSER_COMMAND_PHASE bytes=2332 site=496 stage=original-names ms=2
+ANALYSER_TOKEN_PREPARE bytes=2332 site=496 ms=2 nested=2
+ANALYSER_COMMAND_PHASE bytes=2332 site=496 stage=scoped-bodies ms=27
+ANALYSER_COMMAND_PHASE bytes=2332 site=496 stage=variable-receivers ms=37
+ANALYSER_COMMAND_PHASE bytes=2332 site=496 stage=direct-invocations ms=45
+ANALYSER_COMMAND_PHASE bytes=2332 site=496 stage=nested-invocations ms=161
+ANALYSER_COMMAND_PHASE bytes=2332 site=496 stage=callback-invocations ms=169
+ANALYSER_COMMAND_PHASE bytes=2332 site=496 stage=command-name-invocations ms=171
+ANALYSER_COMMAND_PHASE bytes=2332 site=496 stage=namespace-role-facts ms=176
+ANALYSER_COMMAND_PHASE bytes=2332 site=496 stage=nested-diagnostics ms=182
+ANALYSER_COMMAND_PHASE bytes=2332 site=496 stage=variable-command-sites ms=184
+ANALYSER_COMMAND_PHASE bytes=2332 site=496 stage=procedure-resolution ms=201
+ANALYSER_COMMAND_PHASE bytes=2332 site=496 stage=expression-diagnostics ms=304
+ANALYSER_COMMAND_PHASE bytes=2332 site=496 stage=dispatch-diagnostics ms=396
+ANALYSER_TOKEN_PREPARE bytes=2332 site=504 ms=0 nested=1
+ANALYSER_COMMAND_PHASE bytes=2332 site=504 stage=original-names ms=2
+ANALYSER_TOKEN_PREPARE bytes=2332 site=504 ms=0 nested=1
+ANALYSER_COMMAND_PHASE bytes=2332 site=504 stage=scoped-bodies ms=22
+ANALYSER_COMMAND_PHASE bytes=2332 site=504 stage=variable-receivers ms=30
+ANALYSER_COMMAND_PHASE bytes=2332 site=504 stage=direct-invocations ms=38
+ANALYSER_COMMAND_PHASE bytes=2332 site=504 stage=nested-invocations ms=160
+ANALYSER_COMMAND_PHASE bytes=2332 site=504 stage=callback-invocations ms=172
+ANALYSER_COMMAND_PHASE bytes=2332 site=504 stage=command-name-invocations ms=175
+ANALYSER_COMMAND_PHASE bytes=2332 site=504 stage=namespace-role-facts ms=182
+ANALYSER_COMMAND_PHASE bytes=2332 site=504 stage=nested-diagnostics ms=188
+ANALYSER_COMMAND_PHASE bytes=2332 site=504 stage=variable-command-sites ms=190
+ANALYSER_COMMAND_PHASE bytes=2332 site=504 stage=procedure-resolution ms=203
+ANALYSER_COMMAND_PHASE bytes=2332 site=504 stage=expression-diagnostics ms=302
+ANALYSER_COMMAND_PHASE bytes=2332 site=504 stage=dispatch-diagnostics ms=368
+ANALYSER_TOKEN_PREPARE bytes=2332 site=512 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=2332 site=512 stage=original-names ms=2
+ANALYSER_TOKEN_PREPARE bytes=2332 site=512 ms=0 nested=0
+ANALYSER_COMMAND_PHASE bytes=2332 site=512 stage=scoped-bodies ms=23
+ANALYSER_COMMAND_PHASE bytes=2332 site=512 stage=variable-receivers ms=32
+ANALYSER_COMMAND_PHASE bytes=2332 site=512 stage=direct-invocations ms=47
+ANALYSER_COMMAND_PHASE bytes=2332 site=512 stage=nested-invocations ms=167
+ANALYSER_COMMAND_PHASE bytes=2332 site=512 stage=callback-invocations ms=175
+ANALYSER_COMMAND_PHASE bytes=2332 site=512 stage=command-name-invocations ms=177
+ANALYSER_COMMAND_PHASE bytes=2332 site=512 stage=namespace-role-facts ms=182
+ANALYSER_COMMAND_PHASE bytes=2332 site=512 stage=nested-diagnostics ms=189
+ANALYSER_COMMAND_PHASE bytes=2332 site=512 stage=variable-command-sites ms=191
+ANALYSER_COMMAND_PHASE bytes=2332 site=512 stage=procedure-resolution ms=202
+ANALYSER_COMMAND_PHASE bytes=2332 site=512 stage=expression-diagnostics ms=295
+ANALYSER_COMMAND_PHASE bytes=2332 site=512 stage=dispatch-diagnostics ms=370
+ANALYSER_COMMAND_PHASE bytes=2332 site=512 stage=handlers-complete ms=409
+ANALYSER_COMMAND_PHASE bytes=2332 site=504 stage=handlers-complete ms=969
+ANALYSER_COMMAND_PHASE bytes=2332 site=496 stage=handlers-complete ms=1646
+ANALYSER_COMMAND_PHASE bytes=2332 site=488 stage=handlers-complete ms=2393
+ANALYSER_COMMAND_PHASE bytes=2332 site=480 stage=handlers-complete ms=3029
+ANALYSER_COMMAND_PHASE bytes=2332 site=472 stage=handlers-complete ms=3738
+ANALYSER_COMMAND_PHASE bytes=2332 site=464 stage=handlers-complete ms=4443
+ANALYSER_COMMAND_PHASE bytes=2332 site=456 stage=handlers-complete ms=5054
+ANALYSER_COMMAND_PHASE bytes=2332 site=448 stage=handlers-complete ms=5671
+ANALYSER_COMMAND_PHASE bytes=2332 site=440 stage=handlers-complete ms=6401
+ANALYSER_COMMAND_PHASE bytes=2332 site=432 stage=handlers-complete ms=7111
+ANALYSER_COMMAND_PHASE bytes=2332 site=424 stage=handlers-complete ms=7820
+ANALYSER_COMMAND_PHASE bytes=2332 site=416 stage=handlers-complete ms=8571
+ANALYSER_COMMAND_PHASE bytes=2332 site=408 stage=handlers-complete ms=9396
+ANALYSER_COMMAND_PHASE bytes=2332 site=400 stage=handlers-complete ms=10093
+ANALYSER_COMMAND_PHASE bytes=2332 site=392 stage=handlers-complete ms=10780
+ANALYSER_COMMAND_PHASE bytes=2332 site=384 stage=handlers-complete ms=11410
+ANALYSER_COMMAND_PHASE bytes=2332 site=376 stage=handlers-complete ms=12148
+ANALYSER_COMMAND_PHASE bytes=2332 site=368 stage=handlers-complete ms=12788
+ANALYSER_COMMAND_PHASE bytes=2332 site=360 stage=handlers-complete ms=13527
+ANALYSER_COMMAND_PHASE bytes=2332 site=352 stage=handlers-complete ms=14236
+ANALYSER_COMMAND_PHASE bytes=2332 site=344 stage=handlers-complete ms=15285
+ANALYSER_COMMAND_PHASE bytes=2332 site=336 stage=handlers-complete ms=16003
+ANALYSER_COMMAND_PHASE bytes=2332 site=328 stage=handlers-complete ms=16572
+ANALYSER_COMMAND_PHASE bytes=2332 site=320 stage=handlers-complete ms=17298
+ANALYSER_COMMAND_PHASE bytes=2332 site=312 stage=handlers-complete ms=18783
+ANALYSER_COMMAND_PHASE bytes=2332 site=304 stage=handlers-complete ms=19552
+ANALYSER_COMMAND_PHASE bytes=2332 site=296 stage=handlers-complete ms=20205
+ANALYSER_COMMAND_PHASE bytes=2332 site=288 stage=handlers-complete ms=21429
+ANALYSER_COMMAND_PHASE bytes=2332 site=280 stage=handlers-complete ms=23137
+ANALYSER_COMMAND_PHASE bytes=2332 site=272 stage=handlers-complete ms=25176
+ANALYSER_COMMAND_PHASE bytes=2332 site=264 stage=handlers-complete ms=27189
+ANALYSER_COMMAND_PHASE bytes=2332 site=256 stage=handlers-complete ms=28932
+ANALYSER_COMMAND_PHASE bytes=2332 site=248 stage=handlers-complete ms=30595
+ANALYSER_COMMAND_PHASE bytes=2332 site=240 stage=handlers-complete ms=31456
+ANALYSER_COMMAND_PHASE bytes=2332 site=232 stage=handlers-complete ms=32811
+ANALYSER_COMMAND_PHASE bytes=2332 site=224 stage=handlers-complete ms=33709
+ANALYSER_COMMAND_PHASE bytes=2332 site=216 stage=handlers-complete ms=34491
+ANALYSER_COMMAND_PHASE bytes=2332 site=208 stage=handlers-complete ms=35180
+ANALYSER_COMMAND_PHASE bytes=2332 site=200 stage=handlers-complete ms=35831
+ANALYSER_COMMAND_PHASE bytes=2332 site=192 stage=handlers-complete ms=36559
+ANALYSER_COMMAND_PHASE bytes=2332 site=184 stage=handlers-complete ms=38033
+ANALYSER_COMMAND_PHASE bytes=2332 site=176 stage=handlers-complete ms=38786
+ANALYSER_COMMAND_PHASE bytes=2332 site=168 stage=handlers-complete ms=39441
+ANALYSER_COMMAND_PHASE bytes=2332 site=160 stage=handlers-complete ms=40146
+ANALYSER_COMMAND_PHASE bytes=2332 site=152 stage=handlers-complete ms=40872
+ANALYSER_COMMAND_PHASE bytes=2332 site=144 stage=handlers-complete ms=42275
+ANALYSER_COMMAND_PHASE bytes=2332 site=136 stage=handlers-complete ms=44039
+ANALYSER_COMMAND_PHASE bytes=2332 site=128 stage=handlers-complete ms=46586
+ANALYSER_COMMAND_PHASE bytes=2332 site=120 stage=handlers-complete ms=48177
+ANALYSER_COMMAND_PHASE bytes=2332 site=112 stage=handlers-complete ms=50316
+ANALYSER_COMMAND_PHASE bytes=2332 site=104 stage=handlers-complete ms=53064
+ANALYSER_COMMAND_PHASE bytes=2332 site=96 stage=handlers-complete ms=58862
+ANALYSER_COMMAND_PHASE bytes=2332 site=88 stage=handlers-complete ms=62715
+ANALYSER_COMMAND_PHASE bytes=2332 site=80 stage=handlers-complete ms=68869
+ANALYSER_COMMAND_PHASE bytes=2332 site=72 stage=handlers-complete ms=69909
+ANALYSER_COMMAND_PHASE bytes=2332 site=64 stage=handlers-complete ms=70873
+ANALYSER_COMMAND_PHASE bytes=2332 site=56 stage=handlers-complete ms=71754
+ANALYSER_COMMAND_PHASE bytes=2332 site=48 stage=handlers-complete ms=72551
+ANALYSER_COMMAND_PHASE bytes=2332 site=40 stage=handlers-complete ms=73733
+ANALYSER_COMMAND_PHASE bytes=2332 site=32 stage=handlers-complete ms=74787
+ANALYSER_COMMAND_PHASE bytes=2332 site=24 stage=handlers-complete ms=75548
+ANALYSER_COMMAND_PHASE bytes=2332 site=16 stage=handlers-complete ms=77014
+ANALYSER_COMMAND_PHASE bytes=2332 site=8 stage=handlers-complete ms=78204
+ANALYSER_COMMAND_PHASE bytes=2332 site=0 stage=handlers-complete ms=80689
+ANALYSER_PHASE bytes=2332 stage=walk-complete ms=134481
+ANALYSER_PHASE bytes=2332 stage=parameter-definitions ms=134484
+DIAGNOSTIC_PHASE bytes=2332 stage=initial ms=0
+DIAGNOSTIC_PHASE bytes=2332 stage=invocations ms=408
+DIAGNOSTIC_PHASE bytes=2332 stage=variable-references ms=408
+DIAGNOSTIC_PHASE bytes=2332 stage=command-diagnostics ms=4940
+DIAGNOSTIC_PHASE bytes=2332 stage=variable-usage ms=4942
+LOWER_SOURCE_PHASE bytes=2332 phase=entry ms=0 statements=0 procedures=0
+LOWER_SOURCE_PHASE bytes=2332 phase=configured ms=0 statements=0 procedures=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=branch scope=thread-cumulative-inclusive calls=1250 us=3301
+SOURCE_ROOT_OWNER_WORK stage=initial query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=snapshot scope=thread-cumulative-inclusive calls=1 us=4
+SOURCE_ROOT_OWNER_WORK stage=initial query=fingerprint scope=thread-cumulative-inclusive calls=65 us=39974
+SOURCE_ROOT_OWNER_WORK stage=initial query=equality scope=thread-cumulative-inclusive calls=434784 us=16692231
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight scope=thread-cumulative-inclusive calls=1 us=1040411
+SOURCE_ROOT_OWNER_WORK stage=initial query=layout scope=thread-cumulative-inclusive calls=65 us=31333
+SOURCE_ROOT_OWNER_WORK stage=initial query=body scope=thread-cumulative-inclusive calls=65 us=718
+SOURCE_ROOT_OWNER_WORK stage=initial query=receiver-body scope=thread-cumulative-inclusive calls=65 us=57
+SOURCE_ROOT_OWNER_WORK stage=initial query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-segmentation scope=thread-cumulative-inclusive calls=65 us=27720
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-word-tokens scope=thread-cumulative-inclusive calls=584 us=75091
+SOURCE_ROOT_OWNER_WORK stage=initial query=compiler-selection scope=thread-cumulative-inclusive calls=129 us=1359752
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-arguments scope=thread-cumulative-inclusive calls=65 us=125526
+SOURCE_ROOT_OWNER_WORK stage=initial query=native-invocation-preparation scope=thread-cumulative-inclusive calls=65 us=40687
+SOURCE_ROOT_OWNER_WORK stage=initial query=point-capture scope=thread-cumulative-inclusive calls=65 us=174981
+SOURCE_ROOT_OWNER_WORK stage=initial query=continuation-capture scope=thread-cumulative-inclusive calls=65 us=1918
+SOURCE_ROOT_OWNER_WORK stage=initial query=selected-command scope=thread-cumulative-inclusive calls=65 us=52820777
+SOURCE_ROOT_OWNER_WORK stage=initial query=preflight-publication scope=thread-cumulative-inclusive calls=1 us=1047
+SOURCE_ROOT_OWNER_WORK stage=initial query=source-publication scope=thread-cumulative-inclusive calls=65 us=20116
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-memo scope=thread-cumulative-inclusive calls=265550 us=3530153
+SOURCE_ROOT_OWNER_WORK stage=initial query=lexical-capture scope=thread-cumulative-inclusive calls=454 us=229172
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=initial query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=2332 stage=initial ms=147 points=0 layouts=0
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=2332 stage=initial retained_owners=1 requests=0 captures=0 reuses=0 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=2332 stage=initial requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=2332 stage=initial scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=initial query=command-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=initial query=slot-paths scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=initial query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=initial query=metadata-advice scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=initial query=lookup-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=initial query=baseline scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=initial query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=branch scope=thread-cumulative-inclusive calls=2500 us=9388
+SOURCE_ROOT_OWNER_WORK stage=walk query=frame scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=snapshot scope=thread-cumulative-inclusive calls=2 us=9
+SOURCE_ROOT_OWNER_WORK stage=walk query=fingerprint scope=thread-cumulative-inclusive calls=65 us=39974
+SOURCE_ROOT_OWNER_WORK stage=walk query=equality scope=thread-cumulative-inclusive calls=434784 us=16692231
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight scope=thread-cumulative-inclusive calls=2 us=2378423
+SOURCE_ROOT_OWNER_WORK stage=walk query=layout scope=thread-cumulative-inclusive calls=130 us=66197
+SOURCE_ROOT_OWNER_WORK stage=walk query=body scope=thread-cumulative-inclusive calls=130 us=2859
+SOURCE_ROOT_OWNER_WORK stage=walk query=receiver-body scope=thread-cumulative-inclusive calls=130 us=556
+SOURCE_ROOT_OWNER_WORK stage=walk query=deferred-entry scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-segmentation scope=thread-cumulative-inclusive calls=130 us=70729
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-word-tokens scope=thread-cumulative-inclusive calls=649 us=86244
+SOURCE_ROOT_OWNER_WORK stage=walk query=compiler-selection scope=thread-cumulative-inclusive calls=258 us=2730637
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-arguments scope=thread-cumulative-inclusive calls=130 us=277690
+SOURCE_ROOT_OWNER_WORK stage=walk query=native-invocation-preparation scope=thread-cumulative-inclusive calls=130 us=75011
+SOURCE_ROOT_OWNER_WORK stage=walk query=point-capture scope=thread-cumulative-inclusive calls=130 us=315696
+SOURCE_ROOT_OWNER_WORK stage=walk query=continuation-capture scope=thread-cumulative-inclusive calls=130 us=4419
+SOURCE_ROOT_OWNER_WORK stage=walk query=selected-command scope=thread-cumulative-inclusive calls=130 us=112539582
+SOURCE_ROOT_OWNER_WORK stage=walk query=preflight-publication scope=thread-cumulative-inclusive calls=2 us=2842
+SOURCE_ROOT_OWNER_WORK stage=walk query=source-publication scope=thread-cumulative-inclusive calls=130 us=54438
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-memo scope=thread-cumulative-inclusive calls=266454 us=3719713
+SOURCE_ROOT_OWNER_WORK stage=walk query=lexical-capture scope=thread-cumulative-inclusive calls=714 us=399746
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-math scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_ROOT_OWNER_WORK stage=walk query=body-expression scope=thread-cumulative-inclusive calls=0 us=0
+SOURCE_PHASE bytes=2332 stage=walk ms=3344 points=130 layouts=65
+SOURCE_LEXICAL_PROJECTION_PHASE bytes=2332 stage=walk retained_owners=1 requests=904 captures=260 reuses=644 rejected_captures=0
+SOURCE_DEFERRED_INDEX_PHASE bytes=2332 stage=walk requests=0 builds=0 reuses=0 scanned_rows=0 scanned_alternatives=0
+SOURCE_PROVIDER_VALIDATION_PHASE bytes=2332 stage=walk scope=cumulative-inclusive calls=0 ms=0 required_rows=0 dependency_rows=0 optional_rows=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=walk query=command-key scope=cumulative-inclusive calls=7743 ms=271 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=walk query=slot-paths scope=cumulative-inclusive calls=3807 ms=359 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=walk query=namespace scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=walk query=metadata-advice scope=cumulative-inclusive calls=130 ms=38 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=walk query=lookup-key scope=cumulative-inclusive calls=4326 ms=146 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=walk query=baseline scope=cumulative-inclusive calls=8518 ms=146 world_clones=0 clone_us=0
+SOURCE_ORIGINAL_GEOMETRY_PHASE bytes=2332 stage=walk query=slot-for-key scope=cumulative-inclusive calls=0 ms=0 world_clones=0 clone_us=0
+SOURCE_LOOKUP_PHASE bytes=2332 stage=walk calls=8518 ms=137
+SOURCE_DEFERRED_PROGRESS stage=select iteration=1 ms=0 roots=0
+SOURCE_DEFERRED_PHASE stage=entries ms=0 roots=0 outcomes=0 layouts=65
+SOURCE_DEFERRED_PHASE stage=called ms=0 roots=0 outcomes=0 layouts=65
+SOURCE_LAYOUT_PHASE stage=uninstalled-roots ms=2 visits=0 pending=65 layouts=65
+SOURCE_LAYOUT_PHASE stage=uninstalled-complete ms=118 visits=0 pending=0 layouts=65
+SOURCE_LAYOUT_PHASE stage=nested-roots ms=10 visits=0 pending=65 layouts=65
+SOURCE_LAYOUT_PHASE stage=nested-seeds ms=277 visits=0 pending=65 layouts=65
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=509 visits=64 pending=64 layouts=128
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=777 visits=128 pending=64 layouts=192
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=1058 visits=192 pending=64 layouts=256
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=1369 visits=256 pending=63 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=1590 visits=320 pending=63 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=1757 visits=384 pending=63 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=2016 visits=448 pending=62 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=2323 visits=512 pending=62 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=2472 visits=576 pending=62 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=2642 visits=640 pending=61 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=2793 visits=704 pending=61 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=2909 visits=768 pending=61 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3055 visits=832 pending=60 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3199 visits=896 pending=60 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3332 visits=960 pending=60 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3478 visits=1024 pending=59 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3640 visits=1088 pending=59 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3772 visits=1152 pending=59 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=3919 visits=1216 pending=58 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=4071 visits=1280 pending=58 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=4203 visits=1344 pending=58 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=4368 visits=1408 pending=57 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=4584 visits=1472 pending=57 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=4753 visits=1536 pending=57 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=4904 visits=1600 pending=56 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=5121 visits=1664 pending=56 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=5325 visits=1728 pending=56 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=5655 visits=1792 pending=55 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=5862 visits=1856 pending=55 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=5983 visits=1920 pending=55 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=6101 visits=1984 pending=55 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=6230 visits=2048 pending=54 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=6367 visits=2112 pending=54 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=6503 visits=2176 pending=54 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=6681 visits=2240 pending=53 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=6890 visits=2304 pending=53 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=7013 visits=2368 pending=53 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=7173 visits=2432 pending=52 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=7341 visits=2496 pending=52 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=7574 visits=2560 pending=52 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=7711 visits=2624 pending=51 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=7883 visits=2688 pending=51 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=8021 visits=2752 pending=51 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=8169 visits=2816 pending=50 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=8289 visits=2880 pending=50 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=8404 visits=2944 pending=50 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=8505 visits=3008 pending=50 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=8618 visits=3072 pending=49 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=8727 visits=3136 pending=49 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=8835 visits=3200 pending=49 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=8979 visits=3264 pending=48 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=9113 visits=3328 pending=48 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=9342 visits=3392 pending=48 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=9485 visits=3456 pending=47 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=9622 visits=3520 pending=47 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=9742 visits=3584 pending=47 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=9835 visits=3648 pending=46 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=9956 visits=3712 pending=46 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=10082 visits=3776 pending=46 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=10192 visits=3840 pending=46 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=10307 visits=3904 pending=45 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=10426 visits=3968 pending=45 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=10531 visits=4032 pending=45 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=10637 visits=4096 pending=44 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=10817 visits=4160 pending=44 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=11070 visits=4224 pending=44 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=11234 visits=4288 pending=43 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=11469 visits=4352 pending=43 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=11708 visits=4416 pending=43 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=11900 visits=4480 pending=43 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=12060 visits=4544 pending=42 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=12241 visits=4608 pending=42 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=12553 visits=4672 pending=42 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=12713 visits=4736 pending=41 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=12893 visits=4800 pending=41 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=13066 visits=4864 pending=41 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=13213 visits=4928 pending=41 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=13375 visits=4992 pending=40 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=13628 visits=5056 pending=40 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=13793 visits=5120 pending=40 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=13946 visits=5184 pending=39 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=14109 visits=5248 pending=39 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=14265 visits=5312 pending=39 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=14416 visits=5376 pending=38 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=14575 visits=5440 pending=38 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=14754 visits=5504 pending=38 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=14921 visits=5568 pending=38 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=15070 visits=5632 pending=37 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=15239 visits=5696 pending=37 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=15394 visits=5760 pending=37 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=15581 visits=5824 pending=36 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=15731 visits=5888 pending=36 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=15918 visits=5952 pending=36 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=16118 visits=6016 pending=36 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=16260 visits=6080 pending=35 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=16404 visits=6144 pending=35 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=16521 visits=6208 pending=35 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=16635 visits=6272 pending=34 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=16859 visits=6336 pending=34 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=17062 visits=6400 pending=34 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=17336 visits=6464 pending=34 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=17586 visits=6528 pending=33 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=17798 visits=6592 pending=33 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=18023 visits=6656 pending=33 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=18170 visits=6720 pending=32 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=18329 visits=6784 pending=32 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=18543 visits=6848 pending=32 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=18695 visits=6912 pending=32 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=18843 visits=6976 pending=31 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=19044 visits=7040 pending=31 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=19227 visits=7104 pending=31 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=19362 visits=7168 pending=30 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=19512 visits=7232 pending=30 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=19659 visits=7296 pending=30 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=19803 visits=7360 pending=30 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=19933 visits=7424 pending=29 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=20082 visits=7488 pending=29 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=20234 visits=7552 pending=29 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=20366 visits=7616 pending=28 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=20547 visits=7680 pending=28 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=20702 visits=7744 pending=28 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=20849 visits=7808 pending=28 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=20979 visits=7872 pending=27 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=21140 visits=7936 pending=27 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=21329 visits=8000 pending=27 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=21535 visits=8064 pending=27 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=21668 visits=8128 pending=26 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=21823 visits=8192 pending=26 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=21961 visits=8256 pending=26 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=22136 visits=8320 pending=25 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=22291 visits=8384 pending=25 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=22443 visits=8448 pending=25 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=22617 visits=8512 pending=25 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=22796 visits=8576 pending=24 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=22970 visits=8640 pending=24 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=23137 visits=8704 pending=24 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=23409 visits=8768 pending=24 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=23574 visits=8832 pending=23 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=23788 visits=8896 pending=23 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=23953 visits=8960 pending=23 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=24101 visits=9024 pending=22 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=24262 visits=9088 pending=22 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=24436 visits=9152 pending=22 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=24605 visits=9216 pending=22 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=24745 visits=9280 pending=21 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=24922 visits=9344 pending=21 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=25125 visits=9408 pending=21 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=25292 visits=9472 pending=21 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=25506 visits=9536 pending=20 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=25808 visits=9600 pending=20 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=26296 visits=9664 pending=20 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=26458 visits=9728 pending=19 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=26714 visits=9792 pending=19 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=26976 visits=9856 pending=19 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=27172 visits=9920 pending=19 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=27328 visits=9984 pending=18 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=27548 visits=10048 pending=18 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=27733 visits=10112 pending=18 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=27949 visits=10176 pending=18 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=28105 visits=10240 pending=17 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=28301 visits=10304 pending=17 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=28500 visits=10368 pending=17 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=28692 visits=10432 pending=17 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=28854 visits=10496 pending=16 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=29193 visits=10560 pending=16 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=29390 visits=10624 pending=16 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=29558 visits=10688 pending=15 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=29733 visits=10752 pending=15 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=29918 visits=10816 pending=15 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=30112 visits=10880 pending=15 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=30280 visits=10944 pending=14 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=30453 visits=11008 pending=14 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=30694 visits=11072 pending=14 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=30867 visits=11136 pending=14 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=31023 visits=11200 pending=13 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=31391 visits=11264 pending=13 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=32041 visits=11328 pending=13 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=32470 visits=11392 pending=13 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=32682 visits=11456 pending=12 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=32875 visits=11520 pending=12 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=33182 visits=11584 pending=12 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=33365 visits=11648 pending=12 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=33527 visits=11712 pending=11 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=33730 visits=11776 pending=11 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=33914 visits=11840 pending=11 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=34091 visits=11904 pending=11 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=34254 visits=11968 pending=10 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=34453 visits=12032 pending=10 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=34687 visits=12096 pending=10 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=34868 visits=12160 pending=9 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=35031 visits=12224 pending=9 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=35240 visits=12288 pending=9 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=35435 visits=12352 pending=9 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=35618 visits=12416 pending=8 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=35799 visits=12480 pending=8 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=36010 visits=12544 pending=8 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=36322 visits=12608 pending=8 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=36629 visits=12672 pending=7 layouts=259
+SOURCE_LAYOUT_PHASE stage=nested-visits ms=36922 visits=12736 pending=7 layouts=259

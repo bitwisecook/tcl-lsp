@@ -1,0 +1,3 @@
+running 1 test
+test refactor::inline_variable::tests::deeply_nested_namespaces_survive_scope_walk ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3494 filtered out; finished in 109.27s

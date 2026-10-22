@@ -1,0 +1,45 @@
+{
+  "utc": "2026-10-22T20:16:33.183184+00:00",
+  "status": "Separately labelled diagnostic replay, not an original result; timeout remains open",
+  "row": {
+    "selector": "executable_regions::checked_potential_source_tests::checked_potential_source_retains_depth_exhaustion_as_incomplete",
+    "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_lsp_core-15c44a715e01e5f9",
+    "artifact_before_sha256": "43cf7a647a42a350107e85aac13cc986a6370505b42b8c5fc0a0f28d301cd741",
+    "artifact_after_sha256": "43cf7a647a42a350107e85aac13cc986a6370505b42b8c5fc0a0f28d301cd741",
+    "exit_code": -9,
+    "timed_out": true,
+    "budget_seconds": 180,
+    "seconds": 181.46,
+    "passed": false,
+    "log_sha256": "eaca924f7f7b9d9bf15862d9f900b447d9adf7fb651da747da958c16f492770d",
+    "diagnostic_environment": {
+      "TCL_LSP_TRACE_SOURCE_PHASES": "1",
+      "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+    }
+  },
+  "source_guard": {
+    "equal": true,
+    "matches_original": true,
+    "files": 40917,
+    "sha256": "0771728a2d86f99d0591aabef20204649d9d90148c9cdcd3a9adcf018a548575",
+    "scope": "Same captured scope excluding docs/work/name-handling/; transient documentation event separately pinned"
+  },
+  "provider_guard": {
+    "equal": true,
+    "matches_original": true,
+    "sha256": "154210b16253ba6a40e2f333b221e869a2904d9551e35c9279b058eb5d6458a8"
+  },
+  "lock_release": "LSP_PHASE_LOCK_RELEASED 2026-10-22T20:14:52Z",
+  "independent_lock_probe": "FREE2026-10-22T20:15:08Z; no live cargo/rustc, only four pre-existing zombie entries; no cleanup",
+  "analyser_timeline_ms": {
+    "realm_start": 177,
+    "realm_complete": 50686,
+    "retained_inventory": 51008,
+    "walk_start": 51013,
+    "walk_complete": 134481,
+    "parameter_definitions": 134484
+  },
+  "final_observation": "Second SOURCE_LAYOUT nested pass still in progress: visits12736/pending7/layouts259,36922ms within that pass. No analyser complete or diagnostics-complete; test has not reached Core executable walker.",
+  "root_owner_counters": "Thread-cumulative-inclusive counters, not additive exclusive timings: selected-command130calls/112539582us; equality434784calls/16692231us; lexical-memo266454calls/3719713us; compiler-selection258calls/2730637us.",
+  "collector_sha256": "27f9ee45a5457a3a5b2991c70dc826857f420f87d8c4ca385307508a20c2e4f4"
+}

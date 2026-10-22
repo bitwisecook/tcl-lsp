@@ -1,0 +1,42 @@
+{
+  "utc": "2026-10-22T20:22:03.010078+00:00",
+  "run_id": 39845788481,
+  "sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+  "runtime": {
+    "job_id": 120061100185,
+    "conclusion": "failure",
+    "emitted_named_failed_rows": 71,
+    "suite_complete": false,
+    "alias_exact_selector": "cmd_alias::tests::aliases_lists_every_alias",
+    "alias_result": "PASS",
+    "catch_exact_selector": "cmd_error::tests::eight_four_catch_takes_no_options_variable",
+    "catch_result": "FAIL",
+    "abort_exact_selector": "cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication",
+    "abort_cause_observed": "Assertion in extern retirement callback at original_namespace_copy_tests.rs:41: destination command_names must be empty; cannot unwind abort",
+    "prior_tls_abort": "not reproduced before later abort; new TLS tests not claimed executed",
+    "owner": "vm-runtime",
+    "full_baseline_join": "pending owner triage"
+  },
+  "native_archive": {
+    "job_id": 120061100309,
+    "conclusion": "failure",
+    "executed_tests": 0,
+    "cause": "test call at original_document_metadata_tests.rs:1168 passes eight old helper arguments; current set_live_db_source_locked takes five with LiveSourceContents",
+    "error_codes": [
+      "E0277",
+      "E0061"
+    ],
+    "owner": "lsp"
+  },
+  "logs": {
+    "runtime.log": {
+      "bytes": 150677,
+      "sha256": "a523f61eef02de64332b0d58208d58409653098b1cc82cbbea9f42c7c8780dc6"
+    },
+    "native-archive.log": {
+      "bytes": 82548,
+      "sha256": "033aeb7f8af5bd1f3273961ce3053145f70a476d54ebaef702188566b403db39"
+    }
+  },
+  "no_release_gate_admission": true
+}

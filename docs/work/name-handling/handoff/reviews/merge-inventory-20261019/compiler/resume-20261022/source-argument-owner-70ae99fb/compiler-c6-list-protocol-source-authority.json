@@ -1,0 +1,77 @@
+{
+  "utc": "2026-10-22T20:08:42.698523+00:00",
+  "kind": "Pinned C source authority only; no oracle process/build or behavioral fixture executed",
+  "versions": [
+    {
+      "version": "8.4.20",
+      "tclBasic.c": {
+        "sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+        "line": 3907,
+        "excerpt": "This procedure evaluates a Tcl script without using the compiler\n *\tor byte-code interpreter.  It just parses the script, creates\n *\tvalues for each word of each command, then calls EvalObjv\n *\tto execute each command.\n *\n * Results:\n *\tThe return va"
+      },
+      "tclParse.c": {
+        "sha256": "9165a6e94c18e7af7677bcb7071f89051bbdd46a3295017ddb7ee841d66920ca",
+        "line": null,
+        "excerpt": null,
+        "note": "C8.4 evaluates command tokens in tclBasic.c rather than tclParse.c; matching Tcl_EvalEx branch captured separately."
+      },
+      "nested_command": {
+        "path": "tmp/tcl8.4.20/generic/tclBasic.c",
+        "line": 3708,
+        "excerpt": "code = Tcl_EvalEx(interp,\n\t\t\t    tokenPtr->start+1, tokenPtr->size-2, 0);\n#else\n\t\t    /* TIP #280: Transfer line information to nested command */\n\t\t    TclAdvan"
+      }
+    },
+    {
+      "version": "8.5.19",
+      "tclBasic.c": {
+        "sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+        "line": 4062,
+        "excerpt": "This function evaluates a Tcl script without using the compiler or\n *\tbyte-code interpreter. It just parses the script, creates values for\n *\teach word of each command, then calls EvalObjv to execute each\n *\tcommand.\n *\n * Results:\n *\tThe return valu"
+      },
+      "tclParse.c": {
+        "sha256": "4855b382f7acc6e02e53383f667169a6a9d348a30b44c586c8622e97f34a3a8c",
+        "line": 2320,
+        "excerpt": "code = TclEvalEx(interp, tokenPtr->start+1, tokenPtr->size-2,\n\t\t\t0, theline, clNextOuter, outerScript);\n\t\t/*\n\t\t * Restore flag reset by nested eval for future bracketed\n\t\t * commands and their cmdframe setup\n\t\t */\n\t        if (inFile) {\n\t\t    iPtr->e"
+      }
+    },
+    {
+      "version": "8.6.18",
+      "tclBasic.c": {
+        "sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+        "line": 5048,
+        "excerpt": "This function evaluates a Tcl script without using the compiler or\n *\tbyte-code interpreter. It just parses the script, creates values for\n *\teach word of each command, then calls EvalObjv to execute each\n *\tcommand.\n *\n * Results:\n *\tThe return valu"
+      },
+      "tclParse.c": {
+        "sha256": "bbab97189d8d3e1ccca11a1bb02cc2c8c6099c7ba33d3f35de4e614a7ba8bfb6",
+        "line": 2298,
+        "excerpt": "code = TclEvalEx(interp, tokenPtr->start+1, tokenPtr->size-2,\n\t\t\t0, theline, clNextOuter, outerScript);\n\n\t\tTclAdvanceLines(&line, tokenPtr->start+1,\n\t\t\ttokenPtr->start + tokenPtr->size - 1);\n\n\t\t/*\n\t\t * Restore flag reset by nested eval for future bra"
+      }
+    },
+    {
+      "version": "9.0.4",
+      "tclBasic.c": {
+        "sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+        "line": 5211,
+        "excerpt": "This function evaluates a Tcl script without using the compiler or\n *\tbyte-code interpreter. It just parses the script, creates values for\n *\teach word of each command, then calls EvalObjv to execute each\n *\tcommand.\n *\n * Results:\n *\tThe return valu"
+      },
+      "tclParse.c": {
+        "sha256": "5937f0c6d669c1e1848a739f40e5d22b21a443a2da83e8b292c3e023bb8e59e0",
+        "line": 2242,
+        "excerpt": "code = TclEvalEx(interp, tokenPtr->start+1, tokenPtr->size-2,\n\t\t\t0, theline, clNextOuter, outerScript);\n\n\t\tTclAdvanceLines(&line, tokenPtr->start+1,\n\t\t\ttokenPtr->start + tokenPtr->size - 1);\n\n\t\t/*\n\t\t * Restore flag reset by nested eval for future bra"
+      }
+    },
+    {
+      "version": "9.1.0",
+      "tclBasic.c": {
+        "sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+        "line": 5179,
+        "excerpt": "This function evaluates a Tcl script without using the compiler or\n *\tbyte-code interpreter. It just parses the script, creates values for\n *\teach word of each command, then calls EvalObjv to execute each\n *\tcommand.\n *\n * Results:\n *\tThe return valu"
+      },
+      "tclParse.c": {
+        "sha256": "914176e1d5a1fb79630a45f5f45df438da9943281751855057caa17e921b969f",
+        "line": 2237,
+        "excerpt": "code = TclEvalEx(interp, tokenPtr->start+1, tokenPtr->size-2,\n\t\t\t0, theline, clNextOuter, outerScript);\n\n\t\tTclAdvanceLines(&line, tokenPtr->start+1,\n\t\t\ttokenPtr->start + tokenPtr->size - 1);\n\n\t\t/*\n\t\t * Restore flag reset by nested eval for future bra"
+      }
+    }
+  ]
+}

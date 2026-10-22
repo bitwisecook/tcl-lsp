@@ -1,0 +1,23 @@
+{
+  "prepared_utc": "2026-10-22T19:55:45.599543+00:00",
+  "status": "READY OFF-TREE PLAN ONLY; no Cargo queued; explicit root GO required",
+  "scope": "ONE root-approved exact positive compiled List diagnostic after import and LSP phase replays; no Cargo queued; explicit root slot GO required",
+  "names_plan_sha256": "997c27f4c049ae76b90749730b70192bf02e2583ba2d36c8b96a5f21ce9ddd4f",
+  "required_filters": [
+    {
+      "label": "diagnostic-compiled-list-original-owner-positive",
+      "selector": "registry_invocation::source_taint::tests::compiled_list_head_uses_one_current_original_compiler_owner",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS": "1",
+        "TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE": "1"
+      },
+      "diagnostic_only": true
+    }
+  ],
+  "expectations": [
+    "Expected unchanged positive original owner-control failure (None versus Some puts). Existing trace hooks only; no source/probe/instrumentation installation and no assertions changed. Determine first available refusal evidence; trace silence is not a stage proof. Do not restore discarded compiler recipes/worlds or equate worlds by syntax. Explicit later root GO required."
+  ],
+  "guards": "Global lock over entire suite; all local workspace source/fixture/Cargo input inventory + current Rust diff; provider wrappers/actual workers/Rust tools/transitive shared binaries before/after; 5second disk monitor interrupts only own Cargo process group below2GiB; per-log20MiB filtered cap; no executable cleanup"
+}

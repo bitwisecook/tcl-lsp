@@ -1,0 +1,123 @@
+{
+  "utc_recorded": "2026-10-22T20:11:35.515091+00:00",
+  "head_at_start": "6a307dbd603c94b1bcbf6572fa596de7b993da2e",
+  "lock_start": "LSP_P2F_LOCK_CLAIMED 2026-10-22T19:35:36Z",
+  "lock_release": "LSP_P2F_LOCK_RELEASED 2026-10-22T20:10:21Z",
+  "functional_observations": {
+    "passed": 2,
+    "timed_out": 1,
+    "total": 3,
+    "aggregate_passed": false
+  },
+  "rows": [
+    {
+      "selector": "executable_regions::checked_potential_source_tests::checked_potential_source_retains_depth_exhaustion_as_incomplete",
+      "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_lsp_core-15c44a715e01e5f9",
+      "artifact_before_sha256": "43cf7a647a42a350107e85aac13cc986a6370505b42b8c5fc0a0f28d301cd741",
+      "artifact_after_sha256": "43cf7a647a42a350107e85aac13cc986a6370505b42b8c5fc0a0f28d301cd741",
+      "exit_code": -9,
+      "timed_out": true,
+      "budget_seconds": 180,
+      "seconds": 183.02,
+      "passed": false,
+      "log_sha256": "ceddd85258dd7f2e2e5a2e261f39135e768cb33469035f2587debe745e14a396",
+      "diagnostic_environment": {
+        "TCL_LSP_TRACE_SOURCE_PHASES": null,
+        "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+      }
+    },
+    {
+      "selector": "refactor::inline_variable::tests::deeply_nested_namespaces_survive_scope_walk",
+      "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_lsp_core-15c44a715e01e5f9",
+      "artifact_before_sha256": "43cf7a647a42a350107e85aac13cc986a6370505b42b8c5fc0a0f28d301cd741",
+      "artifact_after_sha256": "43cf7a647a42a350107e85aac13cc986a6370505b42b8c5fc0a0f28d301cd741",
+      "exit_code": 0,
+      "timed_out": false,
+      "budget_seconds": 180,
+      "seconds": 111.32,
+      "passed": true,
+      "log_sha256": "ef0af93fed3d2a265e9cae5b16f6da724f6567332ad838952761581500bd50c4",
+      "diagnostic_environment": {
+        "TCL_LSP_TRACE_SOURCE_PHASES": null,
+        "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+      }
+    },
+    {
+      "selector": "original_optimiser_memo_transport_tests::body_optimiser_memo_retains_the_actual_optional_worker_dialect",
+      "artifact": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_lsp_db-1f388ae6cac99f49",
+      "artifact_before_sha256": "f1b5c5c274bed00078d8dfff0f15226def8e9bb4600010d0aa2ee182a9104a4a",
+      "artifact_after_sha256": "f1b5c5c274bed00078d8dfff0f15226def8e9bb4600010d0aa2ee182a9104a4a",
+      "exit_code": 0,
+      "timed_out": false,
+      "budget_seconds": 180,
+      "seconds": 2.65,
+      "passed": true,
+      "log_sha256": "335acbf22e13a300856b8a346427a334cbf84c8af65356859c32b070ddd1fdbc",
+      "diagnostic_environment": {
+        "TCL_LSP_TRACE_SOURCE_PHASES": null,
+        "TCL_LSP_TRACE_ORIGINAL_FUNCTION_LATTICE": null
+      },
+      "current_body_owner_provenance": {
+        "path": "/tmp/lsp-native-p2f/db-owner-correction-provenance.json",
+        "sha256": "b35d70a69a6dae9c68f5c9821e080834dc415d2dfb2af3d621d1fa541643b5ef"
+      }
+    }
+  ],
+  "source_guard": {
+    "files": 40917,
+    "equal": true,
+    "sha256": "0771728a2d86f99d0591aabef20204649d9d90148c9cdcd3a9adcf018a548575",
+    "scope": "Existing capture-inputs.py skips docs/work/name-handling/ and hashes existing cached/untracked nonignored repository files outside that subtree; not whole-repository equality."
+  },
+  "provider_guard": {
+    "files": 3464,
+    "equal": true,
+    "sha256": "154210b16253ba6a40e2f333b221e869a2904d9551e35c9279b058eb5d6458a8"
+  },
+  "stack": "shell_stack_kib=8192\nrust_min_stack=unset\n",
+  "build_pipeline_exit_codes": {
+    "tcl-lsp-core": "0 0",
+    "tcl-lsp-db": "0 0"
+  },
+  "warnings": "Known OriginalClassDefinerSource::native_argument_input dead_code warning emitted; zero-warning gate not passed.",
+  "baseline_limits": "Namespace80 is in exact origin/rust namedPASS roster. Depth258 and optional-worker selectors are absent that exact namedPASS roster. CURRENT DB test uses authorized2026-10-19T14:20Z fresh-interpreter installed-procedure owner correction, not historical Native-map assertion.",
+  "transient_documentation_event": {
+    "utc_observed": "2026-10-22T19:59:39.719866+00:00",
+    "event": "Root-reported temporary documentation archive files added during CURRENT3; owner instructed to rename extensions to .rs.txt/.tcl.txt",
+    "scope": "Existing canonical capture-inputs.py explicitly excludes every docs/work/name-handling/ path before hashing; none of these four archives is in initial40917-file capture. This is an explicit scope limit, not a whole-repository unchanged claim. Final captured-scope and provider comparisons remain pending.",
+    "capture_script_sha256": "2d3a1cf8aa341d5c4b829be6616a407d516163b52878ebb0cee874040e507474",
+    "rows": [
+      {
+        "original_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/baseline-cmd_alias.rs",
+        "observed_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/baseline-cmd_alias.rs.txt",
+        "bytes": 73003,
+        "sha256": "5105c00da950c1560fc382b0de4a1b7c981a7c3e3562b39bb1e11b0609ca61bd",
+        "in_initial_source_capture": false
+      },
+      {
+        "original_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/baseline-cmd_error.rs",
+        "observed_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/baseline-cmd_error.rs.txt",
+        "bytes": 40344,
+        "sha256": "425bbcd7b2ce89f893184094a7374c603b583061dfb86bbec74dce37c066b92c",
+        "in_initial_source_capture": false
+      },
+      {
+        "original_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/finite-c-oracles/aliases.tcl",
+        "observed_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/finite-c-oracles/aliases.tcl.txt",
+        "bytes": 96,
+        "sha256": "1a075844d3539d9311e24f3e4218d6545af95de5155f55107477221af54e5ac4",
+        "in_initial_source_capture": false
+      },
+      {
+        "original_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/finite-c-oracles/catch84.tcl",
+        "observed_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/finite-c-oracles/catch84.tcl.txt",
+        "bytes": 135,
+        "sha256": "467dde88232b702441a8e8784efd2c835b8c2ea4882ae3fb183945f729117981",
+        "in_initial_source_capture": false
+      }
+    ],
+    "owner_reported_completion_utc": "2026-10-22T19:59:32Z",
+    "owner_reported_bytes_match_observed": true
+  },
+  "diagnostic_replay": "Separately labelled sameartifact Depth258-only TRACE_SOURCE_PHASES replay launched after original capture closed; not part of these original results."
+}

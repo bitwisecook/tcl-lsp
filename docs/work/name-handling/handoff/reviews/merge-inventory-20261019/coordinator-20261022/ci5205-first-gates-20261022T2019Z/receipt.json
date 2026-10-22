@@ -1,0 +1,61 @@
+{
+  "utc": "2026-10-22T20:20:16.843426+00:00",
+  "run_id": 39845788481,
+  "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+  "cargo_deny": {
+    "job_id": 120058581627,
+    "conclusion": "success",
+    "manifest_audit_count": 12,
+    "checks_per_manifest": [
+      "advisories",
+      "bans",
+      "licenses",
+      "sources"
+    ]
+  },
+  "rust_check": {
+    "job_id": 120061100019,
+    "conclusion": "failure",
+    "fmt": "passed before Clippy",
+    "errors": [
+      {
+        "file": "rust/tcl-registry/src/native_compilation.rs",
+        "line": 1886,
+        "lint": "too_many_lines",
+        "actual": 103,
+        "limit": 100
+      },
+      {
+        "file": "rust/tcl-registry/src/native_compilation.rs",
+        "line": 4062,
+        "lint": "too_many_lines",
+        "actual": 108,
+        "limit": 100
+      },
+      {
+        "file": "rust/tcl-registry/src/native_string_is_compilation.rs",
+        "line": 2,
+        "lint": "doc_markdown"
+      },
+      {
+        "file": "rust/tcl-registry/src/native_procedure.rs",
+        "line": 56,
+        "lint": "explicit_auto_deref"
+      }
+    ],
+    "owner": "compiler-codegen",
+    "remaining_gate_steps": "not reached after registry Clippy failure"
+  },
+  "logs": {
+    "cargo-deny.log": {
+      "bytes": 946381,
+      "sha256": "ff7c7ecaa872b09d83b1876c5e032b1f7b248bda78b99ed4c67e4ef238e9bcb1"
+    },
+    "rust-check.log": {
+      "bytes": 77625,
+      "sha256": "8d075606d5444884661d393478ecb42334df024d4ef6e1ec4f7f0ca5233c09ea"
+    }
+  },
+  "release_gate_closed": false,
+  "full_current_baseline_comparison": "pending; main jobs still building"
+}

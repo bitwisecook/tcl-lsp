@@ -1,0 +1,10 @@
+{
+  "utc": "2026-10-22T20:01:54.908185+00:00",
+  "publisher_commit": "ce8c04e0318ae51e47b326c39077e1d182624d61",
+  "patch_sha256": "f58c914f27be639d0f871a6d01a8e97dfeb4970c262d30199dc2911f7ed2898f",
+  "scope": "One exact oracle expectation and documented fixture result; CodeOk/exact bytes/leak guard retained; no production change. Formatting only otherwise.",
+  "evidence": "vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/finite-c-oracles/receipt.json; five pinned C8.4\u20139.1 providers all store =",
+  "peer_review": "compiler-names reviewed narrow C correction; root inspected exact patch/oracles",
+  "runtime_verdict": "UNRUN; current failed assertion value absent due TLS abort; no repaired/P2F closure claim",
+  "active_tree": "untouched; LSPsourcehold"
+}
