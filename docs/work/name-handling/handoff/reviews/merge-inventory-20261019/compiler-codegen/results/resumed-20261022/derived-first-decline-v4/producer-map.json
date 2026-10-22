@@ -1,0 +1,73 @@
+{
+  "utc": "2026-10-22T22:31:16.023578+00:00",
+  "status": "Read-only static producer/API map only; no actual failing-fixture gate measurement or cause, no candidate/authority/fallback/visibility/source/Cargo change.",
+  "inputs": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "sha256": "4668b6f5e4c3c8cabb5fac2273e3039c83074cec35af8620b0f5aaa9abf0043a"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs",
+      "sha256": "54bfba82e6b129b5cb24aa4f67362eef8b736adced7f4ea8a413c3cb9742d20a"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/normal_result.rs",
+      "sha256": "d6a41edd775c2bec3bb62f1a4cdc0128bc22d1049dc3e4a7da2b5b1881b6c10f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/expression_preparation.rs",
+      "sha256": "942ae2886e8f643d3b7223f50d437fc4879741a6425c8fee488a64cc43a6205c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "sha256": "f617ff2c56aaaaa8d1e15ee5a552af3e3148936cfce15715d9495cec4336f661"
+    },
+    {
+      "path": "rust/tcl-compiler/src/sccp/original_value_facts.rs",
+      "sha256": "88f22d488d6e598863dba09f727f625bc16c562b90262f6f5d492ae75a2f1bf3"
+    }
+  ],
+  "producer_chain": [
+    {
+      "owner": "SourceBindingPoint::binding_projection",
+      "fact": "Original argument completion is captured from the actual point. Invocation purpose is Conditional for declaration preview or original logical lookup; otherwise Reached. Exact original source/dispatch binding stays retained."
+    },
+    {
+      "owner": "walk_evaluated_source_command",
+      "fact": "record_evaluated_source_point freezes basis before handler dispatch, including arguments.complete_normally && !observer_scope.was_observed. Handler/observer outcome joins happen next; finish_normal_completions then record_invocation_normal_result retains actual final outcomes under that exact basis."
+    },
+    {
+      "owner": "NormalOutcome::of and InvocationResultBasis::matches",
+      "fact": "Normal result and total Normal are distinct. complete_normally requires normal present, normal_completion present and abrupt empty. Basis must match exact source dispatch, original words/frame/namespace/targets/compiler/argument values/observer and replay source."
+    }
+  ],
+  "consumer_guards": [
+    {
+      "owner": "proved_execution_target",
+      "fact": "Conditional invocation immediately returns None. Execution unknown also includes conditional purpose, independently of unknown compiler residual."
+    },
+    {
+      "owner": "original_arguments_complete_normally",
+      "fact": "Conditional purpose immediately returns false; additional original completion/synthetic/observer/source replay/dialect/word identity checks follow."
+    },
+    {
+      "owner": "original_invocation_completes_normally and original_normal_result",
+      "fact": "Conditional purpose immediately returns false/None before reading normal-result observations. False is not automatically an actual abrupt guest/host-refusal result."
+    },
+    {
+      "owner": "normal_transfer_invocation_with_metadata_context",
+      "fact": "Strict retained executable invocation first, then exact original handler + successful-handler effects contract. No direct call to original_invocation_completes_normally; child totality is not proven to be the first cause."
+    },
+    {
+      "owner": "fold_assign_value retained branch",
+      "fact": "Exact metadata \u2192 normal transfer \u2192 stored original value with actual binding.variable_context \u2192 sole substitution \u2192 complete retained inventory \u2192 unique exact child \u2192 retained fold. Parent successful-store proof is independent of optional child evaluator result."
+    }
+  ],
+  "questions_for_actual_receipt": [
+    "Does original procedure/analysis ownership rejoin and known SSA version inventory match?",
+    "Which first public parent gate fails on unchanged expr42/tcl9 or catxy/tcl8.6?",
+    "If public execution/args/normal booleans are all false, do not infer independent causes or guest error from those booleans.",
+    "Public child candidates hide completeness; optional compiler-internal child fold is an active host observation, never a parent-store licence."
+  ],
+  "owner": "compiler retains derived SCCP fix; compiler-codegen prepares guarded public attachment only."
+}

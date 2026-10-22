@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-22T22:26:35.074278+00:00",
+  "status": "Compiler role message-reported bounded STATIC review; copied by compiler-codegen, no independent type/run validation.",
+  "proposal_sha256": "041eb0e44d22a7f1274143ef3e9ee236c32d90b3ccfc9332d8bbc02275d39911",
+  "public_module_sha256": "6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1",
+  "findings": [
+    "PUBLIC attachment clear: final clean Rust, module after inner docs, original CU first, exact actual metadata/no standalone fallback, same binding.variable_context phase for store/place, no SCCP/assertion modification.",
+    "Public child inventory is incomplete/unobservable and grants no proof.",
+    "OPTIONAL internal retained-fold snippet may invoke actual host evaluator; not pure, not part of public proposal, no visibility workaround.",
+    "Long temporary report must retire/partition before strict lint if retained."
+  ],
+  "limits": "No actual first-decline evidence/type/runtime acceptance; no live integration/Cargo. Compiler owns derived fix."
+}

@@ -1,0 +1,215 @@
+{
+  "utc": "2026-10-22T22:25:07.543134+00:00",
+  "status": "OFF-TREE optional exact2 diagnostic PLAN ONLY; NO queue/integration/execution authorized until root assigns source+build slot.",
+  "owner": "compiler-codegen",
+  "repo": "/workspace/naming-migration-active/tcl-lsp",
+  "ordering": "Only if root chooses separate post-compiler55/minify2 diagnostic window. Exact observer041eb must be applied coherently first. Original full51 stays unchanged, pending exact observer cleanup before its original pins can pass.",
+  "expected_selected_total": 2,
+  "jobs": [
+    {
+      "label": "derived_first_decline_1",
+      "package": "tcl-spectcl",
+      "target": "pack_source_e2e",
+      "selector": "a_reference_body_answers_through_the_host_as_the_procedure_does",
+      "expected_selected": 1,
+      "selected_tests": [
+        "a_reference_body_answers_through_the_host_as_the_procedure_does"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spectcl",
+        "--test",
+        "pack_source_e2e",
+        "a_reference_body_answers_through_the_host_as_the_procedure_does",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cargo_command": "cargo test --locked -p tcl-spectcl --test pack_source_e2e a_reference_body_answers_through_the_host_as_the_procedure_does -- --exact --nocapture --test-threads=1",
+      "artifact_stem": "pack_source_e2e",
+      "skip": null,
+      "notes": "Final clean temporary pure observer041eb; exact original assertion/fixture. No parent cause inferred before actual receipt."
+    },
+    {
+      "label": "derived_first_decline_2",
+      "package": "tcl-spectcl",
+      "target": "pack_source_e2e",
+      "selector": "a_derived_body_runs_under_the_release_the_call_is_analysed_under",
+      "expected_selected": 1,
+      "selected_tests": [
+        "a_derived_body_runs_under_the_release_the_call_is_analysed_under"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spectcl",
+        "--test",
+        "pack_source_e2e",
+        "a_derived_body_runs_under_the_release_the_call_is_analysed_under",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cargo_command": "cargo test --locked -p tcl-spectcl --test pack_source_e2e a_derived_body_runs_under_the_release_the_call_is_analysed_under -- --exact --nocapture --test-threads=1",
+      "artifact_stem": "pack_source_e2e",
+      "skip": null,
+      "notes": "Final clean temporary pure observer041eb; exact original assertion/fixture. No parent cause inferred before actual receipt."
+    }
+  ],
+  "test_inventory_sources": [
+    {
+      "path": "rust/tcl-spectcl/tests/pack_source_e2e.rs",
+      "sha256": "e1ed4fb25d4aeba91df7e0185dec4b029d11bd7dda8d7093750bdc22f76307b7"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/support/derived_first_decline.rs",
+      "sha256": "6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1"
+    }
+  ],
+  "runner_inputs": [
+    {
+      "path": "/tmp/tcl-lsp-naming-env.sh",
+      "sha256": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+    },
+    {
+      "path": "/tmp/compiler-c6-guarded-cargo.py",
+      "sha256": "527ffffa5560d484fb5c0938a70686b568d83f88957110719d4171817ca5470e"
+    },
+    {
+      "path": "/tmp/compiler-c6-provider-manifest.py",
+      "sha256": "5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e"
+    },
+    {
+      "path": "/tmp/ccg-postbatch-functional-v2-suite.py",
+      "sha256": "91f183879537ba8a02b9b72ce253064e8d0c2ed4f95960d4fbcdcaaf056f7e5b"
+    },
+    {
+      "path": "/tmp/ccg-postbatch-functional-v2-run.sh",
+      "sha256": "3006fc511746af0a6b7a6c24a4c160c918bdbfd88c950222ace011020293fae9"
+    },
+    {
+      "path": "/tmp/naming-oracle-setup.json",
+      "sha256": "40cdc417fd9aa05661047b5cf501f9b2a57a5c03f08f984b784e109213a00f99"
+    },
+    {
+      "path": "/tmp/ccg-current-base-provider-seal-20261022.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    }
+  ],
+  "execution_command": "bash /tmp/ccg-postbatch-functional-v2-run.sh /tmp/ccg-derived-two-v2-plan.json",
+  "guards": {
+    "global_lock": "/tmp/tcl-lsp-naming-build.lock held by suite across full build/run/receipt/cleanup; one target at a time, no parallel Cargo",
+    "source": "Reuse full C6 source_manifest (all tracked/untracked Rust/runtime/tests/experiments/spec/specs/data/resources/.cargo plus all .rs/.c/.h/.tcl/.tclspec/Cargo/toolchain configs); before suite and after each job must match exactly. Inventory hashes checked before each Cargo command.",
+    "providers": "Reuse compiler-c6-provider-manifest.py for allTcl+Jim wrappers/workers, Rust proxies/actual tools and recursively linked shared libraries; before/after equality required. Pin oracle setup JSON and runner files. Exact oracle-setup worker SHA pins and runner-input SHA pins are verified before suite/before each job/after each job.",
+    "artifact": "Capture the executable path Cargo itself reports Running, SHA256/mtime/age, retain it; ordinary Cargo freshness only. No direct/manual old executable invocation, no CAS artifact substitution, no touching fingerprints/mtimes.",
+    "logs": "Reuse unchanged compiler-c6-guarded-cargo.py: filtered20MiB cap per command, bounded lines, warning/error/summary context plus N17G; cap rejects acceptance.",
+    "disk": "At least2GiB before every command (prefer2.3GiB); reuse5s watchdog, abort only this own Cargo process group below2GiB. No target/executable deletion; all artifacts retained.",
+    "stop": "Stop on source/provider/inventory/runner drift, disk abort or no test summary. Failed assertions retain full original expectation; record per-target results and continue other authorized planned targets only while guards hold. Warnings/count mismatch/cap/missing executable prevent acceptance.",
+    "classification": "All local receipts agent-reported, not guarded admission. Parent decides final release/audit status."
+  },
+  "environment": {
+    "RUSTUP_TOOLCHAIN": "1.99.1",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6",
+    "TCL_LSP_JIMSH": "provided pinned native Jim from sourced environment",
+    "Cargo_features": "Default per selected package/target; do not unify closures or add --all-features. Profile test with dev dependencies; all logical execution profiles are fixture-authored."
+  },
+  "runner_provenance": [
+    {
+      "path": "/tmp/compiler-c6-original-suite.py",
+      "sha256": "fc21cb6cb23aa064e8b6a8ccca57a128e41f925f399f3226dc6369c7de18c2d6"
+    }
+  ],
+  "provider_seal": {
+    "path": "/tmp/ccg-current-base-provider-seal-20261022.json",
+    "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+  },
+  "provider_snapshot_identity": {
+    "path": "/tmp/ccg-current-provider-identity-20261022.json",
+    "sha256": "f7672e45e68b915f3e4385fa5e683e3dc08c0e48c6fd66c310dc723e760c5e85"
+  },
+  "full_wasm_provider_snapshot": {
+    "path": "/tmp/ccg-current-provider-seal-20261022.json",
+    "sha256": "5a727cdd97d2ede8e10eae2b88338b6151da445951660d64382b8c8e3a89bd98"
+  },
+  "parent_plan": {
+    "path": "/tmp/ccg-postbatch-functional-v2-plan.json",
+    "sha256": "45fd1079922c0693c0b1a13a003053401df866b5225852ada1c939eabdc30216"
+  },
+  "temporary_observer": {
+    "path": "/tmp/ccg-derived-first-decline-v4/proposal.patch",
+    "sha256": "041eb0e44d22a7f1274143ef3e9ee236c32d90b3ccfc9332d8bbc02275d39911",
+    "receipt": "/tmp/ccg-derived-first-decline-v4/receipt.json",
+    "source_guard": "Both final canonical target/support hashes required. No /tmp source includes. Ordinary fullsource/provider/artifact guards and explicit provider seal unchanged.",
+    "cleanup": "Coordinator sourcewindow only, remove exact declaration+reportcall+owned support file using inverse proof. Do not silently refresh original51 source pin."
+  },
+  "inherited_runner_pin_provenance_of_full51_parent": {
+    "utc": "2026-10-22T22:07:31.500522+00:00",
+    "prior_plan": {
+      "path": "/tmp/ccg-postbatch-functional-plan.json",
+      "sha256": "406063b58edf7ab331d69dcfb801832e36dd36fffa0324b6e1df8ebd4efca731"
+    },
+    "scope": "Only authorized exact pin changes, successor routing, and explicit existing-provider pin equality. Complete job/selector/assertion/feature/budget inventories unchanged. No Cargo queued/run.",
+    "known_changes": [
+      {
+        "kind": "documented-source-pin",
+        "path": "rust/tcl-registry/src/native_string_is_compilation.rs",
+        "old_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+        "new_sha256": "a70c5ba877c0c294d8d795ed4f99dc88e37b5fe6c7cbac9e81b02715a0a6e555",
+        "change": "Only module-doc backticks; every test/assertion/body byte unchanged.",
+        "owning_commit": "def9a5fd7fdece3f785ace02da20f6ed8a8da539",
+        "patch": {
+          "path": "/tmp/ccg-ci5205-registry-lints/proposal.patch",
+          "sha256": "16257e9d0fb7f97e272db6043429dedb1fd642b01730fa5e0722d162c028ed24"
+        },
+        "receipt": {
+          "path": "/tmp/ccg-ci5205-registry-lints/receipt.json",
+          "sha256": "2f452fa5831e05720288c7f114830cf992dff155e88aa73f808c4beda293f47e"
+        }
+      },
+      {
+        "kind": "truthful-provider-repair",
+        "path": "/tmp/naming-oracle-setup.json",
+        "old_sha256": "915d7f5aa6b9bd927214ac4b35a58c6352d8120ec3b16deff496d13ea54effd6",
+        "new_sha256": "40cdc417fd9aa05661047b5cf501f9b2a57a5c03f08f984b784e109213a00f99",
+        "old_executable_sha256": "0f634c82506c87484326b8f8ad33ab284a1806ef6b6f1e43f012a2314166942e",
+        "new_executable_sha256": "4c52ccf801a46df9ea5aa062c50e5d4b7e7b09c5d523d464fe8b6e682744b12e",
+        "mechanism": "Restored authenticshallowancestry+upstreamannotatedtag thenupstreamauto.def gitdescribe/configure/make. NoHEAD/sourcecodechange, versionmacro/binaryediting, wrapperoverride ororacleexpectationrelaxation.",
+        "receipt": {
+          "path": "/tmp/vm-runtime-jim-provider-repair-20261022/receipt.json",
+          "sha256": "cfad6f33ca7614f7548417802a375b4546960d5ee28580b1f6cea1ac2d9d0e8a"
+        },
+        "source_head_unchanged": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+        "source_tree_unchanged": "2e383c0e70d826fdd024eaeff4f631c33a01d4d7",
+        "source_manifest_unchanged": "bba8be8d398369281319baa1293e58e401427e5f501b3e0a3dec98e45f4adde9"
+      }
+    ],
+    "native_provider_note": "Native v3 already pins current oracle40cdc4; no existing source or provider pin drift found.",
+    "source_changes": [
+      {
+        "path": "rust/tcl-registry/src/native_string_is_compilation.rs",
+        "old_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+        "new_sha256": "a70c5ba877c0c294d8d795ed4f99dc88e37b5fe6c7cbac9e81b02715a0a6e555"
+      }
+    ],
+    "no_unknown_drift": true
+  },
+  "diagnostic_metadata_only_successor": {
+    "utc": "2026-10-22T22:25:42.466320+00:00",
+    "prior_plan": {
+      "path": "/tmp/ccg-derived-two-v1-plan.json",
+      "sha256": "c815646911265ad118e0c57a337b06cad109d69336fe50f28ba3699fdb3d6666"
+    },
+    "sole_change": "Scope inherited full51 pin-only lineage as parent provenance, not this explicitly distinct2-job inventory. Jobs/guards/sourcepins/runnerpins/features/budgets unchanged; no execution."
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "utc": "2026-10-22T22:28:15.269300+00:00",
+  "status": "Dry-copy exact cleanup only; no canonical product/Cargo changes. Future coordinator sourcewindow authorization required.",
+  "script": {
+    "path": "/tmp/ccg-derived-first-decline-v4/cleanup.py",
+    "sha256": "9675615646fc0d96839fd6437b4a9e9e91db238057c49ca1ef2f4c1e99f712da"
+  },
+  "dry_command": [
+    "python3",
+    "/tmp/ccg-derived-first-decline-v4/cleanup.py",
+    "--root",
+    "/tmp/ccg-derived-first-decline-v4/cleanup-dry-copy",
+    "--apply"
+  ],
+  "exit": 0,
+  "output": {
+    "status": "exact owned observer cleaned",
+    "root": "/tmp/ccg-derived-first-decline-v4/cleanup-dry-copy",
+    "target_restored_sha256": "a46e9deccdc44e9014b053069130bf3eb7e85a92e836705c0ef7385eaa0a8ff1",
+    "module_removed": true,
+    "other_paths_mutated": false
+  },
+  "checks": "Validate BOTH exact before SHAs and exact single declaration/call counts, then exact original after SHA before ANY mutation. Only owned support deletion, no broad formatting/Git/target cleanup.",
+  "future_check_only": [
+    "python3",
+    "/tmp/ccg-derived-first-decline-v4/cleanup.py",
+    "--root",
+    "/workspace/naming-migration-active/tcl-lsp"
+  ],
+  "future_apply": "Same command plus --apply only in root-assigned source window after measurements; not queued/executed."
+}

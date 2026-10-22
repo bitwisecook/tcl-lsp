@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-22T22:31:42.102809+00:00",
+  "source": "User answer in this coordinator chat to the explicit new ILX navigation policy question",
+  "question": "Should ILX::notify retain a conditional source link to the original ILX::init extension after an earlier opaque ILX::call?",
+  "answer": "Stop navigation after opaque calls",
+  "decisions": {
+    "ilx_navigation_after_opaque_calls": {
+      "choice": "Stop navigation after opaque calls",
+      "meaning": "Do not preserve ILX source-navigation associations across earlier opaque calls. A later handle read cannot reuse the earlier association to navigate to the extension after that barrier.",
+      "scope": "ILX read-only source navigation; does not reopen other recorded policies or general after-load analysis decisions.",
+      "implementation_constraints": [
+        "Withdraw the ILX association at opaque earlier operations/calls; do not add the proposed repeated conditional remote association ledger.",
+        "Any first-operand association still needs its genuine constructor/setter/source-read owners and all existing currentness/refusal guards. This decision grants no Native handle, definite current cell, quiet effect or Normal completion.",
+        "Correct only test expectations that require navigation after the opaque barrier, citing this decision; retain exact first-site positives, supported same-frame behavior and stale/foreign/dynamic/reassignment/observer refusal assertions."
+      ]
+    }
+  }
+}

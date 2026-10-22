@@ -1,9 +1,10 @@
 {
-  "utc": "2026-10-22T22:25:10.410794+00:00",
+  "utc": "2026-10-22T22:27:37.337183+00:00",
   "implementation_status": "OFF-TREE; not applied, typed or run",
   "agent_reported_static_reviews": {
-    "compiler_v1": "No further bounded authority blocker beyond self-found missing/foreign region-marker join; v2 exact delta review pending",
-    "lsp_v1": "Public API/consumer fit clear; prior OverlayMiss concern withdrawn after current transitive guard inspected"
+    "compiler_v1": "No further bounded authority blocker beyond self-found missing/foreign region-marker join, closed in v2",
+    "lsp_v1": "Public API/consumer fit clear; prior OverlayMiss concern withdrawn after current transitive guard inspected",
+    "compiler_v2": "Bounded delta3b6c8673 review clear: actual baseline/current region presence and owner join; CurrentCut exact region+point+plan; inherited whole child remains allowed; unavailable/config/input/stripped/foreign controls meaningful. No concrete remaining authority/currentness blocker in examined v1+v2 paths. Type/runtime/positive behaviour unmeasured."
   },
   "locally_validated": [
     "all6 shadow Rust sources rustfmt edition2024 skip_children --check",
@@ -11,7 +12,6 @@
     "frozen receipt sha256 manifest"
   ],
   "remaining": [
-    "Independent compiler exact v2delta review",
     "Coupled LSP per-view frontier transport/required-scope implementation and review",
     "Typecheck/actual seven frontier controls plus existing naming controls",
     "Actual twelve-hop/two-parent/retired-publication protocols; no absence or Native grants"

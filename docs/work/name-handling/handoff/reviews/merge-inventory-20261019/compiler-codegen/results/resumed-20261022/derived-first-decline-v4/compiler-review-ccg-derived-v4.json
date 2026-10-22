@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-22T22:26:34.849258+00:00",
+  "reviewer_role": "compiler",
+  "artifact": "/tmp/ccg-derived-first-decline-v4/proposal.patch",
+  "artifact_sha256": "041eb0e44d22a7f1274143ef3e9ee236c32d90b3ccfc9332d8bbc02275d39911",
+  "public_sha256": "6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1",
+  "receipt_sha256": "38dca8db7f3cb17be8c05f9ebee689bec8500a93052007d0b5608ce97c50566e",
+  "status": "BOUNDED STATIC REVIEW CLEAR, PUBLIC ATTACHMENT ONLY; no type/build/test/run acceptance or derived repair",
+  "verified": [
+    "Clean support file begins actual Rust; module declaration follows existing crate inner docs. Invalid v2/v3 filename-label variants remain blocked.",
+    "Report runs after original CU/SCCP build, before original clear_host; original fixtures/world/formals/host/setup/assertions untouched. No new evaluation or analysis from public observer.",
+    "Actual retained full metadata requested first; missing metadata is terminal for catalogue calls. No standalone fallback or synthetic owner.",
+    "Strict and normal-transfer are independently observed. Stored value and mutation places query the same binding.variable_context phase. No inference from child normal completion alone.",
+    "Public child inventory is explicitly completeness UNOBSERVABLE and yields candidate facts only, not parent store or retained fold proof.",
+    "All old asserted stored SCCP values remain unchanged and are not recomputed by report. Exact inverse preserves original entire fixture target."
+  ],
+  "limits": [
+    "Actual typing/current gate execution still required; no production cause inferred before measurement.",
+    "Long temporary observer function requires retirement or real partition before strict Clippy if retained; no allow authorized.",
+    "Optional internal snippet is NOT in public2path proposal. It performs an actual retained fold query that may invoke host evaluator; it is active diagnostic execution, not a pure metadata observation. No visibility workaround or automatic integration authorization."
+  ]
+}

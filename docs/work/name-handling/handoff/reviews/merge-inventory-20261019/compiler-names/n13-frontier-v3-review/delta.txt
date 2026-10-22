@@ -1,0 +1,204 @@
+--- a/rust/tcl-compiler/src/command_binding/conditional_source/region.rs
++++ b/rust/tcl-compiler/src/command_binding/conditional_source/region.rs
+@@ -959,6 +959,30 @@
+ }
+ 
+ impl OriginalSourceConditionalRegion {
++    /// A replay join retains the exact immediate prefix and the actual issued
++    /// frame inventory. A dependency ancestor or matching image is insufficient.
++    pub(crate) fn reissues_original_source_command(
++        &self,
++        prefix: &crate::analyser::AnalysisResult,
++        analysis: &crate::analyser::AnalysisResult,
++        words: &[tcl_lexer::NativeWord],
++    ) -> bool {
++        let continuation =
++            OriginalSourceConditionalContinuation(Arc::clone(&self.0.entry.0.continuation));
++        if !continuation.matches_parent_analysis(prefix) || !self.matches_region_analysis(analysis)
++        {
++            return false;
++        }
++        let Some(head) = words.first() else {
++            return false;
++        };
++        self.original_vectors().is_some_and(|vectors| {
++            vectors.get(&head.span().start()).and_then(Option::as_deref) == Some(words)
++        })
++    }
++}
++
++impl OriginalSourceConditionalRegion {
+     /// Actual command-vector membership, not span containment. Quoted/braced
+     /// data cannot create an executable vector. Script-body owners remain a
+     /// separate registry-selected purpose and are not inferred from braces.
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs
+@@ -98,6 +98,35 @@
+     #[must_use]
+     pub fn matches_parent_analysis(&self, parent: &AnalysisResult) -> bool {
+         self.0.load.capture_source_association(parent).as_ref() == Some(self)
++    }
++}
++
++impl crate::command_binding::OriginalSourceConditionalRegion {
++    /// Transfer one retained prefix association/debt only through this region's
++    /// actual replay of the same complete original command vector. The returned
++    /// load/frontier pair belongs to the exact region view. Even Unknown retains
++    /// that reissued load for a later exact replay; missing replay leaves the
++    /// old debt unresolved. Physical publication remains independently checked.
++    #[must_use]
++    pub fn reissued_source_frontier(
++        &self,
++        prefix: &AnalysisResult,
++        original_load: &OriginalProjectSourceLoad,
++        region_analysis: &AnalysisResult,
++    ) -> Option<(OriginalProjectSourceLoad, OriginalProjectSourceFrontier)> {
++        let original = original_load.authenticated_frontier_words(prefix)?;
++        self.reissues_original_source_command(prefix, region_analysis, &original)
++            .then_some(())?;
++        let image = self.source_image();
++        let head = original.first()?;
++        let current = capture_original_project_source_load_at(
++            image.try_text().ok()?,
++            region_analysis,
++            head.span().start(),
++        )?;
++        (current.authenticated_frontier_words(region_analysis)? == original).then_some(())?;
++        let frontier = current.frontier(region_analysis);
++        Some((current, frontier))
+     }
+ }
+ 
+@@ -396,6 +425,132 @@
+             load.frontier(&parent),
+             OriginalProjectSourceFrontier::Unknown
+         ));
++    }
++
++    #[test]
++    fn replayed_frontier_transfers_only_the_exact_prefix_command_debt() {
++        for source in [
++            "source first.tcl; source second.tcl; source third.tcl",
++            "namespace eval ::app {source first.tcl; source second.tcl; source third.tcl}",
++        ] {
++            let parent = Analyser::new().analyse(source, "tcl8.6");
++            let first = load(source, &parent, "source first");
++            let later = load(source, &parent, "source second");
++            assert!(matches!(
++                later.frontier(&parent),
++                OriginalProjectSourceFrontier::Unknown
++            ));
++            let first_cut = expect_cut(first.frontier(&parent));
++            let child = Analyser::new()
++                .analyse_with_source_point_entry("", "tcl8.6", first_cut.point())
++                .unwrap();
++            let continuation = first.conditional_continuation(&parent, &child).unwrap();
++            let chain = continuation.source_regions(&parent, &child).unwrap();
++            let region = chain.regions().first().unwrap();
++            let view = Analyser::new()
++                .analyse_source_region(region, &parent, &child)
++                .unwrap();
++            let (reissued_load, replayed) = region
++                .reissued_source_frontier(&parent, &later, &view)
++                .unwrap();
++            let replayed = expect_cut(replayed);
++            assert_eq!(replayed.source_load(), &reissued_load);
++            let third = load(source, &parent, "source third");
++            let (held_third, held_frontier) = region
++                .reissued_source_frontier(&parent, &third, &view)
++                .unwrap();
++            assert!(matches!(
++                held_frontier,
++                OriginalProjectSourceFrontier::Unknown
++            ));
++            let second_child = Analyser::new()
++                .analyse_with_source_point_entry("", "tcl8.6", replayed.point())
++                .unwrap();
++            let second_continuation = reissued_load
++                .conditional_continuation(&view, &second_child)
++                .unwrap();
++            let second_chain = second_continuation
++                .source_regions(&view, &second_child)
++                .unwrap();
++            let second_region = second_chain.regions().first().unwrap();
++            let second_view = Analyser::new()
++                .analyse_source_region(second_region, &view, &second_child)
++                .unwrap();
++            let (_, third_frontier) = second_region
++                .reissued_source_frontier(&view, &held_third, &second_view)
++                .unwrap();
++            assert!(expect_cut(third_frontier).matches_parent_analysis(&second_view));
++            // An ancestor prefix cannot bypass the genuine intermediate owner.
++            assert!(
++                second_region
++                    .reissued_source_frontier(&parent, &third, &second_view)
++                    .is_none()
++            );
++            assert!(replayed.matches_parent_analysis(&view));
++            assert_eq!(
++                replayed.source_load().literal_path().as_deref(),
++                Some("second.tcl")
++            );
++            assert!(
++                region
++                    .reissued_source_frontier(&parent, &first, &view)
++                    .is_none()
++            );
++            let foreign = Analyser::new().analyse(source, "tcl8.6");
++            assert!(
++                region
++                    .reissued_source_frontier(&foreign, &later, &view)
++                    .is_none()
++            );
++            let mut unavailable = parent.clone();
++            unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
++                environment: "tcl8.6".to_owned(),
++                overlay: 1,
++            });
++            assert!(
++                region
++                    .reissued_source_frontier(&unavailable, &later, &view)
++                    .is_none()
++            );
++            let mut unavailable_view = view.clone();
++            unavailable_view.analysis_context_unavailable =
++                unavailable.analysis_context_unavailable.clone();
++            assert!(
++                region
++                    .reissued_source_frontier(&parent, &later, &unavailable_view)
++                    .is_none()
++            );
++            unavailable_view = view.clone();
++            unavailable_view.original_source_region = None;
++            assert!(
++                region
++                    .reissued_source_frontier(&parent, &later, &unavailable_view)
++                    .is_none()
++            );
++            let foreign_child = Analyser::new()
++                .analyse_with_source_point_entry("", "tcl8.6", first_cut.point())
++                .unwrap();
++            let foreign_continuation = first
++                .conditional_continuation(&parent, &foreign_child)
++                .unwrap();
++            let foreign_chain = foreign_continuation
++                .source_regions(&parent, &foreign_child)
++                .unwrap();
++            let foreign_region = foreign_chain.regions().first().unwrap();
++            let foreign_view = Analyser::new()
++                .analyse_source_region(foreign_region, &parent, &foreign_child)
++                .unwrap();
++            assert!(
++                foreign_region
++                    .reissued_source_frontier(&parent, &later, &foreign_view)
++                    .is_some()
++            );
++            assert!(
++                region
++                    .reissued_source_frontier(&parent, &later, &foreign_view)
++                    .is_none()
++            );
++        }
+     }
+ 
+     #[test]

@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-22T22:27:37.337183+00:00",
+  "status": "Bounded STATIC API/sequence delta review only; no whole-host, type or runtime approval",
+  "patch_sha256": "331e84e315621922c8d70262bdaa04199163605edbb44345096813e91d05b3f1",
+  "delta_sha256": "76eb0230b32917ed0e57e2f01af3d5781667bfb9a69e7f35c3f4e863107e883f",
+  "compiler_prerequisite": "frontier-v2 3b6c86737f8a92216cc1542a165104ed28379869647c7a2741eb95a8d13a9235",
+  "examined": [
+    "Entire v6-to-v7 two-path delta",
+    "Proposed source_views visit_original_source_view and run_original_source_view_work postorder completion"
+  ],
+  "findings": [],
+  "static_conclusions": [
+    "Actual index_sources analysis issues and retains whole frontier, including Unknown; point absence is not a classifier.",
+    "Only finite CurrentCut that rejoins actual parent and same genuine load issues child ingress; continuation retains cut.source_load.",
+    "Positively owned ConditionalAssociation rejoins actual parent/load and retains body/advice debts without materializing a child or claiming inactivity.",
+    "Valid first cut can progress while later Unknown remains subject to the actual ordered kernel suffix and subsequent exact region views; no offsets or source ordering select a cut.",
+    "Missing/invalid frontiers with no actual finite cut remain terminal for this worker view. Multiple cuts refuse."
+  ],
+  "not_approved_or_measured": [
+    "Root/bootstrap actual physical publication rejoin and child association membership are still unfinished per host owner.",
+    "Independent per-view/scope settlement remains unfinished; Unknown debt outside replayed suffix must not vanish from final admission or globally poison unrelated scopes.",
+    "Actual host typing, seven frontier controls, first completed two-parent/deep12 source protocols and retirement controls unrun."
+  ]
+}
