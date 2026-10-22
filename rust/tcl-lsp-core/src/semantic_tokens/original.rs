@@ -1050,7 +1050,7 @@ fn insert_logical_inline_member_overrides(
                     command,
                     word,
                     tcl_registry::ArgRole::Name,
-                    kind,
+                    kind.clone(),
                     overrides,
                 );
             }

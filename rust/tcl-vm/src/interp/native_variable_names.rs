@@ -157,17 +157,18 @@ impl Vm {
             }
             Ok(())
         };
-        let string =
-            |value: &Value,
-             protocol,
-             registration: &dyn Fn()
-                -> Result<(), crate::literal_pool::NativeLiteralUnavailable>| {
-                check()?;
-                original.string(value, protocol, &|| {
-                    registration()?;
-                    check()
-                })
-            };
+        let string = |value: &Value,
+                      protocol: tcl_syntax::native_string::NativeStringProtocol,
+                      registration: &(
+                           dyn Fn() -> Result<(), crate::literal_pool::NativeLiteralUnavailable>
+                               + '_
+                       )| {
+            check()?;
+            original.string(value, protocol, &|| {
+                registration()?;
+                check()
+            })
+        };
         let refuse = |error| original.refuse(error);
         let callbacks = crate::literal_pool::OriginalLiteralCallbacks {
             check: &check,

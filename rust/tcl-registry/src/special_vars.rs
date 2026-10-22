@@ -1698,7 +1698,7 @@ mod native_bootstrap_tests {
                     (fields[0] == version).then_some((fields[1], fields[2] == "1"))
                 })
                 .collect();
-            assert!(!expected.is_empty());
+            assert_ne!(expected.len(), 0);
             let actual: Vec<_> = ledger
                 .keys()
                 .unwrap()

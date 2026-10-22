@@ -2,18 +2,55 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T17:36:49Z (canonical Rust/tests frozen; structural lint draft prepared off-tree; no VM build started)
+Last updated: 2026-10-22T18:03:10Z (first structured check reported four VM callback lifetime errors; correction off-tree; whole Jim source draft ready for review; no VM Cargo started)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Resumed at 14:21Z in `/workspace/naming-migration-active/tcl-lsp`; root rebased and
-pushed the full WIP/report as `41e547bcb`. Waiting for root's explicit build release:
-compiler-names, compiler-codegen, compiler, VM-runtime, coordination checks, then
-lsp. No VM-runtime cargo process has started. First run remains the six Jim/EDA
-targets (32 cases), then rerun and triage `jim_document` (26 cases). No current
-result below is a guarded validation or audit admission.
+Active tree is `/workspace/naming-migration-active/tcl-lsp`. Root reports the
+257-path coordinated batch applied, including the VM47 lint draft and ASCII3
+backend; trusted Jim proc/class drafts remain off-tree. The checks role owns the
+first seven-crate `--all-targets` Cargo check; standalone `runtime/rust` follows
+main-workspace type clearance. Canonical Rust/tests remain frozen. No VM-runtime
+Cargo process has started. First VM execution after explicit release remains the
+six Jim/EDA targets (32 cases), then `jim_document` (26 cases), TLS and required
+SpecTcl compatibility controls. No completed current result or audit admission.
+
+The active first structured check reports four VM `Fn` generality errors at
+`interp/native_command_names.rs:876` and `interp/native_variable_names.rs:174`.
+The signature-only correction is prepared off-tree at
+`/tmp/vm-runtime-typecheck-fixes/callback-generality.patch`, SHA-256
+`a2330cb90f11d0408b0247a16c332f41d26c7060855565b2d67340c86371d61f`.
+It annotates the original string protocol and independently general registration
+callback object lifetime; callback bodies/currentness/retirement guards stay
+exact. Parse/apply-check pass, but no corrected-source typecheck has completed.
+Root controls integration after the first check's source/input guard.
+
+Trusted Jim proc descriptor attachment has compiler static peer approval for
+its trusted boundary, exact selected row and pointer/generation idempotence.
+Requested direct helper negatives now preserve an ordinary non-CoreJim row and
+an existing explicit descriptor pointer. Updated two-path off-tree patch:
+`/tmp/vm-runtime-jim-descriptor-shadow/trusted-jim-proc.patch`, SHA-256
+`346d63ea42ce2886b30766c91145b79061539bd28ab362b5a84c81070c9cb32b`.
+These new controls parse; the candidate has not compiled or run.
+
+Four Jim class-list failures have a concrete static source boundary:
+`source_class_declaration_attempt` admits `command_installation` (Snit/Itcl) or
+TclOO, excluding JimClass. The existing `OriginalClassDefinerSource` also needs
+all-static arguments and cannot carry computed base/dictionary words. A separate
+Jim source-only tape/relationship candidate is ready for compiler/names review:
+`/tmp/vm-runtime-jim-class-shadow/whole/jim-class-whole.patch`, SHA-256
+`db2b3e9eaf2ea664898db9bdddd4c5986f8e1ca2ec452148dcb7bc145608359a` (nine paths). It retains exact original parent,
+source/context, selected authored Jim protocol and list geometry; source-only
+class cells supply conditional inherited metadata without any Native class,
+argument, receiver or publication owner. Unknown/computed layouts remain
+unavailable. No reporting-string or HandleScope naming fallback is added.
+The whole candidate includes producer, graph, metadata consumer and five fixed
+controls for all four original layout cases plus foreign/stale/replacement and
+unknown layout refusals. Parse/apply-check pass with exact before/shadow hashes;
+it is uncompiled/unrun and grants no class/inheritance acceptance claim. The pinned Jim oracle's 25 fixed
+semantic controls remain evidence about Jim semantics only.
 
 Six-vendor EDA smoke is prepared in `spec_packs.rs` and included in the WIP, with
 all eight pack names, own-vendor plus shared SDC/UPF availability and rival-vendor
@@ -48,9 +85,9 @@ It contains **149 edit groups across 44 files**: identity conversions, docs,
 unit patterns/semicolons, method closures, unnecessary borrows, declaration
 placement and small equivalent combinators. The receipt beside it records
 current base/shadow hashes and every edit. All 44 shadows parsed/formatted with
-rustfmt; `git apply --check` passes and base drift is zero at 15:22Z. This is
-off-tree only, with no typecheck, Clippy count, behavioural result or canonical
-VM source edit. TLS retirement `try_with` guards are untouched. Refusal-sensitive
+rustfmt; `git apply --check` passes and base drift is zero at 15:22Z. Root reports its composed VM47 batch applied with the ASCII3 backend; the
+first structured check is active. There is no completed current typecheck,
+Clippy count or behavioural result from this preparation. TLS retirement `try_with` guards are untouched. Refusal-sensitive
 and structural helpers remain in the separate plan for review after acceptance.
 
 Structural preparation is now an actual eight-file shadow draft at
@@ -65,8 +102,9 @@ uses `ControlFlow` for the existing trampoline continuation, and extracts stale
 command replay plus wrapped encoder line-length decoding. The receipt records exact canonical/post-mechanical hashes,
 review obligations and guard-text counts. Eight shadows parse/format; the
 combined patch applies in check-only mode across 47 paths with zero canonical
-base drift. All remain uncompiled/unrun; these are no lint-clearance or semantic
-claims. The canonical Rust/test freeze is observed, including both D4 files;
+base drift. Root reports the combined VM47 patch applied; no completed current check or
+behavioural run is claimed. These drafts supply no lint-clearance or semantic
+admission. The canonical Rust/test freeze is observed, including both D4 files;
 latest D4 source write was 15:54:30.558808839Z. No VM cargo process has started.
 
 Required `pack_source_e2e` blocker triage remains read-only. CCG's full-target

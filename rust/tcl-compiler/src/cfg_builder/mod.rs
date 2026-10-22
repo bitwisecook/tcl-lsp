@@ -4369,6 +4369,7 @@ impl CfgCommandClasses {
         &self,
     ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>> {
         self.metadata.metadata_context(self.registry.registry())
+            .map(crate::registry_invocation::InvocationMetadataSelection::context)
     }
 
     /// Source numeral grammar is independent of catalogue availability.

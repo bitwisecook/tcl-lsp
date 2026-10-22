@@ -1237,7 +1237,7 @@ mod tests {
         assert!(outcome.changed);
         assert_eq!(outcome.declared, 1);
         assert_eq!(outcome.retired, 0);
-        assert!(outcome.rejected.is_empty());
+        assert_eq!(outcome.rejected.len(), 0);
         assert!(is_known_environment_name("sync-probe-env"));
         assert_eq!(resolve_environment("sync-probe-env").id(), "sync-probe-env");
 
@@ -1351,7 +1351,7 @@ mod tests {
         };
         let first = sync_environment_sources(vec![good.clone(), bad.clone()]);
         assert_eq!(first.accepted_sources(), Some(std::slice::from_ref(&good)));
-        assert!(!first.rejected.is_empty());
+        assert_ne!(first.rejected.len(), 0);
         let again = sync_environment_sources(vec![good.clone(), bad]);
         assert!(!again.changed);
         assert_eq!(again.accepted_sources(), Some(std::slice::from_ref(&good)));

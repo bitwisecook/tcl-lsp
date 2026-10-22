@@ -1695,7 +1695,7 @@ fn source_lambda_body(
     context: &ContextRegistry,
 ) -> Option<ScriptBodyGeometry> {
     let selected =
-        words.with_source_schema(context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)??;
+        words.with_source_schema(context, |schema| schema.authored_source_lambda_call())??;
     let word = words
         .operands()
         .get(selected.lambda_argument)?

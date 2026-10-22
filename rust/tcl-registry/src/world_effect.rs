@@ -1328,7 +1328,7 @@ mod tests {
             }],
             &coverage,
         );
-        assert!(legacy.accesses().is_empty());
+        assert_eq!(legacy.accesses().len(), 0);
 
         let declared = WorldEffectDescriptor {
             composition: WorldEffectComposition::Extend,

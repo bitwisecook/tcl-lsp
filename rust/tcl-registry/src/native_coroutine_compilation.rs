@@ -473,7 +473,7 @@ mod injection_tests {
             },
         );
         assert_eq!(outcome, (0, vec!["B", "A"]));
-        assert!(callbacks.is_empty());
+        assert_eq!(callbacks.len(), 0);
         assert_eq!(
             selected.kind(NativeCoroutineResumeArity::SingleOptional),
             b"yield"
@@ -493,7 +493,7 @@ mod injection_tests {
             c90.run_pending(&mut earlier_pending, "ORIGINAL", |name, _| name),
             "A"
         );
-        assert!(earlier_pending.is_empty());
+        assert_eq!(earlier_pending.len(), 0);
         assert_eq!(
             c90.kind(NativeCoroutineResumeArity::SingleOptional),
             b"yield"
@@ -558,7 +558,7 @@ mod coroutine_name_tests {
                     // Software parser control: this unchanged source has no
                     // complete command under the selected C84 word grammar.
                     // A fatal tail cannot supply original compiler words.
-                    assert!(parsed.commands.is_empty());
+                    assert_eq!(parsed.commands.len(), 0);
                     assert_eq!(
                         parsed.fatal_tail.unwrap().cut.message,
                         tcl_lexer::word_parts::EXTRA_AFTER_CLOSE_BRACE,

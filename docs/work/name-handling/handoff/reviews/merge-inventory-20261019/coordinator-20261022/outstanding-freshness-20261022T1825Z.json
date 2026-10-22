@@ -1,0 +1,64 @@
+{
+  "utc": "2026-10-22T18:25:22.141341+00:00",
+  "records": [
+    {
+      "role": "bigip-lsp",
+      "stamp": "2026-10-22T18:08:00+00:00",
+      "age_minutes": 17.23,
+      "stale_over60": false,
+      "source": "publisher HEAD2bc3afb6"
+    },
+    {
+      "role": "compiler-codegen",
+      "stamp": "2026-10-22T18:19:00+00:00",
+      "age_minutes": 6.37,
+      "stale_over60": false
+    },
+    {
+      "role": "compiler-names",
+      "stamp": "2026-10-22T18:14:00+00:00",
+      "age_minutes": 11.37,
+      "stale_over60": false
+    },
+    {
+      "role": "compiler",
+      "stamp": "2026-10-22T18:15:32+00:00",
+      "age_minutes": 9.84,
+      "stale_over60": false
+    },
+    {
+      "role": "coordinator",
+      "stamp": "2026-10-22T17:55:45.594596+00:00",
+      "age_minutes": 29.47,
+      "stale_over60": false,
+      "source": "active working tree"
+    },
+    {
+      "role": "lsp",
+      "stamp": "2026-10-22T18:14:13+00:00",
+      "age_minutes": 11.02,
+      "stale_over60": false,
+      "source": "active working tree"
+    },
+    {
+      "role": "perf",
+      "stamp": "2026-10-22T18:04:00+00:00",
+      "age_minutes": 21.23,
+      "stale_over60": false,
+      "source": "publisher HEAD2bc3afb6"
+    },
+    {
+      "role": "review-triage",
+      "stamp": "2026-10-22T18:02:09+00:00",
+      "age_minutes": 23.08,
+      "stale_over60": false,
+      "source": "publisher HEAD2bc3afb6"
+    },
+    {
+      "role": "vm-runtime",
+      "stamp": "2026-10-22T18:03:10+00:00",
+      "age_minutes": 22.2,
+      "stale_over60": false
+    }
+  ]
+}

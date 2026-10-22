@@ -505,7 +505,7 @@ mod tests {
                 NativeCompilationSelection::Generic
             );
         }
-        assert!(!words("string index $s 1", TclVersion::V9_0).is_empty());
+        assert_ne!(words("string index $s 1", TclVersion::V9_0).len(), 0);
     }
 
     #[test]

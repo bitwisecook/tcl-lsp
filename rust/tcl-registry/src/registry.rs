@@ -10912,10 +10912,10 @@ mod tests {
             vec![(2, ArgRole::VarWrite)]
         );
         // Fully supplied leaves none.
-        assert!(
+        assert_eq!(
             reg.unfilled_trailing_roles("catch", &["{body}", "res", "opts"])
-                .is_empty()
-        );
+                .len()
+        , 0);
     }
 
     #[test]
@@ -10971,10 +10971,10 @@ mod tests {
     #[test]
     fn unfilled_trailing_roles_is_empty_for_an_unknown_command() {
         let reg = CommandRegistry::build_default();
-        assert!(
+        assert_eq!(
             reg.unfilled_trailing_roles("no_such_command", &[])
-                .is_empty()
-        );
+                .len()
+        , 0);
     }
 
     #[test]
@@ -10983,7 +10983,7 @@ mod tests {
         // `puts` declares no trailing role a caller could fill with a
         // *known* meaning, so nothing is offered rather than an unbounded
         // run of `Value` slots.
-        assert!(reg.unfilled_trailing_roles("puts", &["hello"]).is_empty());
+        assert_eq!(reg.unfilled_trailing_roles("puts", &["hello"]).len(), 0);
     }
 
     /// `SAFE_INTERP_HIDDEN` and `TRANSFERS_CONTROL` were the same bit.
@@ -12249,10 +12249,10 @@ mod tests {
         );
         // Bodyless `uplevel 1` (a wrong-#args error) exposes no body word — the
         // literal level must not be mis-tagged as a script.
-        assert!(
+        assert_eq!(
             reg.arg_indices_for_role("uplevel", &["1"], ArgRole::Body)
-                .is_empty()
-        );
+                .len()
+        , 0);
     }
 
     #[test]
@@ -12334,10 +12334,10 @@ mod tests {
             found("clock", &["format", "$t", "-format", "%Y"])
         );
         // TN — a subcommand with no format string, and an unknown command.
-        assert!(found("binary", &["encode", "hex", "$d"]).is_empty());
-        assert!(found("clock", &["seconds"]).is_empty());
-        assert!(found("no::such::command", &["%d"]).is_empty());
-        assert!(found("puts", &["%d"]).is_empty());
+        assert_eq!(found("binary", &["encode", "hex", "$d"]).len(), 0);
+        assert_eq!(found("clock", &["seconds"]).len(), 0);
+        assert_eq!(found("no::such::command", &["%d"]).len(), 0);
+        assert_eq!(found("puts", &["%d"]).len(), 0);
         // TN — `regsub -command` makes that position a callback, not a
         // template, so it declares no replacement word.
         assert!(
@@ -12707,22 +12707,22 @@ mod tests {
             InvocationWord::Dynamic,
             InvocationWord::Literal(r"{\1}"),
         ];
-        assert!(
+        assert_eq!(
             registry
                 .pattern_args_words(
                     "mutated-pattern-format-owner",
                     InvocationArguments::structured(&dynamic),
                 )
-                .is_empty()
-        );
-        assert!(
+                .len()
+        , 0);
+        assert_eq!(
             registry
                 .format_string_args_words(
                     "mutated-pattern-format-owner",
                     InvocationArguments::structured(&dynamic),
                 )
-                .is_empty()
-        );
+                .len()
+        , 0);
 
         let fixed = [
             InvocationWord::Literal("-skip"),
@@ -12788,10 +12788,10 @@ mod tests {
                 kind: crate::patterns::PatternType::Regex,
             }],
         );
-        assert!(
+        assert_eq!(
             reg.pattern_args("lsearch", &["-exact", "{a b}", "a+"])
-                .is_empty()
-        );
+                .len()
+        , 0);
     }
 
     #[test]
@@ -13171,7 +13171,7 @@ mod tests {
         // The `-command` value is a Body; the flag consumes nothing.
         assert_eq!(indices(&options, &args, ArgRole::Body), vec![1]);
         // It is not a generic Value role.
-        assert!(indices(&options, &args, ArgRole::Value).is_empty());
+        assert_eq!(indices(&options, &args, ArgRole::Value).len(), 0);
     }
 
     /// Explicit metadata environment; this does not install a source receiver.
@@ -13948,7 +13948,7 @@ mod tests {
         use crate::hover::OptionValue;
         let options = [opt("-command", OptionValue::script())];
         let args = ["--", "-command", "{x}"];
-        assert!(indices(&options, &args, ArgRole::Body).is_empty());
+        assert_eq!(indices(&options, &args, ArgRole::Body).len(), 0);
     }
 
     #[test]
@@ -14713,7 +14713,7 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(roles(&["tag", "bind", "sel", "<Key>", "{p}"]), vec![4]);
-        assert!(roles(&["tag", "add", "sel", "1.0", "end"]).is_empty());
+        assert_eq!(roles(&["tag", "add", "sel", "1.0", "end"]).len(), 0);
         let unprovided = CommandRegistry::build_default()
             .project_for_profile(DialectProfile::find("tcl8.6").unwrap());
         assert!(
@@ -15311,7 +15311,7 @@ mod tests {
             .resolved()
             .unwrap();
         assert!(!selected.facts().arg_roles_complete);
-        assert!(selected.facts().arg_roles.is_empty());
+        assert_eq!(selected.facts().arg_roles.len(), 0);
         assert_eq!(
             registry.arg_role_assignments_words(
                 "proc",
@@ -15398,14 +15398,14 @@ mod tests {
             reg.arg_indices_evaluated_in_frame("expr", &["$x", "+", "1"]),
             vec![0],
         );
-        assert!(
+        assert_eq!(
             reg.arg_indices_evaluated_in_frame("lindex", &["$x", "0"])
-                .is_empty()
-        );
-        assert!(
+                .len()
+        , 0);
+        assert_eq!(
             reg.arg_indices_evaluated_in_frame("apply", &["{{} {puts $x}}"])
-                .is_empty()
-        );
+                .len()
+        , 0);
     }
 
     /// `unset -nocomplain -- a b` skips the leading options and names only the
@@ -16399,7 +16399,7 @@ mod tests {
             crate::InvocationWord::Literal("::regexp"),
             &arguments,
         ));
-        assert!(projection.literal_names.is_empty());
+        assert_eq!(projection.literal_names.len(), 0);
         assert!(projection.opaque_variable_frame);
     }
 
@@ -16417,7 +16417,7 @@ mod tests {
                 crate::InvocationWord::Literal("set"),
                 &arguments,
             ));
-            assert!(projection.literal_names.is_empty());
+            assert_eq!(projection.literal_names.len(), 0);
             assert!(projection.opaque_variable_frame);
         }
     }
@@ -16433,7 +16433,7 @@ mod tests {
         ] {
             let projection =
                 reg.variable_write_projection(InvocationWords::structured(head, &no_arguments));
-            assert!(projection.literal_names.is_empty());
+            assert_eq!(projection.literal_names.len(), 0);
             assert!(projection.opaque_variable_frame);
         }
     }
@@ -16488,7 +16488,7 @@ mod tests {
             crate::InvocationWord::Literal("global"),
             &unknown,
         ));
-        assert!(projection.literal_names.is_empty());
+        assert_eq!(projection.literal_names.len(), 0);
         assert!(
             projection.opaque_variable_frame,
             "missing alias naming policy remains unknown"
@@ -16538,7 +16538,7 @@ mod tests {
         let computed = [Dynamic];
         let projection =
             reg.variable_read_projection(InvocationWords::structured(Literal("unset"), &computed));
-        assert!(projection.literal_names.is_empty());
+        assert_eq!(projection.literal_names.len(), 0);
         assert!(projection.opaque_variable_frame);
         let query = [Literal("exists"), Literal("x")];
         assert_eq!(
@@ -19114,10 +19114,10 @@ mod tests {
         // asking for roles must remain a conservative abstention rather than
         // a panic. The compiler's W304 regression separately proves Tcl's
         // optionless two-word rule is retained for diagnostics.
-        assert!(
+        assert_eq!(
             switch
                 .arg_indices_for_role("switch", &["$subject", "$cases"], ArgRole::Body)
-                .is_empty(),
+                .len(), 0,
         );
     }
 
@@ -19706,7 +19706,7 @@ mod source_empty_write_projection_tests {
                     assert_eq!(projection.literal_names, [expected]);
                     assert!(!projection.opaque_variable_frame);
                 } else {
-                    assert!(projection.literal_names.is_empty());
+                    assert_eq!(projection.literal_names.len(), 0);
                     assert!(projection.opaque_variable_frame);
                 }
             }

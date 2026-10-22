@@ -85,7 +85,7 @@ impl OriginalConditionalLambdaFormattingBody {
         )
         .and_then(|words| {
             words
-                .with_source_schema(context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)
+                .with_source_schema(context, |schema| schema.authored_source_lambda_call())
                 .flatten()
         })
         .is_some_and(|call| call.count == phase.argument_count)

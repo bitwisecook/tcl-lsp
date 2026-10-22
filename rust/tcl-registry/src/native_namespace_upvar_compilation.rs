@@ -303,7 +303,7 @@ mod tests {
             NativeCompilationFrame::Unknown,
         ] {
             let selected = recipe(source, NativeCompilationContext { frame, ..context() });
-            assert!(selected.visits.is_empty());
+            assert_eq!(selected.visits.len(), 0);
             assert_eq!(
                 selected.outcome,
                 if frame == NativeCompilationFrame::ScriptCode {
@@ -418,6 +418,6 @@ mod tests {
         )
         .unwrap();
         assert_eq!(missing.outcome, NativeNamespaceBindingOutcome::Unknown);
-        assert!(missing.visits.is_empty());
+        assert_eq!(missing.visits.len(), 0);
     }
 }

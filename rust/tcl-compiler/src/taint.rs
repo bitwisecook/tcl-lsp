@@ -44,7 +44,8 @@
 //!   via `taint_network_sink_args` (`socket`) and
 //!   `taint_interp_eval_subcommands` (`interp eval` / `invokehidden`);
 //!   see [`classify_network_interp_sinks`].  Suppressed by a validated
-//!   address colour (T104) / `LIST_CANONICAL` (T105).
+//!   address colour (T104) or a proved literal command word in the constructed
+//!   script list (T105).
 //! - **T106 double-encoding** — [`transform_colour`] stamps a command's
 //!   `taint_transform` colour onto its tainted result during
 //!   propagation, and [`emit_double_encode_warnings`] flags a value that
@@ -6792,13 +6793,61 @@ struct SourceWarningRead<'a> {
     metadata: &'a SourceWarningMetadata,
     point: crate::ssa::SsaSourceView<'a>,
 }
-impl SourceWarningRead<'_> {
+impl<'a> SourceWarningRead<'a> {
+    fn script_arguments(self, call: &SinkCall<'_>) -> Option<&'a [usize]> {
+        let SourceWarningMetadata::Original(operands) = self.metadata else {
+            return None;
+        };
+        operands.script_arguments(call.command, call.effective?)
+    }
+
+    fn references(self, name: &str, original: &WordExpr, config: tcl_lexer::LexerConfig) -> bool {
+        if let SourceWarningMetadata::Original(operands) = self.metadata {
+            return match operands.read_sites(original, name) {
+                crate::registry_invocation::OriginalSourceReadSites::Unowned => false,
+                crate::registry_invocation::OriginalSourceReadSites::Unknown => true,
+                crate::registry_invocation::OriginalSourceReadSites::Known(reads) => {
+                    !reads.is_empty()
+                }
+            };
+        }
+        original
+            .sole_variable_substitution()
+            .is_some_and(|(reference, _)| {
+                reference_root_with_config(reference, config) == Some(name)
+            })
+    }
+
     fn taint<S: std::hash::BuildHasher>(
         self,
         name: &str,
         original: &WordExpr,
         taints: &HashMap<ValueKey, TaintLattice, S>,
     ) -> Option<TaintLattice> {
+        if let SourceWarningMetadata::Original(operands) = self.metadata {
+            let reads = match operands.read_sites(original, name) {
+                crate::registry_invocation::OriginalSourceReadSites::Unowned => return None,
+                crate::registry_invocation::OriginalSourceReadSites::Unknown => {
+                    return Some(TaintLattice::tainted());
+                }
+                crate::registry_invocation::OriginalSourceReadSites::Known(reads) => reads,
+            };
+            if reads.is_empty() {
+                return None;
+            }
+            return Some(reads.into_iter().fold(
+                TaintLattice::clean(),
+                |taint, (reference, site)| {
+                    let value = self
+                        .point
+                        .read_reference(site, reference)
+                        .and_then(|read| read.version.map(|version| (read.symbol, version)))
+                        .and_then(|key| taints.get(&key).copied())
+                        .unwrap_or_else(TaintLattice::tainted);
+                    taint.join(value)
+                },
+            ));
+        }
         let (reference, site) = original.sole_variable_substitution()?;
         let (config, owns_word) = match self.metadata {
             SourceWarningMetadata::Hosted(metadata) => (
@@ -7945,6 +7994,27 @@ fn positional_arg_strings(spec: &tcl_registry::CommandSpec, args: &[String]) -> 
 /// occupies a *non-dangerous* argument slot for `code` and so must not trip
 /// the sink.
 fn sink_var_position_safe(call: &SinkCall<'_>, code: DiagCode, name: &str) -> bool {
+    let config = call.source.config;
+    if call
+        .args
+        .iter()
+        .any(|arg| arg_var_names_with_config(arg, config).has_unknown_residual())
+    {
+        return false;
+    }
+    if code == DiagCode::T105
+        && let Some(scripts) = call
+            .source_read
+            .and_then(|read| read.script_arguments(call))
+    {
+        // A path/selector operand does not become script text. This projects
+        // only the same compiler-selected source sink candidate's roles;
+        // unknown selection and missing source ownership retain the warning.
+        return !call.args.iter().enumerate().any(|(index, arg)| {
+            scripts.contains(&(call.argument_offset + index))
+                && arg_var_names_with_config(arg, config).may_contain(name)
+        });
+    }
     let Some((spec, command, selected_args)) = selected_sink_schema(call) else {
         return false;
     };
@@ -8074,6 +8144,31 @@ fn standalone_list_wrapper_head(
     (!head.contains('\0') && registry.get(&head).is_some()).then_some(head)
 }
 
+fn single_script_operand(call: &SinkCall<'_>, argument: usize) -> bool {
+    let Some(expected) = call.argument_offset.checked_add(argument) else {
+        return false;
+    };
+    if let Some(scripts) = call
+        .source_read
+        .and_then(|read| read.script_arguments(call))
+    {
+        return scripts == [expected];
+    }
+    let (Some(metadata), Some(tokens), Some(effective)) =
+        (call.source.metadata, call.tokens, call.effective)
+    else {
+        return false;
+    };
+    crate::registry_invocation::actual_taint_script_arguments(
+        call.registry,
+        metadata,
+        tokens,
+        call.command,
+        effective,
+    )
+    .is_some_and(|scripts| scripts == [expected])
+}
+
 /// `true` when one of `args` is a `[list <head> …]` command substitution
 /// whose constructed-list command word (`<head>`) is a literal known
 /// registry command and `name` is referenced in that argument. The tainted
@@ -8096,6 +8191,33 @@ fn list_wrapped_arg_command_is_literal(call: &SinkCall<'_>, name: &str) -> bool 
         {
             if !arg_var_names_with_config(arg, config).may_contain(name) {
                 continue;
+            }
+            // Tcl concatenation can expose quoted list text to another
+            // script operand's syntax. Both old reached-wrapper and new CPP
+            // proofs therefore require this one complete script operand.
+            if !single_script_operand(call, index) {
+                continue;
+            }
+            let compiled = call.source.metadata.is_some_and(|metadata| {
+                retained_wrapper_tokens(
+                    tokens,
+                    call.argument_offset + index,
+                    trimmed,
+                    call.effective,
+                    call.source,
+                )
+                .is_some_and(|nested| {
+                    !nested.is_empty()
+                        && nested.iter().all(|nested| {
+                            crate::registry_invocation::original_compiled_list_head(
+                                registry, metadata, tokens, nested,
+                            )
+                            .is_some()
+                        })
+                })
+            });
+            if compiled {
+                return true;
             }
             let Some(invocations) = proved_wrapper_invocations(
                 registry,
@@ -8538,10 +8660,16 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         let original = (0..call.args.len())
             .filter_map(|index| original_sink_argument(call, index))
             .find(|word| {
-                word.sole_variable_substitution()
-                    .is_some_and(|(reference, _)| {
-                        reference_root_with_config(reference, call.source.config) == Some(name)
-                    })
+                env.source_read.map_or_else(
+                    || {
+                        word.sole_variable_substitution()
+                            .is_some_and(|(reference, _)| {
+                                reference_root_with_config(reference, call.source.config)
+                                    == Some(name)
+                            })
+                    },
+                    |source| source.references(name, word, call.source.config),
+                )
             });
         let Some(t) = operand_read_taint(env, name, original) else {
             continue;
@@ -8619,16 +8747,12 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         {
             continue;
         }
-        // T104 / T105 mitigations: a
-        // validated network address (IP / port / FQDN colour) clears
-        // T104; a canonical list (`LIST_CANONICAL`) clears T105.
+        // T104 admits a validated network-address colour. T105's List
+        // quoting needs the separate literal-command-word proof above.
         if code == DiagCode::T104
             && t.colours
                 .intersects(TaintColour::IP_ADDRESS | TaintColour::PORT | TaintColour::FQDN)
         {
-            continue;
-        }
-        if code == DiagCode::T105 && t.colours.intersects(TaintColour::LIST_CANONICAL) {
             continue;
         }
         let message = sink_message(code, name, sink_label);
@@ -9835,6 +9959,61 @@ mod tests {
                 word_taint(value, &HashMap::new(), &HashMap::new(), ctx).is_tainted(),
                 tainted,
                 "{source}"
+            );
+        }
+    }
+
+    #[test]
+    fn original_cross_interp_script_reads_keep_the_tainted_command_word() {
+        let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+        let registry = context.commands();
+        let profile = registry.profile().unwrap();
+        for (source, expected) in [
+            (
+                "set raw [gets stdin]\ninterp eval $child [list $raw]\n",
+                true,
+            ),
+            (
+                "set raw [gets stdin]\ninterp eval $child [list puts $raw]\n",
+                false,
+            ),
+            (
+                "set raw [gets stdin]\nset child [interp create]\ninterp eval $child [list $raw]\n",
+                true,
+            ),
+            (
+                "set child [interp create]\nset raw [gets stdin]\ninterp eval $child [list $raw]\n",
+                true,
+            ),
+            (
+                "set child [interp create]\nset raw [gets stdin]\ninterp eval $child [list puts $raw]\n",
+                false,
+            ),
+            (
+                "set child [gets stdin]\ninterp eval $child {puts SAFE}\n",
+                false,
+            ),
+            (
+                "set child [interp create]\nset raw [gets stdin]\ninterp eval $child [list puts $raw] $raw\n",
+                true,
+            ),
+        ] {
+            let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+                source, registry, false, profile,
+            );
+            let warnings = find_taint_warnings_for_cu(&unit, registry, Some(profile));
+            let cross_interp: Vec<_> = warnings
+                .iter()
+                .filter(|warning| warning.code == DiagCode::T105)
+                .collect();
+            assert_eq!(
+                !cross_interp.is_empty(),
+                expected,
+                "{source:?}: {warnings:?}"
+            );
+            assert!(
+                cross_interp.iter().all(|warning| warning.variable == "raw"),
+                "the interpreter path must not impersonate script data: {warnings:?}"
             );
         }
     }

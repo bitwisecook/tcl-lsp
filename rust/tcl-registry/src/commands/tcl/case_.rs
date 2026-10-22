@@ -226,7 +226,7 @@ mod tests {
         assert_eq!(case.optional_subject_separator, Some("in"));
         let spec = spec();
         assert!(spec.options.is_empty());
-        assert!(spec.option_effect_families.is_empty());
+        assert_eq!(spec.option_effect_families.len(), 0);
         assert!(case.fallthrough_body.is_none());
         assert_eq!(case.keyword_patterns, ["default"]);
         assert!(!case.keyword_patterns_require_final);

@@ -164,7 +164,7 @@ mod tests {
                 .iter()
                 .all(|access| access.mode == crate::EffectAccessMode::Read)
         );
-        assert!(!operation.residual().accesses().is_empty());
+        assert_ne!(operation.residual().accesses().len(), 0);
         assert_eq!(operation.obligations().len(), 3);
         assert!(
             operation

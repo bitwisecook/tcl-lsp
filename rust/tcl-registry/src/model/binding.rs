@@ -440,8 +440,8 @@ mod tests {
             assert!(!unproved.is_proved(), "{unproved:?}");
             assert_eq!(unproved.proved_spec(), None, "{unproved:?}");
         }
-        assert!(BindingKnowledge::Unknown.candidates().is_empty());
-        assert!(BindingKnowledge::Absent.candidates().is_empty());
+        assert_eq!(BindingKnowledge::Unknown.candidates().len(), 0);
+        assert_eq!(BindingKnowledge::Absent.candidates().len(), 0);
     }
 
     #[test]

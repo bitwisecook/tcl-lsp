@@ -559,7 +559,7 @@ mod tests {
     fn candidate_registry_kinds_for_display_matches_header_and_fans_out() {
         let reg = default_registry();
         // An empty display string yields no candidates.
-        assert!(reg.candidate_registry_kinds_for_display("").is_empty());
+        assert_eq!(reg.candidate_registry_kinds_for_display("").len(), 0);
         // An exact `module object_type` display yields exactly the header kind.
         let by_display = reg.candidate_registry_kinds_for_display("ltm pool");
         let by_header = reg.kind_for_header("ltm", "pool").expect("`ltm pool`");
@@ -589,7 +589,7 @@ mod tests {
         assert_eq!(reference_targets("ltm_pool", "members"), &["ltm_node"]);
         assert!(reference_edges_from("ltm_pool").count() >= 1);
         // An unknown source/property yields no targets.
-        assert!(reference_targets("ltm_pool", "__no_such_prop__").is_empty());
+        assert_eq!(reference_targets("ltm_pool", "__no_such_prop__").len(), 0);
         assert_eq!(reference_edges_from("__no_such_kind__").count(), 0);
     }
 

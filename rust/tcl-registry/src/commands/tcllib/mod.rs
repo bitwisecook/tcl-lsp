@@ -1015,9 +1015,9 @@ mod tests {
             reg.arg_indices_for_role("control::do", &one, ArgRole::Body),
             vec![0],
         );
-        assert!(
+        assert_eq!(
             reg.arg_indices_for_role("control::do", &one, ArgRole::Keyword)
-                .is_empty(),
+                .len(), 0,
         );
         // malformed two-word form (`body` + lone option): no keyword role.
         let two = ["{body}", "while"];
@@ -1026,9 +1026,9 @@ mod tests {
                 .is_empty(),
             "lone option word must not be a keyword",
         );
-        assert!(
+        assert_eq!(
             reg.arg_indices_for_role("control::do", &two, ArgRole::Expr)
-                .is_empty(),
+                .len(), 0,
         );
     }
 

@@ -1,0 +1,47 @@
+{
+  "archived_utc": "2026-10-22T18:07:32.439336+00:00",
+  "files": [
+    {
+      "path": "result.json",
+      "bytes": 27857,
+      "sha256": "c9e234511a0bb7d04851bb7aa047853d759ac23a89c914ff9950d11869178084"
+    },
+    {
+      "path": "before-source-guard.json",
+      "bytes": 872189,
+      "sha256": "eec1ce6c7a20d1a3b83f54c867f363e4d1179beb25675653b891c18a0226c00b"
+    },
+    {
+      "path": "after-source-guard.json",
+      "bytes": 872183,
+      "sha256": "5047c2adc885fb4ce2a1279cd362e0ab0cde6c79263e0c7aaf536e0bd833b516"
+    },
+    {
+      "path": "cargo.stdout.jsonl",
+      "bytes": 227814,
+      "sha256": "fc411f4004d11818fb9318b301cde9197e8677ea331fcf336f36a797c96372d7"
+    },
+    {
+      "path": "cargo.stderr.log",
+      "bytes": 6916,
+      "sha256": "ff5a8356e070b5a34edd0eb01a661be93c55fe78739c0a3a6ee5f95da2fe0a20"
+    },
+    {
+      "path": "attempt-1-result-recovered.json",
+      "bytes": 1192,
+      "sha256": "69e5edeb4e85a7a48f345a55991ffbdf5b68fdd27bee3e20ddb720e27491d789"
+    },
+    {
+      "path": "attempt-1-after-source-guard.json",
+      "bytes": 872188,
+      "sha256": "b286efbcbc5213cb6a27f899803af55f54f490acc649167cc046bda197d90ec1"
+    }
+  ],
+  "source_file_hash_changes": 0,
+  "compiler_errors": 22,
+  "source_head_before": "8478a7b5e859ad2a539378c9fe9b6c8fc75c10b3",
+  "source_head_after": "db3e37828ffe984f694f48d7f27cbaaa8113f0fa",
+  "head_change_reason": "Required WIP commit during run; Rust/C/Cargo bytes unchanged. The root commit included already-present source edits as well as docs; not a docs-only content commit.",
+  "first_attempt_limit": "First precompile network-failure logs were overwritten by retry; exact full result and after guard recovered before retry overwrote them. No invented raw logs.",
+  "admission": "Typecheck only; failed, no tests executed and no audit admission."
+}

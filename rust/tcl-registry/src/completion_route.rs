@@ -349,7 +349,7 @@ mod tests {
                 let (effects, transitions) =
                     selected.authored_source_effects_and_state_transitions(dialect);
                 assert!(!effects.requires_world_barrier());
-                assert!(transitions.facts().is_empty());
+                assert_eq!(transitions.facts().len(), 0);
                 assert_eq!(
                     effects
                         .accesses()
@@ -418,7 +418,7 @@ mod tests {
             let (effects, transitions) =
                 selected.authored_source_effects_and_state_transitions(dialect);
             assert!(!event_control(&effects));
-            assert!(transitions.facts().is_empty());
+            assert_eq!(transitions.facts().len(), 0);
             assert_eq!(
                 effects
                     .accesses()
@@ -488,7 +488,7 @@ mod tests {
                 );
                 let effects = descriptor.resolve(args);
                 assert!(!effects.requires_world_barrier());
-                assert!(transitions.resolve(args).facts().is_empty());
+                assert_eq!(transitions.resolve(args).facts().len(), 0);
                 assert_eq!(
                     effects
                         .accesses()

@@ -1,0 +1,59 @@
+{
+  "status": "off-tree proposed only; rustfmt/apply checks, no Cargo or protocol execution",
+  "candidates": [
+    {
+      "status": "off-tree proposed, not compiled or executed",
+      "canonical_path": "rust/tcl-lsp-core/src/original_invocation.rs",
+      "before_sha256": "05211c8b4defe31c4451334c88a54f0183de8bfb22039ff81548428276f425de",
+      "proposed_sha256": "283761e93e4a100121c45a5a99572f87c3d3157cafc138e2f37b09332ee0a259",
+      "patch_sha256": "33dd9e7747f4276dc4cb3635ecf0923f4b5a66cc4148104c7d158fd85b5a154e",
+      "compiler_api": "AnalysisResult::original_optimiser_source_unit",
+      "retained_guards": [
+        "source_graph::current_analysis",
+        "resolved input",
+        "registry semantic equality"
+      ],
+      "delegated_additional_guards": [
+        "original producer retained",
+        "full registry snapshot equality",
+        "exact retained full input",
+        "external evidence equality",
+        "evaluator revision",
+        "final rebuilt original-origin equality"
+      ],
+      "expected_refusal": "missing retained producer/external mismatch returns None; no standalone retry",
+      "required_validation": [
+        "original source-compilation assistance selectors including ordinary authored views",
+        "inherited same-entry direct/CU correspondence",
+        "changed image/input/registry/evaluator/external negative controls",
+        "existing hover/value/minify controls"
+      ],
+      "canonical_source_unchanged": true,
+      "directory": "/tmp/lsp-n13-retained-cu"
+    },
+    {
+      "status": "OFF-TREE storage proposal only, no Cargo or execution",
+      "canonical_path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "before_sha256": "d665ce6edc542e38135ff367e8c0398f2afa6f5d2d6de73c6151af9653abe60a",
+      "proposed_sha256": "6a484ca179bd432d3e2dda2df0384765c0b809203db3bdaa4db7b1370f68d977",
+      "patch_sha256": "5ed2019943012bb9567dc447d218aa260f8a9c77ad3387a16bad8d985e3736d3",
+      "scope": "typed host-view payload in original readonly registry; saved exact stamp lookup and owner revalidation",
+      "wire": "unchanged schema1 legacy two-field shape; new private retained variant, no legacy resolver cast",
+      "test_limit": "storage-layer typed stamps only, not actual live physical parent/publication proof; genuine native protocol plus host-owner tests still required",
+      "canonical_source_unchanged": true,
+      "directory": "/tmp/lsp-n13-source-view-wire"
+    },
+    {
+      "status": "OFF-TREE test proposal, not compiled or executed",
+      "canonical_path": "rust/tcl-lsp-server/tests/e2e/naming_source_views.rs",
+      "before_sha256": "2ee1a761bee85d0c3fe502a163369c475e3bb9474a65f3283064685a1143390c",
+      "proposed_sha256": "b1aed46e1c07ad3345f1eebb4de23d403dd3549acfe37c360d78a5bc620133f4",
+      "patch_sha256": "03754ae3063f04cbd54bb111f6844a7820b4c80d52ca998b84f0286e50f4141c",
+      "readiness": "initial scan plus exact completed A1; actual didChange A2/currentDiagnostics; watched B creation plus actual didOpen B1/exact completed B1/A2; no naming polling",
+      "negative": "first incoming+outgoing old A item empty/null while equal-byte B current, after restore A3 still old A empty/null",
+      "positive": "genuine original native hierarchy item/current helper edge, first B definition and shared-helper target then new B item+helper edge",
+      "scope_limit": "actual issuer/view retention and controlled host-owner publication proof still required; no protocol verdict",
+      "directory": "/tmp/lsp-n13-parent-protocol"
+    }
+  ]
+}

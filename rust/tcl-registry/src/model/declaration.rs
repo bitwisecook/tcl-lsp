@@ -815,7 +815,7 @@ mod tests {
         );
         assert_eq!(command.arg_indices_for_role(ArgRole::VarWrite, 3), vec![0]);
         assert_eq!(command.arg_indices_for_role(ArgRole::Body, 3), vec![2]);
-        assert!(command.arg_indices_for_role(ArgRole::Expr, 3).is_empty());
+        assert_eq!(command.arg_indices_for_role(ArgRole::Expr, 3).len(), 0);
     }
 
     /// An optional slot the call omits shifts every later role one position
@@ -858,7 +858,7 @@ mod tests {
             "with_var",
             &[("varName", ArgRole::VarWrite), ("body", ArgRole::Body)],
         );
-        assert!(command.arg_indices_for_role(ArgRole::Body, 1).is_empty());
+        assert_eq!(command.arg_indices_for_role(ArgRole::Body, 1).len(), 0);
     }
 
     /// The one door answers the catalogue for a shipped name and the
@@ -911,7 +911,7 @@ mod tests {
                 .is_empty(),
             "the catalogue's condition the declaration omits is not assigned"
         );
-        assert!(view.command_prefixes("while", &args).is_empty());
+        assert_eq!(view.command_prefixes("while", &args).len(), 0);
     }
 
     /// A declaration's traits and side effects answer for the name it
@@ -1020,7 +1020,7 @@ mod tests {
 
         let plain = declared("pkga_calc", &[]);
         assert!(plain.traits.is_empty());
-        assert!(plain.side_effects.is_empty());
+        assert_eq!(plain.side_effects.len(), 0);
     }
 
     #[test]
@@ -1032,7 +1032,7 @@ mod tests {
             "a pure command evaluates no code and establishes no trace: {}",
             narrowed.traits
         );
-        assert!(narrowed.side_effects.is_empty());
+        assert_eq!(narrowed.side_effects.len(), 0);
         for kept in [extension_default::TAINT, extension_default::SAFETY] {
             assert!(
                 narrowed.traits.contains(kept),

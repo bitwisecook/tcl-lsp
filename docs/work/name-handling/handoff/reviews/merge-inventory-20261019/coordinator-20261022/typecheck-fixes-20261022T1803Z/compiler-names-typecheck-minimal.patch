@@ -1,0 +1,31 @@
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -601,7 +601,7 @@
+                         scope
+                             .naming_scope
+                             .as_ref()
+-                            .and_then(crate::command_binding::SourceNamespaceKey::display)
++                            .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
+                     };
+                     if namespace.is_none() {
+                         kind = LogicalVariableScopeKind::UnknownNamespace;
+@@ -626,7 +626,7 @@
+                         scope
+                             .naming_scope
+                             .as_ref()
+-                            .and_then(crate::command_binding::SourceNamespaceKey::display)
++                            .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
+                     };
+                 }
+                 ScopeKind::Uplevel => {
+--- a/rust/tcl-compiler/src/command_binding/declaration_preview.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_preview.rs
+@@ -18,7 +18,7 @@
+ 
+ //! Original procedure-body layouts independent of command installation.
+ 
+-use std::collections::{BTreeMap, HashMap, HashSet};
++use std::collections::{BTreeMap, HashMap};
+ use std::sync::Arc;
+ 
+ use super::declaration_layout::{

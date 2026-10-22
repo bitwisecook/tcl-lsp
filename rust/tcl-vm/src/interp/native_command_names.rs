@@ -867,7 +867,9 @@ impl Vm {
         let original = OriginalLiteralOperation::capture(self);
         original.check()?;
         let check = || original.check();
-        let string = |value: &Value, protocol, registration: &dyn Fn() -> Result<(), Error>| {
+        let string = |value: &Value,
+                      protocol: tcl_syntax::native_string::NativeStringProtocol,
+                      registration: &(dyn Fn() -> Result<(), Error> + '_)| {
             original.string(value, protocol, registration)
         };
         let refuse = |error| original.refuse(error);

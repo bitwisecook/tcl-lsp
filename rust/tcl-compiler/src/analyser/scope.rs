@@ -601,7 +601,7 @@ impl super::types::AnalysisResult {
                         scope
                             .naming_scope
                             .as_ref()
-                            .and_then(crate::command_binding::SourceNamespaceKey::display)
+                            .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
                     };
                     if namespace.is_none() {
                         kind = LogicalVariableScopeKind::UnknownNamespace;
@@ -626,7 +626,7 @@ impl super::types::AnalysisResult {
                         scope
                             .naming_scope
                             .as_ref()
-                            .and_then(crate::command_binding::SourceNamespaceKey::display)
+                            .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
                     };
                 }
                 ScopeKind::Uplevel => {

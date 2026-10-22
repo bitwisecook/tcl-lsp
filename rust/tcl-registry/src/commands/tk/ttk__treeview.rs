@@ -1702,7 +1702,7 @@ mod tests {
             vec![(3, ArgRole::Body)],
             "unique-prefix tag bind is executable too"
         );
-        assert!(tag.arg_role_resolver.unwrap()(&["bind", "warning", "<Button-1>"]).is_empty());
+        assert_eq!(tag.arg_role_resolver.unwrap()(&["bind", "warning", "<Button-1>"]).len(), 0);
         let scope = tag.option_scope(Some("configure"), None, Some("9.1"), spec().surface);
         assert_eq!(scope.sub_subcommand, Some("configure"));
         assert!(

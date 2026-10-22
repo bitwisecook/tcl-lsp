@@ -19,6 +19,48 @@
 //! Native procedure definition argv and persistent static storage grammar.
 
 use crate::InvocationArguments;
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock, PoisonError};
+
+/// One stable descriptor clone per actual compiled-in core row. Repeated core
+/// registration retains pointer identity and does not advance its generation.
+type CoreDefinitionSpecs = HashMap<usize, &'static crate::CommandSpec>;
+
+/// Complete the trusted embedded Jim procedure row with its typed native argv
+/// descriptor. This is called only by compiled-in core-surface registration;
+/// ordinary pack loading/installation cannot enter this attachment boundary.
+/// No compiler, command token, successful definition or body execution follows.
+pub(crate) fn attach_builtin_core_definition(
+    spec: &'static crate::CommandSpec,
+) -> &'static crate::CommandSpec {
+    use tcl_dialect::model::{Family, SpecProvider};
+    static ATTACHED: OnceLock<Mutex<CoreDefinitionSpecs>> = OnceLock::new();
+    if spec.name != "proc"
+        || spec.procedure_definition.is_some()
+        || spec.analyser_hook != Some(crate::hooks::AnalyserHookId::Proc)
+        || !spec
+            .traits
+            .contains(crate::Traits::DEFINES_PROCEDURE | crate::Traits::DEFERS_BODY)
+        || !spec.surface.is_some_and(|surface| {
+            surface
+                .iter()
+                .any(|row| row.provider == SpecProvider::Core(Family::Jim))
+        })
+    {
+        return spec;
+    }
+    let mut memo = ATTACHED
+        .get_or_init(Mutex::default)
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    *memo
+        .entry(std::ptr::from_ref(spec).addr())
+        .or_insert_with(|| {
+            let mut attached = spec.clone();
+            attached.procedure_definition = Some(NativeProcedureDefinitionSpec::Core);
+            Box::leak(Box::new(attached))
+        })
+}
 
 /// Actual procedure creation and activation order, separate from argv grammar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1624,5 +1666,39 @@ mod recompilation_ownership_tests {
                 .recompilation_action(NativeProcedureCompilationPurpose::CommandBody, 2),
             None,
         );
+    }
+}
+
+#[cfg(test)]
+mod trusted_core_attachment_controls {
+    use super::*;
+    use crate::{CommandSpec, Traits, hooks::AnalyserHookId};
+    use tcl_dialect::model::{Family, SpecSurface};
+
+    #[test]
+    fn trusted_core_attachment_preserves_non_core_and_explicit_rows() {
+        let ordinary = Box::leak(Box::new(CommandSpec {
+            name: "proc",
+            analyser_hook: Some(AnalyserHookId::Proc),
+            traits: Traits::DEFINES_PROCEDURE | Traits::DEFERS_BODY,
+            ..CommandSpec::DEFAULT
+        }));
+        assert!(std::ptr::eq(
+            attach_builtin_core_definition(ordinary),
+            ordinary
+        ));
+        static JIM: &[SpecSurface] = &[SpecSurface::core(Family::Jim)];
+        let explicit = Box::leak(Box::new(CommandSpec {
+            name: "proc",
+            surface: Some(JIM),
+            analyser_hook: Some(AnalyserHookId::Proc),
+            traits: Traits::DEFINES_PROCEDURE | Traits::DEFERS_BODY,
+            procedure_definition: Some(NativeProcedureDefinitionSpec::Core),
+            ..CommandSpec::DEFAULT
+        }));
+        assert!(std::ptr::eq(
+            attach_builtin_core_definition(explicit),
+            explicit
+        ));
     }
 }

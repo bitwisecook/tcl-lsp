@@ -312,7 +312,7 @@ impl OriginalDecodedLambdaFormattingBody {
         }
         let context = input.context_registry();
         let selected =
-            words.with_source_schema(&context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)??;
+            words.with_source_schema(&context, |schema| schema.authored_source_lambda_call())??;
         if words.original_argument_word(selected.lambda_argument) != Some(parent) {
             return None;
         }

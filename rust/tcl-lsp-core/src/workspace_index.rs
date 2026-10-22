@@ -7969,9 +7969,9 @@ struct ExportGate<'a> {
 }
 
 #[derive(Clone, Copy)]
-struct ExportQuery<'p, 's> {
+struct ExportQuery<'p, 's, 'n> {
     pattern: Option<&'p tcl_compiler::signature_scan::original_name::SourceNamespacePattern>,
-    subjects: &'s [&'s tcl_compiler::signature_scan::scope::SignatureSourceCommand],
+    subjects: &'s [&'n tcl_compiler::signature_scan::scope::SignatureSourceCommand],
     source_known: bool,
 }
 
@@ -7983,7 +7983,7 @@ impl<'a> ExportGate<'a> {
         order: &crate::source_graph::RunOrder,
         source_ns: &str,
         site: ImportSite<'_>,
-        query: ExportQuery<'_, '_>,
+        query: ExportQuery<'_, '_, 'a>,
         purpose: crate::namespace_import::NamespaceStatementPurpose,
     ) -> Self {
         let ExportQuery {

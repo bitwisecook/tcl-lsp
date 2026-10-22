@@ -1,0 +1,1311 @@
+--- a/rust/tcl-registry/src/base_objects/mod.rs
++++ b/rust/tcl-registry/src/base_objects/mod.rs
+@@ -145,8 +145,8 @@
+             "expected a broad base set, got {}",
+             base_object_count()
+         );
+-        assert!(!BASE_OBJECTS.is_empty());
+-        assert!(!BASE_OBJECT_NAMES.is_empty());
++        assert_ne!(BASE_OBJECTS.len(), 0);
++        assert_ne!(BASE_OBJECT_NAMES.len(), 0);
+     }
+ 
+     #[test]
+--- a/rust/tcl-registry/src/bigip/mod.rs
++++ b/rust/tcl-registry/src/bigip/mod.rs
+@@ -559,7 +559,7 @@
+     fn candidate_registry_kinds_for_display_matches_header_and_fans_out() {
+         let reg = default_registry();
+         // An empty display string yields no candidates.
+-        assert!(reg.candidate_registry_kinds_for_display("").is_empty());
++        assert_eq!(reg.candidate_registry_kinds_for_display("").len(), 0);
+         // An exact `module object_type` display yields exactly the header kind.
+         let by_display = reg.candidate_registry_kinds_for_display("ltm pool");
+         let by_header = reg.kind_for_header("ltm", "pool").expect("`ltm pool`");
+@@ -589,7 +589,7 @@
+         assert_eq!(reference_targets("ltm_pool", "members"), &["ltm_node"]);
+         assert!(reference_edges_from("ltm_pool").count() >= 1);
+         // An unknown source/property yields no targets.
+-        assert!(reference_targets("ltm_pool", "__no_such_prop__").is_empty());
++        assert_eq!(reference_targets("ltm_pool", "__no_such_prop__").len(), 0);
+         assert_eq!(reference_edges_from("__no_such_kind__").count(), 0);
+     }
+ 
+--- a/rust/tcl-registry/src/body_execution.rs
++++ b/rust/tcl-registry/src/body_execution.rs
+@@ -1054,7 +1054,7 @@
+             contract().hook_policy(Some("2.4.0")),
+             BodyHookPolicy::Unknown
+         );
+-        assert!(contract().required_absent_hooks(Some("2.3.8")).is_empty());
++        assert_eq!(contract().required_absent_hooks(Some("2.3.8")).len(), 0);
+         assert_eq!(contract().required_absent_hooks(None).len(), 3);
+     }
+ 
+--- a/rust/tcl-registry/src/bpf_op.rs
++++ b/rust/tcl-registry/src/bpf_op.rs
+@@ -919,8 +919,8 @@
+                 "{} must allow drop",
+                 e.name
+             );
+-            assert!(!e.elf_section.is_empty());
+-            assert!(!e.description.is_empty());
++            assert_ne!(e.elf_section.len(), 0);
++            assert_ne!(e.description.len(), 0);
+         }
+     }
+ 
+--- a/rust/tcl-registry/src/catch_invocation.rs
++++ b/rust/tcl-registry/src/catch_invocation.rs
+@@ -628,7 +628,7 @@
+             assert_eq!(routed.propagated.contains(&Route::ProcessExit), wanted_exit);
+             let finite = selected.route(Route::TclAlternatives(&[Code::Ok, Code::Error]));
+             assert!(finite.captured);
+-            assert!(finite.propagated.is_empty());
++            assert_eq!(finite.propagated.len(), 0);
+         }
+         let words = ["-exit", "body"];
+         let CatchInvocationSelection::Valid(selected) =
+@@ -638,7 +638,7 @@
+         };
+         let routed = selected.route(Route::CatchableExitOrError);
+         assert!(routed.captured);
+-        assert!(routed.propagated.is_empty());
++        assert_eq!(routed.propagated.len(), 0);
+     }
+ 
+     #[test]
+--- a/rust/tcl-registry/src/command_table.rs
++++ b/rust/tcl-registry/src/command_table.rs
+@@ -141,7 +141,7 @@
+         let stated = CommandTableEffect::CreatesAliases
+             .transitions()
+             .resolve(InvocationArguments::literals(&["myTree", "", "x", ""]));
+-        assert!(stated.facts().is_empty());
++        assert_eq!(stated.facts().len(), 0);
+     }
+ 
+     /// A dynamic operand never reaches a consumer as a source spelling: it
+--- a/rust/tcl-registry/src/commands/tcl/case_.rs
++++ b/rust/tcl-registry/src/commands/tcl/case_.rs
+@@ -226,7 +226,7 @@
+         assert_eq!(case.optional_subject_separator, Some("in"));
+         let spec = spec();
+         assert!(spec.options.is_empty());
+-        assert!(spec.option_effect_families.is_empty());
++        assert_eq!(spec.option_effect_families.len(), 0);
+         assert!(case.fallthrough_body.is_none());
+         assert_eq!(case.keyword_patterns, ["default"]);
+         assert!(!case.keyword_patterns_require_final);
+--- a/rust/tcl-registry/src/commands/tcl/dict.rs
++++ b/rust/tcl-registry/src/commands/tcl/dict.rs
+@@ -1347,7 +1347,7 @@
+             .find(|spec| spec.name == "::tcl::dict::update")
+             .unwrap();
+         assert!(update.traits.contains(Traits::CREATES_SCOPE_ALIAS));
+-        assert!(!update.repeated_args.is_empty());
++        assert_ne!(update.repeated_args.len(), 0);
+         assert!(update.repeated_args[0].conditional_binding);
+         assert_eq!(update.repeated_args[0].exclude_trailing, 1);
+     }
+--- a/rust/tcl-registry/src/commands/tcl/interp.rs
++++ b/rust/tcl-registry/src/commands/tcl/interp.rs
+@@ -1390,8 +1390,8 @@
+             "bgerror", "child", "handler",
+         ]));
+ 
+-        assert!(recursion_query.facts().is_empty());
+-        assert!(bgerror_query.facts().is_empty());
++        assert_eq!(recursion_query.facts().len(), 0);
++        assert_eq!(bgerror_query.facts().len(), 0);
+         assert_eq!(recursion_set.facts().len(), 1);
+         assert_eq!(bgerror_set.facts().len(), 1);
+ 
+--- a/rust/tcl-registry/src/commands/tcl/mathfunc_generated.rs
++++ b/rust/tcl-registry/src/commands/tcl/mathfunc_generated.rs
+@@ -284,7 +284,7 @@
+             .resolve_invocation("::tcl::mathfunc::abs", &["-3"], None)
+             .unwrap();
+         let facts = resolved.facts();
+-        assert!(facts.effects.accesses().is_empty());
++        assert_eq!(facts.effects.accesses().len(), 0);
+         assert_eq!(facts.effects.callback(), crate::CallbackEffect::NONE);
+         // This descriptor closes only tracked callback/storage worlds. Numeric
+         // representation conversion is independently proved by native consumers.
+--- a/rust/tcl-registry/src/commands/tcl/namespace_.rs
++++ b/rust/tcl-registry/src/commands/tcl/namespace_.rs
+@@ -1885,7 +1885,7 @@
+             );
+             let facts = selected.resolved().unwrap().facts();
+             assert!(!facts.arg_roles_complete, "{version:?}");
+-            assert!(facts.arg_roles.is_empty());
++            assert_eq!(facts.arg_roles.len(), 0);
+         }
+     }
+ 
+@@ -1926,7 +1926,7 @@
+                 dialect.authoring_query(),
+             );
+             let facts = selected.resolved().unwrap().facts();
+-            assert!(facts.transition_effect_coverage.entries().is_empty());
++            assert_eq!(facts.transition_effect_coverage.entries().len(), 0);
+             assert!(facts.effects.accesses().iter().any(|access| access.domain
+                 == WorldStateDomain::InterpreterPolicy
+                 && access.mode == crate::world_effect::EffectAccessMode::Write));
+--- a/rust/tcl-registry/src/commands/tcl/package_.rs
++++ b/rust/tcl-registry/src/commands/tcl/package_.rs
+@@ -951,14 +951,14 @@
+                 .resolve_invocation("package", words, None)
+                 .expect("query resolves")
+                 .facts();
+-            assert!(
++            assert_eq!(
+                 facts
+                     .state_transitions
+                     .declared()
+                     .expect("declared package transitions")
+                     .facts()
+-                    .is_empty()
+-            );
++                    .len()
++            , 0);
+         }
+         let facts = registry
+             .resolve_invocation("package", &["ifneeded", "p", "1", "set ::loaded 1"], None)
+@@ -1076,14 +1076,14 @@
+                     .any(|access| access.domain == WorldStateDomain::PackageState
+                         && access.mode == EffectAccessMode::ReadWrite)
+             );
+-            assert!(
+-                !setter
++            assert_ne!(
++                setter
+                     .state_transitions
+                     .declared()
+                     .expect("declared package transitions")
+                     .facts()
+-                    .is_empty()
+-            );
++                    .len()
++            , 0);
+         }
+     }
+ 
+@@ -1118,7 +1118,7 @@
+             assert!(operation.arity.accepts(0));
+             assert!(!operation.arity.accepts(1));
+             assert_eq!(operation.return_type, Some(crate::TclType::List));
+-            assert!(operation.arg_roles.is_empty());
++            assert_eq!(operation.arg_roles.len(), 0);
+             assert!(operation.body_execution.is_none());
+         }
+     }
+--- a/rust/tcl-registry/src/commands/tcllib/data_structures.rs
++++ b/rust/tcl-registry/src/commands/tcllib/data_structures.rs
+@@ -726,10 +726,10 @@
+             vec![(6, ArgRole::VarWrite), (7, ArgRole::Body)],
+         );
+         // The 1.x callback form: no trailing script, so no body role.
+-        assert!(roles(&["root", "-command", "puts %n"]).is_empty());
++        assert_eq!(roles(&["root", "-command", "puts %n"]).len(), 0);
+         // Truncated calls never invent a position.
+-        assert!(roles(&["root"]).is_empty());
+-        assert!(roles(&["root", "n"]).is_empty());
++        assert_eq!(roles(&["root"]).len(), 0);
++        assert_eq!(roles(&["root", "n"]).len(), 0);
+     }
+ 
+     /// `::struct::tree::prune` is a real command on the `struct::tree`
+--- a/rust/tcl-registry/src/commands/tcllib/mod.rs
++++ b/rust/tcl-registry/src/commands/tcllib/mod.rs
+@@ -1015,9 +1015,9 @@
+             reg.arg_indices_for_role("control::do", &one, ArgRole::Body),
+             vec![0],
+         );
+-        assert!(
++        assert_eq!(
+             reg.arg_indices_for_role("control::do", &one, ArgRole::Keyword)
+-                .is_empty(),
++                .len(), 0,
+         );
+         // malformed two-word form (`body` + lone option): no keyword role.
+         let two = ["{body}", "while"];
+@@ -1026,9 +1026,9 @@
+                 .is_empty(),
+             "lone option word must not be a keyword",
+         );
+-        assert!(
++        assert_eq!(
+             reg.arg_indices_for_role("control::do", &two, ArgRole::Expr)
+-                .is_empty(),
++                .len(), 0,
+         );
+     }
+ 
+--- a/rust/tcl-registry/src/commands/tk/mod.rs
++++ b/rust/tcl-registry/src/commands/tk/mod.rs
+@@ -532,7 +532,7 @@
+         let switchstate = toggleswitch.resolve_subcommand("switchstate").unwrap();
+         assert!(switchstate.traits.is_empty());
+         assert!(!switchstate.mutator);
+-        assert!(switchstate.side_effects.is_empty());
++        assert_eq!(switchstate.side_effects.len(), 0);
+         assert_eq!(switchstate.subcommand_forms.len(), 2);
+         let get = toggleswitch.resolve_subcommand("get").unwrap();
+         assert_eq!(get.return_type, Some(crate::TclType::Double));
+@@ -1168,8 +1168,8 @@
+                 let sub = class
+                     .instance_method(method)
+                     .unwrap_or_else(|| panic!("{command} must expose {method}"));
+-                assert!(!sub.detail.is_empty());
+-                assert!(!sub.synopsis.is_empty());
++                assert_ne!(sub.detail.len(), 0);
++                assert_ne!(sub.synopsis.len(), 0);
+                 assert!(sub.return_type.is_some());
+                 if method == "cget" {
+                     assert!(sub.side_effects.iter().any(|effect| {
+--- a/rust/tcl-registry/src/commands/tk/ttk__notebook.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__notebook.rs
+@@ -384,7 +384,7 @@
+         let configure = sub("configure");
+         assert!(configure.traits.is_empty());
+         assert!(!configure.mutator);
+-        assert!(configure.side_effects.is_empty());
++        assert_eq!(configure.side_effects.len(), 0);
+         let setter = configure
+             .subcommand_forms
+             .iter()
+--- a/rust/tcl-registry/src/commands/tk/ttk__treeview.rs
++++ b/rust/tcl-registry/src/commands/tk/ttk__treeview.rs
+@@ -1702,7 +1702,7 @@
+             vec![(3, ArgRole::Body)],
+             "unique-prefix tag bind is executable too"
+         );
+-        assert!(tag.arg_role_resolver.unwrap()(&["bind", "warning", "<Button-1>"]).is_empty());
++        assert_eq!(tag.arg_role_resolver.unwrap()(&["bind", "warning", "<Button-1>"]).len(), 0);
+         let scope = tag.option_scope(Some("configure"), None, Some("9.1"), spec().surface);
+         assert_eq!(scope.sub_subcommand, Some("configure"));
+         assert!(
+--- a/rust/tcl-registry/src/completion_route.rs
++++ b/rust/tcl-registry/src/completion_route.rs
+@@ -349,7 +349,7 @@
+                 let (effects, transitions) =
+                     selected.authored_source_effects_and_state_transitions(dialect);
+                 assert!(!effects.requires_world_barrier());
+-                assert!(transitions.facts().is_empty());
++                assert_eq!(transitions.facts().len(), 0);
+                 assert_eq!(
+                     effects
+                         .accesses()
+@@ -418,7 +418,7 @@
+             let (effects, transitions) =
+                 selected.authored_source_effects_and_state_transitions(dialect);
+             assert!(!event_control(&effects));
+-            assert!(transitions.facts().is_empty());
++            assert_eq!(transitions.facts().len(), 0);
+             assert_eq!(
+                 effects
+                     .accesses()
+@@ -488,7 +488,7 @@
+                 );
+                 let effects = descriptor.resolve(args);
+                 assert!(!effects.requires_world_barrier());
+-                assert!(transitions.resolve(args).facts().is_empty());
++                assert_eq!(transitions.resolve(args).facts().len(), 0);
+                 assert_eq!(
+                     effects
+                         .accesses()
+--- a/rust/tcl-registry/src/definer.rs
++++ b/rust/tcl-registry/src/definer.rs
+@@ -6133,11 +6133,11 @@
+             grammar.member_body_indices_in("property", &args, query),
+             vec![3, 5]
+         );
+-        assert!(
++        assert_eq!(
+             grammar
+                 .member_arg_indices_for_role_in("property", &args, query, ArgRole::ParamList)
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ 
+     #[test]
+@@ -6655,7 +6655,7 @@
+         filter.apply(&mut list, &strs(&["-set", "x"]));
+         assert_eq!(list, strs(&["x"]));
+         filter.apply(&mut list, &strs(&["-clear"]));
+-        assert!(list.is_empty());
++        assert_eq!(list.len(), 0);
+         // `filter a ; filter -prepend b` → `b a`.
+         filter.apply(&mut list, &strs(&["a"]));
+         filter.apply(&mut list, &strs(&["-prepend", "b"]));
+--- a/rust/tcl-registry/src/event_facts/mod.rs
++++ b/rust/tcl-registry/src/event_facts/mod.rs
+@@ -121,9 +121,9 @@
+         assert!(events_for_profile("FASTHTTP").contains(&"HTTP_RESPONSE"));
+         // Category grouping works.
+         let ssl_events = events_in_category("SSL");
+-        assert!(!ssl_events.is_empty());
++        assert_ne!(ssl_events.len(), 0);
+         // Unknown profile/category → empty.
+-        assert!(events_for_profile("__nope__").is_empty());
+-        assert!(events_in_category("__nope__").is_empty());
++        assert_eq!(events_for_profile("__nope__").len(), 0);
++        assert_eq!(events_in_category("__nope__").len(), 0);
+     }
+ }
+--- a/rust/tcl-registry/src/events.rs
++++ b/rust/tcl-registry/src/events.rs
+@@ -4806,7 +4806,7 @@
+     #[test]
+     fn flow_chains_exist() {
+         let reg = EventRegistry::build();
+-        assert!(!reg.flow_chains().is_empty());
++        assert_ne!(reg.flow_chains().len(), 0);
+         assert_eq!(reg.flow_chains()[0].chain_id, "plain_tcp");
+     }
+ 
+@@ -4845,7 +4845,7 @@
+         .into_iter()
+         .map(|handler| handler.event)
+         .collect();
+-        assert!(events.is_empty());
++        assert_eq!(events.len(), 0);
+     }
+ 
+     #[test]
+@@ -4903,7 +4903,7 @@
+         .into_iter()
+         .map(|handler| handler.event)
+         .collect();
+-        assert!(events.is_empty());
++        assert_eq!(events.len(), 0);
+     }
+ 
+     #[test]
+@@ -5041,7 +5041,7 @@
+             whole[0].event_span.start(),
+             u32::try_from("\u{feff}when ".len()).unwrap()
+         );
+-        assert!(
++        assert_eq!(
+             top_level_when_handlers_with_source_config_and_head_resolver(
+                 source,
+                 registry,
+@@ -5049,9 +5049,9 @@
+                 SourceSegmentationPurpose::NestedScript,
+                 &WrittenHeadResolver,
+             )
+-            .is_empty()
+-        );
+-        assert!(
++            .len()
++        , 0);
++        assert_eq!(
+             top_level_when_handlers_with_source_config_and_head_resolver(
+                 source,
+                 registry,
+@@ -5059,8 +5059,8 @@
+                 SourceSegmentationPurpose::WholeInput,
+                 &WrittenHeadResolver,
+             )
+-            .is_empty()
+-        );
++            .len()
++        , 0);
+         assert_eq!(parent.leading_bom, tcl_lexer::LeadingBom::Skip);
+ 
+         let source = "\u{feff}priority 730\nwhen HTTP_REQUEST {}";
+--- a/rust/tcl-registry/src/model/binding.rs
++++ b/rust/tcl-registry/src/model/binding.rs
+@@ -440,8 +440,8 @@
+             assert!(!unproved.is_proved(), "{unproved:?}");
+             assert_eq!(unproved.proved_spec(), None, "{unproved:?}");
+         }
+-        assert!(BindingKnowledge::Unknown.candidates().is_empty());
+-        assert!(BindingKnowledge::Absent.candidates().is_empty());
++        assert_eq!(BindingKnowledge::Unknown.candidates().len(), 0);
++        assert_eq!(BindingKnowledge::Absent.candidates().len(), 0);
+     }
+ 
+     #[test]
+--- a/rust/tcl-registry/src/model/declaration.rs
++++ b/rust/tcl-registry/src/model/declaration.rs
+@@ -815,7 +815,7 @@
+         );
+         assert_eq!(command.arg_indices_for_role(ArgRole::VarWrite, 3), vec![0]);
+         assert_eq!(command.arg_indices_for_role(ArgRole::Body, 3), vec![2]);
+-        assert!(command.arg_indices_for_role(ArgRole::Expr, 3).is_empty());
++        assert_eq!(command.arg_indices_for_role(ArgRole::Expr, 3).len(), 0);
+     }
+ 
+     /// An optional slot the call omits shifts every later role one position
+@@ -858,7 +858,7 @@
+             "with_var",
+             &[("varName", ArgRole::VarWrite), ("body", ArgRole::Body)],
+         );
+-        assert!(command.arg_indices_for_role(ArgRole::Body, 1).is_empty());
++        assert_eq!(command.arg_indices_for_role(ArgRole::Body, 1).len(), 0);
+     }
+ 
+     /// The one door answers the catalogue for a shipped name and the
+@@ -911,7 +911,7 @@
+                 .is_empty(),
+             "the catalogue's condition the declaration omits is not assigned"
+         );
+-        assert!(view.command_prefixes("while", &args).is_empty());
++        assert_eq!(view.command_prefixes("while", &args).len(), 0);
+     }
+ 
+     /// A declaration's traits and side effects answer for the name it
+@@ -1020,7 +1020,7 @@
+ 
+         let plain = declared("pkga_calc", &[]);
+         assert!(plain.traits.is_empty());
+-        assert!(plain.side_effects.is_empty());
++        assert_eq!(plain.side_effects.len(), 0);
+     }
+ 
+     #[test]
+@@ -1032,7 +1032,7 @@
+             "a pure command evaluates no code and establishes no trace: {}",
+             narrowed.traits
+         );
+-        assert!(narrowed.side_effects.is_empty());
++        assert_eq!(narrowed.side_effects.len(), 0);
+         for kept in [extension_default::TAINT, extension_default::SAFETY] {
+             assert!(
+                 narrowed.traits.contains(kept),
+--- a/rust/tcl-registry/src/model/registration.rs
++++ b/rust/tcl-registry/src/model/registration.rs
+@@ -1237,7 +1237,7 @@
+         assert!(outcome.changed);
+         assert_eq!(outcome.declared, 1);
+         assert_eq!(outcome.retired, 0);
+-        assert!(outcome.rejected.is_empty());
++        assert_eq!(outcome.rejected.len(), 0);
+         assert!(is_known_environment_name("sync-probe-env"));
+         assert_eq!(resolve_environment("sync-probe-env").id(), "sync-probe-env");
+ 
+@@ -1351,7 +1351,7 @@
+         };
+         let first = sync_environment_sources(vec![good.clone(), bad.clone()]);
+         assert_eq!(first.accepted_sources(), Some(std::slice::from_ref(&good)));
+-        assert!(!first.rejected.is_empty());
++        assert_ne!(first.rejected.len(), 0);
+         let again = sync_environment_sources(vec![good.clone(), bad]);
+         assert!(!again.changed);
+         assert_eq!(again.accepted_sources(), Some(std::slice::from_ref(&good)));
+--- a/rust/tcl-registry/src/model/runtime_context.rs
++++ b/rust/tcl-registry/src/model/runtime_context.rs
+@@ -381,7 +381,7 @@
+         let mut pin = PinnedContext::for_profile(profile);
+         let bare = pin.context.identity(&[], intrinsic_table_hash());
+         assert_eq!(pin.identity(), &bare);
+-        assert!(pin.identity().packs.is_empty());
++        assert_eq!(pin.identity().packs.len(), 0);
+ 
+         let stamp = PackFactStamp {
+             pack: "vendor".to_owned(),
+--- a/rust/tcl-registry/src/native_compilation.rs
++++ b/rust/tcl-registry/src/native_compilation.rs
+@@ -8297,11 +8297,11 @@
+         );
+         let jim = InvocationDialect::of_profile(&profile);
+         assert!(spec.implementation_lookup(jim).is_none());
+-        assert!(
++        assert_eq!(
+             crate::CommandRegistry::build_default()
+                 .native_compiler_implementation_slots(jim)
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ 
+     #[test]
+--- a/rust/tcl-registry/src/native_coroutine_compilation.rs
++++ b/rust/tcl-registry/src/native_coroutine_compilation.rs
+@@ -473,7 +473,7 @@
+             },
+         );
+         assert_eq!(outcome, (0, vec!["B", "A"]));
+-        assert!(callbacks.is_empty());
++        assert_eq!(callbacks.len(), 0);
+         assert_eq!(
+             selected.kind(NativeCoroutineResumeArity::SingleOptional),
+             b"yield"
+@@ -493,7 +493,7 @@
+             c90.run_pending(&mut earlier_pending, "ORIGINAL", |name, _| name),
+             "A"
+         );
+-        assert!(earlier_pending.is_empty());
++        assert_eq!(earlier_pending.len(), 0);
+         assert_eq!(
+             c90.kind(NativeCoroutineResumeArity::SingleOptional),
+             b"yield"
+@@ -558,7 +558,7 @@
+                     // Software parser control: this unchanged source has no
+                     // complete command under the selected C84 word grammar.
+                     // A fatal tail cannot supply original compiler words.
+-                    assert!(parsed.commands.is_empty());
++                    assert_eq!(parsed.commands.len(), 0);
+                     assert_eq!(
+                         parsed.fatal_tail.unwrap().cut.message,
+                         tcl_lexer::word_parts::EXTRA_AFTER_CLOSE_BRACE,
+--- a/rust/tcl-registry/src/native_dictionary_scope_compilation/tests.rs
++++ b/rust/tcl-registry/src/native_dictionary_scope_compilation/tests.rs
+@@ -44,7 +44,7 @@
+         );
+         if version < TclVersion::V8_5 {
+             assert_eq!(selected.outcome, NativeControlOutcome::Generic);
+-            assert!(selected.preparations.is_empty());
++            assert_eq!(selected.preparations.len(), 0);
+             continue;
+         }
+         assert_eq!(
+@@ -265,6 +265,6 @@
+             NativeCompilationFrame::ScriptCode,
+         );
+         assert_eq!(substantive.outcome, NativeControlOutcome::Generic);
+-        assert!(substantive.preparations.is_empty());
+-    }
+-}
++        assert_eq!(substantive.preparations.len(), 0);
++    }
++}
+--- a/rust/tcl-registry/src/native_ensemble.rs
++++ b/rust/tcl-registry/src/native_ensemble.rs
+@@ -798,7 +798,7 @@
+                     mapping: Some(0)
+                 }]
+             );
+-            assert!(plan.displaced_mappings.is_empty());
++            assert_eq!(plan.displaced_mappings.len(), 0);
+             assert_eq!(
+                 recipe.resolve_member(&[b"moon".as_slice()], b"m\0tail", true),
+                 None
+--- a/rust/tcl-registry/src/native_error_objects.rs
++++ b/rust/tcl-registry/src/native_error_objects.rs
+@@ -74,7 +74,7 @@
+                 .lines()
+                 .filter_map(|line| line.strip_prefix(&format!("{name}\t")))
+                 .collect();
+-            assert!(!controls.is_empty());
++            assert_ne!(controls.len(), 0);
+             for line in controls {
+                 let fields: Vec<_> = line.split('\t').collect();
+                 rows += 1;
+--- a/rust/tcl-registry/src/native_expression_program.rs
++++ b/rust/tcl-registry/src/native_expression_program.rs
+@@ -1251,10 +1251,10 @@
+             assert_eq!(retained, scripts);
+         }
+         let modern = prepare("0 && [set lazy 1]", tcl_dialect::TclVersion::V9_0);
+-        assert!(
++        assert_eq!(
+             modern
+                 .compiler_steps(|_| panic!("modern compiler has no fixed table lookup"))
+-                .is_empty()
+-        );
+-    }
+-}
++                .len()
++        , 0);
++    }
++}
+--- a/rust/tcl-registry/src/native_info_exists_compilation.rs
++++ b/rust/tcl-registry/src/native_info_exists_compilation.rs
+@@ -257,7 +257,7 @@
+                 if let Some(tail) = plan.fatal_tail {
+                     assert_eq!(version, TclVersion::V8_4);
+                     assert_eq!(case, 22);
+-                    assert!(plan.commands.is_empty());
++                    assert_eq!(plan.commands.len(), 0);
+                     assert_eq!(tail.command_start, 0);
+                     assert_eq!(tail.cut.command, 0);
+                     assert_eq!(tail.cut.message, "extra characters after close-brace");
+@@ -266,7 +266,7 @@
+                         fields[6],
+                         "6578747261206368617261637465727320616674657220636c6f73652d6272616365"
+                     );
+-                    assert!(fields[7].is_empty());
++                    assert_eq!(fields[7].len(), 0);
+                     checked += 1;
+                     continue;
+                 }
+--- a/rust/tcl-registry/src/native_namespace_binding_compilation.rs
++++ b/rust/tcl-registry/src/native_namespace_binding_compilation.rs
+@@ -457,7 +457,7 @@
+                         rejected.fatal_tail.is_some(),
+                         "original C8.4 parser rejects adjacent expansion braces"
+                     );
+-                    assert!(rejected.commands.is_empty());
++                    assert_eq!(rejected.commands.len(), 0);
+                     continue;
+                 }
+                 let original = parsed.unwrap().commands.remove(0).words;
+@@ -609,8 +609,8 @@
+             )
+             .unwrap();
+             assert_eq!(recipe.outcome, outcome);
+-            assert!(recipe.bindings.is_empty());
+-            assert!(recipe.visits.is_empty());
+-        }
+-    }
+-}
++            assert_eq!(recipe.bindings.len(), 0);
++            assert_eq!(recipe.visits.len(), 0);
++        }
++    }
++}
+--- a/rust/tcl-registry/src/native_namespace_upvar_compilation.rs
++++ b/rust/tcl-registry/src/native_namespace_upvar_compilation.rs
+@@ -303,7 +303,7 @@
+             NativeCompilationFrame::Unknown,
+         ] {
+             let selected = recipe(source, NativeCompilationContext { frame, ..context() });
+-            assert!(selected.visits.is_empty());
++            assert_eq!(selected.visits.len(), 0);
+             assert_eq!(
+                 selected.outcome,
+                 if frame == NativeCompilationFrame::ScriptCode {
+@@ -418,6 +418,6 @@
+         )
+         .unwrap();
+         assert_eq!(missing.outcome, NativeNamespaceBindingOutcome::Unknown);
+-        assert!(missing.visits.is_empty());
++        assert_eq!(missing.visits.len(), 0);
+     }
+ }
+--- a/rust/tcl-registry/src/native_string_operand_compilation.rs
++++ b/rust/tcl-registry/src/native_string_operand_compilation.rs
+@@ -505,7 +505,7 @@
+                 NativeCompilationSelection::Generic
+             );
+         }
+-        assert!(!words("string index $s 1", TclVersion::V9_0).is_empty());
++        assert_ne!(words("string index $s 1", TclVersion::V9_0).len(), 0);
+     }
+ 
+     #[test]
+--- a/rust/tcl-registry/src/native_upvar_compilation.rs
++++ b/rust/tcl-registry/src/native_upvar_compilation.rs
+@@ -290,7 +290,7 @@
+                 if let Some(tail) = plan.fatal_tail {
+                     assert_eq!(version, TclVersion::V8_4);
+                     assert_eq!(case, 10);
+-                    assert!(plan.commands.is_empty());
++                    assert_eq!(plan.commands.len(), 0);
+                     assert_eq!(tail.command_start, 0);
+                     assert_eq!(tail.cut.command, 0);
+                     assert_eq!(tail.cut.message, "extra characters after close-brace");
+@@ -299,7 +299,7 @@
+                         fields[6],
+                         "6578747261206368617261637465727320616674657220636c6f73652d6272616365"
+                     );
+-                    assert!(fields[7].is_empty());
++                    assert_eq!(fields[7].len(), 0);
+                     checked += 1;
+                     continue;
+                 }
+--- a/rust/tcl-registry/src/option_effect.rs
++++ b/rust/tcl-registry/src/option_effect.rs
+@@ -1036,7 +1036,7 @@
+             let ended = effects(&["--", "-inline", "s", "v"]);
+             assert!(ended.complete, "{provider}: {ended:?}");
+             assert!(ended.ended_by_marker);
+-            assert!(ended.shifts.is_empty());
++            assert_eq!(ended.shifts.len(), 0);
+             assert_eq!(ended.option_end, 1);
+         }
+     }
+--- a/rust/tcl-registry/src/profile_defaults/mod.rs
++++ b/rust/tcl-registry/src/profile_defaults/mod.rs
+@@ -512,7 +512,7 @@
+     fn unknown_profile_or_field_is_none() {
+         assert!(profile_field_default("TCP", "no-such-field", None).is_none());
+         assert!(profile_field_default("NOPE", "idle-timeout", None).is_none());
+-        assert!(profile_field_defaults("NOPE", None).is_empty());
++        assert_eq!(profile_field_defaults("NOPE", None).len(), 0);
+     }
+ 
+     #[test]
+--- a/rust/tcl-registry/src/registry.rs
++++ b/rust/tcl-registry/src/registry.rs
+@@ -10912,10 +10912,10 @@
+             vec![(2, ArgRole::VarWrite)]
+         );
+         // Fully supplied leaves none.
+-        assert!(
++        assert_eq!(
+             reg.unfilled_trailing_roles("catch", &["{body}", "res", "opts"])
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ 
+     #[test]
+@@ -10971,10 +10971,10 @@
+     #[test]
+     fn unfilled_trailing_roles_is_empty_for_an_unknown_command() {
+         let reg = CommandRegistry::build_default();
+-        assert!(
++        assert_eq!(
+             reg.unfilled_trailing_roles("no_such_command", &[])
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ 
+     #[test]
+@@ -10983,7 +10983,7 @@
+         // `puts` declares no trailing role a caller could fill with a
+         // *known* meaning, so nothing is offered rather than an unbounded
+         // run of `Value` slots.
+-        assert!(reg.unfilled_trailing_roles("puts", &["hello"]).is_empty());
++        assert_eq!(reg.unfilled_trailing_roles("puts", &["hello"]).len(), 0);
+     }
+ 
+     /// `SAFE_INTERP_HIDDEN` and `TRANSFERS_CONTROL` were the same bit.
+@@ -12249,10 +12249,10 @@
+         );
+         // Bodyless `uplevel 1` (a wrong-#args error) exposes no body word — the
+         // literal level must not be mis-tagged as a script.
+-        assert!(
++        assert_eq!(
+             reg.arg_indices_for_role("uplevel", &["1"], ArgRole::Body)
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ 
+     #[test]
+@@ -12334,10 +12334,10 @@
+             found("clock", &["format", "$t", "-format", "%Y"])
+         );
+         // TN — a subcommand with no format string, and an unknown command.
+-        assert!(found("binary", &["encode", "hex", "$d"]).is_empty());
+-        assert!(found("clock", &["seconds"]).is_empty());
+-        assert!(found("no::such::command", &["%d"]).is_empty());
+-        assert!(found("puts", &["%d"]).is_empty());
++        assert_eq!(found("binary", &["encode", "hex", "$d"]).len(), 0);
++        assert_eq!(found("clock", &["seconds"]).len(), 0);
++        assert_eq!(found("no::such::command", &["%d"]).len(), 0);
++        assert_eq!(found("puts", &["%d"]).len(), 0);
+         // TN — `regsub -command` makes that position a callback, not a
+         // template, so it declares no replacement word.
+         assert!(
+@@ -12707,22 +12707,22 @@
+             InvocationWord::Dynamic,
+             InvocationWord::Literal(r"{\1}"),
+         ];
+-        assert!(
++        assert_eq!(
+             registry
+                 .pattern_args_words(
+                     "mutated-pattern-format-owner",
+                     InvocationArguments::structured(&dynamic),
+                 )
+-                .is_empty()
+-        );
+-        assert!(
++                .len()
++        , 0);
++        assert_eq!(
+             registry
+                 .format_string_args_words(
+                     "mutated-pattern-format-owner",
+                     InvocationArguments::structured(&dynamic),
+                 )
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+ 
+         let fixed = [
+             InvocationWord::Literal("-skip"),
+@@ -12788,10 +12788,10 @@
+                 kind: crate::patterns::PatternType::Regex,
+             }],
+         );
+-        assert!(
++        assert_eq!(
+             reg.pattern_args("lsearch", &["-exact", "{a b}", "a+"])
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ 
+     #[test]
+@@ -13171,7 +13171,7 @@
+         // The `-command` value is a Body; the flag consumes nothing.
+         assert_eq!(indices(&options, &args, ArgRole::Body), vec![1]);
+         // It is not a generic Value role.
+-        assert!(indices(&options, &args, ArgRole::Value).is_empty());
++        assert_eq!(indices(&options, &args, ArgRole::Value).len(), 0);
+     }
+ 
+     /// Explicit metadata environment; this does not install a source receiver.
+@@ -13948,7 +13948,7 @@
+         use crate::hover::OptionValue;
+         let options = [opt("-command", OptionValue::script())];
+         let args = ["--", "-command", "{x}"];
+-        assert!(indices(&options, &args, ArgRole::Body).is_empty());
++        assert_eq!(indices(&options, &args, ArgRole::Body).len(), 0);
+     }
+ 
+     #[test]
+@@ -14713,7 +14713,7 @@
+                 .collect::<Vec<_>>()
+         };
+         assert_eq!(roles(&["tag", "bind", "sel", "<Key>", "{p}"]), vec![4]);
+-        assert!(roles(&["tag", "add", "sel", "1.0", "end"]).is_empty());
++        assert_eq!(roles(&["tag", "add", "sel", "1.0", "end"]).len(), 0);
+         let unprovided = CommandRegistry::build_default()
+             .project_for_profile(DialectProfile::find("tcl8.6").unwrap());
+         assert!(
+@@ -15311,7 +15311,7 @@
+             .resolved()
+             .unwrap();
+         assert!(!selected.facts().arg_roles_complete);
+-        assert!(selected.facts().arg_roles.is_empty());
++        assert_eq!(selected.facts().arg_roles.len(), 0);
+         assert_eq!(
+             registry.arg_role_assignments_words(
+                 "proc",
+@@ -15398,14 +15398,14 @@
+             reg.arg_indices_evaluated_in_frame("expr", &["$x", "+", "1"]),
+             vec![0],
+         );
+-        assert!(
++        assert_eq!(
+             reg.arg_indices_evaluated_in_frame("lindex", &["$x", "0"])
+-                .is_empty()
+-        );
+-        assert!(
++                .len()
++        , 0);
++        assert_eq!(
+             reg.arg_indices_evaluated_in_frame("apply", &["{{} {puts $x}}"])
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ 
+     /// `unset -nocomplain -- a b` skips the leading options and names only the
+@@ -16399,7 +16399,7 @@
+             crate::InvocationWord::Literal("::regexp"),
+             &arguments,
+         ));
+-        assert!(projection.literal_names.is_empty());
++        assert_eq!(projection.literal_names.len(), 0);
+         assert!(projection.opaque_variable_frame);
+     }
+ 
+@@ -16417,7 +16417,7 @@
+                 crate::InvocationWord::Literal("set"),
+                 &arguments,
+             ));
+-            assert!(projection.literal_names.is_empty());
++            assert_eq!(projection.literal_names.len(), 0);
+             assert!(projection.opaque_variable_frame);
+         }
+     }
+@@ -16433,7 +16433,7 @@
+         ] {
+             let projection =
+                 reg.variable_write_projection(InvocationWords::structured(head, &no_arguments));
+-            assert!(projection.literal_names.is_empty());
++            assert_eq!(projection.literal_names.len(), 0);
+             assert!(projection.opaque_variable_frame);
+         }
+     }
+@@ -16488,7 +16488,7 @@
+             crate::InvocationWord::Literal("global"),
+             &unknown,
+         ));
+-        assert!(projection.literal_names.is_empty());
++        assert_eq!(projection.literal_names.len(), 0);
+         assert!(
+             projection.opaque_variable_frame,
+             "missing alias naming policy remains unknown"
+@@ -16538,7 +16538,7 @@
+         let computed = [Dynamic];
+         let projection =
+             reg.variable_read_projection(InvocationWords::structured(Literal("unset"), &computed));
+-        assert!(projection.literal_names.is_empty());
++        assert_eq!(projection.literal_names.len(), 0);
+         assert!(projection.opaque_variable_frame);
+         let query = [Literal("exists"), Literal("x")];
+         assert_eq!(
+@@ -19114,10 +19114,10 @@
+         // asking for roles must remain a conservative abstention rather than
+         // a panic. The compiler's W304 regression separately proves Tcl's
+         // optionless two-word rule is retained for diagnostics.
+-        assert!(
++        assert_eq!(
+             switch
+                 .arg_indices_for_role("switch", &["$subject", "$cases"], ArgRole::Body)
+-                .is_empty(),
++                .len(), 0,
+         );
+     }
+ 
+@@ -19706,7 +19706,7 @@
+                     assert_eq!(projection.literal_names, [expected]);
+                     assert!(!projection.opaque_variable_frame);
+                 } else {
+-                    assert!(projection.literal_names.is_empty());
++                    assert_eq!(projection.literal_names.len(), 0);
+                     assert!(projection.opaque_variable_frame);
+                 }
+             }
+--- a/rust/tcl-registry/src/resolved_invocation.rs
++++ b/rust/tcl-registry/src/resolved_invocation.rs
+@@ -7813,7 +7813,7 @@
+         );
+         for facts in [selected.facts(), selected.facts_after_success()] {
+             assert!(!facts.arg_roles_complete);
+-            assert!(facts.arg_roles.is_empty());
++            assert_eq!(facts.arg_roles.len(), 0);
+         }
+         let opaque = [
+             crate::InvocationWord::Literal("p"),
+@@ -9254,14 +9254,14 @@
+                 .iter()
+                 .all(|access| access.domain == WorldStateDomain::InterpreterResult)
+         );
+-        assert!(
++        assert_eq!(
+             normal
+                 .state_transitions
+                 .declared()
+                 .unwrap()
+                 .facts()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         let dynamic = [
+             crate::InvocationWord::Literal("format"),
+             crate::InvocationWord::Literal("a*"),
+@@ -9461,7 +9461,7 @@
+             .resolve_invocation("explicit-closed-effect-fixture", &[], None)
+             .expect("explicitly effect-free fixture resolves")
+             .effects();
+-        assert!(explicit_empty.accesses().is_empty());
++        assert_eq!(explicit_empty.accesses().len(), 0);
+         assert!(
+             !explicit_empty.requires_world_barrier(),
+             "the explicit EMPTY descriptor, not missing metadata, proves effect-freedom"
+@@ -9961,7 +9961,7 @@
+         assert_eq!(facts.result_stability, ResultStability::Unknown);
+         assert_eq!(facts.arity, Arity::exact(1));
+         assert_eq!(facts.argument_offset, 1);
+-        assert!(facts.arg_roles.is_empty());
++        assert_eq!(facts.arg_roles.len(), 0);
+         assert!(facts.arg_roles_complete);
+         assert_eq!(facts.return_type, None);
+         assert_eq!(facts.var_write_typing, VarWriteTyping::ReturnValue);
+@@ -10366,14 +10366,14 @@
+             )
+             .expect("interp alias query resolves")
+             .facts();
+-        assert!(
++        assert_eq!(
+             query
+                 .state_transitions
+                 .declared()
+                 .expect("interp alias declares transitions")
+                 .facts()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+ 
+         let delete = registry
+             .resolve_invocation(
+@@ -11759,7 +11759,7 @@
+             resolve("string", &["length", "abc"]).return_type(),
+             Some(TclType::Int)
+         );
+-        assert!(!resolve("set", &["x", "1"]).effects().accesses().is_empty());
++        assert_ne!(resolve("set", &["x", "1"]).effects().accesses().len(), 0);
+     }
+ 
+     /// Two resolutions no query can answer from: a computed head resolves
+@@ -12657,14 +12657,14 @@
+             composition: crate::StateTransitionComposition::Replace,
+             ..crate::StateTransitionDescriptor::EMPTY
+         });
+-        assert!(
++        assert_eq!(
+             schema
+                 .authored_logical_source_state_transitions()
+                 .unwrap()
+                 .facts()
+-                .is_empty()
+-        );
+-        assert!(schema.state_transitions().facts().is_empty());
++                .len()
++        , 0);
++        assert_eq!(schema.state_transitions().facts().len(), 0);
+     }
+     #[test]
+     fn conditional_list_ordinals_do_not_borrow_ascii_or_runtime_authority() {
+@@ -12795,7 +12795,7 @@
+                 &[],
+             )
+             .expect("actual selected descriptor");
+-            assert!(selected.selected_side_effect_hints().is_empty());
++            assert_eq!(selected.selected_side_effect_hints().len(), 0);
+             assert!(
+                 crate::model::assembly::side_effect_hints_in_context(
+                     context.commands(),
+@@ -12815,6 +12815,6 @@
+             &["message"],
+         )
+         .expect("actual selected I/O descriptor");
+-        assert!(!selected.selected_side_effect_hints().is_empty());
++        assert_ne!(selected.selected_side_effect_hints().len(), 0);
+     }
+ }
+--- a/rust/tcl-registry/src/runtime_expr_validation.rs
++++ b/rust/tcl-registry/src/runtime_expr_validation.rs
+@@ -1152,7 +1152,7 @@
+                 visited.push(span);
+                 NativeExpressionScriptPreparation::Compiled
+             });
+-        assert!(visited.is_empty());
++        assert_eq!(visited.len(), 0);
+         assert!(matches!(proof, ExpressionPreparationProof::Unknown));
+     }
+ }
+--- a/rust/tcl-registry/src/security_floor.rs
++++ b/rust/tcl-registry/src/security_floor.rs
+@@ -448,7 +448,7 @@
+             ..CommandSpec::DEFAULT
+         };
+         SecurityFloor::of(Box::leak(Box::new(unversioned))).apply(&mut swapped);
+-        assert!(swapped.codegen_hook_windows.is_empty());
++        assert_eq!(swapped.codegen_hook_windows.len(), 0);
+         assert_eq!(swapped.codegen_hook, Some(CodegenHookId::Lassign));
+ 
+         // The shipped command carries the hook in a window only.
+--- a/rust/tcl-registry/src/source_file.rs
++++ b/rust/tcl-registry/src/source_file.rs
+@@ -329,12 +329,12 @@
+             &[InvocationWord::Expanded][..],
+             &[InvocationWord::Dynamic, InvocationWord::Dynamic][..],
+         ] {
+-            assert!(
++            assert_eq!(
+                 SOURCE_TRANSITIONS
+                     .resolve(InvocationArguments::structured(words))
+                     .facts()
+-                    .is_empty()
+-            );
++                    .len()
++            , 0);
+         }
+     }
+ 
+--- a/rust/tcl-registry/src/source_operation.rs
++++ b/rust/tcl-registry/src/source_operation.rs
+@@ -164,7 +164,7 @@
+                 .iter()
+                 .all(|access| access.mode == crate::EffectAccessMode::Read)
+         );
+-        assert!(!operation.residual().accesses().is_empty());
++        assert_ne!(operation.residual().accesses().len(), 0);
+         assert_eq!(operation.obligations().len(), 3);
+         assert!(
+             operation
+--- a/rust/tcl-registry/src/spec.rs
++++ b/rust/tcl-registry/src/spec.rs
+@@ -5513,7 +5513,7 @@
+             traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
+             ..spec
+         };
+-        assert!(classified.unclassified_variable_writers().is_empty());
++        assert_eq!(classified.unclassified_variable_writers().len(), 0);
+     }
+ 
+     // Optional trailing argument names.
+@@ -5535,10 +5535,10 @@
+             vec!["b"]
+         );
+         // No optional tail at all.
+-        assert!(optional_trailing_placeholders("puts string").is_empty());
++        assert_eq!(optional_trailing_placeholders("puts string").len(), 0);
+         // A variadic tail is not a fixed slot list.
+-        assert!(optional_trailing_placeholders("cmd ?arg ...?").is_empty());
+-        assert!(optional_trailing_placeholders("cmd ?...?").is_empty());
++        assert_eq!(optional_trailing_placeholders("cmd ?arg ...?").len(), 0);
++        assert_eq!(optional_trailing_placeholders("cmd ?...?").len(), 0);
+     }
+ 
+     #[test]
+@@ -5645,13 +5645,13 @@
+             ..CommandSpec::DEFAULT
+         };
+         assert!(spec.primary_synopsis(Some("3.0")).is_none());
+-        assert!(
++        assert_eq!(
+             spec.optional_trailing_arg_names(
+                 Some(SurfaceQuery::core(Family::Tcl, "9.0")),
+                 Some("3.0")
+             )
+-            .is_empty()
+-        );
++            .len()
++        , 0);
+         // Retirement is exclusive, so 2.9 still documents it.
+         assert_eq!(
+             spec.primary_synopsis(Some("2.9")),
+--- a/rust/tcl-registry/src/special_vars.rs
++++ b/rust/tcl-registry/src/special_vars.rs
+@@ -1698,7 +1698,7 @@
+                     (fields[0] == version).then_some((fields[1], fields[2] == "1"))
+                 })
+                 .collect();
+-            assert!(!expected.is_empty());
++            assert_ne!(expected.len(), 0);
+             let actual: Vec<_> = ledger
+                 .keys()
+                 .unwrap()
+--- a/rust/tcl-registry/src/state_transition.rs
++++ b/rust/tcl-registry/src/state_transition.rs
+@@ -3190,12 +3190,12 @@
+             }),
+             ..Default::default()
+         };
+-        assert!(
++        assert_eq!(
+             replaced
+                 .resolve_logical_source_frame_aliases(arguments)
+                 .facts()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ 
+     /// The alias facts a `from-frame-effect` resolver derives, and its two
+@@ -3308,14 +3308,14 @@
+             [alias("b", level("#0"), "a", 1)]
+         );
+         // An expansion hides the pairs: nothing is stated.
+-        assert!(
++        assert_eq!(
+             resolve(
+                 FrameLevelWord::None,
+                 &[InvocationWord::Expanded, InvocationWord::Literal("b")]
+             )
+             .facts()
+-            .is_empty()
+-        );
++            .len()
++        , 0);
+     }
+ 
+     /// Counted operands remain byte values in the shared alias projection.
+--- a/rust/tcl-registry/src/taint.rs
++++ b/rust/tcl-registry/src/taint.rs
+@@ -1199,18 +1199,18 @@
+         assert!(c.taint_double_encode_colour.is_none());
+         assert!(c.taint_sink_safe_colour.is_none());
+         assert!(c.taint_sink_gate.is_none());
+-        assert!(c.credential_options.is_empty());
+-        assert!(c.sensitive_headers.is_empty());
+-        assert!(c.setter_constraints.is_empty());
+-        assert!(c.taint_interp_eval_subcommands.is_empty());
+-        assert!(c.taint_output_sink_subcommands.is_empty());
++        assert_eq!(c.credential_options.len(), 0);
++        assert_eq!(c.sensitive_headers.len(), 0);
++        assert_eq!(c.setter_constraints.len(), 0);
++        assert_eq!(c.taint_interp_eval_subcommands.len(), 0);
++        assert_eq!(c.taint_output_sink_subcommands.len(), 0);
+ 
+         let s = SubCommand::DEFAULT;
+         assert!(s.taint_transform.is_none());
+         assert!(s.taint_double_encode_colour.is_none());
+         assert!(s.taint_output_sink.is_none());
+         assert!(s.credential_arg.is_none());
+-        assert!(s.sensitive_headers.is_empty());
++        assert_eq!(s.sensitive_headers.len(), 0);
+     }
+ 
+     /// `classify_taint_sinks` returns the all-clear default for an
+@@ -1373,21 +1373,21 @@
+     fn switch_without_a_live_integer_option_coerces_nothing() {
+         let v91 = Some("tcl9.1");
+         // String modes compare text.
+-        assert!(switch_coerced(v91, &["-glob", "$x", "1 a"]).is_empty());
+-        assert!(switch_coerced(v91, &["$x", "1 a"]).is_empty());
++        assert_eq!(switch_coerced(v91, &["-glob", "$x", "1 a"]).len(), 0);
++        assert_eq!(switch_coerced(v91, &["$x", "1 a"]).len(), 0);
+         // `-i` is ambiguous between `-indexvar` and `-integer` on 9.1.
+-        assert!(switch_coerced(v91, &["-i", "$x", "1 a"]).is_empty());
++        assert_eq!(switch_coerced(v91, &["-i", "$x", "1 a"]).len(), 0);
+         // C reserves the last two words: `-integer` here is the subject.
+-        assert!(switch_coerced(v91, &["-integer", "1 a"]).is_empty());
+-        assert!(switch_coerced(v91, &["--", "-integer", "1 a"]).is_empty());
++        assert_eq!(switch_coerced(v91, &["-integer", "1 a"]).len(), 0);
++        assert_eq!(switch_coerced(v91, &["--", "-integer", "1 a"]).len(), 0);
+         // An option's value is not an option: this is a regexp switch.
+-        assert!(
++        assert_eq!(
+             switch_coerced(
+                 v91,
+                 &["-matchvar", "-integer", "-regexp", "--", "$x", "1 a"]
+             )
+-            .is_empty()
+-        );
++            .len()
++        , 0);
+         // C rejects these before reading any operand.
+         for args in [
+             &["-integer", "-regexp", "$x", "1 a"][..],
+--- a/rust/tcl-registry/src/version_range.rs
++++ b/rust/tcl-registry/src/version_range.rs
+@@ -116,9 +116,9 @@
+     fn a_vendor_dialect_has_no_core_range() {
+         // `f5-irules` names a runtime, not a core release: nothing to widen
+         // over, so the consumer keeps the single table it holds.
+-        assert!(forward_range("f5-irules").is_empty());
++        assert_eq!(forward_range("f5-irules").len(), 0);
+         assert!(registries_over_range(forward_range("f5-irules")).is_empty());
+-        assert!(forward_range("nonsense").is_empty());
++        assert_eq!(forward_range("nonsense").len(), 0);
+     }
+ 
+     #[test]
+@@ -127,7 +127,7 @@
+         let names = core_releases_in(FROM_85);
+         assert_eq!(names, FROM_85);
+         assert_eq!(registries_over_range(FROM_85).len(), names.len());
+-        assert!(core_releases_in(&[]).is_empty());
++        assert_eq!(core_releases_in(&[]).len(), 0);
+     }
+ 
+     #[test]
+--- a/rust/tcl-registry/src/world_effect.rs
++++ b/rust/tcl-registry/src/world_effect.rs
+@@ -1328,7 +1328,7 @@
+             }],
+             &coverage,
+         );
+-        assert!(legacy.accesses().is_empty());
++        assert_eq!(legacy.accesses().len(), 0);
+ 
+         let declared = WorldEffectDescriptor {
+             composition: WorldEffectComposition::Extend,

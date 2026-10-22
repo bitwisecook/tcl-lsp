@@ -5513,7 +5513,7 @@ mod tests {
             traits: Traits::UNCONDITIONAL_VARIABLE_WRITE,
             ..spec
         };
-        assert!(classified.unclassified_variable_writers().is_empty());
+        assert_eq!(classified.unclassified_variable_writers().len(), 0);
     }
 
     // Optional trailing argument names.
@@ -5535,10 +5535,10 @@ mod tests {
             vec!["b"]
         );
         // No optional tail at all.
-        assert!(optional_trailing_placeholders("puts string").is_empty());
+        assert_eq!(optional_trailing_placeholders("puts string").len(), 0);
         // A variadic tail is not a fixed slot list.
-        assert!(optional_trailing_placeholders("cmd ?arg ...?").is_empty());
-        assert!(optional_trailing_placeholders("cmd ?...?").is_empty());
+        assert_eq!(optional_trailing_placeholders("cmd ?arg ...?").len(), 0);
+        assert_eq!(optional_trailing_placeholders("cmd ?...?").len(), 0);
     }
 
     #[test]
@@ -5645,13 +5645,13 @@ mod tests {
             ..CommandSpec::DEFAULT
         };
         assert!(spec.primary_synopsis(Some("3.0")).is_none());
-        assert!(
+        assert_eq!(
             spec.optional_trailing_arg_names(
                 Some(SurfaceQuery::core(Family::Tcl, "9.0")),
                 Some("3.0")
             )
-            .is_empty()
-        );
+            .len()
+        , 0);
         // Retirement is exclusive, so 2.9 still documents it.
         assert_eq!(
             spec.primary_synopsis(Some("2.9")),

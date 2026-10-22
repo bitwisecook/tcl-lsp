@@ -18,7 +18,7 @@
 
 //! Original procedure-body layouts independent of command installation.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use super::declaration_layout::{

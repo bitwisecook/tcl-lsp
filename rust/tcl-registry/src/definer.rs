@@ -6133,11 +6133,11 @@ mod tests {
             grammar.member_body_indices_in("property", &args, query),
             vec![3, 5]
         );
-        assert!(
+        assert_eq!(
             grammar
                 .member_arg_indices_for_role_in("property", &args, query, ArgRole::ParamList)
-                .is_empty()
-        );
+                .len()
+        , 0);
     }
 
     #[test]
@@ -6655,7 +6655,7 @@ mod tests {
         filter.apply(&mut list, &strs(&["-set", "x"]));
         assert_eq!(list, strs(&["x"]));
         filter.apply(&mut list, &strs(&["-clear"]));
-        assert!(list.is_empty());
+        assert_eq!(list.len(), 0);
         // `filter a ; filter -prepend b` → `b a`.
         filter.apply(&mut list, &strs(&["a"]));
         filter.apply(&mut list, &strs(&["-prepend", "b"]));

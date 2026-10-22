@@ -327,6 +327,10 @@ static CORE_SURFACE: RwLock<CoreSurfaceSpecs> = RwLock::new(CoreSurfaceSpecs {
 /// [`core_surface_generation`], which the assembled-generation caches key on.
 /// Returns the generation after the call.
 pub fn register_core_surface_specs(specs: Vec<&'static CommandSpec>) -> u64 {
+    let specs: Vec<_> = specs
+        .into_iter()
+        .map(crate::native_procedure::attach_builtin_core_definition)
+        .collect();
     let mut guard = CORE_SURFACE.write().unwrap_or_else(PoisonError::into_inner);
     let unchanged = guard.specs.len() == specs.len()
         && guard

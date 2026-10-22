@@ -44,7 +44,7 @@ fn update_preserves_ordered_original_keys_and_auxiliary_declarations() {
         );
         if version < TclVersion::V8_5 {
             assert_eq!(selected.outcome, NativeControlOutcome::Generic);
-            assert!(selected.preparations.is_empty());
+            assert_eq!(selected.preparations.len(), 0);
             continue;
         }
         assert_eq!(
@@ -265,6 +265,6 @@ fn dictionary_with_empty_script_selection_uses_original_source_at_script_frame()
             NativeCompilationFrame::ScriptCode,
         );
         assert_eq!(substantive.outcome, NativeControlOutcome::Generic);
-        assert!(substantive.preparations.is_empty());
+        assert_eq!(substantive.preparations.len(), 0);
     }
 }

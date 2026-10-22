@@ -1146,7 +1146,7 @@ fn selected_lambda_source(
         command_offset,
     )?;
     let selected =
-        words.with_source_schema(&context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)??;
+        words.with_source_schema(&context, |schema| schema.authored_source_lambda_call())??;
     if selected.lambda_argument != argument {
         return None;
     }

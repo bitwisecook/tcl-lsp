@@ -7813,7 +7813,7 @@ mod tests {
         );
         for facts in [selected.facts(), selected.facts_after_success()] {
             assert!(!facts.arg_roles_complete);
-            assert!(facts.arg_roles.is_empty());
+            assert_eq!(facts.arg_roles.len(), 0);
         }
         let opaque = [
             crate::InvocationWord::Literal("p"),
@@ -9254,14 +9254,14 @@ mod tests {
                 .iter()
                 .all(|access| access.domain == WorldStateDomain::InterpreterResult)
         );
-        assert!(
+        assert_eq!(
             normal
                 .state_transitions
                 .declared()
                 .unwrap()
                 .facts()
-                .is_empty()
-        );
+                .len()
+        , 0);
         let dynamic = [
             crate::InvocationWord::Literal("format"),
             crate::InvocationWord::Literal("a*"),
@@ -9461,7 +9461,7 @@ mod tests {
             .resolve_invocation("explicit-closed-effect-fixture", &[], None)
             .expect("explicitly effect-free fixture resolves")
             .effects();
-        assert!(explicit_empty.accesses().is_empty());
+        assert_eq!(explicit_empty.accesses().len(), 0);
         assert!(
             !explicit_empty.requires_world_barrier(),
             "the explicit EMPTY descriptor, not missing metadata, proves effect-freedom"
@@ -9961,7 +9961,7 @@ mod tests {
         assert_eq!(facts.result_stability, ResultStability::Unknown);
         assert_eq!(facts.arity, Arity::exact(1));
         assert_eq!(facts.argument_offset, 1);
-        assert!(facts.arg_roles.is_empty());
+        assert_eq!(facts.arg_roles.len(), 0);
         assert!(facts.arg_roles_complete);
         assert_eq!(facts.return_type, None);
         assert_eq!(facts.var_write_typing, VarWriteTyping::ReturnValue);
@@ -10366,14 +10366,14 @@ mod tests {
             )
             .expect("interp alias query resolves")
             .facts();
-        assert!(
+        assert_eq!(
             query
                 .state_transitions
                 .declared()
                 .expect("interp alias declares transitions")
                 .facts()
-                .is_empty()
-        );
+                .len()
+        , 0);
 
         let delete = registry
             .resolve_invocation(
@@ -11759,7 +11759,7 @@ mod logical_frame_source_role_tests {
             resolve("string", &["length", "abc"]).return_type(),
             Some(TclType::Int)
         );
-        assert!(!resolve("set", &["x", "1"]).effects().accesses().is_empty());
+        assert_ne!(resolve("set", &["x", "1"]).effects().accesses().len(), 0);
     }
 
     /// Two resolutions no query can answer from: a computed head resolves
@@ -12657,14 +12657,14 @@ mod logical_source_alias_projection_tests {
             composition: crate::StateTransitionComposition::Replace,
             ..crate::StateTransitionDescriptor::EMPTY
         });
-        assert!(
+        assert_eq!(
             schema
                 .authored_logical_source_state_transitions()
                 .unwrap()
                 .facts()
-                .is_empty()
-        );
-        assert!(schema.state_transitions().facts().is_empty());
+                .len()
+        , 0);
+        assert_eq!(schema.state_transitions().facts().len(), 0);
     }
     #[test]
     fn conditional_list_ordinals_do_not_borrow_ascii_or_runtime_authority() {
@@ -12795,7 +12795,7 @@ mod selected_effect_hint_controls {
                 &[],
             )
             .expect("actual selected descriptor");
-            assert!(selected.selected_side_effect_hints().is_empty());
+            assert_eq!(selected.selected_side_effect_hints().len(), 0);
             assert!(
                 crate::model::assembly::side_effect_hints_in_context(
                     context.commands(),
@@ -12815,6 +12815,6 @@ mod selected_effect_hint_controls {
             &["message"],
         )
         .expect("actual selected I/O descriptor");
-        assert!(!selected.selected_side_effect_hints().is_empty());
+        assert_ne!(selected.selected_side_effect_hints().len(), 0);
     }
 }

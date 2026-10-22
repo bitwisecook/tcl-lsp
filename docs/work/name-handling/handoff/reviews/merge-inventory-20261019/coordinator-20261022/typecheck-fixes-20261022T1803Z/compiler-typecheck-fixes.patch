@@ -1,0 +1,171 @@
+--- a/rust/tcl-compiler/src/analyser/bounds_checks/source_index.rs
++++ b/rust/tcl-compiler/src/analyser/bounds_checks/source_index.rs
+@@ -24,7 +24,7 @@
+     // naming.diagnostic.registry-source-ownership
+     // docs/design/analysis/name-resolution-proofs/diagnostic-registry-source-ownership.md
+     let Some(selected) = original
+-        .with_schema(tcl_registry::ResolvedInvocation::authored_source_index_bounds)
++        .with_schema(|schema| schema.authored_source_index_bounds())
+         .flatten()
+     else {
+         return Vec::new();
+--- a/rust/tcl-compiler/src/analyser/commands.rs
++++ b/rust/tcl-compiler/src/analyser/commands.rs
+@@ -1684,7 +1684,7 @@
+             presubstituted_args: false,
+         };
+         let original = self.original_diagnostic_invocation(&site)?;
+-        let transitions = original.with_schema(tcl_registry::ResolvedInvocation::state_transitions)?;
++        let transitions = original.with_schema(|schema| schema.state_transitions())?;
+         let mut values = Vec::new();
+         let mut tokens = Vec::new();
+         for index in 0..original.words().arguments().len() {
+@@ -2888,7 +2888,7 @@
+             );
+         let plan = source_words.as_ref().and_then(|words| {
+             words
+-                .with_source_schema(generation.as_ref(), tcl_registry::ResolvedInvocation::clause_plan)
++                .with_source_schema(generation.as_ref(), |schema| schema.clause_plan())
+                 .flatten()
+         });
+         if let (Some(plan), Some(words)) = (plan.as_ref(), source_words.as_ref()) {
+--- a/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs
+@@ -4990,7 +4990,7 @@
+             ArgRole, native_compilation::SuccessfulHandlerSpec,
+             variable_output::NativeVariableOutputSpec,
+         };
+-        let facts = words.with_source_schema(context, tcl_registry::ResolvedInvocation::facts)?;
++        let facts = words.with_source_schema(context, |schema| schema.facts())?;
+         let SuccessfulHandlerSpec::ConditionalVariableOperands(protocol) =
+             facts.successful_handler?
+         else {
+--- a/rust/tcl-compiler/src/analyser/diagnostics/security/source_credentials.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/security/source_credentials.rs
+@@ -13,7 +13,7 @@
+ use tcl_registry::AuthoredSourceCredentialPosition;
+ 
+ fn selected_credential(original: &OriginalDiagnosticInvocation) -> Option<Diagnostic> {
+-    let arguments = original.with_schema(tcl_registry::ResolvedInvocation::authored_source_credential_arguments)?;
++    let arguments = original.with_schema(|schema| schema.authored_source_credential_arguments())?;
+     for argument in arguments {
+         let Some(word) = original.word(argument.argument) else {
+             continue;
+--- a/rust/tcl-compiler/src/analyser/diagnostics/security/source_patterns.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/security/source_patterns.rs
+@@ -117,7 +117,7 @@
+ 
+ fn case_patterns(original: &OriginalDiagnosticInvocation) -> Option<Vec<OriginalPattern>> {
+     let (case, layout) =
+-        original.with_schema(tcl_registry::ResolvedInvocation::authored_source_case_pattern_layout)??;
++        original.with_schema(|schema| schema.authored_source_case_pattern_layout())??;
+     if let Some(argument) = layout.clause_list_index {
+         return clause_list_patterns(original, argument, case, layout.mode);
+     }
+--- a/rust/tcl-compiler/src/analyser/diagnostics/security/source_template.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/security/source_template.rs
+@@ -150,7 +150,7 @@
+             return;
+         }
+         let Some(performed) = original
+-            .with_schema(tcl_registry::ResolvedInvocation::substitutions_performed)
++            .with_schema(|schema| schema.substitutions_performed())
+             .flatten()
+         else {
+             return;
+@@ -159,7 +159,7 @@
+             return;
+         };
+         let Some(selected) = projected
+-            .with_schema(tcl_registry::ResolvedInvocation::substitutions_performed)
++            .with_schema(|schema| schema.substitutions_performed())
+             .flatten()
+         else {
+             return;
+--- a/rust/tcl-compiler/src/analyser/diagnostics/usage/source_channel.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/usage/source_channel.rs
+@@ -22,7 +22,7 @@
+ 
+ fn channel_diagnostic(original: &OriginalDiagnosticInvocation) -> Option<Diagnostic> {
+     let layout =
+-        original.with_schema(tcl_registry::ResolvedInvocation::authored_source_channel_configuration)??;
++        original.with_schema(|schema| schema.authored_source_channel_configuration())??;
+     let encoding = original_static_literal(original, layout.encoding)?;
+     let translation = original_static_literal(original, layout.translation)?;
+     if encoding != layout.binary_value || translation == layout.binary_value {
+--- a/rust/tcl-compiler/src/analyser/param_traits.rs
++++ b/rust/tcl-compiler/src/analyser/param_traits.rs
+@@ -1146,7 +1146,7 @@
+         command_offset,
+     )?;
+     let selected =
+-        words.with_source_schema(&context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)??;
++        words.with_source_schema(&context, |schema| schema.authored_source_lambda_call())??;
+     if selected.lambda_argument != argument {
+         return None;
+     }
+--- a/rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs
++++ b/rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs
+@@ -157,7 +157,7 @@
+         let context = input.context_registry();
+         let call = self
+             .words
+-            .with_source_schema(&context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)??;
++            .with_source_schema(&context, |schema| schema.authored_source_lambda_call())??;
+         let formals = self.formals.as_deref()?;
+         if call.count.indeterminate {
+             return None;
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs
+@@ -85,7 +85,7 @@
+         )
+         .and_then(|words| {
+             words
+-                .with_source_schema(context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)
++                .with_source_schema(context, |schema| schema.authored_source_lambda_call())
+                 .flatten()
+         })
+         .is_some_and(|call| call.count == phase.argument_count)
+--- a/rust/tcl-compiler/src/lambda_literal.rs
++++ b/rust/tcl-compiler/src/lambda_literal.rs
+@@ -312,7 +312,7 @@
+         }
+         let context = input.context_registry();
+         let selected =
+-            words.with_source_schema(&context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)??;
++            words.with_source_schema(&context, |schema| schema.authored_source_lambda_call())??;
+         if words.original_argument_word(selected.lambda_argument) != Some(parent) {
+             return None;
+         }
+--- a/rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs
+@@ -1695,7 +1695,7 @@
+     context: &ContextRegistry,
+ ) -> Option<ScriptBodyGeometry> {
+     let selected =
+-        words.with_source_schema(context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)??;
++        words.with_source_schema(context, |schema| schema.authored_source_lambda_call())??;
+     let word = words
+         .operands()
+         .get(selected.lambda_argument)?
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs
+@@ -501,7 +501,7 @@
+         let inner = original_single_source_command_substitution(subject_word)?;
+         let inner_words = self.command_words(inner.command())?;
+         let inner_query = inner_words
+-            .with_source_schema(&context, tcl_registry::ResolvedInvocation::authored_source_package_query)??;
++            .with_source_schema(&context, |schema| schema.authored_source_package_query())??;
+         if inner_query.query != SourcePackageQuery::ProvidedVersion {
+             return None;
+         }
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -4369,6 +4369,7 @@
+         &self,
+     ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>> {
+         self.metadata.metadata_context(self.registry.registry())
++            .map(crate::registry_invocation::InvocationMetadataSelection::context)
+     }
+ 
+     /// Source numeral grammar is independent of catalogue availability.

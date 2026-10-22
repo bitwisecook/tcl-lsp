@@ -8297,11 +8297,11 @@ mod tests {
         );
         let jim = InvocationDialect::of_profile(&profile);
         assert!(spec.implementation_lookup(jim).is_none());
-        assert!(
+        assert_eq!(
             crate::CommandRegistry::build_default()
                 .native_compiler_implementation_slots(jim)
-                .is_empty()
-        );
+                .len()
+        , 0);
     }
 
     #[test]

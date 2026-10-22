@@ -1251,10 +1251,10 @@ mod tests {
             assert_eq!(retained, scripts);
         }
         let modern = prepare("0 && [set lazy 1]", tcl_dialect::TclVersion::V9_0);
-        assert!(
+        assert_eq!(
             modern
                 .compiler_steps(|_| panic!("modern compiler has no fixed table lookup"))
-                .is_empty()
-        );
+                .len()
+        , 0);
     }
 }

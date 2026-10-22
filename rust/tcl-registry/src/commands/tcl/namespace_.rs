@@ -1885,7 +1885,7 @@ mod tests {
             );
             let facts = selected.resolved().unwrap().facts();
             assert!(!facts.arg_roles_complete, "{version:?}");
-            assert!(facts.arg_roles.is_empty());
+            assert_eq!(facts.arg_roles.len(), 0);
         }
     }
 
@@ -1926,7 +1926,7 @@ mod tests {
                 dialect.authoring_query(),
             );
             let facts = selected.resolved().unwrap().facts();
-            assert!(facts.transition_effect_coverage.entries().is_empty());
+            assert_eq!(facts.transition_effect_coverage.entries().len(), 0);
             assert!(facts.effects.accesses().iter().any(|access| access.domain
                 == WorldStateDomain::InterpreterPolicy
                 && access.mode == crate::world_effect::EffectAccessMode::Write));

@@ -74,7 +74,7 @@ mod tests {
                 .lines()
                 .filter_map(|line| line.strip_prefix(&format!("{name}\t")))
                 .collect();
-            assert!(!controls.is_empty());
+            assert_ne!(controls.len(), 0);
             for line in controls {
                 let fields: Vec<_> = line.split('\t').collect();
                 rows += 1;

@@ -457,7 +457,7 @@ mod tests {
                         rejected.fatal_tail.is_some(),
                         "original C8.4 parser rejects adjacent expansion braces"
                     );
-                    assert!(rejected.commands.is_empty());
+                    assert_eq!(rejected.commands.len(), 0);
                     continue;
                 }
                 let original = parsed.unwrap().commands.remove(0).words;
@@ -609,8 +609,8 @@ mod tests {
             )
             .unwrap();
             assert_eq!(recipe.outcome, outcome);
-            assert!(recipe.bindings.is_empty());
-            assert!(recipe.visits.is_empty());
+            assert_eq!(recipe.bindings.len(), 0);
+            assert_eq!(recipe.visits.len(), 0);
         }
     }
 }

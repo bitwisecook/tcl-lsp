@@ -628,7 +628,7 @@ mod tests {
             assert_eq!(routed.propagated.contains(&Route::ProcessExit), wanted_exit);
             let finite = selected.route(Route::TclAlternatives(&[Code::Ok, Code::Error]));
             assert!(finite.captured);
-            assert!(finite.propagated.is_empty());
+            assert_eq!(finite.propagated.len(), 0);
         }
         let words = ["-exit", "body"];
         let CatchInvocationSelection::Valid(selected) =
@@ -638,7 +638,7 @@ mod tests {
         };
         let routed = selected.route(Route::CatchableExitOrError);
         assert!(routed.captured);
-        assert!(routed.propagated.is_empty());
+        assert_eq!(routed.propagated.len(), 0);
     }
 
     #[test]

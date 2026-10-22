@@ -4806,7 +4806,7 @@ mod tests {
     #[test]
     fn flow_chains_exist() {
         let reg = EventRegistry::build();
-        assert!(!reg.flow_chains().is_empty());
+        assert_ne!(reg.flow_chains().len(), 0);
         assert_eq!(reg.flow_chains()[0].chain_id, "plain_tcp");
     }
 
@@ -4845,7 +4845,7 @@ mod tests {
         .into_iter()
         .map(|handler| handler.event)
         .collect();
-        assert!(events.is_empty());
+        assert_eq!(events.len(), 0);
     }
 
     #[test]
@@ -4903,7 +4903,7 @@ mod tests {
         .into_iter()
         .map(|handler| handler.event)
         .collect();
-        assert!(events.is_empty());
+        assert_eq!(events.len(), 0);
     }
 
     #[test]
@@ -5041,7 +5041,7 @@ mod original_event_source_config_tests {
             whole[0].event_span.start(),
             u32::try_from("\u{feff}when ".len()).unwrap()
         );
-        assert!(
+        assert_eq!(
             top_level_when_handlers_with_source_config_and_head_resolver(
                 source,
                 registry,
@@ -5049,9 +5049,9 @@ mod original_event_source_config_tests {
                 SourceSegmentationPurpose::NestedScript,
                 &WrittenHeadResolver,
             )
-            .is_empty()
-        );
-        assert!(
+            .len()
+        , 0);
+        assert_eq!(
             top_level_when_handlers_with_source_config_and_head_resolver(
                 source,
                 registry,
@@ -5059,8 +5059,8 @@ mod original_event_source_config_tests {
                 SourceSegmentationPurpose::WholeInput,
                 &WrittenHeadResolver,
             )
-            .is_empty()
-        );
+            .len()
+        , 0);
         assert_eq!(parent.leading_bom, tcl_lexer::LeadingBom::Skip);
 
         let source = "\u{feff}priority 730\nwhen HTTP_REQUEST {}";

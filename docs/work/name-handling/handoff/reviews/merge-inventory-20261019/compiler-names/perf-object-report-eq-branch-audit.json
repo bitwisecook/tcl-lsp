@@ -1,0 +1,50 @@
+{
+  "timestamp": "2026-10-22T18:01Z",
+  "status": "read-only static audit; no cause or equality proof",
+  "external_trace": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence/latest-e4a01bbe/aliases-private-eq-trace.out",
+  "external_trace_sha256": "c69ff4b035e2fb7d78069f58da2deed78ed69ba0c7a611ed94bf18ccf583e92f",
+  "source": "rust/tcl-compiler/src/object_types/report_comparison.rs",
+  "source_sha256": "177494838ad7937bded1f0000d84469b29df73ce94ffd8c4696f340c46c2c07b",
+  "observed_external_first_false_helper": "ObjectHandleFacts::analysis_report_eq (trace lines941-942)",
+  "next_required_partition": [
+    "report_source validity after matches_facts for each side",
+    "both invalid: raw ObjectHandleFacts equality; one invalid: refusal; both valid: retained report correspondence path",
+    "on valid path first unequal image/input/registry/body-coordinate-set/raw fact/normalized report facet"
+  ],
+  "raw_facets_on_valid_path": [
+    "any_scope",
+    "collections",
+    "global_object_cells",
+    "proven_reads",
+    "physical_type_reads",
+    "normal_procedure_results"
+  ],
+  "normalized_facets": [
+    "reported_candidates",
+    "reported_classes",
+    "reported_scopes (ordered Vec)",
+    "reported_returns"
+  ],
+  "limitations": [
+    "External trace does not identify inner branch or owner field.",
+    "Aliases fixture contains procedures; absence of dollar-variable reads/object commands does not prove empty private facts.",
+    "Body coordinate HashSet compares full coordinates; runtime owner equality must remain separate from report correspondence.",
+    "No OnceLock cause inferred; no semantic fields masked or assertions changed.",
+    "External perf owns corpus/old-old attribution; no additional Cargo or replay by names role."
+  ],
+  "deeper_external_evidence": {
+    "retrieved_utc": "2026-10-22T18:24:01.918087+00:00",
+    "trace_path": "perf/evidence/latest-e4a01bbe/aliases-object-report-trace.out",
+    "trace_sha256": "5ca7c3db6060b899f8e5adc4cfa391ade799620cfca361462d062e5b4ae6590c",
+    "routing_path": "perf/analysis-equality-routing.md",
+    "routing_sha256": "83bbf431a41c9e0c84793988927dbdf25eac68af7c85fbb6725c275f01bb1d7b",
+    "transport": "read-only raw.githubusercontent.com work branch into /tmp; no local commit attribution",
+    "reported_result": "both filtered admitted report-source options None; raw ObjectHandleFacts Eq false; coordinate-report path not entered"
+  },
+  "followup_static_partition": {
+    "hosted_control": "current eligibility explicitly excludes hosted in versioned_source and Logical predicate; source coordinate owner intentionally unavailable under current domain guard",
+    "raw_owner_identity": "full object facts index includes top OwnerSpan BodyFrameId::Top(module issuer); independent runtime module owners can differ under raw Eq even with no object commands",
+    "aliases_unresolved": "need capture admission vs matches_facts refusal, then first exact failed retain_report_source guard. Profile/input/image/entry/held-module checks and unique body coordinates all remain required. Procedure/declaration-site count combines procedures and body_lowerings; inspect actual counts, do not assume duplicate.",
+    "required_boundary": "A hosted report-correspondence extension requires its actual hosted event/declaration body owners; merely removing hosted exclusion or masking raw identity fields is not valid."
+  }
+}

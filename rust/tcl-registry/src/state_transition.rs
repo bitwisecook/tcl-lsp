@@ -3190,12 +3190,12 @@ mod tests {
             }),
             ..Default::default()
         };
-        assert!(
+        assert_eq!(
             replaced
                 .resolve_logical_source_frame_aliases(arguments)
                 .facts()
-                .is_empty()
-        );
+                .len()
+        , 0);
     }
 
     /// The alias facts a `from-frame-effect` resolver derives, and its two
@@ -3308,14 +3308,14 @@ mod tests {
             [alias("b", level("#0"), "a", 1)]
         );
         // An expansion hides the pairs: nothing is stated.
-        assert!(
+        assert_eq!(
             resolve(
                 FrameLevelWord::None,
                 &[InvocationWord::Expanded, InvocationWord::Literal("b")]
             )
             .facts()
-            .is_empty()
-        );
+            .len()
+        , 0);
     }
 
     /// Counted operands remain byte values in the shared alias projection.

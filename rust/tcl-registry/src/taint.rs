@@ -1199,18 +1199,18 @@ y"}"#,
         assert!(c.taint_double_encode_colour.is_none());
         assert!(c.taint_sink_safe_colour.is_none());
         assert!(c.taint_sink_gate.is_none());
-        assert!(c.credential_options.is_empty());
-        assert!(c.sensitive_headers.is_empty());
-        assert!(c.setter_constraints.is_empty());
-        assert!(c.taint_interp_eval_subcommands.is_empty());
-        assert!(c.taint_output_sink_subcommands.is_empty());
+        assert_eq!(c.credential_options.len(), 0);
+        assert_eq!(c.sensitive_headers.len(), 0);
+        assert_eq!(c.setter_constraints.len(), 0);
+        assert_eq!(c.taint_interp_eval_subcommands.len(), 0);
+        assert_eq!(c.taint_output_sink_subcommands.len(), 0);
 
         let s = SubCommand::DEFAULT;
         assert!(s.taint_transform.is_none());
         assert!(s.taint_double_encode_colour.is_none());
         assert!(s.taint_output_sink.is_none());
         assert!(s.credential_arg.is_none());
-        assert!(s.sensitive_headers.is_empty());
+        assert_eq!(s.sensitive_headers.len(), 0);
     }
 
     /// `classify_taint_sinks` returns the all-clear default for an
@@ -1373,21 +1373,21 @@ y"}"#,
     fn switch_without_a_live_integer_option_coerces_nothing() {
         let v91 = Some("tcl9.1");
         // String modes compare text.
-        assert!(switch_coerced(v91, &["-glob", "$x", "1 a"]).is_empty());
-        assert!(switch_coerced(v91, &["$x", "1 a"]).is_empty());
+        assert_eq!(switch_coerced(v91, &["-glob", "$x", "1 a"]).len(), 0);
+        assert_eq!(switch_coerced(v91, &["$x", "1 a"]).len(), 0);
         // `-i` is ambiguous between `-indexvar` and `-integer` on 9.1.
-        assert!(switch_coerced(v91, &["-i", "$x", "1 a"]).is_empty());
+        assert_eq!(switch_coerced(v91, &["-i", "$x", "1 a"]).len(), 0);
         // C reserves the last two words: `-integer` here is the subject.
-        assert!(switch_coerced(v91, &["-integer", "1 a"]).is_empty());
-        assert!(switch_coerced(v91, &["--", "-integer", "1 a"]).is_empty());
+        assert_eq!(switch_coerced(v91, &["-integer", "1 a"]).len(), 0);
+        assert_eq!(switch_coerced(v91, &["--", "-integer", "1 a"]).len(), 0);
         // An option's value is not an option: this is a regexp switch.
-        assert!(
+        assert_eq!(
             switch_coerced(
                 v91,
                 &["-matchvar", "-integer", "-regexp", "--", "$x", "1 a"]
             )
-            .is_empty()
-        );
+            .len()
+        , 0);
         // C rejects these before reading any operand.
         for args in [
             &["-integer", "-regexp", "$x", "1 a"][..],

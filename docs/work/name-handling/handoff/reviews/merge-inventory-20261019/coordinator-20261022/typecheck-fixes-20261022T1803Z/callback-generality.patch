@@ -1,0 +1,45 @@
+--- a/rust/tcl-vm/src/interp/native_command_names.rs
++++ b/rust/tcl-vm/src/interp/native_command_names.rs
+@@ -867,7 +867,9 @@
+         let original = OriginalLiteralOperation::capture(self);
+         original.check()?;
+         let check = || original.check();
+-        let string = |value: &Value, protocol, registration: &dyn Fn() -> Result<(), Error>| {
++        let string = |value: &Value,
++                      protocol: tcl_syntax::native_string::NativeStringProtocol,
++                      registration: &(dyn Fn() -> Result<(), Error> + '_)| {
+             original.string(value, protocol, registration)
+         };
+         let refuse = |error| original.refuse(error);
+--- a/rust/tcl-vm/src/interp/native_variable_names.rs
++++ b/rust/tcl-vm/src/interp/native_variable_names.rs
+@@ -157,17 +157,18 @@
+             }
+             Ok(())
+         };
+-        let string =
+-            |value: &Value,
+-             protocol,
+-             registration: &dyn Fn()
+-                -> Result<(), crate::literal_pool::NativeLiteralUnavailable>| {
+-                check()?;
+-                original.string(value, protocol, &|| {
+-                    registration()?;
+-                    check()
+-                })
+-            };
++        let string = |value: &Value,
++                      protocol: tcl_syntax::native_string::NativeStringProtocol,
++                      registration: &(
++                           dyn Fn() -> Result<(), crate::literal_pool::NativeLiteralUnavailable>
++                               + '_
++                       )| {
++            check()?;
++            original.string(value, protocol, &|| {
++                registration()?;
++                check()
++            })
++        };
+         let refuse = |error| original.refuse(error);
+         let callbacks = crate::literal_pool::OriginalLiteralCallbacks {
+             check: &check,

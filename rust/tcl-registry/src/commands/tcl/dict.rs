@@ -1347,7 +1347,7 @@ mod selected_dictionary_layout_tests {
             .find(|spec| spec.name == "::tcl::dict::update")
             .unwrap();
         assert!(update.traits.contains(Traits::CREATES_SCOPE_ALIAS));
-        assert!(!update.repeated_args.is_empty());
+        assert_ne!(update.repeated_args.len(), 0);
         assert!(update.repeated_args[0].conditional_binding);
         assert_eq!(update.repeated_args[0].exclude_trailing, 1);
     }

@@ -290,7 +290,7 @@ mod tests {
                 if let Some(tail) = plan.fatal_tail {
                     assert_eq!(version, TclVersion::V8_4);
                     assert_eq!(case, 10);
-                    assert!(plan.commands.is_empty());
+                    assert_eq!(plan.commands.len(), 0);
                     assert_eq!(tail.command_start, 0);
                     assert_eq!(tail.cut.command, 0);
                     assert_eq!(tail.cut.message, "extra characters after close-brace");
@@ -299,7 +299,7 @@ mod tests {
                         fields[6],
                         "6578747261206368617261637465727320616674657220636c6f73652d6272616365"
                     );
-                    assert!(fields[7].is_empty());
+                    assert_eq!(fields[7].len(), 0);
                     checked += 1;
                     continue;
                 }

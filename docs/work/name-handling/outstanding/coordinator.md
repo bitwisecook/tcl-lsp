@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T17:55:45.594596+00:00
+Last updated: 2026-10-22T18:25:40.524330+00:00
 
 ## In progress
 
@@ -128,3 +128,16 @@ Last updated: 2026-10-22T17:55:45.594596+00:00
 - Externalfilesfresh17:39/17:38/17:33. BIGIPeditorgenerators3/3pass andgenericrewritefailswithoutF5. Freshregistry176includes136newassertion-stylefindingsofftree; old40+xtask53alreadyapplied. Perf full equalityunproven, routedcompilerpatchwithheld.
 - Exactorigin/rustbaseline24,312namedPASS rosterretained; binary-ID/skipinventorylimitsremainexplicit. No auditadmissions, validatedproduct-row changes, sectionFclosures, PR, merge orrelease.
 - Fresh externalperf private-Eq trace pinpoints first false helper ObjectHandleFacts::analysis_report_eq; exact differing owner/field cause and full equality proof remain unresolved. Routed read-only source review to names without masking Eq or taking over perf corpus.
+
+### Current cycle and routing (18:25 UTC)
+
+- Primary objective remains clean LSP merge/release readiness fromrust; generalruntimeparity deferred andnoPRunlessuserasks. AllsectionFboxes/validatedproductrows/auditcountsunchanged.
+- Closedfirststructuredcheckwith22errors/1unusedimportwarning; appliedcompiler14path, names2, VM2 andnew136registryassertions50pathcorrections. R2thenclosed18:11with4errors/0warnings;6522sourcehashes/providerhashesunchanged.
+- AppliedminimalLSP2pathownership/lifetimeandVM1testcallbackfixes plusfinalpeerreviewedC6T1053pathandtrustedJimproc2pathunderroot-onlylock. Archivedexactpatches/R2logs/guards/appliedhashreceipt; nosemanticgreenclaimed.
+- R3selected7crateall-targetscheckstarted18:19withcanonicalsourcefrozen,networkenabledfromstart,20MiBdraininglogs,disk/source/providerguards. Testsremainunexecutedforthisbatch.
+- FinalJimclassreviewfoundoldLogicalandnestedsourceoutlinecoveragegapsbeforelanding; VMcorrectsofftreewithactualsourcebody/conditionalcatalogueowners. Helduntilfreshpeerreview; nosyntheticauthority.
+- N13offtreeissuerandhosttransportreviewnowrequiresactualparentimage/currentness,BcurrentSourceLoadschema,globalnamespacederivedviewandexplicitunavailableloadstates. Parentretirement/savedhandleflow/liveprotocolunrun; nopartialintegration.
+- Fetchedisolatedpublisherworkdepth1andonly3missingparentsdepth1;FFto2bc3afb6e2. External5F5servermechanicalhunksarepublishedbutnotinactiveR3source; record1pathproductdifferenceuntilnextbetween-buildintegration.
+- Externalfilesfresh18:08/18:04/18:02. BIGIPunblockedworkdone;228genericserverlintmessagesroutedLSP+testloanCCG. PerfrawobjectreportdifferencebothsourceNone/all-old routednameswithoutEqmasking;provenrealmpatchstillwithheld.
+- Reviewtriagepost-R1run14ordinaryputscompletedworldstrue,coverage/importsstillrefuse;198engineexecutions/12matchedgeneratededitscorrecton49b067ce. Finalallfinding/e2e/sourceauditstillactive.
+- Exactoriginrustbaseline24312namedpassesretainedwithcanonicalbinaryID/skipinventorylimits; gatemapupdatedtocompleted5203andcurrentlockstaticremedies. Freshshippinggates/hosts/performance/completezeroP2Fstillrequired.

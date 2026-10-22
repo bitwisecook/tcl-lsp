@@ -726,10 +726,10 @@ mod tests {
             vec![(6, ArgRole::VarWrite), (7, ArgRole::Body)],
         );
         // The 1.x callback form: no trailing script, so no body role.
-        assert!(roles(&["root", "-command", "puts %n"]).is_empty());
+        assert_eq!(roles(&["root", "-command", "puts %n"]).len(), 0);
         // Truncated calls never invent a position.
-        assert!(roles(&["root"]).is_empty());
-        assert!(roles(&["root", "n"]).is_empty());
+        assert_eq!(roles(&["root"]).len(), 0);
+        assert_eq!(roles(&["root", "n"]).len(), 0);
     }
 
     /// `::struct::tree::prune` is a real command on the `struct::tree`

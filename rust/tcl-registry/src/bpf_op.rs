@@ -919,8 +919,8 @@ mod tests {
                 "{} must allow drop",
                 e.name
             );
-            assert!(!e.elf_section.is_empty());
-            assert!(!e.description.is_empty());
+            assert_ne!(e.elf_section.len(), 0);
+            assert_ne!(e.description.len(), 0);
         }
     }
 

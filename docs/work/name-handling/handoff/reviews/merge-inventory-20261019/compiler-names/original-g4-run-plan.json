@@ -1,0 +1,120 @@
+{
+  "prepared_utc": "2026-10-22T18:25:34.036823+00:00",
+  "status": "READY PLAN ONLY; no Cargo queued, no canonical Rust/test install needed",
+  "command_shape": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "tcl-compiler",
+    "--lib",
+    "SELECTOR",
+    "--",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "source_install": "NONE. Both g4 aggregate and zz probe already exist inside tracked cfg(test) analyser/types.rs module; all eight regressions already exist. Do not install the earlier public integration diagnosis probe. No new source writes between compiler C6 family filters and these selectors.",
+  "run_policy": "Compiler owns next approved slot and runs normal cargo build+run for every filter using same frozen lib-test inputs; first filter links current binary, subsequent cargo freshness reused only through Cargo. Global lock over each full command including artifact/source receipts; capped/drained20MB logs in /tmp; disk>=2GB; no executable cleanup<60min/no deleting target while cargo or rustc. Zero selected rejected.",
+  "required_filters": [
+    {
+      "label": "g4-main",
+      "selector": "analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "ZZ_PROBE_OPAQUE": "1"
+      },
+      "source": "rust/tcl-compiler/src/analyser/types.rs"
+    },
+    {
+      "label": "g4-zz",
+      "selector": "analyser::types::original_declaration_inventory_tests::zz_probe_import_and_crlf",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "ZZ_PROBE_ENSEMBLE": "1",
+        "ZZ_PROBE_OPAQUE": "1"
+      },
+      "source": "rust/tcl-compiler/src/analyser/types.rs"
+    },
+    {
+      "label": "g4-regress-conditional_expression_template_retains_grammar_without_actual_entry",
+      "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs"
+    },
+    {
+      "label": "g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "selector": "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/declaration_layout.rs"
+    },
+    {
+      "label": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/expression_preparation.rs"
+    },
+    {
+      "label": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/expression_preparation.rs"
+    },
+    {
+      "label": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "selector": "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs"
+    },
+    {
+      "label": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/normal_result.rs"
+    },
+    {
+      "label": "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs"
+    },
+    {
+      "label": "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation",
+      "selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/source_command_world.rs"
+    }
+  ],
+  "expectations": [
+    "Main keeps all27 original world/body controls for each Tcl8.6/9.0 (54subcases), strengthened nonempty return inventory and original_lookup assertions. No assertion edits in this plan.",
+    "ZZ is diagnostic: require9 ZZ_RESULT rows, no panic result; record import body p lookup/reference, N10 namespace-path C original lookup/reference, relative rex and Widget rows. Its test exit alone does not prove these facts because it catches panics and prints values.",
+    "Eight original pass-to-fail regressions retain their exact assertions; jointly attribute any failures with compiler under recorded13:17 actual compiler-visit decision, not blanket expectation changes.",
+    "C6 three family filters remain compiler-owned; run same current compiler lib binary via Cargo.",
+    "Broad command_binding::/signature_scan:: and early worker/CRLF/substituted/W210 filters remain mandatory separately scheduled, not silently substituted by these ten."
+  ],
+  "later_early_filters": [
+    "original_readonly_worker_formal",
+    "crlf_class_method",
+    "substituted_heads_and_consumed",
+    "w210_pkgindex"
+  ],
+  "evidence_reference": "buildrun.sh early; old runfilters.sh is stale/naked executable and must not be used."
+}

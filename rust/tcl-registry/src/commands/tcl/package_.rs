@@ -951,14 +951,14 @@ mod tests {
                 .resolve_invocation("package", words, None)
                 .expect("query resolves")
                 .facts();
-            assert!(
+            assert_eq!(
                 facts
                     .state_transitions
                     .declared()
                     .expect("declared package transitions")
                     .facts()
-                    .is_empty()
-            );
+                    .len()
+            , 0);
         }
         let facts = registry
             .resolve_invocation("package", &["ifneeded", "p", "1", "set ::loaded 1"], None)
@@ -1076,14 +1076,14 @@ mod tests {
                     .any(|access| access.domain == WorldStateDomain::PackageState
                         && access.mode == EffectAccessMode::ReadWrite)
             );
-            assert!(
-                !setter
+            assert_ne!(
+                setter
                     .state_transitions
                     .declared()
                     .expect("declared package transitions")
                     .facts()
-                    .is_empty()
-            );
+                    .len()
+            , 0);
         }
     }
 
@@ -1118,7 +1118,7 @@ mod tests {
             assert!(operation.arity.accepts(0));
             assert!(!operation.arity.accepts(1));
             assert_eq!(operation.return_type, Some(crate::TclType::List));
-            assert!(operation.arg_roles.is_empty());
+            assert_eq!(operation.arg_roles.len(), 0);
             assert!(operation.body_execution.is_none());
         }
     }

@@ -1,0 +1,13 @@
+--- a/rust/tcl-vm/src/literal_pool/original_registration_tests.rs
++++ b/rust/tcl-vm/src/literal_pool/original_registration_tests.rs
+@@ -39,8 +39,8 @@
+         let refuse = |_| NativeLiteralUnavailable::unavailable("original registration callback");
+         let string =
+             |value: &Value,
+-             selected,
+-             current: &dyn Fn() -> Result<(), NativeLiteralUnavailable>| {
++             selected: NativeStringProtocol,
++             current: &(dyn Fn() -> Result<(), NativeLiteralUnavailable> + '_)| {
+                 value
+                     .native_string_bytes_checked_for_value(selected, None, &mut |original| {
+                         if calls.get() == 0 {

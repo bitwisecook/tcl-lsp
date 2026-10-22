@@ -39,8 +39,8 @@ fn original_literal_registration_checks_episode_inside_same_value_string_worker(
         let refuse = |_| NativeLiteralUnavailable::unavailable("original registration callback");
         let string =
             |value: &Value,
-             selected,
-             current: &dyn Fn() -> Result<(), NativeLiteralUnavailable>| {
+             selected: NativeStringProtocol,
+             current: &(dyn Fn() -> Result<(), NativeLiteralUnavailable> + '_)| {
                 value
                     .native_string_bytes_checked_for_value(selected, None, &mut |original| {
                         if calls.get() == 0 {

@@ -141,7 +141,7 @@ mod tests {
         let stated = CommandTableEffect::CreatesAliases
             .transitions()
             .resolve(InvocationArguments::literals(&["myTree", "", "x", ""]));
-        assert!(stated.facts().is_empty());
+        assert_eq!(stated.facts().len(), 0);
     }
 
     /// A dynamic operand never reaches a consumer as a source spelling: it

@@ -13,7 +13,7 @@ use tcl_core_types::DiagCode;
 use tcl_registry::AuthoredSourceCredentialPosition;
 
 fn selected_credential(original: &OriginalDiagnosticInvocation) -> Option<Diagnostic> {
-    let arguments = original.with_schema(tcl_registry::ResolvedInvocation::authored_source_credential_arguments)?;
+    let arguments = original.with_schema(|schema| schema.authored_source_credential_arguments())?;
     for argument in arguments {
         let Some(word) = original.word(argument.argument) else {
             continue;

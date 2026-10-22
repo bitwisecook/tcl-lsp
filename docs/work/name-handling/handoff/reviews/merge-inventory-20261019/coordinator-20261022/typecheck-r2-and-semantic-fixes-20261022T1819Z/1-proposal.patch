@@ -1,0 +1,34 @@
+--- a/rust/tcl-lsp-core/src/semantic_tokens/original.rs
++++ b/rust/tcl-lsp-core/src/semantic_tokens/original.rs
+@@ -1050,7 +1050,7 @@
+                     command,
+                     word,
+                     tcl_registry::ArgRole::Name,
+-                    kind,
++                    kind.clone(),
+                     overrides,
+                 );
+             }
+--- a/rust/tcl-lsp-core/src/workspace_index.rs
++++ b/rust/tcl-lsp-core/src/workspace_index.rs
+@@ -7969,9 +7969,9 @@
+ }
+ 
+ #[derive(Clone, Copy)]
+-struct ExportQuery<'p, 's> {
++struct ExportQuery<'p, 's, 'n> {
+     pattern: Option<&'p tcl_compiler::signature_scan::original_name::SourceNamespacePattern>,
+-    subjects: &'s [&'s tcl_compiler::signature_scan::scope::SignatureSourceCommand],
++    subjects: &'s [&'n tcl_compiler::signature_scan::scope::SignatureSourceCommand],
+     source_known: bool,
+ }
+ 
+@@ -7983,7 +7983,7 @@
+         order: &crate::source_graph::RunOrder,
+         source_ns: &str,
+         site: ImportSite<'_>,
+-        query: ExportQuery<'_, '_>,
++        query: ExportQuery<'_, '_, 'a>,
+         purpose: crate::namespace_import::NamespaceStatementPurpose,
+     ) -> Self {
+         let ExportQuery {

@@ -532,7 +532,7 @@ mod tests {
         let switchstate = toggleswitch.resolve_subcommand("switchstate").unwrap();
         assert!(switchstate.traits.is_empty());
         assert!(!switchstate.mutator);
-        assert!(switchstate.side_effects.is_empty());
+        assert_eq!(switchstate.side_effects.len(), 0);
         assert_eq!(switchstate.subcommand_forms.len(), 2);
         let get = toggleswitch.resolve_subcommand("get").unwrap();
         assert_eq!(get.return_type, Some(crate::TclType::Double));
@@ -1168,8 +1168,8 @@ mod tests {
                 let sub = class
                     .instance_method(method)
                     .unwrap_or_else(|| panic!("{command} must expose {method}"));
-                assert!(!sub.detail.is_empty());
-                assert!(!sub.synopsis.is_empty());
+                assert_ne!(sub.detail.len(), 0);
+                assert_ne!(sub.synopsis.len(), 0);
                 assert!(sub.return_type.is_some());
                 if method == "cget" {
                     assert!(sub.side_effects.iter().any(|effect| {

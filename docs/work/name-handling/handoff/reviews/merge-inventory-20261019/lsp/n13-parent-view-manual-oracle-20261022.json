@@ -1,0 +1,194 @@
+{
+  "created_utc": "2026-10-22T18:00:53.080604+00:00",
+  "status": "manual fresh C Tcl script controls only; no LSP entry/publication/retained-handle test verdict",
+  "source": "namespace eval lib {proc héλper {} {return GOOD}}\nnamespace eval app {\n    namespace path ::lib\n    source [file join [file dirname [info script]] .. shared.tcl]\n}\nputs [::app::run]\n",
+  "source_sha256": "61e663b0d6b68dd49499edf36d42da65ef45622aa70cba5d16052fef13c15231",
+  "child_source": "proc run {} {héλper}\n",
+  "child_sha256": "eb7f2b00e2440010cc6f633641e520b81913fb544b18459a45cc1f738dcc3158",
+  "same_physical_child_for_A_and_B": "/tmp/lsp-n13-parent-view-fixture/shared.tcl",
+  "physical_parents": [
+    "/tmp/lsp-n13-parent-view-fixture/A/root.tcl",
+    "/tmp/lsp-n13-parent-view-fixture/B/root.tcl"
+  ],
+  "old_A_equals_B_equals_restored_A_bytes": true,
+  "passed": 16,
+  "total": 16,
+  "runs": [
+    {
+      "stage": "original_A",
+      "profile": "tcl8.5",
+      "pinned_patchlevel": "8.5.19",
+      "path": "/tmp/lsp-n13-parent-view-fixture/A/root.tcl",
+      "source_sha256": "61e663b0d6b68dd49499edf36d42da65ef45622aa70cba5d16052fef13c15231",
+      "exit_code": 0,
+      "stdout": "GOOD\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "original_A",
+      "profile": "tcl8.6",
+      "pinned_patchlevel": "8.6.18",
+      "path": "/tmp/lsp-n13-parent-view-fixture/A/root.tcl",
+      "source_sha256": "61e663b0d6b68dd49499edf36d42da65ef45622aa70cba5d16052fef13c15231",
+      "exit_code": 0,
+      "stdout": "GOOD\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "original_A",
+      "profile": "tcl9.0",
+      "pinned_patchlevel": "9.0.4",
+      "path": "/tmp/lsp-n13-parent-view-fixture/A/root.tcl",
+      "source_sha256": "61e663b0d6b68dd49499edf36d42da65ef45622aa70cba5d16052fef13c15231",
+      "exit_code": 0,
+      "stdout": "GOOD\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "original_A",
+      "profile": "tcl9.1",
+      "pinned_patchlevel": "9.1.0",
+      "path": "/tmp/lsp-n13-parent-view-fixture/A/root.tcl",
+      "source_sha256": "61e663b0d6b68dd49499edf36d42da65ef45622aa70cba5d16052fef13c15231",
+      "exit_code": 0,
+      "stdout": "GOOD\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "retired_A_version2",
+      "profile": "tcl8.5",
+      "pinned_patchlevel": "8.5.19",
+      "path": "/tmp/lsp-n13-parent-view-fixture/A/root.tcl",
+      "source_sha256": "da757fe94f2cf797baa73fb18b4985d6b6e92ca930047c8448fbfdf53ef4d4e4",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "retired_A_version2",
+      "profile": "tcl8.6",
+      "pinned_patchlevel": "8.6.18",
+      "path": "/tmp/lsp-n13-parent-view-fixture/A/root.tcl",
+      "source_sha256": "da757fe94f2cf797baa73fb18b4985d6b6e92ca930047c8448fbfdf53ef4d4e4",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "retired_A_version2",
+      "profile": "tcl9.0",
+      "pinned_patchlevel": "9.0.4",
+      "path": "/tmp/lsp-n13-parent-view-fixture/A/root.tcl",
+      "source_sha256": "da757fe94f2cf797baa73fb18b4985d6b6e92ca930047c8448fbfdf53ef4d4e4",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "retired_A_version2",
+      "profile": "tcl9.1",
+      "pinned_patchlevel": "9.1.0",
+      "path": "/tmp/lsp-n13-parent-view-fixture/A/root.tcl",
+      "source_sha256": "da757fe94f2cf797baa73fb18b4985d6b6e92ca930047c8448fbfdf53ef4d4e4",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "B_equal_to_old_A",
+      "profile": "tcl8.5",
+      "pinned_patchlevel": "8.5.19",
+      "path": "/tmp/lsp-n13-parent-view-fixture/B/root.tcl",
+      "source_sha256": "61e663b0d6b68dd49499edf36d42da65ef45622aa70cba5d16052fef13c15231",
+      "exit_code": 0,
+      "stdout": "GOOD\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "B_equal_to_old_A",
+      "profile": "tcl8.6",
+      "pinned_patchlevel": "8.6.18",
+      "path": "/tmp/lsp-n13-parent-view-fixture/B/root.tcl",
+      "source_sha256": "61e663b0d6b68dd49499edf36d42da65ef45622aa70cba5d16052fef13c15231",
+      "exit_code": 0,
+      "stdout": "GOOD\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "B_equal_to_old_A",
+      "profile": "tcl9.0",
+      "pinned_patchlevel": "9.0.4",
+      "path": "/tmp/lsp-n13-parent-view-fixture/B/root.tcl",
+      "source_sha256": "61e663b0d6b68dd49499edf36d42da65ef45622aa70cba5d16052fef13c15231",
+      "exit_code": 0,
+      "stdout": "GOOD\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "B_equal_to_old_A",
+      "profile": "tcl9.1",
+      "pinned_patchlevel": "9.1.0",
+      "path": "/tmp/lsp-n13-parent-view-fixture/B/root.tcl",
+      "source_sha256": "61e663b0d6b68dd49499edf36d42da65ef45622aa70cba5d16052fef13c15231",
+      "exit_code": 0,
+      "stdout": "GOOD\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "restored_A_new_publication",
+      "profile": "tcl8.5",
+      "pinned_patchlevel": "8.5.19",
+      "path": "/tmp/lsp-n13-parent-view-fixture/A/root.tcl",
+      "source_sha256": "61e663b0d6b68dd49499edf36d42da65ef45622aa70cba5d16052fef13c15231",
+      "exit_code": 0,
+      "stdout": "GOOD\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "restored_A_new_publication",
+      "profile": "tcl8.6",
+      "pinned_patchlevel": "8.6.18",
+      "path": "/tmp/lsp-n13-parent-view-fixture/A/root.tcl",
+      "source_sha256": "61e663b0d6b68dd49499edf36d42da65ef45622aa70cba5d16052fef13c15231",
+      "exit_code": 0,
+      "stdout": "GOOD\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "restored_A_new_publication",
+      "profile": "tcl9.0",
+      "pinned_patchlevel": "9.0.4",
+      "path": "/tmp/lsp-n13-parent-view-fixture/A/root.tcl",
+      "source_sha256": "61e663b0d6b68dd49499edf36d42da65ef45622aa70cba5d16052fef13c15231",
+      "exit_code": 0,
+      "stdout": "GOOD\n",
+      "stderr": "",
+      "passed": true
+    },
+    {
+      "stage": "restored_A_new_publication",
+      "profile": "tcl9.1",
+      "pinned_patchlevel": "9.1.0",
+      "path": "/tmp/lsp-n13-parent-view-fixture/A/root.tcl",
+      "source_sha256": "61e663b0d6b68dd49499edf36d42da65ef45622aa70cba5d16052fef13c15231",
+      "exit_code": 0,
+      "stdout": "GOOD\n",
+      "stderr": "",
+      "passed": true
+    }
+  ]
+}

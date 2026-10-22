@@ -1390,8 +1390,8 @@ mod tests {
             "bgerror", "child", "handler",
         ]));
 
-        assert!(recursion_query.facts().is_empty());
-        assert!(bgerror_query.facts().is_empty());
+        assert_eq!(recursion_query.facts().len(), 0);
+        assert_eq!(bgerror_query.facts().len(), 0);
         assert_eq!(recursion_set.facts().len(), 1);
         assert_eq!(bgerror_set.facts().len(), 1);
 

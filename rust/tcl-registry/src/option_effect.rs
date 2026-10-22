@@ -1036,7 +1036,7 @@ mod tests {
             let ended = effects(&["--", "-inline", "s", "v"]);
             assert!(ended.complete, "{provider}: {ended:?}");
             assert!(ended.ended_by_marker);
-            assert!(ended.shifts.is_empty());
+            assert_eq!(ended.shifts.len(), 0);
             assert_eq!(ended.option_end, 1);
         }
     }

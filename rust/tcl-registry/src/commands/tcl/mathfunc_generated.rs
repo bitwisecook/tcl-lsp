@@ -284,7 +284,7 @@ mod tests {
             .resolve_invocation("::tcl::mathfunc::abs", &["-3"], None)
             .unwrap();
         let facts = resolved.facts();
-        assert!(facts.effects.accesses().is_empty());
+        assert_eq!(facts.effects.accesses().len(), 0);
         assert_eq!(facts.effects.callback(), crate::CallbackEffect::NONE);
         // This descriptor closes only tracked callback/storage worlds. Numeric
         // representation conversion is independently proved by native consumers.

@@ -1152,7 +1152,7 @@ mod tests {
                 visited.push(span);
                 NativeExpressionScriptPreparation::Compiled
             });
-        assert!(visited.is_empty());
+        assert_eq!(visited.len(), 0);
         assert!(matches!(proof, ExpressionPreparationProof::Unknown));
     }
 }

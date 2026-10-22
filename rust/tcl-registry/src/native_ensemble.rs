@@ -798,7 +798,7 @@ mod configuration_surface_tests {
                     mapping: Some(0)
                 }]
             );
-            assert!(plan.displaced_mappings.is_empty());
+            assert_eq!(plan.displaced_mappings.len(), 0);
             assert_eq!(
                 recipe.resolve_member(&[b"moon".as_slice()], b"m\0tail", true),
                 None

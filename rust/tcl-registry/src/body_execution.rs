@@ -1054,7 +1054,7 @@ mod tests {
             contract().hook_policy(Some("2.4.0")),
             BodyHookPolicy::Unknown
         );
-        assert!(contract().required_absent_hooks(Some("2.3.8")).is_empty());
+        assert_eq!(contract().required_absent_hooks(Some("2.3.8")).len(), 0);
         assert_eq!(contract().required_absent_hooks(None).len(), 3);
     }
 

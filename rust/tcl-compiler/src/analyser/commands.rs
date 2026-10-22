@@ -1684,7 +1684,7 @@ impl Analyser {
             presubstituted_args: false,
         };
         let original = self.original_diagnostic_invocation(&site)?;
-        let transitions = original.with_schema(tcl_registry::ResolvedInvocation::state_transitions)?;
+        let transitions = original.with_schema(|schema| schema.state_transitions())?;
         let mut values = Vec::new();
         let mut tokens = Vec::new();
         for index in 0..original.words().arguments().len() {
@@ -2888,7 +2888,7 @@ impl Analyser {
             );
         let plan = source_words.as_ref().and_then(|words| {
             words
-                .with_source_schema(generation.as_ref(), tcl_registry::ResolvedInvocation::clause_plan)
+                .with_source_schema(generation.as_ref(), |schema| schema.clause_plan())
                 .flatten()
         });
         if let (Some(plan), Some(words)) = (plan.as_ref(), source_words.as_ref()) {

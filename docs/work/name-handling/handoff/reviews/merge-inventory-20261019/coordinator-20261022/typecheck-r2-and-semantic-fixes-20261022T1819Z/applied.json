@@ -1,0 +1,44 @@
+{
+  "utc": "2026-10-22T18:18:19.680883+00:00",
+  "head": "db3e37828ffe984f694f48d7f27cbaaa8113f0fa",
+  "patches": [
+    {
+      "path": "/tmp/lsp-r2-typefix/proposal.patch",
+      "sha256": "862af8f36127febe9c3d3999457d8ac89110419bdd5db094d53d8914996dab00"
+    },
+    {
+      "path": "/tmp/vm-runtime-typecheck-r2/callback-test-generality.patch",
+      "sha256": "8f0c5107abfb4ff1be91ac395c9d6db016d50cb8b582e7af8e1938327793f265"
+    },
+    {
+      "path": "/tmp/compiler-c6-taint-read-and-layout.patch",
+      "sha256": "f1b4c40c948b4d0b77a571ef734ac1a55fc1b36edd6811e6dcfebfecb1ccdc0f"
+    },
+    {
+      "path": "/tmp/vm-runtime-jim-descriptor-shadow/trusted-jim-proc.patch",
+      "sha256": "346d63ea42ce2886b30766c91145b79061539bd28ab362b5a84c81070c9cb32b"
+    }
+  ],
+  "before": {
+    "rust/tcl-compiler/src/registry_invocation.rs": "6b2c14e095f60ac760daf31ed844856b6cf6105d45d0925fc526dc73fa439651",
+    "rust/tcl-compiler/src/registry_invocation/source_taint.rs": "87470b45cf11e1a1ec0a6864dfcda5706bc05ae3e8edada61add873c5740cbbf",
+    "rust/tcl-compiler/src/taint.rs": "1398e65fa9c11fd376f105b94b75fcce7dd80bb942276550a5461a692422ed2e",
+    "rust/tcl-lsp-core/src/semantic_tokens/original.rs": "a93047b313275e9d26816a667731b96b74958dfd66d241c6b2e40ee9c7dd0e3f",
+    "rust/tcl-lsp-core/src/workspace_index.rs": "db87be0bbefa6f738b47e482882bfbf2fd40f49073942c48f6f40506bb75fafc",
+    "rust/tcl-registry/src/cache.rs": "dc41ec25dd6ca17660d2e341d7c211f2ad73216e7527a22788fbf9bbbabeb401",
+    "rust/tcl-registry/src/native_procedure.rs": "f60fb6e65b2d19b0eebf07d3964637ffdcd05d8fcd6d514500db3cb4c680cd45",
+    "rust/tcl-vm/src/literal_pool/original_registration_tests.rs": "93f0d5d96c328a7216e3ba6f1383b3f5e2c590445d688eb09eeea20d7165c645"
+  },
+  "after": {
+    "rust/tcl-compiler/src/registry_invocation.rs": "421af5f651028250824eb9b50ef17e782cb2e96d43446e7fdf1e32c3666cdf50",
+    "rust/tcl-compiler/src/registry_invocation/source_taint.rs": "09e053b559b70966ece3926c8dd62ea6381efc908d9b1153d965813a73c8ca2a",
+    "rust/tcl-compiler/src/taint.rs": "e44f95cda281895ce898d006fe3e3f89c843f15fb551e498adaf9496a78ac8eb",
+    "rust/tcl-lsp-core/src/semantic_tokens/original.rs": "59eda72e9f646c2d526b865de47e7df18cb62327e2ae8eb2348f6370e594199e",
+    "rust/tcl-lsp-core/src/workspace_index.rs": "cdcf378220769d158a96f1999b1f82b546d9ea6ab375209ce7f0792f56672937",
+    "rust/tcl-registry/src/cache.rs": "b6249777d87153f0b9b17561a1aaf6812a63e0098259b036fb75853499bbb38c",
+    "rust/tcl-registry/src/native_procedure.rs": "3adb92e6d21601669ddfdf751db9219da677d941b4bea986869afc3f5502e790",
+    "rust/tcl-vm/src/literal_pool/original_registration_tests.rs": "4dc80d69bf0fd31db09849a900ec093135a737ecb44a732a35019244e77eb8af"
+  },
+  "scope": "R2 type fixes plus peer-reviewed T105 and trusted Jim proc; semantic assertions unchanged; no test acceptance",
+  "r2": "exit101/four errors/zero warnings;6522 input hashes unchanged; lock released before source window"
+}

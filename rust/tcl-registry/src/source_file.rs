@@ -329,12 +329,12 @@ mod tests {
             &[InvocationWord::Expanded][..],
             &[InvocationWord::Dynamic, InvocationWord::Dynamic][..],
         ] {
-            assert!(
+            assert_eq!(
                 SOURCE_TRANSITIONS
                     .resolve(InvocationArguments::structured(words))
                     .facts()
-                    .is_empty()
-            );
+                    .len()
+            , 0);
         }
     }
 

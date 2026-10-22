@@ -4990,7 +4990,7 @@ impl<'a> SourceMatcherLayout<'a> {
             ArgRole, native_compilation::SuccessfulHandlerSpec,
             variable_output::NativeVariableOutputSpec,
         };
-        let facts = words.with_source_schema(context, tcl_registry::ResolvedInvocation::facts)?;
+        let facts = words.with_source_schema(context, |schema| schema.facts())?;
         let SuccessfulHandlerSpec::ConditionalVariableOperands(protocol) =
             facts.successful_handler?
         else {

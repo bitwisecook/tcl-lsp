@@ -1,0 +1,106 @@
+{
+  "cargo_json_parse_errors": 0,
+  "cargo_json_parsed_lines": 329,
+  "cargo_message_counts": {
+    "build-finished": 1,
+    "build-script-executed": 27,
+    "compiler-artifact": 295,
+    "compiler-message": 6
+  },
+  "command": [
+    "cargo",
+    "check",
+    "--locked",
+    "--keep-going",
+    "-p",
+    "tcl-registry",
+    "-p",
+    "tcl-compiler",
+    "-p",
+    "tcl-vm",
+    "-p",
+    "tcl-spectcl",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "tcl-lsp-server",
+    "--all-targets",
+    "--message-format=json"
+  ],
+  "compiler_error_count": 4,
+  "compiler_errors": [
+    {
+      "code": "E0382",
+      "message": "use of moved value: `kind`",
+      "primary_spans": [
+        {
+          "column_end": 25,
+          "column_start": 21,
+          "file_name": "rust/tcl-lsp-core/src/semantic_tokens/original.rs",
+          "line_end": 1053,
+          "line_start": 1053
+        }
+      ],
+      "rendered": "error[E0382]: use of moved value: `kind`\n    --> rust/tcl-lsp-core/src/semantic_tokens/original.rs:1053:21\n     |\n1040 |         let kind = match kind {\n     |             ---- move occurs because `kind` has type `ArgOverride`, which does not implement the `Copy` trait\n...\n1044 |         for index in indices {\n     |         -------------------- inside of this loop\n...\n1053 |                     kind,\n     |                     ^^^^ value moved here, in previous iteration of loop\n     |\nnote: consider changing this parameter type in function `insert_member_source_role` to borrow instead if owning the value isn't necessary\n    --> rust/tcl-lsp-core/src/semantic_tokens/original.rs:479:11\n     |\n 475 | fn insert_member_source_role(\n     |    ------------------------- in this function\n...\n 479 |     kind: ArgOverride,\n     |           ^^^^^^^^^^^ this parameter takes ownership of the value\nhelp: consider cloning the value if the performance cost is acceptable\n     |\n1053 |                     kind.clone(),\n     |                         ++++++++\n\n"
+    },
+    {
+      "code": "E0621",
+      "message": "explicit lifetime required in the type of `query`",
+      "primary_spans": [
+        {
+          "column_end": 14,
+          "column_start": 20,
+          "file_name": "rust/tcl-lsp-core/src/workspace_index.rs",
+          "line_end": 8047,
+          "line_start": 8043
+        }
+      ],
+      "rendered": "error[E0621]: explicit lifetime required in the type of `query`\n    --> rust/tcl-lsp-core/src/workspace_index.rs:8043:20\n     |\n8043 |               return Self {\n     |  ____________________^\n8044 | |                 literal,\n8045 | |                 globs: Vec::new(),\n8046 | |                 original_tail_matched: true,\n8047 | |             };\n     | |_____________^ lifetime `'a` required\n     |\nhelp: add explicit lifetime `'a` to the type of `query`\n     |\n7986 -         query: ExportQuery<'_, '_>,\n7986 +         query: ExportQuery<'_, 'a>,\n     |\n\n"
+    },
+    {
+      "code": null,
+      "message": "implementation of `Fn` is not general enough",
+      "primary_spans": [
+        {
+          "column_end": 28,
+          "column_start": 21,
+          "file_name": "rust/tcl-vm/src/literal_pool/original_registration_tests.rs",
+          "line_end": 72,
+          "line_start": 72
+        }
+      ],
+      "rendered": "error: implementation of `Fn` is not general enough\n  --> rust/tcl-vm/src/literal_pool/original_registration_tests.rs:72:21\n   |\n72 |             string: &string,\n   |                     ^^^^^^^ implementation of `Fn` is not general enough\n   |\n   = note: closure with signature `for<'a, 'b> fn(&'a Value, _, &'b (dyn Fn() -> _ + 'b)) -> _` must implement `Fn<(&Value, _, &'0 (dyn Fn() -> _ + '1))>`, for any two lifetimes `'0` and `'1`...\n   = note: ...but it actually implements `Fn<(&Value, _, &'2 (dyn Fn() -> _ + '2))>`, for some specific lifetime `'2`\nhelp: consider adding an explicit type annotation to the closure's argument\n   |\n42 |              selected: tcl_syntax::native_string::NativeStringProtocol,\n   |                      +++++++++++++++++++++++++++++++++++++++++++++++++\n\n"
+    },
+    {
+      "code": null,
+      "message": "implementation of `Fn` is not general enough",
+      "primary_spans": [
+        {
+          "column_end": 28,
+          "column_start": 21,
+          "file_name": "rust/tcl-vm/src/literal_pool/original_registration_tests.rs",
+          "line_end": 72,
+          "line_start": 72
+        }
+      ],
+      "rendered": "error: implementation of `Fn` is not general enough\n  --> rust/tcl-vm/src/literal_pool/original_registration_tests.rs:72:21\n   |\n72 |             string: &string,\n   |                     ^^^^^^^ implementation of `Fn` is not general enough\n   |\n   = note: closure with signature `for<'a, 'b> fn(&'a Value, _, &'b (dyn Fn() -> _ + 'b)) -> _` must implement `Fn<(&Value, _, &dyn Fn() -> _)>`\n   = note: ...but it actually implements `Fn<(&Value, _, &'0 (dyn Fn() -> _ + '0))>`, for some specific lifetime `'0`\nhelp: consider adding an explicit type annotation to the closure's argument\n   |\n42 |              selected: tcl_syntax::native_string::NativeStringProtocol,\n   |                      +++++++++++++++++++++++++++++++++++++++++++++++++\n\n"
+    }
+  ],
+  "cwd": "/workspace/naming-migration-active/tcl-lsp",
+  "exit_code": 101,
+  "finish_utc": "2026-10-22T18:11:06.391397+00:00",
+  "git_diff_hash_after": "d562b7e48ea47351c2ba5bedd55b8544900c4f7b135c0b55cfa23f05862c1ba2",
+  "git_diff_hash_before": "d562b7e48ea47351c2ba5bedd55b8544900c4f7b135c0b55cfa23f05862c1ba2",
+  "logs_truncated": false,
+  "oracle_mismatches": [],
+  "retained_log_bytes": 248951,
+  "retention_cap_bytes": 20971520,
+  "source_head_after": "db3e37828ffe984f694f48d7f27cbaaa8113f0fa",
+  "source_head_before": "db3e37828ffe984f694f48d7f27cbaaa8113f0fa",
+  "source_inputs_changed": [],
+  "start_utc": "2026-10-22T18:05:55.523795+00:00",
+  "stderr_bytes_total": 1344,
+  "stdout_bytes_total": 247607
+}
