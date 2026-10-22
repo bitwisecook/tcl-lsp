@@ -5806,6 +5806,14 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                 "oo::class create C { variable n; method get {} {return $n} }\n",
             ),
             ("tcl8.6", "proc greet {} { return hi }\nputs [greet]\nputs [greet]\n"),
+            (
+                "tcl8.6",
+                "namespace eval a {namespace export *; proc foo {} {return A}}; namespace eval b {proc foo {} {return B}; namespace import -force ::a::*; puts [foo]}\n",
+            ),
+            (
+                "tcl8.6",
+                "namespace eval ::a { oo::class create C {}; C create rex }\nnamespace eval ::a { rex destroy }\n",
+            ),
         ] {
             let result = std::panic::catch_unwind(|| {
                 crate::analyser::Analyser::new().analyse(source, dialect)
@@ -5826,7 +5834,10 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                         row.range.start(),
                         row.original_name_input.is_some(),
                         row.original_lookup.is_some(),
-                        row.resolved_command_reference.is_some()
+                        format!("{:?}", row.resolved_command_reference)
+                            .chars()
+                            .take(240)
+                            .collect::<String>()
                     );
                 }
             }

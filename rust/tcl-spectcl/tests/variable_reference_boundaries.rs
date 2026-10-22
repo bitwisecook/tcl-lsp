@@ -101,18 +101,24 @@ fn a_colon_run_in_a_template_is_a_namespace_separator() {
 }
 
 /// The live hook folds the value its Tcl computes: `good`, not the cell a
-/// whole-name reading of `$a:b` would select.
+/// whole-name reading of `$a:b` would select; `${a}:b` is the braced control.
 #[test]
 fn a_live_hook_folds_the_value_its_substitution_computes() {
-    for dsl in ["1", "2.0"] {
+    for (dsl, reference) in [
+        ("1", "$arr($a:b)"),
+        ("2.0", "$arr($a:b)"),
+        ("1", "$arr(${a}:b)"),
+        ("2.0", "$arr(${a}:b)"),
+    ] {
         let source = format!(
             "speclib edge {dsl} {{\n    command edge::test {{\n        arity 1\n        \
              arg 0 -role Value\n        const_fold -inputs {{words}} {{words ctx}} {{\n            \
              set a x\n            set a:b BAD\n            set arr(x:b) good\n            \
-             set arr(BAD) bad\n            fold $arr($a:b)\n        }}\n    }}\n}}\n"
+             set arr(BAD) bad\n            fold {reference}\n        }}\n    }}\n}}\n"
         );
         let dir = std::env::temp_dir().join(format!(
-            "tcl-spectcl-variable-reference-{dsl}-{}-{:?}",
+            "tcl-spectcl-variable-reference-{dsl}-{}-{}-{:?}",
+            reference.len(),
             std::process::id(),
             std::thread::current().id()
         ));
@@ -127,7 +133,7 @@ fn a_live_hook_folds_the_value_its_substitution_computes() {
             dependency_tier: None,
         }]);
         let plan = hooks::plan_for(&packs);
-        assert!(!plan.is_empty(), "dsl={dsl}: the hook is planned");
+        assert!(!plan.is_empty(), "dsl={dsl} {reference}: the hook is planned");
         let host = Rc::new(tclvm_host());
         for programs in plan.packs() {
             for installed in host.install_pack_hooks(programs.clone()) {
@@ -147,6 +153,6 @@ fn a_live_hook_folds_the_value_its_substitution_computes() {
         .collect();
         pack_hooks::clear_host();
         let _ = std::fs::remove_dir_all(&dir);
-        assert_eq!(folded, ["good"], "dsl={dsl}");
+        assert_eq!(folded, ["good"], "dsl={dsl} {reference}");
     }
 }

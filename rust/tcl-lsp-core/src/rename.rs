@@ -468,9 +468,9 @@ pub fn rename_in_program(
     let edits = rename_in_program_unchecked(
         source, dialect, line, character, new_name, analysis, resolution,
     )?;
-    if resolution.program.is_some() {
-        let line_index = LineIndex::new(source);
-        if let Some(edit) = edits.iter().find(|edit| {
+    let line_index = LineIndex::new(source);
+    if resolution.program.is_some()
+        && let Some(edit) = edits.iter().find(|edit| {
             crate::definition::program_forced_import_abstains(
                 analysis,
                 resolution.program,
@@ -481,9 +481,43 @@ pub fn rename_in_program(
                     edit.range.start_character,
                 ),
             )
-        }) {
+        })
+    {
+        return Err(crate::rename_safety::RenameRefusal {
+            reason: FORCE_IMPORT_CONDITIONAL.to_owned(),
+            range: Some(edit.range),
+        });
+    }
+    // One settlement for both providers (review N05): a rename never edits an
+    // occurrence that find-references from the same cursor does not report as
+    // the same binding — e.g. a call a later `namespace import -force`
+    // retargets. Any such edit refuses the whole rename.
+    if !edits.is_empty() {
+        let references = crate::references::references_in_program(
+            source,
+            dialect,
+            line,
+            character,
+            analysis,
+            true,
+            resolution.program,
+        );
+        let offset = |line: u32, character: u32| {
+            crate::definition::byte_offset_at(&line_index, source, line, character)
+        };
+        let covered = |edit: &TextEdit| {
+            let start = offset(edit.range.start_line, edit.range.start_character);
+            let end = offset(edit.range.end_line, edit.range.end_character);
+            references.iter().any(|reference| {
+                offset(reference.start_line, reference.start_character) <= start
+                    && end <= offset(reference.end_line, reference.end_character)
+            })
+        };
+        if let Some(edit) = edits.iter().find(|edit| !covered(edit)) {
             return Err(crate::rename_safety::RenameRefusal {
-                reason: FORCE_IMPORT_CONDITIONAL.to_owned(),
+                reason: "unreferenced-edit: an edit falls outside the occurrences \
+                         find-references reports for this binding"
+                    .to_owned(),
                 range: Some(edit.range),
             });
         }
