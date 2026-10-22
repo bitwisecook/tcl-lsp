@@ -145,6 +145,9 @@ pub fn prepare_rename_in_program(
     crate::original_context::CurrentSourceContext::capture(source, analysis)?;
     let line_index = LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if crate::definition::program_forced_import_abstains(analysis, resolution.program, cursor) {
+        return None;
+    }
     if let std::ops::ControlFlow::Break(selected) =
         crate::namespace_symbol::select_at_offset(source, analysis, cursor)
     {
@@ -465,6 +468,14 @@ pub fn rename_in_program(
     }
     let line_index = LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if crate::definition::program_forced_import_abstains(analysis, resolution.program, cursor) {
+        return Err(crate::rename_safety::RenameRefusal {
+            reason: "force-import-shadow-conditional: a sibling document's export decides \
+                     this call only under a cross-document execution order that is not proven"
+                .to_owned(),
+            range: None,
+        });
+    }
     if let std::ops::ControlFlow::Break(selected) =
         crate::namespace_symbol::select_at_offset(source, analysis, cursor)
     {

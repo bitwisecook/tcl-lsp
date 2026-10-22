@@ -162,6 +162,13 @@ pub fn signature_help_in_program_with_options(
         command_context_with_args(source, line, character, analysis, structural_registry)?;
     let command = &context.command;
     let active_param = context.active_parameter;
+    if crate::definition::program_forced_import_abstains(
+        analysis,
+        resolution.program,
+        context.cursor.head_span().start(),
+    ) {
+        return None;
+    }
     if analysis.allows_retained_logical_declaration_advice() {
         if let Some(call) =
             tcl_compiler::registry_invocation::source_structure::source_logical_procedure_call_at(

@@ -106,6 +106,11 @@ pub fn prepare_in_program(
     if crate::original_context::CurrentSourceContext::capture(source, analysis).is_none() {
         return Vec::new();
     }
+    let offset =
+        crate::definition::byte_offset_at(&LineIndex::new(source), source, line, character);
+    if crate::definition::program_forced_import_abstains(analysis, resolution.program, offset) {
+        return Vec::new();
+    }
 
     if let std::ops::ControlFlow::Break(selected) =
         crate::original_declaration::select("", source, analysis, line, character)

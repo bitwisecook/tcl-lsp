@@ -127,7 +127,13 @@ pub fn inline_proc_in_program(
     let resolution = resolution.with_registry(registry);
     let call = super::find_original_command_at(source, cursor, analysis)?;
     let head = call.name();
-    if head.is_empty() {
+    if head.is_empty()
+        || crate::definition::program_forced_import_abstains(
+            analysis,
+            resolution.program,
+            call.span.start(),
+        )
+    {
         return None;
     }
     // Resolve the head exactly as the navigation providers do — the caller's

@@ -1236,6 +1236,28 @@ mod tests {
     }
 
     #[test]
+    fn zz_sol49_irules_capture() {
+        let source = "proc hit {} { return hit }\nswitch -glob $value {\n    default {\n        hit\n    }\n}\n";
+        let analysis = crate::analyser::Analyser::new().analyse(source, "f5-irules");
+        let input = analysis.resolved_input.as_ref().expect("input");
+        let config = analysis.body_lexer_config.expect("config");
+        let realm = analysis.retained_command_realm().expect("realm");
+        let image = realm.original_source_image();
+        eprintln!(
+            "CAPTURE image={} channel_doc={:?} bytes={} cfg={} matches={} realm_input={} profile={} registry={} decls={}",
+            image.is_some(),
+            image.map(|image| image.channel() == tcl_lexer::SourceChannel::Document),
+            image.is_some_and(|image| image.bytes() == source.as_bytes()),
+            input.lexer_config() == config,
+            image.is_some_and(|image| analysis.matches_original_source_image(image, config)),
+            realm.matches_resolved_analysis_input(input),
+            analysis.resolved_profile().is_some(),
+            analysis.resolved_registry().is_some(),
+            analysis.original_procedure_declarations().count(),
+        );
+    }
+
+    #[test]
     fn irule1004_is_quiet_for_bigip_default_priority() {
         // BIG-IP gives every `when` handler priority 500 when the clause is
         // omitted, so a bare handler is valid and must not produce a hint.

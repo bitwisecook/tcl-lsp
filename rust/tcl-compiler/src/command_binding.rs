@@ -6478,8 +6478,9 @@ impl SourceOutcomes {
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
-                "ORIGINAL_COMPLETED_NORMAL_WORLD complete={} routes={:?} opaque={} step={} observed={}",
+                "ORIGINAL_COMPLETED_NORMAL_WORLD complete={} unclosed={} routes={:?} opaque={} step={} observed={}",
                 self.normal_completion.is_some(),
+                normal.unclosed_command_world,
                 self.abrupt
                     .iter()
                     .map(|(route, _)| route)
@@ -10406,6 +10407,10 @@ impl SourceCommandBindings {
                 && !command_world_closed_on_normal_return(facts)
                 && let Some(normal) = outcomes.normal.as_mut()
             {
+                #[cfg(test)]
+                if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+                    eprintln!("ZZ_UNCLOSED_EARLY {:?}", native.segment.texts);
+                }
                 normal.unclosed_command_world = true;
             }
             return *outcomes;
@@ -10466,6 +10471,10 @@ impl SourceCommandBindings {
         } else if !command_world_closed_on_normal_return(facts)
             && let Some(normal) = outcomes.normal.as_mut()
         {
+            #[cfg(test)]
+            if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+                eprintln!("ZZ_UNCLOSED {:?}", native.segment.texts);
+            }
             normal.unclosed_command_world = true;
         }
         finish_source_native_results(

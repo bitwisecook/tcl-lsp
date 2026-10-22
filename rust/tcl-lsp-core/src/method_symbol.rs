@@ -1072,16 +1072,15 @@ fn candidate_for_records(
             if selected.next().is_some() {
                 return ControlFlow::Break(None);
             }
-            // Itcl installs only the class body's own `proc`s (the class-method
-            // frame shape: no instance in frame) as `Class::name` commands;
-            // instance methods are not addressable this way and nothing is
-            // inherited into the class namespace.
+            // Itcl installs only the class body's own `proc` members as
+            // `Class::name` commands; instance methods are not addressable
+            // this way and nothing is inherited into the class namespace.
             let mut members = record
                 .metadata()
                 .original_members
                 .declarations()
                 .filter(|method| {
-                    method.metadata().kind == "classmethod"
+                    method.metadata().kind == "proc"
                         && method.original_name_input().bytes() == call.member_name()
                 });
             let Some(method) = members.next() else {

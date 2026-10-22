@@ -226,6 +226,13 @@ pub fn inlay_hints_in_program(
             if seg.span.end() <= range_start_off || seg.span.start() >= range_end_off {
                 continue;
             }
+            if crate::definition::program_forced_import_abstains(
+                analysis,
+                resolution.program,
+                seg.argv[0].span.start(),
+            ) {
+                continue;
+            }
             if !analysis.allows_lexical_declaration_advice() {
                 if let Some(prototype) = tcl_compiler::registry_invocation::source_structure::original_procedure_arguments(source, analysis, seg) {
                     emit_original_procedure_hints(source, &prototype, &line_index, range, &mut out);

@@ -211,6 +211,9 @@ pub fn definition_with(
     let line_index = LineIndex::new(source);
 
     let decl_byte_offset = position.offset();
+    if program_forced_import_abstains(analysis, program, decl_byte_offset) {
+        return Vec::new();
+    }
     if let std::ops::ControlFlow::Break(selected) =
         crate::vendor_declaration::select_at_offset(source, analysis, decl_byte_offset)
     {
@@ -2984,6 +2987,50 @@ pub fn forced_import_shadows_call(
         ImportQuery::ForcedShadow,
     )
     .is_some()
+}
+
+/// Whether the original-name providers abstain at the call whose head covers
+/// `offset` (user decision 2026-10-22T07:18Z, `force_import_shadow_direction`).
+///
+/// A `namespace import -force` that the document alone shows binding nothing
+/// leaves the fresh-interpreter answer (the local command) in place. When
+/// only the caller's whole-program export view says a sibling exports the
+/// name, the shadow depends on cross-document execution order, which stays
+/// conditional (decision 2026-10-17T20:30Z `export_order`): neither the
+/// local definition nor the sibling's export is proven, so no provider
+/// answers for that call.
+#[must_use]
+pub fn program_forced_import_abstains(
+    analysis: &AnalysisResult,
+    program: Option<ProgramExports<'_>>,
+    offset: u32,
+) -> bool {
+    let Some(program) = program else {
+        return false;
+    };
+    let Some(invocation) = invocation_head_at(analysis, offset) else {
+        return false;
+    };
+    let word = invocation.name.as_str();
+    let call_off = invocation.range.start();
+    let namespace = namespace_context_at(
+        &analysis.global_scope,
+        call_off,
+        &analysis.namespace_overrides,
+    );
+    forced_import_shadows(
+        analysis,
+        CallResolution::document_only().in_program(program),
+        &namespace,
+        word,
+        call_off,
+    ) && !forced_import_shadows(
+        analysis,
+        CallResolution::document_only(),
+        &namespace,
+        word,
+        call_off,
+    )
 }
 
 /// Which question [`import_hop`] / [`live_import_at`] are being asked, and

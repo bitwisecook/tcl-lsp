@@ -148,6 +148,15 @@ pub fn hover_in_program(
     // naming.core.original-registry-source-hover
     // docs/design/analysis/name-resolution-proofs/original-registry-source-hover.md
     let current = crate::original_context::CurrentSourceContext::capture(source, analysis)?;
+    let offset = crate::definition::byte_offset_at(
+        &tcl_lexer::LineIndex::new(source),
+        source,
+        line,
+        character,
+    );
+    if crate::definition::program_forced_import_abstains(analysis, program, offset) {
+        return None;
+    }
     // The caller's registry never replaces the retained one, but supplying it
     // is how a caller opts into the compiler-pipeline intrep/taint lines.
     let annotate = registry.is_some();

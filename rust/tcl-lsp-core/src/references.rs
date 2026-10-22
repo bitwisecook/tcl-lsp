@@ -962,6 +962,9 @@ pub fn references_in_program(
     }
     let line_index = LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if crate::definition::program_forced_import_abstains(analysis, program, cursor) {
+        return Vec::new();
+    }
     if let std::ops::ControlFlow::Break(selected) =
         crate::namespace_symbol::select_at_offset(source, analysis, cursor)
     {
