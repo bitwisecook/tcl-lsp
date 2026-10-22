@@ -820,7 +820,8 @@ fn minify_compact_reports_naming_refusal_and_preserves_result() {
             .any(|refusal| refusal["code"] == "missing-alpha-rename-contract")
     );
     let encoded = result["symbolMap"].as_str().expect("lossless symbol map");
-    let symbol_map = tcl_lsp_core::minify::SymbolMap::parse(encoded);
+    let symbol_map = tcl_lsp_core::minify::SymbolMap::parse_structured(encoded)
+        .expect("valid complete lossless symbol map");
     assert_eq!(
         symbol_map.format(),
         encoded,

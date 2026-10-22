@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "db2623ed2dbe4e0c8d5302732bf5c7bd55e106b9",
-  "last_published_snapshot": "9b3f4f273265bc2d0ac9e674d3eb3c061828abbe",
+  "last_source_snapshot": "4c5718d360c9fd9a6ccba491c9d3fb437d61731c",
+  "last_published_snapshot": "f93058f06ad6311fdde16b37e06eaa8517f0ca22",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,6 +16,9 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-22T15:29:34.038112+00:00",
-  "product_tree_diff": []
+  "last_published_utc": "2026-10-22T16:01:09.531074+00:00",
+  "product_tree_diff": [
+    "rust/tcl-lsp-core/src/ilx_navigation.rs",
+    "rust/tcl-lsp-core/src/refactor/datagroup.rs"
+  ]
 }

@@ -1,0 +1,26 @@
+    Finished `test` profile [unoptimized] target(s) in 1.17s
+     Running tests/zz_ccg_fold_probe.rs (target/debug/deps/zz_ccg_fold_probe-201ad6e95391feb4)
+running 1 test
+test zz_ccg_fold_probe ... ZZP notices []
+ZZP installed slot=Some(HookSlot { family: ConstFold, index: 0 }) declined=None
+ZZP profile Some("tcl8.6")
+ZZP spec const_fold=true versioned=false run=Some("5") run86=Some("5")
+ZZP resolve own=Some("mylib::strlen") none=Some("mylib::strlen")
+ZZP specdbg CommandSpec { name: "mylib::strlen", pack_source_sandbox_helper: false, traits: Traits(0), surface: None, arity: Arity { count: Arguments, min: 1, max: 1, step: 0, also_exact: None }, arity_windows: [], arg_roles: [(0, Value)], arg_role_resolver: None, arg_role_count_resolver: None, arg_role_layout_resolver: None, arg_role_resolver_roles: [], clause_grammar: None, arg_presentation: [], repeated_args: [], frame_effect: None, clause_shape_check: None, command_prefixes: [], command_prefix_resolver: None, script_timing_resolver: None, script_lookup_scope: None, substitution_resolver: None, callback_taint_inputs: [], return_type: None, return_type_hook: None, var_write_typing: ReturnValue, variable_write_min_args: None, return_elements: None, var_elements_effect: None, representation_effect: None, arg_types: [], subcommands: [], prefix_matching: Enabled, allow_unknown_subcommands: false, default_form_first_word: None, hover: None, forms: [], command_forms: [], semantic_operation: None, semantic_operation_windows: [], completion: None, result_stability: None, native_result: None, assigns_variable_at: None, safe_on_uninit: None, const_fold: Some(0x55e44aa1d210), const_fold_versioned: None, lowering_hook: None, bpf_op: None, codegen_hook: None, codegen_hook_windows: [], inline_codegen_hook: None, inline_codegen_hook_windows: [], native_lowering: None, native_lowering_windows: [], semantics: Inherited, analyser_hook: None, command_table_effect: None, side_effects: [], world_effects: None, state_transitions: None, dispatch_dependencies: None, literal_argument_validator: None, source_index_bounds: None, inferred_storage_type: None, required_package: None, tk_geometry: None, excluded_events: [], unsafe_command: false, closed_value_args: [], arg_values_accept_prefix: false, event_requires: None, event_requirement_forms: [], event_emits: None, event_emission_forms: [], data_collection: None, irules_source_flow: None, side_switch_target: None, event_handler_priority: None, irules_top_level_effect: None, options: [], option_prefix_words: 0, option_relations: [], option_effect_families: [], constraints: None, option_placement: Leading, reserved_trailing_words: 0, arg_values: [], versioned_arg_values: [], body_kind: Plain, body_execution: None, procedure_definition: None, native_compilation: Some(NativeCompilationSpec { grammar: NoHook, operation: Invoke, body: Inherit }), successful_handler: None, variable_receivers: None, body_interpreter: Current, body_arg_implicit_args: 0, taint_output_sink: None, taint_output_sink_subcommands: [], taint_log_sink: None, taint_network_sink_args: None, taint_code_sink_args: None, taint_interp_eval_subcommands: [], taint_source: None, taint_transform: None, taint_transform_when: None, taint_double_encode_colour: None, taint_sink_safe_colour: None, taint_sink_gate: None, taint_numeric_coercion: None, credential_options: [], channel_configuration: None, sensitive_headers: [], setter_constraints: [], pattern_type: None, pattern_arg_resolver: None, format_string_type: None, tcllib_package: None, lifecycle: Lifecycle { introduced: None, deprecated: None, retired: None, deprecation_fix: None }, warn_missing_import: true, is_namespace_exported: false, xc_translatable: None, deprecated_replacement: None, deprecated_replacement_drop_in: false, source_deprecation_advice: None, alias_of: None, runtime_backing: None, byte_array_payload: None, byte_array_effect: None, definition_body: None, manufacturer_methods: [], case_list: None, object_class: None, defines_symbol: None, body_scope: None, binds_handle: None, remote_method: None, creates_instance_at: None, defines_command_at: None, teardown_argument_layout: None, context_gate: None, implementation_namespace: None, oo_context_facts: [], self_receiver_words: [] }
+ZZP B-default+packspec None: []
+ZZP B-default+packspec Some("tcl8.6"): []
+ZZP C-default+minimal None: []
+ZZP C-default+minimal Some("tcl8.6"): []
+ZZP D-default+packspec+pure None: []
+ZZP D-default+packspec+pure Some("tcl8.6"): [("O129", "5")]
+ZZP opt None "proc ::f {} {\n    set y [mylib::strlen abcde]\n}\n": []
+ZZP opt None "set y [mylib::strlen abcde]\n": []
+ZZP opt None "set y [string length abcde]\n": [("O129", "5")]
+ZZP opt Some("tcl8.6") "proc ::f {} {\n    set y [mylib::strlen abcde]\n}\n": []
+ZZP opt Some("tcl8.6") "set y [mylib::strlen abcde]\n": []
+ZZP opt Some("tcl8.6") "set y [string length abcde]\n": [("O129", "5")]
+ZZP2 notices []
+ZZP2 installed declined=None
+ZZP2 world_effects-none None: [("O129", "5")]
+ZZP2 world_effects-none Some("tcl8.6"): [("O129", "5")]
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 36.68s

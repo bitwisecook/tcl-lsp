@@ -212,7 +212,7 @@ fn a_live_fold_keeps_declared_effects_and_unclosed_arguments() {
             }
         }
         pack_hooks::install_host(host);
-        let mut registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+        let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
         let replacements = |registry: &tcl_registry::CommandRegistry, call: &str| {
             tcl_compiler::optimiser::optimise_raw(
                 &format!("proc ::f {{x}} {{\n    set y [{call}]\n}}\n"),
@@ -242,6 +242,7 @@ fn a_live_fold_keeps_declared_effects_and_unclosed_arguments() {
                 "dsl={dsl}: {call}"
             );
         }
+        let mut registry = registry.project_for_profile(registry.profile().expect("pack profile"));
         let mut declared = original.clone();
         declared.world_effects =
             Some(tcl_registry::world_effect::WorldEffectDescriptor::VARIABLE_WRITE);

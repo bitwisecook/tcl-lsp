@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T15:55:49.036529+00:00
+Last updated: 2026-10-22T16:25:41.275560+00:00
 
 ## In progress
 
@@ -81,3 +81,11 @@ Last updated: 2026-10-22T15:55:49.036529+00:00
 - Browser dependencies, Chromium, exact wasm-bindgen and fixed Tcllib are provisioned. Their receipts state setup warnings and initial failed attempts; no transport acceptance is implied. A source-hold operational inventory covers 4,539 materialised Rust src/SpecTcl files from 15:52 onward; it is not a whole-source validation guard.
 - External status: BIG-IP 15:46, perf 15:45, review-triage 15:46:08; all fresh. Perf equality remains pending. Its realm/interprocedural patch is still withheld. Core60 Clippy primary inventory is requested in the routing record but not yet published; generic Core belongs to LSP. ILX source relation stays with compiler; its server latency remains with compiler/LSP and measured perf work.
 - Next cycle: 16:25:37 UTC. Re-arm the one-shot local reminder each cycle; hosted automations do not support this cadence. No release gate or audit admission changed.
+
+### Current cycle and routing (16:25 UTC)
+
+- Frozen N17 baseline completed with identical whole-source hashes; its observational pass reproduces missing folding and is not functional acceptance. The narrow declared-footprint barrier correction is the only production source change in the functional chain. Full variable-reference, pack-source and hook-fold targets are next/current. All other Rust and test source remains frozen.
+- Original g4 still fails ten positive subcases. R1 registry/consumer candidates and a public-API diagnosis retain old expectations and add retained-script negatives; original expensive library filters remain mandatory after stabilization. C6 assertions remain unchanged.
+- External files are fresh: BIG-IP16:06, perf16:18, triage16:12:43. Old-base complete PackSet equality does not establish latest/full corpus equality; compiler patch remains withheld. BIG-IP loaned current_diagnostics.rs is handed back for production while its isolated comparison restores exact bytes.
+- Publication remains isolated from active compilation. Twenty-five external BIG-IP/Core lint source/test files are retained in published work but not yet integrated into active builds; combined-tree acceptance is outstanding. No active checkout/rebase, target cleanup, audit admissions or validated-row changes.
+- Native D1-D5 and browser/WASI D6 fixtures remain unexecuted. Read-only support maps exact release gate commands/prerequisites. Next scheduled cycle16:55:37UTC.

@@ -195,7 +195,16 @@ impl ConstSubstCtx<'_> {
                 tokens,
             )?;
         let dialect = invocation.dialect?;
-        if invocation.facts.effects.requires_world_barrier() {
+        // A fold hook supplies the contract for the call it replaces;
+        // absent effect metadata stays conservative for other calls.
+        if invocation.facts.effects.requires_world_barrier()
+            && invocation.with_metadata_schema(
+                self.registry,
+                context,
+                binding.invocation_realm()?,
+                |schema| Some(schema.semantics.world_effects.is_declared()),
+            )?
+        {
             return None;
         }
         if invocation.facts.operation

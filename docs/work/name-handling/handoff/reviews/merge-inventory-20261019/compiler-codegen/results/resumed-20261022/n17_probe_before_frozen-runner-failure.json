@@ -1,0 +1,10 @@
+{
+  "phase": "runner setup before Cargo",
+  "cargo_started": false,
+  "tests_executed": 0,
+  "exit": 1,
+  "error": "source hash loop variable shadowed job name when writing gzip filename",
+  "fix": "rename per-file loop variable source_path; canonical source unchanged",
+  "agent_reported": true,
+  "guarded_validation": false
+}

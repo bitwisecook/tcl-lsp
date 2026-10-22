@@ -2,7 +2,7 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T15:52Z (test-only D4 case implemented, unexecuted; waiting for the VM build slot)
+Last updated: 2026-10-22T16:24:05Z (canonical Rust/tests frozen; structural lint draft prepared off-tree; no VM build started)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -52,6 +52,22 @@ rustfmt; `git apply --check` passes and base drift is zero at 15:22Z. This is
 off-tree only, with no typecheck, Clippy count, behavioural result or canonical
 VM source edit. TLS retirement `try_with` guards are untouched. Refusal-sensitive
 and structural helpers remain in the separate plan for review after acceptance.
+
+Structural preparation is now an actual eight-file shadow draft at
+`/tmp/vm-runtime-structural-shadow/structural.patch` (delta after the mechanical
+patch); the combined patch is `combined.patch`, SHA-256
+`1498e4a51ea0652bb7d4af7754e82e1a79ac29d6b3403d27a2e8ee556051b50f`.
+Static review is recorded in `static-review.json`; it corrected helper return
+wrappers and reused the existing borrowed scope directly. It names repeated
+callback/metadata types, extracts return-error-field and native
+list-window helpers, gives bytecode entry an explicit Pending/Entered state,
+uses `ControlFlow` for the existing trampoline continuation, and extracts stale
+command replay plus wrapped encoder line-length decoding. The receipt records exact canonical/post-mechanical hashes,
+review obligations and guard-text counts. Eight shadows parse/format; the
+combined patch applies in check-only mode across 47 paths with zero canonical
+base drift. All remain uncompiled/unrun; these are no lint-clearance or semantic
+claims. The canonical Rust/test freeze is observed, including both D4 files;
+latest D4 source write was 15:54:30.558808839Z. No VM cargo process has started.
 
 The scratch runner is `/tmp/vm-runtime-preflight/seq-safe.sh`: one `cargo test`
 build/run per target, draining filtered logs capped at 20 MB, recording exit and

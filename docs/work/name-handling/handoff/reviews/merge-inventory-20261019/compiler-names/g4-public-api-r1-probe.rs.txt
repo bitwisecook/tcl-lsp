@@ -1,0 +1,109 @@
+// Temporary public-API R1 diagnosis only; not acceptance or a replacement for
+// the canonical g4 aggregate, ZZ, or eight attribution filters.
+// Compiler-names owns creation/removal via its single locked runner.
+#[test]
+fn completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups() {
+    // naming.source.closed-leaf-handler-completion
+    // The completed command world is the world after the document runs
+    // to normal completion: a command that may raise (`puts`, `list`
+    // arity) only adds a path that never reaches it. `exit` or an
+    // unknown command keeps it withheld.
+    let declaration = "proc greet {} { return hi }\n";
+    let mut mismatches = Vec::new();
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        for (use_site, completed) in [
+            ("", true),
+            ("greet\ngreet\n", true),
+            ("puts hi\n", true),
+            ("puts [greet]\nputs [greet]\n", true),
+            ("set a [list [greet]]\n", true),
+            ("set a [string length x]\n", true),
+            ("missing_command\n", false),
+            ("puts [missing_command]\n", false),
+            ("exit 0\n", false),
+            // A procedure whose analysed body closes the world, and one
+            // whose body runs an unknown command.
+            ("proc say {} { puts hi }\nsay\n", true),
+            ("proc bad {} { missing_command }\nbad\n", false),
+            // Incomplete descriptors: a re-entrant callback, a subcommand
+            // the registry cannot select, and a dynamically chosen script.
+            ("lsort -command greet {b a}\n", false),
+            ("string $op x\n", false),
+            ("eval $script\n", false),
+            // The closed-builtin shortcut rests on the fresh-interpreter
+            // premise: nothing lets a builtin re-enter Tcl. A program
+            // that installs such a hook withholds the completed world.
+            ("proc xf args {}\nchan push stdout ::xf\nputs hi\n", false),
+            (
+                "proc rc args {}\nset c [chan create write ::rc]\nputs $c hi\n",
+                false,
+            ),
+            (
+                "proc cb args {}\ntrace add variable x write ::cb\nset x 1\n",
+                false,
+            ),
+            (
+                "proc cb args {}\ntrace add execution puts enter ::cb\nputs hi\n",
+                false,
+            ),
+            ("proc cb args {}\nnamespace unknown ::cb\nputs hi\n", false),
+            // Retained scripts include empty timer scripts and concatenated
+            // multiword forms. Their single-body ordinals are not complete
+            // registration inventories. Getter/removal precision belongs to
+            // the selected registry contract, not this conservative guard.
+            ("after 0 {greet}\nputs hi\n", false),
+            ("after 0 {}\nputs hi\n", false),
+            ("after 0 greet extra\nputs hi\n", false),
+            ("after idle greet extra\nputs hi\n", false),
+            ("fileevent stdin readable {greet}\nputs hi\n", false),
+            ("chan event stdout writable {greet}\nputs hi\n", false),
+            ("set callback greet\nafter 0 $callback\nputs hi\n", false),
+            ("proc unknown args {}\nputs hi\n", false),
+        ] {
+            let source = format!("{declaration}{use_site}");
+            let result = tcl_compiler::analyser::Analyser::new().analyse(&source, dialect);
+            eprintln!(
+                "ZZ_G4_PUBLIC dialect={dialect} use_site={use_site:?} expected={completed} actual={} invocations={}",
+                result
+                    .retained_command_realm()
+                    .and_then(
+                        tcl_compiler::realm::CommandBindingRealm::original_completed_command_world
+                    )
+                    .is_some(),
+                result.command_invocations.len()
+            );
+            if result
+                .retained_command_realm()
+                .and_then(
+                    tcl_compiler::realm::CommandBindingRealm::original_completed_command_world,
+                )
+                .is_some()
+                != completed
+            {
+                mismatches.push(format!(
+                    "{dialect}: {use_site:?}: world expected {completed}"
+                ));
+            }
+            // Every command of the body keeps its own original lookup
+            // however often, and from wherever, the body is entered.
+            let body_returns = result
+                .command_invocations
+                .iter()
+                .filter(|invocation| {
+                    invocation.name == "return"
+                        && invocation.range.start() < declaration.len() as u32
+                })
+                .collect::<Vec<_>>();
+            if body_returns.is_empty()
+                || !body_returns
+                    .iter()
+                    .all(|invocation| invocation.original_lookup.is_some())
+            {
+                mismatches.push(format!(
+                    "{dialect}: {use_site:?}: body lookup missing or lost"
+                ));
+            }
+        }
+    }
+    assert!(mismatches.is_empty(), "{mismatches:#?}");
+}

@@ -1,0 +1,39 @@
+{
+  "agent_reported": true,
+  "guarded_validation": false,
+  "baseline_manifest": "/tmp/ccg-n17_probe_before_frozen-source-after.json.gz",
+  "failed_attempt_after_manifest": "/tmp/ccg-n17_variable_boundaries_after-source-after.json.gz",
+  "rerun_before_manifest": "/tmp/ccg-n17_variable_boundaries_after_owned_registry-source-before.json.gz",
+  "baseline_to_rerun": [
+    {
+      "path": "rust/tcl-compiler/src/const_subst.rs",
+      "before": "472061acb0a93c098d4dc2e5abef870683ee5b0422ed2ef74665110710678371",
+      "after": "c710e35b4eb63642a7050bc7cec6535b98cbe5a265d035a92cc27acdb96b2278"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/variable_reference_boundaries.rs",
+      "before": "588bdf1c06caa36c64f0d05564b39c723479b073770e6d1f8b80614a56126850",
+      "after": "d67c8bade1adda96c788a16d303033b38920ed5f4767a575f6c2d8c72d5384ad"
+    }
+  ],
+  "failed_attempt_to_rerun": [
+    {
+      "path": "rust/tcl-spectcl/tests/variable_reference_boundaries.rs",
+      "before": "588bdf1c06caa36c64f0d05564b39c723479b073770e6d1f8b80614a56126850",
+      "after": "d67c8bade1adda96c788a16d303033b38920ed5f4767a575f6c2d8c72d5384ad"
+    }
+  ],
+  "missing_unchanged": true,
+  "construction_correction": "Production Arc pure/no-hook/abstention/dynamic/unknown-child controls remain before same-profile owned projection; assertions unchanged.",
+  "projection_api_verification": {
+    "path": "rust/tcl-registry/src/registry.rs",
+    "line": 2207,
+    "retains": [
+      "overlay_specs",
+      "overlay",
+      "pack_origins",
+      "reference_texts"
+    ],
+    "method": "source inspection; no cloning assumption"
+  }
+}

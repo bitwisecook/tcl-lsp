@@ -1,0 +1,16 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl)
+warning: variable does not need to be mutable
+   --> rust/tcl-spectcl/tests/variable_reference_boundaries.rs:215:13
+error[E0596]: cannot borrow data in an `Arc` as mutable
+   --> rust/tcl-spectcl/tests/variable_reference_boundaries.rs:252:9
+error[E0596]: cannot borrow data in an `Arc` as mutable
+   --> rust/tcl-spectcl/tests/variable_reference_boundaries.rs:259:9
+warning: `tcl-spectcl` (test "variable_reference_boundaries") generated 1 warning
+error: could not compile `tcl-spectcl` (test "variable_reference_boundaries") due to 2 previous errors; 1 warning emitted

@@ -2,7 +2,7 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-22T15:52Z (compiler role resumed in the active checkout)
+Last updated: 2026-10-22T16:12:59Z (compiler role resumed in the active checkout)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -70,6 +70,8 @@ Files I have touched since e34d8a427e (details in `sol-49-NOTES.md`):
 
 ## In progress
 
+- **R1 peer review (read-only during the full Rust/test source hold).** Names' callback-registration draft needs a deferred-script guard: `after`/`fileevent` are Structural, and concatenated timer scripts intentionally have no single-script ordinal. The positive-only deferred ordinal API cannot prove no retained hook. Off-tree design `/tmp/compiler-r1-callback-registration-proposal.md` separates selected registry registration from callback capability, including getter/removal forms and unresolved callback options. Five C Tcl registration inventories `/tmp/compiler-r1-registration-oracle.json` all exited 0 with empty stderr. Minimal frozen source-retention fact and 3 registry tests are drafted in `/tmp/compiler-r1-retention-facts.patch` (rustfmt parse/apply-check only); no Cargo validation or canonical Rust/test changes. Names holds R1 integration for this review. The conservative DEFERS_BODY/non-own-frame guard is safe pending the exact registry projection; it does not make getter/removal precision claims.
+
 - **Build status / source hold:** initial test compilation found nine missing tracked experiment includes and executed zero tests; all 166 inputs were then restored. The retry built the normal library and test crate, and names' g4 main finished **0/1 aggregate tests**, with ten positive command-world subcase mismatches (168.78s). There is no eight-assertion attribution result. The following ZZ rebuild was retired after the coordinator identified a transient lexer `parse_cut.rs` edit/restore by coordination support; no fingerprint override is authorised or applied. Names released the lock at 15:51:25Z. This role has run no Rust test or gate and holds all Compiler source mutations since 14:44Z through codegen's unchanged N17 baseline and narrow functional fix. The approved public integration diagnosis probe remains `/tmp/zz_compiler_resume_probe.rs`, with exact original C6 inputs/expectations, reached controls, stage timings and N09 caller/namespace-path edge controls. `/tmp/compiler-resume-integration-run.sh` retains `.rs.txt`, HEAD/current Rust diff, source/command/exit hashes and capped logs in unique receipt directories; it has not run. It does not substitute the original regression filters.
 - **Release lint work queued:** `/tmp/naming-clippy-compiler.json` assigns 565 old-snapshot diagnostics across 132 paths; names additionally transferred eight in `source_transition_advice/body_effects.rs` and four C6 root binding diagnostics (`analyse_deferred_entries`, `walk_deferred_entry_with`). No allowances or assertion changes. `/tmp/naming-clippy-compiler-current-map.json` maps all 577 assigned old-snapshot diagnostics to unchanged current lines across 134 SHA256-tagged files. `/tmp/compiler-clippy-pass1/pass1.patch` consolidates 160 uncompiled mechanical candidates across 50 paths (80 docs/borrows/copied iterators, 46 type-inspected Copy-clone replacements and 34 method references); nothing is applied. Earlier drafts remain under `/tmp/compiler-clippy-offtree/`. `/tmp/compiler-invocation-metadata-selection.patch` supplies the coordinated crate-private Standalone/Retained enum with an outer refusal and migrates the retained-owner adapter; names and codegen have its exact API. Separate off-tree C6 frame-selection, hierarchy and W220 message helper extractions plus a private source-member Absent/Present enum parse with rustfmt but are uncompiled. Long functions and other structural lints remain outstanding.
 
@@ -112,7 +114,7 @@ Files I have touched since e34d8a427e (details in `sol-49-NOTES.md`):
 5. Review findings, pending triage routing:
    - The triage report `docs/work/name-handling/reviews/naming-migration-review-20261022-triage.md` (12:43Z) lists N08 and §3.3 `method_barrier` as FIXED.
    - Still open, not yet routed to me:
-     - N09: constructor typing is fixed, but `::n::c` gets no call-graph summary.
+     - N09: external retry at `128e1bb4` reports constructor/callgraph correct (one observational test, 64.04 s); widened taint `resolved_callees(::n::c)` retains `::p`, `::lib::p`, `::n::c` as a conservative may-set. Static workspace search finds only one production consumer, the taint fixpoint caller requeue map; no definite target is selected there and no direct LSP/transform consumer of that function was found. Keep this scoped to dependency precision until a wrong enabled consumer is demonstrated; do not expand ahead of C6/ILX.
      - N10: a class selected through `namespace path` still gives no hover, type hierarchy or definition.
 
 ## Blocked (on whom, and what is needed)

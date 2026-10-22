@@ -1,0 +1,68 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-22T16:25:41.489105+00:00",
+  "scheduled_report_utc": "2026-10-22T16:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-22T16:55:37+00:00",
+  "change_since_previous_report": [
+    "Frozen N17 baseline reproduced missing folding with equal before/after source hashes. Narrow const_subst barrier correction applied; first target compileblocked with zero tests; narrow same-profile owned-registry test setup adaptation is in exact-target rerun, no functional verdict yet.",
+    "R1 registry/consumer drafts peer-reviewed; public diagnosis preserves original expectations plus retained-script negative controls. Original g4 and C6 checks remain required.",
+    "Native D1-D5 and shipped browser/WASI edit-application fixtures remain unexecuted. N11/N13 provider/source-view gaps stay visible.",
+    "External old-base complete PackSet Debug equality passed, latest/full corpus proof still pending; routed compiler patch withheld.",
+    "Off-tree strict-lint batches remain unapplied while the N17 source freeze holds."
+  ],
+  "committed": [
+    "4c5718d360c9fd9a6ccba491c9d3fb437d61731c"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish complete WIP through isolated publisher, preserving external changes.",
+    "Complete N17 functional chain and exact temporary cleanup; coordinate R1/C6 and shared lint/API batch.",
+    "Execute VM after8b/Jim/TLS, native D1-D5, minify/provider and shipped host checks.",
+    "Meet all section F requirements and origin/rust zero pass-to-fail on the combined shipping tree."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T16:06Z",
+    "perf": "2026-10-22T16:18Z",
+    "review-triage": "2026-10-22T16:12:43Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No guarded audit admissions or validated-row changes. N17 baseline diagnostic pass is not fixed-function acceptance. External proofs are attributed to exact older sources; prepared tests and manual fixture controls are not release acceptance.",
+  "disk_free_bytes": 12270751744
+}

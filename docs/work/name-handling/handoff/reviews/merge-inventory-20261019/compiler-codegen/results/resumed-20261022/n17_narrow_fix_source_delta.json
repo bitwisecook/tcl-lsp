@@ -1,0 +1,17 @@
+{
+  "baseline_manifest": "n17_probe_before_frozen-source-after.json.gz",
+  "after_fix_manifest": "n17_variable_boundaries_after-source-before.json.gz",
+  "changed_paths": [
+    "rust/tcl-compiler/src/const_subst.rs"
+  ],
+  "before": {
+    "rust/tcl-compiler/src/const_subst.rs": "472061acb0a93c098d4dc2e5abef870683ee5b0422ed2ef74665110710678371"
+  },
+  "after": {
+    "rust/tcl-compiler/src/const_subst.rs": "c710e35b4eb63642a7050bc7cec6535b98cbe5a265d035a92cc27acdb96b2278"
+  },
+  "missing_before": [],
+  "missing_after": [],
+  "agent_reported": true,
+  "guarded_validation": false
+}

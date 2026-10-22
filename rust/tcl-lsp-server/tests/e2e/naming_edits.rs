@@ -53,6 +53,7 @@ fn apply_workspace_edit(
     result: &Value,
     sources: &BTreeMap<String, String>,
 ) -> BTreeMap<String, String> {
+    assert_text_edit_envelope(result);
     let edits = rename_edits(result);
     assert!(
         !edits.is_empty(),
@@ -85,6 +86,33 @@ fn apply_workspace_edit(
         }
     }
     updated
+}
+
+fn assert_text_edit_envelope(result: &Value) {
+    let changes = result.get("changes");
+    let document_changes = result.get("documentChanges");
+    assert_ne!(
+        changes.is_some(),
+        document_changes.is_some(),
+        "one complete WorkspaceEdit representation is required: {result}"
+    );
+    if let Some(changes) = changes {
+        let changes = changes.as_object().expect("WorkspaceEdit changes object");
+        assert!(changes.values().all(Value::is_array));
+    }
+    if let Some(document_changes) = document_changes {
+        for change in document_changes
+            .as_array()
+            .expect("WorkspaceEdit documentChanges array")
+        {
+            assert!(
+                change.get("kind").is_none(),
+                "a resource operation must not be silently omitted: {change}"
+            );
+            assert!(change["textDocument"]["uri"].is_string());
+            assert!(change["edits"].is_array());
+        }
+    }
 }
 
 fn oracle(path: &Path) -> Option<tcl_test_support::ScriptOutcome> {
