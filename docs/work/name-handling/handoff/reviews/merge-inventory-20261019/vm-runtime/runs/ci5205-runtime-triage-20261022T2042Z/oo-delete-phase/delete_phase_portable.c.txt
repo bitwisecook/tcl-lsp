@@ -1,0 +1,42 @@
+#include <tcl.h>
+#include <stdio.h>
+
+struct Observation { Tcl_Interp *interp; Tcl_Command old; int calls; int kept_old; int kept_old_proc; };
+static int old_proc(ClientData data, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)data; (void)interp; (void)objc; (void)objv; return TCL_OK;
+}
+static int new_proc(ClientData data, Tcl_Interp *interp, int objc, Tcl_Obj *const objv[]) {
+    (void)data; (void)interp; (void)objc; (void)objv; return TCL_OK;
+}
+static void deleted(ClientData data) {
+    struct Observation *o = data;
+    Tcl_CmdInfo token_info;
+    int token_available = Tcl_GetCommandInfoFromToken(o->old, &token_info);
+    Tcl_CmdInfo info;
+    int available = Tcl_GetCommandInfo(o->interp, "::Destination::p", &info);
+    o->calls++;
+    o->kept_old = available && token_available && info.objProc == token_info.objProc
+        && info.objClientData == token_info.objClientData && info.objClientData == o;
+    o->kept_old_proc = available && info.objProc == old_proc;
+    printf("during_delete calls=%d old_entry_matches_token=%d old_proc=%d new_proc=%d\n",
+           o->calls, o->kept_old, o->kept_old_proc, available && info.objProc == new_proc);
+}
+int main(int argc, char **argv) {
+    (void)argc;
+    Tcl_FindExecutable(argv[0]);
+    Tcl_Interp *interp = Tcl_CreateInterp();
+    if (Tcl_Eval(interp, "namespace eval ::Destination {}") != TCL_OK) return 2;
+    struct Observation o = { interp, NULL, 0, 0, 0 };
+    o.old = Tcl_CreateObjCommand(interp, "::Destination::p", old_proc, &o, deleted);
+    Tcl_Command replacement = Tcl_CreateObjCommand(interp, "::Destination::p", new_proc, NULL, NULL);
+    Tcl_CmdInfo info;
+    int available = Tcl_GetCommandInfo(interp, "::Destination::p", &info);
+    int selected_new = available && info.objProc == new_proc;
+    printf("after_create calls=%d new_token_proc=%d selected_new_proc=%d\n", o.calls,
+           Tcl_GetCommandInfoFromToken(replacement, &info) && info.objProc == new_proc,
+           selected_new);
+    int ok = o.calls == 1 && o.kept_old && o.kept_old_proc && selected_new;
+    Tcl_DeleteInterp(interp);
+    Tcl_Finalize();
+    return ok ? 0 : 3;
+}

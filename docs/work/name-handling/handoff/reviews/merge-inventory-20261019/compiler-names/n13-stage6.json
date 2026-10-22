@@ -1,0 +1,148 @@
+{
+  "status": "OFF-TREE COMPOSED candidate; syntax/apply checks only, untyped/unrun; no N13 admission",
+  "base_head": "def9a5fd7fdece3f785ace02da20f6ed8a8da539",
+  "created_utc": "2026-10-22T20:44:41.782366+00:00",
+  "patch": "/tmp/compiler-names-n13-stage6.patch",
+  "sha256": "b859f34f007eb5b4bdc5f3360bb80e0ba54d03020f7cce55c53e9c8656e65b28",
+  "previous_stage5_sha256": "713627cb0096aad9ee6e7c901c8004e1faf774c8fdd9a8ef1e7be8215f9d41e2",
+  "delta": "/tmp/compiler-names-n13-stage6-vs-stage5.patch",
+  "delta_sha256": "3a0cfa30e37e69cebc906789539dd696d4daf59367e9e9d238b75cc164196833",
+  "shadow": "/tmp/compiler-names-n13-stage6-shadow",
+  "corrections": [
+    "Distinct private ConditionalRegion normal-outcome query, genuine owned region plan; CompleteProgram and foreign non-region requests still refuse",
+    "region.return_outcome joins same region analysis/completed chain and exact saved outer/current frame inventory back to original unchanged prefix",
+    "Sequential two-source and twelve-hop original-chain controls; all original assertions unchanged"
+  ],
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/analyser/mod.rs",
+      "before_sha256": "3f8d9b017b8bd0c1a238944338fac2ec7c46250234a72cbb3f11a282401394a9",
+      "after_sha256": "9550ef401ee80f594f253ba736691453649a4c9c0b3b1a6014f56ea7c51f2e53"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/source_settings.rs",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "16dd686e56d646e69a82140e9d7eb13837ba8a43ff2f7609cffde7321ed00d2c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/state.rs",
+      "before_sha256": "73c3211d41908104857224b02f02e541a32e35662962f0c992a221334cb125de",
+      "after_sha256": "6964c6362dc1355314ee52a0fd20a7d421055cd2b36c36c32f53507b227afe14"
+    },
+    {
+      "path": "rust/tcl-compiler/src/analyser/types.rs",
+      "before_sha256": "8ad762922583bf8c24009e12cd235f017a0587010610115e272576b9cde02f48",
+      "after_sha256": "42b190d8b6d828878621d4713a9869d9fb65418c61953512d4b5d163be8ded44"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "e88c7c428fa89b951c86c90fb488d6597cfab2facac1416e7bb137f2a9f2d9a3"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_source.rs",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "87b7735c598e0c58aa55a4e68cf1d697bf08d74c33fe304ef35b60a5e1fb3b21"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+      "before_sha256": "dc0e85eb4d496751b96cdc402efe09007a77b9ddc2f534f90ac36d22a2e780ea",
+      "after_sha256": "3907f3bde2e8e3b29577ac6b862b9ef98b603f03d8fac16f9f09f145a503f536"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+      "before_sha256": "6c42e6b8896ad0c3b67c12d942d00d3ac74aee88626786f363d378a4168f9765",
+      "after_sha256": "48105c839638404799bde8a4b01b4487e40525f0e2646bdb7a9cc7cd850c1b7e"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_namespace_body.rs",
+      "before_sha256": "fc94c233f24b67db33545a8c1640f4dc894eb155000b79f3c3b2459f19902435",
+      "after_sha256": "ae6bdba9d89dbfd7cc5cb3d48bed0d5b4c1d19382577fb148e2533e052cf5ebc"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_analysis_cache.rs",
+      "before_sha256": "c4ed11f9a8d18c9649fdb49c1ebb775f383d8ef348f752424f69928aa099efb1",
+      "after_sha256": "299235f41b124280de3429a62abd538fd1d2cb2c6b0c552c60d2178a683f5b66"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_analysis_entry.rs",
+      "before_sha256": "bffaa2405c226755aedcdbd9de6d41e3ed0869f7f0f60ba11437a62f36707de3",
+      "after_sha256": "6ae3fb47cd93a1998a44f1bf74b268d6a52f5e7ad4dfe8dccecab1c01f0211cf"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "a1f16b5314dfd70f4e4a9aff9aa0bd1b571faa3617ad2dbb5ce5f49f600087d2"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/c_namespace.rs",
+      "before_sha256": "d2e6ffba4259203b5aed64862d4d230868bee3ab2145a8182ff8208971043ae4",
+      "after_sha256": "6532df07d27892025375871b916364e4ea515dda8ed52ad26e05954dcac22fac"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "before_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "after_sha256": "b492b7d4f0505464542496c1d3a3d60a7898131bd53d4f39a52a53ed514d6c44"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_procedure.rs",
+      "before_sha256": "69eecfbf511ac8796eacac1b2b032de0abe61a61076d593872d7648c1d28e02b",
+      "after_sha256": "39bc980211e77fbfc04e26bc89aa4da511cc8f52e3a8d53959a0961fae0f77e5"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_sha256": "48364c73e854509184d44dea7b2acb143d478034713cbded369a541a84b2b3ee",
+      "after_sha256": "5e126fc3ab98e22160c9afe91632a78a6604839405fa6c32c96e7671134110a4"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "d80600daa759c3f103cdcebbc9c2acef777265dc8130b15e6fc30fed0197ef26",
+      "after_sha256": "da0a2a2d4d5e4ec167b8695b494935489e2c1337b39456fd2e80916542b4e1bc"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit/optimiser_source_owner.rs",
+      "before_sha256": "26052ada62cdc935df8f4cb3592b092d8dd0ca083c32c2c02b71c73359b5b92d",
+      "after_sha256": "d33a18737a96ed244e36810ab61f9fd27ab9cc77cc0c9cc1fc694b8b7928a937"
+    },
+    {
+      "path": "rust/tcl-compiler/src/lowering/mod.rs",
+      "before_sha256": "2f9ec7fe753f644046d0b25151b145a92a3525fc3fe70b77d4e30bf0bba631e3",
+      "after_sha256": "063f341c17bc9a2b8ffd03f883e47809e63bb7a5fd6279ff0a5971fb1ba5e351"
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+      "before_sha256": "623ddc42afbb2937b667f4d39f08ba47adad80815becae6ad3cd1a82de7d740a",
+      "after_sha256": "e8a58acecb77f684f966e58b5de935acd8cd07003a3010eb4115fb94a5612b42"
+    },
+    {
+      "path": "rust/tcl-compiler/src/realm.rs",
+      "before_sha256": "33677be633b448e16f39605e7ca765a6f45680991c5398252c4a0a3473e2fa96",
+      "after_sha256": "0801314941c76ed65e50418815d612a51bbec99ec6b9adb123f507e85a414d2d"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs",
+      "before_sha256": "0c6c5d0b60c15728a667e75322d8147e12b0cfffad0a2bfa57dd5a1439731726",
+      "after_sha256": "53c640324ac78bdeb32b09d14bfdb045ca939ffa6c0152d968f76dfa2c249237"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "822c3c4f9338aaf8628d22680b7dc31ff954b5534baeaa24c1fb15117e5145ce",
+      "after_sha256": "f0612712b4c877d74cb99d283534a51466b8668fe4515771442ec7a96844110f"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "before_sha256": "01bc3a8fb2e975a188bc444dc434209a6a2bccee893359d4c9c47c1aedfb0e6d",
+      "after_sha256": "56328478b32576287c8189f68d93af68a30aff2f5fb848d0a0b76c75dfed3865"
+    },
+    {
+      "path": "rust/tcl-compiler/src/source_graph.rs",
+      "before_sha256": "2202051b5603b4d2bf93f5c06d1c5701684d6e96afafcd1a9b229abd8036cd4e",
+      "after_sha256": "b04dea6b3d8e8e4bc03351445f4dbdf5a7c6c4096d1ffb2722480a9986abc284"
+    }
+  ],
+  "remaining": [
+    "Typecheck and written controls unrun",
+    "LSP distinct region inventory/append/lease integration outstanding",
+    "Ordinary namespace physical-preflight Error remains separate measured blocker; no weakened conditional plan/normal guards"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "status": "OFF-TREE semantic product candidate; copied pinned rustfmt1.99.1 parse/format only. No Cargo/type/Clippy/runtime validation or canonical changes.",
+  "utc": "2026-10-22T20:35:13.990560+00:00",
+  "patch": "/tmp/ccg-wasm-import-intern/proposal.patch",
+  "sha256": "b1ae7f0e0cbf0547b995d3d5bf8fe97503d70edf7d5de6cb5322447827b50b92",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/codegen/wasm/ir.rs",
+      "before_sha256": "5c3b243f732f930ef2f48cbb719c0fa18eaf8c91eef5106b8a8754e6e1b74d3e",
+      "proposed_sha256": "3de0e8bfd595875511d7d4afb31e4e310b86895905f03c080879e3258fe5d6c6"
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+      "before_sha256": "d24e447ea5eb82b986f1ba47b2e829cf72175d643ff059c80e211064af4d4c11",
+      "proposed_sha256": "fc6402287441059f9e90c3637bd6af34ecd13e0acf982b667dd27148a4c7c8d5"
+    }
+  ],
+  "trigger": {
+    "ci_run": 5205,
+    "actual_head": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+    "log": "/tmp/work-ci5205/wasm-real-link.log",
+    "log_sha256": "8d141b4cd2abfe5bbbe361f6d912c16f70501b8db45b936adbc37c5a6e747dda",
+    "measured_failure": "compiled_argv_balances_allocations_in_the_real_runtime at compile_argv_analysed line398",
+    "actual_wat": "CallFrameAlloc imports at3/19; actual call19 four times. Free at4/20; actual call20 four times. First alias unused; original assertion remains UNCHANGED."
+  },
+  "cause_static": "add_general_imports::ConditionImports and add_aot_imports\u2192add_argv_imports each register SAME actual CodegenAbiImportId. Native emitter can register same IDs again. WasmModule::add_import interns only signature and unconditionally appends host function entry.",
+  "repair": {
+    "seam": "WasmModule::add_import",
+    "identity": "exact module string AND exact field/name string AND canonical type_idx derived by existing intern_type full ordered parameter/result equality; no hash or name-only equivalence",
+    "behavior": "Return existing function index on exact identity. Otherwise append at end exactly as before. Earlier import indices never move and different modules/names/parameter/results remain separate.",
+    "order": "Canonical backend allocates general/native/bootstrap imports BEFORE top_idx/procedure_plan/function bodies. Reduced count is therefore naturally used to assign actual defined function indices, table/ref.func, source ID map and exports. No post-emit index rewriting or manual relocation.",
+    "current_handles": "Condition/AOT/native import handle structs store returned indices and therefore share exact canonical ABI function. general_import_id and native refusal-check mapping see same index only for same actual descriptor; no guard change.",
+    "serialization": "to_bytes and to_wat still serialize the same imports vector in current index order and references use captured canonical indices. No serializer alias/name/index conversion changes."
+  },
+  "controls_added": [
+    "IR import_interning_keeps_full_identity_and_existing_function_indices: exact repeat after distinct module/name/parameter/result registrations reuses first index, other handles remain0..4, full type distinctions remain, actual binary import section and WAT count retain5functions+independentmemory.",
+    "Backend condition_argv_and_native_emitters_share_actual_abi_import_indices: real producer helpers share alloc/free/stringowned/release indices; adding actual native import family creates no duplicate fullidentity; old general/argv handles still resolve to exact selected ABI descriptor."
+  ],
+  "assertion_policy": "Every existing wasm_real_link assertion, fixture, import/call requirement and selector is unchanged. No lint allows, Native authority or provider bypass added.",
+  "remaining": "Guarded typing/focused controls + unchanged original argv real-link case must run under root slot. Five shared-table failures and nativeI64 proof decline remain separate/unfixed. Potential consumers outside canonical backend that rely on duplicate exact import registrations must be checked by existing suites; malformed raw imports bypassing supported add_import API are not repaired by this change.",
+  "independent_peer_review": {
+    "role": "coordination-checks",
+    "status": "STATIC APPROVED, uncompiled/unrun",
+    "message": "No semantic/ordering blocker; exact full identity, stable handles, import-before-function indices, unchanged serialization, separation and real producer controls reviewed."
+  }
+}

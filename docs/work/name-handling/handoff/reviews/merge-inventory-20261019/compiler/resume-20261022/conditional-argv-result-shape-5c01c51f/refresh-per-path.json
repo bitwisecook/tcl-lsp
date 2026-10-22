@@ -1,0 +1,49 @@
+{
+  "utc": "2026-10-22T20:33:01.015860+00:00",
+  "old_head": "30926fc32bdd7cb70589852a5d03654e787b091e",
+  "current_head": "4204767035207de91501e8d4bebab8f002a75395",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "old_sha256": "1affe6ac4b4c516306afb517d227223ba386b826532f85fe87b74f7bbc9c5c1b",
+      "current_sha256": "d80600daa759c3f103cdcebbc9c2acef777265dc8130b15e6fc30fed0197ef26",
+      "draft_sha256": "18eba48b0906b9be2e49aef8a1a5d10a7932597e1a325bc19d6060208c2599c7"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_argument_syntax.rs",
+      "old_sha256": null,
+      "current_sha256": null,
+      "draft_sha256": "3e21a7b9fa1d5f9d0d9fd04b97d038ce13abdbf82e90807227da35e501efe4bc"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "old_sha256": "03e25731908184ff3101bdad20acb58ef982050d27fa6db1cc9d9171f1fba31e",
+      "current_sha256": "03e25731908184ff3101bdad20acb58ef982050d27fa6db1cc9d9171f1fba31e",
+      "draft_sha256": "73e0e0c372db70e50fa459f986a16f62f77d1c1cfc3436cafd4a9475f141bdaf"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "old_sha256": "8a5c1b5915fcffc44a5e2c1b4c7281e211ff22a2c1f59025bd44472ef1dc99d7",
+      "current_sha256": "01bc3a8fb2e975a188bc444dc434209a6a2bccee893359d4c9c47c1aedfb0e6d",
+      "draft_sha256": "5b55583cef2b4e678dde856b8da49203146158af6ab564791a54e2f299958439"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_taint.rs",
+      "old_sha256": "fa5e3c7e7702b5c73d8d9b8d06328764c4f7a1f0f67c50d0745d8889ba202023",
+      "current_sha256": "fa5e3c7e7702b5c73d8d9b8d06328764c4f7a1f0f67c50d0745d8889ba202023",
+      "draft_sha256": "52eb274c2240e7132b2a60856a5f27cf9217208a15998270abaf71f136fc2173"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_taint_arguments.rs",
+      "old_sha256": null,
+      "current_sha256": null,
+      "draft_sha256": "f41bf6e32f9ed0c3f4682c3695f8808b547021f7320e4a5b6aef27d69e7b07aa"
+    },
+    {
+      "path": "rust/tcl-compiler/src/taint.rs",
+      "old_sha256": "e44f95cda281895ce898d006fe3e3f89c843f15fb551e498adaf9496a78ac8eb",
+      "current_sha256": "e44f95cda281895ce898d006fe3e3f89c843f15fb551e498adaf9496a78ac8eb",
+      "draft_sha256": "6ad178394b614b18d4a7c226d19079793a14f6c51fd28e53c27fac1ac9059126"
+    }
+  ]
+}

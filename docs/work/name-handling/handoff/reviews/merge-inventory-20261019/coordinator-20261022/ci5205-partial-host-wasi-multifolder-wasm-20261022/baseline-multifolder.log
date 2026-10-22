@@ -1,0 +1,1429 @@
+﻿2026-10-22T16:49:55.0516458Z Current runner version: '2.338.0'
+2026-10-22T16:49:55.0542846Z ##[group]Runner Image Provisioner
+2026-10-22T16:49:55.0543721Z Hosted Compute Agent
+2026-10-22T16:49:55.0544354Z Version: 20261012.601
+2026-10-22T16:49:55.0545496Z Commit: f3dc54e1fb89da6852db922499a0233137369e1d
+2026-10-22T16:49:55.0546240Z Build Date: 2026-10-12T17:48:21Z
+2026-10-22T16:49:55.0546993Z Worker ID: {88a41119-a746-4fab-a760-ee1f0a740555}
+2026-10-22T16:49:55.0547758Z Region: northcentralus
+2026-10-22T16:49:55.0548351Z Cloud: Azure
+2026-10-22T16:49:55.0548941Z ##[endgroup]
+2026-10-22T16:49:55.0550771Z ##[group]Operating System
+2026-10-22T16:49:55.0551655Z Ubuntu
+2026-10-22T16:49:55.0552346Z 26.04.1
+2026-10-22T16:49:55.0552870Z LTS
+2026-10-22T16:49:55.0553758Z ##[endgroup]
+2026-10-22T16:49:55.0554387Z ##[group]Runner Image
+2026-10-22T16:49:55.0554984Z Image: ubuntu-26.04
+2026-10-22T16:49:55.0555657Z Version: 20261012.163.1
+2026-10-22T16:49:55.0556923Z Included Software: https://github.com/actions/runner-images/blob/ubuntu26/20261012.163/images/ubuntu/Ubuntu2604-Readme.md
+2026-10-22T16:49:55.0558536Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu26%2F20261012.163
+2026-10-22T16:49:55.0559498Z ##[endgroup]
+2026-10-22T16:49:55.0560716Z ##[group]GITHUB_TOKEN Permissions
+2026-10-22T16:49:55.0563298Z Contents: read
+2026-10-22T16:49:55.0564030Z Metadata: read
+2026-10-22T16:49:55.0564594Z ##[endgroup]
+2026-10-22T16:49:55.0566753Z Secret source: Actions
+2026-10-22T16:49:55.0567775Z Cache mode: write
+2026-10-22T16:49:55.0568810Z Prepare workflow directory
+2026-10-22T16:49:55.1162457Z Prepare all required actions
+2026-10-22T16:49:55.1211996Z Getting action download info
+2026-10-22T16:49:55.3644267Z Download action repository 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1' (SHA:3d3c42e5aac5ba805825da76410c181273ba90b1)
+2026-10-22T16:49:55.4884079Z Download action repository 'actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f' (SHA:ecabd13d1c56bd1345c230e542e9144811ad706f)
+2026-10-22T16:49:55.6445572Z Download action repository 'actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1' (SHA:949feb2413d6458794dcd2491c4babbbce0c15c1)
+2026-10-22T16:49:55.9671882Z Download action repository 'actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9' (SHA:55cc8345863c7cc4c66a329aec7e433d2d1c52a9)
+2026-10-22T16:49:56.1106168Z Download action repository 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333' (SHA:9000827ccba6bdab643e8b6fd33ac0654aef8333)
+2026-10-22T16:49:56.3807004Z Download action repository 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9' (SHA:cf430e030ddbb5b0abf93d22962f4752f3646cd9)
+2026-10-22T16:49:56.7844627Z Getting action download info
+2026-10-22T16:49:56.8736113Z Download action repository 'Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6' (SHA:6323deb102c322ba6fcbdcafc7e3dddab59af2b6)
+2026-10-22T16:49:57.2582859Z Complete job name: test-ext-multi-folder
+2026-10-22T16:49:57.3570117Z ##[group]Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+2026-10-22T16:49:57.3572278Z with:
+2026-10-22T16:49:57.3573126Z   fetch-depth: 1
+2026-10-22T16:49:57.3573990Z   fetch-tags: true
+2026-10-22T16:49:57.3574908Z   repository: bitwisecook/tcl-lsp
+2026-10-22T16:49:57.3584141Z   token: ***
+2026-10-22T16:49:57.3585001Z   ssh-strict: true
+2026-10-22T16:49:57.3585845Z   ssh-user: git
+2026-10-22T16:49:57.3586720Z   persist-credentials: true
+2026-10-22T16:49:57.3587683Z   clean: true
+2026-10-22T16:49:57.3588567Z   sparse-checkout-cone-mode: true
+2026-10-22T16:49:57.3589615Z   show-progress: true
+2026-10-22T16:49:57.3590487Z   lfs: false
+2026-10-22T16:49:57.3591627Z   submodules: false
+2026-10-22T16:49:57.3592541Z   set-safe-directory: true
+2026-10-22T16:49:57.3593559Z   allow-unsafe-pr-checkout: false
+2026-10-22T16:49:57.3595038Z env:
+2026-10-22T16:49:57.3595846Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:49:57.3596782Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:49:57.3597800Z   RUN_EXT: true
+2026-10-22T16:49:57.3598644Z ##[endgroup]
+2026-10-22T16:49:57.4631894Z Syncing repository: bitwisecook/tcl-lsp
+2026-10-22T16:49:57.4635109Z ##[group]Getting Git version info
+2026-10-22T16:49:57.4636980Z Working directory is '/home/runner/work/tcl-lsp/tcl-lsp'
+2026-10-22T16:49:57.4639529Z [command]/usr/bin/git version
+2026-10-22T16:49:57.4648871Z git version 2.55.0
+2026-10-22T16:49:57.4675712Z ##[endgroup]
+2026-10-22T16:49:57.4695807Z Temporarily overriding HOME='/home/runner/work/_temp/401c938c-1d3a-4337-bcb7-72f76e00a035' before making global git config changes
+2026-10-22T16:49:57.4703639Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-22T16:49:57.4706407Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-22T16:49:57.4806400Z Deleting the contents of '/home/runner/work/tcl-lsp/tcl-lsp'
+2026-10-22T16:49:57.4809962Z ##[group]Determining repository object format
+2026-10-22T16:49:57.4812454Z ##[endgroup]
+2026-10-22T16:49:57.4814572Z ##[group]Initializing the repository
+2026-10-22T16:49:57.4817900Z [command]/usr/bin/git init /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-22T16:49:57.4967976Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-22T16:49:57.4970401Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-10-22T16:49:57.4973073Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-10-22T16:49:57.4975004Z hint: call:
+2026-10-22T16:49:57.4976209Z hint:
+2026-10-22T16:49:57.4977608Z hint: 	git config --global init.defaultBranch <name>
+2026-10-22T16:49:57.4979243Z hint:
+2026-10-22T16:49:57.4980809Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-22T16:49:57.4983391Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-22T16:49:57.4985308Z hint:
+2026-10-22T16:49:57.4986546Z hint: 	git branch -m <name>
+2026-10-22T16:49:57.4987765Z hint:
+2026-10-22T16:49:57.4989089Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-22T16:49:57.4995766Z Initialized empty Git repository in /home/runner/work/tcl-lsp/tcl-lsp/.git/
+2026-10-22T16:49:57.5008102Z [command]/usr/bin/git remote add origin https://github.com/bitwisecook/tcl-lsp
+2026-10-22T16:49:57.5061976Z ##[endgroup]
+2026-10-22T16:49:57.5063799Z ##[group]Disabling automatic garbage collection
+2026-10-22T16:49:57.5067126Z [command]/usr/bin/git config --local gc.auto 0
+2026-10-22T16:49:57.5107469Z ##[endgroup]
+2026-10-22T16:49:57.5108893Z ##[group]Setting up auth
+2026-10-22T16:49:57.5109949Z Removing SSH command configuration
+2026-10-22T16:49:57.5115218Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T16:49:57.5161590Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T16:49:57.5668231Z Removing HTTP extra header
+2026-10-22T16:49:57.5674927Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T16:49:57.5712416Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T16:49:57.5979446Z Removing includeIf entries pointing to credentials config files
+2026-10-22T16:49:57.5985015Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T16:49:57.6022744Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T16:49:57.6330079Z [command]/usr/bin/git config --file /home/runner/work/_temp/git-credentials-9c4d5872-12c0-4db2-86d0-cdeb6abb62f8.config http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-22T16:49:57.6359681Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git.path /home/runner/work/_temp/git-credentials-9c4d5872-12c0-4db2-86d0-cdeb6abb62f8.config
+2026-10-22T16:49:57.6397823Z [command]/usr/bin/git config --local includeIf.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git/worktrees/*.path /home/runner/work/_temp/git-credentials-9c4d5872-12c0-4db2-86d0-cdeb6abb62f8.config
+2026-10-22T16:49:57.6462507Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git.path /github/runner_temp/git-credentials-9c4d5872-12c0-4db2-86d0-cdeb6abb62f8.config
+2026-10-22T16:49:57.6500292Z [command]/usr/bin/git config --local includeIf.gitdir:/github/workspace/.git/worktrees/*.path /github/runner_temp/git-credentials-9c4d5872-12c0-4db2-86d0-cdeb6abb62f8.config
+2026-10-22T16:49:57.6534239Z ##[endgroup]
+2026-10-22T16:49:57.6535883Z ##[group]Fetching the repository
+2026-10-22T16:49:57.6544267Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +refs/tags/*:refs/tags/* +fcb7927f02b5395753247b322fdd7be87ae5c731:refs/remotes/origin/rust
+2026-10-22T16:50:07.4490094Z From https://github.com/bitwisecook/tcl-lsp
+2026-10-22T16:50:07.4491324Z  * [new tag]           v1.0.0                                   -> v1.0.0
+2026-10-22T16:50:07.4491856Z  * [new tag]           v1.1.0                                   -> v1.1.0
+2026-10-22T16:50:07.4492333Z  * [new tag]           v1.1.1                                   -> v1.1.1
+2026-10-22T16:50:07.4492794Z  * [new tag]           v1.10.0                                  -> v1.10.0
+2026-10-22T16:50:07.4493256Z  * [new tag]           v1.10.1                                  -> v1.10.1
+2026-10-22T16:50:07.4493739Z  * [new tag]           v1.10.10                                 -> v1.10.10
+2026-10-22T16:50:07.4494209Z  * [new tag]           v1.10.2                                  -> v1.10.2
+2026-10-22T16:50:07.4494791Z  * [new tag]           v1.10.3                                  -> v1.10.3
+2026-10-22T16:50:07.4495307Z  * [new tag]           v1.10.4                                  -> v1.10.4
+2026-10-22T16:50:07.4495767Z  * [new tag]           v1.10.5                                  -> v1.10.5
+2026-10-22T16:50:07.4496553Z  * [new tag]           v1.10.6                                  -> v1.10.6
+2026-10-22T16:50:07.4497118Z  * [new tag]           v1.10.7                                  -> v1.10.7
+2026-10-22T16:50:07.4497634Z  * [new tag]           v1.10.8                                  -> v1.10.8
+2026-10-22T16:50:07.4498151Z  * [new tag]           v1.10.9                                  -> v1.10.9
+2026-10-22T16:50:07.4498626Z  * [new tag]           v1.11.0                                  -> v1.11.0
+2026-10-22T16:50:07.4499075Z  * [new tag]           v1.11.1                                  -> v1.11.1
+2026-10-22T16:50:07.4499531Z  * [new tag]           v1.11.2                                  -> v1.11.2
+2026-10-22T16:50:07.4499991Z  * [new tag]           v1.11.3                                  -> v1.11.3
+2026-10-22T16:50:07.4500700Z  * [new tag]           v1.11.4                                  -> v1.11.4
+2026-10-22T16:50:07.4501554Z  * [new tag]           v1.2.0                                   -> v1.2.0
+2026-10-22T16:50:07.4502035Z  * [new tag]           v1.2.1                                   -> v1.2.1
+2026-10-22T16:50:07.4502543Z  * [new tag]           v1.2.2                                   -> v1.2.2
+2026-10-22T16:50:07.4503149Z  * [new tag]           v1.2.3                                   -> v1.2.3
+2026-10-22T16:50:07.4503553Z  * [new tag]           v1.2.4                                   -> v1.2.4
+2026-10-22T16:50:07.4503931Z  * [new tag]           v1.3.0                                   -> v1.3.0
+2026-10-22T16:50:07.4504302Z  * [new tag]           v1.3.1                                   -> v1.3.1
+2026-10-22T16:50:07.4504673Z  * [new tag]           v1.4.0                                   -> v1.4.0
+2026-10-22T16:50:07.4505048Z  * [new tag]           v1.4.1                                   -> v1.4.1
+2026-10-22T16:50:07.4505503Z  * [new tag]           v1.4.2                                   -> v1.4.2
+2026-10-22T16:50:07.4506142Z  * [new tag]           v1.5.0                                   -> v1.5.0
+2026-10-22T16:50:07.4506536Z  * [new tag]           v1.5.1                                   -> v1.5.1
+2026-10-22T16:50:07.4506933Z  * [new tag]           v1.5.2                                   -> v1.5.2
+2026-10-22T16:50:07.4507325Z  * [new tag]           v1.5.3                                   -> v1.5.3
+2026-10-22T16:50:07.4507703Z  * [new tag]           v1.6.0                                   -> v1.6.0
+2026-10-22T16:50:07.4508093Z  * [new tag]           v1.7.0                                   -> v1.7.0
+2026-10-22T16:50:07.4508477Z  * [new tag]           v1.7.1                                   -> v1.7.1
+2026-10-22T16:50:07.4508855Z  * [new tag]           v1.7.2                                   -> v1.7.2
+2026-10-22T16:50:07.4509222Z  * [new tag]           v1.8.0                                   -> v1.8.0
+2026-10-22T16:50:07.4509597Z  * [new tag]           v1.8.1                                   -> v1.8.1
+2026-10-22T16:50:07.4509997Z  * [new tag]           v1.9.0                                   -> v1.9.0
+2026-10-22T16:50:07.4510487Z  * [new tag]           v2.1.0                                   -> v2.1.0
+2026-10-22T16:50:07.4511660Z  * [new tag]           v2.1.1                                   -> v2.1.1
+2026-10-22T16:50:07.4512140Z  * [new tag]           v2.1.10                                  -> v2.1.10
+2026-10-22T16:50:07.4512547Z  * [new tag]           v2.1.11                                  -> v2.1.11
+2026-10-22T16:50:07.4512932Z  * [new tag]           v2.1.12                                  -> v2.1.12
+2026-10-22T16:50:07.4513311Z  * [new tag]           v2.1.13                                  -> v2.1.13
+2026-10-22T16:50:07.4513808Z  * [new tag]           v2.1.14                                  -> v2.1.14
+2026-10-22T16:50:07.4514416Z  * [new tag]           v2.1.15                                  -> v2.1.15
+2026-10-22T16:50:07.4514867Z  * [new tag]           v2.1.16                                  -> v2.1.16
+2026-10-22T16:50:07.4515291Z  * [new tag]           v2.1.17                                  -> v2.1.17
+2026-10-22T16:50:07.4515664Z  * [new tag]           v2.1.18                                  -> v2.1.18
+2026-10-22T16:50:07.4516038Z  * [new tag]           v2.1.19                                  -> v2.1.19
+2026-10-22T16:50:07.4516415Z  * [new tag]           v2.1.2                                   -> v2.1.2
+2026-10-22T16:50:07.4516792Z  * [new tag]           v2.1.20                                  -> v2.1.20
+2026-10-22T16:50:07.4517167Z  * [new tag]           v2.1.21                                  -> v2.1.21
+2026-10-22T16:50:07.4517542Z  * [new tag]           v2.1.22                                  -> v2.1.22
+2026-10-22T16:50:07.4517934Z  * [new tag]           v2.1.23                                  -> v2.1.23
+2026-10-22T16:50:07.4518501Z  * [new tag]           v2.1.24                                  -> v2.1.24
+2026-10-22T16:50:07.4518916Z  * [new tag]           v2.1.3                                   -> v2.1.3
+2026-10-22T16:50:07.4519324Z  * [new tag]           v2.1.4                                   -> v2.1.4
+2026-10-22T16:50:07.4519719Z  * [new tag]           v2.1.5                                   -> v2.1.5
+2026-10-22T16:50:07.4520128Z  * [new tag]           v2.1.6                                   -> v2.1.6
+2026-10-22T16:50:07.4520524Z  * [new tag]           v2.1.7                                   -> v2.1.7
+2026-10-22T16:50:07.4521227Z  * [new tag]           v2.1.8                                   -> v2.1.8
+2026-10-22T16:50:07.4522032Z  * [new tag]           v2.1.9                                   -> v2.1.9
+2026-10-22T16:50:07.4522655Z  * [new tag]           v2.2.0                                   -> v2.2.0
+2026-10-22T16:50:07.4523056Z  * [new tag]           v2.2.1                                   -> v2.2.1
+2026-10-22T16:50:07.4523458Z  * [new tag]           v2.2.2                                   -> v2.2.2
+2026-10-22T16:50:07.4523851Z  * [new tag]           v2.2.3                                   -> v2.2.3
+2026-10-22T16:50:07.4524461Z  * [new tag]           v2.2.4                                   -> v2.2.4
+2026-10-22T16:50:07.4524860Z  * [new tag]           v2.2.5                                   -> v2.2.5
+2026-10-22T16:50:07.4525309Z  * [new ref]           fcb7927f02b5395753247b322fdd7be87ae5c731 -> origin/rust
+2026-10-22T16:50:07.4526565Z [command]/usr/bin/git branch --list --remote origin/rust
+2026-10-22T16:50:07.4539750Z   origin/rust
+2026-10-22T16:50:07.4548317Z [command]/usr/bin/git rev-parse refs/remotes/origin/rust
+2026-10-22T16:50:07.4575255Z fcb7927f02b5395753247b322fdd7be87ae5c731
+2026-10-22T16:50:07.4579417Z ##[endgroup]
+2026-10-22T16:50:07.4579948Z ##[group]Determining the checkout info
+2026-10-22T16:50:07.4580667Z ##[endgroup]
+2026-10-22T16:50:07.4584476Z [command]/usr/bin/git sparse-checkout disable
+2026-10-22T16:50:07.4641932Z [command]/usr/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-22T16:50:07.4673560Z ##[group]Checking out the ref
+2026-10-22T16:50:07.4677616Z [command]/usr/bin/git checkout --progress --force -B rust refs/remotes/origin/rust
+2026-10-22T16:50:08.2072785Z Switched to a new branch 'rust'
+2026-10-22T16:50:08.2082922Z branch 'rust' set up to track 'origin/rust'.
+2026-10-22T16:50:08.2126211Z ##[endgroup]
+2026-10-22T16:50:08.2184472Z [command]/usr/bin/git log -1 --format=%H
+2026-10-22T16:50:08.2212461Z fcb7927f02b5395753247b322fdd7be87ae5c731
+2026-10-22T16:50:08.2642541Z ##[group]Run actions-rust-lang/setup-rust-toolchain@ecabd13d1c56bd1345c230e542e9144811ad706f
+2026-10-22T16:50:08.2643011Z with:
+2026-10-22T16:50:08.2643200Z   toolchain: stable
+2026-10-22T16:50:08.2643404Z   cache-key: test-ext
+2026-10-22T16:50:08.2643624Z   build-warnings: deny
+2026-10-22T16:50:08.2643827Z   cache: true
+2026-10-22T16:50:08.2644024Z   cache-on-failure: true
+2026-10-22T16:50:08.2644242Z   cache-bin: true
+2026-10-22T16:50:08.2644451Z   cache-provider: github
+2026-10-22T16:50:08.2644684Z   cache-all-crates: false
+2026-10-22T16:50:08.2644938Z   cache-workspace-crates: false
+2026-10-22T16:50:08.2645174Z   cache-save-if: true
+2026-10-22T16:50:08.2645380Z   cache-targets: true
+2026-10-22T16:50:08.2645576Z   matcher: true
+2026-10-22T16:50:08.2645766Z   override: true
+2026-10-22T16:50:08.2645958Z env:
+2026-10-22T16:50:08.2646135Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:08.2646348Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:08.2646566Z   RUN_EXT: true
+2026-10-22T16:50:08.2646782Z ##[endgroup]
+2026-10-22T16:50:08.2706552Z ##[start-action display=Unbork mac;id=__actions-rust-lang_setup-rust-toolchain.__run]
+2026-10-22T16:50:08.2712435Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run;outcome=skipped;conclusion=skipped;duration_ms=0]
+2026-10-22T16:50:08.2743436Z ##[start-action display=Run : construct rustup command line;id=__actions-rust-lang_setup-rust-toolchain.flags]
+2026-10-22T16:50:08.2802523Z ##[group]Run : construct rustup command line
+2026-10-22T16:50:08.2802891Z [36;1m: construct rustup command line[0m
+2026-10-22T16:50:08.2803389Z [36;1mecho "targets=$(for t in ${_srt_targets//,/ }; do echo -n ' --target' $t; done)" >> $GITHUB_OUTPUT[0m
+2026-10-22T16:50:08.2804059Z [36;1mecho "components=$(for c in ${_srt_components//,/ }; do echo -n ' --component' $c; done)" >> $GITHUB_OUTPUT[0m
+2026-10-22T16:50:08.2804568Z [36;1mecho "downgrade=" >> $GITHUB_OUTPUT[0m
+2026-10-22T16:50:08.2988293Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T16:50:08.2988681Z env:
+2026-10-22T16:50:08.2989032Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:08.2989359Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:08.2989617Z   RUN_EXT: true
+2026-10-22T16:50:08.2989825Z   _srt_targets: 
+2026-10-22T16:50:08.2990039Z   _srt_components: 
+2026-10-22T16:50:08.2990255Z ##[endgroup]
+2026-10-22T16:50:08.3131996Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.flags;outcome=success;conclusion=success;duration_ms=38]
+2026-10-22T16:50:08.3137676Z ##[start-action display=Setting Environment Variables;id=__actions-rust-lang_setup-rust-toolchain.__run_2]
+2026-10-22T16:50:08.3156676Z ##[group]Run if [[ ! -v CARGO_INCREMENTAL ]]; then
+2026-10-22T16:50:08.3157057Z [36;1mif [[ ! -v CARGO_INCREMENTAL ]]; then[0m
+2026-10-22T16:50:08.3157378Z [36;1m  echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV[0m
+2026-10-22T16:50:08.3157662Z [36;1mfi[0m
+2026-10-22T16:50:08.3157894Z [36;1mif [[ ! -v CARGO_PROFILE_DEV_DEBUG ]]; then[0m
+2026-10-22T16:50:08.3158238Z [36;1m  echo "CARGO_PROFILE_DEV_DEBUG=0" >> $GITHUB_ENV[0m
+2026-10-22T16:50:08.3158538Z [36;1mfi[0m
+2026-10-22T16:50:08.3158755Z [36;1mif [[ ! -v CARGO_TERM_COLOR ]]; then[0m
+2026-10-22T16:50:08.3159078Z [36;1m  echo "CARGO_TERM_COLOR=always" >> $GITHUB_ENV[0m
+2026-10-22T16:50:08.3159363Z [36;1mfi[0m
+2026-10-22T16:50:08.3159563Z [36;1mif [[ ! -v RUST_BACKTRACE ]]; then[0m
+2026-10-22T16:50:08.3159869Z [36;1m  echo "RUST_BACKTRACE=short" >> $GITHUB_ENV[0m
+2026-10-22T16:50:08.3160144Z [36;1mfi[0m
+2026-10-22T16:50:08.3160403Z [36;1mif [[ ( ! -v RUSTFLAGS ) && $_srt_NEW_RUSTFLAGS != "" ]]; then[0m
+2026-10-22T16:50:08.3161125Z [36;1m  echo "RUSTFLAGS=$_srt_NEW_RUSTFLAGS" >> $GITHUB_ENV[0m
+2026-10-22T16:50:08.3161451Z [36;1mfi[0m
+2026-10-22T16:50:08.3161765Z [36;1mif [[ ( ! -v CARGO_BUILD_WARNINGS ) && $_srt_CARGO_BUILD_WARNINGS != "" ]]; then[0m
+2026-10-22T16:50:08.3162413Z [36;1m  echo "CARGO_BUILD_WARNINGS=$_srt_CARGO_BUILD_WARNINGS" >> $GITHUB_ENV[0m
+2026-10-22T16:50:08.3162803Z [36;1mfi[0m
+2026-10-22T16:50:08.3163232Z [36;1m# Enable faster sparse index on nightly[0m
+2026-10-22T16:50:08.3163619Z [36;1m# The value is ignored on stable and causes no problems[0m
+2026-10-22T16:50:08.3164145Z [36;1m# https://internals.rust-lang.org/t/call-for-testing-cargo-sparse-registry/16862[0m
+2026-10-22T16:50:08.3164655Z [36;1mif [[ ! -v CARGO_UNSTABLE_SPARSE_REGISTRY ]]; then[0m
+2026-10-22T16:50:08.3165053Z [36;1m  echo "CARGO_UNSTABLE_SPARSE_REGISTRY=true" >> $GITHUB_ENV[0m
+2026-10-22T16:50:08.3165376Z [36;1mfi[0m
+2026-10-22T16:50:08.3165632Z [36;1mif [[ ! -v CARGO_REGISTRIES_CRATES_IO_PROTOCOL ]]; then[0m
+2026-10-22T16:50:08.3166065Z [36;1m  echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse" >> $GITHUB_ENV[0m
+2026-10-22T16:50:08.3166415Z [36;1mfi[0m
+2026-10-22T16:50:08.3218968Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T16:50:08.3219306Z env:
+2026-10-22T16:50:08.3219493Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:08.3219720Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:08.3219950Z   RUN_EXT: true
+2026-10-22T16:50:08.3220148Z   _srt_NEW_RUSTFLAGS: 
+2026-10-22T16:50:08.3220368Z   _srt_CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:08.3220604Z ##[endgroup]
+2026-10-22T16:50:08.3304693Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_2;outcome=success;conclusion=success;duration_ms=16]
+2026-10-22T16:50:08.3307033Z ##[start-action display=Install Rust Problem Matcher;id=__actions-rust-lang_setup-rust-toolchain.__run_3]
+2026-10-22T16:50:08.3327070Z ##[group]Run echo "::add-matcher::/home/runner/work/_actions/actions-rust-lang/setup-rust-toolchain/ecabd13d1c56bd1345c230e542e9144811ad706f/rust.json"
+2026-10-22T16:50:08.3328090Z [36;1mecho "::add-matcher::/home/runner/work/_actions/actions-rust-lang/setup-rust-toolchain/ecabd13d1c56bd1345c230e542e9144811ad706f/rust.json"[0m
+2026-10-22T16:50:08.3381390Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T16:50:08.3381748Z env:
+2026-10-22T16:50:08.3381946Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:08.3382189Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:08.3382435Z   RUN_EXT: true
+2026-10-22T16:50:08.3382644Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:08.3382875Z   RUST_BACKTRACE: short
+2026-10-22T16:50:08.3383103Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:08.3383356Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:08.3383662Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:08.3383955Z ##[endgroup]
+2026-10-22T16:50:08.3485703Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_3;outcome=success;conclusion=success;duration_ms=17]
+2026-10-22T16:50:08.3489008Z ##[start-action display=Install rustup, if needed;id=__actions-rust-lang_setup-rust-toolchain.__run_4]
+2026-10-22T16:50:08.3506132Z ##[group]Run if ! command -v rustup &> /dev/null ; then
+2026-10-22T16:50:08.3506506Z [36;1mif ! command -v rustup &> /dev/null ; then[0m
+2026-10-22T16:50:08.3507153Z [36;1m  curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused -fsSL "https://sh.rustup.rs" | sh -s -- --default-toolchain none -y[0m
+2026-10-22T16:50:08.3507765Z [36;1m[0m
+2026-10-22T16:50:08.3508033Z [36;1m  # Resolve the correct CARGO_HOME path depending on OS[0m
+2026-10-22T16:50:08.3508397Z [36;1m  if [[ "$RUNNER_OS" == "Windows" ]]; then[0m
+2026-10-22T16:50:08.3508820Z [36;1m    echo "${CARGO_HOME:-$USERPROFILE/.cargo}/bin" | sed 's|/|\\|g' >> $GITHUB_PATH[0m
+2026-10-22T16:50:08.3509218Z [36;1m  else[0m
+2026-10-22T16:50:08.3509489Z [36;1m    echo "${CARGO_HOME:-$HOME/.cargo}/bin" >> $GITHUB_PATH[0m
+2026-10-22T16:50:08.3509806Z [36;1m  fi[0m
+2026-10-22T16:50:08.3509995Z [36;1mfi[0m
+2026-10-22T16:50:08.3566654Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T16:50:08.3566998Z env:
+2026-10-22T16:50:08.3567186Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:08.3567414Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:08.3567639Z   RUN_EXT: true
+2026-10-22T16:50:08.3567838Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:08.3568067Z   RUST_BACKTRACE: short
+2026-10-22T16:50:08.3568459Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:08.3568711Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:08.3569003Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:08.3569276Z   RUNNER_OS: Linux
+2026-10-22T16:50:08.3569467Z ##[endgroup]
+2026-10-22T16:50:08.3652256Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_4;outcome=success;conclusion=success;duration_ms=16]
+2026-10-22T16:50:08.3657315Z ##[start-action display=rustup toolchain install stable;id=__actions-rust-lang_setup-rust-toolchain.__run_5]
+2026-10-22T16:50:08.3676171Z ##[group]Run # Check if value is set
+2026-10-22T16:50:08.3676500Z [36;1m# Check if value is set[0m
+2026-10-22T16:50:08.3676768Z [36;1mif [[ -n "$_srt_rust_src_dir" ]][0m
+2026-10-22T16:50:08.3677030Z [36;1mthen[0m
+2026-10-22T16:50:08.3677271Z [36;1m  # If value is set the directory must exist[0m
+2026-10-22T16:50:08.3677589Z [36;1m  if [[ -d "$_srt_rust_src_dir" ]][0m
+2026-10-22T16:50:08.3677861Z [36;1m  then[0m
+2026-10-22T16:50:08.3678083Z [36;1m    cd "$_srt_rust_src_dir"[0m
+2026-10-22T16:50:08.3678337Z [36;1m  else[0m
+2026-10-22T16:50:08.3678659Z [36;1m    echo "'rust-src-dir' does not point to an existing directory" >&2[0m
+2026-10-22T16:50:08.3679128Z [36;1m    echo "The value of 'rust-src-dir' is: ${_srt_rust_src_dir}" >&2[0m
+2026-10-22T16:50:08.3679483Z [36;1m    exit 1[0m
+2026-10-22T16:50:08.3679681Z [36;1m  fi[0m
+2026-10-22T16:50:08.3679865Z [36;1mfi[0m
+2026-10-22T16:50:08.3680200Z [36;1mif [[ -z "$_srt_toolchain" && ( -f "rust-toolchain" || -f "rust-toolchain.toml") ]][0m
+2026-10-22T16:50:08.3680600Z [36;1mthen[0m
+2026-10-22T16:50:08.3681465Z [36;1m  # Install the toolchain as specified in the file[0m
+2026-10-22T16:50:08.3682070Z [36;1m  # rustup show is the old way that implicitly installed a toolchain[0m
+2026-10-22T16:50:08.3682506Z [36;1m  # rustup toolchain install is the new explicit way[0m
+2026-10-22T16:50:08.3682961Z [36;1m  # https://github.com/rust-lang/rustup/issues/3635#issuecomment-2343511297[0m
+2026-10-22T16:50:08.3683447Z [36;1m  rustup show active-toolchain || rustup toolchain install[0m
+2026-10-22T16:50:08.3683810Z [36;1m  if [[ -n $_srt_components ]]; then[0m
+2026-10-22T16:50:08.3684131Z [36;1m    rustup component add ${_srt_components//,/ }[0m
+2026-10-22T16:50:08.3684422Z [36;1m  fi[0m
+2026-10-22T16:50:08.3684634Z [36;1m  if [[ -n $_srt_targets ]]; then[0m
+2026-10-22T16:50:08.3684928Z [36;1m    rustup target add ${_srt_targets//,/ }[0m
+2026-10-22T16:50:08.3685220Z [36;1m  fi[0m
+2026-10-22T16:50:08.3685406Z [36;1melse[0m
+2026-10-22T16:50:08.3685618Z [36;1m  if [[ -z "$_srt_toolchain" ]][0m
+2026-10-22T16:50:08.3686043Z [36;1m  then[0m
+2026-10-22T16:50:08.3686250Z [36;1m    _srt_toolchain=stable[0m
+2026-10-22T16:50:08.3686488Z [36;1m  fi[0m
+2026-10-22T16:50:08.3686848Z [36;1m  rustup toolchain install ${_srt_toolchain//,/ }  --profile minimal --no-self-update[0m
+2026-10-22T16:50:08.3687310Z [36;1m  # Take the last element from the list[0m
+2026-10-22T16:50:08.3687617Z [36;1m  if [[ "$_srt_override" == "true" ]][0m
+2026-10-22T16:50:08.3687884Z [36;1m  then[0m
+2026-10-22T16:50:08.3688122Z [36;1m    rustup override set ${_srt_toolchain//*,/ }[0m
+2026-10-22T16:50:08.3688412Z [36;1m  fi[0m
+2026-10-22T16:50:08.3688590Z [36;1mfi[0m
+2026-10-22T16:50:08.3741143Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T16:50:08.3741492Z env:
+2026-10-22T16:50:08.3741724Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:08.3741959Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:08.3742196Z   RUN_EXT: true
+2026-10-22T16:50:08.3742401Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:08.3742637Z   RUST_BACKTRACE: short
+2026-10-22T16:50:08.3742862Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:08.3743110Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:08.3743399Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:08.3743681Z   _srt_toolchain: stable
+2026-10-22T16:50:08.3743901Z   _srt_targets: 
+2026-10-22T16:50:08.3744100Z   _srt_components: 
+2026-10-22T16:50:08.3744453Z   _srt_override: true
+2026-10-22T16:50:08.3744676Z   _srt_rust_src_dir: 
+2026-10-22T16:50:08.3744881Z ##[endgroup]
+2026-10-22T16:50:09.8419171Z info: syncing channel updates for stable-x86_64-unknown-linux-gnu
+2026-10-22T16:50:10.1938038Z info: latest update on 2026-10-15 for version 1.99.1 (58cf8f9c3 2026-10-13)
+2026-10-22T16:50:10.2128927Z info: removing previous version of component rustfmt
+2026-10-22T16:50:10.2228695Z info: removing previous version of component clippy
+2026-10-22T16:50:10.2282651Z info: removing previous version of component cargo
+2026-10-22T16:50:10.2437971Z info: removing previous version of component rust-std
+2026-10-22T16:50:10.2487331Z info: removing previous version of component rustc
+2026-10-22T16:50:10.2540291Z info: downloading 5 components
+2026-10-22T16:50:18.6581299Z 
+2026-10-22T16:50:18.6654556Z   stable-x86_64-unknown-linux-gnu updated - rustc 1.99.1 (58cf8f9c3 2026-10-13) (from rustc 1.99.0 (b940084d7 2026-09-28))
+2026-10-22T16:50:18.6655450Z 
+2026-10-22T16:50:18.7048847Z info: override toolchain for /home/runner/work/tcl-lsp/tcl-lsp set to stable-x86_64-unknown-linux-gnu
+2026-10-22T16:50:18.7076460Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_5;outcome=success;conclusion=success;duration_ms=10341]
+2026-10-22T16:50:18.7079629Z ##[start-action display=Print installed versions;id=__actions-rust-lang_setup-rust-toolchain.versions]
+2026-10-22T16:50:18.7098902Z ##[group]Run echo "rustc-version=$(rustc --version)" >> $GITHUB_OUTPUT
+2026-10-22T16:50:18.7099401Z [36;1mecho "rustc-version=$(rustc --version)" >> $GITHUB_OUTPUT[0m
+2026-10-22T16:50:18.7099799Z [36;1m_srt_VERBOSE=$(rustc --version --verbose)[0m
+2026-10-22T16:50:18.7100104Z [36;1mecho "$_srt_VERBOSE"[0m
+2026-10-22T16:50:18.7100420Z [36;1mecho "cargo-version=$(cargo --version)" >> $GITHUB_OUTPUT[0m
+2026-10-22T16:50:18.7100766Z [36;1mcargo --version --verbose[0m
+2026-10-22T16:50:18.7101718Z [36;1mecho "rustup-version=$(rustup --version)" >> $GITHUB_OUTPUT[0m
+2026-10-22T16:50:18.7102100Z [36;1mrustup --version[0m
+2026-10-22T16:50:18.7102335Z [36;1m[0m
+2026-10-22T16:50:18.7102752Z [36;1m_srt_DATE=$(echo "$_srt_VERBOSE" | sed -ne 's/^commit-date: \(20[0-9][0-9]\)-\([01][0-9]\)-\([0-3][0-9]\)$/\1\2\3/p')[0m
+2026-10-22T16:50:18.7103351Z [36;1m_srt_HASH=$(echo "$_srt_VERBOSE" | sed -ne 's/^commit-hash: //p')[0m
+2026-10-22T16:50:18.7103844Z [36;1mecho "cachekey=$(echo $_srt_DATE$_srt_HASH | head -c12)" >> $GITHUB_OUTPUT[0m
+2026-10-22T16:50:18.7163358Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T16:50:18.7163693Z env:
+2026-10-22T16:50:18.7164114Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:18.7164337Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:18.7164563Z   RUN_EXT: true
+2026-10-22T16:50:18.7164780Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:18.7165005Z   RUST_BACKTRACE: short
+2026-10-22T16:50:18.7165222Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:18.7165462Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:18.7165758Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:18.7166052Z ##[endgroup]
+2026-10-22T16:50:18.7466573Z rustc 1.99.1 (58cf8f9c3 2026-10-13)
+2026-10-22T16:50:18.7467313Z binary: rustc
+2026-10-22T16:50:18.7467872Z commit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67
+2026-10-22T16:50:18.7468487Z commit-date: 2026-10-13
+2026-10-22T16:50:18.7468942Z host: x86_64-unknown-linux-gnu
+2026-10-22T16:50:18.7469355Z release: 1.99.1
+2026-10-22T16:50:18.7469711Z LLVM version: 23.1.1
+2026-10-22T16:50:18.7815323Z cargo 1.99.1 (5f94df478 2026-08-27)
+2026-10-22T16:50:18.7815658Z release: 1.99.1
+2026-10-22T16:50:18.7815976Z commit-hash: 5f94df4789f005f9a352888e8355ffc645b7ed0e
+2026-10-22T16:50:18.7816338Z commit-date: 2026-08-27
+2026-10-22T16:50:18.7816588Z host: x86_64-unknown-linux-gnu
+2026-10-22T16:50:18.7816850Z libgit2: 1.9.6 (sys:0.21.0 vendored)
+2026-10-22T16:50:18.7817232Z libcurl: 8.21.0-DEV (sys:0.4.90+curl-8.21.0 vendored ssl:OpenSSL/3.6.3)
+2026-10-22T16:50:18.7817879Z ssl: OpenSSL 3.6.3 9 Jun 2026
+2026-10-22T16:50:18.7818717Z os: Ubuntu 26.4.0 (resolute) [64-bit]
+2026-10-22T16:50:18.7854721Z info: This is the version for the rustup toolchain manager, not the rustc compiler.
+2026-10-22T16:50:18.7936213Z info: the currently active `rustc` version is `rustc 1.99.1 (58cf8f9c3 2026-10-13)`
+2026-10-22T16:50:18.7976372Z info: This is the version for the rustup toolchain manager, not the rustc compiler.
+2026-10-22T16:50:18.7977181Z rustup 1.29.1 (d95a37b6a 2026-08-13)
+2026-10-22T16:50:18.8051968Z info: the currently active `rustc` version is `rustc 1.99.1 (58cf8f9c3 2026-10-13)`
+2026-10-22T16:50:18.8149627Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.versions;outcome=success;conclusion=success;duration_ms=106]
+2026-10-22T16:50:18.8152745Z ##[start-action display=Downgrade registry access protocol when needed;id=__actions-rust-lang_setup-rust-toolchain.__run_6]
+2026-10-22T16:50:18.8172784Z ##[group]Run # Not all versions support setting CARGO_REGISTRIES_CRATES_IO_PROTOCOL
+2026-10-22T16:50:18.8173360Z [36;1m# Not all versions support setting CARGO_REGISTRIES_CRATES_IO_PROTOCOL[0m
+2026-10-22T16:50:18.8173890Z [36;1m# On versions 1.66, 1.67, and 1.68.0-nightly the value "sparse" is still unstable.[0m
+2026-10-22T16:50:18.8174461Z [36;1m# https://github.com/dtolnay/rust-toolchain/pull/69#discussion_r1107268108[0m
+2026-10-22T16:50:18.8175033Z [36;1m# If we detect an incompatible value, set it to "git" which is always supported.[0m
+2026-10-22T16:50:18.8175767Z [36;1mif [[ "rustc 1.99.1 (58cf8f9c3 2026-10-13)" =~ ^rustc\ (1\.6[67]\.|1\.68\.0-nightly) && "${CARGO_REGISTRIES_CRATES_IO_PROTOCOL}" == "sparse" ]]; then[0m
+2026-10-22T16:50:18.8176404Z [36;1m  echo "Downgrade cargo registry protocol to git"[0m
+2026-10-22T16:50:18.8176817Z [36;1m  echo "CARGO_REGISTRIES_CRATES_IO_PROTOCOL=git" >> $GITHUB_ENV[0m
+2026-10-22T16:50:18.8177171Z [36;1mfi[0m
+2026-10-22T16:50:18.8237033Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-22T16:50:18.8237410Z env:
+2026-10-22T16:50:18.8237616Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:18.8237880Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:18.8238132Z   RUN_EXT: true
+2026-10-22T16:50:18.8238350Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:18.8238601Z   RUST_BACKTRACE: short
+2026-10-22T16:50:18.8238844Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:18.8239119Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:18.8239447Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:18.8239754Z ##[endgroup]
+2026-10-22T16:50:18.8321749Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__run_6;outcome=success;conclusion=success;duration_ms=16]
+2026-10-22T16:50:18.8336196Z ##[start-action display=Setup Rust Caching;id=__actions-rust-lang_setup-rust-toolchain.__Swatinem_rust-cache]
+2026-10-22T16:50:18.8383703Z ##[group]Run Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
+2026-10-22T16:50:18.8384079Z with:
+2026-10-22T16:50:18.8384281Z   cache-on-failure: true
+2026-10-22T16:50:18.8384501Z   cache-bin: true
+2026-10-22T16:50:18.8384705Z   cache-provider: github
+2026-10-22T16:50:18.8384939Z   cache-all-crates: false
+2026-10-22T16:50:18.8385181Z   cache-workspace-crates: false
+2026-10-22T16:50:18.8385426Z   cache-targets: true
+2026-10-22T16:50:18.8385628Z   save-if: true
+2026-10-22T16:50:18.8385822Z   key: test-ext
+2026-10-22T16:50:18.8386016Z   prefix-key: v0-rust
+2026-10-22T16:50:18.8386228Z   add-job-id-key: true
+2026-10-22T16:50:18.8386462Z   add-rust-environment-hash-key: true
+2026-10-22T16:50:18.8386730Z   lookup-only: false
+2026-10-22T16:50:18.8386935Z   cmd-format: {0}
+2026-10-22T16:50:18.8387123Z env:
+2026-10-22T16:50:18.8387303Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:18.8387525Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:18.8387754Z   RUN_EXT: true
+2026-10-22T16:50:18.8387952Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:18.8388179Z   RUST_BACKTRACE: short
+2026-10-22T16:50:18.8388402Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:18.8388645Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:18.8388934Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:18.8389372Z ##[endgroup]
+2026-10-22T16:50:19.6365788Z ##[group]Cache Configuration
+2026-10-22T16:50:19.6366490Z Cache Provider:
+2026-10-22T16:50:19.6366856Z     github
+2026-10-22T16:50:19.6367198Z Workspaces:
+2026-10-22T16:50:19.6367605Z     /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-22T16:50:19.6368083Z Cache Paths:
+2026-10-22T16:50:19.6368475Z     /home/runner/.cargo/bin
+2026-10-22T16:50:19.6368962Z     /home/runner/.cargo/.crates.toml
+2026-10-22T16:50:19.6369486Z     /home/runner/.cargo/.crates2.json
+2026-10-22T16:50:19.6370007Z     /home/runner/.cargo/registry
+2026-10-22T16:50:19.6370524Z     /home/runner/.cargo/git
+2026-10-22T16:50:19.6371297Z     /home/runner/work/tcl-lsp/tcl-lsp/target
+2026-10-22T16:50:19.6371792Z Restore Key:
+2026-10-22T16:50:19.6372360Z     v0-rust-test-ext-test-ext-multi-folder-Linux-x64-9c09dd5e
+2026-10-22T16:50:19.6373001Z Cache Key:
+2026-10-22T16:50:19.6373703Z     v0-rust-test-ext-test-ext-multi-folder-Linux-x64-9c09dd5e-afb087a8
+2026-10-22T16:50:19.6374395Z .. Prefix:
+2026-10-22T16:50:19.6374878Z   - v0-rust-test-ext-test-ext-multi-folder-Linux-x64
+2026-10-22T16:50:19.6375498Z .. Environment considered:
+2026-10-22T16:50:19.6375928Z   - Rust Versions:
+2026-10-22T16:50:19.6376564Z     - 1.99.1 x86_64-unknown-linux-gnu 58cf8f9c35b355199727627d07ae34a4e2846d67
+2026-10-22T16:50:19.6377288Z   - CARGO_BUILD_WARNINGS
+2026-10-22T16:50:19.6377774Z   - CARGO_INCREMENTAL
+2026-10-22T16:50:19.6378202Z   - CARGO_PROFILE_DEV_DEBUG
+2026-10-22T16:50:19.6378691Z   - CARGO_REGISTRIES_CRATES_IO_PROTOCOL
+2026-10-22T16:50:19.6379204Z   - CARGO_TERM_COLOR
+2026-10-22T16:50:19.6379669Z   - CARGO_UNSTABLE_SPARSE_REGISTRY
+2026-10-22T16:50:19.6380132Z   - RUST_BACKTRACE
+2026-10-22T16:50:19.6380542Z .. Lockfiles considered:
+2026-10-22T16:50:19.6381327Z   - /home/runner/work/tcl-lsp/tcl-lsp/.cargo/config.toml
+2026-10-22T16:50:19.6381973Z   - /home/runner/work/tcl-lsp/tcl-lsp/Cargo.lock
+2026-10-22T16:50:19.6382588Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust-toolchain.toml
+2026-10-22T16:50:19.6383382Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bigip-report-gen/rust/Cargo.toml
+2026-10-22T16:50:19.6384283Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl-codegen/Cargo.toml
+2026-10-22T16:50:19.6385124Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl-ir/Cargo.toml
+2026-10-22T16:50:19.6385917Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl/Cargo.toml
+2026-10-22T16:50:19.6386649Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli/Cargo.toml
+2026-10-22T16:50:19.6387404Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/f5-xc/Cargo.toml
+2026-10-22T16:50:19.6388205Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip-io/Cargo.toml
+2026-10-22T16:50:19.6389518Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip-query/Cargo.toml
+2026-10-22T16:50:19.6390348Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip/Cargo.toml
+2026-10-22T16:50:19.6391449Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bytecode/Cargo.toml
+2026-10-22T16:50:19.6392313Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cli-support/Cargo.toml
+2026-10-22T16:50:19.6393190Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cli/Cargo.toml
+2026-10-22T16:50:19.6393978Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cmd-core/Cargo.toml
+2026-10-22T16:50:19.6394873Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-compiler/Cargo.toml
+2026-10-22T16:50:19.6395728Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-core-types/Cargo.toml
+2026-10-22T16:50:19.6396555Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cshim/Cargo.toml
+2026-10-22T16:50:19.6397366Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-debugger/Cargo.toml
+2026-10-22T16:50:19.6398198Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-diagram/Cargo.toml
+2026-10-22T16:50:19.6399010Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-dialect/Cargo.toml
+2026-10-22T16:50:19.6399788Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-api/Cargo.toml
+2026-10-22T16:50:19.6400594Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-tclvm/Cargo.toml
+2026-10-22T16:50:19.6401930Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-wasm/Cargo.toml
+2026-10-22T16:50:19.6402769Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-explorer/Cargo.toml
+2026-10-22T16:50:19.6403519Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-f5mku/Cargo.toml
+2026-10-22T16:50:19.6404255Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-fuzz/Cargo.toml
+2026-10-22T16:50:19.6404974Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-native/Cargo.toml
+2026-10-22T16:50:19.6405725Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irule-test/Cargo.toml
+2026-10-22T16:50:19.6406413Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irules/Cargo.toml
+2026-10-22T16:50:19.6407125Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lexer/Cargo.toml
+2026-10-22T16:50:19.6407844Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-core/Cargo.toml
+2026-10-22T16:50:19.6408554Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-db/Cargo.toml
+2026-10-22T16:50:19.6409337Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasi/.cargo/config.toml
+2026-10-22T16:50:19.6410162Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/Cargo.toml
+2026-10-22T16:50:19.6410859Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-mcp/Cargo.toml
+2026-10-22T16:50:19.6411812Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-pkg-model/Cargo.toml
+2026-10-22T16:50:19.6412510Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-pkg/Cargo.toml
+2026-10-22T16:50:19.6413182Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-platform/Cargo.toml
+2026-10-22T16:50:19.6413901Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-regex/Cargo.toml
+2026-10-22T16:50:19.6414623Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/Cargo.toml
+2026-10-22T16:50:19.6415369Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-runtime-api/Cargo.toml
+2026-10-22T16:50:19.6416076Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-sandbox/Cargo.toml
+2026-10-22T16:50:19.6416852Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spec-hooks/Cargo.toml
+2026-10-22T16:50:19.6417897Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spec-studio/Cargo.toml
+2026-10-22T16:50:19.6418381Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spectcl/Cargo.toml
+2026-10-22T16:50:19.6418811Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-sslictcl/Cargo.toml
+2026-10-22T16:50:19.6419235Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-syntax/Cargo.toml
+2026-10-22T16:50:19.6419673Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-test-support/Cargo.toml
+2026-10-22T16:50:19.6420112Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-userdirs/Cargo.toml
+2026-10-22T16:50:19.6420526Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-version/Cargo.toml
+2026-10-22T16:50:19.6421481Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm-cli/Cargo.toml
+2026-10-22T16:50:19.6421907Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm/Cargo.toml
+2026-10-22T16:50:19.6422293Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/xtask/Cargo.toml
+2026-10-22T16:50:19.6422830Z ##[endgroup]
+2026-10-22T16:50:19.6422956Z 
+2026-10-22T16:50:19.6423055Z ... Restoring cache ...
+2026-10-22T16:50:19.7401601Z No cache found.
+2026-10-22T16:50:19.7506026Z ##[end-action id=__actions-rust-lang_setup-rust-toolchain.__Swatinem_rust-cache;outcome=success;conclusion=success;duration_ms=916]
+2026-10-22T16:50:19.7590513Z ##[group]Run actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+2026-10-22T16:50:19.7591215Z with:
+2026-10-22T16:50:19.7591421Z   node-version: 26
+2026-10-22T16:50:19.7591638Z   check-latest: false
+2026-10-22T16:50:19.7594067Z   token: ***
+2026-10-22T16:50:19.7594287Z   package-manager-cache: true
+2026-10-22T16:50:19.7594523Z env:
+2026-10-22T16:50:19.7594704Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:19.7594937Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:19.7595161Z   RUN_EXT: true
+2026-10-22T16:50:19.7595364Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:19.7595587Z   RUST_BACKTRACE: short
+2026-10-22T16:50:19.7595804Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:19.7596046Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:19.7596338Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:19.7596619Z   CACHE_ON_FAILURE: true
+2026-10-22T16:50:19.7596835Z ##[endgroup]
+2026-10-22T16:50:19.9095880Z Attempting to download 26...
+2026-10-22T16:50:20.6612999Z Acquiring 26.12.1 - x64 from https://github.com/actions/node-versions/releases/download/26.12.1-39618969937/node-26.12.1-linux-x64.tar.gz
+2026-10-22T16:50:21.1037592Z Extracting ...
+2026-10-22T16:50:21.1173008Z [command]/usr/bin/tar xz --strip 1 --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/af50d0c1-2fee-4253-93fd-bdb6f3d5ee31 -f /home/runner/work/_temp/5d5ef8bf-f3c6-4336-8816-337d8416ce09
+2026-10-22T16:50:21.9535792Z Adding to the cache ...
+2026-10-22T16:50:23.6628451Z ##[group]Environment details
+2026-10-22T16:50:23.9316928Z node: v26.12.1
+2026-10-22T16:50:23.9317345Z npm: 11.20.0
+2026-10-22T16:50:23.9317649Z yarn: 1.22.22
+2026-10-22T16:50:23.9318123Z ##[endgroup]
+2026-10-22T16:50:23.9501370Z ##[group]Run # `corepack enable` alone only shims pnpm/yarn; npm must be named
+2026-10-22T16:50:23.9502000Z [36;1m# `corepack enable` alone only shims pnpm/yarn; npm must be named[0m
+2026-10-22T16:50:23.9502493Z [36;1m# explicitly (`corepack enable npm`) or the shim isn't created and[0m
+2026-10-22T16:50:23.9502974Z [36;1m# the npm bundled with setup-node wins. Assert the pin is live so a[0m
+2026-10-22T16:50:23.9503457Z [36;1m# silent regression fails loudly instead of using the wrong npm.[0m
+2026-10-22T16:50:23.9503862Z [36;1mnpm install -g corepack@0.36.0[0m
+2026-10-22T16:50:23.9504142Z [36;1mcorepack enable npm[0m
+2026-10-22T16:50:23.9504394Z [36;1mcd editors/vscode[0m
+2026-10-22T16:50:23.9504640Z [36;1mactive="$(npm --version)"[0m
+2026-10-22T16:50:23.9505001Z [36;1mecho "Active npm: $active (pinned via packageManager)"[0m
+2026-10-22T16:50:23.9505339Z [36;1mcase "$active" in[0m
+2026-10-22T16:50:23.9505562Z [36;1m  12.*) ;;[0m
+2026-10-22T16:50:23.9505971Z [36;1m  *) echo "::error::expected npm 12 from packageManager pin, got $active"; exit 1 ;;[0m
+2026-10-22T16:50:23.9506375Z [36;1mesac[0m
+2026-10-22T16:50:23.9568364Z shell: /usr/bin/bash -e {0}
+2026-10-22T16:50:23.9568612Z env:
+2026-10-22T16:50:23.9568800Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:23.9569030Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:23.9569261Z   RUN_EXT: true
+2026-10-22T16:50:23.9569459Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:23.9569683Z   RUST_BACKTRACE: short
+2026-10-22T16:50:23.9569898Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:23.9570141Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:23.9570436Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:23.9570721Z   CACHE_ON_FAILURE: true
+2026-10-22T16:50:23.9571325Z   COREPACK_ENABLE_DOWNLOAD_PROMPT: 0
+2026-10-22T16:50:23.9571593Z ##[endgroup]
+2026-10-22T16:50:24.4515118Z 
+2026-10-22T16:50:24.4521958Z added 1 package in 434ms
+2026-10-22T16:50:25.7930658Z Active npm: 12.2.0 (pinned via packageManager)
+2026-10-22T16:50:25.8559969Z ##[group]Run actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+2026-10-22T16:50:25.8560353Z with:
+2026-10-22T16:50:25.8560544Z   path: ~/.npm
+2026-10-22T16:50:25.8561378Z   key: Linux-npm-e9cdb0742266c4e5d3fef2546021c2c7e311bce950387870adda485247af9bec
+2026-10-22T16:50:25.8561842Z   restore-keys: Linux-npm-
+
+2026-10-22T16:50:25.8562099Z   enableCrossOsArchive: false
+2026-10-22T16:50:25.8562344Z   fail-on-cache-miss: false
+2026-10-22T16:50:25.8562573Z   lookup-only: false
+2026-10-22T16:50:25.8562780Z   save-always: false
+2026-10-22T16:50:25.8562980Z env:
+2026-10-22T16:50:25.8563162Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:25.8563382Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:25.8563628Z   RUN_EXT: true
+2026-10-22T16:50:25.8563845Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:25.8564154Z   RUST_BACKTRACE: short
+2026-10-22T16:50:25.8564545Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:25.8564993Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:25.8565480Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:25.8592321Z   CACHE_ON_FAILURE: true
+2026-10-22T16:50:25.8592785Z ##[endgroup]
+2026-10-22T16:50:26.1019256Z Cache hit for: Linux-npm-e9cdb0742266c4e5d3fef2546021c2c7e311bce950387870adda485247af9bec
+2026-10-22T16:50:26.8252774Z Received 55582688 of 55582688 (100.0%), 88.2 MBs/sec
+2026-10-22T16:50:26.8262317Z Cache Size: ~53 MB (55582688 B)
+2026-10-22T16:50:26.8284383Z [command]/usr/bin/tar -xf /home/runner/work/_temp/7cc66c92-b229-439a-918c-2759dd8aaec1/cache.tzst -P -C /home/runner/work/tcl-lsp/tcl-lsp --use-compress-program unzstd
+2026-10-22T16:50:26.9864198Z Cache restored successfully
+2026-10-22T16:50:26.9969327Z Cache restored from key: Linux-npm-e9cdb0742266c4e5d3fef2546021c2c7e311bce950387870adda485247af9bec
+2026-10-22T16:50:27.0137353Z ##[group]Run cd editors/vscode
+2026-10-22T16:50:27.0137676Z [36;1mcd editors/vscode[0m
+2026-10-22T16:50:27.0137910Z [36;1mnpm ci[0m
+2026-10-22T16:50:27.0138225Z [36;1m# `make test-ext` calls the ordinary compile target later. Record[0m
+2026-10-22T16:50:27.0138729Z [36;1m# that this exact package/lock pair is already installed so it does[0m
+2026-10-22T16:50:27.0139207Z [36;1m# not immediately run a second `npm install` in the same job.[0m
+2026-10-22T16:50:27.0139583Z [36;1mmkdir -p ../../build/stamps[0m
+2026-10-22T16:50:27.0139878Z [36;1mtouch ../../build/stamps/npm-install[0m
+2026-10-22T16:50:27.0200770Z shell: /usr/bin/bash -e {0}
+2026-10-22T16:50:27.0201194Z env:
+2026-10-22T16:50:27.0201408Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:27.0201670Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:27.0201930Z   RUN_EXT: true
+2026-10-22T16:50:27.0202153Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:27.0202408Z   RUST_BACKTRACE: short
+2026-10-22T16:50:27.0202684Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:27.0202968Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:27.0203292Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:27.0203616Z   CACHE_ON_FAILURE: true
+2026-10-22T16:50:27.0203858Z ##[endgroup]
+2026-10-22T16:50:28.7791746Z npm warn deprecated @types/glob@9.0.0: This is a stub types definition. glob provides its own type definitions, so you do not need this installed.
+2026-10-22T16:50:30.7988892Z 
+2026-10-22T16:50:30.7989897Z added 389 packages, and audited 390 packages in 4s
+2026-10-22T16:50:30.7992686Z 
+2026-10-22T16:50:30.7993180Z 94 packages are looking for funding
+2026-10-22T16:50:30.7993730Z   run `npm fund` for details
+2026-10-22T16:50:30.8003495Z 
+2026-10-22T16:50:30.8003928Z found 0 vulnerabilities
+2026-10-22T16:50:30.8017376Z npm warn install-scripts 3 packages had install scripts blocked because they are not covered by allowScripts:
+2026-10-22T16:50:30.8019094Z npm warn install-scripts   @playwright/browser-chromium@1.64.1 (install: node install.js)
+2026-10-22T16:50:30.8021316Z npm warn install-scripts   @vscode/vsce-sign@2.1.0 (postinstall: node ./src/postinstall.js)
+2026-10-22T16:50:30.8022767Z npm warn install-scripts   esbuild@0.28.2 (postinstall: node install.js)
+2026-10-22T16:50:30.8023673Z npm warn install-scripts
+2026-10-22T16:50:30.8024980Z npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+2026-10-22T16:50:30.8527283Z ##[group]Run make check-vscode-test-partitions
+2026-10-22T16:50:30.8527687Z [36;1mmake check-vscode-test-partitions[0m
+2026-10-22T16:50:30.8588840Z shell: /usr/bin/bash -e {0}
+2026-10-22T16:50:30.8589111Z env:
+2026-10-22T16:50:30.8589319Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:30.8589561Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:30.8589812Z   RUN_EXT: true
+2026-10-22T16:50:30.8590025Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:30.8590276Z   RUST_BACKTRACE: short
+2026-10-22T16:50:30.8590513Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:30.8590781Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:30.8591386Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:30.8591704Z   CACHE_ON_FAILURE: true
+2026-10-22T16:50:30.8591941Z ##[endgroup]
+2026-10-22T16:50:31.1750107Z VS Code test partitions: exact-once proof passed (107 files, 972 passed + 1 pending single-root identities, 14 multi-folder tests, 3 partitions)
+2026-10-22T16:50:31.6873893Z VS Code workflow lifecycle contract passed
+2026-10-22T16:50:31.7237574Z VS Code partition gate call-chain contract passed
+2026-10-22T16:50:31.8414369Z VS Code fresh source inventory contract passed
+2026-10-22T16:50:31.9513722Z VS Code aggregate metadata contract passed
+2026-10-22T16:50:31.9611272Z ##[group]Run set -uo pipefail
+2026-10-22T16:50:31.9611808Z [36;1mset -uo pipefail[0m
+2026-10-22T16:50:31.9612200Z [36;1mver=""[0m
+2026-10-22T16:50:31.9612685Z [36;1mif curl -fsSL --max-time 20 -o /tmp/vscode-stable.json \[0m
+2026-10-22T16:50:31.9613592Z [36;1m     https://update.code.visualstudio.com/api/update/linux-x64/stable/latest; then[0m
+2026-10-22T16:50:31.9614802Z [36;1m  ver=$(python3 -c 'import json; print(json.load(open("/tmp/vscode-stable.json"))["name"])' 2>/dev/null || true)[0m
+2026-10-22T16:50:31.9615656Z [36;1mfi[0m
+2026-10-22T16:50:31.9615984Z [36;1mif [ -z "$ver" ]; then[0m
+2026-10-22T16:50:31.9616449Z [36;1m  ver="unresolved-$(date -u +%Y-%m-%d)"[0m
+2026-10-22T16:50:31.9617142Z [36;1m  echo "::warning::could not resolve VS Code stable version; using $ver"[0m
+2026-10-22T16:50:31.9617776Z [36;1mfi[0m
+2026-10-22T16:50:31.9618151Z [36;1mecho "version=$ver" >> "$GITHUB_OUTPUT"[0m
+2026-10-22T16:50:31.9618755Z [36;1mecho "VS Code stable resolves to: $ver"[0m
+2026-10-22T16:50:31.9682710Z shell: /usr/bin/bash -e {0}
+2026-10-22T16:50:31.9682978Z env:
+2026-10-22T16:50:31.9683183Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:31.9683422Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:31.9683657Z   RUN_EXT: true
+2026-10-22T16:50:31.9683864Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:31.9684117Z   RUST_BACKTRACE: short
+2026-10-22T16:50:31.9684344Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:31.9684593Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:31.9684887Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:31.9685182Z   CACHE_ON_FAILURE: true
+2026-10-22T16:50:31.9685402Z ##[endgroup]
+2026-10-22T16:50:32.0801886Z VS Code stable resolves to: 1.143.0
+2026-10-22T16:50:32.1539483Z ##[group]Run actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+2026-10-22T16:50:32.1539878Z with:
+2026-10-22T16:50:32.1540090Z   path: editors/vscode/.vscode-test
+2026-10-22T16:50:32.1540592Z   key: vscode-test-Linux-e9cdb0742266c4e5d3fef2546021c2c7e311bce950387870adda485247af9bec-1.143.0
+2026-10-22T16:50:32.1541513Z   enableCrossOsArchive: false
+2026-10-22T16:50:32.1541791Z   fail-on-cache-miss: false
+2026-10-22T16:50:32.1542038Z   lookup-only: false
+2026-10-22T16:50:32.1542265Z   save-always: false
+2026-10-22T16:50:32.1542466Z env:
+2026-10-22T16:50:32.1542660Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:32.1543115Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:32.1543348Z   RUN_EXT: true
+2026-10-22T16:50:32.1543555Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:32.1543792Z   RUST_BACKTRACE: short
+2026-10-22T16:50:32.1544023Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:32.1544278Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:32.1544610Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:32.1544904Z   CACHE_ON_FAILURE: true
+2026-10-22T16:50:32.1545128Z ##[endgroup]
+2026-10-22T16:50:32.4234904Z Cache not found for input keys: vscode-test-Linux-e9cdb0742266c4e5d3fef2546021c2c7e311bce950387870adda485247af9bec-1.143.0
+2026-10-22T16:50:32.4359285Z ##[group]Run cd editors/vscode && npm run lint
+2026-10-22T16:50:32.4359864Z [36;1mcd editors/vscode && npm run lint[0m
+2026-10-22T16:50:32.4429289Z shell: /usr/bin/bash -e {0}
+2026-10-22T16:50:32.4429576Z env:
+2026-10-22T16:50:32.4429794Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:32.4430054Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:32.4430345Z   RUN_EXT: true
+2026-10-22T16:50:32.4430570Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:32.4430826Z   RUST_BACKTRACE: short
+2026-10-22T16:50:32.4431412Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:32.4431705Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:32.4432038Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:32.4432359Z   CACHE_ON_FAILURE: true
+2026-10-22T16:50:32.4432604Z ##[endgroup]
+2026-10-22T16:50:32.5745090Z npm notice run tcl-lsp@0.0.0-dev lint
+2026-10-22T16:50:32.5748502Z npm notice run npm run format:check
+2026-10-22T16:50:32.7127522Z npm notice run tcl-lsp@0.0.0-dev format:check
+2026-10-22T16:50:32.7145589Z npm notice run prettier --check "src/**/*.ts"
+2026-10-22T16:50:32.8313548Z Checking formatting...
+2026-10-22T16:50:36.1242573Z All matched files use Prettier code style!
+2026-10-22T16:50:36.1771512Z ##[group]Run make copy-canonical
+2026-10-22T16:50:36.1771877Z [36;1mmake copy-canonical[0m
+2026-10-22T16:50:36.1838268Z shell: /usr/bin/bash -e {0}
+2026-10-22T16:50:36.1838739Z env:
+2026-10-22T16:50:36.1839089Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:36.1839501Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:36.1839935Z   RUN_EXT: true
+2026-10-22T16:50:36.1840318Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:36.1840746Z   RUST_BACKTRACE: short
+2026-10-22T16:50:36.1841416Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:36.1841925Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:36.1842485Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:36.1843020Z   CACHE_ON_FAILURE: true
+2026-10-22T16:50:36.1843435Z ##[endgroup]
+2026-10-22T16:50:36.2859128Z ==> Copying canonical diagnostics.json
+2026-10-22T16:50:36.2861508Z cp /home/runner/work/tcl-lsp/tcl-lsp/ai/shared/diagnostics.json /home/runner/work/tcl-lsp/tcl-lsp/editors/vscode/src/chat/canonical/diagnostics.json
+2026-10-22T16:50:36.2931156Z ==> Copying canonical manifest.json
+2026-10-22T16:50:36.2934562Z cp /home/runner/work/tcl-lsp/tcl-lsp/ai/prompts/manifest.json /home/runner/work/tcl-lsp/tcl-lsp/editors/vscode/src/chat/canonical/manifest.json
+2026-10-22T16:50:36.3041298Z ==> Copying canonical irules_system.md
+2026-10-22T16:50:36.3044032Z cp /home/runner/work/tcl-lsp/tcl-lsp/ai/prompts/irules_system.md /home/runner/work/tcl-lsp/tcl-lsp/editors/vscode/src/chat/canonical/irules_system.md
+2026-10-22T16:50:36.3111223Z ==> Copying canonical tcl_system.md
+2026-10-22T16:50:36.3114186Z cp /home/runner/work/tcl-lsp/tcl-lsp/ai/prompts/tcl_system.md /home/runner/work/tcl-lsp/tcl-lsp/editors/vscode/src/chat/canonical/tcl_system.md
+2026-10-22T16:50:36.3183368Z ==> Copying canonical tk_system.md
+2026-10-22T16:50:36.3186983Z cp /home/runner/work/tcl-lsp/tcl-lsp/ai/claude/skills/_prompts/tk_system.md /home/runner/work/tcl-lsp/tcl-lsp/editors/vscode/src/chat/canonical/tk_system.md
+2026-10-22T16:50:36.3248428Z ##[group]Run cd editors/vscode && npx tsc -p ./
+2026-10-22T16:50:36.3248820Z [36;1mcd editors/vscode && npx tsc -p ./[0m
+2026-10-22T16:50:36.3309540Z shell: /usr/bin/bash -e {0}
+2026-10-22T16:50:36.3309818Z env:
+2026-10-22T16:50:36.3310216Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:36.3310464Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:36.3310727Z   RUN_EXT: true
+2026-10-22T16:50:36.3311175Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:36.3311424Z   RUST_BACKTRACE: short
+2026-10-22T16:50:36.3311659Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:36.3311923Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:36.3312238Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:36.3312556Z   CACHE_ON_FAILURE: true
+2026-10-22T16:50:36.3312792Z ##[endgroup]
+2026-10-22T16:50:36.6177650Z npm notice run tcl-lsp@0.0.0-dev npx
+2026-10-22T16:50:36.6180712Z npm notice run 'tsc' -p ./
+2026-10-22T16:50:37.2680276Z ##[group]Run actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+2026-10-22T16:50:37.2680723Z with:
+2026-10-22T16:50:37.2681272Z   name: tcl-lsp-server-release
+2026-10-22T16:50:37.2681586Z   path: target/release
+2026-10-22T16:50:37.2681817Z   merge-multiple: false
+2026-10-22T16:50:37.2682059Z   repository: bitwisecook/tcl-lsp
+2026-10-22T16:50:37.2682334Z   run-id: 39816429638
+2026-10-22T16:50:37.2682553Z   skip-decompress: false
+2026-10-22T16:50:37.2682790Z   digest-mismatch: error
+2026-10-22T16:50:37.2683011Z env:
+2026-10-22T16:50:37.2683196Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:37.2683415Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:37.2683650Z   RUN_EXT: true
+2026-10-22T16:50:37.2683855Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:37.2684087Z   RUST_BACKTRACE: short
+2026-10-22T16:50:37.2684307Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:37.2684574Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:37.2684901Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:37.2685189Z   CACHE_ON_FAILURE: true
+2026-10-22T16:50:37.2685408Z ##[endgroup]
+2026-10-22T16:50:37.4114729Z Downloading single artifact
+2026-10-22T16:50:37.6013565Z Preparing to download the following artifacts:
+2026-10-22T16:50:37.6015295Z - tcl-lsp-server-release (ID: 12441329895, Size: 21046824, Expected Digest: sha256:2c5ed6e7abd1a59a9bf6915a5f575bae52e7646fee16cf51ac33cafe7abb0b4b)
+2026-10-22T16:50:37.8436925Z Redirecting to blob download url: https://productionresultssa4.blob.core.windows.net/actions-results/7e19b6b8-c331-4a3c-b1ff-55e7fd977625/workflow-job-run-fee68df1-6864-5f52-95e8-1d230b1ff1a9/artifacts/751600f98ff5e528095c59160293046ef1aac5aa3d8dfc2082c1c96a0f4d4fa3.zip
+2026-10-22T16:50:37.8440540Z Starting download of artifact to: /home/runner/work/tcl-lsp/tcl-lsp/target/release
+2026-10-22T16:50:38.0587939Z (node:3359) [DEP0005] DeprecationWarning: Buffer() is deprecated due to security and usability issues. Please use the Buffer.alloc(), Buffer.allocUnsafe(), or Buffer.from() methods instead.
+2026-10-22T16:50:38.0589516Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-22T16:50:39.0960154Z SHA256 digest of downloaded artifact is 2c5ed6e7abd1a59a9bf6915a5f575bae52e7646fee16cf51ac33cafe7abb0b4b
+2026-10-22T16:50:39.0961142Z Artifact download completed successfully.
+2026-10-22T16:50:39.0961732Z Total of 1 artifact(s) downloaded
+2026-10-22T16:50:39.0967992Z Download artifact has finished successfully
+2026-10-22T16:50:39.1106808Z ##[group]Run chmod +x target/release/tcl-lsp-server
+2026-10-22T16:50:39.1107251Z [36;1mchmod +x target/release/tcl-lsp-server[0m
+2026-10-22T16:50:39.1168108Z shell: /usr/bin/bash -e {0}
+2026-10-22T16:50:39.1168402Z env:
+2026-10-22T16:50:39.1168623Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:39.1168885Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:39.1169275Z   RUN_EXT: true
+2026-10-22T16:50:39.1169512Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:39.1169780Z   RUST_BACKTRACE: short
+2026-10-22T16:50:39.1170030Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:39.1170316Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:39.1170659Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:39.1171249Z   CACHE_ON_FAILURE: true
+2026-10-22T16:50:39.1171509Z ##[endgroup]
+2026-10-22T16:50:39.1318964Z ##[group]Run make test-ext-multi-folder
+2026-10-22T16:50:39.1319498Z [36;1mmake test-ext-multi-folder[0m
+2026-10-22T16:50:39.1376370Z shell: /usr/bin/bash -e {0}
+2026-10-22T16:50:39.1376665Z env:
+2026-10-22T16:50:39.1376881Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:39.1377138Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:39.1377408Z   RUN_EXT: true
+2026-10-22T16:50:39.1377640Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:39.1377909Z   RUST_BACKTRACE: short
+2026-10-22T16:50:39.1378162Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:39.1378447Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:39.1378790Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:39.1379113Z   CACHE_ON_FAILURE: true
+2026-10-22T16:50:39.1379573Z   TCL_LSP_SERVER_BIN: /home/runner/work/tcl-lsp/tcl-lsp/target/release/tcl-lsp-server
+2026-10-22T16:50:39.1380067Z ##[endgroup]
+2026-10-22T16:50:39.2397557Z make[1]: Entering directory '/home/runner/work/tcl-lsp/tcl-lsp'
+2026-10-22T16:50:39.3625124Z ==> Bundling browser extension
+2026-10-22T16:50:39.3627167Z cd /home/runner/work/tcl-lsp/tcl-lsp/editors/vscode && npm run bundle:browser
+2026-10-22T16:50:39.4789247Z npm notice run tcl-lsp@0.0.0-dev bundle:browser
+2026-10-22T16:50:39.4794618Z npm notice run esbuild ./src/extensionBrowser.ts --bundle --platform=browser --target=es2020 --format=cjs --external:vscode --outfile=out/extension.browser.js --sourcemap --minify --tree-shaking=true --loader:.md=text
+2026-10-22T16:50:39.5841589Z 
+2026-10-22T16:50:39.5842470Z   out/extension.browser.js      482.9kb
+2026-10-22T16:50:39.5843133Z   out/extension.browser.js.map    1.8mb
+2026-10-22T16:50:39.5843482Z 
+2026-10-22T16:50:39.5843917Z ⚡ Done in 66ms
+2026-10-22T16:50:39.6249568Z ==> SKIP_TCLSH=1 — skipping tclsh
+2026-10-22T16:50:39.6251189Z ==> SKIP_TCLLIB=1 — skipping tcllib source
+2026-10-22T16:50:39.6252524Z ==> SKIP_PYTHON_TK=1 — skipping python tk
+2026-10-22T16:50:39.6253562Z ==> SKIP_NODE=1 — skipping node
+2026-10-22T16:50:39.6254565Z ==> SKIP_KOTLINC=1 — skipping kotlinc
+2026-10-22T16:50:39.6255585Z ==> SKIP_RUST=1 — skipping rust
+2026-10-22T16:50:39.6256665Z ==> SKIP_WASMTIME=1 — skipping wasmtime
+2026-10-22T16:50:39.6257853Z ==> SKIP_BINARYEN=1 — skipping Binaryen
+2026-10-22T16:50:39.6258756Z ==> SKIP_WASI_SDK=1 — skipping wasi-sdk
+2026-10-22T16:50:39.6259652Z ==> SKIP_TSHARK=1 — skipping tshark
+2026-10-22T16:50:39.6260430Z ==> SKIP_EMACS=1 — skipping emacs
+2026-10-22T16:50:39.6261538Z ==> xvfb-run already on PATH
+2026-10-22T16:50:39.6262351Z ==> SKIP_OPENSSL=1 — skipping openssl
+2026-10-22T16:50:39.6262955Z ==> SKIP_PING=1 — skipping ping
+2026-10-22T16:50:39.6263499Z ==> SKIP_RGXG=1 — skipping rgxg
+2026-10-22T16:50:39.6264013Z ==> SKIP_UV=1 — skipping uv
+2026-10-22T16:50:39.6264619Z ==> ensure-test-deps: all dependencies satisfied
+2026-10-22T16:50:39.6265458Z make[1]: Leaving directory '/home/runner/work/tcl-lsp/tcl-lsp'
+2026-10-22T16:50:39.7439434Z npm notice run tcl-lsp@0.0.0-dev copy-canonical
+2026-10-22T16:50:39.7444951Z npm notice run node -e "const fs=require('fs'),p=require('path');const s=p.join('src','chat','canonical'),d=p.join('out','chat','canonical');if(fs.existsSync(s)){fs.mkdirSync(d,{recursive:true});fs.readdirSync(s).forEach(f=>fs.copyFileSync(p.join(s,f),p.join(d,f)))}"
+2026-10-22T16:50:39.8970029Z npm notice run tcl-lsp@0.0.0-dev bundle
+2026-10-22T16:50:39.8975632Z npm notice run esbuild ./src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=out/extension.js --sourcemap --minify --tree-shaking=true --define:__SCREENSHOT_MODE__=false --loader:.md=text
+2026-10-22T16:50:40.0221763Z 
+2026-10-22T16:50:40.0222517Z   out/extension.js      757.4kb
+2026-10-22T16:50:40.0223130Z   out/extension.js.map    2.4mb
+2026-10-22T16:50:40.0223525Z 
+2026-10-22T16:50:40.0224033Z ⚡ Done in 85ms
+2026-10-22T16:50:40.6331170Z npm notice run tcl-lsp@0.0.0-dev test:multi-folder
+2026-10-22T16:50:40.6334011Z npm notice run node ./out/test/runMultiFolderTest.js
+2026-10-22T16:50:40.7634549Z - Resolving version...
+2026-10-22T16:50:40.8403596Z ✔ Validated version: 1.143.0
+2026-10-22T16:50:40.8424453Z - Found at https://update.code.visualstudio.com/1.143.0/linux-x64/stable?released=true
+2026-10-22T16:50:40.9364973Z ✔ Found at https://update.code.visualstudio.com/1.143.0/linux-x64/stable?released=true
+2026-10-22T16:50:40.9367195Z - Downloading (334.59 MB)
+2026-10-22T16:50:46.1254345Z ✔ Downloaded VS Code (b224f6bf5a4fcad5fa4c640ed10f179c3b613e48) into /home/runner/work/tcl-lsp/tcl-lsp/editors/vscode/.vscode-test/vscode-linux-x64-1.143.0
+2026-10-22T16:50:46.1305988Z ==> watchdog: absolute ceiling 1800000ms (base 1800000ms), no-progress window 225000ms (base 225000ms), never-started grace 60000ms — all x measured load factor 1.0
+2026-10-22T16:50:48.0894376Z [3606:1022/165048.088614:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2026-10-22T16:50:48.1034075Z [3606:1022/165048.102162:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+2026-10-22T16:50:48.1062893Z [3606:1022/165048.103151:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2026-10-22T16:50:48.1092888Z [3606:1022/165048.106414:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown error type: 
+2026-10-22T16:50:48.2090706Z [90m[main 2026-10-22T16:50:48.207Z][0m [node-compile-cache] main: packaged cache inactive (status: disabled, configured: /home/runner/work/tcl-lsp/tcl-lsp/editors/vscode/.vscode-test/vscode-linux-x64-1.143.0/resources/app/node-compile-cache/main, active: none)
+2026-10-22T16:50:48.2623084Z [90m[main 2026-10-22T16:50:48.258Z][0m StorageMainService: creating application shared storage
+2026-10-22T16:50:48.3668232Z [3606:1022/165048.363821:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2026-10-22T16:50:48.3711471Z [90m[main 2026-10-22T16:50:48.368Z][0m [shared storage] Creating shared storage database at ':memory:' (wasCreated: true)
+2026-10-22T16:50:48.3721773Z [90m[main 2026-10-22T16:50:48.368Z][0m [shared storage] Initializing fallback application storage (path: in-memory)
+2026-10-22T16:50:48.4249935Z [90m[main 2026-10-22T16:50:48.423Z][0m [shared storage] Fallback application storage initialized with 3 items
+2026-10-22T16:50:48.4252980Z [90m[main 2026-10-22T16:50:48.424Z][0m update#setState disabled
+2026-10-22T16:50:48.4254278Z [90m[main 2026-10-22T16:50:48.424Z][0m update#ctor - updates are disabled by the environment
+2026-10-22T16:50:48.4362545Z [3606:1022/165048.435667:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are "tcp" and on UNIX "unix")
+2026-10-22T16:50:51.8269417Z workbench#open()
+2026-10-22T16:50:51.8732704Z Via 'product.json#extensionEnabledApiProposals' extension 'github.vscode-pull-request-github' wants API proposal 'agentsWindowActivation' but that proposal DOES NOT EXIST. Likely, the proposal has been finalized (check 'vscode.d.ts') or was abandoned.
+2026-10-22T16:50:51.9455512Z [RemoteAgentHost] Reconciling: desired=[], current=[]
+2026-10-22T16:50:51.9682592Z [AgentHost:renderer] Acquiring MessagePort to agent host...
+2026-10-22T16:50:51.9803376Z [90m[main 2026-10-22T16:50:51.979Z][0m AgentHostProcessManager: agent host started
+2026-10-22T16:50:52.2063939Z [ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey=undefined conversationKey=undefined modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+2026-10-22T16:50:52.5188604Z [AgentHost:renderer] MessagePort acquired, creating client...
+2026-10-22T16:50:52.6193885Z Started local extension host with pid 3876.
+2026-10-22T16:50:52.6276213Z IExtensionHostStarter.start() took 26 ms.
+2026-10-22T16:50:52.7503323Z Started initializing default profile extensions in extensions installation folder. file:///home/runner/work/tcl-lsp/tcl-lsp/editors/vscode/.vscode-test/extensions
+2026-10-22T16:50:52.9194742Z [91m[main 2026-10-22T16:50:52.912Z][0m [AgentHost:stderr] (node:3820) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-22T16:50:52.9232095Z (Use `exe --trace-deprecation ...` to show where the warning was created)
+2026-10-22T16:50:52.9281150Z 
+2026-10-22T16:50:52.9914180Z [RemoteAgentHostProtocol] Sending initialize: address=local clientId=d7c8fb2a-e1a6-46d7-982a-59d69e9d6dbb requestId=1
+2026-10-22T16:50:53.0462855Z [RemoteAgentHostProtocol] Initialized: address=local clientId=d7c8fb2a-e1a6-46d7-982a-59d69e9d6dbb durationMs=1050
+2026-10-22T16:50:53.0638691Z [AgentHost:renderer] Protocol connection established; clientId=d7c8fb2a-e1a6-46d7-982a-59d69e9d6dbb
+2026-10-22T16:50:53.4080751Z Completed initializing default profile extensions in extensions installation folder. file:///home/runner/work/tcl-lsp/tcl-lsp/editors/vscode/.vscode-test/extensions
+2026-10-22T16:50:53.5134933Z [AccountPolicyGate] apply: state=inactive, reason=undefined, isRestricted=false
+2026-10-22T16:50:53.5512843Z Loading development extension at /home/runner/work/tcl-lsp/tcl-lsp/editors/vscode
+2026-10-22T16:50:53.5515455Z Extension 'github.copilot-chat' appears in product.json but enables LESS API proposals than the extension wants.
+2026-10-22T16:50:53.5655474Z NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.scannedExtensions: TypeScriptTeam.jsts-chat-features,vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,GitHub.copilot-chat,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.dotenv,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.mermaid-markdown-features,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.prompt,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.vscode-modern-icons,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml,bitwisecook.tcl-lsp
+2026-10-22T16:50:53.5703309Z package.json (LOSES): agentSessionsWorkspace
+2026-10-22T16:50:53.5703867Z speech
+2026-10-22T16:50:53.5704295Z agentsWindowConfiguration
+2026-10-22T16:50:53.5704719Z chatDebug
+2026-10-22T16:50:53.5705171Z chatHooks
+2026-10-22T16:50:53.5705668Z envIsConnectionMetered
+2026-10-22T16:50:53.5706131Z extensionsAny
+2026-10-22T16:50:53.5706575Z newSymbolNamesProvider
+2026-10-22T16:50:53.5706993Z interactive
+2026-10-22T16:50:53.5707335Z codeActionAI
+2026-10-22T16:50:53.5708129Z activeComment
+2026-10-22T16:50:53.5708513Z commentReveal
+2026-10-22T16:50:53.5709002Z contribCommentThreadAdditionalMenu
+2026-10-22T16:50:53.5709804Z contribCommentsViewThreadMenus
+2026-10-22T16:50:53.5710376Z contribChatEditorInlineGutterMenu
+2026-10-22T16:50:53.5711109Z documentFiltersExclusive
+2026-10-22T16:50:53.5711526Z embeddings
+2026-10-22T16:50:53.5711868Z findTextInFiles
+2026-10-22T16:50:53.5712222Z findTextInFiles2
+2026-10-22T16:50:53.5712692Z languageModelToolSupportsModel
+2026-10-22T16:50:53.5713127Z findFiles2
+2026-10-22T16:50:53.5713490Z textSearchProvider
+2026-10-22T16:50:53.5713923Z terminalDataWriteEvent
+2026-10-22T16:50:53.5714380Z terminalExecuteCommandEvent
+2026-10-22T16:50:53.5714831Z terminalSelection
+2026-10-22T16:50:53.5715248Z terminalQuickFixProvider
+2026-10-22T16:50:53.5715704Z mappedEditsProvider
+2026-10-22T16:50:53.5716121Z aiRelatedInformation
+2026-10-22T16:50:53.5716497Z aiSettingsSearch
+2026-10-22T16:50:53.5716911Z chatParticipantAdditions
+2026-10-22T16:50:53.5717364Z defaultChatParticipant
+2026-10-22T16:50:53.5717872Z contribSourceControlInputBoxMenu
+2026-10-22T16:50:53.5718333Z authLearnMore
+2026-10-22T16:50:53.5718690Z authIssuers
+2026-10-22T16:50:53.5719043Z testObserver
+2026-10-22T16:50:53.5719445Z aiTextSearchProvider
+2026-10-22T16:50:53.5719909Z chatParticipantPrivate
+2026-10-22T16:50:53.5720322Z chatProvider
+2026-10-22T16:50:53.5720846Z contribDebugCreateConfiguration
+2026-10-22T16:50:53.5721566Z chatReferenceDiagnostic
+2026-10-22T16:50:53.5722065Z textSearchProvider2
+2026-10-22T16:50:53.5722505Z chatReferenceBinaryData
+2026-10-22T16:50:53.5722931Z languageModelSystem
+2026-10-22T16:50:53.5723375Z languageModelCapabilities
+2026-10-22T16:50:53.5723839Z languageModelPricing
+2026-10-22T16:50:53.5724268Z languageModelRateLimit
+2026-10-22T16:50:53.5724716Z inlineCompletionsAdditions
+2026-10-22T16:50:53.5725151Z chatStatusItem
+2026-10-22T16:50:53.5725561Z chatInputNotification
+2026-10-22T16:50:53.5726018Z taskProblemMatcherStatus
+2026-10-22T16:50:53.5726515Z contribLanguageModelToolSets
+2026-10-22T16:50:53.5727037Z textDocumentChangeReason
+2026-10-22T16:50:53.5727468Z resolvers
+2026-10-22T16:50:53.5727859Z taskExecutionTerminal
+2026-10-22T16:50:53.5728273Z dataChannels
+2026-10-22T16:50:53.5728699Z languageModelThinkingPart
+2026-10-22T16:50:53.5729168Z chatSessionsProvider
+2026-10-22T16:50:53.5729553Z devDeviceId
+2026-10-22T16:50:53.5729971Z contribEditorContentMenu
+2026-10-22T16:50:53.5730392Z chatPromptFiles
+2026-10-22T16:50:53.5730809Z mcpServerDefinitions
+2026-10-22T16:50:53.5731455Z tabInputMultiDiff
+2026-10-22T16:50:53.5731849Z workspaceTrust
+2026-10-22T16:50:53.5732227Z environmentPower
+2026-10-22T16:50:53.5732592Z terminalTitle
+2026-10-22T16:50:53.5733068Z toolInvocationApproveCombination
+2026-10-22T16:50:53.5733651Z chatSessionCustomizationProvider
+2026-10-22T16:50:53.5734275Z product.json (WINS): agentSessionsWorkspace
+2026-10-22T16:50:53.5734846Z agentsWindowConfiguration
+2026-10-22T16:50:53.5735266Z interactive
+2026-10-22T16:50:53.5735686Z terminalDataWriteEvent
+2026-10-22T16:50:53.5736157Z terminalExecuteCommandEvent
+2026-10-22T16:50:53.5736609Z terminalSelection
+2026-10-22T16:50:53.5737031Z terminalQuickFixProvider
+2026-10-22T16:50:53.5737491Z chatParticipantAdditions
+2026-10-22T16:50:53.5737937Z defaultChatParticipant
+2026-10-22T16:50:53.5738319Z embeddings
+2026-10-22T16:50:53.5738656Z chatProvider
+2026-10-22T16:50:53.5739045Z mappedEditsProvider
+2026-10-22T16:50:53.5739481Z aiRelatedInformation
+2026-10-22T16:50:53.5739875Z aiSettingsSearch
+2026-10-22T16:50:53.5740244Z codeActionAI
+2026-10-22T16:50:53.5740592Z findTextInFiles
+2026-10-22T16:50:53.5741168Z findTextInFiles2
+2026-10-22T16:50:53.5741573Z textSearchProvider
+2026-10-22T16:50:53.5741999Z textSearchProvider2
+2026-10-22T16:50:53.5742378Z activeComment
+2026-10-22T16:50:53.5742732Z commentReveal
+2026-10-22T16:50:53.5743225Z contribSourceControlInputBoxMenu
+2026-10-22T16:50:53.5743819Z contribCommentEditorActionsMenu
+2026-10-22T16:50:53.5744419Z contribCommentThreadAdditionalMenu
+2026-10-22T16:50:53.5745304Z contribCommentsViewThreadMenus
+2026-10-22T16:50:53.5745965Z contribChatEditorInlineGutterMenu
+2026-10-22T16:50:53.5746678Z extensionAffinity
+2026-10-22T16:50:53.5747137Z newSymbolNamesProvider
+2026-10-22T16:50:53.5747540Z findFiles2
+2026-10-22T16:50:53.5747942Z chatReferenceDiagnostic
+2026-10-22T16:50:53.5748355Z extensionsAny
+2026-10-22T16:50:53.5748708Z authLearnMore
+2026-10-22T16:50:53.5749068Z testObserver
+2026-10-22T16:50:53.5749478Z aiTextSearchProvider
+2026-10-22T16:50:53.5749927Z documentFiltersExclusive
+2026-10-22T16:50:53.5750403Z chatParticipantPrivate
+2026-10-22T16:50:53.5751306Z contribDebugCreateConfiguration
+2026-10-22T16:50:53.5751878Z inlineCompletionsAdditions
+2026-10-22T16:50:53.5752371Z chatReferenceBinaryData
+2026-10-22T16:50:53.5752816Z languageModelSystem
+2026-10-22T16:50:53.5753261Z languageModelCapabilities
+2026-10-22T16:50:53.5753760Z languageModelThinkingPart
+2026-10-22T16:50:53.5754289Z languageModelToolSupportsModel
+2026-10-22T16:50:53.5754752Z chatStatusItem
+2026-10-22T16:50:53.5755184Z taskProblemMatcherStatus
+2026-10-22T16:50:53.5755680Z contribLanguageModelToolSets
+2026-10-22T16:50:53.5756185Z textDocumentChangeReason
+2026-10-22T16:50:53.5756593Z resolvers
+2026-10-22T16:50:53.5756994Z taskExecutionTerminal
+2026-10-22T16:50:53.5757393Z dataChannels
+2026-10-22T16:50:53.5757801Z chatSessionsProvider
+2026-10-22T16:50:53.5758319Z chatSessionCustomizationProvider
+2026-10-22T16:50:53.5758796Z devDeviceId
+2026-10-22T16:50:53.5759213Z contribEditorContentMenu
+2026-10-22T16:50:53.5759661Z tokenInformation
+2026-10-22T16:50:53.5760155Z toolInvocationApproveCombination
+2026-10-22T16:50:53.5760623Z chatPromptFiles
+2026-10-22T16:50:53.5761234Z mcpServerDefinitions
+2026-10-22T16:50:53.5761727Z tabInputMultiDiff
+2026-10-22T16:50:53.5762234Z workspaceTrust
+2026-10-22T16:50:53.5762628Z chatHooks
+2026-10-22T16:50:53.5762964Z chatDebug
+2026-10-22T16:50:53.5763354Z envIsConnectionMetered
+2026-10-22T16:50:53.5763796Z environmentPower
+2026-10-22T16:50:53.5764163Z terminalTitle
+2026-10-22T16:50:53.5764574Z languageModelPricing
+2026-10-22T16:50:53.5765021Z chatInputNotification
+2026-10-22T16:50:53.5765405Z speech
+2026-10-22T16:50:53.5765795Z DELTA: authIssuers
+2026-10-22T16:50:53.5766227Z languageModelRateLimit
+2026-10-22T16:50:53.5767971Z Proceeding with EXTRA proposals (authIssuers, languageModelRateLimit) because extension is in development mode. Still, this EXTENSION WILL BE BROKEN unless product.json is updated.
+2026-10-22T16:50:53.5769715Z filterEnabledExtensions: extension 'GitHub.copilot-chat' is disabled
+2026-10-22T16:50:53.5836116Z NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.localExtensions: bitwisecook.tcl-lsp,TypeScriptTeam.jsts-chat-features,vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.dotenv,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.mermaid-markdown-features,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.prompt,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.vscode-modern-icons,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml
+2026-10-22T16:50:53.5964628Z NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.myExtensions: bitwisecook.tcl-lsp,TypeScriptTeam.jsts-chat-features,vscode.bat,vscode.clojure,vscode.coffeescript,vscode.configuration-editing,vscode.cpp,vscode.csharp,vscode.css,vscode.css-language-features,vscode.dart,vscode.debug-auto-launch,vscode.debug-server-ready,vscode.diff,vscode.docker,vscode.dotenv,vscode.emmet,vscode.extension-editing,vscode.fsharp,vscode.git,vscode.git-base,vscode.github,vscode.github-authentication,vscode.go,vscode.groovy,vscode.grunt,vscode.gulp,vscode.handlebars,vscode.hlsl,vscode.html,vscode.html-language-features,vscode.ini,vscode.ipynb,vscode.jake,vscode.java,vscode.javascript,vscode.json,vscode.json-language-features,vscode.julia,vscode.latex,vscode.less,vscode.log,vscode.lua,vscode.make,vscode.markdown,vscode.markdown-language-features,vscode.markdown-math,vscode.media-preview,vscode.merge-conflict,vscode.mermaid-markdown-features,vscode.microsoft-authentication,ms-vscode.js-debug,ms-vscode.js-debug-companion,ms-vscode.vscode-js-profile-table,vscode.builtin-notebook-renderers,vscode.npm,vscode.objective-c,vscode.perl,vscode.php,vscode.php-language-features,vscode.powershell,vscode.prompt,vscode.pug,vscode.python,vscode.r,vscode.razor,vscode.references-view,vscode.restructuredtext,vscode.ruby,vscode.rust,vscode.scss,vscode.search-result,vscode.shaderlab,vscode.shellscript,vscode.simple-browser,vscode.sql,vscode.swift,vscode.terminal-suggest,vscode.theme-abyss,vscode.theme-defaults,vscode.theme-kimbie-dark,vscode.vscode-modern-icons,vscode.theme-monokai,vscode.theme-monokai-dimmed,vscode.theme-quietlight,vscode.theme-red,vscode.vscode-theme-seti,vscode.theme-solarized-dark,vscode.theme-solarized-light,vscode.theme-tomorrow-night-blue,vscode.tunnel-forwarding,vscode.typescript,vscode.typescript-language-features,vscode.vb,vscode.xml,vscode.yaml
+2026-10-22T16:50:53.6021352Z filterEnabledExtensions: extension 'GitHub.copilot-chat' is disabled
+2026-10-22T16:50:53.8633650Z Unknown channel: agentHostClientByokLm
+2026-10-22T16:50:53.8866967Z Unknown channel: agentHostClientProxy
+2026-10-22T16:50:54.0774277Z Unknown channel: agentHostClientProxy
+2026-10-22T16:50:54.5674931Z [ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MmU3MzVlZTItMzgxOS00NWYzLWE3MDEtNzU2YzgxNmY2MGFh" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+2026-10-22T16:50:54.8311893Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9160388Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9246595Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9288506Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9302900Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9339510Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9376990Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9416832Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9418111Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9419313Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9420501Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9422256Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9423647Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9424770Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9425829Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9426916Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9427994Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9429076Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9430147Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9431425Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9432583Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9433719Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9434903Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9436037Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9437182Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9438227Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9439389Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9440501Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9441918Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9520094Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9529572Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9531477Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9579279Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9580791Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9753752Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9758576Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9773647Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9797755Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9800235Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9802940Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9812635Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9814751Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9816625Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9818347Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9820189Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9822354Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9824138Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9826018Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9828359Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9831157Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9832668Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9834604Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9836509Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9838369Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9858226Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9877398Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9887533Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9895684Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9900398Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9905150Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9910495Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9932389Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9953750Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:54.9955893Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9957620Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:54.9992454Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0000765Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0005515Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0008976Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0012315Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0016051Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0019181Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0031484Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0035704Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0038709Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0042478Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0044257Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0046553Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0048175Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0050117Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0052084Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0139869Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0153587Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0158930Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0168814Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0174090Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0178950Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0182483Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0185113Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0187812Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0190088Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0197708Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0201604Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0203281Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.0291865Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0311297Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0395947Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0406459Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0432269Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0434062Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0435631Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0437352Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0452431Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0474932Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0476854Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0479067Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0481773Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0483354Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0485073Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0486615Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0498594Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0533195Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0535176Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0547857Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0549648Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0551745Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0553412Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0555255Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0557079Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0558828Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0560606Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0562909Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.0564560Z [RemoteAgentHost] Reconciling: desired=[], current=[]
+2026-10-22T16:50:55.0766673Z [ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MmU3MzVlZTItMzgxOS00NWYzLWE3MDEtNzU2YzgxNmY2MGFh" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+2026-10-22T16:50:55.1036274Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.1059457Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.1096798Z [ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MmU3MzVlZTItMzgxOS00NWYzLWE3MDEtNzU2YzgxNmY2MGFh" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+2026-10-22T16:50:55.1859401Z [ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MmU3MzVlZTItMzgxOS00NWYzLWE3MDEtNzU2YzgxNmY2MGFh" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+2026-10-22T16:50:55.3245102Z [0m[0m
+2026-10-22T16:50:55.3292329Z [0m  Multi-folder workspace configuration (#230)[0m
+2026-10-22T16:50:55.3843559Z Settings Sync: Account status changed from uninitialized to unavailable
+2026-10-22T16:50:55.3845543Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.4331964Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.4743391Z   [32m  [32m✔[39m[0m[90m workspace is opened in multi-folder mode with two folders[0m
+2026-10-22T16:50:55.4802516Z [AgentHost] No signed-in session resolved for resource: https://api.github.com
+2026-10-22T16:50:55.4805025Z   [32m  [32m✔[39m[0m[90m VS Code accepts folder-level tclLsp.formatting.maxLineLength (#230 reproduction)[0m
+2026-10-22T16:50:55.4809402Z   [32m  [32m✔[39m[0m[90m VS Code accepts folder-level tclLsp.diagnostics.W111 toggle[0m
+2026-10-22T16:50:55.4966311Z [ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MmU3MzVlZTItMzgxOS00NWYzLWE3MDEtNzU2YzgxNmY2MGFh" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+2026-10-22T16:50:55.5217313Z [AgentHost] No signed-in session resolved for resource: https://api.github.com/repos
+2026-10-22T16:50:55.7454923Z [ChatModelSelection] event=no-model-at-toolbar-build surface="workbench" sessionKey="local" conversationKey="vscode-chat-session://local/MmU3MzVlZTItMzgxOS00NWYzLWE3MDEtNzU2YzgxNmY2MGFh" modelTarget=undefined storageKey="chat.currentLanguageModel.panel" widgetViewKind="view"
+2026-10-22T16:50:55.9212514Z Unknown channel: agentHostClientProxy
+2026-10-22T16:50:56.3436637Z   [32m  [32m✔[39m[0m[90m folder A and folder B produce different formatted output for identical source[0m[31m (834ms)[0m
+2026-10-22T16:50:56.7109718Z   [32m  [32m✔[39m[0m[90m folder A formatter keeps long lines under 160 cols (not the 120 default)[0m[31m (380ms)[0m
+2026-10-22T16:50:56.7224343Z   [32m  [32m✔[39m[0m[90m VS Code accepts folder-level tclLsp.dialect (#407 reproduction)[0m
+2026-10-22T16:50:56.7232331Z   [32m  [32m✔[39m[0m[90m VS Code accepts folder-level tclLsp.style.nonAscii[0m
+2026-10-22T16:50:57.0347685Z   [32m  [32m✔[39m[0m[90m folder A and folder B produce different diagnostics for identical source (#407)[0m[31m (299ms)[0m
+2026-10-22T16:50:57.0349588Z   [32m  [32m✔[39m[0m[90m VS Code accepts folder-level tclLsp.extraCommands (#407)[0m
+2026-10-22T16:50:57.0351280Z   [32m  [32m✔[39m[0m[90m VS Code accepts folder-level tclLsp.libraryPaths (#407)[0m
+2026-10-22T16:50:57.3955854Z   [32m  [32m✔[39m[0m[90m folder A and folder B differ on W108 non-ASCII diagnostics (#407)[0m[31m (369ms)[0m
+2026-10-22T16:50:57.7898672Z   [32m  [32m✔[39m[0m[90m folder A and folder B differ on W123 for extraCommands names (#407)[0m[31m (401ms)[0m
+2026-10-22T16:50:57.7912138Z   [32m  [32m✔[39m[0m[90m tcl-lsp.getEffectiveConfig reports the resolved per-folder dialect[0m
+2026-10-22T16:50:57.7936261Z [0m  Multi-folder per-folder dialect change after open (#407)[0m
+2026-10-22T16:50:57.9579022Z (node:3876) [DEP0169] DeprecationWarning: `url.parse()` behavior is not standardized and prone to errors that have security implications. Use the WHATWG URL API instead. CVEs are not issued for `url.parse()` vulnerabilities.
+2026-10-22T16:50:57.9581616Z (Use `exe --trace-deprecation ...` to show where the warning was created)
+2026-10-22T16:50:58.5123409Z [AccountPolicyGate] apply: state=inactive, reason=undefined, isRestricted=false
+2026-10-22T16:50:58.7450678Z   [32m  [32m✔[39m[0m[90m flipping a folder's dialect re-analyses already-open files[0m[31m (943ms)[0m
+2026-10-22T16:50:58.7456820Z [92m [0m[32m 14 passing[0m[90m (3s)[0m
+2026-10-22T16:50:58.7466096Z Extension host test runner exit code: 0
+2026-10-22T16:50:58.7872636Z Asking native host service to exit with code 0.
+2026-10-22T16:50:58.8005115Z [90m[main 2026-10-22T16:50:58.799Z][0m Extension host with pid 3876 exited with code: 0, signal: unknown.
+2026-10-22T16:50:58.9169925Z Exit code:   0
+2026-10-22T16:50:58.9774569Z ##[group]Run actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+2026-10-22T16:50:58.9775018Z with:
+2026-10-22T16:50:58.9775243Z   name: vscode-test-multi-folder
+2026-10-22T16:50:58.9775617Z   path: editors/vscode/.vscode-test/mocha-result-multifolder.json
+2026-10-22T16:50:58.9775993Z   if-no-files-found: error
+2026-10-22T16:50:58.9776241Z   retention-days: 1
+2026-10-22T16:50:58.9776469Z   compression-level: 0
+2026-10-22T16:50:58.9776696Z   overwrite: false
+2026-10-22T16:50:58.9776922Z   include-hidden-files: false
+2026-10-22T16:50:58.9777175Z   archive: true
+2026-10-22T16:50:58.9777376Z env:
+2026-10-22T16:50:58.9777578Z   CARGO_INCREMENTAL: 0
+2026-10-22T16:50:58.9777806Z   CARGO_PROFILE_DEV_DEBUG: 0
+2026-10-22T16:50:58.9778065Z   RUN_EXT: true
+2026-10-22T16:50:58.9778276Z   CARGO_TERM_COLOR: always
+2026-10-22T16:50:58.9778510Z   RUST_BACKTRACE: short
+2026-10-22T16:50:58.9778741Z   CARGO_BUILD_WARNINGS: deny
+2026-10-22T16:50:58.9779034Z   CARGO_UNSTABLE_SPARSE_REGISTRY: true
+2026-10-22T16:50:58.9779337Z   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+2026-10-22T16:50:58.9779631Z   CACHE_ON_FAILURE: true
+2026-10-22T16:50:58.9779862Z ##[endgroup]
+2026-10-22T16:50:59.1268444Z With the provided path, there will be 1 file uploaded
+2026-10-22T16:50:59.1288737Z Artifact name is valid!
+2026-10-22T16:50:59.1303017Z Root directory input is valid!
+2026-10-22T16:50:59.3961805Z Uploading artifact: vscode-test-multi-folder.zip
+2026-10-22T16:50:59.4005274Z Beginning upload of artifact content to blob storage
+2026-10-22T16:50:59.5415156Z Uploaded bytes 4276
+2026-10-22T16:50:59.5772555Z Finished uploading artifact content to blob storage!
+2026-10-22T16:50:59.5774239Z SHA256 digest of uploaded artifact is a2fe79568c4266ef61ccc89c6974e5b63ee386c324b0d086c2b1fef3e4e6070e
+2026-10-22T16:50:59.5775758Z Finalizing artifact upload
+2026-10-22T16:51:00.1094745Z Artifact vscode-test-multi-folder successfully finalized. Artifact ID 12442099106
+2026-10-22T16:51:00.1096483Z Artifact vscode-test-multi-folder has been successfully uploaded! Final size is 4276 bytes. Artifact ID is 12442099106
+2026-10-22T16:51:00.1099850Z Artifact download URL: https://github.com/bitwisecook/tcl-lsp/actions/runs/39816429638/artifacts/12442099106
+2026-10-22T16:51:00.1934594Z Post job cleanup.
+2026-10-22T16:51:00.3602952Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/tcl-lsp/tcl-lsp --files-from manifest.txt --use-compress-program zstdmt
+2026-10-22T16:51:04.9549620Z Sent 0 of 332881589 (0.0%), 0.0 MBs/sec
+2026-10-22T16:51:05.2244835Z Sent 332881589 of 332881589 (100.0%), 250.0 MBs/sec
+2026-10-22T16:51:05.3835002Z Cache saved with key: vscode-test-Linux-e9cdb0742266c4e5d3fef2546021c2c7e311bce950387870adda485247af9bec-1.143.0
+2026-10-22T16:51:05.4556027Z Post job cleanup.
+2026-10-22T16:51:05.5858526Z Cache hit occurred on the primary key Linux-npm-e9cdb0742266c4e5d3fef2546021c2c7e311bce950387870adda485247af9bec, not saving cache.
+2026-10-22T16:51:05.5977802Z Post job cleanup.
+2026-10-22T16:51:05.7425778Z Post job cleanup.
+2026-10-22T16:51:05.7429827Z ##[start-action display=Setup Rust Caching;id=__30240766-9c37-4e44-ae90-563ecfb6cffd.__Swatinem_rust-cache]
+2026-10-22T16:51:05.7482932Z Post job cleanup.
+2026-10-22T16:51:05.8731506Z ##[group]Cache Configuration
+2026-10-22T16:51:05.8732813Z Cache Provider:
+2026-10-22T16:51:05.8733291Z     github
+2026-10-22T16:51:05.8733753Z Workspaces:
+2026-10-22T16:51:05.8734398Z     /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-22T16:51:05.8735130Z Cache Paths:
+2026-10-22T16:51:05.8735733Z     /home/runner/.cargo/bin
+2026-10-22T16:51:05.8736307Z     /home/runner/.cargo/.crates.toml
+2026-10-22T16:51:05.8736755Z     /home/runner/.cargo/.crates2.json
+2026-10-22T16:51:05.8741989Z     /home/runner/.cargo/registry
+2026-10-22T16:51:05.8742624Z     /home/runner/.cargo/git
+2026-10-22T16:51:05.8756265Z     /home/runner/work/tcl-lsp/tcl-lsp/target
+2026-10-22T16:51:05.8756925Z Restore Key:
+2026-10-22T16:51:05.8757707Z     v0-rust-test-ext-test-ext-multi-folder-Linux-x64-9c09dd5e
+2026-10-22T16:51:05.8758387Z Cache Key:
+2026-10-22T16:51:05.8759104Z     v0-rust-test-ext-test-ext-multi-folder-Linux-x64-9c09dd5e-afb087a8
+2026-10-22T16:51:05.8759909Z .. Prefix:
+2026-10-22T16:51:05.8760467Z   - v0-rust-test-ext-test-ext-multi-folder-Linux-x64
+2026-10-22T16:51:05.8761456Z .. Environment considered:
+2026-10-22T16:51:05.8761930Z   - Rust Versions:
+2026-10-22T16:51:05.8762482Z     - 1.99.1 x86_64-unknown-linux-gnu 58cf8f9c35b355199727627d07ae34a4e2846d67
+2026-10-22T16:51:05.8762935Z   - CARGO_BUILD_WARNINGS
+2026-10-22T16:51:05.8763230Z   - CARGO_INCREMENTAL
+2026-10-22T16:51:05.8763708Z   - CARGO_PROFILE_DEV_DEBUG
+2026-10-22T16:51:05.8764223Z   - CARGO_REGISTRIES_CRATES_IO_PROTOCOL
+2026-10-22T16:51:05.8764848Z   - CARGO_TERM_COLOR
+2026-10-22T16:51:05.8765321Z   - CARGO_UNSTABLE_SPARSE_REGISTRY
+2026-10-22T16:51:05.8765787Z   - RUST_BACKTRACE
+2026-10-22T16:51:05.8766219Z .. Lockfiles considered:
+2026-10-22T16:51:05.8766811Z   - /home/runner/work/tcl-lsp/tcl-lsp/.cargo/config.toml
+2026-10-22T16:51:05.8767566Z   - /home/runner/work/tcl-lsp/tcl-lsp/Cargo.lock
+2026-10-22T16:51:05.8768284Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust-toolchain.toml
+2026-10-22T16:51:05.8769160Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bigip-report-gen/rust/Cargo.toml
+2026-10-22T16:51:05.8770094Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl-codegen/Cargo.toml
+2026-10-22T16:51:05.8772582Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl-ir/Cargo.toml
+2026-10-22T16:51:05.8773522Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/bpf-tcl/Cargo.toml
+2026-10-22T16:51:05.8774352Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/f5-cli/Cargo.toml
+2026-10-22T16:51:05.8775157Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/f5-xc/Cargo.toml
+2026-10-22T16:51:05.8776005Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip-io/Cargo.toml
+2026-10-22T16:51:05.8776936Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip-query/Cargo.toml
+2026-10-22T16:51:05.8777815Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bigip/Cargo.toml
+2026-10-22T16:51:05.8778688Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-bytecode/Cargo.toml
+2026-10-22T16:51:05.8779596Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cli-support/Cargo.toml
+2026-10-22T16:51:05.8780445Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cli/Cargo.toml
+2026-10-22T16:51:05.8781560Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cmd-core/Cargo.toml
+2026-10-22T16:51:05.8782445Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-compiler/Cargo.toml
+2026-10-22T16:51:05.8783378Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-core-types/Cargo.toml
+2026-10-22T16:51:05.8784233Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-cshim/Cargo.toml
+2026-10-22T16:51:05.8785067Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-debugger/Cargo.toml
+2026-10-22T16:51:05.8786356Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-diagram/Cargo.toml
+2026-10-22T16:51:05.8787220Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-dialect/Cargo.toml
+2026-10-22T16:51:05.8788392Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-api/Cargo.toml
+2026-10-22T16:51:05.8789322Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-tclvm/Cargo.toml
+2026-10-22T16:51:05.8790332Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-engine-wasm/Cargo.toml
+2026-10-22T16:51:05.8791427Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-explorer/Cargo.toml
+2026-10-22T16:51:05.8792321Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-f5mku/Cargo.toml
+2026-10-22T16:51:05.8793149Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-fuzz/Cargo.toml
+2026-10-22T16:51:05.8794021Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-host-native/Cargo.toml
+2026-10-22T16:51:05.8794914Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irule-test/Cargo.toml
+2026-10-22T16:51:05.8795810Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-irules/Cargo.toml
+2026-10-22T16:51:05.8796687Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lexer/Cargo.toml
+2026-10-22T16:51:05.8797532Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-core/Cargo.toml
+2026-10-22T16:51:05.8798400Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-db/Cargo.toml
+2026-10-22T16:51:05.8799361Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasi/.cargo/config.toml
+2026-10-22T16:51:05.8800337Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server/Cargo.toml
+2026-10-22T16:51:05.8801367Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-mcp/Cargo.toml
+2026-10-22T16:51:05.8802215Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-pkg-model/Cargo.toml
+2026-10-22T16:51:05.8803058Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-pkg/Cargo.toml
+2026-10-22T16:51:05.8803893Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-platform/Cargo.toml
+2026-10-22T16:51:05.8804741Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-regex/Cargo.toml
+2026-10-22T16:51:05.8805619Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-registry/Cargo.toml
+2026-10-22T16:51:05.8806616Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-runtime-api/Cargo.toml
+2026-10-22T16:51:05.8807295Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-sandbox/Cargo.toml
+2026-10-22T16:51:05.8807815Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spec-hooks/Cargo.toml
+2026-10-22T16:51:05.8808338Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spec-studio/Cargo.toml
+2026-10-22T16:51:05.8808849Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-spectcl/Cargo.toml
+2026-10-22T16:51:05.8809355Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-sslictcl/Cargo.toml
+2026-10-22T16:51:05.8809848Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-syntax/Cargo.toml
+2026-10-22T16:51:05.8810367Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-test-support/Cargo.toml
+2026-10-22T16:51:05.8811118Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-userdirs/Cargo.toml
+2026-10-22T16:51:05.8811712Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-version/Cargo.toml
+2026-10-22T16:51:05.8812223Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm-cli/Cargo.toml
+2026-10-22T16:51:05.8812725Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-vm/Cargo.toml
+2026-10-22T16:51:05.8813196Z   - /home/runner/work/tcl-lsp/tcl-lsp/rust/xtask/Cargo.toml
+2026-10-22T16:51:05.8813799Z ##[endgroup]
+2026-10-22T16:51:05.8813947Z 
+2026-10-22T16:51:09.7001469Z ... Cleaning /home/runner/work/tcl-lsp/tcl-lsp/target ...
+2026-10-22T16:51:09.7107662Z ... Cleaning cargo registry (cache-all-crates: false) ...
+2026-10-22T16:51:10.6982691Z ... Cleaning cargo/bin ...
+2026-10-22T16:51:10.7005579Z ... Cleaning cargo git cache ...
+2026-10-22T16:51:10.7009910Z ... Saving cache ...
+2026-10-22T16:51:10.7188938Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/work/tcl-lsp/tcl-lsp --files-from manifest.txt --use-compress-program zstdmt
+2026-10-22T16:51:12.3959191Z Sent 65011712 of 110232939 (59.0%), 62.0 MBs/sec
+2026-10-22T16:51:13.3967503Z Sent 110232939 of 110232939 (100.0%), 52.5 MBs/sec
+2026-10-22T16:51:13.6713485Z ##[end-action id=__30240766-9c37-4e44-ae90-563ecfb6cffd.__Swatinem_rust-cache;outcome=success;conclusion=success;duration_ms=7928]
+2026-10-22T16:51:13.6785532Z Post job cleanup.
+2026-10-22T16:51:13.7688582Z [command]/usr/bin/git version
+2026-10-22T16:51:13.7749384Z git version 2.55.0
+2026-10-22T16:51:13.7790708Z Temporarily overriding HOME='/home/runner/work/_temp/7d87725e-54c9-47fb-bc72-3ebc5fdb7167' before making global git config changes
+2026-10-22T16:51:13.7792719Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-22T16:51:13.7796910Z [command]/usr/bin/git config --global --add safe.directory /home/runner/work/tcl-lsp/tcl-lsp
+2026-10-22T16:51:13.7836903Z Removing SSH command configuration
+2026-10-22T16:51:13.7845090Z [command]/usr/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-22T16:51:13.7889297Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-22T16:51:13.8218543Z Removing HTTP extra header
+2026-10-22T16:51:13.8220030Z [command]/usr/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-22T16:51:13.8270354Z [command]/usr/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-22T16:51:13.8574225Z Removing includeIf entries pointing to credentials config files
+2026-10-22T16:51:13.8580897Z [command]/usr/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-22T16:51:13.8610613Z includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git.path
+2026-10-22T16:51:13.8612024Z includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git/worktrees/*.path
+2026-10-22T16:51:13.8613263Z includeif.gitdir:/github/workspace/.git.path
+2026-10-22T16:51:13.8614334Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-22T16:51:13.8620278Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git.path
+2026-10-22T16:51:13.8647932Z /home/runner/work/_temp/git-credentials-9c4d5872-12c0-4db2-86d0-cdeb6abb62f8.config
+2026-10-22T16:51:13.8658420Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git.path \/home\/runner\/work\/_temp\/git\-credentials\-9c4d5872\-12c0\-4db2\-86d0\-cdeb6abb62f8\.config
+2026-10-22T16:51:13.8694913Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git/worktrees/*.path
+2026-10-22T16:51:13.8719170Z /home/runner/work/_temp/git-credentials-9c4d5872-12c0-4db2-86d0-cdeb6abb62f8.config
+2026-10-22T16:51:13.8729303Z [command]/usr/bin/git config --local --unset includeif.gitdir:/home/runner/work/tcl-lsp/tcl-lsp/.git/worktrees/*.path \/home\/runner\/work\/_temp\/git\-credentials\-9c4d5872\-12c0\-4db2\-86d0\-cdeb6abb62f8\.config
+2026-10-22T16:51:13.8769025Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-22T16:51:13.8792765Z /github/runner_temp/git-credentials-9c4d5872-12c0-4db2-86d0-cdeb6abb62f8.config
+2026-10-22T16:51:13.8800706Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-9c4d5872\-12c0\-4db2\-86d0\-cdeb6abb62f8\.config
+2026-10-22T16:51:13.8833576Z [command]/usr/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-22T16:51:13.8855923Z /github/runner_temp/git-credentials-9c4d5872-12c0-4db2-86d0-cdeb6abb62f8.config
+2026-10-22T16:51:13.8865725Z [command]/usr/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-9c4d5872\-12c0\-4db2\-86d0\-cdeb6abb62f8\.config
+2026-10-22T16:51:13.8900065Z [command]/usr/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-22T16:51:13.9179793Z Removing credentials config '/home/runner/work/_temp/git-credentials-9c4d5872-12c0-4db2-86d0-cdeb6abb62f8.config'
+2026-10-22T16:51:13.9329476Z Cleaning up orphan processes

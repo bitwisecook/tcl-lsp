@@ -1,0 +1,37 @@
+{
+  "status": "OFF-TREE read-only diagnostic PLAN only; no source patch, selector mutation, Cargo queue or execution.",
+  "utc": "2026-10-22T20:37:44.922453+00:00",
+  "basis": {
+    "run": 5205,
+    "head": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+    "raw_log": "/tmp/work-ci5205/wasm-real-link.log",
+    "raw_sha256": "8d141b4cd2abfe5bbbe361f6d912c16f70501b8db45b936adbc37c5a6e747dda",
+    "observed": "18 PASS /7 FAIL; exact five shared-table helper failures provide no per-function native report."
+  },
+  "next_measurement_requires": "Root schedule after approved product import-interning integration and own registry Clippy handback; ordinary Cargo freshness/global full-chain lock/full source-provider-artifact manifests/20MiB cap/2GiB watchdog. No fabricated Native entry or manual executable reuse.",
+  "unchanged_selectors": [
+    "a_compiled_proc_body_runs_through_the_runtimes_function_table",
+    "a_compiled_proc_body_sees_the_frame_run_proc_pushed",
+    "original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint",
+    "recursion_through_a_compiled_body_refuses_at_the_interpreted_depth",
+    "root_colon_publication_runs_its_own_compiled_table_entry",
+    "sealed_native_i64_add_runs_and_trace_registration_falls_back"
+  ],
+  "instrumentation_scope": "If root authorises, add only typed observational stderr before the existing compile_native_bound and run_real_native_i64_add assertion, or extend their failure messages. Keep EVERY original condition/assertion/fixture/expected count/compiled-call requirement. Do not add selectors or rewrite test expectations.",
+  "typed_fields": [
+    "output.plan Debug",
+    "output.native per-function report Debug (status/binding/typed reason and statements)",
+    "unit.ir_module.procedures.len and unit.procedures.len",
+    "unit.top_level.semantic_facts.executable().function().is_some",
+    "script_admission_plan(top_level, Script) Debug and per-procedure admission state",
+    "source_entry.native_entry.is_some, compiled_variable_provider, native_compilation, original_native_declaration_body_units.len",
+    "Exact procedure IDs/display labels for joining retained unit body/report, without name-only proof"
+  ],
+  "interpretation_rules": [
+    "Five missing-table outputs must distinguish disabled native lowering, declined top executable, missing actual DefineProc inventory, declined body, and proc-entry result refusal. No cause attributed before actual report.",
+    "ExecutionTrace decline is absence-of-trace proof unavailable as well as actual trace; do not infer the fixture registered a trace (first native-add program has none). Preserve original_procedure_has_execution_trace fail-closed returns.",
+    "ClosedProgram(UncoveredStatement) may follow missing direct-call evidence; original Proc generic selector InconsistentCompletionReturn is separate typed evidence, not proof of missing shared runtime table export.",
+    "Current tests fail before runtime table linking; do not diagnose wasmtime/runtime exports from import_table false alone.",
+    "Raw source build has no explicit native entry, but this alone is not assigned sole cause; any needed native capture must use authentic existing VM/compiler ingress and retained owner, never synthetic authority."
+  ]
+}

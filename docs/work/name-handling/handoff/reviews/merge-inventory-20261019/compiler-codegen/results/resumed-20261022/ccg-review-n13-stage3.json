@@ -1,0 +1,61 @@
+{
+  "status": "Independent STATIC review of immutable partial stage3 delta: no new identity/authority defect identified in requested paths. Not typechecked/tested/lint-cleared/integration-ready or N13 closure.",
+  "updated_utc": "2026-10-22T19:28:59.251449+00:00",
+  "delta": "/tmp/compiler-names-n13-stage3-vs-stage2.patch",
+  "delta_sha256": "30d801dc866378619c73ed15897abd720299c79b2e475ccdf1cb762f70615a76",
+  "full_patch": "/tmp/compiler-names-n13-stage3.patch",
+  "full_patch_sha256": "1b884f3d45bc332fa9279423de109c48dc0ca012f0c3980e588e1271234c9459",
+  "prior_review": "/tmp/ccg-review-n13-stage2.json (c69bc450...)",
+  "verified_proposed_hashes": "All16 files in immutable stage3 shadow match stage3 manifest proposed SHA256 values.",
+  "resolved_prior_static_findings": [
+    {
+      "axis": "full entry policy consistency",
+      "detail": "minted_entry derives actual snapshot realm and baseline execution naming policy, Logical/Vendor input, invocation dialect and captured compilation scope. child_state compares complete retained metadata owner, same point, each raw axis and the existing exact input/config/Registry/native/host/provider/contracts gates before cloning state. Returned baseline realm/semantics are aligned to the snapshot realm rather than silently retaining another availability phase."
+    },
+    {
+      "axis": "lowering boundary",
+      "detail": "Lowerer validates inherited options through child_state before storing independent policy fields. Invalid inherited options retain the inherited tag with unavailable metadata/unknown entry and cannot enter a fresh baseline. Native procedure/script targets and bytecode requests with inherited point yield unavailable barrier; no physical entry, compiled-variable provider or compiler context is fabricated."
+    },
+    {
+      "axis": "same-owner forced collision",
+      "detail": "New allocator-only private test obtains actual source-kernel points from ONE analysis owner, with distinct real site/namespace/path snapshots. It asserts owner pointer sameness, real snapshot/path differences, distinct issued keys under a forced same bucket, and exact full-payload repeat reuse. It does not pretend list commands are publicly admitted SourceLoads or fabricate a second public SourceLoad after opaque continuation."
+    },
+    {
+      "axis": "token retirement",
+      "detail": "Local interner allocates its own Arc payload. Dropping its only issued full receipt leaves old immutable origin token alive, then equal original payload issues a fresh non-equal key/token. Token contains only immutable key and grants no state access; allocator retains checked non-reuse and live-receipt-before-overflow behavior."
+    },
+    {
+      "axis": "equality/memo",
+      "detail": "Live entry clone has equal Eq/Hash/Ord, independently created origin wrappers compare/hash/order by same immutable issued key, and graph memo warm-up preserves entry/token/hash equality. Derived memo remains outside semantic key payload and source equality."
+    },
+    {
+      "axis": "child rejoin and obligations",
+      "detail": "matches_child_analysis checks exact retained input/config/image/realm plus actual original inherited entry; changed-entry/foreign child/config/unavailable controls are added. Every association explicitly retains HandlerSelection/FileReadAndDecode/ContainingBody debts; single original path-only shape is required, optional/dynamic decoding remains refused. No obligation is silently discharged by token equality."
+    }
+  ],
+  "remaining_gaps": [
+    {
+      "id": "CCG-N13-S3-1",
+      "kind": "unexecuted strong-retention control",
+      "detail": "An isolated child/CU retention test after dropping external parent/point handles is still not explicit. point() returns after local parent drops, but bounded source-analysis cache may still retain its owner. Existing structure strongly retains owner/snapshot through entry/child/CU; do not label isolated lifetime behavior measured from current tests.",
+      "needed": "When testing, retain actual child and retained CU, release external handles under controlled memo lifetime, and prove their entry/owner stays attached and foreign child still refuses."
+    },
+    {
+      "id": "CCG-N13-S3-2",
+      "kind": "mechanical release-lint debt",
+      "detail": "New inherited_source_entry_never_becomes_a_runtime_lowering_target includes direct assert!(module.original_native_declaration_body_units.is_empty()), recreating assert_is_empty; stage2 controls also include direct empty assertions.",
+      "needed": "Equivalent len==0 assertions only on these known Vec/slice fields in distinct immutable successor, preserving exact receiver evaluation and messages; no allows or weakened predicate."
+    },
+    {
+      "id": "CCG-N13-S3-3",
+      "kind": "acceptance/integration still missing",
+      "detail": "All new controls are unrun; no compiler/host typecheck/Clippy/runtime result. First-edge API still lacks conditional region continuation, recombination/per-view index membership, actual physical A-retired/B-current and full supported two-parent12hop closure."
+    }
+  ],
+  "no_new_authority_grants": [
+    "No immutable origin token is accepted as a full entry/state owner.",
+    "No hash-derived identity, key reuse, new full-Eq masking or Native/Loaded relabelling found.",
+    "No source/URI/name recovery after inherited refusal; unavailable tag remains terminal."
+  ],
+  "actions": "Read-only exact frozen artifacts and wrote only this /tmp review receipt; no implementation/apply/Cargo/canonical source edits. N17 plan406063b5 unchanged."
+}

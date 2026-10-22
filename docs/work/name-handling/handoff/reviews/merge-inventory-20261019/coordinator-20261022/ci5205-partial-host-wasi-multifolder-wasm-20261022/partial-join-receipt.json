@@ -1,0 +1,995 @@
+{
+  "schema": "partial-ci5203-ci5205-host-wasi-multifolder-wasm-join-v1",
+  "recorded_at_utc": "2026-10-22T20:45:38.628881+00:00",
+  "status": "partial named evidence only; no suite-completeness or overall regression verdict",
+  "runs": {
+    "baseline": {
+      "run_id": 39816429638,
+      "number": 5203,
+      "ref": "rust",
+      "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+      "run_jobs_snapshot": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/origin-rust-ci-5203-final-jobs-20261022.json",
+      "job_snapshot_status": "completed/success for these four scoped jobs"
+    },
+    "current": {
+      "run_id": 39845788481,
+      "number": 5205,
+      "ref": "work",
+      "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "job_metadata_source": "read-only GitHub workflow-run jobs API response",
+      "status": "each scoped job concluded; test jobs below failed"
+    }
+  },
+  "jobs": [
+    {
+      "key": "baseline_browser_wasm",
+      "name": "lsp-server-wasm",
+      "id": 119956195622,
+      "conclusion": "success",
+      "log": "baseline-lsp-server-wasm.log"
+    },
+    {
+      "key": "current_browser_wasm",
+      "name": "lsp-server-wasm",
+      "id": 120061100015,
+      "conclusion": "failure",
+      "log": "lsp-server-wasm.log"
+    },
+    {
+      "key": "baseline_wasi",
+      "name": "lsp-server-wasi",
+      "id": 119956195897,
+      "conclusion": "success",
+      "log": "baseline-lsp-server-wasi.log"
+    },
+    {
+      "key": "current_wasi",
+      "name": "lsp-server-wasi",
+      "id": 120061100065,
+      "conclusion": "failure",
+      "log": "wasi.log"
+    },
+    {
+      "key": "baseline_multifolder",
+      "name": "test-ext-multi-folder",
+      "id": 119959077970,
+      "conclusion": "success",
+      "log": "baseline-multifolder.log"
+    },
+    {
+      "key": "current_multifolder",
+      "name": "test-ext-multi-folder",
+      "id": 120069799854,
+      "conclusion": "failure",
+      "log": "test-ext-multi-folder.log"
+    },
+    {
+      "key": "baseline_wasm_real_link",
+      "name": "wasm-real-link",
+      "id": 119956195764,
+      "conclusion": "success",
+      "log": "baseline-wasm-real-link.log"
+    },
+    {
+      "key": "current_wasm_real_link",
+      "name": "wasm-real-link",
+      "id": 120061100182,
+      "conclusion": "failure",
+      "log": "wasm-real-link.log"
+    }
+  ],
+  "logs": {
+    "baseline-lsp-server-wasm.log": {
+      "bytes": 83012,
+      "sha256": "045e7360e4aef08ebbd5d572b8a7127ea7021c847b65fdb5b1d5e3fc558c6130",
+      "line_count": 1063,
+      "first_line": "2026-10-22T16:44:30.2564283Z Current runner version: '2.338.0'",
+      "last_line": "2026-10-22T16:49:30.6045524Z Cleaning up orphan processes",
+      "archived_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/ci5205-partial-host-wasi-multifolder-wasm-20261022/baseline-lsp-server-wasm.log",
+      "source_path": "/tmp/work-ci5205/baseline-lsp-server-wasm.log"
+    },
+    "lsp-server-wasm.log": {
+      "bytes": 66922,
+      "sha256": "10f7b27b66146d43649ca08624a389769dc578916ac482fc0ede237c1b89d98a",
+      "line_count": 854,
+      "first_line": "2026-10-22T20:10:30.7544813Z Current runner version: '2.338.0'",
+      "last_line": "2026-10-22T20:25:03.8530193Z Cleaning up orphan processes",
+      "archived_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/ci5205-partial-host-wasi-multifolder-wasm-20261022/lsp-server-wasm.log",
+      "source_path": "/tmp/work-ci5205/lsp-server-wasm.log"
+    },
+    "baseline-lsp-server-wasi.log": {
+      "bytes": 107540,
+      "sha256": "14f7cbe06fa9cea877f03b97babd64831350703b04d5794665387c4c78a6f7a7",
+      "line_count": 1370,
+      "first_line": "2026-10-22T16:44:31.5299242Z Current runner version: '2.338.0'",
+      "last_line": "2026-10-22T16:54:17.5731419Z Cleaning up orphan processes",
+      "archived_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/ci5205-partial-host-wasi-multifolder-wasm-20261022/baseline-lsp-server-wasi.log",
+      "source_path": "/tmp/work-ci5205/baseline-lsp-server-wasi.log"
+    },
+    "wasi.log": {
+      "bytes": 78935,
+      "sha256": "5ecb27e6e87032cbe3331979da0e7c2b6ca28f9e43a846fbb31eb25a91178084",
+      "line_count": 986,
+      "first_line": "2026-10-22T20:10:30.1719657Z Current runner version: '2.338.0'",
+      "last_line": "2026-10-22T20:30:04.1581898Z Cleaning up orphan processes",
+      "archived_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/ci5205-partial-host-wasi-multifolder-wasm-20261022/wasi.log",
+      "source_path": "/tmp/work-ci5205/wasi.log"
+    },
+    "baseline-multifolder.log": {
+      "bytes": 123234,
+      "sha256": "0c91f7b195d028f152711da10547c76cdf58c0f847e82cc68a8f1ab33a8c02e3",
+      "line_count": 1429,
+      "first_line": "2026-10-22T16:49:55.0516458Z Current runner version: '2.338.0'",
+      "last_line": "2026-10-22T16:51:13.9329476Z Cleaning up orphan processes",
+      "archived_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/ci5205-partial-host-wasi-multifolder-wasm-20261022/baseline-multifolder.log",
+      "source_path": "/tmp/work-ci5205/baseline-multifolder.log"
+    },
+    "test-ext-multi-folder.log": {
+      "bytes": 140091,
+      "sha256": "0494fb854de3512406afb8919a6ecd75ee2564cc370c7756171a2292551c69a5",
+      "line_count": 1646,
+      "first_line": "2026-10-22T20:27:25.0231431Z Current runner version: '2.338.0'",
+      "last_line": "2026-10-22T20:34:32.2344176Z Cleaning up orphan processes",
+      "archived_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/ci5205-partial-host-wasi-multifolder-wasm-20261022/test-ext-multi-folder.log",
+      "source_path": "/tmp/work-ci5205/test-ext-multi-folder.log"
+    },
+    "baseline-wasm-real-link.log": {
+      "bytes": 122744,
+      "sha256": "cca511a518ce7ac6c9162ed10e96ab098f8f5ef673d49bfd26b6faca1b691056",
+      "line_count": 1552,
+      "first_line": "2026-10-22T16:44:30.2888510Z Current runner version: '2.338.0'",
+      "last_line": "2026-10-22T16:50:18.8400372Z Cleaning up orphan processes",
+      "archived_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/ci5205-partial-host-wasi-multifolder-wasm-20261022/baseline-wasm-real-link.log",
+      "source_path": "/tmp/work-ci5205/baseline-wasm-real-link.log"
+    },
+    "wasm-real-link.log": {
+      "bytes": 120533,
+      "sha256": "8d141b4cd2abfe5bbbe361f6d912c16f70501b8db45b936adbc37c5a6e747dda",
+      "line_count": 1624,
+      "first_line": "2026-10-22T20:10:30.1617451Z Current runner version: '2.338.0'",
+      "last_line": "2026-10-22T20:22:19.9553448Z Cleaning up orphan processes",
+      "archived_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/ci5205-partial-host-wasi-multifolder-wasm-20261022/wasm-real-link.log",
+      "source_path": "/tmp/work-ci5205/wasm-real-link.log"
+    }
+  },
+  "suite_boundaries": {
+    "baseline_browser_wasm": {
+      "Complete job name:": [
+        {
+          "line": 37,
+          "raw": "2026-10-22T16:44:31.8955576Z Complete job name: lsp-server-wasm"
+        }
+      ],
+      "node /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasm/test/e2e.mjs": [
+        {
+          "line": 940,
+          "raw": "2026-10-22T16:49:23.7545817Z node /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasm/test/e2e.mjs"
+        }
+      ]
+    },
+    "current_browser_wasm": {
+      "Complete job name:": [
+        {
+          "line": 37,
+          "raw": "2026-10-22T20:10:33.9223570Z Complete job name: lsp-server-wasm"
+        }
+      ],
+      "node /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasm/test/e2e.mjs": [
+        {
+          "line": 772,
+          "raw": "2026-10-22T20:24:10.3361905Z node /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasm/test/e2e.mjs"
+        }
+      ]
+    },
+    "baseline_wasi": {
+      "Complete job name:": [
+        {
+          "line": 38,
+          "raw": "2026-10-22T16:44:33.4289895Z Complete job name: lsp-server-wasi"
+        }
+      ],
+      "node /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasi/test/e2e.mjs": [
+        {
+          "line": 1252,
+          "raw": "2026-10-22T16:52:46.1666449Z node /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasi/test/e2e.mjs"
+        }
+      ]
+    },
+    "current_wasi": {
+      "Complete job name:": [
+        {
+          "line": 38,
+          "raw": "2026-10-22T20:10:32.5504100Z Complete job name: lsp-server-wasi"
+        }
+      ],
+      "node /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasi/test/e2e.mjs": [
+        {
+          "line": 921,
+          "raw": "2026-10-22T20:28:28.0103261Z node /home/runner/work/tcl-lsp/tcl-lsp/rust/tcl-lsp-server-wasi/test/e2e.mjs"
+        }
+      ]
+    },
+    "baseline_multifolder": {
+      "Complete job name:": [
+        {
+          "line": 39,
+          "raw": "2026-10-22T16:49:57.2582859Z Complete job name: test-ext-multi-folder"
+        }
+      ],
+      "Multi-folder workspace configuration (#230)": [
+        {
+          "line": 1226,
+          "raw": "2026-10-22T16:50:55.3292329Z \u001b[0m  Multi-folder workspace configuration (#230)\u001b[0m"
+        }
+      ]
+    },
+    "current_multifolder": {
+      "Complete job name:": [
+        {
+          "line": 39,
+          "raw": "2026-10-22T20:27:28.4934936Z Complete job name: test-ext-multi-folder"
+        }
+      ],
+      "Multi-folder workspace configuration (#230)": [
+        {
+          "line": 1387,
+          "raw": "2026-10-22T20:34:07.6893675Z \u001b[0m  Multi-folder workspace configuration (#230)\u001b[0m"
+        },
+        {
+          "line": 1399,
+          "raw": "2026-10-22T20:34:10.0927974Z FAIL: Multi-folder workspace configuration (#230) folder A and folder B produce different diagnostics for identical source (#407)"
+        },
+        {
+          "line": 1407,
+          "raw": "2026-10-22T20:34:10.4632156Z FAIL: Multi-folder workspace configuration (#230) folder A and folder B differ on W108 non-ASCII diagnostics (#407)"
+        },
+        {
+          "line": 1413,
+          "raw": "2026-10-22T20:34:10.6814031Z FAIL: Multi-folder workspace configuration (#230) folder A and folder B differ on W123 for extraCommands names (#407)"
+        },
+        {
+          "line": 1428,
+          "raw": "2026-10-22T20:34:21.5053493Z \u001b[0m  1) Multi-folder workspace configuration (#230)"
+        },
+        {
+          "line": 1441,
+          "raw": "2026-10-22T20:34:21.5244068Z \u001b[0m  2) Multi-folder workspace configuration (#230)"
+        },
+        {
+          "line": 1450,
+          "raw": "2026-10-22T20:34:21.5443779Z \u001b[0m  3) Multi-folder workspace configuration (#230)"
+        }
+      ]
+    },
+    "baseline_wasm_real_link": {
+      "Complete job name:": [
+        {
+          "line": 36,
+          "raw": "2026-10-22T16:44:32.1026920Z Complete job name: wasm-real-link"
+        }
+      ],
+      "tests/wasm_real_link.rs": [
+        {
+          "line": 910,
+          "raw": "2026-10-22T16:45:47.5031080Z \u001b[1m\u001b[92m     Running\u001b[0m tests/wasm_real_link.rs (target/debug/deps/wasm_real_link-f3819f12c6bf7c21)"
+        }
+      ]
+    },
+    "current_wasm_real_link": {
+      "Complete job name:": [
+        {
+          "line": 36,
+          "raw": "2026-10-22T20:10:31.2786515Z Complete job name: wasm-real-link"
+        }
+      ],
+      "tests/wasm_real_link.rs": [
+        {
+          "line": 812,
+          "raw": "2026-10-22T20:19:02.0826765Z \u001b[1m\u001b[92m     Running\u001b[0m tests/wasm_real_link.rs (target/debug/deps/wasm_real_link-2dfa660c17f64b6d)"
+        },
+        {
+          "line": 845,
+          "raw": "2026-10-22T20:22:19.3760598Z thread 'a_compiled_proc_body_runs_through_the_runtimes_function_table' (3444) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:1150:5:"
+        },
+        {
+          "line": 853,
+          "raw": "2026-10-22T20:22:19.3776453Z              at ./tests/wasm_real_link.rs:1150:5"
+        },
+        {
+          "line": 855,
+          "raw": "2026-10-22T20:22:19.3777459Z              at ./tests/wasm_real_link.rs:1195:10"
+        },
+        {
+          "line": 857,
+          "raw": "2026-10-22T20:22:19.3779051Z              at ./tests/wasm_real_link.rs:1246:9"
+        },
+        {
+          "line": 859,
+          "raw": "2026-10-22T20:22:19.3780853Z              at ./tests/wasm_real_link.rs:1233:67"
+        },
+        {
+          "line": 868,
+          "raw": "2026-10-22T20:22:19.3786164Z thread 'a_compiled_proc_body_sees_the_frame_run_proc_pushed' (3880) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:1150:5:"
+        },
+        {
+          "line": 876,
+          "raw": "2026-10-22T20:22:19.3790230Z              at ./tests/wasm_real_link.rs:1150:5"
+        },
+        {
+          "line": 878,
+          "raw": "2026-10-22T20:22:19.3790802Z              at ./tests/wasm_real_link.rs:1195:10"
+        },
+        {
+          "line": 880,
+          "raw": "2026-10-22T20:22:19.3791622Z              at ./tests/wasm_real_link.rs:1276:9"
+        },
+        {
+          "line": 882,
+          "raw": "2026-10-22T20:22:19.3792528Z              at ./tests/wasm_real_link.rs:1266:57"
+        },
+        {
+          "line": 891,
+          "raw": "2026-10-22T20:22:19.3797922Z thread 'compiled_argv_balances_allocations_in_the_real_runtime' (4063) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:398:9:"
+        },
+        {
+          "line": 1474,
+          "raw": "2026-10-22T20:22:19.3995640Z              at ./tests/wasm_real_link.rs:398:9"
+        },
+        {
+          "line": 1476,
+          "raw": "2026-10-22T20:22:19.3996909Z              at ./tests/wasm_real_link.rs:892:14"
+        },
+        {
+          "line": 1478,
+          "raw": "2026-10-22T20:22:19.3998541Z              at ./tests/wasm_real_link.rs:857:60"
+        },
+        {
+          "line": 1487,
+          "raw": "2026-10-22T20:22:19.4007637Z thread 'original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint' (4517) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:1150:5:"
+        },
+        {
+          "line": 1495,
+          "raw": "2026-10-22T20:22:19.4013926Z              at ./tests/wasm_real_link.rs:1150:5"
+        },
+        {
+          "line": 1497,
+          "raw": "2026-10-22T20:22:19.4015825Z              at ./tests/wasm_real_link.rs:1559:18"
+        },
+        {
+          "line": 1499,
+          "raw": "2026-10-22T20:22:19.4017643Z              at ./tests/wasm_real_link.rs:1545:86"
+        },
+        {
+          "line": 1508,
+          "raw": "2026-10-22T20:22:19.4026492Z thread 'recursion_through_a_compiled_body_refuses_at_the_interpreted_depth' (4534) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:1150:5:"
+        },
+        {
+          "line": 1516,
+          "raw": "2026-10-22T20:22:19.4034409Z              at ./tests/wasm_real_link.rs:1150:5"
+        },
+        {
+          "line": 1518,
+          "raw": "2026-10-22T20:22:19.4035562Z              at ./tests/wasm_real_link.rs:1195:10"
+        },
+        {
+          "line": 1520,
+          "raw": "2026-10-22T20:22:19.4037210Z              at ./tests/wasm_real_link.rs:1310:19"
+        },
+        {
+          "line": 1522,
+          "raw": "2026-10-22T20:22:19.4039245Z              at ./tests/wasm_real_link.rs:1298:72"
+        },
+        {
+          "line": 1531,
+          "raw": "2026-10-22T20:22:19.4047727Z thread 'root_colon_publication_runs_its_own_compiled_table_entry' (4550) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:1150:5:"
+        },
+        {
+          "line": 1539,
+          "raw": "2026-10-22T20:22:19.4054940Z              at ./tests/wasm_real_link.rs:1150:5"
+        },
+        {
+          "line": 1541,
+          "raw": "2026-10-22T20:22:19.4056034Z              at ./tests/wasm_real_link.rs:1195:10"
+        },
+        {
+          "line": 1543,
+          "raw": "2026-10-22T20:22:19.4057538Z              at ./tests/wasm_real_link.rs:1532:9"
+        },
+        {
+          "line": 1545,
+          "raw": "2026-10-22T20:22:19.4059197Z              at ./tests/wasm_real_link.rs:1519:62"
+        },
+        {
+          "line": 1554,
+          "raw": "2026-10-22T20:22:19.4067509Z thread 'sealed_native_i64_add_runs_and_trace_registration_falls_back' (4566) panicked at rust/tcl-compiler/tests/wasm_real_link.rs:504:5:"
+        },
+        {
+          "line": 1562,
+          "raw": "2026-10-22T20:22:19.4100603Z              at ./tests/wasm_real_link.rs:504:5"
+        },
+        {
+          "line": 1564,
+          "raw": "2026-10-22T20:22:19.4101398Z              at ./tests/wasm_real_link.rs:1003:16"
+        },
+        {
+          "line": 1566,
+          "raw": "2026-10-22T20:22:19.4102417Z              at ./tests/wasm_real_link.rs:998:66"
+        }
+      ]
+    }
+  },
+  "summary": {
+    "browser_wasm": {
+      "matched_named_failures": 3,
+      "definition_failures": 2,
+      "other_named_failure": 1,
+      "note": "The third is pack-property hover and is retained because it is an explicit current FAIL with an exact baseline PASS."
+    },
+    "wasi_e2e": {
+      "matched_named_failures": 3,
+      "rust_unit_suite": "22 passed/0 failed in both baseline and current logs"
+    },
+    "vscode_extension_multifolder": {
+      "matched_named_failures": 4,
+      "summary": "Baseline 14 passing; current 10 passing and 4 failing."
+    },
+    "wasm_real_link": {
+      "current_named_failures": 7,
+      "baseline_pass_matched_failures": 5,
+      "current_failures_absent_from_baseline": 2,
+      "baseline_suite": "15 tests all passed",
+      "current_suite": "25 tests, 18 passed, 7 failed"
+    }
+  },
+  "rows": [
+    {
+      "group": "browser-wasm-e2e",
+      "target": "rust/tcl-lsp-server-wasm/test/e2e.mjs",
+      "selector": "hover on a pack property returns contents",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195622,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-lsp-server-wasm.log",
+          "line": 945,
+          "raw": "2026-10-22T16:49:24.5399151Z ok   hover on a pack property returns contents — \"**`synopsis`** — SpecTcl hover block command\\n\\nOne synopsis line of the\""
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120061100015,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "lsp-server-wasm.log",
+          "line": 777,
+          "raw": "2026-10-22T20:24:35.2570508Z FAIL hover on a pack property returns contents — \"\""
+        }
+      },
+      "classification": "observed exact-name baseline PASS -> current FAIL",
+      "identity_note": "Human-readable E2E case title; not a nextest RustBinaryId/selector."
+    },
+    {
+      "group": "browser-wasm-e2e",
+      "target": "rust/tcl-lsp-server-wasm/test/e2e.mjs",
+      "selector": "go-to-definition reaches a `source`d sibling from the store",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195622,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-lsp-server-wasm.log",
+          "line": 967,
+          "raw": "2026-10-22T16:49:25.6105262Z ok   go-to-definition reaches a `source`d sibling from the store — [\"file:///ws/lib/helpers.tcl\"]"
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120061100015,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "lsp-server-wasm.log",
+          "line": 800,
+          "raw": "2026-10-22T20:25:01.9200389Z FAIL go-to-definition reaches a `source`d sibling from the store — []"
+        }
+      },
+      "classification": "observed exact-name baseline PASS -> current FAIL",
+      "identity_note": "Human-readable E2E case title; not a nextest RustBinaryId/selector."
+    },
+    {
+      "group": "browser-wasm-e2e",
+      "target": "rust/tcl-lsp-server-wasm/test/e2e.mjs",
+      "selector": "go-to-definition resolves a tclIndex auto-loaded command",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195622,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-lsp-server-wasm.log",
+          "line": 969,
+          "raw": "2026-10-22T16:49:25.6185266Z ok   go-to-definition resolves a tclIndex auto-loaded command — [\"file:///ws/tmp/mypkg/impl.tcl\"]"
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120061100015,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "lsp-server-wasm.log",
+          "line": 802,
+          "raw": "2026-10-22T20:25:02.0055285Z FAIL go-to-definition resolves a tclIndex auto-loaded command — []"
+        }
+      },
+      "classification": "observed exact-name baseline PASS -> current FAIL",
+      "identity_note": "Human-readable E2E case title; not a nextest RustBinaryId/selector."
+    },
+    {
+      "group": "wasi-e2e",
+      "target": "rust/tcl-lsp-server-wasi/test/e2e.mjs",
+      "selector": "publishDiagnostics arrives with the client sending nothing further",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195897,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-lsp-server-wasi.log",
+          "line": 1259,
+          "raw": "2026-10-22T16:52:56.2130196Z ok   publishDiagnostics arrives with the client sending nothing further — 0 diagnostics, unprompted"
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120061100065,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "wasi.log",
+          "line": 928,
+          "raw": "2026-10-22T20:29:46.4708687Z FAIL publishDiagnostics arrives with the client sending nothing further — none"
+        }
+      },
+      "classification": "observed exact-name baseline PASS -> current FAIL",
+      "identity_note": "Human-readable E2E case title; separate from Rust unit suite (22/22 pass in both logs)."
+    },
+    {
+      "group": "wasi-e2e",
+      "target": "rust/tcl-lsp-server-wasi/test/e2e.mjs",
+      "selector": "go-to-definition follows `source` into a file that exists only on the preopened disk",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195897,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-lsp-server-wasi.log",
+          "line": 1261,
+          "raw": "2026-10-22T16:52:56.3340934Z ok   go-to-definition follows `source` into a file that exists only on the preopened disk — file:///w/lib.tcl:8 (expected line 8)"
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120061100065,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "wasi.log",
+          "line": 930,
+          "raw": "2026-10-22T20:30:00.3125438Z FAIL go-to-definition follows `source` into a file that exists only on the preopened disk — no locations"
+        }
+      },
+      "classification": "observed exact-name baseline PASS -> current FAIL",
+      "identity_note": "Human-readable E2E case title; separate from Rust unit suite (22/22 pass in both logs)."
+    },
+    {
+      "group": "wasi-e2e",
+      "target": "rust/tcl-lsp-server-wasi/test/e2e.mjs",
+      "selector": "hover on the cross-file call answers from the sibling on disk",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195897,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-lsp-server-wasi.log",
+          "line": 1262,
+          "raw": "2026-10-22T16:52:56.3437645Z ok   hover on the cross-file call answers from the sibling on disk — \"```tcl\\nproc ::helper {value} {...}\\n```\""
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120061100065,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "wasi.log",
+          "line": 931,
+          "raw": "2026-10-22T20:30:00.3273307Z FAIL hover on the cross-file call answers from the sibling on disk — \"\""
+        }
+      },
+      "classification": "observed exact-name baseline PASS -> current FAIL",
+      "identity_note": "Human-readable E2E case title; separate from Rust unit suite (22/22 pass in both logs)."
+    },
+    {
+      "group": "vscode-extension-multifolder",
+      "target": "editors/vscode/out/test/multiFolder/multiFolderConfig.test.js",
+      "selector": "folder A and folder B produce different diagnostics for identical source",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119959077970,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-multifolder.log",
+          "line": 1242,
+          "raw": "2026-10-22T16:50:57.0347685Z   \u001b[32m  \u001b[32m✔\u001b[39m\u001b[0m\u001b[90m folder A and folder B produce different diagnostics for identical source (#407)\u001b[0m\u001b[31m (299ms)\u001b[0m"
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120069799854,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "test-ext-multi-folder.log",
+          "line": 1399,
+          "raw": "2026-10-22T20:34:10.0927974Z FAIL: Multi-folder workspace configuration (#230) folder A and folder B produce different diagnostics for identical source (#407)"
+        }
+      },
+      "classification": "observed exact-title baseline PASS -> current FAIL",
+      "identity_note": "Mocha title preserved verbatim; not a nextest RustBinaryId/selector."
+    },
+    {
+      "group": "vscode-extension-multifolder",
+      "target": "editors/vscode/out/test/multiFolder/multiFolderConfig.test.js",
+      "selector": "folder A and folder B differ on W108 non-ASCII diagnostics",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119959077970,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-multifolder.log",
+          "line": 1245,
+          "raw": "2026-10-22T16:50:57.3955854Z   \u001b[32m  \u001b[32m✔\u001b[39m\u001b[0m\u001b[90m folder A and folder B differ on W108 non-ASCII diagnostics (#407)\u001b[0m\u001b[31m (369ms)\u001b[0m"
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120069799854,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "test-ext-multi-folder.log",
+          "line": 1407,
+          "raw": "2026-10-22T20:34:10.4632156Z FAIL: Multi-folder workspace configuration (#230) folder A and folder B differ on W108 non-ASCII diagnostics (#407)"
+        }
+      },
+      "classification": "observed exact-title baseline PASS -> current FAIL",
+      "identity_note": "Mocha title preserved verbatim; not a nextest RustBinaryId/selector."
+    },
+    {
+      "group": "vscode-extension-multifolder",
+      "target": "editors/vscode/out/test/multiFolder/multiFolderConfig.test.js",
+      "selector": "folder A and folder B differ on W123 for extraCommands names",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119959077970,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-multifolder.log",
+          "line": 1246,
+          "raw": "2026-10-22T16:50:57.7898672Z   \u001b[32m  \u001b[32m✔\u001b[39m\u001b[0m\u001b[90m folder A and folder B differ on W123 for extraCommands names (#407)\u001b[0m\u001b[31m (401ms)\u001b[0m"
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120069799854,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "test-ext-multi-folder.log",
+          "line": 1413,
+          "raw": "2026-10-22T20:34:10.6814031Z FAIL: Multi-folder workspace configuration (#230) folder A and folder B differ on W123 for extraCommands names (#407)"
+        }
+      },
+      "classification": "observed exact-title baseline PASS -> current FAIL",
+      "identity_note": "Mocha title preserved verbatim; not a nextest RustBinaryId/selector."
+    },
+    {
+      "group": "vscode-extension-multifolder",
+      "target": "editors/vscode/out/test/multiFolder/multiFolderConfig.test.js",
+      "selector": "flipping a folder's dialect re-analyses already-open files",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119959077970,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-multifolder.log",
+          "line": 1252,
+          "raw": "2026-10-22T16:50:58.7450678Z   \u001b[32m  \u001b[32m✔\u001b[39m\u001b[0m\u001b[90m flipping a folder's dialect re-analyses already-open files\u001b[0m\u001b[31m (943ms)\u001b[0m"
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120069799854,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "test-ext-multi-folder.log",
+          "line": 1424,
+          "raw": "2026-10-22T20:34:21.4976984Z FAIL: Multi-folder per-folder dialect change after open (#407) flipping a folder's dialect re-analyses already-open files"
+        }
+      },
+      "classification": "observed exact-title baseline PASS -> current FAIL",
+      "identity_note": "Mocha title preserved verbatim; not a nextest RustBinaryId/selector."
+    },
+    {
+      "group": "wasm-real-link",
+      "target": "tcl-compiler/tests/wasm_real_link.rs",
+      "selector": "a_compiled_proc_body_runs_through_the_runtimes_function_table",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195764,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-wasm-real-link.log",
+          "line": 913,
+          "raw": "2026-10-22T16:46:08.4068226Z test a_compiled_proc_body_runs_through_the_runtimes_function_table ... ok"
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120061100182,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "wasm-real-link.log",
+          "line": 815,
+          "raw": "2026-10-22T20:20:00.8119992Z test a_compiled_proc_body_runs_through_the_runtimes_function_table ... FAILED"
+        }
+      },
+      "classification": "observed exact Rust test-name baseline PASS -> current FAIL",
+      "identity_note": "Cargo test target+function name from output; test executable hash differs by build and this is not nextest canonical binary_id. Target is scoped by `cargo test --test wasm_real_link --test wasm_tiers` and `tests/wasm_real_link.rs` log path."
+    },
+    {
+      "group": "wasm-real-link",
+      "target": "tcl-compiler/tests/wasm_real_link.rs",
+      "selector": "a_compiled_proc_body_sees_the_frame_run_proc_pushed",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195764,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-wasm-real-link.log",
+          "line": 914,
+          "raw": "2026-10-22T16:46:08.6842744Z test a_compiled_proc_body_sees_the_frame_run_proc_pushed ... ok"
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120061100182,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "wasm-real-link.log",
+          "line": 816,
+          "raw": "2026-10-22T20:20:01.9271094Z test a_compiled_proc_body_sees_the_frame_run_proc_pushed ... FAILED"
+        }
+      },
+      "classification": "observed exact Rust test-name baseline PASS -> current FAIL",
+      "identity_note": "Cargo test target+function name from output; test executable hash differs by build and this is not nextest canonical binary_id. Target is scoped by `cargo test --test wasm_real_link --test wasm_tiers` and `tests/wasm_real_link.rs` log path."
+    },
+    {
+      "group": "wasm-real-link",
+      "target": "tcl-compiler/tests/wasm_real_link.rs",
+      "selector": "compiled_argv_balances_allocations_in_the_real_runtime",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195764,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-wasm-real-link.log",
+          "line": 919,
+          "raw": "2026-10-22T16:46:10.9260685Z test compiled_argv_balances_allocations_in_the_real_runtime ... ok"
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120061100182,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "wasm-real-link.log",
+          "line": 821,
+          "raw": "2026-10-22T20:20:45.6759740Z test compiled_argv_balances_allocations_in_the_real_runtime ... FAILED"
+        }
+      },
+      "classification": "observed exact Rust test-name baseline PASS -> current FAIL",
+      "identity_note": "Cargo test target+function name from output; test executable hash differs by build and this is not nextest canonical binary_id. Target is scoped by `cargo test --test wasm_real_link --test wasm_tiers` and `tests/wasm_real_link.rs` log path."
+    },
+    {
+      "group": "wasm-real-link",
+      "target": "tcl-compiler/tests/wasm_real_link.rs",
+      "selector": "original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195764,
+        "job_conclusion": "success",
+        "status": "UNKNOWN_ABSENT",
+        "evidence": null
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120061100182,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "wasm-real-link.log",
+          "line": 835,
+          "raw": "2026-10-22T20:22:15.5127000Z test original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint ... FAILED"
+        }
+      },
+      "classification": "current FAIL; selector absent from baseline log; baseline outcome unknown",
+      "identity_note": "Cargo test target+function name from output; test executable hash differs by build and this is not nextest canonical binary_id. Target is scoped by `cargo test --test wasm_real_link --test wasm_tiers` and `tests/wasm_real_link.rs` log path."
+    },
+    {
+      "group": "wasm-real-link",
+      "target": "tcl-compiler/tests/wasm_real_link.rs",
+      "selector": "recursion_through_a_compiled_body_refuses_at_the_interpreted_depth",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195764,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-wasm-real-link.log",
+          "line": 925,
+          "raw": "2026-10-22T16:46:14.1976800Z test recursion_through_a_compiled_body_refuses_at_the_interpreted_depth ... ok"
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120061100182,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "wasm-real-link.log",
+          "line": 836,
+          "raw": "2026-10-22T20:22:17.1056175Z test recursion_through_a_compiled_body_refuses_at_the_interpreted_depth ... FAILED"
+        }
+      },
+      "classification": "observed exact Rust test-name baseline PASS -> current FAIL",
+      "identity_note": "Cargo test target+function name from output; test executable hash differs by build and this is not nextest canonical binary_id. Target is scoped by `cargo test --test wasm_real_link --test wasm_tiers` and `tests/wasm_real_link.rs` log path."
+    },
+    {
+      "group": "wasm-real-link",
+      "target": "tcl-compiler/tests/wasm_real_link.rs",
+      "selector": "root_colon_publication_runs_its_own_compiled_table_entry",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195764,
+        "job_conclusion": "success",
+        "status": "UNKNOWN_ABSENT",
+        "evidence": null
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120061100182,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "wasm-real-link.log",
+          "line": 837,
+          "raw": "2026-10-22T20:22:18.1712368Z test root_colon_publication_runs_its_own_compiled_table_entry ... FAILED"
+        }
+      },
+      "classification": "current FAIL; selector absent from baseline log; baseline outcome unknown",
+      "identity_note": "Cargo test target+function name from output; test executable hash differs by build and this is not nextest canonical binary_id. Target is scoped by `cargo test --test wasm_real_link --test wasm_tiers` and `tests/wasm_real_link.rs` log path."
+    },
+    {
+      "group": "wasm-real-link",
+      "target": "tcl-compiler/tests/wasm_real_link.rs",
+      "selector": "sealed_native_i64_add_runs_and_trace_registration_falls_back",
+      "baseline": {
+        "run_id": 39816429638,
+        "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+        "job_id": 119956195764,
+        "job_conclusion": "success",
+        "status": "PASS",
+        "evidence": {
+          "log": "baseline-wasm-real-link.log",
+          "line": 926,
+          "raw": "2026-10-22T16:46:14.6606666Z test sealed_native_i64_add_runs_and_trace_registration_falls_back ... ok"
+        }
+      },
+      "current": {
+        "run_id": 39845788481,
+        "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+        "job_id": 120061100182,
+        "job_conclusion": "failure",
+        "status": "FAIL",
+        "evidence": {
+          "log": "wasm-real-link.log",
+          "line": 838,
+          "raw": "2026-10-22T20:22:19.0536835Z test sealed_native_i64_add_runs_and_trace_registration_falls_back ... FAILED"
+        }
+      },
+      "classification": "observed exact Rust test-name baseline PASS -> current FAIL",
+      "identity_note": "Cargo test target+function name from output; test executable hash differs by build and this is not nextest canonical binary_id. Target is scoped by `cargo test --test wasm_real_link --test wasm_tiers` and `tests/wasm_real_link.rs` log path."
+    }
+  ],
+  "other_named_or_suite_outcomes": [
+    {
+      "job": "current_browser_wasm",
+      "job_id": 120061100015,
+      "outcome": "The harness then aborts on textDocument/rename with unknown-completed-command-world. This is an exception/error, not another named ok/FAIL test row in the browser suite.",
+      "evidence": {
+        "log": "lsp-server-wasm.log",
+        "line": 803,
+        "raw": "2026-10-22T20:25:03.2350397Z e2e harness failed: AssertionError [ERR_ASSERTION]: textDocument/rename failed: {\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32602,\"message\":\"a completed original command world is unavailable for collision coverage\",\"data\":{\"code\":\"unknown-completed-command-world\",\"reason\":\"a completed original command world is unavailable for collision coverage\"}},\"id\":10}"
+      }
+    },
+    {
+      "job": "baseline_wasi",
+      "job_id": 119956195897,
+      "outcome": "Rust unit suite 22 passed, 0 failed, followed by named E2E passes recorded separately."
+    },
+    {
+      "job": "current_wasi",
+      "job_id": 120061100065,
+      "outcome": "Rust unit suite 22 passed, 0 failed; the three failures are in the subsequent test/e2e.mjs host-WASI run."
+    }
+  ],
+  "identity_and_scope_limits": [
+    "This partial join does not read, alter, or replace the 24,312-record CI5203 nextest baseline JSON.",
+    "These selected jobs are cargo test, Node E2E, and Mocha/VS Code output; their human test labels are not fabricated into canonical nextest binary_id rows.",
+    "Only status lines with exact same target/test title and explicit PASS/ok then FAIL are matched. Current WASM selectors absent in baseline remain UNKNOWN_ABSENT.",
+    "Different source SHAs and altered test counts mean this is not a complete test-suite comparison. No assertion attributes the failure cause or proves a release-level P2F verdict.",
+    "Current browser WASM has an additional harness rename refusal after the three listed named failures; it is reported separately and not treated as a test selector.",
+    "No Cargo, tests, source changes, or current nextest outcome parsing were performed."
+  ]
+}

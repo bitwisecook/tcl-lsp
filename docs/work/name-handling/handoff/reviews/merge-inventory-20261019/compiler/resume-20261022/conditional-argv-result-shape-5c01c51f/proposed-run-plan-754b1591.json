@@ -1,0 +1,184 @@
+{
+  "prepared_utc": "2026-10-22T20:42:31.644191+00:00",
+  "status": "OFF-TREE proposed successor plan only; no Cargo queued/approval; original immutable18 plan retained",
+  "scope": "Original18 all assertions retained plus seven new owner/conditional shape/alias controls, explicit Direct compiler-negative adds one to existing compiled_list_head filter",
+  "names_plan_sha256": "997c27f4c049ae76b90749730b70192bf02e2583ba2d36c8b96a5f21ce9ddd4f",
+  "required_filters": [
+    {
+      "label": "fp_rbs_15",
+      "selector": "fp_rbs_15",
+      "exact": false,
+      "expected_selected": 9,
+      "env": {}
+    },
+    {
+      "label": "fp_sh_21",
+      "selector": "fp_sh_21",
+      "exact": false,
+      "expected_selected": 7,
+      "env": {}
+    },
+    {
+      "label": "fp_tnt_03",
+      "selector": "fp_tnt_03",
+      "exact": false,
+      "expected_selected": 6,
+      "env": {}
+    },
+    {
+      "label": "original_cross_interp_script_reads_keep_the_tainted_command_word",
+      "selector": "original_cross_interp_script_reads_keep_the_tainted_command_word",
+      "exact": false,
+      "expected_selected": 1,
+      "env": {}
+    },
+    {
+      "label": "original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites",
+      "selector": "original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites",
+      "exact": false,
+      "expected_selected": 1,
+      "env": {}
+    },
+    {
+      "label": "original_taint_operands_require_the_current_operation_and_original_child",
+      "selector": "original_taint_operands_require_the_current_operation_and_original_child",
+      "exact": false,
+      "expected_selected": 1,
+      "env": {}
+    },
+    {
+      "label": "compiled_list_head_",
+      "selector": "compiled_list_head_",
+      "exact": false,
+      "expected_selected": 4,
+      "env": {}
+    },
+    {
+      "label": "syntax_expression_gaps_keep_token_data_and_dispatch_guards",
+      "selector": "syntax_expression_gaps_keep_token_data_and_dispatch_guards",
+      "exact": false,
+      "expected_selected": 1,
+      "env": {}
+    },
+    {
+      "label": "g4-main",
+      "selector": "analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "ZZ_PROBE_OPAQUE": "1"
+      },
+      "source": "rust/tcl-compiler/src/analyser/types.rs"
+    },
+    {
+      "label": "g4-zz",
+      "selector": "analyser::types::original_declaration_inventory_tests::zz_probe_import_and_crlf",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "ZZ_PROBE_ENSEMBLE": "1",
+        "ZZ_PROBE_OPAQUE": "1"
+      },
+      "source": "rust/tcl-compiler/src/analyser/types.rs",
+      "diagnostic_only": true
+    },
+    {
+      "label": "g4-regress-conditional_expression_template_retains_grammar_without_actual_entry",
+      "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs"
+    },
+    {
+      "label": "g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "selector": "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/declaration_layout.rs"
+    },
+    {
+      "label": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/expression_preparation.rs"
+    },
+    {
+      "label": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/expression_preparation.rs"
+    },
+    {
+      "label": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "selector": "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs"
+    },
+    {
+      "label": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/normal_result.rs"
+    },
+    {
+      "label": "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs"
+    },
+    {
+      "label": "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation",
+      "selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/source_command_world.rs"
+    },
+    {
+      "label": "source_argument_syntax",
+      "selector": "command_binding::source_argument_syntax::",
+      "exact": false,
+      "expected_selected": 4,
+      "env": {},
+      "purpose": "unrun new candidate control; not a replacement for original regressions"
+    },
+    {
+      "label": "actual_compiler_syntax_owner",
+      "selector": "command_binding::compiler_inventory::original_inline_control_source_tests::original_compiler_syntax_keeps_the_actual_input_and_vector_owner",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "unrun new candidate control; not a replacement for original regressions"
+    },
+    {
+      "label": "direct_source_taint_arguments",
+      "selector": "registry_invocation::source_taint_arguments::tests::",
+      "exact": false,
+      "expected_selected": 2,
+      "env": {},
+      "purpose": "unrun new candidate control; not a replacement for original regressions"
+    }
+  ],
+  "expectations": [
+    "Main keeps all27 original world/body controls for each Tcl8.6/9.0 (54subcases), strengthened nonempty return inventory and original_lookup assertions. No assertion edits in this plan.",
+    "ZZ is diagnostic: require9 ZZ_RESULT rows, no panic result; record import body p lookup/reference, N10 namespace-path C original lookup/reference, relative rex and Widget rows. Its test exit alone does not prove these facts because it catches panics and prints values.",
+    "Eight original pass-to-fail regressions retain their exact assertions; jointly attribute any failures with compiler under recorded13:17 actual compiler-visit decision, not blanket expectation changes.",
+    "C6 three family filters remain compiler-owned; run same current compiler lib binary via Cargo.",
+    "Broad command_binding::/signature_scan:: and early worker/CRLF/substituted/W210 filters remain mandatory separately scheduled, not silently substituted by these ten."
+  ],
+  "guards": "Global lock over entire suite; all local workspace source/fixture/Cargo input inventory + current Rust diff; provider wrappers/actual workers/Rust tools/transitive shared binaries before/after; 5second disk monitor interrupts only own Cargo process group below2GiB; per-log20MiB filtered cap; no executable cleanup",
+  "typecheck_correction": "Original18 source/selector/assertions retained; compiled_list_head expected4 after explicit Direct negative; three new selectors expected7 total. Stage5 controls remain separately names-owned.",
+  "candidate_sha256": "18fc5886330b5bb6f7c2ae13e64abbb605ed52a34c7c3db087ec13538fe79a15"
+}

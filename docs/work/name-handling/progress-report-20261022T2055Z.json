@@ -1,0 +1,81 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-22T20:55:47.971189+00:00",
+  "scheduled_report_utc": "2026-10-22T20:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-22T21:25:37+00:00",
+  "change_since_previous_report": [
+    "Primary goal remains clean LSP merge/release readiness into rust. Only work developed/pushed; no PR, merge, tag or release, no audit admission or validated-row change.",
+    "20:25 WIP697 plus server metadata helper API fix438631 normal-pushed39b392 after fresh depth1fetch/rebase onto external646ac4e. Active rebased to4204767 between completed test windows, product equality verified. Seven reviewed registry/server lint paths applied and checkpointeddef9; these are not yet published before this cycle.",
+    "Guarded registry all-target Clippy closed101. Source40918/full providers exact before/after, no disk/log abort. Four registry findings did not recur, but compiler485 and VM181 actual dependency lint findings block strict acceptance. Inventory split and routed; no lint allowances or assertion weakening.",
+    "LSP minify12 final6PASS/6FAIL, all inputs/artifacts guarded. Three comparison inversions, factorial/nestedDefault gaps and Jim provider identity refusal remain attributed separately. Inversion candidate uses independent original expression transfer proof, still unrun; nested body-syntax owner remains separate.",
+    "Jim provider repaired truthfully on exact5bac7c99 unchanged source/tree by restoring authentic shallow ancestry/tag and upstream configure/make. Actual version now0.84/0.84-9-g5bac7c9, executable4c52ccf8. Old provision915d7f5a preserved; current40cdc417 records supersession. No expectation or binary version patch.",
+    "C6 source-argument syntax/conditional Direct List candidate18fc is bounded-peer-reviewed and keeps original assertions; actual compiler visits distinct from Direct authoring. N13 stage6 adds exact region query/return-outcome while retaining whole-CU/program refusals. Combined30path/7213line candidate remains off-tree; scope-cleanup successor and typecheck are pending, host region integration remains incomplete.",
+    "CI5205 on exact2b934 passes all12dependency audits, fmt, native server build, Python, doctests, web frontends and web extension smoke. Main current Rust shard inventories and heavy results are pending. Native archive stopped before tests on helper API compile error already fixed in39b392.",
+    "Confirmed partial actualrust baseline regressions: four original C6, two pack-body fold selectors, five WASM link selectors, four folder diagnostics selectors, and named browser/WASI checks. Separate partial receipts retain exact identities and provenance; no aggregate complete zero-pass-to-fail verdict. Two new-only WASM failures are not counted as old passes.",
+    "CI SpecTcl loader28/golden3/parse1 pass; pack_source_e2e8PASS/2FAIL None-vs42/xy exactly match baselinePASS. Compiler/CCG own remaining admission/SCCP proof. Earlier N17 guarded strlen successes remain separate.",
+    "Editor partitions1 and3 report46PASS/66FAIL and307PASS/39FAIL, with context refusal, rename and didOpen/config/definition timeouts. LSP owns actual branch attribution; no timeout increases or empty completed-diagnostics fallback. Exact baseline joins beyond selected cases remain pending.",
+    "Runtime CI partial71FAIL then namespace-copy extern callback abort; alias exacttest nowPASS and catch8.4 remains baselineP2F. Five pinned C public API controls confirm old command visibility during delete callback. Narrow test phase correction preserves old-generation-vs-new-publication claims; original six runtime selectors run isolated before correction.",
+    "WASM import interning product fix preserves module/name/full ordered signature and stable actual indices, addressing duplicate imported host function handles without changing original argv assertion. Static peers approve; type/runtime validation pending. Five native-admission regressions remain independently open.",
+    "Full source and provider holds remain coordinated under whole-build flock. No target/executable cleanup, stop builds below2GiB, logs20MiB. External freshness/routing read after this cycle freshfetch, realm/interprocedural patch remains withheld until proven.",
+    "Fresh publisher depth1fetch/FF remote27c2d003 includes perf20:37. Controlled quiet-host EDA repeat passes both modes1150/1430s, original default-profile failure retained; latest-work all-old equality checks still pending and no production perf patch proven.",
+    "Cloud executor restarting notification resolved with same workspace/live runtime Cargo preserved. Supported policy reports current/enforced unrestricted HTTP; proxy/CA preserved. No source/executable cleanup or build interruption.",
+    "Runtime6 first attempt produced zero artifacts/tests because standalone-lock cc1.9.0 download failed under restricted command networking; exact failed source/provider guard closed unchanged. Sameplan/driver network-enabled retry is live, intentional no-tommath flavor notice recorded separately. No runtime result inferred yet."
+  ],
+  "committed": [
+    "def9a5fd7fdece3f785ace02da20f6ed8a8da539"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish complete current WIP with probe exclusion, fresh depth1 work fetch/FF/rebase and normal push; official report, agent-reported table, freshness/disk and rearm21:25.",
+    "Finish unchanged runtime6 full guards; then apply only reviewed composed source batch and typecheck exact compiler/host boundaries before functional runs.",
+    "Repair compiler/VM lint inventory, original C6, SpecTcl fold, WASM native admission, source-view and folder diagnostic context release regressions.",
+    "Collect complete CI5205 named outcomes and full baseline comparison; complete native/browser/WASI/desktop, SpecTcl acceptance and shipping performance/cancellation/memory gates."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T20:37:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No admissions or release gate closures. Recorded exact local/CI successes remain scoped to their sources and targets; full strict gate and complete actualrust baseline comparison fail or remain pending. Current candidates are static-reviewed/untyped until explicit tests, and complete N13 host continuation remains unfinished.",
+  "disk_free_bytes": 13565214720,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

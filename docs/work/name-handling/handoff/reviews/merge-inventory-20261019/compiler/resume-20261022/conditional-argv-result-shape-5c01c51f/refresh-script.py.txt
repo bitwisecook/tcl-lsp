@@ -1,0 +1,19 @@
+from pathlib import Path
+import subprocess,difflib,hashlib,json
+from datetime import datetime,timezone
+repo=Path('/workspace/naming-migration-active/tcl-lsp');shadow=Path('/tmp/compiler-c6-owner-fix-shadow');out=Path('/tmp/compiler-c6-conditional-current-shadow');old='30926fc32bdd7cb70589852a5d03654e787b091e';paths=['rust/tcl-compiler/src/command_binding.rs','rust/tcl-compiler/src/command_binding/source_argument_syntax.rs','rust/tcl-compiler/src/command_binding/compiler_inventory.rs','rust/tcl-compiler/src/registry_invocation.rs','rust/tcl-compiler/src/registry_invocation/source_taint.rs','rust/tcl-compiler/src/registry_invocation/source_taint_arguments.rs','rust/tcl-compiler/src/taint.rs'];prior=[];rows=[]
+for p in paths:
+ q=subprocess.run(['git','show',old+':'+p],cwd=repo,stdout=subprocess.PIPE,stderr=subprocess.PIPE);base=q.stdout if q.returncode==0 else b'';ours=(shadow/p).read_bytes();current=(repo/p).read_bytes() if (repo/p).exists() else b'';prior.append(''.join(difflib.unified_diff(base.decode().splitlines(True),ours.decode().splitlines(True),fromfile='a/'+p if base else '/dev/null',tofile='b/'+p)))
+ store=out/'bases'/p;store.parent.mkdir(parents=True,exist_ok=True);store.write_bytes(base)
+ dest=out/p;dest.parent.mkdir(parents=True,exist_ok=True)
+ if not base:
+  assert not current,p;merged=ours
+ else:
+  src=out/'ours'/p;src.parent.mkdir(parents=True,exist_ok=True);src.write_bytes(ours)
+  cur=out/'current'/p;cur.parent.mkdir(parents=True,exist_ok=True);cur.write_bytes(current)
+  merge=subprocess.run(['git','merge-file','-p',str(src),str(store),str(cur)],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+  if merge.returncode:
+   dest.write_bytes(merge.stdout);raise SystemExit('MERGE CONFLICT '+p+' '+merge.stderr.decode())
+  merged=merge.stdout
+ dest.write_bytes(merged);rows.append({'path':p,'old_sha256':hashlib.sha256(base).hexdigest() if base else None,'current_sha256':hashlib.sha256(current).hexdigest() if current else None,'draft_sha256':hashlib.sha256(merged).hexdigest()})
+p=Path('/tmp/compiler-c6-conditional-full-old-30926.patch');p.write_text(''.join(prior));print('old',hashlib.sha256(p.read_bytes()).hexdigest());print(json.dumps(rows,indent=2));(out/'refresh.json').write_text(json.dumps({'utc':datetime.now(timezone.utc).isoformat(),'old_head':old,'current_head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=repo,text=True).strip(),'files':rows},indent=2)+'\n')

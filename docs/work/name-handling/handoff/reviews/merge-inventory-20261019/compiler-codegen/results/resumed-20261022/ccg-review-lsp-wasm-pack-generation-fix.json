@@ -1,0 +1,18 @@
+{
+  "status": "Independent STATIC APPROVAL of one-identifier compile fix only; no Cargo/browser/type/runtime verdict.",
+  "utc": "2026-10-22T19:46:45.415286+00:00",
+  "patch": "/tmp/lsp-wasm-pack-generation-fix/proposal.patch",
+  "patch_sha256": "6b1dad697a8837c31b079fd85db76562b18f85b1d3a4744039b5add964823da8",
+  "actual_base_sha256": "77e63cb751615fd415be55cd82e254c0c9fe1d6d9bd0cc94abe56cc913bcf550",
+  "proposed_sha256": "ae401e4159bf2d0998f7bf5799b3ff869133ccf370d6c97f659acdf7d1528063",
+  "findings": [],
+  "evidence": [
+    "Whole proposed file equals actual frozen canonical source with exactly one old identifier replaced at the single final publication-currentness expression.",
+    "pack_generation is captured from actual PublishedPackSet.seq while holding self.spec_packs mutex, together with Arc::clone of actual published.packs.",
+    "Same captured generation is assigned unchanged to DiagInputs.pack_seq before final recheck. pack_seq is not a local binding at this recheck, explaining E0425.",
+    "Final current.seq equality uses original selected generation; exact Arc::ptr_eq(current.packs, pack_set) remains evaluated under actual current mutex guard.",
+    "inputs_epoch remains None until BOTH self.diag_inputs_epoch()==captured epoch AND publication_is_current. No fallback, guard removal, lock-order or await movement.",
+    "Existing final pack-notice publisher consumers still compare stored pack_seq and actual PackSet Arc identity; no changes to these paths."
+  ],
+  "actions": "Read-only base/proposed/patch/receipt; wrote only this /tmp review JSON. No canonical apply or Cargo."
+}

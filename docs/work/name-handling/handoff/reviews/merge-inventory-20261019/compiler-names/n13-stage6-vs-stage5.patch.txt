@@ -1,0 +1,373 @@
+--- a/rust/tcl-compiler/src/command_binding/conditional_source/region.rs
++++ b/rust/tcl-compiler/src/command_binding/conditional_source/region.rs
+@@ -193,45 +193,94 @@
+     #[must_use]
+     pub fn normal_outcome(&self) -> Option<OriginalSourceConditionalOutcome> {
+         self.0.normal.as_ref()?;
+-        Some(OriginalSourceConditionalOutcome(Arc::clone(&self.0)))
++        Some(OriginalSourceConditionalOutcome(
++            ConditionalOutcomeKind::Regions(Arc::clone(&self.0)),
++        ))
+     }
+ }
+ 
+ #[derive(Clone)]
+-pub struct OriginalSourceConditionalOutcome(Arc<RegionSetPayload>);
++pub struct OriginalSourceConditionalOutcome(ConditionalOutcomeKind);
++#[derive(Clone)]
++enum ConditionalOutcomeKind {
++    Regions(Arc<RegionSetPayload>),
++    ThroughRegion(Arc<ThroughRegionOutcome>),
++}
++struct ThroughRegionOutcome {
++    region: OriginalSourceConditionalRegion,
++    completed: OriginalSourceConditionalOutcome,
++    outcomes: Arc<SourceOutcomes>,
++    graph: Arc<AdviceGraph>,
++}
+ impl std::fmt::Debug for OriginalSourceConditionalOutcome {
+     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+         f.debug_struct("OriginalSourceConditionalOutcome")
+-            .field("region_count", &self.0.regions.len())
++            .field(
++                "through_region",
++                &matches!(self.0, ConditionalOutcomeKind::ThroughRegion(_)),
++            )
+             .finish_non_exhaustive()
+     }
+ }
+ impl PartialEq for OriginalSourceConditionalOutcome {
+     fn eq(&self, other: &Self) -> bool {
+-        Arc::ptr_eq(&self.0, &other.0)
++        match (&self.0, &other.0) {
++            (ConditionalOutcomeKind::Regions(a), ConditionalOutcomeKind::Regions(b)) => {
++                Arc::ptr_eq(a, b)
++            }
++            (
++                ConditionalOutcomeKind::ThroughRegion(a),
++                ConditionalOutcomeKind::ThroughRegion(b),
++            ) => Arc::ptr_eq(a, b),
++            _ => false,
++        }
+     }
+ }
+ impl Eq for OriginalSourceConditionalOutcome {}
+ impl OriginalSourceConditionalOutcome {
++    fn prefix_point(&self) -> &OriginalSourcePointEntry {
++        match &self.0 {
++            ConditionalOutcomeKind::Regions(set) => &set.continuation.point,
++            ConditionalOutcomeKind::ThroughRegion(outcome) => {
++                &outcome.region.0.entry.0.continuation.point
++            }
++        }
++    }
++    fn entry_plan(&self) -> &super::SourceConditionalPlan {
++        match &self.0 {
++            ConditionalOutcomeKind::Regions(set) => &set.continuation.plan,
++            ConditionalOutcomeKind::ThroughRegion(outcome) => {
++                &outcome.region.0.entry.0.continuation.plan
++            }
++        }
++    }
+     #[must_use]
+     pub fn matches_prefix_analysis(&self, prefix: &crate::analyser::AnalysisResult) -> bool {
+-        self.0.complete
+-            && self.0.normal.is_some()
+-            && self.0.continuation.point.matches_parent_analysis(prefix)
++        self.prefix_point().matches_parent_analysis(prefix)
++            && match &self.0 {
++                ConditionalOutcomeKind::Regions(set) => set.complete && set.normal.is_some(),
++                ConditionalOutcomeKind::ThroughRegion(_) => true,
++            }
+     }
+     pub(super) fn outcomes_for(
+         &self,
+         prefix: &crate::analyser::AnalysisResult,
+     ) -> Option<Arc<SourceOutcomes>> {
+         self.matches_prefix_analysis(prefix).then_some(())?;
+-        Some(Arc::clone(&self.0.normal.as_ref()?.0))
++        Some(match &self.0 {
++            ConditionalOutcomeKind::Regions(set) => Arc::clone(&set.normal.as_ref()?.0),
++            ConditionalOutcomeKind::ThroughRegion(outcome) => Arc::clone(&outcome.outcomes),
++        })
+     }
+     pub(super) fn graph_for(
+         &self,
+         prefix: &crate::analyser::AnalysisResult,
+     ) -> Option<Arc<AdviceGraph>> {
+         self.matches_prefix_analysis(prefix).then_some(())?;
+-        Some(Arc::clone(&self.0.normal.as_ref()?.1))
++        Some(match &self.0 {
++            ConditionalOutcomeKind::Regions(set) => Arc::clone(&set.normal.as_ref()?.1),
++            ConditionalOutcomeKind::ThroughRegion(outcome) => Arc::clone(&outcome.graph),
++        })
+     }
+ }
+ 
+@@ -849,3 +898,217 @@
+     }
+     Some(())
+ }
++
++impl OriginalSourceConditionalRegion {
++    /// Rejoin a completed sequential tail with its original unchanged prefix.
++    /// The exact issued region and saved outer frames remain in the receipt;
++    /// neither a fresh prefix nor URI/text equality can supply this join.
++    pub fn return_outcome(
++        &self,
++        parent_prefix: &crate::analyser::AnalysisResult,
++        first_child_prefix: &crate::analyser::AnalysisResult,
++        region_analysis: &crate::analyser::AnalysisResult,
++        completed: &OriginalSourceConditionalOutcome,
++    ) -> Option<OriginalSourceConditionalOutcome> {
++        if !self.matches_dependencies(parent_prefix, first_child_prefix)
++            || !self.matches_region_analysis(region_analysis)
++            || !completed.matches_prefix_analysis(region_analysis)
++            || !self.matches_remaining_stack(completed.entry_plan())
++        {
++            return None;
++        }
++        static MEMO: OnceLock<Mutex<Vec<Weak<ThroughRegionOutcome>>>> = OnceLock::new();
++        let memo = MEMO.get_or_init(|| Mutex::new(Vec::new()));
++        let find = |entries: &mut Vec<Weak<ThroughRegionOutcome>>| {
++            entries.retain(|entry| entry.strong_count() != 0);
++            entries
++                .iter()
++                .filter_map(Weak::upgrade)
++                .find(|entry| entry.region == *self && entry.completed == *completed)
++        };
++        if let Some(retained) = find(
++            &mut memo
++                .lock()
++                .unwrap_or_else(std::sync::PoisonError::into_inner),
++        ) {
++            return Some(OriginalSourceConditionalOutcome(
++                ConditionalOutcomeKind::ThroughRegion(retained),
++            ));
++        }
++        let outcome = Arc::new(self.project_completed_tail(region_analysis, completed)?);
++        let mut memo = memo
++            .lock()
++            .unwrap_or_else(std::sync::PoisonError::into_inner);
++        if let Some(retained) = find(&mut memo) {
++            return Some(OriginalSourceConditionalOutcome(
++                ConditionalOutcomeKind::ThroughRegion(retained),
++            ));
++        }
++        memo.push(Arc::downgrade(&outcome));
++        Some(OriginalSourceConditionalOutcome(
++            ConditionalOutcomeKind::ThroughRegion(outcome),
++        ))
++    }
++
++    fn matches_remaining_stack(&self, actual: &super::SourceConditionalPlan) -> bool {
++        let entry = &self.0.entry.0;
++        let prefix = &entry.continuation.plan.frames[..entry.frame_index];
++        let Some(current) = actual.frames.get(entry.frame_index) else {
++            return false;
++        };
++        let Some(origin) = self.0.bindings.source_origin() else {
++            return false;
++        };
++        for (expected, actual) in prefix.iter().zip(actual.frames.iter()) {
++            let mut expected = expected.clone();
++            expected.source = Arc::clone(origin);
++            if &expected != actual {
++                return false;
++            }
++        }
++        let mut expected = self.0.entry.frame().clone();
++        if current.next <= expected.next || current.next > expected.commands.len() {
++            return false;
++        }
++        expected.source = Arc::clone(origin);
++        expected.ordinal_start = expected.next;
++        expected.next = current.next;
++        &expected == current
++    }
++
++    fn project_completed_tail(
++        &self,
++        region_analysis: &crate::analyser::AnalysisResult,
++        completed: &OriginalSourceConditionalOutcome,
++    ) -> Option<ThroughRegionOutcome> {
++        let mut outcomes = (*completed.outcomes_for(region_analysis)?).clone();
++        let root = self.0.entry.0.continuation.plan.frames.first()?;
++        let normal = outcomes.normal.as_ref()?;
++        if outcomes.normal_completion.is_none()
++            || !outcomes.abrupt.is_empty()
++            || outcomes.native_normal_completion.is_some()
++            || normal.variable_frame != root.context.frame
++        {
++            return None;
++        }
++        let graph = completed
++            .graph_for(region_analysis)?
++            .in_conditional_namespace(&root.context.namespace_key)?;
++        outcomes.restore_source_origin(Some(
++            &self.0.entry.0.continuation.point.allocation_site().source,
++        ));
++        Some(ThroughRegionOutcome {
++            region: self.clone(),
++            completed: completed.clone(),
++            outcomes: Arc::new(outcomes),
++            graph,
++        })
++    }
++}
++
++#[cfg(test)]
++mod sequential_controls {
++    use super::*;
++    use crate::registry_invocation::source_structure::original_project_source_load_at;
++
++    #[test]
++    fn sequential_tail_returns_to_the_same_original_prefix_without_reanalysis() {
++        let source = "source first.tcl; source second.tcl; set after DONE";
++        let parent = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
++        let first = original_project_source_load_at(source, &parent, 0).unwrap();
++        let point = first.source_point_entry(&parent).unwrap();
++        let child = crate::analyser::Analyser::new()
++            .analyse_with_source_point_entry("", "tcl8.6", &point)
++            .unwrap();
++        let pending = first
++            .conditional_continuation(&parent, &child)
++            .unwrap()
++            .source_regions(&parent, &child)
++            .unwrap();
++        assert!(!pending.complete());
++        let region = &pending.regions()[0];
++        let region_view = crate::analyser::Analyser::new()
++            .analyse_source_region(region, &parent, &child)
++            .unwrap();
++        let offset = u32::try_from(source.find("source second").unwrap()).unwrap();
++        let second = original_project_source_load_at(source, &region_view, offset).unwrap();
++        let second_point = second.source_point_entry(&region_view).unwrap();
++        let second_child = crate::analyser::Analyser::new()
++            .analyse_with_source_point_entry("", "tcl8.6", &second_point)
++            .unwrap();
++        let resumed = second
++            .conditional_continuation(&region_view, &second_child)
++            .unwrap()
++            .source_regions(&region_view, &second_child)
++            .unwrap();
++        assert!(resumed.complete());
++        let completed = resumed.normal_outcome().unwrap();
++        assert!(completed.matches_prefix_analysis(&region_view));
++        assert!(!completed.matches_prefix_analysis(&parent));
++        let returned = region
++            .return_outcome(&parent, &child, &region_view, &completed)
++            .unwrap();
++        assert!(returned.matches_prefix_analysis(&parent));
++        assert_eq!(
++            region.return_outcome(&parent, &child, &region_view, &completed),
++            Some(returned)
++        );
++        let foreign = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
++        assert!(
++            region
++                .return_outcome(&foreign, &child, &region_view, &completed)
++                .is_none()
++        );
++        assert!(
++            first
++                .conditional_continuation(&parent, &child)
++                .unwrap()
++                .source_regions(&parent, &child)
++                .unwrap()
++                .normal_outcome()
++                .is_none()
++        );
++    }
++
++    #[test]
++    fn twelve_literal_source_hops_return_only_through_the_original_live_chain() {
++        let mut prefixes = Vec::new();
++        let mut source = "source hop0.tcl".to_owned();
++        let mut analysis = crate::analyser::Analyser::new().analyse(&source, "tcl8.6");
++        for index in 0..12 {
++            let load = original_project_source_load_at(&source, &analysis, 0).unwrap();
++            let point = load.source_point_entry(&analysis).unwrap();
++            let next = if index == 11 {
++                String::new()
++            } else {
++                format!("source hop{}.tcl", index + 1)
++            };
++            let mut analyser = crate::analyser::Analyser::new();
++            assert!(point.configure_analyser(&analysis, &mut analyser));
++            let child = analyser
++                .analyse_with_source_point_entry(&next, "tcl8.6", &point)
++                .unwrap();
++            prefixes.push((source, analysis, load));
++            source = next;
++            analysis = child;
++        }
++        let mut completed = None;
++        for (_, prefix, load) in prefixes.iter().rev() {
++            let continuation = match completed.as_ref() {
++                Some(outcome) => {
++                    load.conditional_continuation_with_outcome(prefix, &analysis, outcome)
++                }
++                None => load.conditional_continuation(prefix, &analysis),
++            }
++            .unwrap();
++            let regions = continuation.source_regions(prefix, &analysis).unwrap();
++            assert!(regions.complete());
++            completed = regions.normal_outcome();
++            assert!(completed.as_ref().unwrap().matches_prefix_analysis(prefix));
++            analysis = prefix.clone();
++        }
++        let (_, root, _) = &prefixes[0];
++        assert!(completed.unwrap().matches_prefix_analysis(root));
++        assert!(root.original_source_region().is_none());
++    }
++}
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs
+@@ -252,9 +252,19 @@
+             refused: Cell::new(false),
+             graph: RefCell::new(None),
+         };
++        let purpose = if self
++            .baseline
++            .source_point_entry
++            .as_ref()
++            .is_some_and(|entry| entry.conditional_region().is_some())
++        {
++            OriginalSourceCataloguePurpose::ConditionalRegion
++        } else {
++            OriginalSourceCataloguePurpose::CompleteProgram
++        };
+         self.prepare_for_query(
+             context,
+-            OriginalSourceCataloguePurpose::CompleteProgram,
++            purpose,
+             Some(SourceAdviceQuery::NormalSourceOutcome(&query)),
+         )?;
+         (!query.refused.get() && query.sealed.get()).then_some(())?;
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice.rs
+@@ -3155,6 +3155,8 @@
+     CompleteProgram,
+     /// Authentic complete commands before the separately retained parse cut.
+     CompletePrefix,
++    /// Exact sealed region plan, without whole-image coverage or absence.
++    ConditionalRegion,
+ }
+ 
+ impl OriginalSourceTransitionSeed {
+@@ -3212,6 +3214,14 @@
+         let dialect = baseline.dialect?;
+         if baseline.registry_snapshot.as_ref()
+             != Some(&context.commands().snapshot().semantic_key())
++        {
++            return None;
++        }
++        if purpose == OriginalSourceCataloguePurpose::ConditionalRegion
++            && !baseline
++                .source_point_entry
++                .as_ref()
++                .is_some_and(|entry| entry.conditional_region().is_some())
+         {
+             return None;
+         }

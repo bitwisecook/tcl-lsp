@@ -1,0 +1,18 @@
+{
+  "status": "OFF-TREE observational helper proposal only; pinned rustfmt syntax/format, no Cargo/type/runtime. No installed probe or assertion edit.",
+  "utc": "2026-10-22T20:49:51.819375+00:00",
+  "path": "rust/tcl-compiler/tests/wasm_real_link.rs",
+  "before_sha256": "aa487bfc86ece593e1ad8a3acc3121c158ed66dc98a780fa12ef4338e7955892",
+  "proposed_sha256": "ff2d3a6cf4925491ee916591c30234a7c7b0f60ab21f9b2db0ee9cf088433645",
+  "patch_sha256": "519f724e15034aa4f7930b8dde8c74e733f365ce04fcc74d587cc16592fb12b5",
+  "selectors_unchanged": true,
+  "assertions_unchanged": "Removing ONLY added helper and2trace calls restores COMPLETE original file byte-for-byte, including every condition/message/fixture/test selector.",
+  "diagnostic_fields": [
+    "actual per-function native status/binding/statement reports with typed IDs",
+    "actual top plan/admission plus procedure body admissions",
+    "actual native-entry/provider/compiled mode and retained-source/meta booleans",
+    "IR/CU/Native body owner/procedure count and top executable availability"
+  ],
+  "output_prefix": "CCG_WASM_ (must retain in capped logger)",
+  "limits": "No synthetic Native entry, no new selector or accepted expectation. Pure observation before existing compile_native_bound and native_i64 assertion; artifact/host runtime guards required for execution."
+}

@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-22T20:53:32.832681+00:00",
+  "status": "Bounded STATIC peer review only; no apply/type/Cargo/test acceptance",
+  "full_patch_sha256": "b859f34f007eb5b4bdc5f3360bb80e0ba54d03020f7cce55c53e9c8656e65b28",
+  "delta_sha256": "3a0cfa30e37e69cebc906789539dd696d4daf59367e9e9d238b75cc164196833",
+  "scope": "New stage6 purpose and sealed return-outcome chain, stage5 issuer/conditional barrier review not repeated",
+  "findings": [],
+  "previous_blocker": "Stage5 normal_source_outcome_graph CompleteProgram query caused every conditional region to refuse; now selects private ConditionalRegion only for genuine baseline conditional_region. prepare_source_advice_tape refuses ConditionalRegion on non-region and continues refusing CompleteProgram on region. Exact original_region_plan required. Static blocker resolved in this successor; control still unrun.",
+  "authority_checks": [
+    "Return checks exact original parent/first-child dependencies, same issued region analysis/current owner/input/lexer, and completed prefix before memo lookup",
+    "matches_remaining_stack preserves actual saved outer frame full equality after issuer-origin projection, exact same current frame+ordinal start and bounded strict progress; completed receipt itself is sealed and owned by same region analysis",
+    "Projection requires normal completion, no abrupt alternatives, no Native normal completion and exact root variable frame; graph restores exact captured namespace and source origin only",
+    "ThroughRegionOutcome owns region+completed strongly; memo weak. Receipts point only backward to pre-existing completed payload, so this new ownership remains acyclic. Arc identity equality is lifetime-stable and does not grant execution/physical currency by itself",
+    "Fresh same-byte prefix remains terminal refusal via original owner join; no URI/text repair or promotion of partial region into whole-program inventory found"
+  ],
+  "controls": "New sequential-two-source positive+foreign-parent negative and twelve-hop original chain are written, unrun. Exact registry/normal/provider gates not relaxed. Additional focused non-region ConditionalRegion/region CompleteProgram negative and foreign completed-region receipt controls are desirable in execution inventory; not measured here.",
+  "limits": "No whole25-path approval. Host source/config/ancestor currency, integrated LSP view publication, type/Clippy/runtime and actual regression results remain pending."
+}

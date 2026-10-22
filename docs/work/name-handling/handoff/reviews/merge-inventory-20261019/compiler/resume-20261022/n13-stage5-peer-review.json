@@ -1,0 +1,27 @@
+{
+  "utc": "2026-10-22T20:41:17Z",
+  "patch": "/tmp/compiler-names-n13-stage5.patch",
+  "sha256": "713627cb0096aad9ee6e7c901c8004e1faf774c8fdd9a8ef1e7be8215f9d41e2",
+  "scope": "bounded static review of new ordered replay, conditional completion/common finish, frame restoration and private normal outcome query; no canonical source mutation/Cargo/type or runtime acceptance",
+  "findings": [
+    {
+      "severity": "blocks positive completion",
+      "location": "region.rs walk_region_uncached and source_transition_advice.rs prepare_for_query",
+      "finding": "normal_source_outcome_graph calls CompleteProgram; exact conditional-region plan explicitly refuses that purpose. Consequently region normal_graph is always None and complete ordered chain cannot be issued. Preserve whole-program refusal and add distinct private exact-region outcome query.",
+      "routed_to": "compiler-names and root"
+    }
+  ],
+  "reviewed_preserved_boundaries": [
+    "actual predecessor outcome, positive normal_completion and no abrupt alternatives required before next frame",
+    "frame matches captured activation; exact captured parent ResolveContext/frame restoration before outer suffix",
+    "conditional handler normal receipt separate from Native; quiet variable retention remains handler_complete Native-only",
+    "source-point ingress withholds physical compiler preflight and Native entry, conditional context has default compilation/no snapshot",
+    "all issued region source-graph queries must use exact captured command plan; whole-program/CU API refusal retained",
+    "live memo identity retains full continuation/predecessor/incoming and weak memo does not supply equality of source bytes"
+  ],
+  "limitations": [
+    "full patch not reviewed exhaustively",
+    "written controls unrun",
+    "names successor pending"
+  ]
+}

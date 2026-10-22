@@ -1,0 +1,37 @@
+{
+  "utc": "2026-10-22T20:32:25.292032+00:00",
+  "paths": [
+    {
+      "path": "rust/tcl-registry/src/native_compilation.rs",
+      "base_sha256": "55d44455e791e143a85805c4349be96167f4d4058cb306157235b577a7d81d90",
+      "active_sha256": "55d44455e791e143a85805c4349be96167f4d4058cb306157235b577a7d81d90",
+      "published39b392_sha256": "55d44455e791e143a85805c4349be96167f4d4058cb306157235b577a7d81d90",
+      "ci2b934_sha256": "55d44455e791e143a85805c4349be96167f4d4058cb306157235b577a7d81d90",
+      "base_equals_ci": true,
+      "base_equals_active_current": true,
+      "base_equals_published_current": true
+    },
+    {
+      "path": "rust/tcl-registry/src/native_string_is_compilation.rs",
+      "base_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+      "active_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+      "published39b392_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+      "ci2b934_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+      "base_equals_ci": true,
+      "base_equals_active_current": true,
+      "base_equals_published_current": true
+    },
+    {
+      "path": "rust/tcl-registry/src/native_procedure.rs",
+      "base_sha256": "3adb92e6d21601669ddfdf751db9219da677d941b4bea986869afc3f5502e790",
+      "active_sha256": "3adb92e6d21601669ddfdf751db9219da677d941b4bea986869afc3f5502e790",
+      "published39b392_sha256": "3adb92e6d21601669ddfdf751db9219da677d941b4bea986869afc3f5502e790",
+      "ci2b934_sha256": "3adb92e6d21601669ddfdf751db9219da677d941b4bea986869afc3f5502e790",
+      "base_equals_ci": true,
+      "base_equals_active_current": true,
+      "base_equals_published_current": true
+    }
+  ],
+  "all_base_equal_ci": true,
+  "all_base_equal_current": true
+}

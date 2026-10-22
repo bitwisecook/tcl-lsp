@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "/tmp/vm-runtime-oo-retirement-phase/delete-phase-8.5.19"
+  ],
+  "cwd": "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust",
+  "exit": 0,
+  "started_utc": "2026-10-22T20:46:14.579432+00:00",
+  "ended_utc": "2026-10-22T20:46:14.582999+00:00",
+  "bytes": 100,
+  "stopped": null,
+  "deadline_seconds": 30
+}

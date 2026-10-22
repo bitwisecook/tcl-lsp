@@ -1,0 +1,1093 @@
+{
+  "role": "vm-runtime",
+  "status": "actual guarded Clippy findings on def9; off-tree fixes required, no lint allowance/assertion weakening",
+  "count": 181,
+  "rows": [
+    {
+      "message": "binding's name is too similar to existing binding",
+      "file": "rust/tcl-vm/src/value_ops/native_jim_index.rs",
+      "line": 225,
+      "column": 9
+    },
+    {
+      "message": "binding's name is too similar to existing binding",
+      "file": "rust/tcl-vm/src/value_ops/native_list_index.rs",
+      "line": 293,
+      "column": 9
+    },
+    {
+      "message": "empty line after doc comment",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 1122,
+      "column": 1
+    },
+    {
+      "message": "binding's name is too similar to existing binding",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 26740,
+      "column": 13
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-vm/src/error.rs",
+      "line": 38,
+      "column": 39
+    },
+    {
+      "message": "this function has too many lines (193/100)",
+      "file": "rust/tcl-vm/src/value.rs",
+      "line": 1689,
+      "column": 5
+    },
+    {
+      "message": "this argument (272 byte) is passed by value, but might be more efficient if passed by reference (limit: 256 byte)",
+      "file": "rust/tcl-vm/src/value.rs",
+      "line": 2442,
+      "column": 18
+    },
+    {
+      "message": "this argument (272 byte) is passed by value, but might be more efficient if passed by reference (limit: 256 byte)",
+      "file": "rust/tcl-vm/src/value.rs",
+      "line": 2458,
+      "column": 18
+    },
+    {
+      "message": "this argument (272 byte) is passed by value, but might be more efficient if passed by reference (limit: 256 byte)",
+      "file": "rust/tcl-vm/src/value.rs",
+      "line": 2557,
+      "column": 18
+    },
+    {
+      "message": "this argument (272 byte) is passed by value, but might be more efficient if passed by reference (limit: 256 byte)",
+      "file": "rust/tcl-vm/src/value.rs",
+      "line": 2577,
+      "column": 18
+    },
+    {
+      "message": "this argument (272 byte) is passed by value, but might be more efficient if passed by reference (limit: 256 byte)",
+      "file": "rust/tcl-vm/src/value.rs",
+      "line": 2590,
+      "column": 18
+    },
+    {
+      "message": "this function has too many lines (134/100)",
+      "file": "rust/tcl-vm/src/value.rs",
+      "line": 2782,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (104/100)",
+      "file": "rust/tcl-vm/src/value.rs",
+      "line": 3113,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (155/100)",
+      "file": "rust/tcl-vm/src/value.rs",
+      "line": 4465,
+      "column": 5
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/value.rs",
+      "line": 4545,
+      "column": 13
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-vm/src/value.rs",
+      "line": 5294,
+      "column": 16
+    },
+    {
+      "message": "this function has too many lines (171/100)",
+      "file": "rust/tcl-vm/src/value.rs",
+      "line": 7128,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (109/100)",
+      "file": "rust/tcl-vm/src/value.rs",
+      "line": 9765,
+      "column": 5
+    },
+    {
+      "message": "this could be rewritten as `let...else`",
+      "file": "rust/tcl-vm/src/value_ops.rs",
+      "line": 404,
+      "column": 5
+    },
+    {
+      "message": "this match could be written as a `let` statement",
+      "file": "rust/tcl-vm/src/cmd_array.rs",
+      "line": 352,
+      "column": 5
+    },
+    {
+      "message": "this function has too many arguments (9/7)",
+      "file": "rust/tcl-vm/src/cmd_array.rs",
+      "line": 762,
+      "column": 1
+    },
+    {
+      "message": "redundant closure",
+      "file": "rust/tcl-vm/src/cmd_binary.rs",
+      "line": 143,
+      "column": 19
+    },
+    {
+      "message": "borrow of a mutable reference",
+      "file": "rust/tcl-vm/src/cmd_binary.rs",
+      "line": 1040,
+      "column": 38
+    },
+    {
+      "message": "this function has too many lines (158/100)",
+      "file": "rust/tcl-vm/src/cmd_chan.rs",
+      "line": 416,
+      "column": 1
+    },
+    {
+      "message": "large size difference between variants",
+      "file": "rust/tcl-vm/src/cmd_control.rs",
+      "line": 280,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (121/100)",
+      "file": "rust/tcl-vm/src/cmd_coro.rs",
+      "line": 412,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (111/100)",
+      "file": "rust/tcl-vm/src/cmd_dict.rs",
+      "line": 929,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (107/100)",
+      "file": "rust/tcl-vm/src/cmd_dict.rs",
+      "line": 1214,
+      "column": 1
+    },
+    {
+      "message": "usage of wildcard import",
+      "file": "rust/tcl-vm/src/cmd_namespace/native_jim_helpers.rs",
+      "line": 4,
+      "column": 5
+    },
+    {
+      "message": "usage of wildcard import",
+      "file": "rust/tcl-vm/src/cmd_namespace/native_jim_subcommands.rs",
+      "line": 4,
+      "column": 5
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-vm/src/cmd_namespace.rs",
+      "line": 155,
+      "column": 11
+    },
+    {
+      "message": "you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`",
+      "file": "rust/tcl-vm/src/cmd_namespace.rs",
+      "line": 583,
+      "column": 36
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/cmd_namespace.rs",
+      "line": 586,
+      "column": 29
+    },
+    {
+      "message": "this could be rewritten as `let...else`",
+      "file": "rust/tcl-vm/src/cmd_namespace.rs",
+      "line": 1062,
+      "column": 13
+    },
+    {
+      "message": "this function has too many lines (109/100)",
+      "file": "rust/tcl-vm/src/cmd_namespace.rs",
+      "line": 1118,
+      "column": 1
+    },
+    {
+      "message": "this could be rewritten as `let...else`",
+      "file": "rust/tcl-vm/src/cmd_namespace.rs",
+      "line": 1180,
+      "column": 9
+    },
+    {
+      "message": "this function has too many lines (109/100)",
+      "file": "rust/tcl-vm/src/cmd_namespace.rs",
+      "line": 1606,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (153/100)",
+      "file": "rust/tcl-vm/src/cmd_namespace.rs",
+      "line": 1727,
+      "column": 1
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/cmd_oo/variable_mapping.rs",
+      "line": 143,
+      "column": 13
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/cmd_oo/variable_mapping.rs",
+      "line": 149,
+      "column": 13
+    },
+    {
+      "message": "this function has too many lines (108/100)",
+      "file": "rust/tcl-vm/src/cmd_oo.rs",
+      "line": 1105,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (113/100)",
+      "file": "rust/tcl-vm/src/cmd_oo.rs",
+      "line": 2381,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (120/100)",
+      "file": "rust/tcl-vm/src/cmd_oo.rs",
+      "line": 2615,
+      "column": 1
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/cmd_oo.rs",
+      "line": 3028,
+      "column": 5
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/cmd_oo.rs",
+      "line": 3033,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (135/100)",
+      "file": "rust/tcl-vm/src/cmd_oo.rs",
+      "line": 3311,
+      "column": 1
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/cmd_oo.rs",
+      "line": 3697,
+      "column": 13
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/cmd_oo.rs",
+      "line": 3753,
+      "column": 13
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/cmd_oo.rs",
+      "line": 3893,
+      "column": 9
+    },
+    {
+      "message": "usage of wildcard import",
+      "file": "rust/tcl-vm/src/cmd_oo/native_properties/mutation.rs",
+      "line": 3,
+      "column": 5
+    },
+    {
+      "message": "using `map_err` over `inspect_err`",
+      "file": "rust/tcl-vm/src/cmd_oo/native_properties/mutation.rs",
+      "line": 22,
+      "column": 49
+    },
+    {
+      "message": "usage of wildcard import",
+      "file": "rust/tcl-vm/src/cmd_oo/native_properties/original_stages.rs",
+      "line": 4,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (112/100)",
+      "file": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
+      "line": 499,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (106/100)",
+      "file": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
+      "line": 1053,
+      "column": 1
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-vm/src/cmd_package/original.rs",
+      "line": 207,
+      "column": 32
+    },
+    {
+      "message": "this function has too many lines (109/100)",
+      "file": "rust/tcl-vm/src/cmd_package.rs",
+      "line": 439,
+      "column": 1
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/cmd_package.rs",
+      "line": 497,
+      "column": 21
+    },
+    {
+      "message": "this function has too many lines (114/100)",
+      "file": "rust/tcl-vm/src/cmd_package.rs",
+      "line": 1330,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (148/100)",
+      "file": "rust/tcl-vm/src/cmd_try.rs",
+      "line": 593,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (124/100)",
+      "file": "rust/tcl-vm/src/cmd_try.rs",
+      "line": 757,
+      "column": 1
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/cmd_try.rs",
+      "line": 776,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/cmd_try.rs",
+      "line": 829,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/cmd_try.rs",
+      "line": 835,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/cmd_try.rs",
+      "line": 881,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (116/100)",
+      "file": "rust/tcl-vm/src/cmd_try.rs",
+      "line": 909,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (136/100)",
+      "file": "rust/tcl-vm/src/command.rs",
+      "line": 677,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (102/100)",
+      "file": "rust/tcl-vm/src/command.rs",
+      "line": 1583,
+      "column": 1
+    },
+    {
+      "message": "call to `std::mem::drop` with a value that does not implement `Drop`. Dropping such a type only extends its contained lifetimes",
+      "file": "rust/tcl-vm/src/command.rs",
+      "line": 2032,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (130/100)",
+      "file": "rust/tcl-vm/src/command.rs",
+      "line": 2087,
+      "column": 1
+    },
+    {
+      "message": "you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`",
+      "file": "rust/tcl-vm/src/command.rs",
+      "line": 2153,
+      "column": 51
+    },
+    {
+      "message": "this function has too many lines (118/100)",
+      "file": "rust/tcl-vm/src/command.rs",
+      "line": 3230,
+      "column": 1
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/command.rs",
+      "line": 3239,
+      "column": 5
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/command.rs",
+      "line": 3313,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/command.rs",
+      "line": 3319,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/command.rs",
+      "line": 3354,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (102/100)",
+      "file": "rust/tcl-vm/src/command.rs",
+      "line": 3366,
+      "column": 5
+    },
+    {
+      "message": "item in documentation is missing backticks",
+      "file": "rust/tcl-vm/src/exec/native_scalar.rs",
+      "line": 26,
+      "column": 46
+    },
+    {
+      "message": "this function has too many lines (108/100)",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 655,
+      "column": 5
+    },
+    {
+      "message": "used underscore-prefixed binding",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 2243,
+      "column": 21
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 2588,
+      "column": 25
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 3395,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 3409,
+      "column": 9
+    },
+    {
+      "message": "this function has too many lines (118/100)",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 3851,
+      "column": 5
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 3951,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 3961,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 4140,
+      "column": 9
+    },
+    {
+      "message": "this function has too many lines (656/100)",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 7796,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (179/100)",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 8535,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (136/100)",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 8745,
+      "column": 5
+    },
+    {
+      "message": "this function has too many arguments (8/7)",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 9068,
+      "column": 5
+    },
+    {
+      "message": "this function has too many arguments (8/7)",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 9784,
+      "column": 5
+    },
+    {
+      "message": "these match arms have identical bodies",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 10122,
+      "column": 17
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 10287,
+      "column": 18
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 10316,
+      "column": 18
+    },
+    {
+      "message": "this function has too many arguments (8/7)",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 10383,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (143/100)",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 11037,
+      "column": 5
+    },
+    {
+      "message": "this block may be rewritten with the `?` operator",
+      "file": "rust/tcl-vm/src/exec.rs",
+      "line": 11251,
+      "column": 9
+    },
+    {
+      "message": "this function has too many lines (106/100)",
+      "file": "rust/tcl-vm/src/expr/original_list_membership.rs",
+      "line": 9,
+      "column": 1
+    },
+    {
+      "message": "you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`",
+      "file": "rust/tcl-vm/src/expr.rs",
+      "line": 720,
+      "column": 45
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-vm/src/expr.rs",
+      "line": 1771,
+      "column": 17
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/execution_name_policy.rs",
+      "line": 389,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/execution_name_policy.rs",
+      "line": 394,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/execution_name_policy.rs",
+      "line": 401,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/execution_name_policy.rs",
+      "line": 408,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/execution_name_policy.rs",
+      "line": 415,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/execution_name_policy.rs",
+      "line": 420,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/execution_name_policy.rs",
+      "line": 464,
+      "column": 9
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-vm/src/interp/jim_local.rs",
+      "line": 294,
+      "column": 23
+    },
+    {
+      "message": "this function has too many lines (113/100)",
+      "file": "rust/tcl-vm/src/interp/jim_table_keys.rs",
+      "line": 122,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (107/100)",
+      "file": "rust/tcl-vm/src/interp/native_alias_registration.rs",
+      "line": 57,
+      "column": 5
+    },
+    {
+      "message": "this could be rewritten as `let...else`",
+      "file": "rust/tcl-vm/src/interp/native_alias_registration.rs",
+      "line": 97,
+      "column": 17
+    },
+    {
+      "message": "this could be rewritten as `let...else`",
+      "file": "rust/tcl-vm/src/interp/native_alias_registration.rs",
+      "line": 199,
+      "column": 21
+    },
+    {
+      "message": "this function has too many lines (147/100)",
+      "file": "rust/tcl-vm/src/interp/native_command_names.rs",
+      "line": 769,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (140/100)",
+      "file": "rust/tcl-vm/src/interp/native_ensemble_objects.rs",
+      "line": 62,
+      "column": 5
+    },
+    {
+      "message": "unused `self` argument",
+      "file": "rust/tcl-vm/src/interp/native_ensemble_objects.rs",
+      "line": 260,
+      "column": 9
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-vm/src/interp/native_error_stack.rs",
+      "line": 69,
+      "column": 63
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-vm/src/interp/native_index_lookup.rs",
+      "line": 280,
+      "column": 39
+    },
+    {
+      "message": "returning the result of a `let` binding from a block",
+      "file": "rust/tcl-vm/src/interp/native_jim_links.rs",
+      "line": 115,
+      "column": 13
+    },
+    {
+      "message": "returning the result of a `let` binding from a block",
+      "file": "rust/tcl-vm/src/interp/native_jim_links.rs",
+      "line": 164,
+      "column": 13
+    },
+    {
+      "message": "this function has too many lines (108/100)",
+      "file": "rust/tcl-vm/src/interp/native_jim_lookup.rs",
+      "line": 848,
+      "column": 5
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/native_name_consumers.rs",
+      "line": 407,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/native_name_queries.rs",
+      "line": 384,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/native_name_queries.rs",
+      "line": 420,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/native_name_queries.rs",
+      "line": 524,
+      "column": 9
+    },
+    {
+      "message": "this function has too many lines (142/100)",
+      "file": "rust/tcl-vm/src/interp/native_namespace_names.rs",
+      "line": 488,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (103/100)",
+      "file": "rust/tcl-vm/src/interp/native_variable_names/native_tcloo.rs",
+      "line": 51,
+      "column": 5
+    },
+    {
+      "message": "this boolean expression can be simplified",
+      "file": "rust/tcl-vm/src/interp/native_variable_names.rs",
+      "line": 67,
+      "column": 16
+    },
+    {
+      "message": "this function has too many lines (114/100)",
+      "file": "rust/tcl-vm/src/interp/native_variable_names.rs",
+      "line": 123,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (159/100)",
+      "file": "rust/tcl-vm/src/interp/native_variable_names.rs",
+      "line": 279,
+      "column": 5
+    },
+    {
+      "message": "this function has too many arguments (8/7)",
+      "file": "rust/tcl-vm/src/interp/native_variable_names.rs",
+      "line": 519,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (103/100)",
+      "file": "rust/tcl-vm/src/interp/native_variable_names.rs",
+      "line": 702,
+      "column": 5
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/native_variable_names.rs",
+      "line": 1633,
+      "column": 17
+    },
+    {
+      "message": "this boolean expression can be simplified",
+      "file": "rust/tcl-vm/src/interp/native_variable_names.rs",
+      "line": 1698,
+      "column": 16
+    },
+    {
+      "message": "this boolean expression can be simplified",
+      "file": "rust/tcl-vm/src/interp/native_variable_names.rs",
+      "line": 1719,
+      "column": 16
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-vm/src/interp/native_variable_names.rs",
+      "line": 1716,
+      "column": 17
+    },
+    {
+      "message": "you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`",
+      "file": "rust/tcl-vm/src/interp/oo_cleanup/active_frame.rs",
+      "line": 223,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/oo_cleanup/active_frame.rs",
+      "line": 410,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/oo_cleanup.rs",
+      "line": 52,
+      "column": 9
+    },
+    {
+      "message": "unused `self` argument",
+      "file": "rust/tcl-vm/src/interp/original_authored_operands.rs",
+      "line": 44,
+      "column": 26
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/command_cleanup.rs",
+      "line": 195,
+      "column": 9
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp/command_cleanup.rs",
+      "line": 313,
+      "column": 21
+    },
+    {
+      "message": "this function has too many arguments (9/7)",
+      "file": "rust/tcl-vm/src/interp/variable_cleanup.rs",
+      "line": 381,
+      "column": 5
+    },
+    {
+      "message": "this could be rewritten as `let...else`",
+      "file": "rust/tcl-vm/src/interp/variable_cleanup.rs",
+      "line": 393,
+      "column": 9
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-vm/src/interp/variable_cleanup.rs",
+      "line": 535,
+      "column": 39
+    },
+    {
+      "message": "this could be rewritten as `let...else`",
+      "file": "rust/tcl-vm/src/interp/variable_cleanup.rs",
+      "line": 617,
+      "column": 21
+    },
+    {
+      "message": "this function has too many lines (125/100)",
+      "file": "rust/tcl-vm/src/interp/variable_cleanup.rs",
+      "line": 879,
+      "column": 5
+    },
+    {
+      "message": "this could be rewritten as `let...else`",
+      "file": "rust/tcl-vm/src/interp/variable_cleanup.rs",
+      "line": 887,
+      "column": 9
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-vm/src/interp/variable_trace_outcomes.rs",
+      "line": 96,
+      "column": 16
+    },
+    {
+      "message": "this function has too many lines (107/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 3622,
+      "column": 5
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 4552,
+      "column": 9
+    },
+    {
+      "message": "this function has too many lines (133/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 6299,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (292/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 7225,
+      "column": 5
+    },
+    {
+      "message": "this could be rewritten as `let...else`",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 7237,
+      "column": 9
+    },
+    {
+      "message": "this function has too many lines (119/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 7839,
+      "column": 5
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 7951,
+      "column": 9
+    },
+    {
+      "message": "this function has too many lines (132/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 9924,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (136/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 10213,
+      "column": 5
+    },
+    {
+      "message": "replacing an `Option` with `Some(..)`",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 10833,
+      "column": 29
+    },
+    {
+      "message": "replacing an `Option` with `Some(..)`",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 12603,
+      "column": 27
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 13312,
+      "column": 19
+    },
+    {
+      "message": "this function has too many lines (118/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 13544,
+      "column": 5
+    },
+    {
+      "message": "this `if` can be collapsed into the outer `match`",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 15376,
+      "column": 17
+    },
+    {
+      "message": "this function has too many lines (156/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 15417,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (114/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 16566,
+      "column": 5
+    },
+    {
+      "message": "these match arms have identical bodies",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 17368,
+      "column": 21
+    },
+    {
+      "message": "this function has too many lines (133/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 17426,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (119/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 17584,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (131/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 17995,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (123/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 20240,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (142/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 20818,
+      "column": 5
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 24269,
+      "column": 9
+    },
+    {
+      "message": "this function has too many lines (114/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 24534,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (114/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 24698,
+      "column": 5
+    },
+    {
+      "message": "enclosing `Ok` and `?` operator are unneeded",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 24716,
+      "column": 17
+    },
+    {
+      "message": "this function has too many lines (104/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 26203,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (102/100)",
+      "file": "rust/tcl-vm/src/interp.rs",
+      "line": 26428,
+      "column": 5
+    },
+    {
+      "message": "this function has too many arguments (8/7)",
+      "file": "rust/tcl-vm/src/literal_pool.rs",
+      "line": 319,
+      "column": 5
+    },
+    {
+      "message": "large size difference between variants",
+      "file": "rust/tcl-vm/src/vars/retirement.rs",
+      "line": 61,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (175/100)",
+      "file": "rust/tcl-vm/src/vars/retirement.rs",
+      "line": 136,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (118/100)",
+      "file": "rust/tcl-vm/src/native_return_merge.rs",
+      "line": 135,
+      "column": 1
+    },
+    {
+      "message": "this block may be rewritten with the `?` operator",
+      "file": "rust/tcl-vm/src/native_return_merge.rs",
+      "line": 204,
+      "column": 29
+    }
+  ]
+}

@@ -1,0 +1,138 @@
+{
+  "utc": "2026-10-22T20:40:26.861868+00:00",
+  "current_head": "def9a5fd7fdece3f785ace02da20f6ed8a8da539",
+  "patch": "/tmp/compiler-c6-conditional-argv-result-shape-v2.patch",
+  "sha256": "18fc5886330b5bb6f7c2ae13e64abbb605ed52a34c7c3db087ec13538fe79a15",
+  "status": "OFF-TREE first full peer review candidate; rustfmt parse and exact applycheck only. NOT applied/typechecked/Cargo or semantically accepted. Original Direct fp_tnt_03 input/assertions remain unchanged.",
+  "composition": [
+    "756 actual compiler syntax owner+exact actual analysis attachment identity",
+    "70ae WholeInput real parser command/config scope and sealed root/complete checked descendant vectors",
+    "3174 explicit authentic BytecodeObject compiler fixture correction with original Direct3refusals",
+    "new conditional Direct RootScript pre-argv descriptor/script-role/ListArguments result-shape query; every actual row, no last-world shortcut"
+  ],
+  "authority": [
+    "Existing record_declaration_operand_layout RootScript observations captured before actual argv retain exact world/namespace/frame/config/vector and earlier replacements",
+    "Explicit fresh AuthoredSimulation/Direct/Global source world; no Native entry or compiler owner borrowing",
+    "All original rows require quiet lookup/observers, no trace/alias residue and current complete Builtin targets",
+    "Only scalar reads/literals plus one exact checked selected ListArguments producer, complete accepted argv and Leaf; Native and authored effect footprints closed/empty, transitions closed/empty",
+    "Conditional property of any produced argument, no Normal/handler/compiler/frame/value receipt; concat single-script safety gate remains mandatory"
+  ],
+  "controls": [
+    "Original fp_tnt_03 and original cross-interpreter controls/other18 assertions untouched",
+    "New Direct unset-child literal/tainted first head +created-child4source controls",
+    "Concat script ordinals remain2slots so existing single_script_operand refuses mitigation",
+    "Trace/replacement/array/nested/expansion refuse; later unknown write cannot retroactively change historical pre-argv owner",
+    "Source scope withdrawal/NestedScript-purpose/foreign input/synthetic/vector refuse",
+    "Compiler syntax exact owner/input/config/currentness, missing metadata axes refuse; Bytecode positive explicit vsDirect strictnegative"
+  ],
+  "risks": [
+    "All tests unrun; source RootScript row projection and source effect equality need static peer review",
+    "Actual compiler full-world snapshot variance remains conservatively refused",
+    "W210/compiler-preflight/import failures are separate; this candidate makes no completion or source-load promise",
+    "Future N13 region/body syntax requires an explicit owned extent adapter; no automatic whole-image/body authorization"
+  ],
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "current_sha256": "d80600daa759c3f103cdcebbc9c2acef777265dc8130b15e6fc30fed0197ef26",
+      "draft_sha256": "0468fbf870a9ebdd9e1381ac4055b4858695b4d173f48f44ccd860043ce6df4d",
+      "diff_lines": 144,
+      "hunks": [
+        "@@ -313,6 +313,7 @@",
+        "@@ -1392,6 +1393,7 @@",
+        "@@ -2416,6 +2418,9 @@",
+        "@@ -3761,6 +3766,8 @@",
+        "@@ -3841,6 +3848,7 @@",
+        "@@ -8363,6 +8371,7 @@",
+        "@@ -8370,6 +8379,12 @@",
+        "@@ -8419,6 +8434,9 @@",
+        "@@ -8906,6 +8924,7 @@",
+        "@@ -25539,16 +25558,53 @@"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_argument_syntax.rs",
+      "current_sha256": null,
+      "draft_sha256": "1e9a5b48cad43cb084e772aac624d3712168a5370375a5ed43c97438447bf98c",
+      "diff_lines": 578,
+      "hunks": [
+        "@@ -0,0 +1,535 @@"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "current_sha256": "03e25731908184ff3101bdad20acb58ef982050d27fa6db1cc9d9171f1fba31e",
+      "draft_sha256": "081ea0fc1a74603b8d42acff18c8daa11762bd74d8341e449a3100d806135fa5",
+      "diff_lines": 210,
+      "hunks": [
+        "@@ -20,6 +20,112 @@",
+        "@@ -1718,6 +1824,94 @@"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation.rs",
+      "current_sha256": "01bc3a8fb2e975a188bc444dc434209a6a2bccee893359d4c9c47c1aedfb0e6d",
+      "draft_sha256": "f8537cf9b7f225730e918d0a6c3871f69f0f058bdbb3c3baa398059c3acf87ea",
+      "diff_lines": 19,
+      "hunks": [
+        "@@ -126,12 +126,14 @@"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_taint.rs",
+      "current_sha256": "fa5e3c7e7702b5c73d8d9b8d06328764c4f7a1f0f67c50d0745d8889ba202023",
+      "draft_sha256": "2907c80c73e8ea6470c0b9a78802235a8ab72f54edc13dfde84fdc72130db815",
+      "diff_lines": 334,
+      "hunks": [
+        "@@ -25,7 +25,8 @@",
+        "@@ -49,8 +50,8 @@",
+        "@@ -96,7 +97,8 @@",
+        "@@ -165,14 +167,23 @@",
+        "@@ -239,15 +250,19 @@",
+        "@@ -275,9 +290,12 @@",
+        "@@ -295,8 +313,17 @@",
+        "@@ -305,19 +332,51 @@",
+        "@@ -385,7 +444,8 @@",
+        "@@ -691,6 +751,21 @@",
+        "@@ -863,15 +938,55 @@",
+        "@@ -879,9 +994,7 @@",
+        "@@ -911,11 +1024,38 @@"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_taint_arguments.rs",
+      "current_sha256": null,
+      "draft_sha256": "f41bf6e32f9ed0c3f4682c3695f8808b547021f7320e4a5b6aef27d69e7b07aa",
+      "diff_lines": 253,
+      "hunks": [
+        "@@ -0,0 +1,250 @@"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/taint.rs",
+      "current_sha256": "e44f95cda281895ce898d006fe3e3f89c843f15fb551e498adaf9496a78ac8eb",
+      "draft_sha256": "6ad178394b614b18d4a7c226d19079793a14f6c51fd28e53c27fac1ac9059126",
+      "diff_lines": 298,
+      "hunks": [
+        "@@ -5562,19 +5562,27 @@",
+        "@@ -6785,6 +6793,37 @@",
+        "@@ -6794,22 +6833,68 @@",
+        "@@ -6824,32 +6909,15 @@",
+        "@@ -6867,9 +6935,10 @@",
+        "@@ -6878,13 +6947,14 @@",
+        "@@ -8008,7 +8078,7 @@",
+        "@@ -8198,7 +8268,7 @@",
+        "@@ -8212,11 +8282,16 @@",
+        "@@ -8360,12 +8435,12 @@",
+        "@@ -8936,10 +9011,12 @@"
+      ]
+    }
+  ],
+  "applycheck": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  "successor_to": "5c01c51f6a36f6a83fff731ebd64dc0399736af8d542285ca133397af773ef62",
+  "review_correction": "Names requested actual sealed alias map closure: all four alias_bindings/namespace_alias_bindings/name_alias_bindings/namespace_name_alias_bindings refuse, with a four-map typed negative control. Old immutable candidate preserved."
+}

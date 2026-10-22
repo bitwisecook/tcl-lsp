@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-22T20:44:39.064769+00:00",
+  "head": "def9a5fd7fdece3f785ace02da20f6ed8a8da539",
+  "exit": 101,
+  "source_and_full_providers_unchanged": true,
+  "source_files": 40918,
+  "source_sha256": "e27f3286b6bcb32a5086a3498f73f8e6bbdc53c4cf5d24d4a5ba399d4e6ae24e",
+  "scope": "registry all-targets causes compiler and VM development-dependency checks; no complete strict acceptance",
+  "located_findings": 666,
+  "by_owner": {
+    "compiler": 380,
+    "compiler-names": 104,
+    "compiler-codegen": 1,
+    "vm-runtime": 181
+  },
+  "four_original_registry_findings": "not reported in this invocation; dependency failures prevent complete all-target acceptance",
+  "guards": "Full captures retained in /tmp/naming-registry-clippy-2035; hashes exact before/after",
+  "disk_abort": false,
+  "logs_capped": false,
+  "next_slot": "VM C callback witness then unchanged six runtime selectors, explicit root GO20:44; no competing Cargo"
+}

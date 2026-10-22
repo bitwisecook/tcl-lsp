@@ -1,0 +1,63 @@
+{
+  "utc": "2026-10-22T20:41:28.506198+00:00",
+  "pinned_sources": [
+    {
+      "version": "8.4.20",
+      "source": "/workspace/naming-toolchains/tmp/tcl8.4.20/generic/tclBasic.c",
+      "source_sha256": "cab6d4decd1a3e365fe3cef49a2d5430dfef01cd775dd7d34f98064032f3a81a",
+      "comment_line": 2561,
+      "delete_callback_line": 2648,
+      "unlink_line": 2672,
+      "comment": "    /*\n     * The code here is tricky.  We can't delete the hash table entry\n     * before invoking the deletion callback because there are cases\n     * where the deletion callback needs to invoke the command (e.g.\n     * object systems such as OTcl). However, this means that the\n     * callback could try to delete or rename the command. The deleted\n     * flag allows us to detect these cases and skip nested deletes.\n     */",
+      "callback": "\t */\n\n\t(*cmdPtr->deleteProc)(cmdPtr->deleteData);\n    }\n",
+      "unlink": "     */\n\n    if (cmdPtr->hPtr != NULL) {\n\tTcl_DeleteHashEntry(cmdPtr->hPtr);\n    }\n"
+    },
+    {
+      "version": "8.5.19",
+      "source": "/workspace/naming-toolchains/tmp/tcl8.5.19/generic/tclBasic.c",
+      "source_sha256": "d09c16386ea0376dc3590a74ded2c6e2bcef5079f2b1a3785545bad37c7ead63",
+      "comment_line": 2792,
+      "delete_callback_line": 2889,
+      "unlink_line": 2914,
+      "comment": "    /*\n     * The code here is tricky. We can't delete the hash table entry before\n     * invoking the deletion callback because there are cases where the\n     * deletion callback needs to invoke the command (e.g. object systems such\n     * as OTcl). However, this means that the callback could try to delete or\n     * rename the command. The deleted flag allows us to detect these cases\n     * and skip nested deletes.\n     */",
+      "callback": "\t */\n\n\t(*cmdPtr->deleteProc)(cmdPtr->deleteData);\n    }\n",
+      "unlink": "     */\n\n    if (cmdPtr->hPtr != NULL) {\n\tTcl_DeleteHashEntry(cmdPtr->hPtr);\n\tcmdPtr->hPtr = NULL;\n    }"
+    },
+    {
+      "version": "8.6.18",
+      "source": "/workspace/naming-toolchains/tmp/tcl8.6.18/generic/tclBasic.c",
+      "source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+      "comment_line": 3165,
+      "delete_callback_line": 3277,
+      "unlink_line": 3288,
+      "comment": "    /*\n     * The code here is tricky. We can't delete the hash table entry before\n     * invoking the deletion callback because there are cases where the\n     * deletion callback needs to invoke the command (e.g. object systems such\n     * as OTcl). However, this means that the callback could try to delete or\n     * rename the command. The deleted flag allows us to detect these cases\n     * and skip nested deletes.\n     */",
+      "callback": "\t */\n\n\tcmdPtr->deleteProc(cmdPtr->deleteData);\n    }\n",
+      "unlink": "     */\n\n    if (cmdPtr->hPtr != NULL) {\n\tTcl_DeleteHashEntry(cmdPtr->hPtr);\n\tcmdPtr->hPtr = NULL;\n"
+    },
+    {
+      "version": "9.0.4",
+      "source": "/workspace/naming-toolchains/tmp/tcl9.0.4/generic/tclBasic.c",
+      "source_sha256": "6d995c1af94fea92717183882ca41775fe8c0e088def163f6ac8fe699cbffc67",
+      "comment_line": 3738,
+      "delete_callback_line": 3859,
+      "unlink_line": 3870,
+      "comment": "    /*\n     * The code here is tricky. We can't delete the hash table entry before\n     * invoking the deletion callback because there are cases where the\n     * deletion callback needs to invoke the command (e.g. object systems such\n     * as OTcl). However, this means that the callback could try to delete or\n     * rename the command. The deleted flag allows us to detect these cases\n     * and skip nested deletes.\n     */",
+      "callback": "\t */\n\n\tcmdPtr->deleteProc(cmdPtr->deleteData);\n    }\n",
+      "unlink": "     */\n\n    if (cmdPtr->hPtr != NULL) {\n\tTcl_DeleteHashEntry(cmdPtr->hPtr);\n\tcmdPtr->hPtr = NULL;\n"
+    },
+    {
+      "version": "9.1.0",
+      "source": "/workspace/naming-toolchains/tmp/tcl9.1.0/generic/tclBasic.c",
+      "source_sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+      "comment_line": 3708,
+      "delete_callback_line": 3829,
+      "unlink_line": 3840,
+      "comment": "    /*\n     * The code here is tricky. We can't delete the hash table entry before\n     * invoking the deletion callback because there are cases where the\n     * deletion callback needs to invoke the command (e.g. object systems such\n     * as OTcl). However, this means that the callback could try to delete or\n     * rename the command. The deleted flag allows us to detect these cases\n     * and skip nested deletes.\n     */",
+      "callback": "\t */\n\n\tcmdPtr->deleteProc(cmdPtr->deleteData);\n    }\n",
+      "unlink": "     */\n\n    if (cmdPtr->hPtr != NULL) {\n\tTcl_DeleteHashEntry(cmdPtr->hPtr);\n\tcmdPtr->hPtr = NULL;\n"
+    }
+  ],
+  "scope": "Actual C deletion ordering; not Rust acceptance or general command-copy semantic proof.",
+  "line_derivation": "LF only: read_text().split(chr(10)); prior splitlines() counted C form-feed page separators and produced inflated references.",
+  "corrected_utc": "2026-10-22T20:42:33.608846+00:00"
+}

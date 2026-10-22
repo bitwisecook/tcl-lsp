@@ -1,0 +1,41 @@
+{
+  "status": "Independent STATIC review of frozen first-edge host v2 correction: no new defect found in requested correction paths. Partial/unwired/uncompiled; no integration, runtime or N13 closure approval.",
+  "updated_utc": "2026-10-22T19:31:03.390882+00:00",
+  "source_path": "/tmp/lsp-n13-host-views/source_views-v2.rs.txt",
+  "source_sha256": "a5bbbb531f4fbba52393c2e7ef9e40c48b315282e6ef114cf482ba3731640c73",
+  "delta_path": "/tmp/lsp-n13-host-views/host-v2-delta.patch",
+  "delta_sha256": "95b3873e0f3cb2d662f7cbda28a7ac0b76913b2c363df6ef82132197fc647dde",
+  "scope_receipt": "/tmp/lsp-n13-host-views/receipt-v2.json",
+  "previous_review": "/tmp/ccg-review-lsp-n13-host-wire.json (0b0480c8...)",
+  "corrected_paths": [
+    {
+      "prior_gap": "same-URI stage then replacement retirement",
+      "assessment": "Closed statically for this first-edge publication API. publish_original_source_views now checks every draft ancestor URI against the target URI before saved-source reads/staging/index/table mutation and returns None. Cyclic/unavailable ancestor collection also refuses. It cannot publish a new batch that immediately retires its retained same-URI prefix under current whole-URI replace semantics. None must remain Pending in later reconciler."
+    },
+    {
+      "prior_gap": "escaped current view Arc after resolve",
+      "assessment": "Closed in reviewed helper API shape. resolve_original_source_view_declaration<T> takes a synchronous render callback borrowed identity+PublishedOriginalSourceView and executes it inside with_current_original_source_view after final all-source/table/index/physical/provider currency joins. It no longer explicitly returns owned identity+Arc. Callback cannot await; immutable identity/evidence retained by any caller does not grant durable currentness. Later async phases must rejoin exact saved ID/all ancestors again."
+    },
+    {
+      "prior_gap": "physical child input forced equal to inherited interpretation input",
+      "assessment": "Closed statically in draft production/matcher. Root still requires physical.input==producer.input. Inherited producer instead must match actual point parent and matches_child_analysis. Child worker receives actual retained parent producer input and dialect; returned child resolved_input becomes producer interpretation_input. Physical source input/config/configuration remain captured independently and still undergo current SourceFile/path/source/dialect/config/document_analysis_input checks. No physical-input guard was deleted in matches_physical_state."
+    }
+  ],
+  "remaining_fail_closed_checks": [
+    "Exact same producer+physical Arc reuse, parent ID and opaque point equality still required; equality/URI/text alone never renews a view.",
+    "Before child worker the actual current parent and point are checked. After async reads/worker publication rechecks every retained parent physical source/config/input/path/publication/epoch/factory/table membership/index revision under final lease.",
+    "An inherited input is derived from actual parent producer and checked compiler entry, not dialect text/namespace strings, physical child default, or token alone.",
+    "All ancestors are strong retained receipts but must independently remain live in the table and physical publication. Replacement/retirement does not become source reanalysis or first-URI selection.",
+    "Wire v3 dependency retains genuine EditorWireSession/schema5/type/value stamp isolation; no wire/source/name authority shortcut introduced."
+  ],
+  "open_integration_obligations": [
+    "No integrated consumer call sites exist in this partial module; callback shape review does not establish actual declaration/class/hierarchy/reference/lifting use of the lease. All asynchronous follow-up needs exact ID rejoin.",
+    "Root/inherited classifier/reconciler/cache must preserve required-edge None as Pending and must not route missing/retired inherited work through root/URI/text fallback.",
+    "Legacy refresh_source_rehoming_locked already owns rehoming gate; invoking publish API while holding it would make try_lock return unavailable. LSP confirms successor must separate work serialization from final publication lease and respect input\u2192rehoming order; do not skip/reenter the guard.",
+    "Conditional prefix/tail continuation, region outcomes/recombination and actual per-view Core index membership remain outside first-edge scope.",
+    "Actual two-parent differing interpretation contexts, A-retired/byteequal-B-current, physical-child config changes, ancestor input/config/provider/path/epoch/factory/index changes, and complete supported12hop convergence remain unexecuted.",
+    "Backend table/module initializers, compiler stage3 combined typing, strict Clippy/fmt and focused runtime controls remain required; no partial apply approval."
+  ],
+  "owner_confirmation": "LSP explicitly confirms exact v2 source/delta bytes immutable; full first-edge wiring is a separate successor and was not reviewed.",
+  "actions": "Read-only frozen source/delta/receipt and existing currency helper implementations; wrote only this /tmp review JSON. No source edits, apply, Cargo or N17 plan change."
+}

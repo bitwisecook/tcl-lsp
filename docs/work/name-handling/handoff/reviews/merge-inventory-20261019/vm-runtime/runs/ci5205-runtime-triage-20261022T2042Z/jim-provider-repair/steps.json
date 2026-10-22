@@ -1,0 +1,77 @@
+[
+  {
+    "label": "fetch-pin-ancestry",
+    "argv": [
+      "git",
+      "fetch",
+      "--deepen=32",
+      "--no-tags",
+      "origin",
+      "5bac7c99ad65864c87da513e22e2f01703fa4e03"
+    ],
+    "cwd": "/workspace/naming-toolchains/tmp/jimtcl-oracle",
+    "exit": 0,
+    "bytes": {
+      "stdout": 0,
+      "stderr": 115
+    },
+    "utc": "2026-10-22T20:31:31.923465+00:00"
+  },
+  {
+    "label": "fetch-authentic-tag",
+    "argv": [
+      "git",
+      "fetch",
+      "--depth=1",
+      "origin",
+      "refs/tags/0.84:refs/tags/0.84"
+    ],
+    "cwd": "/workspace/naming-toolchains/tmp/jimtcl-oracle",
+    "exit": 0,
+    "bytes": {
+      "stdout": 0,
+      "stderr": 79
+    },
+    "utc": "2026-10-22T20:31:33.450601+00:00"
+  },
+  {
+    "label": "configure",
+    "argv": [
+      "./configure"
+    ],
+    "cwd": "/workspace/naming-toolchains/tmp/jimtcl-oracle",
+    "exit": 0,
+    "bytes": {
+      "stderr": 0,
+      "stdout": 4270
+    },
+    "utc": "2026-10-22T20:31:57.598844+00:00"
+  },
+  {
+    "label": "make",
+    "argv": [
+      "make",
+      "-j2"
+    ],
+    "cwd": "/workspace/naming-toolchains/tmp/jimtcl-oracle",
+    "exit": 0,
+    "bytes": {
+      "stdout": 908,
+      "stderr": 0
+    },
+    "utc": "2026-10-22T20:32:14.105800+00:00"
+  },
+  {
+    "label": "identity",
+    "argv": [
+      "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh"
+    ],
+    "cwd": "/workspace/naming-toolchains/tmp/jimtcl-oracle",
+    "exit": 0,
+    "bytes": {
+      "stderr": 0,
+      "stdout": 21
+    },
+    "utc": "2026-10-22T20:32:14.127449+00:00"
+  }
+]

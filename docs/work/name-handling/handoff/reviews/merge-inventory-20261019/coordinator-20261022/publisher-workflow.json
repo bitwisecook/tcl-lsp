@@ -17,8 +17,18 @@
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
   "last_published_utc": "2026-10-22T20:29:00.143192+00:00",
-  "product_tree_diff": [],
+  "product_tree_diff": [
+    "rust/tcl-lsp-server/src/current_diagnostics.rs",
+    "rust/tcl-lsp-server/src/lib.rs",
+    "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+    "rust/tcl-lsp-server/src/recovery_source/tests.rs",
+    "rust/tcl-registry/src/native_compilation.rs",
+    "rust/tcl-registry/src/native_procedure.rs",
+    "rust/tcl-registry/src/native_string_is_compilation.rs"
+  ],
   "source_lineage_rebased_utc": "2026-10-22T20:32:04.450664+00:00",
-  "source_lineage_note": "Active4204767 rebased onto39b392; product equality confirmed. New4204767 contains unpublished post-minify/docs checkpoint and follows publisher directly. Next publication must cherry-pick only39b392..HEAD, not old697..HEAD across rewritten lineage.",
-  "unpublished_active_base": "39b392963c652b3bc0d8ca95e387b2b00a225b25"
+  "source_lineage_note": "Currentactive def9 has seven lint source paths newer than published39b392; 4204767 integration itself had zero product difference. Nextpublisher cherry-picks39b392..HEAD (rewritten lineage), notold697..HEAD.",
+  "unpublished_active_base": "39b392963c652b3bc0d8ca95e387b2b00a225b25",
+  "active_current_head": "def9a5fd7fdece3f785ace02da20f6ed8a8da539",
+  "product_tree_diff_at_integration": []
 }

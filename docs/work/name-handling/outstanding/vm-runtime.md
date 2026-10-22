@@ -2,7 +2,7 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T20:28:53Z (CI5205 alias PASS/catch8.4 FAIL/new callback abort; docs archives excluded from actual40917 guard, exact source/providers verified; all canonical writes held, no Cargo queued)
+Last updated: 2026-10-22T20:42:27Z (CI5205 catch8.4 confirmed P2F; OO phase correction off-tree; authentic Jim rebuild/manifest supersession complete; exact runtime6 mirror/runner ready, no Cargo queued; product HOLD, docs CLEAR)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -571,3 +571,15 @@ Off-tree exact baseline/cause triage and Jim provider0.84 fixture mismatch
 analysis are active. VM71 and runtime5 plans remain unqueued pending integrated
 active source and explicit GO. This is the final brief authorized doc write;
 all canonical writes now held for root integration.
+
+## CI5205 and runtime6 readiness (2026-10-22T20:42:27Z)
+
+Actual CI5205 runtime log is incomplete: 71 FAILED rows followed by the namespace-copy extern-C callback assertion abort. Exact baseline join confirms only `cmd_error::tests::eight_four_catch_takes_no_options_variable` as named baseline-PASS/current-FAIL in this run. Alias now PASS. The earlier Jim import test emits FAILED and the harness continues, so the prior metadata-TLS abort is not reproduced through that point; the two new obj TLS controls were not reached. No full runtime pass or TLS acceptance is claimed. Completed log/join and provision evidence are in `handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5205-runtime-triage-20261022T2042Z/`.
+
+The new OO callback assertion requires an empty destination table during old procedure retirement. All five pinned C sources explicitly retain the old command entry during deleteProc, unlinking afterward. Off-tree patch `7049a53f` records exact prior key/generation and asserts them after callback return, retaining publication/refusal/body-pointer/result/recreation/leak controls. Independent review is in progress; native C witness source is prepared but not executed while root owns the build lock. Canonical test remains unchanged for runtime6 diagnosis.
+
+Jim provisioning repair completed at actual 20:32:14Z: pinned HEAD/tree/source hashes unchanged; authentic upstream tag and ancestry restore git describe `0.84-9-g5bac7c9`, then unmodified configure and make -j2 produce exact version/patchlevel. New executable SHA `4c52ccf801a46df9ea5aa062c50e5d4b7e7b09c5d523d464fe8b6e682744b12e`; config SHA `d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221`. Active `/tmp/naming-oracle-setup.json` supersedes the old manifest (preserved byte-for-byte); historical receipts remain unchanged. Future source/provider seals must use the new provider. This is native provider verification, not a minify or Rust test pass.
+
+Root authorized exact-byte off-tree runtime mirror `/tmp/vm-runtime-ci5205-no-tommath` with its own target `/tmp/vm-runtime-ci5205-target-20261022` to match CI no-tommath without fixture deletion/renaming. Frozen exact-six plan SHA `8f300383d484c3a9a689b55040d31b1396f46e827b510aad27d3027a861ea27a`, guarded runner SHA `ad065af5bb037c714f4878a0a956bfdd0aa93ade3e5686dad5e306929ea9c4b0`: catch, alias, both TLS controls, Jim import, OO callback. Each exact selector runs independently with 180s deadline; full source/provider-chain seals and disk/log bounds retained. Only deliberate no-tommath build-script notice is exempted; no zero-warning claim. No Cargo queued; explicit root GO still required. VM71 remains pending afterward.
+
+Documentation archive extension event correction: all four renamed evidence files were under the docs prefix explicitly excluded from LSP CURRENT3 capture, so none entered its 40917 guard keys. Final captured source and provider hashes matched. The event changed transient documentation filenames, not actual guard inputs; old-path/byte-hash provenance remains in its receipt.

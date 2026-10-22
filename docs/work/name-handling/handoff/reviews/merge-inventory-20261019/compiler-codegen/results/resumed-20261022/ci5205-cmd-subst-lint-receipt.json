@@ -1,0 +1,18 @@
+{
+  "status": "OFF-TREE static peer-ready, pinned rustfmt syntax/format only; no Cargo/type/lint result.",
+  "utc": "2026-10-22T20:46:04.786599+00:00",
+  "actual_inventory": "/tmp/naming-registry-clippy-2035/compiler-codegen-diagnostics.json",
+  "diagnostic": "emit_inline_hook_operands too_many_lines104/100",
+  "path": "rust/tcl-compiler/src/codegen/cmd_subst.rs",
+  "before_sha256": "d873669293af76e3a4ab6eeb8bedf3c2aee7d215c1dcfd26fc7a2abcb9b0c89a",
+  "proposed_sha256": "25254e3b825601cb4e4e11314a9d31a2e17a173e5a043b8186d0877fce68070b",
+  "patch_sha256": "3445112f4e04efa20761d894d8ddd5ee083147ba107814262a9d5c66344db5f4",
+  "change": "Extract EXACT existing single-original-argument Set-load applicability predicate into inline_set_load_is_supported; same shape destructuring, !in_direct_command, !word_is_dynamic(name,*braced), and !contains(backslash), in identical short-circuit order. Call still only on Set hook arm and before args0 load.",
+  "source_counts": "Four source guard lines moved out of oversized dispatch; no condition/value/argument/load order change. Actual Clippy pending.",
+  "invariants": [
+    "No assertion/test/fixture changes",
+    "No new allows",
+    "No hook selection/operand/Native authority changes",
+    "Disjoint from off-tree WASM import interning2paths; no canonical edits/Cargo"
+  ]
+}

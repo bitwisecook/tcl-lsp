@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "/usr/bin/cc",
+    "-std=c99",
+    "-O0",
+    "/tmp/vm-runtime-oo-retirement-phase/delete_phase.c",
+    "-I",
+    "/workspace/naming-toolchains/tmp/tcl9.0.4/generic",
+    "-o",
+    "/tmp/vm-runtime-oo-retirement-phase/delete-phase-9.0.4",
+    "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/libtcl9.0.a",
+    "-lz",
+    "-lpthread",
+    "-ldl",
+    "-lm"
+  ],
+  "cwd": "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust",
+  "exit": 0,
+  "started_utc": "2026-10-22T20:46:14.902456+00:00",
+  "ended_utc": "2026-10-22T20:46:15.197099+00:00",
+  "bytes": 0,
+  "stopped": null,
+  "deadline_seconds": 60
+}

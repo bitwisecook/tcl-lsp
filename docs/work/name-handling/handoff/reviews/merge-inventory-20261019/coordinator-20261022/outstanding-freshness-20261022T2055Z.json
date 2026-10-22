@@ -1,0 +1,71 @@
+{
+  "utc": "2026-10-22T20:55:47.248003+00:00",
+  "rows": [
+    {
+      "role": "bigip-lsp",
+      "source": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/outstanding/bigip-lsp.md",
+      "reported_stamp": "2026-10-22T18:08Z",
+      "age_minutes": 167.79,
+      "stale": true
+    },
+    {
+      "role": "compiler-codegen",
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler-codegen.md",
+      "reported_stamp": "2026-10-22T21:01Z (ACTIVE; agent-reported, not validation)",
+      "age_minutes": -5.21,
+      "stale": false
+    },
+    {
+      "role": "compiler-names",
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler-names.md",
+      "reported_stamp": "2026-10-22T20:47:34Z (agent-reported work only)",
+      "age_minutes": 8.22,
+      "stale": false
+    },
+    {
+      "role": "compiler",
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/compiler.md",
+      "reported_stamp": "2026-10-22T20:44:15Z (compiler role; full candidate archived, VM bounded review and Names alias closure recorded)",
+      "age_minutes": 11.54,
+      "stale": false
+    },
+    {
+      "role": "coordinator",
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/coordinator.md",
+      "reported_stamp": "2026-10-22T20:26:14.632594+00:00",
+      "age_minutes": 29.54,
+      "stale": false
+    },
+    {
+      "role": "lsp",
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/lsp.md",
+      "reported_stamp": "2026-10-22T20:16:33Z",
+      "age_minutes": 39.24,
+      "stale": false
+    },
+    {
+      "role": "perf",
+      "source": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/outstanding/perf.md",
+      "reported_stamp": "2026-10-22 20:37 UTC",
+      "age_minutes": 18.79,
+      "stale": false
+    },
+    {
+      "role": "review-triage",
+      "source": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/outstanding/review-triage.md",
+      "reported_stamp": "2026-10-22T19:57:30Z",
+      "age_minutes": 58.29,
+      "stale": false
+    },
+    {
+      "role": "vm-runtime",
+      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/vm-runtime.md",
+      "reported_stamp": "2026-10-22T20:42:27Z (CI5205 catch8.4 confirmed P2F; OO phase correction off-tree; authentic Jim rebuild/manifest supersession complete; exact runtime6 mirror/runner ready, no Cargo queued; product HOLD, docs CLEAR)",
+      "age_minutes": 13.34,
+      "stale": false
+    }
+  ],
+  "disk_free_bytes": 13565222912,
+  "index_note": "README is role index, excluded from freshness",
+  "stale_notification": "BIG-IP18:08 final remains stale, previously notified; no takeover. Other external files under60m at snapshot."
+}

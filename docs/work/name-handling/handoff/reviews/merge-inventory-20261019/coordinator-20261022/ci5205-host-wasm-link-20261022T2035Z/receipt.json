@@ -1,0 +1,37 @@
+{
+  "utc": "2026-10-22T20:35:20.740872+00:00",
+  "run_id": 39845788481,
+  "source_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+  "browser_lsp": {
+    "job_id": 120061100015,
+    "result": "failure",
+    "build": "succeeded before exercising actual host",
+    "observed": [
+      "source sibling definition returns empty",
+      "tclIndex autoload definition returns empty",
+      "rename refuses with unknown-completed-command-world collision coverage"
+    ],
+    "owner": "lsp/compiler-names/compiler; keep fail-closed"
+  },
+  "wasm_real_link": {
+    "job_id": 120061100182,
+    "result": "failure",
+    "named_tests": 25,
+    "pass": 18,
+    "fail": 7,
+    "attribution": "Five compiled-procedure controls lack shared runtime table. Argv test first matching import index differs from duplicate actual called import index; investigate producer interning, assertion unchanged. Native i64 decline remains separate.",
+    "owner": "compiler-codegen"
+  },
+  "logs": {
+    "lsp-server-wasm.log": {
+      "bytes": 66922,
+      "sha256": "10f7b27b66146d43649ca08624a389769dc578916ac482fc0ede237c1b89d98a"
+    },
+    "wasm-real-link.log": {
+      "bytes": 120533,
+      "sha256": "8d141b4cd2abfe5bbbe361f6d912c16f70501b8db45b936adbc37c5a6e747dda"
+    }
+  },
+  "complete_baseline_comparison": "pending; no aggregate or named regression count inferred here",
+  "gate_admissions": []
+}

@@ -1,0 +1,25 @@
+from pathlib import Path
+import json,hashlib,difflib,subprocess,sys,datetime
+root=Path('/workspace/naming-migration-active/tcl-lsp')
+shadow=Path('/tmp/compiler-c6-conditional-current-shadow')
+receipt=json.loads(Path('/tmp/compiler-c6-conditional-argv-result-shape-receipt.json').read_text())
+prefix=Path(sys.argv[1])
+patch=prefix.with_suffix('.patch')
+record=prefix.with_name(prefix.name+'-receipt.json')
+if patch.exists() or record.exists(): raise SystemExit('Refuse overwriting immutable candidate')
+parts=[]; changes=[]
+for entry in receipt['files']:
+    path=entry['path']; base=(root/path).read_bytes() if (root/path).exists() else b''
+    expected=entry['current_sha256']
+    actual=hashlib.sha256(base).hexdigest() if (root/path).exists() else None
+    if actual!=expected: raise SystemExit('Canonical input changed: '+path)
+    draft=(shadow/path).read_bytes()
+    delta=''.join(difflib.unified_diff(base.decode().splitlines(True),draft.decode().splitlines(True),fromfile='a/'+path if (root/path).exists() else '/dev/null',tofile='b/'+path))
+    parts.append(delta)
+    changes.append(dict(entry,current_sha256=actual,draft_sha256=hashlib.sha256(draft).hexdigest(),diff_lines=len(delta.splitlines())))
+patch.write_text(''.join(parts))
+check=subprocess.run(['git','-C',str(root),'apply','--check',str(patch)],capture_output=True,text=True)
+updated=dict(receipt,utc=datetime.datetime.now(datetime.timezone.utc).isoformat(),current_head=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip(),patch=str(patch),sha256=hashlib.sha256(patch.read_bytes()).hexdigest(),files=changes,applycheck=dict(exit=check.returncode,stdout=check.stdout,stderr=check.stderr),successor_to='5c01c51f6a36f6a83fff731ebd64dc0399736af8d542285ca133397af773ef62',review_correction='Names requested actual sealed alias map closure: all four alias_bindings/namespace_alias_bindings/name_alias_bindings/namespace_name_alias_bindings refuse, with a four-map typed negative control. Old immutable candidate preserved.')
+record.write_text(json.dumps(updated,indent=2)+'\n')
+print(json.dumps({'patch':str(patch),'sha256':updated['sha256'],'applycheck':check.returncode,'files':len(changes)}))
+if check.returncode: raise SystemExit(check.returncode)

@@ -1,0 +1,92 @@
+{
+  "utc": "2026-10-22T20:48:33.072606+00:00",
+  "run": 39845788481,
+  "sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+  "spectcl": {
+    "job": 120061100397,
+    "loader": {
+      "pass": 28,
+      "fail": 0
+    },
+    "golden": {
+      "pass": 3,
+      "fail": 0
+    },
+    "parse": {
+      "pass": 1,
+      "fail": 0
+    },
+    "pack_source_e2e": {
+      "pass": 8,
+      "fail": 2,
+      "partial_exact_baseline_PASS_to_FAIL": [
+        {
+          "job": "rust-tests-shard-4",
+          "package": "tcl-spectcl",
+          "binary_label_as_rendered": "pack_source_e2e",
+          "selector": "a_derived_body_runs_under_the_release_the_call_is_analysed_under",
+          "status": "PASS",
+          "reporter_ordinal": 2179,
+          "reporter_total": 2686,
+          "binary_id": "tcl-spectcl::pack_source_e2e"
+        },
+        {
+          "job": "rust-tests-shard-4",
+          "package": "tcl-spectcl",
+          "binary_label_as_rendered": "pack_source_e2e",
+          "selector": "a_reference_body_answers_through_the_host_as_the_procedure_does",
+          "status": "PASS",
+          "reporter_ordinal": 2182,
+          "reporter_total": 2686,
+          "binary_id": "tcl-spectcl::pack_source_e2e"
+        }
+      ],
+      "current_values": {
+        "a_reference_body_answers_through_the_host_as_the_procedure_does": {
+          "actual": null,
+          "expected": "42"
+        },
+        "a_derived_body_runs_under_the_release_the_call_is_analysed_under": {
+          "actual": null,
+          "expected": "xy",
+          "release": "tcl8.6"
+        }
+      }
+    },
+    "owners": [
+      "compiler-codegen",
+      "compiler"
+    ],
+    "N17_strlen": "separate prior passed repro; no causal conflation"
+  },
+  "editor_one": {
+    "job": 120069799826,
+    "summary_pass": 46,
+    "summary_fail": 66,
+    "observed": "ContextUnavailable diagnostics plus rename refusals and didOpen-drain/config/definition timeouts; exact baseline join pending",
+    "owner": "lsp"
+  },
+  "editor_three": {
+    "job": 120069799902,
+    "summary_pass": 307,
+    "summary_fail": 39,
+    "observed": "ContextUnavailable plus config/feature/rename/provenance/metaclass/hover failures and timeouts; exact baseline join pending",
+    "owner": "lsp"
+  },
+  "logs": {
+    "spectcl-compat.log": {
+      "bytes": 79252,
+      "sha256": "97b6fdeb27781edecb184d0e2afbcd2fb6bc915fd00e41e777f4c39037f83903"
+    },
+    "editor-one.log": {
+      "bytes": 274665,
+      "sha256": "c38f8c1dded82233d861fc6d084ba147c8c3735bb4f807c1480c1c099abe6c1e"
+    },
+    "editor-three.log": {
+      "bytes": 287260,
+      "sha256": "08acfa3fe6947389a0b63c2116625282229c0555ef07da19b5c3677dc4d52d86"
+    }
+  },
+  "complete_baseline_verdict": "unavailable; pending remaining jobs and named joins",
+  "release_gate_admissions": []
+}

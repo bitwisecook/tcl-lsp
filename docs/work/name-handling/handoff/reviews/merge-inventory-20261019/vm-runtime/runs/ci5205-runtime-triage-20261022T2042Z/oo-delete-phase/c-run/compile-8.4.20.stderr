@@ -1,0 +1,10 @@
+/tmp/vm-runtime-oo-retirement-phase/delete_phase.c: In function ‘deleted’:
+/tmp/vm-runtime-oo-retirement-phase/delete_phase.c:13:25: error: implicit declaration of function ‘Tcl_FindCommand’; did you mean ‘Tcl_HideCommand’? [-Wimplicit-function-declaration]
+   13 |     Tcl_Command found = Tcl_FindCommand(o->interp, "::Destination::p", NULL, TCL_GLOBAL_ONLY);
+      |                         ^~~~~~~~~~~~~~~
+      |                         Tcl_HideCommand
+/tmp/vm-runtime-oo-retirement-phase/delete_phase.c:13:25: error: initialization of ‘Tcl_Command’ {aka ‘struct Tcl_Command_ *’} from ‘int’ makes pointer from integer without a cast [-Wint-conversion]
+/tmp/vm-runtime-oo-retirement-phase/delete_phase.c: In function ‘main’:
+/tmp/vm-runtime-oo-retirement-phase/delete_phase.c:34:79: warning: comparison between pointer and integer
+   34 |            Tcl_FindCommand(interp, "::Destination::p", NULL, TCL_GLOBAL_ONLY) == replacement,
+      |                                                                               ^~

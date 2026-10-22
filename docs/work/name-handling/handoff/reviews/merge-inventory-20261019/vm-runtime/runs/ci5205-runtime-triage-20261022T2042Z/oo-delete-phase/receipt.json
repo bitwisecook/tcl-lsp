@@ -1,0 +1,178 @@
+{
+  "utc": "2026-10-22T20:49:50.319308+00:00",
+  "status": "OFFTREE Rust correction uncompiled/unrun. Actual all5 pinned-C portable public-API controls compile+execute exit0, exact source/provider guard unchanged.",
+  "source": "/workspace/naming-migration-active/tcl-lsp/runtime/rust/src/cmd_oo/original_namespace_copy_tests.rs",
+  "source_sha256": "a86cf4f40a0c117728fef36a4871ec2e974dd67f34619b7acbd81f0efad558e9",
+  "patch_sha256": "7049a53f136bbfb060a5f89ac087d84663075f0c7eeff337a5bb071f0f7d85c2",
+  "change": "Replace false empty-table phase assertion with exact original-key + prior-generation observation; assert after callback returns, retain all original success/refusal/ownership/counters.",
+  "portable_witness_source_sha256": "a358aed411a402efa897d44e1f772ac06deea2e7ba1e74a8f3a4d2d632049ab7",
+  "c_source_authority_sha256": "7bf61fbed4d32b3dfdb39ab7bc1ebbf22e39b4b7763239f2aa069fe88d255ece",
+  "pinned_c_controls": [
+    {
+      "version": "8.4.20",
+      "compile_exit": 0,
+      "argv": [
+        "/usr/bin/cc",
+        "-std=c99",
+        "-O0",
+        "/tmp/vm-runtime-oo-retirement-phase/delete_phase_portable.c",
+        "-I",
+        "/workspace/naming-toolchains/tmp/tcl8.4.20/generic",
+        "-o",
+        "/tmp/vm-runtime-oo-retirement-phase/delete-phase-portable-8.4.20",
+        "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-lz",
+        "-lpthread",
+        "-ldl",
+        "-lm"
+      ],
+      "archive_sha256": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+      "source_sha256": "a358aed411a402efa897d44e1f772ac06deea2e7ba1e74a8f3a4d2d632049ab7",
+      "header_sha256": {
+        "tcl.h": "824fdc7632335682f70066a013b655b176b5539b194e85f8b5ccddb1815bcccf",
+        "tclDecls.h": "3e89c14101bbf1969da34f6a5fecc53c57fbb0cbd69137c0fe00a2750fcdb27e",
+        "tclPlatDecls.h": "8d7d5a1c6319aeed472f670ae0fb67b41d6595751079c6b67dc40cc9521f8e89"
+      },
+      "compiler": "/usr/bin/cc",
+      "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "exe_sha256": "029cd22ea1a0dc66365f80087df4fd881c11327339f27fd336f6bdb5cf8e7094",
+      "run_exit": 0,
+      "stdout": "during_delete calls=1 old_entry_matches_token=1 old_proc=1 new_proc=0\nafter_create calls=1 new_token_proc=1 selected_new_proc=1\n",
+      "stderr": ""
+    },
+    {
+      "version": "8.5.19",
+      "compile_exit": 0,
+      "argv": [
+        "/usr/bin/cc",
+        "-std=c99",
+        "-O0",
+        "/tmp/vm-runtime-oo-retirement-phase/delete_phase_portable.c",
+        "-I",
+        "/workspace/naming-toolchains/tmp/tcl8.5.19/generic",
+        "-o",
+        "/tmp/vm-runtime-oo-retirement-phase/delete-phase-portable-8.5.19",
+        "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-lz",
+        "-lpthread",
+        "-ldl",
+        "-lm"
+      ],
+      "archive_sha256": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+      "source_sha256": "a358aed411a402efa897d44e1f772ac06deea2e7ba1e74a8f3a4d2d632049ab7",
+      "header_sha256": {
+        "tcl.h": "c94cc4e9c79077f0fbb49da3f5f45b8a4e01d53ed605a9a2b8da50cdab7ecdd5",
+        "tclDecls.h": "3affefe8c9c5399ebdc9fcab7b2765aac0cfcb9d35c7f170e19f0c611e17b6bf",
+        "tclPlatDecls.h": "1d6d63ee65d5f149099fdd24589b061b788b6eca0238ae6383274a138c4999ce"
+      },
+      "compiler": "/usr/bin/cc",
+      "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "exe_sha256": "72f167c2b66239960420fc7c3992f5142b0eb1a72cd4e78443dadf28b18d79eb",
+      "run_exit": 0,
+      "stdout": "during_delete calls=1 old_entry_matches_token=1 old_proc=1 new_proc=0\nafter_create calls=1 new_token_proc=1 selected_new_proc=1\n",
+      "stderr": ""
+    },
+    {
+      "version": "8.6.18",
+      "compile_exit": 0,
+      "argv": [
+        "/usr/bin/cc",
+        "-std=c99",
+        "-O0",
+        "/tmp/vm-runtime-oo-retirement-phase/delete_phase_portable.c",
+        "-I",
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/generic",
+        "-o",
+        "/tmp/vm-runtime-oo-retirement-phase/delete-phase-portable-8.6.18",
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lz",
+        "-lpthread",
+        "-ldl",
+        "-lm"
+      ],
+      "archive_sha256": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+      "source_sha256": "a358aed411a402efa897d44e1f772ac06deea2e7ba1e74a8f3a4d2d632049ab7",
+      "header_sha256": {
+        "tcl.h": "aed709900889091def1cd98ffad6f214b870b0e8dbbf7933314fb4668655c245",
+        "tclDecls.h": "b4072e658d9026bd81a0706e9ff02bf40f8f1f137bcd882d2a23dd25b335a144",
+        "tclPlatDecls.h": "9498557f03c1a6fa8b6f6c3b16988cba9efda86bbed8d1c6b4851b09db0da7de"
+      },
+      "compiler": "/usr/bin/cc",
+      "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "exe_sha256": "6790ead8f5ca575be0183453d6dc5f5eaefd7b8bd302a4ab87c6b785ae1a6f06",
+      "run_exit": 0,
+      "stdout": "during_delete calls=1 old_entry_matches_token=1 old_proc=1 new_proc=0\nafter_create calls=1 new_token_proc=1 selected_new_proc=1\n",
+      "stderr": ""
+    },
+    {
+      "version": "9.0.4",
+      "compile_exit": 0,
+      "argv": [
+        "/usr/bin/cc",
+        "-std=c99",
+        "-O0",
+        "/tmp/vm-runtime-oo-retirement-phase/delete_phase_portable.c",
+        "-I",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/generic",
+        "-o",
+        "/tmp/vm-runtime-oo-retirement-phase/delete-phase-portable-9.0.4",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lz",
+        "-lpthread",
+        "-ldl",
+        "-lm"
+      ],
+      "archive_sha256": "c92aa0fa09d39bf9875d9cf792458fae5b8f898ad0386d7a038fa60824036bb2",
+      "source_sha256": "a358aed411a402efa897d44e1f772ac06deea2e7ba1e74a8f3a4d2d632049ab7",
+      "header_sha256": {
+        "tcl.h": "eacd3dc6b0f9615fa654e4645699221dd30137811bd09f92c34f3f7135e96f7a",
+        "tclDecls.h": "28ad708ea0738fbf8bfb13dcde87ea8064220982d29b8c082df87c7987ff2c70",
+        "tclPlatDecls.h": "013fb34b4b876732a421dcd56009292e9b71b768be4b57a392599e347ea8f80d"
+      },
+      "compiler": "/usr/bin/cc",
+      "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "exe_sha256": "adbd673c0038b821e5f14bd956b53931ee75d0207dfa36619d5eaf70bc0844d2",
+      "run_exit": 0,
+      "stdout": "during_delete calls=1 old_entry_matches_token=1 old_proc=1 new_proc=0\nafter_create calls=1 new_token_proc=1 selected_new_proc=1\n",
+      "stderr": ""
+    },
+    {
+      "version": "9.1.0",
+      "compile_exit": 0,
+      "argv": [
+        "/usr/bin/cc",
+        "-std=c99",
+        "-O0",
+        "/tmp/vm-runtime-oo-retirement-phase/delete_phase_portable.c",
+        "-I",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/generic",
+        "-o",
+        "/tmp/vm-runtime-oo-retirement-phase/delete-phase-portable-9.1.0",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lz",
+        "-lpthread",
+        "-ldl",
+        "-lm"
+      ],
+      "archive_sha256": "f38364134408206aaf4a79ba0b8f45d7197ea1742ce36efb71532a41551d32cc",
+      "source_sha256": "a358aed411a402efa897d44e1f772ac06deea2e7ba1e74a8f3a4d2d632049ab7",
+      "header_sha256": {
+        "tcl.h": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+        "tclDecls.h": "590a2f27f095e7150bfb648f43d00c9a9ec5dbb2b936e413b551f663dc972142",
+        "tclPlatDecls.h": "09b4a4fef3c23a6af2a55c2864736587ecfd9e8ccebe28cb75e95b42417e007c"
+      },
+      "compiler": "/usr/bin/cc",
+      "compiler_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "exe_sha256": "f42baac18741b00b1fee031e6cd27fab6f1adbc7e13e242fb8fa8f396f756dbf",
+      "run_exit": 0,
+      "stdout": "during_delete calls=1 old_entry_matches_token=1 old_proc=1 new_proc=0\nafter_create calls=1 new_token_proc=1 selected_new_proc=1\n",
+      "stderr": ""
+    }
+  ],
+  "final_guard": {
+    "unchanged": true,
+    "utc": "2026-10-22T20:48:45.846412+00:00"
+  },
+  "first_witness_scope": "First witness observes raw old token equality on C8.5/8.6/9.0/9.1. C8.4 compile fails because Tcl_FindCommand is not public in that header; no C8.4 runtime inference from that attempt. Portable successor uses actual token info plus unique old clientData on all5.",
+  "semantic_boundary": "C deleteProc still sees old selected command; unlink and new publication follow. No product ordering or Native authority change. Exact original key/generation predicate replaces incorrect empty-table expectation; assertions moved outside extern C to avoid harness abort. All other original assertions retained."
+}

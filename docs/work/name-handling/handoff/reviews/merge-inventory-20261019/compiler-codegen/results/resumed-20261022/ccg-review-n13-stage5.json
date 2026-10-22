@@ -1,0 +1,40 @@
+{
+  "status": "Independent BOUNDED STATIC review of immutable stage5. BLOCKED by definite region normal-graph purpose contradiction; no apply/type/runtime approval.",
+  "utc": "2026-10-22T20:40:55.540600+00:00",
+  "full_patch": "/tmp/compiler-names-n13-stage5.patch",
+  "sha256": "713627cb0096aad9ee6e7c901c8004e1faf774c8fdd9a8ef1e7be8215f9d41e2",
+  "scope": "NEW conditional handler normal/runtime barriers + exact ordered region/predecessor/outcome ownership/memo reuse. Prior stage4/settings-v2/capture-join-v3 not broadly re-approved.",
+  "artifact_continuity": "Exact full patch SHA verified; all25 frozen shadow proposed SHA values match manifest.",
+  "findings": [
+    {
+      "id": "CCG-N13-S5-1",
+      "severity": "definite static functional blocker",
+      "path_chain": [
+        "command_binding/conditional_source/region.rs::walk_region_uncached",
+        "command_binding/source_transition_advice/source_point.rs::normal_source_outcome_graph",
+        "command_binding/source_transition_advice.rs::prepare_source_advice_tape"
+      ],
+      "detail": "walk_region_uncached requests normal_source_outcome_graph on bindings whose baseline point is a conditional region. That helper always selects CompleteProgram, while prepare_source_advice_tape explicitly returns None for every conditional region with CompleteProgram. Thus normal_graph is always None for issued regions; replay_region_chain returns complete:false before outer frame restoration, and written namespace/deep normal-chain positive controls cannot succeed.",
+      "required_boundary": "Use a DISTINCT exact-issued-region normal-outcome purpose accepting only sealed original_region_plan. Keep CompleteProgram/whole-document refusal intact and refuse non-region use of the new purpose; never strip inherited owner or perform prefix reanalysis.",
+      "owner_response": "Names confirms same blocker independently from compiler peer and is preparing immutable successor with distinct ConditionalRegion catalogue purpose. Stage5 unchanged; no successor reviewed here."
+    }
+  ],
+  "positive_static_observations": [
+    "SourceConditionalHandlerNormal is a separate typed receipt from SourceNativeNormalCompletion, with exact point/site/config/words/operation/current origin and Conditional/default compiler context. Inherited normal handler path cannot create native completion receipt.",
+    "Normal variable-store preservation remains gated ONLY by native handler_complete; conditional_complete can retain source conditional normal route but cannot license Native quiet variable write. Receipts are cleared at enclosing handler boundary.",
+    "Inherited prepare_source_chunk deliberately does no physical native preflight; separate existing bytecode/script/procedure runtime-target refusal and invocation-purpose/native compiler/provider gates remain intact. Region reborrow rejects whole source/current_analysis/optimiser-CU doors rather than supplying full file authority.",
+    "Conditional normal outcome graph seals root query BEFORE future-body surveys, counts begun and positively selected operations, requires FallsThrough/accepted arity/complete roles/Absent retained callbacks and rejects native baseline/uncertainty/arity debts. This finite source completeness is not physical load completion.",
+    "Region replay starts from exact continuation child outcomes/graph, consumes captured frame suffixes in reverse stack order, requires normal plus no abrupt alternatives, restores only each captured actual namespace parent frame, and retains actual immediate predecessor region. Unavailable suffix yields incomplete set without normal outcome.",
+    "Continuation same_request includes actual point, same private plan allocation, same actual child owner/origin/full input, optional sealed prior outcome identity, dialect and grammar; bucket hash is not equality. No Native/Loaded/source-currentness grant follows token alone.",
+    "Global source-point interner is shared by first-edge and private region points. Complete payload equality retains actual source settings/full snapshot and private region entry identity before monotonic checked issuance; no split key namespace or reuse.",
+    "Weak region-set and individual-region memos are outside semantic Eq. Individual memo requires same actual continuation, predecessor, frame index and full incoming outcomes; strong predecessor chain keeps inner region attached when aggregate set expires. No self-cycle identified: incoming/continuation refer to earlier point/outcomes; current region retains later bindings outward only.",
+    "Region analysis matches exact issued region + actual kernel analysis-owner pointer + inherited point + complete typed input/config/realm. Outside-position and unpositioned compatibility projections refuse; actual membership comes from retained executable vectors or selected body receipts, not span containment.",
+    "Written controls cover aggregate-set expiry with live region reuse, genuine inner\u2192outer namespace predecessor/restoration, deep sealed child-outcome join without renewing opaque original prefix, and foreign owner/config/whole-CU refusal. All are UNRUN."
+  ],
+  "limits": [
+    "Remaining sequential actual-region\u2192original-prefix outcome projection was reported by LSP/names; not independently measured or closed by this review.",
+    "Parent physical path/publication/currentness and host per-region append/index inventories remain separate; no typecheck or full source-graph convergence result.",
+    "Every new control is unrun and strict Clippy/fmt/final gates remain open. No whole N13 or full25-path approval."
+  ],
+  "actions": "Read-only immutable artifacts; wrote only this /tmp review receipt. No implementation, apply, Cargo or canonical source edits. Original N17 plan unchanged."
+}

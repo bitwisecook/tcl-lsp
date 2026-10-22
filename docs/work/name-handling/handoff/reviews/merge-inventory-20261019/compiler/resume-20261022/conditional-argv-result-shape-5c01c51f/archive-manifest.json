@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-22T20:39:20Z",
+  "files": {
+    "proposal.patch.txt": "5c01c51f6a36f6a83fff731ebd64dc0399736af8d542285ca133397af773ef62",
+    "receipt.json": "8d41113b42c8c6d6c2a4eb41c34ab860ba9abb9b74e6e52f53b3d14fe392dea4",
+    "c-tcl-protocol-source-authority.json": "87e26de8db1a8d4c1434ea3cb69087167079271309841a4e8a809d1a0673f5f4",
+    "pre-formatter-original-072abb5f.patch.txt": "072abb5f09b2d34f6a588de07ba72ebce77709c92fbe2bfd8c607f853233d4a1",
+    "refresh-per-path.json": "b7d5a20453e54e7264721d1c91538399b68c9349139c14bd141465f7ad359c52",
+    "refresh-script.py.txt": "7b9ca82042078ed9130882abd086dc7e69df1556c312d4a75c5ca9bfa253f344"
+  }
+}

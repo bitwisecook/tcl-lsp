@@ -1,0 +1,631 @@
+{
+  "role": "compiler-names",
+  "status": "actual guarded Clippy findings on def9; off-tree fixes required, no lint allowance/assertion weakening",
+  "count": 104,
+  "rows": [
+    {
+      "message": "binding's name is too similar to existing binding",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_navigation.rs",
+      "line": 847,
+      "column": 13
+    },
+    {
+      "message": "redundant field names in struct initialization",
+      "file": "rust/tcl-compiler/src/command_binding/package_target_survey.rs",
+      "line": 147,
+      "column": 13
+    },
+    {
+      "message": "this function has too many lines (107/100)",
+      "file": "rust/tcl-compiler/src/analyser/commands.rs",
+      "line": 966,
+      "column": 5
+    },
+    {
+      "message": "redundant closure",
+      "file": "rust/tcl-compiler/src/analyser/commands.rs",
+      "line": 1687,
+      "column": 48
+    },
+    {
+      "message": "this function has too many lines (137/100)",
+      "file": "rust/tcl-compiler/src/analyser/commands.rs",
+      "line": 2813,
+      "column": 5
+    },
+    {
+      "message": "redundant closure",
+      "file": "rust/tcl-compiler/src/analyser/commands.rs",
+      "line": 2891,
+      "column": 58
+    },
+    {
+      "message": "unnecessary closure used to substitute value for `Option::None`",
+      "file": "rust/tcl-compiler/src/analyser/commands.rs",
+      "line": 2935,
+      "column": 21
+    },
+    {
+      "message": "this function has too many lines (161/100)",
+      "file": "rust/tcl-compiler/src/analyser/commands.rs",
+      "line": 3854,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (102/100)",
+      "file": "rust/tcl-compiler/src/analyser/commands.rs",
+      "line": 4904,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (115/100)",
+      "file": "rust/tcl-compiler/src/analyser/scope.rs",
+      "line": 2153,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (114/100)",
+      "file": "rust/tcl-compiler/src/analyser/scope.rs",
+      "line": 2637,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (114/100)",
+      "file": "rust/tcl-compiler/src/analyser/scope.rs",
+      "line": 3039,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (147/100)",
+      "file": "rust/tcl-compiler/src/command_binding/hosted_procedure_body.rs",
+      "line": 189,
+      "column": 5
+    },
+    {
+      "message": "this boolean expression can be simplified",
+      "file": "rust/tcl-compiler/src/command_binding/logical_operation.rs",
+      "line": 470,
+      "column": 20
+    },
+    {
+      "message": "this function has too many lines (129/100)",
+      "file": "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
+      "line": 591,
+      "column": 5
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-compiler/src/command_binding/original_callback_lookup.rs",
+      "line": 185,
+      "column": 21
+    },
+    {
+      "message": "this function has too many lines (105/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_arguments.rs",
+      "line": 38,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (108/100)",
+      "file": "rust/tcl-compiler/src/command_binding/original_command_table.rs",
+      "line": 1944,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (113/100)",
+      "file": "rust/tcl-compiler/src/command_binding/original_command_table.rs",
+      "line": 2103,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (146/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_command_world.rs",
+      "line": 144,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (104/100)",
+      "file": "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+      "line": 2145,
+      "column": 5
+    },
+    {
+      "message": "redundant closure",
+      "file": "rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs",
+      "line": 160,
+      "column": 43
+    },
+    {
+      "message": "these match arms have identical bodies",
+      "file": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+      "line": 163,
+      "column": 13
+    },
+    {
+      "message": "these match arms have identical bodies",
+      "file": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+      "line": 175,
+      "column": 13
+    },
+    {
+      "message": "this function has too many lines (102/100)",
+      "file": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+      "line": 1206,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (121/100)",
+      "file": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+      "line": 2251,
+      "column": 5
+    },
+    {
+      "message": "these match arms have identical bodies",
+      "file": "rust/tcl-compiler/src/command_binding/logical_variable_scope.rs",
+      "line": 280,
+      "column": 13
+    },
+    {
+      "message": "this could be rewritten as `let...else`",
+      "file": "rust/tcl-compiler/src/command_binding/logical_variable_scope.rs",
+      "line": 300,
+      "column": 9
+    },
+    {
+      "message": "this function's return value is unnecessarily wrapped by `Option`",
+      "file": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+      "line": 83,
+      "column": 5
+    },
+    {
+      "message": "this function's return value is unnecessarily wrapped by `Option`",
+      "file": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+      "line": 86,
+      "column": 5
+    },
+    {
+      "message": "this function's return value is unnecessarily wrapped by `Option`",
+      "file": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+      "line": 92,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (200/100)",
+      "file": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+      "line": 843,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (121/100)",
+      "file": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+      "line": 1894,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (108/100)",
+      "file": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+      "line": 2388,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (147/100)",
+      "file": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+      "line": 2505,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (101/100)",
+      "file": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+      "line": 2949,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (122/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_read_scope.rs",
+      "line": 160,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (187/100)",
+      "file": "rust/tcl-compiler/src/command_binding/scalar_body_alpha.rs",
+      "line": 495,
+      "column": 5
+    },
+    {
+      "message": "unused `self` argument",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "line": 201,
+      "column": 9
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "line": 462,
+      "column": 15
+    },
+    {
+      "message": "this function has too many lines (140/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "line": 978,
+      "column": 5
+    },
+    {
+      "message": "you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "line": 1095,
+      "column": 28
+    },
+    {
+      "message": "this function has too many lines (148/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "line": 1211,
+      "column": 5
+    },
+    {
+      "message": "unnecessary closure used to substitute value for `Option::None`",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "line": 1491,
+      "column": 26
+    },
+    {
+      "message": "this function has too many lines (160/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "line": 1546,
+      "column": 5
+    },
+    {
+      "message": "assigning the result of `Clone::clone()` may be inefficient",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "line": 1660,
+      "column": 17
+    },
+    {
+      "message": "assigning the result of `Clone::clone()` may be inefficient",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "line": 1698,
+      "column": 13
+    },
+    {
+      "message": "usage of wildcard import",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+      "line": 7,
+      "column": 5
+    },
+    {
+      "message": "redundant closure",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+      "line": 88,
+      "column": 46
+    },
+    {
+      "message": "this function has too many lines (126/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+      "line": 146,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (105/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+      "line": 451,
+      "column": 5
+    },
+    {
+      "message": "unused `self` argument",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_body.rs",
+      "line": 986,
+      "column": 9
+    },
+    {
+      "message": "this function has too many lines (137/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_parameter_template.rs",
+      "line": 97,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (150/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_math.rs",
+      "line": 202,
+      "column": 5
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_navigation.rs",
+      "line": 390,
+      "column": 15
+    },
+    {
+      "message": "unused `self` argument",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs",
+      "line": 454,
+      "column": 9
+    },
+    {
+      "message": "this function has too many lines (125/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+      "line": 410,
+      "column": 5
+    },
+    {
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+      "line": 768,
+      "column": 16
+    },
+    {
+      "message": "this function has too many lines (108/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+      "line": 763,
+      "column": 5
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_jim_class.rs",
+      "line": 331,
+      "column": 9
+    },
+    {
+      "message": "this function has too many lines (117/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_constructor_effects.rs",
+      "line": 135,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (102/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_publication_proposal.rs",
+      "line": 103,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (207/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_namespace.rs",
+      "line": 78,
+      "column": 5
+    },
+    {
+      "message": "very complex type used. Consider factoring parts into `type` definitions",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "line": 888,
+      "column": 9
+    },
+    {
+      "message": "this function has too many lines (139/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "line": 1317,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (121/100)",
+      "file": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "line": 2845,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (109/100)",
+      "file": "rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs",
+      "line": 522,
+      "column": 1
+    },
+    {
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "file": "rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs",
+      "line": 526,
+      "column": 15
+    },
+    {
+      "message": "usage of `bool::then` in `filter_map`",
+      "file": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+      "line": 794,
+      "column": 42
+    },
+    {
+      "message": "this function has too many lines (130/100)",
+      "file": "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+      "line": 140,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (114/100)",
+      "file": "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+      "line": 388,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (101/100)",
+      "file": "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+      "line": 563,
+      "column": 1
+    },
+    {
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "file": "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+      "line": 622,
+      "column": 13
+    },
+    {
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "file": "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+      "line": 622,
+      "column": 46
+    },
+    {
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "file": "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+      "line": 622,
+      "column": 61
+    },
+    {
+      "message": "this function has too many lines (104/100)",
+      "file": "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+      "line": 824,
+      "column": 1
+    },
+    {
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "file": "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+      "line": 882,
+      "column": 13
+    },
+    {
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "file": "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+      "line": 882,
+      "column": 46
+    },
+    {
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "file": "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+      "line": 882,
+      "column": 61
+    },
+    {
+      "message": "this function has too many lines (102/100)",
+      "file": "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+      "line": 936,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (136/100)",
+      "file": "rust/tcl-compiler/src/command_binding/body_template.rs",
+      "line": 444,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (114/100)",
+      "file": "rust/tcl-compiler/src/command_binding/compiled_invocation.rs",
+      "line": 1347,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (120/100)",
+      "file": "rust/tcl-compiler/src/command_binding/ensemble_compilation.rs",
+      "line": 245,
+      "column": 5
+    },
+    {
+      "message": "large size difference between variants",
+      "file": "rust/tcl-compiler/src/command_binding/generated_procedures.rs",
+      "line": 269,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (120/100)",
+      "file": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+      "line": 1091,
+      "column": 5
+    },
+    {
+      "message": "iterating on a map's keys",
+      "file": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+      "line": 1951,
+      "column": 28
+    },
+    {
+      "message": "this `if` statement can be collapsed",
+      "file": "rust/tcl-compiler/src/command_binding/original_name_value.rs",
+      "line": 2008,
+      "column": 9
+    },
+    {
+      "message": "usage of wildcard import",
+      "file": "rust/tcl-compiler/src/command_binding/package_target_survey.rs",
+      "line": 4,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (110/100)",
+      "file": "rust/tcl-compiler/src/command_binding/package_target_survey.rs",
+      "line": 31,
+      "column": 5
+    },
+    {
+      "message": "you seem to be trying to use `match` for destructuring a single pattern. Consider using `if let`",
+      "file": "rust/tcl-compiler/src/command_binding/package_target_survey.rs",
+      "line": 280,
+      "column": 24
+    },
+    {
+      "message": "this argument (400 byte) is passed by value, but might be more efficient if passed by reference (limit: 256 byte)",
+      "file": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 7052,
+      "column": 13
+    },
+    {
+      "message": "this function has too many lines (119/100)",
+      "file": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 7258,
+      "column": 5
+    },
+    {
+      "message": "used underscore-prefixed binding",
+      "file": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 7421,
+      "column": 25
+    },
+    {
+      "message": "used underscore-prefixed binding",
+      "file": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 7425,
+      "column": 92
+    },
+    {
+      "message": "this function has too many lines (108/100)",
+      "file": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 7595,
+      "column": 5
+    },
+    {
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "file": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 7605,
+      "column": 9
+    },
+    {
+      "message": "assigning the result of `Clone::clone()` may be inefficient",
+      "file": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 8420,
+      "column": 13
+    },
+    {
+      "message": "this function has too many lines (129/100)",
+      "file": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 8759,
+      "column": 5
+    },
+    {
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "file": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 9404,
+      "column": 9
+    },
+    {
+      "message": "this function has too many lines (120/100)",
+      "file": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 10523,
+      "column": 5
+    },
+    {
+      "message": "this function has too many arguments (8/7)",
+      "file": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 11941,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (112/100)",
+      "file": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 13193,
+      "column": 1
+    },
+    {
+      "message": "this function has too many lines (110/100)",
+      "file": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 15022,
+      "column": 5
+    },
+    {
+      "message": "this function has too many lines (109/100)",
+      "file": "rust/tcl-compiler/src/command_binding.rs",
+      "line": 18039,
+      "column": 1
+    }
+  ]
+}

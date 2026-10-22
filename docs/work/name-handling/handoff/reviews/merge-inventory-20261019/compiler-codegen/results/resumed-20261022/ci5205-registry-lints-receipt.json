@@ -1,0 +1,58 @@
+{
+  "status": "OFF-TREE peer-ready. Pinned rustfmt1.99.1 syntax/format on copied source passed; no Cargo/Clippy/type/runtime claim. Exact published blob proof pending Git hold release for two unmaterialised publisher files.",
+  "utc": "2026-10-22T20:30:42.514082+00:00",
+  "requested_base": "published39b392/2b934 (root reports identical affected paths)",
+  "paths": [
+    {
+      "path": "rust/tcl-registry/src/native_compilation.rs",
+      "before_sha256": "55d44455e791e143a85805c4349be96167f4d4058cb306157235b577a7d81d90",
+      "proposed_sha256": "8634c29587d43f9b1122e2852be40bece8d482f8adbc4abb1e3147e092876a49"
+    },
+    {
+      "path": "rust/tcl-registry/src/native_string_is_compilation.rs",
+      "before_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+      "proposed_sha256": "a70c5ba877c0c294d8d795ed4f99dc88e37b5fe6c7cbac9e81b02715a0a6e555"
+    },
+    {
+      "path": "rust/tcl-registry/src/native_procedure.rs",
+      "before_sha256": "3adb92e6d21601669ddfdf751db9219da677d941b4bea986869afc3f5502e790",
+      "proposed_sha256": "d809c352af7979774f3adeb26c7591db0b347ab0dec8346b04a8c3f32de7dba0"
+    }
+  ],
+  "patch": "/tmp/ccg-ci5205-registry-lints/proposal.patch",
+  "sha256": "16257e9d0fb7f97e272db6043429dedb1fd642b01730fa5e0722d162c028ed24",
+  "diagnostics": 4,
+  "unique_paths": 3,
+  "source_line_counts": {
+    "preserves_names_for_literal_vector": {
+      "base_nonblank_noncomment_lines": 109,
+      "proposed_nonblank_noncomment_lines": 103
+    },
+    "select_delegated_word_grammar": {
+      "base_nonblank_noncomment_lines": 115,
+      "proposed_nonblank_noncomment_lines": 100
+    }
+  },
+  "changes": [
+    "Extract existing InfoCommands literal-name predicate into private info_commands_preserves_names(words,operand_from,count); count evaluation and whole expression/short-circuit predicates unchanged.",
+    "Extract existing StringTrim selection into private string_trim_grammar(shapes,version,operation,scope), preserving exact release/scope/shape/expanded checks and Generic/Inline guard results; no shared selector substitution or new admission.",
+    "Add backticks around StringIs in module documentation.",
+    "Remove explicit leading dereference of memo.entry(...).or_insert_with(...) relying on exact expected static-reference auto-deref; mutex memo and pointer identity unchanged."
+  ],
+  "invariants": [
+    "No assertions, fixture data, selected test names or lint allowances changed.",
+    "No schema/realm/input/provider/Native authority gates changed.",
+    "All canonical source unchanged by preparer; no Cargo queued."
+  ],
+  "base_acquisition": {
+    "native_compilation": "published working file; exact observed hash above",
+    "other2": "publisher filtered worktree omitted paths, so copied frozen active unchanged bytes; verify against published Git blobs before integration"
+  },
+  "preparation_notes": [
+    "First formatter invocation lacked configured RUSTUP_HOME and exited before parsing; corrected by sourcing standard env, then rustfmt exit0.",
+    "No initial partial draft is acceptance evidence; immutable proposal SHA is authoritative."
+  ],
+  "exact_base_proof": "/tmp/ccg-ci5205-registry-lints/base-proof.json",
+  "base_proof_status": "All3 before files exact CI2b934, published39b392 and integrated active42047670",
+  "coordinator_application": "Root reports exact applied def9a5fd7; guarded Clippy in progress, no verdict yet"
+}

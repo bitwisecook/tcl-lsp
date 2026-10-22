@@ -1,0 +1,307 @@
+{
+  "utc": "2026-10-22T20:51:09.199182+00:00",
+  "status": "IMMUTABLE PLAN ONLY; no Cargo queued or canonical test/probe installed. Execute only after explicit root slot and reviewed diagnostic+dedup apply.",
+  "owner": "compiler-codegen",
+  "repo": "/workspace/naming-migration-active/tcl-lsp",
+  "ordering": "Root owns order after existing compiler/LSP/VM slots. Each explicitly requested phase holds global flock across its entire build/run/receipts. No automatic second phase, no whole compiler lib.",
+  "baseline_expected_selected": 5,
+  "new_controls_expected_selected": 2,
+  "jobs": [
+    {
+      "phase": "baseline",
+      "label": "baseline-1-a_compiled_proc_body_runs_through_the_runtimes_function_table",
+      "package": "tcl-compiler",
+      "target": "wasm_real_link",
+      "selector": "a_compiled_proc_body_runs_through_the_runtimes_function_table",
+      "expected_selected": 1,
+      "selected_tests": [
+        "a_compiled_proc_body_runs_through_the_runtimes_function_table"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--test",
+        "wasm_real_link",
+        "a_compiled_proc_body_runs_through_the_runtimes_function_table",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cargo_command": "cargo test --locked -p tcl-compiler --test wasm_real_link a_compiled_proc_body_runs_through_the_runtimes_function_table -- --exact --nocapture --test-threads=1",
+      "artifact_stem": "wasm_real_link",
+      "requires_diagnostics": true,
+      "baseline_classification": "Parent exact named baseline PASS\u2192current FAIL"
+    },
+    {
+      "phase": "baseline",
+      "label": "baseline-2-a_compiled_proc_body_sees_the_frame_run_proc_pushed",
+      "package": "tcl-compiler",
+      "target": "wasm_real_link",
+      "selector": "a_compiled_proc_body_sees_the_frame_run_proc_pushed",
+      "expected_selected": 1,
+      "selected_tests": [
+        "a_compiled_proc_body_sees_the_frame_run_proc_pushed"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--test",
+        "wasm_real_link",
+        "a_compiled_proc_body_sees_the_frame_run_proc_pushed",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cargo_command": "cargo test --locked -p tcl-compiler --test wasm_real_link a_compiled_proc_body_sees_the_frame_run_proc_pushed -- --exact --nocapture --test-threads=1",
+      "artifact_stem": "wasm_real_link",
+      "requires_diagnostics": true,
+      "baseline_classification": "Parent exact named baseline PASS\u2192current FAIL"
+    },
+    {
+      "phase": "baseline",
+      "label": "baseline-3-compiled_argv_balances_allocations_in_the_real_runtime",
+      "package": "tcl-compiler",
+      "target": "wasm_real_link",
+      "selector": "compiled_argv_balances_allocations_in_the_real_runtime",
+      "expected_selected": 1,
+      "selected_tests": [
+        "compiled_argv_balances_allocations_in_the_real_runtime"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--test",
+        "wasm_real_link",
+        "compiled_argv_balances_allocations_in_the_real_runtime",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cargo_command": "cargo test --locked -p tcl-compiler --test wasm_real_link compiled_argv_balances_allocations_in_the_real_runtime -- --exact --nocapture --test-threads=1",
+      "artifact_stem": "wasm_real_link",
+      "requires_diagnostics": false,
+      "baseline_classification": "Parent exact named baseline PASS\u2192current FAIL"
+    },
+    {
+      "phase": "baseline",
+      "label": "baseline-4-recursion_through_a_compiled_body_refuses_at_the_interpreted_depth",
+      "package": "tcl-compiler",
+      "target": "wasm_real_link",
+      "selector": "recursion_through_a_compiled_body_refuses_at_the_interpreted_depth",
+      "expected_selected": 1,
+      "selected_tests": [
+        "recursion_through_a_compiled_body_refuses_at_the_interpreted_depth"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--test",
+        "wasm_real_link",
+        "recursion_through_a_compiled_body_refuses_at_the_interpreted_depth",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cargo_command": "cargo test --locked -p tcl-compiler --test wasm_real_link recursion_through_a_compiled_body_refuses_at_the_interpreted_depth -- --exact --nocapture --test-threads=1",
+      "artifact_stem": "wasm_real_link",
+      "requires_diagnostics": true,
+      "baseline_classification": "Parent exact named baseline PASS\u2192current FAIL"
+    },
+    {
+      "phase": "baseline",
+      "label": "baseline-5-sealed_native_i64_add_runs_and_trace_registration_falls_back",
+      "package": "tcl-compiler",
+      "target": "wasm_real_link",
+      "selector": "sealed_native_i64_add_runs_and_trace_registration_falls_back",
+      "expected_selected": 1,
+      "selected_tests": [
+        "sealed_native_i64_add_runs_and_trace_registration_falls_back"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--test",
+        "wasm_real_link",
+        "sealed_native_i64_add_runs_and_trace_registration_falls_back",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cargo_command": "cargo test --locked -p tcl-compiler --test wasm_real_link sealed_native_i64_add_runs_and_trace_registration_falls_back -- --exact --nocapture --test-threads=1",
+      "artifact_stem": "wasm_real_link",
+      "requires_diagnostics": true,
+      "baseline_classification": "Parent exact named baseline PASS\u2192current FAIL"
+    },
+    {
+      "phase": "new-controls",
+      "label": "new-controls-1-original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint",
+      "package": "tcl-compiler",
+      "target": "wasm_real_link",
+      "selector": "original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint",
+      "expected_selected": 1,
+      "selected_tests": [
+        "original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--test",
+        "wasm_real_link",
+        "original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cargo_command": "cargo test --locked -p tcl-compiler --test wasm_real_link original_argv_descriptor_requires_current_manifest_and_rejects_prior_fingerprint -- --exact --nocapture --test-threads=1",
+      "artifact_stem": "wasm_real_link",
+      "requires_diagnostics": true,
+      "baseline_classification": "ABSENT exact baseline; separate new control, never inferred P2F"
+    },
+    {
+      "phase": "new-controls",
+      "label": "new-controls-2-root_colon_publication_runs_its_own_compiled_table_entry",
+      "package": "tcl-compiler",
+      "target": "wasm_real_link",
+      "selector": "root_colon_publication_runs_its_own_compiled_table_entry",
+      "expected_selected": 1,
+      "selected_tests": [
+        "root_colon_publication_runs_its_own_compiled_table_entry"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-compiler",
+        "--test",
+        "wasm_real_link",
+        "root_colon_publication_runs_its_own_compiled_table_entry",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cargo_command": "cargo test --locked -p tcl-compiler --test wasm_real_link root_colon_publication_runs_its_own_compiled_table_entry -- --exact --nocapture --test-threads=1",
+      "artifact_stem": "wasm_real_link",
+      "requires_diagnostics": true,
+      "baseline_classification": "ABSENT exact baseline; separate new control, never inferred P2F"
+    }
+  ],
+  "required_product_inputs": [
+    {
+      "path": "rust/tcl-compiler/tests/wasm_real_link.rs",
+      "sha256": "ff2d3a6cf4925491ee916591c30234a7c7b0f60ab21f9b2db0ee9cf088433645",
+      "reason": "Reviewed observational helper must be applied; no changed expectation"
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/wasm/ir.rs",
+      "sha256": "3de0e8bfd595875511d7d4afb31e4e310b86895905f03c080879e3258fe5d6c6",
+      "reason": "Exact import-interning product repair before original argv rerun"
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+      "sha256": "fc6402287441059f9e90c3637bd6af34ecd13e0acf982b667dd27148a4c7c8d5",
+      "reason": "Exact import-interning product repair before original argv rerun"
+    }
+  ],
+  "test_inventory_sources": [
+    {
+      "path": "rust/tcl-compiler/tests/wasm_real_link.rs",
+      "sha256": "ff2d3a6cf4925491ee916591c30234a7c7b0f60ab21f9b2db0ee9cf088433645"
+    }
+  ],
+  "runner_inputs": [
+    {
+      "path": "/tmp/tcl-lsp-naming-env.sh",
+      "sha256": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+    },
+    {
+      "path": "/tmp/ccg-wasm-five-run.sh",
+      "sha256": "523debb34f8f44d619c9fad57b66138837a0ecc22ad8050f20c7d99942b6c622"
+    },
+    {
+      "path": "/tmp/ccg-wasm-five-suite.py",
+      "sha256": "f89fa73f80ec87177c0d99881c96930255cc284e5c9dd037a64d66e0420612be"
+    },
+    {
+      "path": "/tmp/ccg-wasm-five-guarded-cargo.py",
+      "sha256": "7ddda3a9ed45f6d521086eff16094a284189d418fe5c356c9b4d4aa3aac9a9d6"
+    },
+    {
+      "path": "/tmp/ccg-wasm-five-providers.py",
+      "sha256": "db4a280fc93a71b29b80adc17417b2071ff723a77ae362794dc7150eab33817a"
+    },
+    {
+      "path": "/tmp/compiler-c6-provider-manifest.py",
+      "sha256": "5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e"
+    },
+    {
+      "path": "/tmp/naming-oracle-setup.json",
+      "sha256": "40cdc417fd9aa05661047b5cf501f9b2a57a5c03f08f984b784e109213a00f99"
+    }
+  ],
+  "diagnostic_patch": {
+    "path": "/tmp/ccg-wasm-native-diagnostic/proposal.patch",
+    "sha256": "519f724e15034aa4f7930b8dde8c74e733f365ce04fcc74d587cc16592fb12b5",
+    "status": "off-tree syntax-only; peer review requested; all original assertions/fixtures/selectors unchanged"
+  },
+  "dedup_patch": {
+    "path": "/tmp/ccg-wasm-import-intern/proposal.patch",
+    "sha256": "b1ae7f0e0cbf0547b995d3d5bf8fe97503d70edf7d5de6cb5322447827b50b92",
+    "status": "independent static approval only; uncompiled/unrun"
+  },
+  "features_profile": "Cargo default features, integration target wasm_real_link; no added features. Rust1.99.1/jobs2/no incremental/dev+testdebug0 via sourced env. Real runtime child uses existing test helper ordinary Cargo manifest runtime/rust/Cargo.toml, wasm32-wasip1 target, separate target/tcl_reserved_runtime, existing RUSTFLAGS global-base2097152. No child manual build or old executable reuse.",
+  "environment_required": {
+    "TCL_REQUIRE_WASM_LINK": "1",
+    "TCL_TOMMATH_DIR": "/workspace/naming-migration-active/tcl-lsp/tmp/tcl9.0.4/libtommath",
+    "WASI_SDK_PATH": "/workspace/.toolchains/wasi-sdk-34.0",
+    "CARGO_TERM_COLOR": "never"
+  },
+  "tools_observed_only": {
+    "wasmtime": "49.0.3 (f96eabaa1 2026-10-14)",
+    "wasm_stdlib": "Rust1.99.1 wasm32-wasip1 exists",
+    "wasi_sdk": "34.0 clang/sysroot exists",
+    "tommath": "Pinned Tcl9.0.4 libtommath sources exist"
+  },
+  "guards": [
+    "Global full-phase /tmp/tcl-lsp-naming-build.lock; exact cargo argv + one exact selector +1 expected actual test per job; TCL_REQUIRE_WASM_LINK1 prevents missing-tool skip",
+    "Full tracked+unignored Rust/C/Tcl/input/config source digest before and after every job; full provider manifests cover actual Tcl/Jim wrappers/workers/sharedlibs, Rust actual tools/sharedlibs, WASM SDK clang/ar/linker+sharedlibs+sysroot/resources, wasm target stdlib and libtommath C/H. Exact diagnostic+dedup proposed file hashes required before any build",
+    "20MiB capped filtered logs retain CCG_WASM actual typed reports. Five-second free disk watchdog aborts only own Cargo process group below2GiB. Long diagnostic line truncation invalidates receipt; warnings invalidate acceptance",
+    "Every job records actual Cargo Running executable SHA/mtime/size and actual runtime target/tcl_reserved_runtime/wasm32-wasip1/debug/tcl_runtime.wasm SHA/mtime/size; runtime may build normally first job, then SHA must remain stable; no CAS/fingerprint/manual executable reuse",
+    "Known assertion failures retain exact outcome and continue only within same requested phase if full guards hold; missing test summary/build failure, source/provider drift, disk abort or runtime drift stop; no cleanup of targets/executables"
+  ],
+  "commands": {
+    "baseline": "bash /tmp/ccg-wasm-five-run.sh baseline",
+    "new-controls": "bash /tmp/ccg-wasm-five-run.sh new-controls"
+  },
+  "source_owner_limit": "C6 source syntax owner patch18fc does not donate Direct/native handler, Normal/frame/value or trace-absence authority. Actual typed diagnostics must establish first decline; no guard bypass or invented Native entry.",
+  "unchanged_n17_plan": {
+    "path": "/tmp/ccg-postbatch-functional-plan.json",
+    "sha256": "406063b58edf7ab331d69dcfb801832e36dd36fffa0324b6e1df8ebd4efca731",
+    "tests": 51
+  }
+}

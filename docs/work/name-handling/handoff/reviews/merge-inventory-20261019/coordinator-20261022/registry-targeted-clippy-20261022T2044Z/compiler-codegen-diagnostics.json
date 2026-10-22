@@ -1,0 +1,13 @@
+{
+  "role": "compiler-codegen",
+  "status": "actual guarded Clippy findings on def9; off-tree fixes required, no lint allowance/assertion weakening",
+  "count": 1,
+  "rows": [
+    {
+      "message": "this function has too many lines (104/100)",
+      "file": "rust/tcl-compiler/src/codegen/cmd_subst.rs",
+      "line": 1768,
+      "column": 5
+    }
+  ]
+}
