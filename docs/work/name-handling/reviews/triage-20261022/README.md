@@ -4,6 +4,7 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 
 | Item | What it is |
 | --- | --- |
+| `run10-current.log`, `run10-current-oracles.log`, `run10-current-oracle-summary.json` | Complete interim 27-probe replay at `60ce7009`; 588 engine executions / 138 matched checks, no unexpected output. Later rebuilt existing fold control STILL FAILS on `13050f6a` with the N17 correction. |
 | `run10-progress.log`, `run10-source-audit.log`, `run10-after-fix-source-audit.log`, `run10-startup.log`, `run10-source.rs.txt` | Interim all-finding replay on `60ce7009`: closed prefix through server-shaped rename matrix and static audit; active main log/output replay not yet complete. Startup wrapper correction is separately recorded. |
 | `summarize-oracles.py` | Checks known generated outputs on matching engines and requires manual review for new fixture names; reproduces earlier 126/60 check counts. |
 | `run7-pending.log`, `run7-progress.log`, `run7-pending-oracles.log`, `run7-pending-oracle-summary.json`, `run7-source-audit.log` | Complete bounded follow-up on `0434e7e7`, including P25/50/100 lenses; 180 engine executions / 60 matched generated checks, no unexpected result; static seam audit. |

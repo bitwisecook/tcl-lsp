@@ -25,6 +25,8 @@ Cloud setup and earlier failures are preserved in `cloud-setup.log`, `run5.log` 
 
 **Interim all-finding replay active on `60ce7009`:** `run10-progress.log` records the completed prefix through the server-shaped rename matrix (460.09 s, all six profiles), all observational groups exiting 0 with the same product results. Static audits: `run10-source-audit.log` on `60ce7009` and `run10-after-fix-source-audit.log` on rebased `6ebc499c`, where the new declared-footprint gate is present. Remote `fd5c12bf` now contains the N17 effect-gate fix, while R1 remains blocked; a fresh N17 replay is required after rebase. No run10 oracle result is claimed yet, and the still-running `run10-current.log` is intentionally untracked. The initial wrapper startup failure was fixed before compilation; it executed no tests (`run10-startup.log`).
 
+**Run10 main and oracle replay complete:** compiled `60ce7009`, 24 filter groups / 27 observational tests, every group exit 0. Fresh outputs: `run10-current-oracles.log` / `run10-current-oracle-summary.json`, 98 files / 588 executions, 78 generated files / 138 matched checks, zero unexpected result. All semantic observations remain as reported. The existing fold e2e rebuilt on `13050f6a`, which includes the N17 correction, and still fails (DSL 1 expected `["5"]`, actual `[]`; 0 passed / 1 failed). The complete `run10-current.log` is now closed; both executable targets and temporary source are deleted.
+
 ## Method
 
 - **Oracles.** Each Tcl repro from the review (`triage-20261022/tcl/`) was run with `triage-20261022/oracle.sh <file>` on six engines: `tclsh8.4` (8.4.20), `tclsh8.5` (8.5.19), `tclsh8.6` (8.6.18), `tclsh9.0` (9.0.4), `tclsh9.1` (9.1.0) and Jim 0.84 (`tmp/jimtcl-oracle/jimsh`). Every oracle answer matches the review's expected outcome, including feature-unavailable rows: TclOO is missing on 8.4, 8.5 and Jim, and `namespace path` on 8.4 and Jim.
@@ -66,7 +68,7 @@ Cloud setup and earlier failures are preserved in `cloud-setup.log`, `run5.log` 
 | N15 minifier compaction | CHANGED (refuses `MissingAlphaRenameContract`); output behaviour-preserving | lsp | `tcl-lsp-core/src/minify.rs`, `minify/original.rs` |
 | N16 provider fallbacks | FIXED (4/4 rows) | — | — |
 | N17 SpecTcl template | FIXED | — | — |
-| N17 live hook | Fix landed in `fd5c12bf`, fresh verification PENDING. Pre-fix: direct/pure hooks work; undeclared effects suppress folding and existing e2e fails | compiler-codegen (`const_subst.rs`, per user decision 13:17Z); vm-runtime (host) | see detail |
+| N17 live hook | Correction landed in `fd5c12bf`, but rebuilt existing e2e STILL FAILS on `13050f6a`; fresh custom effect matrix pending | compiler-codegen (`const_subst.rs`, per user decision 13:17Z); vm-runtime (host) | see detail |
 | Seam `ns_var_global_fallback` | FIXED (static) | — | — |
 | Seam `WorkspaceIndex::registry_for` | FIXED (static) | — | — |
 | Seam `analyse_with_workspace_classes` | CHANGED (static): resolved input, resource inputs and base-analysis identity retained; source-entry parity not shown | lsp | `tcl-lsp-server/src/lib.rs:20036–20120` |
@@ -238,7 +240,7 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 ### N17: SpecTcl template and live hook
 
-The declared-footprint-only barrier correction landed in `fd5c12bf`; the following contrast describes pre-fix executions. The rebased run10 e2e and a newly built focused live-hook matrix must verify the correction before this row is settled on current work.
+The declared-footprint-only barrier correction landed in `fd5c12bf`. **Rebuilt existing control on `13050f6a` STILL FAILS:** 0 passed / 1 failed, DSL 1 expected `["5"]`, actual `[]` (11.70 s), after a 13m37s fresh compiler/dependant rebuild. Log: `run10-current.log`. Thus the narrow correction is not sufficient for this supported control. The following direct/effects contrast is pre-fix; a newly built focused matrix is next to locate the remaining gap.
 
 - **Template: FIXED.** Fresh run6 again registers only `good`, with no notices/load errors, in all 16 combinations of DSL 1/2.0, direct/helper, unbraced/braced and fast-path on/off. The capture driver independently registers `good` on all six pinned engines.
 - **Live-hook substitution: FIXED in direct execution.** All eight run6 controls (two DSLs × braced/unbraced reference × declared/undeclared pure effects) install with no decline or notice and directly return `Some("good")`. The earlier wrong `bad` result is gone in these cases.
