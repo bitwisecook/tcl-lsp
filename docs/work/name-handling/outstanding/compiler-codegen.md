@@ -2,38 +2,58 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-22T12:40Z
+Last updated: 2026-10-22T13:12Z (PAUSED by user instruction at 13:10Z)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Where to pick up (if this agent stops):
+State at pause (13:10Z): no build or run of mine is running; my executables are deleted. Another agent's `cargo test --locked -p tcl-compiler --lib --no-run` was running and was left alone.
 
-1. If `grep -rn ZZ_CCG rust runtime --include=*.rs` finds anything, the TEMP measurement toggle is still in. Finish any measurement still wanted, then run `python3 docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/untoggle.py` (asserts each exact text, so it fails loudly if the text drifted), delete `rust/tcl-spectcl/tests/zz_ccg_fold_probe.rs`, then `cargo check -p tcl-compiler -p tcl-spectcl -p tcl-registry --all-targets` and `cargo fmt` on the changed files.
-2. const_fold hook (N17 live hook; pack_source_e2e `a_pack_file_folds_a_call_site_in_the_optimiser`): run the probe, which prints the registry profile, the spec's thunk result, `resolve_call`, and `optimise_raw` over the pack registry versus `build_default` with the pack spec inserted:
-   `CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 cargo test -p tcl-spectcl --test zz_ccg_fold_probe -- --nocapture 2>&1 | grep ZZP; rm -f target/debug/deps/zz_ccg_fold_probe-*`
-   The gates on the O129 path are in `rust/tcl-compiler/src/const_subst.rs::fold_retained_at_depth` (registry-backed target, metadata context, `invocation.dialect`, world barrier, `get_for_surface`).
-3. Measurements: `run_target.sh NAME "cargo args" [test args]` builds once, runs with `ZZ_CCG_BASELINE=1` (old behaviour) and without (new), deletes the executable, and prints pass→fail. `chain2.sh` lists every target measured. Still to run after the toggle is removed: `cargo test -p tcl-spectcl --test codegen_stamps -- --test-threads=4 --skip every_shape_of_inlined_body` (after-only; base 3/28 is in results), `-p tcl-spectcl --test variable_reference_boundaries`, `-p tcl-compiler --lib compile_service::`, `codegen::native_failure`, `codegen::control_flow`, `-p tcl-spectcl --lib install::`.
-4. Evidence in the repo: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/` (scripts; `results/chain2.log` = summary lines; `results/*-{base,after}-ok.txt` = passing-test lists per target, diffable with `comm -23`). Notes: `../compiler-codegen-NOTES.md` beside that folder.
+**Left in the tree on purpose (needed on resume):**
+- TEMP toggle `ZZ_CCG_BASELINE` (each site marked `// TEMP measurement toggle (compiler-codegen), remove before hand-back.`) in: `rust/tcl-compiler/src/compile_service.rs`, `command_binding/compiled_preflight.rs` (also a `ZZ_CCG_PROVIDER` eprintln + `#[track_caller]` in `require_provider`), `command_binding/compiled_preflight/original_preparation.rs`, `codegen/control_flow.rs`, `optimiser/manager.rs`, `rust/tcl-spectcl/src/install.rs` (2 sites), `rust/tcl-registry/src/native_string_operand_compilation.rs`. Probe tests `zz_ccg_release_probe` and `zz_ccg_o129_probe` in `compile_service.rs`. With the variable unset, the tree runs the new behaviour.
+- Probe `rust/tcl-spectcl/tests/zz_ccg_fold_probe.rs` (copy: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/zz_ccg_fold_probe.rs.txt`). Not yet run; its build was stopped at the pause.
+- Removal: `python3 docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/untoggle.py` removes every toggle, the diagnostic, both probe tests and the probe file. It asserts each exact text, so it fails loudly if the text drifted.
 
-## In progress
+**Exact next command (top item: const_fold / N17 live hook, release-blocking):**
+`cd /home/user/tcl-lsp && df -h / && CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test -p tcl-spectcl --test zz_ccg_fold_probe -- --nocapture 2>&1 | grep -E "^error|ZZP|test result"; rm -f target/debug/deps/zz_ccg_fold_probe-*`
+The probe compares O129 output for the pack registry (`registry_for_dialect_with_packs("tcl8.6")`) with the pack spec copied into `build_default`, copied with `world_effects = Some(EMPTY)`, and a pack that writes `world_effects none`.
 
-- Before/after measurement chain (TEMP env toggle `ZZ_CCG_BASELINE` in the tree, marked; removed right after): tcl-spectcl lib 302/310 → 304/310 (0 pass→fail), pack_source_e2e 3/6 → 3/6 (0 pass→fail), spec_corpus 3/5 → 3/5 (0 pass→fail); golden_packs running; codegen_stamps re-run after the toggle is removed.
-- const_fold hook path (next, per coordinator; N17 live-hook acceptance depends on it): fixes already in the tree — `optimise_raw(.., None)` over a profile-projected registry analyses for that profile (it was dialect-blind and folded nothing, even `string length`), and pack rows now carry native compiler descriptors (install.rs). Regression `variable_reference_boundaries.rs::a_live_hook_folds_the_value_its_substitution_computes` (DSL 1/2.0 × `$arr($a:b)` / braced control) awaits a run. pack_source_e2e `a_pack_file_folds_a_call_site_in_the_optimiser` still gets no O129 with both fixes in, so a further gate declines; a TEMP probe (`rust/tcl-spectcl/tests/zz_ccg_fold_probe.rs`, removed with the toggle) traces registry profile → spec thunk → resolve_call → optimise_raw once the chain frees the CPU.
+**Leading hypothesis (from reading the code, not yet confirmed):** `const_subst.rs::fold_retained_at_depth` declines when `invocation.facts.effects.requires_world_barrier()`. A spec with no declared `world_effects` resolves to `EffectFootprint::conservative_unknown_invocation()` (callback reentrancy AnyInterpreter; `resolved_invocation.rs` ~2575). That is every pack command, so every live const_fold hook is gated off, even the shipped control and a trivial `fold good`. The gate came in with 944d156922 (2026-10-06).
+- If the probe shows `D`/`world_effects none` fold and `B` does not, the fix is in `const_subst.rs`. Since it is not my file, I check `git status` first and ask if someone else has it modified. The fix: apply the barrier only to a *declared* footprint, so an authored const_fold callback on a spec/subcommand with no `world_effects` declaration is the author's claim for the call it replaces. Builtins with a declared callback footprint keep the gate. Two more possibilities: set this in the pack install, which over-claims for unfolded calls, so it is not preferred; or require packs to write `world_effects none`, which would break the documented 1.x meaning, so that is rejected.
+- Then: pack_source_e2e `a_pack_file_folds_a_call_site_in_the_optimiser` should pass, and `rust/tcl-spectcl/tests/variable_reference_boundaries.rs::a_live_hook_folds_the_value_its_substitution_computes` (already written; DSL 1 and 2.0, `$arr($a:b)` and `$arr(${a}:b)`; expects O129 `good`) is the N17 regression. Also check `tcl-spec-hooks --test const_fold_e2e`.
+
+**After that:** run untoggle.py, then `cargo check -p tcl-compiler -p tcl-spectcl -p tcl-registry --all-targets`, then cargo fmt on the changed files. Then one cargo command per target, deleting the executable in the same command: `-p tcl-compiler --lib compile_service::`, `codegen::native_failure`, `codegen::control_flow`; `-p tcl-spectcl --lib install::`; `--test variable_reference_boundaries`; `--test pack_source_e2e`; `--test codegen_stamps -- --test-threads=4 --skip every_shape_of_inlined_body`; `--test golden_packs`. Then the notes and the hand-back.
+
+**Partial before/after results (same binary; base = `ZZ_CCG_BASELINE=1`; 0 pass→fail unless noted)**, lists in `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/results/`:
+- tcl-compiler lib filters 1101 → 1116 ok. The 2 pass→fail are the old contract tests in `codegen/native_failure.rs`, rewritten to the user decision.
+- compile_service:: 21/49 → 35/53.
+- registry string 3/4 → 4/4; cmd_string_e2e 13/51 → 13/51; mathfunc 7/9 → 7/9; word_value 3/3 → 3/3.
+- tcl-debugger lib 17/17 → 17/17; tcl-engine-tclvm lib 35/51 → 35/51.
+- tcl-spectcl lib 302/310 → 304/310.
+- pack_source_e2e 3/6 → 3/6. Failing in both: the O129 fold test, derived body, reference body.
+- spec_corpus 3/5 → 3/5. Failing in both: the hostile-pack test and `every_shipped_tclspec…`.
+- golden_packs base 3/3 ok (893 s); the after run was stopped by the pause, so not yet measured.
+- codegen_stamps base 3/28 (the after run is due after the toggle is removed).
+- Scripts: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/run_target.sh`, `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/chain2.sh` (scratch copies live in the session scratchpad and are not needed).
+
+**Files I touched this session:** `rust/tcl-compiler/src/compile_service.rs`, `command_binding/compiled_preflight.rs`, `command_binding/compiled_preflight/original_preparation.rs`, `codegen/control_flow.rs`, `codegen/emitter/mod.rs`, `codegen/statements/native_scalar.rs`, `codegen/native_failure.rs`, `optimiser/manager.rs`; `rust/tcl-spectcl/src/install.rs`, `rust/tcl-spectcl/tests/variable_reference_boundaries.rs` (new), `rust/tcl-spectcl/tests/zz_ccg_fold_probe.rs` (TEMP); `rust/tcl-registry/src/native_string_operand_compilation.rs`, `native_compilation.rs`, `commands/tcl/string_.rs`; `runtime/rust/src/interp/native_body_artifact/native_string_operand.rs`; docs: this file, `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen-NOTES.md`, `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/`.
+
+## In progress (paused)
+
+- const_fold live hooks (release-blocking, coordinator's top item): no live pack const_fold hook folds in `optimise_raw`. The world-barrier hypothesis and the probe are in Resume.
 
 ## Outstanding (in priority order)
 
-1. N17 (review naming-migration-review-20261022): regressions written — `compile_service::tests::a_variable_reference_ends_where_the_release_scanner_ends_it` (VM run, 8.4–9.1, top level and proc) and `rust/tcl-spectcl/tests/variable_reference_boundaries.rs` (template ×DSL 1/2.0 ×direct/helper ×fast path, braced control, lone colon, colon runs; live const_fold hook → O129 `good`). Current-tree code already decomposes array keys with the real lexer (`push_array_key` → `ExecutablePartArena`; `emit_variable_reference` → `is_whole_variable_reference`); run the regressions to confirm, fix if any fails.
-2. Remove the TEMP toggle and the two `zz_ccg_*` probe tests (script ready); cargo fmt on my files; clippy on changed lines; re-run compile_service::, codegen::native_failure, tcl-spectcl install::, the new spectcl test file, codegen_stamps.
-3. Notes + hand-back (`docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen-NOTES.md`, draft present).
-4. `string is` native compiler (C TclCompileStringIsCmd; three release variants 8.6 / 9.0 / 9.1 with different opcodes: IS_EMPTY, SWAP, `dict` class from 9.0, catch ranges for list/dict). Not started; multi-crate (registry grammar + plan + preflight + codegen + runtime/rust arm).
-5. O129 / const_fold: `optimise_raw(src, registry, None)` analysed dialect-blind and folded nothing (even `string length`); now uses the registry's own profile. Pack rows also needed native compiler descriptors (install.rs). Confirm pack_source_e2e / spec_corpus hostile-pack after the chain.
-6. CompilerTraversal frame: `command` split into plan (`command_visit`, 7.9 KB) + small descent frames; per-level path script 4.7 KB + command 1.6 KB + compiled_command (was 6.1 KB, now shrunk further, re-measure) + visit/bodies. Re-measure against the 24 KB budget.
+1. const_fold fix plus N17 live-hook regression (see Resume).
+2. Remove the TEMP toggle, the probe tests and the probe file (untoggle.py), then fmt/clippy/check, then the final runs listed in Resume (golden_packs after, codegen_stamps after).
+3. Notes and hand-back (`docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen-NOTES.md`, draft present, with Measurements rows still pending).
+4. `string is` native compiler (C TclCompileStringIsCmd; 8.6 / 9.0 / 9.1 variants). Not started. Also `string map/range/replace/insert/format` (the engine's `a_whitelisted_ensembles…` needs `string map`).
+5. CompilerTraversal frame: re-measure against the 24 KB budget after the last split (`compiled_command`, `boxed_command_tokens`).
 
 ## Blocked (on whom, and what is needed)
 
-- Nothing blocked now. Disk is the throttle (builds only above 2 GB).
+- Paused by user instruction (13:10Z); waiting for a resume message from the coordinator.
 
 ## Done since the last update (with evidence: test counts, commit or snapshot)
 
