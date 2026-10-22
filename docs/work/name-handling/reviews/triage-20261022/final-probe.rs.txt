@@ -560,8 +560,7 @@ fn n09_compiler_facts() {
     } else {
         println!("N09 path: no interproc");
     }
-    let known = cu.ir_module.original_source_procedure_bodies()
-        .map(|(id, _)| *id).collect::<std::collections::HashSet<_>>();
+    let known = cu.procedures.keys().copied().collect::<std::collections::HashSet<_>>();
     for (id, unit) in &cu.procedures {
         let callees = tcl_compiler::taint_interproc::resolved_callees(&cu, Some(*id), &known, &registry);
         let names: Vec<_> = callees.iter().map(|callee| cu.procedures.get(callee)
