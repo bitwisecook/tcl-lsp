@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-22T15:58:22.601050+00:00",
+  "source_snapshot": "4c5718d360c9fd9a6ccba491c9d3fb437d61731c",
+  "published_wip": "f8c769d0f75f69778a99526fb282b72b09c94af2",
+  "product_tree_diff": [
+    "rust/tcl-lsp-core/src/ilx_navigation.rs",
+    "rust/tcl-lsp-core/src/refactor/datagroup.rs"
+  ],
+  "external_product_commit": "f26f6a06e1fe2e77cd26ab0a4af9ce820cfb3089",
+  "cause": "External BIG-IP scoped Core lint cleanup is retained in publisher. Active source remains at the prior product version while CCG baseline/fix runs under the source hold.",
+  "integration_plan": "Checkpoint active WIP and integrate published work between stable build windows, preserving both role changes; rerun affected acceptance.",
+  "release_admission": false
+}
