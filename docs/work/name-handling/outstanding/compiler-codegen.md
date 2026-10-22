@@ -2,13 +2,14 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-22T10:49Z
+Last updated: 2026-10-22T11:23Z
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress
 
-- Before/after measurement chain (TEMP env toggle `ZZ_CCG_BASELINE` in the tree, marked; removed right after): remaining targets tcl-engine-tclvm lib, tcl-spectcl lib, codegen_stamps, pack_source_e2e, spec_corpus, golden_packs.
+- Before/after measurement chain (TEMP env toggle `ZZ_CCG_BASELINE` in the tree, marked; removed right after): remaining targets tcl-spectcl lib, codegen_stamps, pack_source_e2e, spec_corpus, golden_packs. Waiting on disk (750 MB free at 11:22Z; builds only above 2 GB).
+- const_fold hook path (next, per coordinator; N17 live-hook acceptance depends on it): fixes already in the tree — `optimise_raw(.., None)` over a profile-projected registry analyses for that profile (it was dialect-blind and folded nothing, even `string length`), and pack rows now carry native compiler descriptors (install.rs). Regression `variable_reference_boundaries.rs::a_live_hook_folds_the_value_its_substitution_computes` (DSL 1/2.0 × `$arr($a:b)` / braced control) awaits a run.
 
 ## Outstanding (in priority order)
 
@@ -26,6 +27,7 @@ Maintained by the compiler-codegen agent. It lists what this agent considers it 
 ## Done since the last update (with evidence: test counts, commit or snapshot)
 
 - Contracts (1)–(3): entry-less whole-module compiles = fresh interpreter (BytecodeObject + resolved input; Direct fallback when the catalogue lacks a descriptor); compiled_preflight entry-less provider rule; fresh-world expression emission; profile-less → plain_tcl's engine, manifest restamped. compile_service:: 21/49 → 35/53 (0 pass→fail at that point).
+- tcl-engine-tclvm lib 35/51 → 35/51 (0 pass→fail); its `a_whitelisted_ensembles_subcommands_run_wherever_they_are_called` also needs `string map` (no compiler yet).
 - tcl-spectcl install.rs: pack rows get derived native compilers (override keeps shipped; new = NoHook; admitted alias_of = target's) + 2 tests.
 - `string cat` native compiler (registry + codegen + runtime/rust); registry filter 4/4 (base 3/4).
 - `dict update`/`dict with` release_compiled.

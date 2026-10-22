@@ -3258,3 +3258,91 @@ fn the_parameter_declaration_hovers_as_a_variable_not_the_file_command() {
         "a parameter-list word is a declaration, not a command; got {hover:?}"
     );
 }
+
+// Review N05 (naming-migration-review-20261022.md): rename and find-references
+// settle every occurrence once. A rename may refuse, but it never edits an
+// occurrence find-references does not report for the same binding, and an
+// accepted rename keeps the program's observable output (tclsh 8.6.18 /
+// 9.0.4 outputs recorded per fixture).
+
+/// `(fixture, declaration line, declaration column, tclsh output)`.
+const N05_FIXTURES: &[(&str, u32, u32, &str)] = &[
+    // The forced import replaces `b::foo`; the call runs `a::foo`: "A".
+    (
+        "namespace eval a {namespace export *; proc foo {} {return A}}\nnamespace eval b {\n    proc foo {} {return B}\n    namespace import -force ::a::*\n    puts [foo]\n}\n",
+        2,
+        10,
+        "A\n",
+    ),
+    // Before the forced import the call is the local; after it, the import: "B A".
+    (
+        "namespace eval a {namespace export *; proc foo {} {return A}}\nnamespace eval b {\n    proc foo {} {return B}\n    puts [foo]\n    namespace import -force ::a::*\n    puts [foo]\n}\n",
+        2,
+        10,
+        "B\nA\n",
+    ),
+    // A forgotten import leaves room for the local definition: "B".
+    (
+        "namespace eval a {namespace export *; proc foo {} {return A}}\nnamespace eval b {\n    namespace import ::a::*\n    namespace forget ::a::foo\n    proc foo {} {return B}\n    puts [foo]\n}\n",
+        4,
+        10,
+        "B\n",
+    ),
+    // A redefinition after the forced import is the local again: "C".
+    (
+        "namespace eval a {namespace export *; proc foo {} {return A}}\nnamespace eval b {\n    proc foo {} {return B}\n    namespace import -force ::a::*\n    proc foo {} {return C}\n    puts [foo]\n}\n",
+        4,
+        10,
+        "C\n",
+    ),
+];
+
+#[test]
+fn n05_rename_never_edits_an_occurrence_references_does_not_report() {
+    for (src, line, character, _) in N05_FIXTURES {
+        let analysis = analyse(src);
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let refs = ref_lines(&references(
+            src, profile, *line, *character, &analysis, true,
+        ));
+        let edits = rename(src, profile, *line, *character, "baz", &analysis, None);
+        for edited in edit_lines(&edits) {
+            assert!(
+                refs.contains(&edited),
+                "rename edited line {edited}, which references ({refs:?}) does not report:\n{src}"
+            );
+        }
+    }
+}
+
+#[test]
+fn n05_an_accepted_rename_keeps_the_program_output() {
+    let Some(tclsh) = find_tclsh() else {
+        eprintln!("skipping: no pinned Tcl 9.0/8.6 oracle is available");
+        return;
+    };
+    for (src, line, character, expected) in N05_FIXTURES {
+        let original = tcl_test_support::run_script(&tclsh.path, src.as_bytes())
+            .unwrap_or_else(|error| panic!("running Tcl oracle: {error}"));
+        assert_eq!(
+            String::from_utf8_lossy(&original.stdout),
+            *expected,
+            "{src}"
+        );
+        let analysis = analyse(src);
+        let profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
+        let edits = rename(src, profile, *line, *character, "baz", &analysis, None);
+        if edits.is_empty() {
+            continue;
+        }
+        let renamed = apply_edits(src, &edits);
+        let outcome = tcl_test_support::run_script(&tclsh.path, renamed.as_bytes())
+            .unwrap_or_else(|error| panic!("running Tcl oracle: {error}"));
+        assert!(outcome.success(), "renamed script failed:\n{renamed}");
+        assert_eq!(
+            String::from_utf8_lossy(&outcome.stdout),
+            *expected,
+            "the rename changed the program's output:\n{renamed}"
+        );
+    }
+}

@@ -508,9 +508,13 @@ pub fn rename_in_program(
         let covered = |edit: &TextEdit| {
             let start = offset(edit.range.start_line, edit.range.start_character);
             let end = offset(edit.range.end_line, edit.range.end_character);
+            // The same occurrence: the edit and a reported reference overlap
+            // (a variable edit may also cover its `$`).
             references.iter().any(|reference| {
-                offset(reference.start_line, reference.start_character) <= start
-                    && end <= offset(reference.end_line, reference.end_character)
+                let reference_start = offset(reference.start_line, reference.start_character);
+                let reference_end = offset(reference.end_line, reference.end_character);
+                start < reference_end.max(reference_start + 1)
+                    && reference_start < end.max(start + 1)
             })
         };
         if let Some(edit) = edits.iter().find(|edit| !covered(edit)) {

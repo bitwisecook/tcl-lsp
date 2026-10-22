@@ -323,46 +323,34 @@ fn document_highlights_var_out_of_scope_is_empty() {
 
 #[test]
 fn document_highlights_dedup_keeps_write_over_read_on_collision() {
-    // `dedup_kinded` priority path: when one span is recorded both as the
-    // definition (Write) and as a reference (Read), the higher-priority Write
-    // wins and the duplicate is dropped.  Injected synthetically because the
-    // analyser never records the *same* span twice — this isolates the
-    // de-dup/priority logic (`priority` Write/Read arms + the `and_modify`
-    // branch).  No tclsh proof: a span's highlight tag is editor presentation.
-    use tcl_compiler::analyser::{AnalysisResult as R, Scope, VarDef};
-    use tcl_lexer::Span;
-    // In "set x 1\nputs $x\n", the `x` of `$x` occupies bytes 13..14.
-    let mut scope = Scope::default();
-    scope.variables.insert(
-        "x".into(),
-        VarDef {
-            name: "x".into(),
-            definition_span: Span::new(13, 14),
-            references: vec![Span::new(13, 14)], // identical span -> collision
-            warn_if_unused: false,
-            array_indices: std::collections::BTreeSet::new(),
-            link_target: None,
-            link_target_span: None,
-        },
-    );
-    let mut analysis = R::default();
-    analysis.global_scope = scope;
-    let src = "set x 1\nputs $x\n";
-    // Cursor on `$x` (line 1, col 6).
+    // `dedup_kinded` priority path: when one span is both written and read,
+    // the higher-priority Write wins and the duplicate is dropped. No tclsh
+    // proof: a span's highlight tag is editor presentation.
+    //
+    // Narrow test-input correction (coordinator ruling (A), 2026-10-22, under
+    // the original-context contract — providers answer only for the real
+    // analysis of the document, never a synthetic `AnalysisResult` with an
+    // injected reporting map): the collision now comes from real source.
+    // `incr x` reads and writes the one `x` occurrence (tclsh 8.6/9.0:
+    // `set x 1; incr x` -> 2).
+    let src = "set x 1\nincr x\n";
+    let analysis = analyse(src);
+    // Cursor on the `x` of `incr x` (line 1, col 5).
     let h = document_highlights(
         src,
         tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
-        6,
+        5,
         &analysis,
     );
+    let on_incr: Vec<_> = h.iter().filter(|(r, _)| r.start_line == 1).collect();
     assert_eq!(
-        h.len(),
+        on_incr.len(),
         1,
-        "the duplicate (start,end) collapses to one: {h:?}"
+        "the read and write of one span collapse to one: {h:?}"
     );
     assert_eq!(
-        h[0].1,
+        on_incr[0].1,
         HighlightKind::Write,
         "Write outranks Read for the same span: {h:?}",
     );
@@ -436,7 +424,11 @@ fn references_external_obj_method_inside_proc_body_subst() {
     //   real dispatch (the proc returns woof when run with `$d` in scope).
     // The reference scan descends into the proc body and the `[...]`
     // command-substitution, finding the `bark` site on line 5.
-    let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc run {} {\n    puts [$d bark]\n}\n";
+    // Narrow test-input correction (coordinator ruling (B), 2026-10-22): the
+    // fixture now does what this comment claims. tclsh 8.6.18 / 9.0.4: with
+    // `global d` inside `run` the call prints `woof`; without it `run` fails
+    // with `can't read "d": no such variable` (see the negative case below).
+    let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc run {} {\n    global d\n    puts [$d bark]\n}\n";
     let analysis = analyse(src);
     // Cursor on the `bark` declaration (line 1, col 11).
     let refs = references(
@@ -449,9 +441,34 @@ fn references_external_obj_method_inside_proc_body_subst() {
     );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&1), "method decl missing: {refs:?}");
+    // The `global d` line moves the call from line 5 to line 6.
     assert!(
-        lines.contains(&5),
-        "`[$d bark]` inside the proc body (line 5) missing: {refs:?}",
+        lines.contains(&6),
+        "`[$d bark]` inside the proc body (line 6) missing: {refs:?}",
+    );
+}
+
+#[test]
+fn references_external_obj_method_inside_proc_body_without_global_is_not_a_site() {
+    // The original fixture: inside `run`, `d` is an unset proc-local, so
+    // `[$d bark]` never dispatches (tclsh 8.6.18 / 9.0.4: `can't read "d": no
+    // such variable`). An unlinked proc-local never resolves to the global
+    // object (review N07).
+    let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc run {} {\n    puts [$d bark]\n}\n";
+    let analysis = analyse(src);
+    let refs = references(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+        1,
+        11,
+        &analysis,
+        true,
+    );
+    let lines = ref_lines(&refs);
+    assert!(lines.contains(&1), "method decl missing: {refs:?}");
+    assert!(
+        !lines.contains(&5),
+        "an unset proc-local receiver is not a `bark` site: {refs:?}",
     );
 }
 

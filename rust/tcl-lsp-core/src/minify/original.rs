@@ -210,22 +210,17 @@ pub fn minify_with_analysis(
                 .push(MinifyRefusal::UnsupportedLexicalContext);
             return result;
         }
-        let transformed = match options.tier {
-            MinifyTier::Default => super::lexical_default(source, analysis).map(|output| {
-                result.source = output;
-                result
-            }),
-            MinifyTier::Compact => {
-                super::lexical_compact(source, input, options.isolated).map(|(output, symbols)| {
-                    result.source = output;
-                    result.symbol_map = symbols;
-                    result
-                })
-            }
-            MinifyTier::Aggressive => {
-                super::lexical_aggressive(source, input, options.isolated, options.abbreviations)
-            }
-        };
+        // Review N15: the lexical compatibility passes allocate names without
+        // the shared transactional rename planner (no reservation of occupied
+        // command slots, no per-occurrence qualification). Until that planner
+        // exists they refuse exactly as the native path does; only syntax
+        // compaction runs.
+        let _ = input;
+        result.refusals.extend(naming_refusals(options, false));
+        let transformed = super::lexical_default(source, analysis).map(|output| {
+            result.source = output;
+            result
+        });
         return transformed.unwrap_or_else(|refusal| MinifyResult {
             source: source.to_owned(),
             original_length: source.len(),
