@@ -160,7 +160,7 @@
  }
  /// The existing loader CST parser, with original complete row/word geometry.
  /// Recovered rows stay readable but cannot lend checked word provenance beyond
-@@ -397,6 +413,98 @@
+@@ -397,6 +413,101 @@
      use tcl_lexer::{LeadingBom, SourceSegmentationPurpose};
 
      #[test]
@@ -169,7 +169,7 @@
 +            tcl_lexer::SourceChannel::Document,
 +            tcl_lexer::SourceChannel::NativeValue,
 +        ] {
-+            let image = SourceImage::from_bytes(b"a\r\nb\rc\n", channel);
++            let image = SourceImage::from_bytes(&b"a\r\nb\rc\n"[..], channel);
 +            assert_eq!(
 +                (0..=7)
 +                    .map(|offset| line_at(&image, offset))
@@ -186,11 +186,14 @@
 +                ]
 +            );
 +            assert_eq!(line_at(&image, 8), None);
-+            let opaque = SourceImage::from_bytes(b"\xff\nx", channel);
++            let opaque = SourceImage::from_bytes(&b"\xff\nx"[..], channel);
 +            assert_eq!(line_at(&opaque, 2), Some(2));
 +            assert_eq!(line_at(&opaque, 3), Some(2));
 +            assert_eq!(line_at(&opaque, 4), None);
-+            assert_eq!(line_at(&SourceImage::from_bytes(b"", channel), 0), Some(1));
++            assert_eq!(
++                line_at(&SourceImage::from_bytes(&b""[..], channel), 0),
++                Some(1)
++            );
 +        }
 +    }
 +

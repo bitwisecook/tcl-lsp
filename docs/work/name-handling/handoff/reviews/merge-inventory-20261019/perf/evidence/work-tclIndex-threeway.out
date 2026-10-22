@@ -1,0 +1,4 @@
+det=true
+OK memo_ms=920 plain_ms=1084 eq=true /tmp/perf-inputs/tclIndex-10.tcl
+det=true
+OK memo_ms=16086 plain_ms=34482 eq=true /tmp/perf-inputs/tclIndex-40.tcl

@@ -16,6 +16,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("root", type=Path)
 parser.add_argument("--target-dir", type=Path)
 parser.add_argument("--stage", choices=("lexer", "compiler", "spectcl", "server", "all"), default="all")
+parser.add_argument("--suite", action="append", help="Rerun only these suites; preserve other saved outcomes")
 args = parser.parse_args()
 root = args.root.resolve()
 evidence = root / "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence"
@@ -35,11 +36,22 @@ stages = {
         ("workspace_symbol", ["tests::workspace_symbol_caps_its_answer"]),
     ]),
 }
+if args.suite:
+    available = {suite for stage, (_, _, suites) in stages.items()
+                 if args.stage in (stage, "all") for suite, _ in suites}
+    assert set(args.suite) <= available, f"unknown suites: {set(args.suite) - available}"
 summary = {}
 failed = False
 for stage, (package, targets, suites) in stages.items():
     if args.stage not in (stage, "all"):
         continue
+    if args.suite:
+        suites = [(suite, selected) for suite, selected in suites if suite in args.suite]
+        if not suites:
+            continue
+        saved_summary = evidence / f"tests-{stage}-summary.json"
+        if saved_summary.exists():
+            summary.update(json.loads(saved_summary.read_text()))
     build_json = Path(f"/tmp/perf-{stage}-test-build.jsonl")
     build_log = Path(f"/tmp/perf-{stage}-test-build.log")
     print(f"BUILD {stage}", flush=True)

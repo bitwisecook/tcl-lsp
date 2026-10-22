@@ -1,0 +1,40 @@
+det=true
+OK memo_ms=1396 plain_ms=1648 eq=true samples/for_screenshots/27-if-to-switch-before.tcl
+det=true
+OK memo_ms=1397 plain_ms=6172 eq=true samples/for_screenshots/20-folding.tcl
+det=true
+OK memo_ms=3931 plain_ms=2514 eq=true samples/for_screenshots/32-document-links.tcl
+det=true
+OK memo_ms=11531 plain_ms=16065 eq=true samples/for_screenshots/07-formatting-side-by-side.tcl
+det=true
+OK memo_ms=2003 plain_ms=2695 eq=true samples/for_screenshots/27-if-to-switch-after.tcl
+det=true
+OK memo_ms=4149 plain_ms=2723 eq=true samples/for_screenshots/16-references-long.tcl
+det=true
+OK memo_ms=5515 plain_ms=5139 eq=true samples/for_screenshots/22-optimiser-before.tcl
+det=true
+OK memo_ms=1271 plain_ms=1430 eq=true samples/for_screenshots/15-definition-long.tcl
+det=true
+OK memo_ms=11225 plain_ms=22904 eq=true samples/proc_arg_traits_examples.tcl
+det=true
+OK memo_ms=870 plain_ms=975 eq=true samples/tclpkg/tclpkg.tcl
+det=true
+OK memo_ms=2566 plain_ms=2647 eq=true samples/wasm/t4-scopes/42_arrays.tcl
+det=true
+OK memo_ms=1676 plain_ms=2507 eq=true samples/wasm/t4-scopes/43_namespaces.tcl
+det=true
+OK memo_ms=1468 plain_ms=1599 eq=true samples/wasm/t4-scopes/40_global_variable.tcl
+det=true
+OK memo_ms=1940 plain_ms=7863 eq=true samples/wasm/t6-tcloo/62_mixin_filter_forward.tcl
+det=true
+OK memo_ms=4763 plain_ms=4305 eq=true samples/wasm/t6-tcloo/63_objects_in_data.tcl
+det=true
+OK memo_ms=3327 plain_ms=3624 eq=true samples/wasm/t6-tcloo/61_inheritance_next.tcl
+det=true
+OK memo_ms=3497 plain_ms=3257 eq=true samples/wasm/t6-tcloo/60_class_basic.tcl
+det=true
+OK memo_ms=4611 plain_ms=3345 eq=true samples/wasm/t7-dynamic/70_var_traces.tcl
+det=true
+OK memo_ms=5338 plain_ms=16940 eq=true samples/wasm/t7-dynamic/72_uplevel_eval.tcl
+det=true
+OK memo_ms=2921 plain_ms=2150 eq=true samples/wasm/t7-dynamic/71_exec_traces_rename.tcl

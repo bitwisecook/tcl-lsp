@@ -1,0 +1,25 @@
+{
+  "captured_utc": "2026-10-22T15:19:21.553769+00:00",
+  "production_base": "8a01a718",
+  "proof_modes": [
+    "new",
+    "ZZ_OLD_ENV=1"
+  ],
+  "compiler": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "source_sha256": {
+    "rust/tcl-lexer/src/lib.rs": "7b4e00279e030075f7e5a44f5c814ad15b0583bad93007977a7720156d4326b9",
+    "rust/tcl-lexer/src/parse_cut.rs": "6119eaf6e5d1927ed88472ee7c0721d2d0898f0e87ab6580129ae6a181869438",
+    "rust/tcl-lexer/src/source_map.rs": "7ffa531e6839433fc6b45dedaf061ea8f551e97fe14c35df44704b3833a0f35d",
+    "rust/tcl-compiler/src/command_binding/original_name_value.rs": "5509e61550912d96e3a7249e43e36ed3eaabd694cd22e4ebbc112295d54cc502",
+    "rust/tcl-compiler/src/command_binding/formal_call_advice.rs": "fdba14212b0774c1f7b146af62ff7f42be2c0cfcebee0fe039982d70d823de11",
+    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs": "897b1fd377bd4f6bbf391b37fb6ab919b77f0023cdc07904d6640a67ed69255b",
+    "rust/tcl-compiler/src/parsing/spectcl_source/original_word.rs": "441855fdb1761db24eb4c13ea5927ac58289fb53e55fbcae48c722ca1bb92b35",
+    "rust/tcl-compiler/src/realm.rs": "d9e091f7ce304a61779513cde86f85483ff14e22d6d41547b3328053bbac2e64",
+    "rust/tcl-compiler/src/interprocedural.rs": "064177e62225509b170b21a1ea790d30fb48f7f6fce4524615450c1d7705ae6e"
+  },
+  "profiles": {
+    "corpus": "dev opt-level=1 debug=line-tables-only incremental=0",
+    "crate_tests": "test opt-level=0 debug=0 incremental=0"
+  },
+  "note": "Compiler original_word cfg(test)-only fixed line-index test was added after optimized build started; production code is unchanged. Latest origin/work has additional source changes: this base must not be described as the final rebased proof."
+}
