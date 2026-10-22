@@ -2981,8 +2981,9 @@ mod tests {
             i.eval_str(b"interp alias {} = {} set");
             i.eval_str(b"interp alias {} store {} set k");
             assert_eq!(i.eval_str(b"interp aliases {}"), Code::Ok);
-            // BTreeMap order → sorted by name.
-            assert_eq!(i.result_bytes(), b"= store");
+            // Exact enumeration for this fixture on the pinned C Tcl
+            // 8.4 through 9.1 providers is `store =`.
+            assert_eq!(i.result_bytes(), b"store =");
         });
     }
 
