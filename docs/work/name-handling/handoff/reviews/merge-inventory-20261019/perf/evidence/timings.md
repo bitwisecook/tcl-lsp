@@ -131,3 +131,21 @@ corrected ordinary roster adds classes.tcl, whose origin time is 740 ms, for
 control; see corpus-roster-audit.json. The ordinary LSP rows above are
 provisional: they asserted surviving lenses but must be repeated with the new
 positive-reference-title assertion before ruling out unavailable reports.
+
+## Positive-reference ordinary LSP controls, latest e4a01bbe
+
+Both runs keep every declaration/index row/lens AND require exactly the one
+positive call per fixture procedure. Origin uses its original ingress; current
+work uses the actual retained editing-input path used by the document driver.
+No unavailable or zero-reference report is counted as a successful timing.
+Values are milliseconds, median of three queries on the retained analysis.
+The host is contended; these are diagnostic scaling results.
+
+| Procedures | origin index | work index | origin 100 misses | work 100 misses | origin lenses | work lenses |
+|---:|---:|---:|---:|---:|---:|---:|
+| 10 | 0.041 | 64.244 | 0.348 | 1.228 | 1.180 | 83.642 |
+| 20 | 0.082 | 445.391 | 4.932 | 0.701 | 2.172 | 1380.511 |
+| 40 | 0.381 | 675.448 | 1.227 | 3.103 | 27.844 | 8034.283 |
+| 80 | 0.497 | 1557.801 | 4.502 | 3.219 | 106.465 | 25542.691 |
+
+Raw inputs/artifact paths and query outputs are recorded in origin-lsp-positive-inputs.json and latest-e4a01bbe/lsp-build-inputs.json and lsp-*-positive.out.

@@ -1,0 +1,6 @@
+{
+  "source_base": "e4a01bbe plus full batch",
+  "binary_sha256": "45d6e13338f7422e8d044fa2cd9f76f9714fa097b9232f87a261317adfcec679",
+  "pack_binary_sha256": "ac345cc8210a1dfc4e7ad98aa70fea3f43d97694cc44a8af3ae9d63a4f8eabe1",
+  "purpose": "Complete every independent requested shape even if the separate text corpus reports the baseline comparison blocker. Every probe keeps its full equality assertion."
+}

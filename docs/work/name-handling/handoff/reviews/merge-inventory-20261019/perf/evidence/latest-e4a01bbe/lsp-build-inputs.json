@@ -1,0 +1,10 @@
+{
+  "externs": {
+    "tcl_compiler": "/workspace/tcl-lsp-work/target-latest/debug/deps/libtcl_compiler-65e8711831218a9d.rlib",
+    "tcl_dialect": "/workspace/tcl-lsp-work/target-latest/debug/deps/libtcl_dialect-1265f63c50bad617.rlib",
+    "tcl_lsp_core": "/workspace/tcl-lsp-work/target-latest/debug/deps/libtcl_lsp_core-1488c7fb30494e22.rlib"
+  },
+  "positive_reference_control": "every lens must report 1 reference or at least 1 reference",
+  "profile": "opt-level=1, debug/overflow assertions on, line tables",
+  "source_base": "e4a01bbe plus full batch"
+}

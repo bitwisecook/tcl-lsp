@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 18:04 UTC
+Last updated: 2026-10-22 18:30 UTC
 
 ## Resume
 
@@ -84,8 +84,9 @@ proof is genuinely satisfied or the coordinator resolves this blocker.
 - Latest ordinary LSP positive controls are queued on the completed libraries.
   They use the actual retained editing-input path (as document_analyser does)
   and require one positive reference per lens, plus all proc/index/lens counts.
-  Origin positive controls completed; origin-lsp-document-positive.out.
-  Prior work lens rows only checked surviving lenses and remain provisional.
+  BOTH origin and latest positive controls PASSED all sizes; source chain also
+  completed. Final positive-control table is in evidence/timings.md and
+  latest-e4a01bbe/lsp-positive-medians-ms.json. Older work rows remain historical.
 - Old 253-line tclIndex old/new/old remains active in its private copied binary.
   10/40/100 rows were exactly equal; old 100 timing is instrumented by a live
   debugger pause and must not be used as an uninstrumented ratio. A separate

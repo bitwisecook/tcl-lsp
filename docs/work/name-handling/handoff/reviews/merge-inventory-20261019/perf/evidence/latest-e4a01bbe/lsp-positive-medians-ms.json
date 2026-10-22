@@ -1,0 +1,60 @@
+{
+  "unit": "milliseconds",
+  "source_base": "e4a01bbe + full batch vs origin/rust fcb7927f",
+  "controls": "index/proc/lens counts and one positive reference for every lens; new path uses retained editing inputs as the document driver does",
+  "measurement": "wall clock, concurrent work; medians of 3 queries, analysis once per size; not release latency",
+  "data": {
+    "origin": {
+      "10": {
+        "analyse_us": 628.278,
+        "index_us": 0.041,
+        "existence_100_us": 0.348,
+        "lenses_us": 1.18
+      },
+      "20": {
+        "analyse_us": 393.099,
+        "index_us": 0.082,
+        "existence_100_us": 4.932,
+        "lenses_us": 2.172
+      },
+      "40": {
+        "analyse_us": 894.57,
+        "index_us": 0.381,
+        "existence_100_us": 1.227,
+        "lenses_us": 27.844
+      },
+      "80": {
+        "analyse_us": 1579.928,
+        "index_us": 0.497,
+        "existence_100_us": 4.502,
+        "lenses_us": 106.465
+      }
+    },
+    "work": {
+      "10": {
+        "analyse_us": 1880.366,
+        "index_us": 64.244,
+        "existence_100_us": 1.228,
+        "lenses_us": 83.642
+      },
+      "20": {
+        "analyse_us": 6258.217,
+        "index_us": 445.391,
+        "existence_100_us": 0.701,
+        "lenses_us": 1380.511
+      },
+      "40": {
+        "analyse_us": 13511.109,
+        "index_us": 675.448,
+        "existence_100_us": 3.103,
+        "lenses_us": 8034.283
+      },
+      "80": {
+        "analyse_us": 59039.007,
+        "index_us": 1557.801,
+        "existence_100_us": 3.219,
+        "lenses_us": 25542.691
+      }
+    }
+  }
+}
