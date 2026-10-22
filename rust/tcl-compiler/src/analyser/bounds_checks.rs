@@ -1085,10 +1085,19 @@ fn script_words<'c>(
     // The case-list layout is read independently of the body roles: a
     // computed subject (`switch -glob $x {…}`) can leave the role resolution
     // without a selected form while the clause list itself stays literal.
-    let case = registry
-        .case_invocation(cmd.name(), &words)
-        .and_then(|(spec, invocation)| Some((spec, invocation.clause_list_index?)));
+    let invocation = registry.case_invocation(cmd.name(), &words);
     let mut scripts = Vec::new();
+    // Inline `pattern body` pairs: each action word is a body in this frame.
+    let inline = invocation
+        .as_ref()
+        .and_then(|(_, invocation)| invocation.inline_clause_start);
+    if let Some(start) = inline {
+        for body in (start + 1..args.len()).step_by(2) {
+            scripts.push(std::borrow::Cow::Borrowed(args[body].as_str()));
+        }
+    }
+    let case =
+        invocation.and_then(|(spec, invocation)| Some((spec, invocation.clause_list_index?)));
     if let Some((spec, index)) = &case
         && let Some(word) = args.get(*index)
     {
@@ -1109,7 +1118,10 @@ fn script_words<'c>(
         }
     }
     for (index, _) in cmd.arg_tokens().iter().enumerate() {
-        if !bodies.contains(&index) || case.as_ref().is_some_and(|(_, list)| *list == index) {
+        if !bodies.contains(&index)
+            || case.as_ref().is_some_and(|(_, list)| *list == index)
+            || inline.is_some_and(|start| index > start && !(index - start).is_multiple_of(2))
+        {
             continue;
         }
         if let Some(word) = args.get(index) {

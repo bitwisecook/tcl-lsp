@@ -2,7 +2,7 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-22T10:53Z (Sol-49)
+Last updated: 2026-10-22T11:40Z (Sol-49)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -10,16 +10,12 @@ Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-2026
 
 ## In progress
 
-- **C6 zero-regression pass.** The tcl-compiler lib build carrying the following is running:
-  - the `fp_rbs_15` fix: `analyser/bounds_checks.rs::script_words` reads switch clause-list action bodies, so a `break` there counts as a loop exit (tclsh: the loop ends)
-  - the `fp_inj_*` fixture correction (into `when HTTP_REQUEST`)
-  - the `compilation_unit` hosted-entry test correction
-  - the CRLF fix in lowering `guarded_body_text`
-  - a temporary probe for `fp_sh_21`, to be removed before hand-back
-- **`fp_sh_21_dict_literal_in_dict_for_silent`.**
-  - Cause so far: the module's `deferred_writes.any` becomes true when the `dict for` body holds `puts "$k=$v"`. The empty body gives false.
-  - With every variable externally mutable, SCCP is all Overdefined and S100 fires.
-  - The probe narrows which `deferred_writes/supplied.rs` step fails for the body statement: retained tokens, footprint, source purpose or callback invocation.
+- **C6 zero-regression pass.** The full tcl-compiler batch (build, run and delete in one command) is running with these fixes:
+  - **`fp_rbs_15`** (two parts):
+    - `bounds_checks::script_words` reads switch clause-list and inline action bodies.
+    - `cfg_builder/cfg_lower.rs::lower_opaque_switch` wires an opaque switch's `break`/`continue` to the enclosing loop before treating an all-exiting switch as a procedure exit. This also targets the earlier-failing `fp_rbs_15_all_break_switch_not_a_proc_terminator`.
+  - **`fp_sh_21`.** `deferred_writes/supplied.rs` no longer turns `any` on for a nested receipt that is already a lowered statement of the command's own body script. The probe showed that `puts` inside a `dict for`/`foreach` body set `deferred_writes.any`, so SCCP went all Overdefined.
+  - The `fp_inj` and `compilation_unit` corrections, and the CRLF lowering fix.
 
 ## Outstanding (in priority order)
 

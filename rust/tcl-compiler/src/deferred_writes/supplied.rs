@@ -83,7 +83,19 @@ impl SourceScan<'_> {
             return;
         };
         self.original_registration(tokens);
-        for (_, binding) in &tokens.nested_bindings {
+        // A nested command that is also a statement of one of this statement's
+        // own lowered body scripts is scanned there, with its own retained
+        // tokens; its nested receipt here adds nothing to recover.
+        let lowered_children = statement
+            .child_scripts()
+            .into_iter()
+            .flat_map(|child| child.statements.iter())
+            .map(|child| child.span().start())
+            .collect::<std::collections::BTreeSet<_>>();
+        for (offset, binding) in &tokens.nested_bindings {
+            if lowered_children.contains(offset) {
+                continue;
+            }
             let Some((_, mut nested)) = binding.original_recorded_command() else {
                 self.out.any = true;
                 continue;

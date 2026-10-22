@@ -903,6 +903,26 @@ impl CfgBuilder<'_> {
         }
         let completion =
             crate::cfg_builder::flow_facts_stmt_with_classes(stmt, &self.command_classes).1;
+        // An arm's `break`/`continue` targets the enclosing loop, even when no
+        // arm completes normally: such a switch is a loop jump, not a
+        // procedure exit (tclsh: `while 1 {switch a {a {break}}}` returns).
+        let loop_escape = self.loop_stack.last().cloned().and_then(|targets| {
+            let (can_break, can_continue) = crate::cfg_builder::switch_escaping_jumps_with_classes(
+                stmt,
+                0,
+                &self.command_classes,
+            );
+            (can_break || can_continue).then_some((targets, can_break, can_continue))
+        });
+        if let Some(((break_target, continue_target), can_break, can_continue)) = loop_escape {
+            let escape = SwitchEscape {
+                can_break,
+                can_continue,
+                break_target: &break_target,
+                continue_target: &continue_target,
+            };
+            return self.wire_opaque_switch_jumps(stmt, block_name, completion, &escape);
+        }
         if completion == Completion::ProcExit {
             if self.block_mut(block_name).terminator.is_none() {
                 self.set_terminator(
@@ -918,22 +938,6 @@ impl CfgBuilder<'_> {
                 );
             }
             return block_name.to_owned();
-        }
-        if let Some((break_target, continue_target)) = self.loop_stack.last().cloned() {
-            let (can_break, can_continue) = crate::cfg_builder::switch_escaping_jumps_with_classes(
-                stmt,
-                0,
-                &self.command_classes,
-            );
-            if can_break || can_continue {
-                let escape = SwitchEscape {
-                    can_break,
-                    can_continue,
-                    break_target: &break_target,
-                    continue_target: &continue_target,
-                };
-                return self.wire_opaque_switch_jumps(stmt, block_name, completion, &escape);
-            }
         }
         block_name.to_owned()
     }
