@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T14:19Z
+Last updated: 2026-10-22T14:32Z
 
 ## In progress
 
@@ -41,11 +41,11 @@ Last updated: 2026-10-22T14:19Z
 
 ## Resume
 
-- Active development tree: `/workspace/naming-migration-active/tcl-lsp`, shallow `work`, selectively materialised with all 2,514 keep-list fixture paths. The exact requested full shallow clone at `/workspace/naming-migration/tcl-lsp` is now an object cache; do not edit or build there. Omitted evidence remains in its objects. Required full gates must use their complete inputs.
-- Rust 1.99.1, Node 26.12.1, Corepack 0.36.0 and all five exact Tcl releases plus pinned Jim are provisioned. Shared build environment: `/tmp/tcl-lsp-naming-env.sh`; oracle receipt in this cycle's evidence directory. compiler-names started the first g4 build at14:20:52Z; no fresh test verdict is available yet.
-- The bounded depth-50 sync completed and work fast-forwarded to d7224c706. The five source roles received GO at14:20Z; compiler-names claimed the first build window. Keep both checkouts shallow; never unshallow.
+- Active development tree: `/workspace/naming-migration-active/tcl-lsp`, shallow `work`, with all fixture families materialised (the 2,514 keep-list paths remain present). Large experiments and unrelated evidence stay omitted. The exact requested full shallow clone at `/workspace/naming-migration/tcl-lsp` is now an object cache; do not edit or build there. Omitted evidence remains in its objects. Required full gates must use their complete inputs.
+- Rust 1.99.1, Node 26.12.1, Corepack 0.36.0 and all five exact Tcl releases plus pinned Jim are provisioned. Shared build environment: `/tmp/tcl-lsp-naming-env.sh`; oracle receipt in this cycle's evidence directory. compiler-names reached dependency compilation; no fresh test verdict. Own verified process tree briefly SIGSTOP-paused for safe Git rebase; resume after tree consistency.
+- The bounded shallow sync fast-forwarded to d7224c706; later external updates required WIP rebase onto8c902c555. All committed source/evidence survived. Reduced sparse patterns2,991->11 to avoid repeated Git overhead; full fixture materialisation cost about1.5GB. The five source roles received GO at14:20Z; compiler-names claimed the first build window. Keep both checkouts shallow; never unshallow.
 - Serialize complete build/run/cleanup commands using `flock /tmp/tcl-lsp-naming-build.lock`; compiler-names g4 gets first lock. Jobs=2, incremental=0, test/dev debug=0, draining logs capped20MB. Stop below2GB. Cleanup must retain executables younger60min and run only with no cargo/rustc process; old runners need adaptation.
-- Five implementation roles resumed; external bigip-lsp/perf/review-triage are monitored without duplicates. All external files are fresh at14:15. ILX source contract routed to compiler; perf realm/interprocedural proof still pending.
+- Five implementation roles resumed; external bigip-lsp/perf/review-triage are monitored without duplicates. All external files are fresh at14:26 (bigip14:22,perf14:00,triage14:17:22). ILX source contract routed to compiler; perf realm/interprocedural proof still pending.
 - Historical CI5202/run39616304947 has finished:24 failed/4 passed/16 skipped/3 cancelled jobs. Cancelled partitions expose273pass/71fail observations only; compare identities with5201 and run a fresh complete CI snapshot when compilation is ready. Receipts: `../handoff/reviews/merge-inventory-20261019/coordinator-20261022/`. No admission or release-gate checkbox changes.
-- The overdue13:55 cycle is being published after checkout/sync, explicitly reported in chat. Next scheduled cycle14:25:37Z; rearm30min each cycle. Fetchdepth1work before each push and rebase/FF without stashing or resetting agent work.
+- The overdue13:55 and14:25 cycles are being published after checkout/sync. WIP commits rebased onto8c902c555 as d1a5bf950/e4bee2529. The first push was normally rejected after external advancement; no force push. Next scheduled cycle14:55:37Z; rearm30min each cycle. Fetchdepth1work before each push and rebase/FF without stashing or resetting agent work.
 - Target remains clean merge/release readiness into rust under reviewF and zero pass-to-fail against origin/rust; general runtime parity follows release. Never open a PR unless the user asks.
