@@ -6,7 +6,7 @@ Evidence, scripts and logs: [triage-20261022/](triage-20261022/README.md). Live 
 
 **Run16 complete; final replay refreshed for the new source batch.** All 27 semantic observational probes plus one fresh small scaling probe complete on `2d1b85ad` (five groups, every exit 0). The existing `pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser` now passes, and the fresh declared-effect/unclosed-argument regression passes on `0412d5e4`, whose product source is identical. All 107 Tcl files ran on all six engines: 642 executions, 86 generated outputs, 186 matching-profile checks, zero unexpected result. No product code or permanent tests were edited.
 
-The fetch after run16 brought `b572c36d` (Jim class ownership and server metadata/lint integration), with tip `5d054dc7`. Run17 compiled successfully on `45766fc3` in 9m14s; its full grouped replay is active before final sign-off. Release gates `make rust-check` and `make prep-pr` remain unrun under the active `work` development-push exception.
+The fetch after run16 brought `b572c36d` (Jim class ownership and server metadata/lint integration), with tip `5d054dc7`. Run17 compiled successfully on `45766fc3` in 9m14s; its rename group completed in 401.89s (exit 0), and its 19-test core group is active before final sign-off. All 10 returned rename controls passed matching-profile execution checks (31 files / 186 total engine executions); the final full output replay is pending. Release gates `make rust-check` and `make prep-pr` remain unrun under the active `work` development-push exception.
 
 ## Validation snapshots
 

@@ -4,6 +4,7 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 
 | Item | What it is |
 | --- | --- |
+| `run17-progress.log`, `run17-rename-oracles.log`, summary | Closed latest rename group: exit 0; 31 files / 186 executions / 10 matching-profile edit checks pass. Core and remaining groups active. |
 | `run17-latest-build.json`, `run17-latest-build.log`, `run17-source-audit.log` | Fresh post-b572 integration compiles on 45766fc3 in 9m14s; grouped replay active. Static audit corrects N11 shortcut to test-only and captures the production admission path. |
 | `run16-latest.log`, `run16-latest-oracles.log`, summary, `out/run16-latest/`, `run16-declared-effects.log` | Complete on 2d1b85ad: 27 semantic + 1 scaling probes; named fold e2e and declared-barrier regression pass. 642 engine executions / 186 matching checks, zero unexpected result. |
 | `run16-progress.log`, `run16-source-audit.log.gz`, `run16-rename-*` | Closed earlier prefix, static audit and early rename replay; full completed run16 supersedes the prefix. |
