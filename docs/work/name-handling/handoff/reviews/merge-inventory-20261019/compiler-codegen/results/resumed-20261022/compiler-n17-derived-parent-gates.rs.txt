@@ -1,0 +1,128 @@
+/tmp/compiler-n17-derived-parent-gates.rs.txt:
+
+//! OFF-TREE, UNRUN public diagnostic attachment for the unchanged derived run_row.
+//!
+//! Add `print_derived_parent_gates(&key, &registry, &unit);` immediately after
+//! CompilationUnit::build_for_dialect in /tmp/vm-runtime-derived-probe.rs.
+//! Fixtures/world/formals and acceptance assertions remain unchanged.
+//! This module supplies observations only, never execution/admission authority.
+
+fn print_derived_parent_gates(
+    key: &str,
+    registry: &tcl_registry::CommandRegistry,
+    unit: &tcl_compiler::compilation_unit::CompilationUnit,
+) {
+    use tcl_compiler::ir::Statement;
+    use tcl_compiler::registry_invocation::{
+        InvocationMetadataContext, normal_transfer_invocation_with_metadata_context,
+    };
+    let input = unit.ir_module.source_metadata_input.as_ref();
+    let metadata =
+        input.and_then(|input| InvocationMetadataContext::for_analysis_input(registry, input));
+    eprintln!(
+        "N17G {key} retained-input={} exact-analysis-metadata={}",
+        input.is_some(),
+        metadata.is_some()
+    );
+    for body in unit.ir_module.procedures.values() {
+        if body.qualified_name != "::p" {
+            continue;
+        }
+        for statement in &body.body.statements {
+            let Statement::AssignValue { name, tokens, .. } = statement else {
+                continue;
+            };
+            if name != "known" {
+                continue;
+            }
+            let Some(tokens) = tokens.as_ref() else {
+                eprintln!("N17G {key} parent-known has no retained tokens");
+                continue;
+            };
+            let normal =
+                normal_transfer_invocation_with_metadata_context(registry, metadata, tokens);
+            eprintln!(
+                "N17G {key} parent normal-transfer={} synthetic={:?}",
+                normal.is_some(),
+                tokens.synthetic
+            );
+            let original_site = tokens
+                .words()
+                .get(2)
+                .and_then(|word| word.sole_command_substitution())
+                .map(|(_, site)| site);
+            eprintln!("N17G {key} parent original-value-sole-substitution={original_site:?}");
+            if let Some(binding) = tokens.source_binding.as_ref() {
+                let stored = normal.as_ref().and_then(|normal| {
+                    normal.stored_value_operand(&binding.variable_context, registry)
+                });
+                eprintln!(
+                    "N17G {key} parent admission={:?} structured-recipe={:?} stored-value={:?} execution={:?} handler={:?} args-normal={} invocation-normal={}",
+                    binding.native_compilation_admission_selection(),
+                    binding
+                        .original_structured_compilation(tokens)
+                        .map(|preparation| preparation.recipe()),
+                    stored.map(|(spelling, word)| (
+                        spelling,
+                        word.sole_command_substitution().map(|(_, site)| site)
+                    )),
+                    binding
+                        .proved_execution_target()
+                        .map(|target| target.registry_backed),
+                    binding
+                        .proved_handler_target()
+                        .map(|target| target.registry_backed),
+                    binding.original_arguments_complete_normally(tokens),
+                    binding.original_invocation_completes_normally(tokens),
+                );
+            } else {
+                eprintln!("N17G {key} parent has no retained binding");
+            }
+            let Some(input) = input else {
+                continue;
+            };
+            // Public lifted_calls drops its private completeness bit. These
+            // candidates are observational, never proof of a complete inventory.
+            let calls =
+                tcl_compiler::word_subst::lifted_calls(Some(tokens), input.lexer_config().nested());
+            eprintln!(
+                "N17G {key} child public-candidates={} completeness=UNOBSERVABLE checked_lifted_calls=pub(crate) retained-fold=UNOBSERVABLE(pub(crate))",
+                calls.len()
+            );
+            for call in calls {
+                let same_site = original_site.is_some_and(|site| site.span == call.span);
+                eprintln!(
+                    "N17G {key} child span={:?} exact-sole-site={} source-head={:?}",
+                    call.span, same_site, call.command
+                );
+                let Some(child) = call.tokens.as_ref() else {
+                    eprintln!("N17G {key} child no retained tokens");
+                    continue;
+                };
+                let Some(binding) = child.source_binding.as_ref() else {
+                    eprintln!("N17G {key} child no retained binding");
+                    continue;
+                };
+                let child_normal =
+                    normal_transfer_invocation_with_metadata_context(registry, metadata, child);
+                eprintln!(
+                    "N17G {key} child admission={:?} structured-recipe={:?} normal-transfer={} execution={:?} handler={:?} args-normal={} invocation-normal={} realm={:?}",
+                    binding.native_compilation_admission_selection(),
+                    binding
+                        .original_structured_compilation(child)
+                        .map(|preparation| preparation.recipe()),
+                    child_normal.is_some(),
+                    binding
+                        .proved_execution_target()
+                        .map(|target| target.registry_backed),
+                    binding
+                        .proved_handler_target()
+                        .map(|target| target.registry_backed),
+                    binding.original_arguments_complete_normally(child),
+                    binding.original_invocation_completes_normally(child),
+                    binding.invocation_realm(),
+                );
+            }
+        }
+    }
+}

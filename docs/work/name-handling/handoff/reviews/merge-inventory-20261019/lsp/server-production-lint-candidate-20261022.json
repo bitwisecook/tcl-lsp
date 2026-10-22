@@ -1,0 +1,231 @@
+{
+  "status": "FROZEN OFF-TREE candidate for independent static review; no Cargo, typecheck, Clippy or functional verdict",
+  "source_inventory": "/tmp/naming-bigip-server-lints-20261022.json",
+  "scope": "first35 normal-library messages; no assertion or test-only future changes; required private API call updates in tests only",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "0828fe1331fda3650ef486350d7fbcce43d6dce00c80b732fb472a1a5c71a5f2",
+      "proposed_sha256": "53ae58f977d4f0e3116f2e4e99747a51ff75275b881b06d623d4d7e6957da17e",
+      "canonical_still_matches_before": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "before_sha256": "7e04ba9441bbb1c4dc30b6613bc86af3409d60e48b830c60a667f2e15aedef2d",
+      "proposed_sha256": "8f440a3098657e7ee536ae74e218065fd11ea312ee74cea21c413d742409e7f4",
+      "canonical_still_matches_before": true
+    }
+  ],
+  "patch_sha256": "65636592464b5fc921cd349190ff1a0d23ebe68c233a2a9bf0b5c93ba9407340",
+  "original_future_sites": [
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 12526,
+        "column": 9,
+        "nearest_preceding_function": "commit_open_document"
+      },
+      "original_future_expression": "self.commit_open_document_with_seed(\n            uri,\n            text,\n            dialect,\n            version,\n            self.fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned()),\n        )",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    },
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 16643,
+        "column": 27,
+        "nearest_preceding_function": "compute_definition"
+      },
+      "original_future_expression": "self\n                    .logical_namespace_locations_for_snapshot(\n                        (uri.clone(), doc.clone(), source_generation),\n                        &analysis,\n                        pos,\n                        source_epoch,\n                        LogicalNamespaceLocationsPurpose::Definitions,\n                    )",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    },
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 16665,
+        "column": 58,
+        "nearest_preceding_function": "compute_definition"
+      },
+      "original_future_expression": "self\n            .original_method_locations_for_snapshot(\n                (uri.clone(), doc.clone(), source_generation),\n                &analysis,\n                pos,\n                source_epoch,\n            )",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    },
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 16741,
+        "column": 36,
+        "nearest_preceding_function": "compute_definition"
+      },
+      "original_future_expression": "self\n            .logical_class_member_locations_for_snapshot(\n                (uri.clone(), doc.clone(), source_generation),\n                &analysis,\n                pos,\n                source_epoch,\n            )",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    },
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 18904,
+        "column": 29,
+        "nearest_preceding_function": "logical_class_member_locations_for_snapshot"
+      },
+      "original_future_expression": "self\n            .logical_member_source_targets_for_snapshot(&caller, analysis, position)",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    },
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 18929,
+        "column": 29,
+        "nearest_preceding_function": "logical_member_source_hover"
+      },
+      "original_future_expression": "self\n            .logical_member_source_targets_for_snapshot(&caller, analysis, position)",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    },
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 19845,
+        "column": 58,
+        "nearest_preceding_function": "reference_locations"
+      },
+      "original_future_expression": "self\n            .readonly_original_method_reference_locations_at(\n                uri,\n                &doc.text,\n                analysis,\n                position,\n                include_declaration,\n            )",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    },
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 21655,
+        "column": 20,
+        "nearest_preceding_function": "cross_file_method_hover"
+      },
+      "original_future_expression": "self\n                .logical_member_source_hover(uri, doc, analysis, pos)",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    },
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 30916,
+        "column": 20,
+        "nearest_preceding_function": "did_open"
+      },
+      "original_future_expression": "self\n            .commit_open_document(&uri, &text, &dialect_for_diags, version)",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    },
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 32021,
+        "column": 25,
+        "nearest_preceding_function": "goto_definition"
+      },
+      "original_future_expression": "self.compute_definition(&uri, pos)",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    },
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 32080,
+        "column": 13,
+        "nearest_preceding_function": "goto_declaration"
+      },
+      "original_future_expression": "self.compute_definition(&uri, pos)",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    },
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 32376,
+        "column": 29,
+        "nearest_preceding_function": "references"
+      },
+      "original_future_expression": "self\n                .logical_namespace_locations_for_snapshot(\n                    (uri.clone(), doc.clone(), source_generation),\n                    &analysis,\n                    pos,\n                    source_epoch,\n                    LogicalNamespaceLocationsPurpose::References {\n                        include_declaration: include_decl,\n                    },\n                )",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    },
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 32403,
+        "column": 13,
+        "nearest_preceding_function": "references"
+      },
+      "original_future_expression": "self.reference_locations(&uri, &doc, &analysis, pos, include_decl)",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    },
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 34800,
+        "column": 54,
+        "nearest_preceding_function": "hover"
+      },
+      "original_future_expression": "self\n            .original_method_hover_for_snapshot(\n                (uri.clone(), doc.clone(), source_generation),\n                &analysis,\n                pos,\n                source_epoch,\n            )",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    },
+    {
+      "original_primary": {
+        "path": "rust/tcl-lsp-server/src/lib.rs",
+        "line": 34863,
+        "column": 30,
+        "nearest_preceding_function": "hover"
+      },
+      "original_future_expression": "self\n            .cross_file_method_hover(&uri, &doc, &analysis, pos)",
+      "proposed_change": "Box::pin the exact same future expression; await remains in original control flow",
+      "preserved": "same once evaluation/arguments/borrowed owners, no spawn/detach/retry/new await or hold/drop changes"
+    }
+  ],
+  "structural_audit": [
+    {
+      "scope": "DiskScanOutcome::Available / RehomingDocumentSnapshot::Ready",
+      "change": "Box exact private owned payload; consuming scan sites explicitly unbox before current_scanned_rows",
+      "preserved": "all fields and absent/unavailable alternatives; source revisions/path admissions/analysis-owner Arc stay exact"
+    },
+    {
+      "scope": "LogicalMemberSourceCaller",
+      "change": "move enum before statements and box exact Command/Member receipts",
+      "preserved": "variants remain distinct; clone the same boxed typed receipt for original final-source validation"
+    },
+    {
+      "scope": "DiskPublicationInputs / LiveSourceContents / WorkspaceRenameCaller / PackReloadSourceViews",
+      "change": "Copy bundles of existing borrowed arguments, destructured before original checks",
+      "preserved": "same args/evaluation order, guards, actual source references, MutexGuard lifetimes and original drop points; no currency grant"
+    },
+    {
+      "scope": "ScanAnalysisInputs",
+      "change": "move the same captured epoch/factory/dialect inputs into one owned bundle, destructure at function entry",
+      "preserved": "all per-worker expected epoch/factory and publication guards unchanged; no new cloning or fallback"
+    },
+    {
+      "scope": "DiagnosticSourceContext / DiagnosticProviderResult / AdmittedDiskReplacement",
+      "change": "private aliases for exact existing tuple and reference types",
+      "preserved": "same owned result variants and source publication guard borrows"
+    },
+    {
+      "scope": "lens_command / lift_report_with_payloads",
+      "change": "borrow Uri and read-only payload map instead of consuming unused ownership",
+      "preserved": "same Uri rendering/finding-address lookup/JSON data/source owner; self report remains owned where its locations are consumed"
+    },
+    {
+      "scope": "shutdown",
+      "change": "direct async fn spelling with identical body/order",
+      "preserved": "one close/reload/withdrawal check; same awaits/cancellation and error"
+    },
+    {
+      "scope": "binding/style cleanup",
+      "change": "rename local pack generation/owner URI/source owner and used source-input guard; remove doc blank line",
+      "preserved": "field/wire names exact, guard dropped at same explicit point"
+    }
+  ],
+  "lint_allows_added": false,
+  "limits": "fresh typecheck and Clippy may expose further findings; ordinary source/publication/guarded regression selectors still pending"
+}

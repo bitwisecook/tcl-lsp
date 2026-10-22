@@ -2,55 +2,90 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T18:03:10Z (first structured check reported four VM callback lifetime errors; correction off-tree; whole Jim source draft ready for review; no VM Cargo started)
+Last updated: 2026-10-22T18:36:27Z (ILX static peer review complete/held; Jim11 approved awaiting root integration; compiler18 then LSP3 then VM11 execution order; no VM Cargo queued)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
 Active tree is `/workspace/naming-migration-active/tcl-lsp`. Root reports the
-257-path coordinated batch applied, including the VM47 lint draft and ASCII3
-backend; trusted Jim proc/class drafts remain off-tree. The checks role owns the
-first seven-crate `--all-targets` Cargo check; standalone `runtime/rust` follows
-main-workspace type clearance. Canonical Rust/tests remain frozen. No VM-runtime
-Cargo process has started. First VM execution after explicit release remains the
-six Jim/EDA targets (32 cases), then `jim_document` (26 cases), TLS and required
-SpecTcl compatibility controls. No completed current result or audit admission.
+257-path coordinated batch applied, including VM47 lint and ASCII3 backend.
+Trusted Jim proc descriptor `346d63ea` and the VM callback signature fixes are
+now root-applied (coordinator evidence
+`typecheck-r2-and-semantic-fixes-20261022T1819Z`). R2 closed with stable source,
+zero warnings and four errors total: two LSP Core ownership/lifetime errors and
+two VM test callback-generality errors. The production callback correction
+`a2330cb9` had cleared those production errors; the analogous test-only
+`8f0c5107` correction is applied for R3. Callback bodies, currentness checks,
+mutation/reference-count assertions and TLS retirement guards are unchanged.
+The checks role owns R3 seven-crate `--all-targets`; no completed R3 result is
+claimed. Canonical Rust/tests remain frozen; docs are explicitly clear.
 
-The active first structured check reports four VM `Fn` generality errors at
-`interp/native_command_names.rs:876` and `interp/native_variable_names.rs:174`.
-The signature-only correction is prepared off-tree at
-`/tmp/vm-runtime-typecheck-fixes/callback-generality.patch`, SHA-256
-`a2330cb90f11d0408b0247a16c332f41d26c7060855565b2d67340c86371d61f`.
-It annotates the original string protocol and independently general registration
-callback object lifetime; callback bodies/currentness/retirement guards stay
-exact. Parse/apply-check pass, but no corrected-source typecheck has completed.
-Root controls integration after the first check's source/input guard.
+No VM-runtime Cargo process has entered or queued. After type clearance, root
+orders original compiler18 selectors, then short original LSP3 guarded-loss
+diagnosis, then VM11/SpecTcl acceptance. No slot is released to VM yet. Exact
+staged VM commands/selectors/guards are in
+`/tmp/vm-runtime-preflight/execution-selector-plan.json`: six after8b Jim/EDA
+targets (11+4+3+1+8+5 = 32 original cases), then full `jim_document` with the
+original26 outcomes retained separately from added controls, TLS2, exact owned
+six-vendor EDA smoke/D4 and one explicit LSP clean-exit recovery selector. Each
+whole preguard/build/artifact-hash/run/postguard stays under the global build
+flock; pinned source/provider hashes, exact nonzero rosters, no ignored tests,
+zero warnings and cap/truncation fail-closed checks are required. General VM
+parity and unfiltered library/e2e runs remain parked. LSP confirms no duplicate
+watchdog/TLS/EDA/spec-pack selector queued.
 
-Trusted Jim proc descriptor attachment has compiler static peer approval for
-its trusted boundary, exact selected row and pointer/generation idempotence.
-Requested direct helper negatives now preserve an ordinary non-CoreJim row and
-an existing explicit descriptor pointer. Updated two-path off-tree patch:
-`/tmp/vm-runtime-jim-descriptor-shadow/trusted-jim-proc.patch`, SHA-256
-`346d63ea42ce2886b30766c91145b79061539bd28ab362b5a84c81070c9cb32b`.
-These new controls parse; the candidate has not compiled or run.
+Trusted Jim proc attachment has compiler static approval, including exact
+trusted compiled-in boundary, selected row and pointer/generation idempotence.
+Direct helper negatives preserve ordinary non-CoreJim and existing-explicit
+rows; root applied the two-path patch. It remains semantically unmeasured here:
+no Jim26 pass count is inferred from static review or typechecking.
 
-Four Jim class-list failures have a concrete static source boundary:
+The four Jim class-list failures have a concrete static source boundary:
 `source_class_declaration_attempt` admits `command_installation` (Snit/Itcl) or
-TclOO, excluding JimClass. The existing `OriginalClassDefinerSource` also needs
-all-static arguments and cannot carry computed base/dictionary words. A separate
-Jim source-only tape/relationship candidate is ready for compiler/names review:
+TclOO, excluding JimClass. `OriginalClassDefinerSource` also requires all-static
+arguments and cannot carry computed bases/dictionaries. The separate complete
+source-only candidate is statically approved and held off-tree for root integration:
 `/tmp/vm-runtime-jim-class-shadow/whole/jim-class-whole.patch`, SHA-256
-`db2b3e9eaf2ea664898db9bdddd4c5986f8e1ca2ec452148dcb7bc145608359a` (nine paths). It retains exact original parent,
-source/context, selected authored Jim protocol and list geometry; source-only
-class cells supply conditional inherited metadata without any Native class,
-argument, receiver or publication owner. Unknown/computed layouts remain
-unavailable. No reporting-string or HandleScope naming fallback is added.
-The whole candidate includes producer, graph, metadata consumer and five fixed
-controls for all four original layout cases plus foreign/stale/replacement and
-unknown layout refusals. Parse/apply-check pass with exact before/shadow hashes;
-it is uncompiled/unrun and grants no class/inheritance acceptance claim. The pinned Jim oracle's 25 fixed
-semantic controls remain evidence about Jim semantics only.
+`9c97198bc9297b4eee9cea8af768a53732d456d37f1ba7202aeb6955d8926759`
+(eleven paths). Names statically approved the prior policy/rename/replacement
+boundary; compiler final static approval covers the exact current eleven-path
+SHA, including independent body catalogue/effects separation. Root will apply
+after the current C6 build/source guard closes. The candidate has not compiled
+or run.
+
+Distinct source purposes retain actual authored Jim0.84 recipe versus a
+positively retained older Logical full input/context/config. Original lists
+and actual parent source bodies stay owned; Native classes, arguments, bodies,
+frames, receivers and publications are not issued. Parent-captured base
+providers join unique original declaration/dictionary spans rather than report
+names. Computed/odd replacements retire earlier provider cells; renamed
+providers retain original producer lineage. The independent readonly body
+catalogue records Jim rows through `authored_prefixes` without enabling general
+execution/mutation-completeness inventory. Nested base relations require the
+same exact parent body. Eight fixed controls retain all four original layout
+cases plus foreign/stale/absent policy, rename/replacement, expansion and nested
+namespace/if/procedure cases across both source purposes. Existing Jim26
+expectations remain unchanged. Parse/application checks pass with exact hashes;
+there is no class/inheritance acceptance claim. The pinned Jim oracle's25
+fixed semantic controls remain evidence about Jim semantics only.
+
+Independent ILX source-owner peer review is complete at
+`/tmp/vm-runtime-ilx-peer-review.json` for exact compiler draft `b82481c0`.
+Integration is held: its quiet predicate omits declared source continuation and
+full effect-domain/interpreter/reentrancy closure; concrete break/continue rows
+have empty effects yet transfer control. Current ILX init/call/notify rows lack
+a declared world-effect chain, so conservative UNKNOWN currently withholds
+positive admission. No EMPTY/quiet grant is inferred from remote_method or
+missing executable capability. Authentic Vendor body/home/original-word and
+selected descriptor/family boundaries plus named-write-before-install look
+sound; no Native HandleScope/key donation exists. Compiler agrees with the hold.
+No implementation, application, Cargo or duplicate BIGIP consumer work occurred.
+
+Root reported the D4 module registration E0583 during R3 and will add the
+explicit child path attribute in its next guarded source window. The child file
+exists; assertions and exact selector stay unchanged. This prerequisite is
+recorded in the VM selector plan; VM does not self-edit during the source hold.
 
 Six-vendor EDA smoke is prepared in `spec_packs.rs` and included in the WIP, with
 all eight pack names, own-vendor plus shared SDC/UPF availability and rival-vendor
@@ -167,15 +202,11 @@ class dictionaries/inheritance/methods and invalid shapes), archived under
 semantic expectations without granting analyser admission.
 
 A minimal Jim typed descriptor draft is ready ONLY in
-`/tmp/vm-runtime-jim-descriptor-shadow/trusted-jim-proc.patch`, SHA-256
-`a727fa744fe696eb5d2b71404658cc081a47875d649b9ec9e64c6e918ef86e05`.
-It attaches the existing Core procedure descriptor at trusted compiled-in
-Core(Jim) registration, preserving selected availability, pointer idempotence,
-ordinary pack restrictions and no-fallback consumer semantics. Original argv,
-body-range, missing-grammar/expansion/Tcl4/shadowing and registration controls
-are drafted beside it. Compiler accepted the boundary plan; implementation
-peer review is pending. Both shadow files and controls parse, application check
-passes and canonical hashes are unchanged; no typecheck/Cargo run has occurred.
+`/tmp/vm-runtime-jim-descriptor-shadow/trusted-jim-proc.patch`, final SHA-256
+`346d63ea42ce2886b30766c91145b79061539bd28ab362b5a84c81070c9cb32b`.
+Compiler statically approved its boundary and direct helper negatives; root
+applied it in the R3 source window. Ordinary pack restrictions and no-fallback
+consumer semantics remain. The current Jim document execution is pending.
 
 The scratch runner is `/tmp/vm-runtime-preflight/seq-safe.sh`: one `cargo test`
 build/run per target, draining filtered logs capped at 20 MB, recording exit and

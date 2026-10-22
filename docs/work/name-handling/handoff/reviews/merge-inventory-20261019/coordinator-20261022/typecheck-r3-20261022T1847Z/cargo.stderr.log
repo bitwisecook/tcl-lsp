@@ -1,0 +1,20 @@
+    Checking tcl-registry v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-version v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-version)
+    Checking tcl-compiler v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm)
+    Checking tcl-irules v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-irules)
+    Checking tcl-sslictcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-sslictcl)
+    Checking tcl-engine-tclvm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-engine-tclvm)
+    Checking tcl-spec-hooks v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spec-hooks)
+    Checking tcl-diagram v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-diagram)
+    Checking tcl-bigip v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bigip)
+    Checking tcl-lsp-core v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core)
+    Checking tcl-bigip-query v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bigip-query)
+    Checking tcl-spectcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl)
+    Checking tcl-lsp-db v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-db)
+    Checking tcl-explorer v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-explorer)
+    Checking f5-xc v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/f5-xc)
+    Checking tcl-lsp-server v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-server)
+error: could not compile `tcl-lsp-server` (test "e2e") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `tcl-compiler` (lib test) due to 2 previous errors

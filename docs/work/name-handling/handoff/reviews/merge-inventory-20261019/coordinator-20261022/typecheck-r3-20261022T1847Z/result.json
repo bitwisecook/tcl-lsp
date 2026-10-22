@@ -1,0 +1,92 @@
+{
+  "cargo_json_parse_errors": 0,
+  "cargo_json_parsed_lines": 534,
+  "cargo_message_counts": {
+    "build-finished": 1,
+    "build-script-executed": 27,
+    "compiler-artifact": 500,
+    "compiler-message": 6
+  },
+  "command": [
+    "cargo",
+    "check",
+    "--locked",
+    "--keep-going",
+    "-p",
+    "tcl-registry",
+    "-p",
+    "tcl-compiler",
+    "-p",
+    "tcl-vm",
+    "-p",
+    "tcl-spectcl",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "tcl-lsp-server",
+    "--all-targets",
+    "--message-format=json"
+  ],
+  "compiler_error_count": 3,
+  "compiler_errors": [
+    {
+      "code": "E0583",
+      "message": "file not found for module `environment_lifecycle`",
+      "primary_spans": [
+        {
+          "column_end": 27,
+          "column_start": 1,
+          "file_name": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs",
+          "line_end": 34,
+          "line_start": 34
+        }
+      ],
+      "rendered": "error[E0583]: file not found for module `environment_lifecycle`\n  --> rust/tcl-lsp-server/tests/e2e/spec_packs.rs:34:1\n   |\n34 | mod environment_lifecycle;\n   | ^^^^^^^^^^^^^^^^^^^^^^^^^^\n   |\n   = help: to create the module `environment_lifecycle`, create file \"rust/tcl-lsp-server/tests/e2e/environment_lifecycle.rs\" or \"rust/tcl-lsp-server/tests/e2e/environment_lifecycle/mod.rs\"\n   = note: if there is a `mod environment_lifecycle` elsewhere in the crate already, import it with `use crate::...` instead\n\n"
+    },
+    {
+      "code": "E0624",
+      "message": "method `join` is private",
+      "primary_spans": [
+        {
+          "column_end": 18,
+          "column_start": 14,
+          "file_name": "rust/tcl-compiler/src/registry_invocation/source_taint.rs",
+          "line_end": 909,
+          "line_start": 909
+        }
+      ],
+      "rendered": "error[E0624]: method `join` is private\n    --> rust/tcl-compiler/src/registry_invocation/source_taint.rs:909:14\n     |\n 909 |             .join(&crate::command_binding::SourceInvocationBinding::default());\n     |              ^^^^ private method\n     |\n    ::: rust/tcl-compiler/src/command_binding.rs:2461:5\n     |\n2461 |     fn join(&mut self, other: &Self) {\n     |     -------------------------------- private method defined here\n\n"
+    },
+    {
+      "code": "E0599",
+      "message": "no method named `case_body_operands` found for reference `&StructuredSourceRoles` in the current scope",
+      "primary_spans": [
+        {
+          "column_end": 46,
+          "column_start": 28,
+          "file_name": "rust/tcl-compiler/src/registry_invocation.rs",
+          "line_end": 9349,
+          "line_start": 9349
+        }
+      ],
+      "rendered": "error[E0599]: no method named `case_body_operands` found for reference `&StructuredSourceRoles` in the current scope\n    --> rust/tcl-compiler/src/registry_invocation.rs:9349:28\n     |\n9349 |         let bodies = roles.case_body_operands().unwrap();\n     |                            ^^^^^^^^^^^^^^^^^^ method not found in `&StructuredSourceRoles`\n\n"
+    }
+  ],
+  "cwd": "/workspace/naming-migration-active/tcl-lsp",
+  "exit_code": 101,
+  "finish_utc": "2026-10-22T18:45:21.108197+00:00",
+  "git_diff_hash_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "git_diff_hash_before": "f5c6778a415794008d25a0d06f91789fcdbdc44f41064874dfde281641746b54",
+  "logs_truncated": false,
+  "oracle_mismatches": [],
+  "retained_log_bytes": 385614,
+  "retention_cap_bytes": 20971520,
+  "source_head_after": "0d7434a2f656c43a9e370838fa110b4d30139768",
+  "source_head_before": "db3e37828ffe984f694f48d7f27cbaaa8113f0fa",
+  "source_inputs_changed": [],
+  "start_utc": "2026-10-22T18:19:08.316040+00:00",
+  "stderr_bytes_total": 1822,
+  "stdout_bytes_total": 383792
+}

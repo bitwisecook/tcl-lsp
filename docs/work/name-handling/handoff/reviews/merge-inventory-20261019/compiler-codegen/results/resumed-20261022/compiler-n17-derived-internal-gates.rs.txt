@@ -1,0 +1,61 @@
+/tmp/compiler-n17-derived-internal-gates.rs.txt:
+
+//! Optional compiler-internal diagnostic ONLY; OFF-TREE, UNRUN.
+//! No visibility changes, no production gate changes and no acceptance claim.
+//! Called only with the existing run_row's genuine retained AssignValue tokens,
+//! registry, complete source input and installed host. This independently probes
+//! the child evaluator; a returned value does NOT license the parent store.
+fn print_checked_derived_child(
+    key: &str,
+    tokens: &crate::ir::CommandTokens,
+    registry: &tcl_registry::CommandRegistry,
+    input: &crate::analyser::ResolvedAnalysisInput,
+) {
+    let Some(metadata) =
+        crate::registry_invocation::InvocationMetadataContext::for_analysis_input(registry, input)
+    else {
+        eprintln!("N17GI {key} exact metadata missing");
+        return;
+    };
+    let Some((_, site)) = tokens
+        .words()
+        .get(2)
+        .and_then(|word| word.sole_command_substitution())
+    else {
+        eprintln!("N17GI {key} original sole value substitution missing");
+        return;
+    };
+    let Some(calls) =
+        crate::word_subst::checked_lifted_calls(tokens, input.lexer_config().nested())
+    else {
+        eprintln!("N17GI {key} checked inventory incomplete");
+        return;
+    };
+    let selected: Vec<_> = calls.iter().filter(|call| call.span == site.span).collect();
+    eprintln!(
+        "N17GI {key} checked-inventory={} exact-site={site:?} matching-children={}",
+        calls.len(),
+        selected.len()
+    );
+    let [call] = selected.as_slice() else {
+        return;
+    };
+    // All original operands of the unchanged expr42/catxy fixtures are literal.
+    // These closures match production retained-child trust policy and refuse
+    // any variable lookup, rather than inventing a value from source spelling.
+    let no_variable_value = |_: &str| None;
+    let no_textual_trust = |_: &str| false;
+    let context = crate::const_subst::ConstSubstCtx {
+        registry,
+        resolution_namespace: "::",
+        namespace_context: None,
+        version: input.unit_profile().const_fold_version(),
+        defining_class: None,
+        trusts: &no_textual_trust,
+        lookup_var: &no_variable_value,
+    };
+    let value = context.fold_retained_call_with_metadata_context(call, &calls, metadata);
+    eprintln!(
+        "N17GI {key} independent-child-retained-fold={value:?} parent-normal-store-NOT-granted"
+    );
+}

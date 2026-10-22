@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "db3e37828ffe984f694f48d7f27cbaaa8113f0fa",
-  "last_published_snapshot": "a187c85985e55ae6134e196d4340fac2daa60768",
+  "last_source_snapshot": "0d7434a2f656c43a9e370838fa110b4d30139768",
+  "last_published_snapshot": "e75345a7ef7827c6bbeaf564a8d1c387608cc8a8",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,8 +16,10 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-22T17:59:20.717208+00:00",
-  "product_tree_diff": [],
+  "last_published_utc": "2026-10-22T18:28:00.157143+00:00",
+  "product_tree_diff": [
+    "rust/tcl-lsp-server/src/lib.rs"
+  ],
   "source_lineage_rebased_utc": "2026-10-22T17:45:50.449702+00:00",
-  "source_lineage_note": "Active8478+db3e mapped to publisher3a05+a187 after depth1 fetch/FF to fcbf, fresh depth1fetch/rebase and normalpush. Activebuildsourceuntouched by publication; committed productdiff recorded."
+  "source_lineage_note": "Active0d743 snapshot mapped to published e75345 after publisher depth1fetch/FF tobe53, cherry-pick, freshdepth1fetch/rebase/normalpush. Active R3 Rust/C/Cargo bytes unchanged. External5servermechanicalhunks remain unintegrated in activecheck; nextbetween-buildsourceintegrationrequired."
 }

@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-22T18:42:17.577834+00:00",
+  "status": "read-only exact source/decision provenance; no current test verdict",
+  "selector": "original_optimiser_memo_transport_tests::body_optimiser_memo_retains_the_actual_optional_worker_dialect",
+  "historical_product": "f6c4694f14c9be6f5f155397d30e46a6e72efc80",
+  "historical_panic_line": 11927,
+  "historical_body_lookup": "original_native_declaration_body_units.keys().next().unwrap()",
+  "current_body_lookup": "ir_module.procedures.keys(); assert_eq!(body_ids.len(),1)",
+  "decision_path": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261019T1420Z.json",
+  "decision": "2026-10-19T14:20Z document_entry_without_explicit_execution_entry = Fresh interpreter",
+  "correction_receipt": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/luna-41-NOTES.md:202",
+  "historical_function_sha256": "5cd65e4986a62354a0190ece60b5e466da934512a6d21092cc3d00ce1cd1fe6d",
+  "current_function_sha256": "cda1516ecdfb9601c1a9d96faccb7bfb1181d6bdfc97eb059dd46de9d12e8801",
+  "tcl_source": "proc sample {} {puts VALUE}\n",
+  "tcl_source_sha256": "2af7da0869be57c86ef0f2940f67e1e6dd4f7348f5bf53cffade690fd7cdfe47",
+  "memo_none_vs_selected_assertions_byte_identical": true,
+  "current_run_scope": "CURRENT selector/Tcl fixture/config/memo assertions; authorized body-owner correction; old Native-map capture assertion not claimed unchanged"
+}

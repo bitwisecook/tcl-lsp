@@ -1,0 +1,29 @@
+{
+  "utc": "2026-10-22T18:22:14.352289+00:00",
+  "status": "OFF-TREE UNRUN diagnostics only; no Cargo/typecheck or canonical edits",
+  "files": [
+    {
+      "path": "/tmp/vm-runtime-derived-probe.rs",
+      "sha256": "d91e79ba33f0f96368228329b7067e3eecb385bd6c2aedeb4d8e7f5f6902a49a"
+    },
+    {
+      "path": "/tmp/compiler-n17-derived-parent-gates.rs.txt",
+      "sha256": "5c32df8c8911df108f7836fd12a85796c057dade0a56ec615957095595e95836"
+    },
+    {
+      "path": "/tmp/compiler-n17-derived-internal-gates.rs.txt",
+      "sha256": "d971369425df8a5b0f4953bba15f9670df823d181da795aa91f44477b33bde9d"
+    },
+    {
+      "path": "/tmp/compiler-n17-derived-parent-combined.rs.txt",
+      "sha256": "f9b7151cbfed6830eb959aa02876c6524c12c90e6364111cab72f0fb00a7c011"
+    }
+  ],
+  "public_attachment": "One call after original unit build + appended public helper; unchanged fixtures/world/formals/oldassertions. Public inventory explicitly lacks completeness proof. Exact parent gates use retained original context/words.",
+  "private_attachment": "Separate internal-only snippet, not included in public combined file. No visibility widening; independently probes checked child fold and does not grant parent normal store.",
+  "log_prefixes": [
+    "N17G",
+    "N17GI"
+  ],
+  "syntax": "rustfmt parses both snippets; no typecheck"
+}

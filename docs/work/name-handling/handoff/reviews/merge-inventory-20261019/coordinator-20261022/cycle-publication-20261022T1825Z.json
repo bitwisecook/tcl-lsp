@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-22T18:28:00.157143+00:00",
+  "scheduled": "2026-10-22T18:25:37Z",
+  "next_cycle": "2026-10-22T18:55:37Z",
+  "source_snapshot": "0d7434a2f656c43a9e370838fa110b4d30139768",
+  "published_snapshot": "e75345a7ef7827c6bbeaf564a8d1c387608cc8a8",
+  "depth1_fetched_pre_push": "be53f58c97a021a988bbdc11f135052874173d17",
+  "push_result": "normal HEAD:work accepted be53f58c97..e75345a7ef",
+  "active_check": "R3 stillrunning; snapshot changes HEAD/index of already-present source, actualbytesunchanged pendingfinalguard",
+  "product_tree_diff": [
+    "rust/tcl-lsp-server/src/lib.rs"
+  ],
+  "external_five_hunks_patch_sha256": "0864d4ef6fa82ab69e420f343c98c1a68af30a089f560fb0def183b79c3a8d18",
+  "reminder_session": 86689,
+  "disk_free_bytes": 12000886784,
+  "external_latest": {
+    "bigip-lsp": "18:08",
+    "perf": "18:04",
+    "review-triage": "18:18:26"
+  },
+  "triage_followup": "New be53/316e evidence supersedes earlier18:02 run-active state: run14 deliberately stopped after19groups throughN15 fornewsource; exit143isinterruption, notsemanticfailure;89files534engineexecutions78matchedchecks pass, run15latestprepared. No signoff.",
+  "audit_admissions": [],
+  "release_gate_changes": []
+}

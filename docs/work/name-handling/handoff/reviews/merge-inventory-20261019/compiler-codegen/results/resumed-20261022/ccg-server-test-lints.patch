@@ -1,0 +1,1636 @@
+--- a/rust/tcl-lsp-server/src/current_diagnostics.rs
++++ b/rust/tcl-lsp-server/src/current_diagnostics.rs
+@@ -2931,7 +2931,7 @@
+                 .await
+                 .unwrap(),
+         );
+-        assert!(!original.items.is_empty());
++        assert_ne!(original.items.len(), 0);
+         let previous = original.result_id.unwrap();
+         backend
+             .feature_toggles
+@@ -2947,7 +2947,7 @@
+                 .unwrap(),
+         );
+         assert_ne!(cleared.result_id.as_deref(), Some(previous.as_str()));
+-        assert!(cleared.items.is_empty());
++        assert_eq!(cleared.items.len(), 0);
+         {
+             let cache = backend.pull_diag_cache.lock().await;
+             assert!(matches!(
+@@ -2992,7 +2992,7 @@
+                 .await
+                 .unwrap(),
+         );
+-        assert!(!original.items.is_empty());
++        assert_ne!(original.items.len(), 0);
+         let previous = original.result_id.unwrap();
+         expected.version = 2;
+         expected.source.clear();
+@@ -3012,7 +3012,7 @@
+             report.full_document_diagnostic_report.result_id.as_deref(),
+             Some(previous.as_str())
+         );
+-        assert!(report.full_document_diagnostic_report.items.is_empty());
++        assert_eq!(report.full_document_diagnostic_report.items.len(), 0);
+     }
+ 
+     #[tokio::test]
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -17025,13 +17025,13 @@
+             if document.text.as_ref() != source {
+                 return Ok(std::ops::ControlFlow::Break(Vec::new()));
+             }
+-            return self
++            return Box::pin(self
+                 .original_method_locations_for_snapshot(
+                     (uri.clone(), document, generation),
+                     analysis,
+                     position,
+                     epoch,
+-                )
++                ))
+                 .await;
+         }
+         use std::ops::ControlFlow;
+@@ -17113,12 +17113,12 @@
+         if document.text.as_ref() != source {
+             return Ok(std::ops::ControlFlow::Break(None));
+         }
+-        self.original_method_hover_for_snapshot(
++        Box::pin(self.original_method_hover_for_snapshot(
+             (uri.clone(), document, generation),
+             analysis,
+             position,
+             epoch,
+-        )
++        ))
+         .await
+     }
+ 
+@@ -39383,7 +39383,7 @@
+             "textDocument": {"uri": base.as_str()}, "position": {"line": 0, "character": source.find(r"m\uD800").unwrap()}
+         })).unwrap();
+         let Some(GotoImplementationResponse::Array(targets)) =
+-            backend.goto_implementation(params).await.unwrap()
++            Box::pin(backend.goto_implementation(params)).await.unwrap()
+         else {
+             panic!("foreign buffers must not disable exact Tcl implementation advice");
+         };
+@@ -39400,13 +39400,13 @@
+                 DocumentState::new(source.to_owned(), "unknown-tcl-policy".to_owned())
+                     .with_language_id("tcl".to_owned()),
+             );
+-        assert!(
++        assert_eq!(
+             backend
+                 .original_declaration_documents(&base)
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         for dialect in ["tcl8.6", "tcl9.1", "jimtcl", "f5-irules"] {
+             let document = DocumentState::new(source.to_owned(), dialect.to_owned())
+                 .with_language_id("tcl".to_owned());
+@@ -39445,7 +39445,7 @@
+         }))
+         .unwrap();
+         let Some(GotoImplementationResponse::Array(classes)) =
+-            backend.goto_implementation(params).await.unwrap()
++            Box::pin(backend.goto_implementation(params)).await.unwrap()
+         else {
+             panic!("the exact class declaration should have a workspace subtype");
+         };
+@@ -39455,7 +39455,7 @@
+             "textDocument": {"uri": base.as_str()}, "position": {"line": 0, "character": base_source.find(r"m\uD800").unwrap()}
+         })).unwrap();
+         let Some(GotoImplementationResponse::Array(methods)) =
+-            backend.goto_implementation(params).await.unwrap()
++            Box::pin(backend.goto_implementation(params)).await.unwrap()
+         else {
+             panic!("the exact method declaration should retain its own and descendant definitions");
+         };
+@@ -39543,8 +39543,8 @@
+             .unwrap()
+             .expect("a pure consumer retains the exact original provider");
+         assert_eq!(identity.uri(), provider.as_str());
+-        let references = backend
+-            .reference_locations(&consumer, &document, &analysis, position, false)
++        let references = Box::pin(backend
++            .reference_locations(&consumer, &document, &analysis, position, false))
+             .await
+             .unwrap();
+         assert_eq!(references.len(), 1);
+@@ -39556,8 +39556,8 @@
+                 .await
+                 .unwrap()
+         );
+-        let references = backend
+-            .reference_locations(&consumer, &document, &analysis, position, true)
++        let references = Box::pin(backend
++            .reference_locations(&consumer, &document, &analysis, position, true))
+             .await
+             .unwrap();
+         assert_eq!(references.len(), 2);
+@@ -39576,13 +39576,13 @@
+ 
+         let duplicate = Uri::from_str("file:///original-reference-duplicate.tcl").unwrap();
+         register(&backend, &duplicate, source).await;
+-        assert!(
+-            backend
+-                .reference_locations(&consumer, &document, &analysis, position, false)
++        assert_eq!(
++            Box::pin(backend
++                .reference_locations(&consumer, &document, &analysis, position, false))
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ 
+     #[tokio::test]
+@@ -39615,27 +39615,27 @@
+             line: 0,
+             character: 2,
+         };
+-        assert!(
+-            backend
+-                .reference_locations(&consumer, &document, &analysis, position, true)
++        assert_eq!(
++            Box::pin(backend
++                .reference_locations(&consumer, &document, &analysis, position, true))
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
+-        assert!(
++                .len()
++        , 0);
++        assert_eq!(
+             backend
+                 .resolve_workspace_symbols(&consumer, &document.text, &analysis, position)
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
+-        assert!(
++                .len()
++        , 0);
++        assert_eq!(
+             backend
+                 .cross_document_definition(&consumer, &document.text, position, &analysis)
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         assert!(
+             backend
+                 .original_declaration_identity_at(
+@@ -39691,33 +39691,33 @@
+         assert!(parents[0].data.is_some());
+         let mut unissued = item.clone();
+         unissued.data = None;
+-        assert!(
++        assert_eq!(
+             backend
+                 .type_hierarchy_walk(unissued, false)
+                 .await
+                 .unwrap()
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         let mut foreign = item.clone();
+         foreign.uri = base.clone();
+-        assert!(
++        assert_eq!(
+             backend
+                 .type_hierarchy_walk(foreign, false)
+                 .await
+                 .unwrap()
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         register(&backend, &child, &format!("# changed\n{child_source}")).await;
+-        assert!(
++        assert_eq!(
+             backend
+                 .type_hierarchy_walk(item, false)
+                 .await
+                 .unwrap()
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ 
+     #[tokio::test]
+@@ -40092,13 +40092,13 @@
+             .unwrap();
+         assert_eq!(references.len(), 1);
+         assert_eq!(references[0].uri, first);
+-        assert!(
++        assert_eq!(
+             backend
+                 .cross_document_variable_definition(&first, source, position, &analysis,)
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         assert!(
+             backend
+                 .cross_document_variable_hover(&first, source, position, &analysis,)
+@@ -40113,33 +40113,33 @@
+             .unwrap();
+         assert!(hover.value.contains("1 `namespace eval` block"));
+         assert!(hover.value.contains("1 other reference(s)"));
+-        assert!(
++        assert_eq!(
+             backend
+                 .resolve_original_indexed_locations(vec![retained.clone()])
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+ 
+         // Equal source geometry does not make another selected dialect current.
+         backend.documents.lock("test").await.insert(
+             second.clone(),
+             DocumentState::new(source.to_owned(), "tcl9.0".to_owned()),
+         );
+-        assert!(
++        assert_eq!(
+             backend
+                 .resolve_original_indexed_locations(vec![retained])
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
+-        assert!(
++                .len()
++        , 0);
++        assert_eq!(
+             backend
+                 .cross_document_variable_definition(&first, source, position, &analysis,)
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         assert_eq!(
+             backend
+                 .original_namespace_locations(&first, source, &analysis, &symbol, true, true,)
+@@ -40282,24 +40282,24 @@
+             index.add_document(consumer.as_str(), &consumer_analysis);
+         }
+         let position = Position::new(0, 11);
+-        assert_current_original_method_owner(
++        Box::pin(assert_current_original_method_owner(
+             &backend,
+             &provider,
+             &consumer,
+             consumer_source,
+             &consumer_analysis,
+             position,
+-        )
++        ))
+         .await
+         .unwrap();
+-        let std::ops::ControlFlow::Break(definitions) = backend
++        let std::ops::ControlFlow::Break(definitions) = Box::pin(backend
+             .original_method_locations_at(
+                 &consumer,
+                 consumer_source,
+                 &consumer_analysis,
+                 position,
+                 tcl_lsp_core::method_symbol::OriginalMethodNavigation::Declaration,
+-            )
++            ))
+             .await
+             .unwrap()
+         else {
+@@ -40307,7 +40307,7 @@
+         };
+         assert_eq!(definitions.len(), 1);
+         assert_eq!(definitions[0].uri, provider);
+-        let std::ops::ControlFlow::Break(references) = backend
++        let std::ops::ControlFlow::Break(references) = Box::pin(backend
+             .original_method_locations_at(
+                 &consumer,
+                 consumer_source,
+@@ -40316,7 +40316,7 @@
+                 tcl_lsp_core::method_symbol::OriginalMethodNavigation::References {
+                     include_declaration: false,
+                 },
+-            )
++            ))
+             .await
+             .unwrap()
+         else {
+@@ -40324,8 +40324,8 @@
+         };
+         assert_eq!(references.len(), 1);
+         assert_eq!(references[0].uri, consumer);
+-        let std::ops::ControlFlow::Break(Some(hover)) = backend
+-            .original_method_hover_at(&consumer, consumer_source, &consumer_analysis, position)
++        let std::ops::ControlFlow::Break(Some(hover)) = Box::pin(backend
++            .original_method_hover_at(&consumer, consumer_source, &consumer_analysis, position))
+             .await
+             .unwrap()
+         else {
+@@ -40333,8 +40333,8 @@
+         };
+         assert!(hover.value.contains("Possible source declaration"));
+         assert_eq!(
+-            backend
+-                .compute_definition(&consumer, position)
++            Box::pin(backend
++                .compute_definition(&consumer, position))
+                 .await
+                 .unwrap(),
+             definitions
+@@ -40358,21 +40358,21 @@
+                 .unwrap(),
+             std::ops::ControlFlow::Break(None)
+         ));
+-        assert!(
+-            backend
+-                .compute_definition(&consumer, position)
++        assert_eq!(
++            Box::pin(backend
++                .compute_definition(&consumer, position))
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         assert!(matches!(
+-            backend
++            Box::pin(backend
+                 .original_method_hover_at(
+                     &consumer,
+                     &format!("#{consumer_source}"),
+                     &consumer_analysis,
+                     position,
+-                )
++                ))
+                 .await
+                 .unwrap(),
+             std::ops::ControlFlow::Break(None)
+@@ -40431,13 +40431,13 @@
+                     .unwrap(),
+                 std::ops::ControlFlow::Continue(())
+             ));
+-            let locations = backend.compute_definition(&uri, position).await.unwrap();
++            let locations = Box::pin(backend.compute_definition(&uri, position)).await.unwrap();
+             assert_eq!(locations.len(), 1);
+             assert_eq!(locations[0].uri, uri);
+             assert_eq!(locations[0].range.start.line, declaration_line);
+             assert!(
+-                backend
+-                    .original_method_hover_at(&uri, source, &analysis, position)
++                Box::pin(backend
++                    .original_method_hover_at(&uri, source, &analysis, position))
+                     .await
+                     .unwrap()
+                     .is_continue()
+@@ -40647,13 +40647,13 @@
+                 assert_eq!(names[0].slot().simple.as_bytes(), expected, "{source}");
+             }
+         }
+-        assert!(
++        assert_eq!(
+             defined_original_commands(
+                 "oo::class create Old {}",
+                 tcl_lsp_core::profile_for_dialect("tcl8.4"),
+             )
+-            .is_empty()
+-        );
++            .len()
++        , 0);
+     }
+ 
+     #[test]
+@@ -41444,7 +41444,7 @@
+         let inherited = compute_inherited_requires(&index, &util, &[], None);
+         assert_eq!(inherited, vec!["Tk".to_owned()]);
+         // The entry file itself inherits nothing.
+-        assert!(compute_inherited_requires(&index, &app, &[], None).is_empty());
++        assert_eq!(compute_inherited_requires(&index, &app, &[], None).len(), 0);
+     }
+ 
+     #[test]
+@@ -41457,7 +41457,7 @@
+         let other = Uri::from_file_path("/proj/other.tcl").unwrap();
+         let index = ws_index(&[(&main, "package require Tk\n"), (&other, "proc o {} {}\n")]);
+         // Auto mode: other.tcl is not sourced by main, so it inherits nothing.
+-        assert!(compute_inherited_requires(&index, &other, &[], Some(&root)).is_empty());
++        assert_eq!(compute_inherited_requires(&index, &other, &[], Some(&root)).len(), 0);
+         // Explicit entry point: other.tcl inherits main.tcl's Tk.
+         let entries = vec!["main.tcl".to_owned()];
+         let inherited = compute_inherited_requires(&index, &other, &entries, Some(&root));
+@@ -41616,7 +41616,7 @@
+             &[(&deflib(), "proc libtest {a b c} { return 1 }\n")],
+         );
+         assert_eq!(settled.resolved.len(), 1, "still resolves: {settled:?}");
+-        assert!(arity_codes(&analysis, &settled).is_empty());
++        assert_eq!(arity_codes(&analysis, &settled).len(), 0);
+     }
+ 
+     #[test]
+@@ -41715,7 +41715,7 @@
+             "`buried` at global scope reaches `::buried`, which nothing \
+              defines — tclsh: `invalid command name \"buried\"`: {settled:?}",
+         );
+-        assert!(arity_codes(&analysis, &settled).is_empty());
++        assert_eq!(arity_codes(&analysis, &settled).len(), 0);
+     }
+ 
+     /// **FN guard.** A command nothing in the workspace defines still does not
+@@ -41827,7 +41827,7 @@
+             "`namespace unknown` must widen to dynamic providers",
+         );
+         assert!(settled.resolved.is_empty(), "{settled:?}");
+-        assert!(arity_codes(&analysis, &settled).is_empty());
++        assert_eq!(arity_codes(&analysis, &settled).len(), 0);
+     }
+ 
+     /// **TN — a `{*}`-expanded call.** The true argument count is a runtime
+@@ -42292,7 +42292,7 @@
+             None,
+             tcl_lsp_core::package_resolver::PackagePrefer::default(),
+         );
+-        assert!(got.placed.is_empty());
++        assert_eq!(got.placed.len(), 0);
+         assert!(!got.unresolvable_source);
+         assert!(got.is_empty());
+     }
+@@ -42553,7 +42553,7 @@
+         assert_eq!(data["kind"], "analysisContextUnavailable");
+         assert_eq!(data["environment"], "tcl9.0");
+         assert_eq!(data["overlay"], u64::MAX);
+-        assert!(lift_report("", &core_policy::apply(Vec::new(), &open_policy())).is_empty());
++        assert_eq!(lift_report("", &core_policy::apply(Vec::new(), &open_policy())).len(), 0);
+     }
+ 
+     fn has_code(diags: &[tower_lsp_server::ls_types::Diagnostic], code: &str) -> bool {
+@@ -43522,11 +43522,11 @@
+                 .expect("ok")
+                 .expect("some")
+         };
+-        let plain = run("set x [expr {1 + 2}]\nputs $x\n", "file:///o2119p.tcl").await;
+-        let noqa = run(
++        let plain = Box::pin(run("set x [expr {1 + 2}]\nputs $x\n", "file:///o2119p.tcl")).await;
++        let noqa = Box::pin(run(
+             "set x [expr {1 + 2}]\n# noqa\nputs $x\n",
+             "file:///o2119n.tcl",
+-        )
++        ))
+         .await;
+         assert!(
+             codes_on(&plain).contains(&"O100".to_owned()),
+@@ -45314,12 +45314,12 @@
+             .await
+             .unwrap();
+         set_callback_project_advice(&backend, false).await;
+-        assert!(
++        assert_eq!(
+             callback_pull_report(&backend, &caller, source)
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         set_callback_project_advice(&backend, true).await;
+         assert_eq!(
+             diag_codes(
+@@ -45348,12 +45348,12 @@
+         register_callback_source(&backend, &caller, current_source)
+             .await
+             .unwrap();
+-        assert!(
++        assert_eq!(
+             callback_pull_report(&backend, &caller, current_source)
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         let stale = backend
+             .project_callback_diagnostics_if(true, current_source, &old_analysis, &HashSet::new())
+             .await
+@@ -45397,13 +45397,13 @@
+             let cache = backend.pull_diag_cache.lock().await;
+             callback_source_wire_diagnostics(&cache.get(&caller).unwrap().diagnostics)
+         };
+-        assert!(pushed.is_empty());
+-        assert!(
++        assert_eq!(pushed.len(), 0);
++        assert_eq!(
+             callback_pull_report(&backend, &caller, source)
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         let analysis = backend
+             .analysis_for(&caller, Arc::from(source), "tcl8.6".to_owned())
+             .await
+@@ -46251,14 +46251,14 @@
+ 
+         let user_uri = Uri::from_file_path(ws.0.join("reporoot/examples/user.tcl")).unwrap();
+         register(&backend, &user_uri, user_src).await;
+-        let locs = backend
++        let locs = Box::pin(backend
+             .compute_definition(
+                 &user_uri,
+                 Position {
+                     line: 2,
+                     character: 16,
+                 },
+-            )
++            ))
+             .await
+             .unwrap();
+         assert_eq!(
+@@ -46387,8 +46387,8 @@
+         }
+         let source = "proc file {args} {}; lappend auto_path [file join /ROOT leaf]";
+         let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+-        assert!(!analysis.auto_path_entries.is_empty());
+-        assert!(document_auto_path_dirs(&uri, &analysis).is_empty());
++        assert_ne!(analysis.auto_path_entries.len(), 0);
++        assert_eq!(document_auto_path_dirs(&uri, &analysis).len(), 0);
+     }
+ 
+     /// A *relative* `auto_path` entry
+@@ -46508,14 +46508,14 @@
+ 
+             let user_uri = Uri::from_file_path(ws.0.join(&name)).unwrap();
+             register(&backend, &user_uri, &user_src).await;
+-            let locs = backend
++            let locs = Box::pin(backend
+                 .compute_definition(
+                     &user_uri,
+                     Position {
+                         line: 2,
+                         character: 12,
+                     },
+-                )
++                ))
+                 .await
+                 .unwrap();
+             assert_eq!(
+@@ -46722,14 +46722,14 @@
+ 
+         let user_uri = Uri::from_file_path(ws.0.join("reporoot/examples/user.tcl")).unwrap();
+         register(&backend, &user_uri, &user_src).await;
+-        let locs = backend
++        let locs = Box::pin(backend
+             .compute_definition(
+                 &user_uri,
+                 Position {
+                     line: 2,
+                     character: 4,
+                 },
+-            )
++            ))
+             .await
+             .unwrap_or_default();
+         assert_eq!(locs.len(), 1, "expected one definition, got: {locs:?}");
+@@ -47803,7 +47803,7 @@
+     async fn did_open_stores_document() {
+         let backend = test_backend();
+         let uri = Uri::from_str("file:///open.tcl").unwrap();
+-        backend
++        Box::pin(backend
+             .did_open(DidOpenTextDocumentParams {
+                 text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                     uri: uri.clone(),
+@@ -47811,7 +47811,7 @@
+                     version: 7,
+                     text: "set x 1\n".to_owned(),
+                 },
+-            })
++            }))
+             .await;
+         let docs = backend.documents.lock("test").await;
+         let doc = docs.get(&uri).expect("did_open should store the document");
+@@ -47822,7 +47822,7 @@
+     async fn did_change_replaces_document_text() {
+         let backend = test_backend();
+         let uri = Uri::from_str("file:///chg.tcl").unwrap();
+-        backend
++        Box::pin(backend
+             .did_open(DidOpenTextDocumentParams {
+                 text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                     uri: uri.clone(),
+@@ -47830,7 +47830,7 @@
+                     version: 1,
+                     text: "set x 1\n".to_owned(),
+                 },
+-            })
++            }))
+             .await;
+         // A full-document replacement (`range: None`).
+         backend
+@@ -47899,7 +47899,7 @@
+     async fn did_close_drops_the_diagnostics_slot() {
+         let backend = test_backend();
+         let uri = Uri::from_str("file:///slot-drop.tcl").unwrap();
+-        backend
++        Box::pin(backend
+             .did_open(DidOpenTextDocumentParams {
+                 text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                     uri: uri.clone(),
+@@ -47907,7 +47907,7 @@
+                     version: 1,
+                     text: "proc foo {} { set y 1 }\n".to_owned(),
+                 },
+-            })
++            }))
+             .await;
+         assert!(
+             backend.diag_slots.lock().await.contains_key(&uri),
+@@ -48115,7 +48115,7 @@
+ 
+         // 1. Open with the master switch on (the default): the slot captures
+         //    `diagnostics_enabled = true`.
+-        backend.did_open(open(1)).await;
++        Box::pin(backend.did_open(open(1))).await;
+         assert_eq!(
+             captured_switch().await,
+             Some(true),
+@@ -48148,7 +48148,7 @@
+         // 4. Reopen. The open path must re-resolve the config-sensitive inputs
+         //    rather than reuse the stale on-switch ones, so the worker drains
+         //    under the master switch's *current* (off) state.
+-        backend.did_open(open(2)).await;
++        Box::pin(backend.did_open(open(2))).await;
+         assert_eq!(
+             captured_switch().await,
+             Some(false),
+@@ -53038,7 +53038,7 @@
+         backend.scan_workspace_folders().await.unwrap();
+ 
+         let index = backend.workspace_index.read().await;
+-        assert!(index.classes_named("::IconList").is_empty());
++        assert_eq!(index.classes_named("::IconList").len(), 0);
+         assert_eq!(index.classes_named("::Kept").len(), 1);
+         drop(index);
+         std::fs::remove_dir_all(&root).ok();
+@@ -53416,7 +53416,7 @@
+             let backend = Arc::clone(&backend);
+             let uri = uri.clone();
+             async move {
+-                backend
++                Box::pin(backend
+                     .did_open(DidOpenTextDocumentParams {
+                         text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                             uri,
+@@ -53424,7 +53424,7 @@
+                             version: 1,
+                             text: "set release_ready 1\n".to_owned(),
+                         },
+-                    })
++                    }))
+                     .await;
+             }
+         });
+@@ -53537,7 +53537,7 @@
+             let backend = Arc::clone(&backend);
+             let uri = uri.clone();
+             async move {
+-                backend
++                Box::pin(backend
+                     .did_open(DidOpenTextDocumentParams {
+                         text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                             uri,
+@@ -53545,7 +53545,7 @@
+                             version: 1,
+                             text: "set release_ready 1\n".to_owned(),
+                         },
+-                    })
++                    }))
+                     .await;
+             }
+         });
+@@ -53619,7 +53619,7 @@
+             let backend = Arc::clone(&backend);
+             let uri = uri.clone();
+             async move {
+-                backend
++                Box::pin(backend
+                     .did_open(DidOpenTextDocumentParams {
+                         text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                             uri,
+@@ -53627,7 +53627,7 @@
+                             version: 1,
+                             text: live_text.to_owned(),
+                         },
+-                    })
++                    }))
+                     .await;
+             }
+         });
+@@ -53721,7 +53721,7 @@
+         };
+         let uri = Uri::from_str("file:///w/isolated-census-1854.tcl").unwrap();
+ 
+-        crate::rt::timeout(
++        Box::pin(crate::rt::timeout(
+             std::time::Duration::from_secs(5),
+             publishing_backend.did_open(DidOpenTextDocumentParams {
+                 text_document: tower_lsp_server::ls_types::TextDocumentItem {
+@@ -53731,7 +53731,7 @@
+                     text: "proc independently_published {} {}\n".to_owned(),
+                 },
+             }),
+-        )
++        ))
+         .await
+         .expect("an unrelated backend's snapshot must not delay didOpen");
+ 
+@@ -54412,7 +54412,7 @@
+             let backend = Arc::clone(&backend);
+             let uri = uri.clone();
+             async move {
+-                backend
++                Box::pin(backend
+                     .did_open(DidOpenTextDocumentParams {
+                         text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                             uri,
+@@ -54420,7 +54420,7 @@
+                             version: 1,
+                             text: "proc fresh {} {}\n".to_owned(),
+                         },
+-                    })
++                    }))
+                     .await;
+             }
+         });
+@@ -55675,8 +55675,8 @@
+         }
+         // From main.tcl, jumping on `shared_helper` resolves to
+         // lib.tcl's declaration.
+-        let locs = backend
+-            .compute_definition(&main_uri, Position::new(0, 0))
++        let locs = Box::pin(backend
++            .compute_definition(&main_uri, Position::new(0, 0)))
+             .await
+             .expect("definition ok");
+         assert_eq!(locs.len(), 1, "{locs:?}");
+@@ -55722,8 +55722,8 @@
+             index.add_document(main_uri.as_str(), &main_analysis);
+         }
+         // Cursor on the bareword `bar` call (line 1, col 0).
+-        let locs = backend
+-            .compute_definition(&main_uri, Position::new(1, 0))
++        let locs = Box::pin(backend
++            .compute_definition(&main_uri, Position::new(1, 0)))
+             .await
+             .expect("definition ok");
+         assert_eq!(locs.len(), 1, "{locs:?}");
+@@ -55764,8 +55764,8 @@
+             let main_analysis = a2.analyse(main_src, "tcl8.6").clone();
+             index.add_document(main_uri.as_str(), &main_analysis);
+         }
+-        let locs = backend
+-            .compute_definition(&main_uri, Position::new(1, 0))
++        let locs = Box::pin(backend
++            .compute_definition(&main_uri, Position::new(1, 0)))
+             .await
+             .expect("definition ok");
+         assert!(
+@@ -55904,8 +55904,8 @@
+         );
+         // Cursor on the `greet` call (line 1) resolves locally;
+         // the result points at the same document, line 0.
+-        let locs = backend
+-            .compute_definition(&uri, Position::new(1, 0))
++        let locs = Box::pin(backend
++            .compute_definition(&uri, Position::new(1, 0)))
+             .await
+             .expect("definition ok");
+         assert_eq!(locs.len(), 1, "{locs:?}");
+@@ -56397,7 +56397,7 @@
+             let backend = Arc::clone(&backend);
+             let uri = uri.clone();
+             tokio::spawn(async move {
+-                backend
++                Box::pin(backend
+                     .did_open(DidOpenTextDocumentParams {
+                         text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                             uri,
+@@ -56405,7 +56405,7 @@
+                             version: 1,
+                             text: "set x 1\n".to_owned(),
+                         },
+-                    })
++                    }))
+                     .await;
+             })
+         };
+@@ -58175,8 +58175,8 @@
+             work_done_progress_params: WorkDoneProgressParams::default(),
+             partial_result_params: PartialResultParams::default(),
+         };
+-        let refs = backend
+-            .references(params)
++        let refs = Box::pin(backend
++            .references(params))
+             .await
+             .expect("ok")
+             .expect("some references");
+@@ -58491,22 +58491,22 @@
+             .unwrap()
+             .expect("current original library declaration hover");
+         assert!(hover.value.contains("Rbc_ActiveLegend"), "{hover:?}");
+-        assert!(
++        assert_eq!(
+             backend
+                 .autoload_definition(&app, &format!("{source} "), position, &analysis)
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         let mut missing = analysis.as_ref().clone();
+         missing.resolved_input = None;
+-        assert!(
++        assert_eq!(
+             backend
+                 .autoload_definition(&app, source, position, &missing)
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         assert!(
+             backend
+                 .cross_document_hover(&app, source, position, &missing)
+@@ -58514,13 +58514,13 @@
+                 .unwrap()
+                 .is_none()
+         );
+-        assert!(
++        assert_eq!(
+             backend
+                 .autoload_definition(&app, source, Position::new(0, 17), &analysis)
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ 
+     #[tokio::test]
+@@ -61321,7 +61321,7 @@
+             let backend = Arc::clone(&backend);
+             let uri = uri.clone();
+             async move {
+-                backend
++                Box::pin(backend
+                     .did_open(DidOpenTextDocumentParams {
+                         text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                             uri,
+@@ -61329,7 +61329,7 @@
+                             version: 2,
+                             text: reopened.to_owned(),
+                         },
+-                    })
++                    }))
+                     .await;
+             }
+         });
+@@ -62643,7 +62643,7 @@
+             .await
+             .unwrap();
+         assert_eq!(candidates.fallback_hits.len(), 1);
+-        assert!(candidates.indexed_hits.is_empty());
++        assert_eq!(candidates.indexed_hits.len(), 0);
+         assert_eq!(
+             store.reads.load(Ordering::SeqCst),
+             0,
+@@ -63852,7 +63852,7 @@
+                 include_declaration: true,
+             },
+         };
+-        let result = backend.references(params).await.expect("ok").expect("some");
++        let result = Box::pin(backend.references(params)).await.expect("ok").expect("some");
+         // Declaration (lib:0) + local call (lib:1) + cross-doc
+         // call (consumer:0) = 3 locations across 2 files.
+         assert_eq!(result.len(), 3, "{result:?}");
+@@ -64739,8 +64739,8 @@
+             work_done_progress_params: WorkDoneProgressParams::default(),
+             partial_result_params: PartialResultParams::default(),
+         };
+-        let refs = backend
+-            .references(params)
++        let refs = Box::pin(backend
++            .references(params))
+             .await
+             .expect("ok")
+             .expect("some references");
+@@ -64774,8 +64774,8 @@
+             "oo::class create Dog {\n    superclass Animal\n}\nset d [Dog new]\n$d speak\n",
+         )
+         .await;
+-        let defs = backend
+-            .compute_definition(&dog, Position::new(4, 4))
++        let defs = Box::pin(backend
++            .compute_definition(&dog, Position::new(4, 4)))
+             .await
+             .unwrap();
+         assert_eq!(defs.len(), 1, "{defs:?}");
+@@ -64806,8 +64806,8 @@
+         )
+         .await;
+         // `$d speak` is on line 4; `speak` starts at column 3.
+-        let defs = backend
+-            .compute_definition(&dog, Position::new(4, 4))
++        let defs = Box::pin(backend
++            .compute_definition(&dog, Position::new(4, 4)))
+             .await
+             .expect("ok");
+         assert_eq!(defs.len(), 1, "{defs:?}");
+@@ -64839,8 +64839,8 @@
+         )
+         .await;
+         register(&backend, &main, "set d [Dog new]\n$d speak\n").await;
+-        let defs = backend
+-            .compute_definition(&main, Position::new(1, 4))
++        let defs = Box::pin(backend
++            .compute_definition(&main, Position::new(1, 4)))
+             .await
+             .expect("ok");
+         assert_eq!(
+@@ -64868,8 +64868,8 @@
+         )
+         .await;
+         register(&backend, &main, "set v [Vault new]\n$v _secret\n").await;
+-        let defs = backend
+-            .compute_definition(&main, Position::new(1, 5))
++        let defs = Box::pin(backend
++            .compute_definition(&main, Position::new(1, 5)))
+             .await
+             .expect("ok");
+         assert!(
+@@ -64937,8 +64937,8 @@
+             work_done_progress_params: WorkDoneProgressParams::default(),
+             partial_result_params: PartialResultParams::default(),
+         };
+-        let refs = backend
+-            .references(params)
++        let refs = Box::pin(backend
++            .references(params))
+             .await
+             .expect("ok")
+             .expect("some references");
+@@ -64959,8 +64959,8 @@
+         // Go-to-definition on `$a speak` in the pure-consumer main.tcl resolves
+         // `a`'s class cross-file (oracle-aware) and jumps to `Animal::speak`.
+         let (backend, animal, main) = register_consumer_workspace().await;
+-        let defs = backend
+-            .compute_definition(&main, Position::new(1, 4))
++        let defs = Box::pin(backend
++            .compute_definition(&main, Position::new(1, 4)))
+             .await
+             .expect("ok");
+         assert_eq!(defs.len(), 1, "{defs:?}");
+@@ -66391,7 +66391,7 @@
+         let backend = test_backend();
+         let uri: Uri = "file:///project/main.tcl".parse().unwrap();
+         let source = "source \"lib/old.tcl\"\n";
+-        backend
++        Box::pin(backend
+             .did_open(DidOpenTextDocumentParams {
+                 text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                     uri: uri.clone(),
+@@ -66399,7 +66399,7 @@
+                     version: 17,
+                     text: source.to_owned(),
+                 },
+-            })
++            }))
+             .await;
+         let result = backend
+             .will_rename_files(RenameFilesParams {
+@@ -67323,18 +67323,18 @@
+             core_workspace_index::WorkspaceIndex::from_documents([("file:///other.tcl", &other)]);
+         let itcl_classes = itcl_index.classes_named("::C");
+         let other_classes = other_index.classes_named("::C");
+-        assert!(
++        assert_eq!(
+             Backend::classmethod_dispatch_names(&itcl_classes, &[], "make", true, nominal)
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         assert_eq!(
+             Backend::classmethod_dispatch_names(&other_classes, &[], "make", true, nominal),
+             vec!["::C".to_owned()]
+         );
+-        assert!(
++        assert_eq!(
+             Backend::classmethod_dispatch_names(&other_classes, &[], "make", false, nominal)
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         let mut missing = other;
+         missing.resolved_input = None;
+         let unknown_index = core_workspace_index::WorkspaceIndex::from_documents([(
+@@ -67343,9 +67343,9 @@
+         )]);
+         let unknown = unknown_index.classes_named("::C");
+         assert_eq!(unknown[0].definer_family(), None);
+-        assert!(
+-            Backend::classmethod_dispatch_names(&unknown, &[], "make", true, nominal).is_empty()
+-        );
++        assert_eq!(
++            Backend::classmethod_dispatch_names(&unknown, &[], "make", true, nominal).len()
++        , 0);
+     }
+ }
+ 
+@@ -67598,7 +67598,7 @@
+             },
+             "speclib requested 1.0 {\ncommand requested::call {\narity 0\n}\n}\n".to_owned(),
+         )]));
+-        assert!(packs.load_errors.is_empty());
++        assert_eq!(packs.load_errors.len(), 0);
+         let mut publication = PackConfigurationPublication {
+             options,
+             configured_sources: vec![vec![source_path]],
+@@ -67760,7 +67760,7 @@
+             ),
+             [diagnostic.clone()]
+         );
+-        assert!(
++        assert_eq!(
+             backend
+                 .diagnostic_publisher
+                 .with_pack_notices(
+@@ -67774,9 +67774,9 @@
+                     },
+                     Vec::new()
+                 )
+-                .is_empty()
+-        );
+-        assert!(
++                .len()
++        , 0);
++        assert_eq!(
+             backend
+                 .diagnostic_publisher
+                 .with_pack_notices(
+@@ -67790,10 +67790,10 @@
+                     },
+                     Vec::new()
+                 )
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         let replacement = Arc::new(tcl_spectcl::PackSet::default());
+-        assert!(
++        assert_eq!(
+             backend
+                 .diagnostic_publisher
+                 .with_pack_notices(
+@@ -67807,10 +67807,10 @@
+                     },
+                     Vec::new()
+                 )
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         let other_registry = backend.registry_for_dialect("tcl9.0").await;
+-        assert!(
++        assert_eq!(
+             backend
+                 .diagnostic_publisher
+                 .with_pack_notices(
+@@ -67824,11 +67824,11 @@
+                     },
+                     Vec::new()
+                 )
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         std::fs::write(&path, "speclib changed 1.0 {}\n")
+             .expect("change the actual provider source");
+-        assert!(
++        assert_eq!(
+             backend
+                 .diagnostic_publisher
+                 .with_pack_notices(
+@@ -67842,8 +67842,8 @@
+                     },
+                     Vec::new()
+                 )
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         std::fs::remove_file(path).expect("remove the temporary pack source");
+     }
+ }
+@@ -67952,7 +67952,7 @@
+             assert_eq!(current.text, document.text);
+             assert_eq!(current.version, document.version);
+         }
+-        assert!(
++        assert_eq!(
+             backend
+                 .original_definition_locations_for_snapshot(
+                     (caller, document, generation),
+@@ -67962,8 +67962,8 @@
+                 )
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ }
+ 
+@@ -68113,8 +68113,8 @@
+         let caller = (uri.clone(), document, generation);
+         let position = Position::new(0, u32::try_from(source.find("member").unwrap()).unwrap());
+         let epoch = backend.diag_inputs_epoch();
+-        let first = backend
+-            .original_method_locations_for_snapshot(caller.clone(), &analysis, position, epoch)
++        let first = Box::pin(backend
++            .original_method_locations_for_snapshot(caller.clone(), &analysis, position, epoch))
+             .await
+             .unwrap();
+         assert!(
+@@ -68138,6 +68138,6 @@
+             .resolve_current_declaration_locations(caller, vec![target], epoch)
+             .await
+             .unwrap();
+-        assert!(stale.is_empty());
++        assert_eq!(stale.len(), 0);
+     }
+ }
+--- a/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
++++ b/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
+@@ -225,18 +225,18 @@
+     )
+     .resolved_input;
+     for refused in [missing, unavailable_generation, stale, foreign] {
+-        assert!(unindexed_semantic_tokens(source, &refused).data.is_empty());
+-        assert!(
++        assert_eq!(unindexed_semantic_tokens(source, &refused).data.len(), 0);
++        assert_eq!(
+             unindexed_semantic_tokens_for_range(source, &refused, Some(whole_source_range(source)))
+                 .data
+-                .is_empty()
+-        );
+-    }
+-    assert!(
++                .len()
++        , 0);
++    }
++    assert_eq!(
+         unindexed_semantic_tokens("metadata_read changed", &analysis)
+             .data
+-            .is_empty()
+-    );
++            .len()
++    , 0);
+ }
+ 
+ #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+@@ -599,7 +599,7 @@
+         .batch_reindex_from_disk(std::slice::from_ref(&uri))
+         .await
+         .unwrap();
+-    assert!(index_reads(&backend, "::retained", &uri).await.is_empty());
++    assert_eq!(index_reads(&backend, "::retained", &uri).await.len(), 0);
+     std::fs::remove_dir_all(root).unwrap();
+ }
+ 
+@@ -632,7 +632,7 @@
+     install_workspace_read_pack(&backend, 2, false).await;
+     backend.invalidate_diag_inputs();
+     reindex_unopened_factory_consumers(&handles, &affected).await;
+-    assert!(index_reads(&backend, "::retained", &uri).await.is_empty());
++    assert_eq!(index_reads(&backend, "::retained", &uri).await.len(), 0);
+     std::fs::remove_dir_all(root).unwrap();
+ }
+ 
+@@ -663,7 +663,7 @@
+             .is_some_and(|seeds| seeds.iter().any(|seed| seed == "::app"))
+     );
+     let before = index_reads(&backend, "::app::retained", &sourced).await;
+-    assert!(!before.is_empty());
++    assert_ne!(before.len(), 0);
+     let read_offset = u32::try_from("set retained 1\nunindexed_metadata::read ".len()).unwrap();
+     assert!(before.iter().any(|span| span.start() == read_offset));
+ 
+@@ -741,7 +741,7 @@
+         .unwrap();
+     assert!(unavailable.analysis.analysis_context_unavailable.is_some());
+     assert!(unavailable.analysis.resolved_input.is_none());
+-    assert!(unavailable.analysis.command_invocations.is_empty());
++    assert_eq!(unavailable.analysis.command_invocations.len(), 0);
+ }
+ 
+ #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+@@ -919,7 +919,7 @@
+         .unwrap()
+         .unwrap();
+     assert_eq!(refused["source"], source);
+-    assert!(refused["optimisations"].as_array().unwrap().is_empty());
++    assert_eq!(refused["optimisations"].as_array().unwrap().len(), 0);
+ }
+ 
+ #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+@@ -980,13 +980,13 @@
+             .any(|symbol| symbol.name == "selected_outline"
+                 && symbol.kind == CoreSymbolKind::Function)
+     );
+-    assert!(
++    assert_eq!(
+         backend
+             .db_document_symbols(&sibling)
+             .await
+             .unwrap()
+-            .is_empty()
+-    );
++            .len()
++    , 0);
+ 
+     backend
+         .db_set_source(&uri, "proc edited_outline {} {}", "tcl".to_owned())
+@@ -1007,7 +1007,7 @@
+             .set_spec_pack_key(&mut *db)
+             .to(u64::MAX - 393);
+     }
+-    assert!(backend.db_document_symbols(&uri).await.unwrap().is_empty());
++    assert_eq!(backend.db_document_symbols(&uri).await.unwrap().len(), 0);
+     assert!(
+         backend
+             .db_document_symbols(&sibling)
+@@ -1315,7 +1315,7 @@
+     assert!(library_config != caller_config);
+     let handles = index_evidence_handles(&backend);
+     let sync = sync_workspace_class_factories(&handles, None).await;
+-    assert!(!sync.moved.is_empty());
++    assert_ne!(sync.moved.len(), 0);
+     let (library, caller, revision, prior) = {
+         let db = backend.db.lock().await;
+         let files = backend.db_files.lock().await;
+@@ -1393,7 +1393,7 @@
+     assert!(library_config != caller_config);
+     let handles = index_evidence_handles(&backend);
+     let first = sync_cross_file_evidence(&handles).await;
+-    assert!(!first.changed.is_empty());
++    assert_ne!(first.changed.len(), 0);
+     let library = *backend.db_files.lock().await.get(&library_uri).unwrap();
+     let caller = *backend.db_files.lock().await.get(&caller_uri).unwrap();
+     {
+@@ -1606,7 +1606,7 @@
+             .iter()
+             .any(|row| row.code == DiagCode::W150)
+     );
+-    assert!(!older.command_invocations.is_empty());
++    assert_ne!(older.command_invocations.len(), 0);
+     let [full, range, save] = formatter_request_edits(&backend, &uri).await;
+     assert_formatter_request_edit(full, "\r\n");
+     assert_formatter_request_edit(range, "\r\n");
+@@ -1692,7 +1692,7 @@
+         .unwrap();
+     assert!(withdrawn.analysis_context_unavailable.is_some());
+     assert!(withdrawn.resolved_input.is_none());
+-    assert!(!current.command_invocations.is_empty());
++    assert_ne!(current.command_invocations.len(), 0);
+     assert!(current.resolved_input.is_some());
+     for edits in formatter_request_edits(&backend, &uri).await {
+         assert!(
+--- a/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs
++++ b/rust/tcl-lsp-server/src/original_document_path_admission_tests.rs
+@@ -104,8 +104,8 @@
+         "file:///open%2Fsplit.tcl",
+     ] {
+         let target = uri(raw);
+-        backend
+-            .did_open(opened(&target, "proc rejected {} {}"))
++        Box::pin(backend
++            .did_open(opened(&target, "proc rejected {} {}")))
+             .await;
+         backend
+             .did_change(changed(&target, "proc changed_rejected {} {}"))
+@@ -256,7 +256,7 @@
+         uri("untitled:checked-source"),
+     ] {
+         let source = "set retained 1";
+-        backend.did_open(opened(&target, source)).await;
++        Box::pin(backend.did_open(opened(&target, source))).await;
+         let state = backend
+             .documents
+             .lock("path_admission_test")
+@@ -459,7 +459,7 @@
+     let actual = PathBuf::from("/actual-browser-mount/distinct-é.tcl");
+     store.upsert_uri(target.as_str(), &actual, b"set retained 1".to_vec());
+     backend.store = store.clone();
+-    backend.did_open(opened(&target, "set retained 1")).await;
++    Box::pin(backend.did_open(opened(&target, "set retained 1"))).await;
+     let doc = backend
+         .documents
+         .lock("virtual_path_test")
+@@ -521,7 +521,7 @@
+         tcl_lsp_core::file_uri::FileUriEscaping::Unreserved,
+     )
+     .unwrap());
+-    backend.did_open(opened(&target, "set browser 1")).await;
++    Box::pin(backend.did_open(opened(&target, "set browser 1"))).await;
+     let docs = backend.documents.lock("virtual_open_test").await;
+     let admission = docs.get(&target).unwrap().path_admission.as_ref().unwrap();
+     assert!(matches!(
+@@ -731,8 +731,8 @@
+     let worker_backend = Arc::clone(&backend);
+     let worker_target = target.clone();
+     let opening = tokio::spawn(async move {
+-        worker_backend
+-            .did_open(opened(&worker_target, "set new_open 1"))
++        Box::pin(worker_backend
++            .did_open(opened(&worker_target, "set new_open 1")))
+             .await;
+     });
+     tokio::time::timeout(std::time::Duration::from_secs(180), async {
+--- a/rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs
++++ b/rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs
+@@ -192,7 +192,7 @@
+     assert!(!identity.is_current("file:///caller.tcl", source, &changed));
+     assert!(!identity.is_current("file:///caller.tcl", "proc retained {} {}", &analysis));
+     // Missing current source ownership cannot enable reporting compatibility.
+-    assert!(cross_file_arity_diagnostics(&changed, &reporting, |_| false).is_empty());
++    assert_eq!(cross_file_arity_diagnostics(&changed, &reporting, |_| false).len(), 0);
+     assert_eq!(
+         refine_workspace_index_w123(
+             vec![original.clone()],
+@@ -240,9 +240,9 @@
+         "Logical source candidate is unavailable",
+         tcl_compiler::analyser::Severity::Hint,
+     );
+-    assert!(
+-        refine_workspace_index_w123(vec![diagnostic], &analysis, None, &calls, false).is_empty()
+-    );
++    assert_eq!(
++        refine_workspace_index_w123(vec![diagnostic], &analysis, None, &calls, false).len()
++    , 0);
+ }
+ 
+ fn reporting_analysis_with_input(
+@@ -388,7 +388,7 @@
+         environment: analysis.dialect.clone(),
+         overlay: u64::MAX - 403,
+     });
+-    assert!(!unavailable.command_invocations.is_empty());
++    assert_ne!(unavailable.command_invocations.len(), 0);
+     assert!(!select(&unavailable, registry));
+     assert!(
+         settle_cross_file_calls(&index, &unavailable, registry, "file:///caller.tcl")
+--- a/rust/tcl-lsp-server/src/policy_truth_table.rs
++++ b/rust/tcl-lsp-server/src/policy_truth_table.rs
+@@ -95,7 +95,7 @@
+ async fn every_row_publishes_its_shown_set() {
+     let mut failures: Vec<String> = Vec::new();
+     for row in ROWS.iter().filter(|row| row.runs_on(Surface::Lsp)) {
+-        let (backend, uri, text) = backend_holding(row, &session_layers(row)).await;
++        let (backend, uri, text) = Box::pin(backend_holding(row, &session_layers(row))).await;
+         let published = backend
+             .full_diagnostics_for(
+                 &uri,
+@@ -142,7 +142,7 @@
+ async fn every_row_offers_fixes_for_shown_findings_only() {
+     let mut failures: Vec<String> = Vec::new();
+     for row in ROWS.iter().filter(|row| row.runs_on(Surface::LspActions)) {
+-        let (backend, uri, text) = backend_holding(row, &session_layers(row)).await;
++        let (backend, uri, text) = Box::pin(backend_holding(row, &session_layers(row))).await;
+         let end_line = u32::try_from(text.lines().count()).expect("a small program");
+         let actions = backend
+             .code_action(CodeActionParams {
+@@ -207,7 +207,7 @@
+             .get_mut("optimiser")
+             .and_then(Value::as_object_mut)
+             .and_then(|optimiser| optimiser.remove("profile"));
+-        let (backend, uri, _) = backend_holding(row, &layers).await;
++        let (backend, uri, _) = Box::pin(backend_holding(row, &layers)).await;
+         let mut args = vec![serde_json::json!(uri.as_str())];
+         args.extend(profile);
+         let result = backend
+--- a/rust/tcl-lsp-server/src/provider_source/tests.rs
++++ b/rust/tcl-lsp-server/src/provider_source/tests.rs
+@@ -226,7 +226,7 @@
+         tcl_lsp_core::profile_for_dialect("tcl9.0")
+     );
+     assert!(current.analysis.all_procs.contains_key("::provided"));
+-    assert!(!defined_original_commands_from_analysis(&current.text, &current.analysis).is_empty());
++    assert_ne!(defined_original_commands_from_analysis(&current.text, &current.analysis).len(), 0);
+     assert!(matches!(
+         supplied.inventory(
+             Path::new("/library/absent.tcl"),
+--- a/rust/tcl-lsp-server/src/readonly_reference_reports.rs
++++ b/rust/tcl-lsp-server/src/readonly_reference_reports.rs
+@@ -2251,13 +2251,13 @@
+         );
+         assert_eq!(report.locations.len(), 2);
+         assert!(report.locations.iter().all(|location| location.uri == uri));
+-        assert!(
++        assert_eq!(
+             backend
+                 .original_declaration_reference_locations(&identity, &uri, false)
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         let lenses = backend
+             .code_lens(CodeLensParams {
+                 text_document: TextDocumentIdentifier { uri: uri.clone() },
+@@ -2453,7 +2453,7 @@
+                 Position::new(0, 0),
+             );
+             assert_eq!(command.title, "References unavailable");
+-            assert!(command.command.is_empty());
++            assert_eq!(command.command.len(), 0);
+             assert!(command.arguments.is_none());
+         }
+         let report = OriginalReadonlyReferenceReport {
+@@ -2535,33 +2535,33 @@
+         assert_eq!(children[0].uri, child);
+         let mut unissued = item.clone();
+         unissued.data = None;
+-        assert!(
++        assert_eq!(
+             backend
+                 .type_hierarchy_walk(unissued, false)
+                 .await
+                 .unwrap()
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         let mut foreign = item.clone();
+         foreign.uri = base.clone();
+-        assert!(
++        assert_eq!(
+             backend
+                 .type_hierarchy_walk(foreign, false)
+                 .await
+                 .unwrap()
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+         register(&backend, &child, &format!("{child_source}\n# changed")).await;
+-        assert!(
++        assert_eq!(
+             backend
+                 .type_hierarchy_walk(item, false)
+                 .await
+                 .unwrap()
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ 
+     #[tokio::test]
+@@ -2619,13 +2619,13 @@
+                 .into_items();
+         assert_eq!(items.len(), 1);
+         register(&backend, &child, "oo::class create Child {}").await;
+-        assert!(
++        assert_eq!(
+             backend
+                 .finish_logical_hierarchy_items(&documents, &items, epoch, generation)
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ }
+ 
+@@ -2695,13 +2695,13 @@
+             "oo::class create Base {}; oo::class create Child {}",
+         )
+         .await;
+-        assert!(
++        assert_eq!(
+             backend
+                 .finish_logical_hierarchy_advice(&[document], &advice, epoch, generation)
+                 .await
+                 .unwrap()
+-                .is_empty()
+-        );
++                .len()
++        , 0);
+     }
+ 
+     #[tokio::test]
+@@ -2821,12 +2821,12 @@
+         item.range = Range::default();
+         item.selection_range = Range::default();
+         let params = serde_json::from_value(serde_json::json!({"item":item})).unwrap();
+-        let incoming = backend.incoming_calls(params).await.unwrap().unwrap();
++        let incoming = Box::pin(backend.incoming_calls(params)).await.unwrap().unwrap();
+         assert_eq!(incoming.len(), 1);
+         assert_eq!(incoming[0].from.uri, caller);
+         assert_eq!(incoming[0].from.name, "::caller");
+         let params = serde_json::from_value(serde_json::json!({"item":incoming[0].from})).unwrap();
+-        let outgoing = backend.outgoing_calls(params).await.unwrap().unwrap();
++        let outgoing = Box::pin(backend.outgoing_calls(params)).await.unwrap().unwrap();
+         assert_eq!(outgoing.len(), 1);
+         assert_eq!(outgoing[0].to.uri, target);
+         assert!(outgoing[0].to.data.is_some());
+@@ -3282,19 +3282,19 @@
+         for (backend, item) in [(&first, &old), (&second, &current)] {
+             let params = serde_json::from_value(serde_json::json!({"item":item})).unwrap();
+             assert_eq!(
+-                backend.incoming_calls(params).await.unwrap().unwrap().len(),
++                Box::pin(backend.incoming_calls(params)).await.unwrap().unwrap().len(),
+                 1
+             );
+             let params = serde_json::from_value(serde_json::json!({"item":item})).unwrap();
+             assert_eq!(
+-                backend.outgoing_calls(params).await.unwrap().unwrap().len(),
++                Box::pin(backend.outgoing_calls(params)).await.unwrap().unwrap().len(),
+                 1
+             );
+         }
+         let params = serde_json::from_value(serde_json::json!({"item":old})).unwrap();
+-        assert!(second.incoming_calls(params).await.unwrap().is_none());
++        assert!(Box::pin(second.incoming_calls(params)).await.unwrap().is_none());
+         let params = serde_json::from_value(serde_json::json!({"item":old})).unwrap();
+-        assert!(second.outgoing_calls(params).await.unwrap().is_none());
++        assert!(Box::pin(second.outgoing_calls(params)).await.unwrap().is_none());
+     }
+ }
+ 
+@@ -3843,7 +3843,7 @@
+         assert_eq!(documents.len(), 1);
+         assert_eq!(documents[0].text_document.uri, uri);
+         assert_eq!(documents[0].text_document.version, Some(23));
+-        assert!(!documents[0].edits.is_empty());
++        assert_ne!(documents[0].edits.len(), 0);
+         assert_eq!(
+             backend.documents.lock("unchanged source action").await[&uri]
+                 .text
+@@ -4042,7 +4042,7 @@
+         assert!(tcl_compiler::source_graph::current_analysis(&snapshot.text, analysis).is_some());
+         let data =
+             super::super::configured_coarse_semantic_tokens(&snapshot.text, analysis).unwrap();
+-        assert!(!data.is_empty());
++        assert_ne!(data.len(), 0);
+         let original = data.clone();
+         let issued = backend
+             .with_current_coarse_semantic_source(&source, || {
+--- a/rust/tcl-lsp-server/src/recovery_source/tests.rs
++++ b/rust/tcl-lsp-server/src/recovery_source/tests.rs
+@@ -317,7 +317,7 @@
+     let source = "package require own\nproc unfinished {";
+     let current = recover(&backend, &uri, source).await;
+     assert!(package_names(&backend).await.names.contains("provided"));
+-    assert!(!current.package_requires.is_empty());
++    assert_ne!(current.package_requires.len(), 0);
+     let registry = backend.registry_for_dialect("tcl8.6").await;
+     let dialects = provider_source::ProviderDialectInputs::capture(&backend).await;
+     let providers = ProviderCaptureInputs {
