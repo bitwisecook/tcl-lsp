@@ -1,0 +1,30 @@
+Source snapshot: 9cd5a75b74614f2df055f2dc9fcc36a9603af4bd
+Rust 1.99.1; CARGO_INCREMENTAL=0; test/dev debug=0.
+The saved probe required two compile-only adaptations: replace the private
+matches_module call with a bindings-presence check, and clone cur before
+consuming it. The final panic is the probe's intentional terminator.
+The executable was built, run and deleted in one command.
+
+PROBE base=Some(23) cond=Binary { op: StrEq, left: Command { text: "[HTTP::path]", start: 0, end: 11 }, right: String { text: "\"/a\"", start: 16, end: 19 } }
+PROBE current_analysis=true
+PROBE module.source==image true
+PROBE module.config==config true
+PROBE metadata_input==resolved true
+PROBE metadata_input some true resolved some true
+PROBE registry key true
+PROBE bindings available true
+PROBE operand false
+
+thread 'translator::original_expression_owner_tests::zz_bigip_probe_condition_owner_gates' (13869) panicked at rust/f5-xc/src/zz_bigip_probe.rs:65:9:
+probe
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test translator::original_expression_owner_tests::zz_bigip_probe_condition_owner_gates ... FAILED
+
+failures:
+
+failures:
+    translator::original_expression_owner_tests::zz_bigip_probe_condition_owner_gates
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 30 filtered out; finished in 6.88s
+
+DELETED /workspace/bigip-lsp/target/debug/deps/f5_xc-87c4aa4f17d8d7e0

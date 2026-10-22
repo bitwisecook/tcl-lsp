@@ -1,0 +1,19 @@
+   Compiling f5-xc v0.1.0 (/workspace/bigip-lsp/rust/f5-xc)
+    Finished `test` profile [unoptimized] target(s) in 16.18s
+RUN /workspace/bigip-lsp/target/debug/deps/f5_xc-87c4aa4f17d8d7e0 ['command_expression_operands_retain_their_complete_source_extent', '--nocapture']
+
+running 1 test
+
+thread 'translator::original_expression_owner_tests::command_expression_operands_retain_their_complete_source_extent' (13936) panicked at rust/f5-xc/src/translator.rs:2257:18:
+the complete original getter operand
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test translator::original_expression_owner_tests::command_expression_operands_retain_their_complete_source_extent ... FAILED
+
+failures:
+
+failures:
+    translator::original_expression_owner_tests::command_expression_operands_retain_their_complete_source_extent
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 30 filtered out; finished in 34.65s
+
+DELETED /workspace/bigip-lsp/target/debug/deps/f5_xc-87c4aa4f17d8d7e0

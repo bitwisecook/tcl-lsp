@@ -1071,10 +1071,11 @@ impl<'a> SourceExpressionAdvice<'a> {
             return None;
         };
         let base = self.base?;
-        if start > end {
-            return None;
-        }
-        let span = Span::new(base.checked_add(*start)?, base.checked_add(*end)?);
+        let span = tcl_syntax::expr::expression_span(
+            self.source,
+            base.checked_add(*start)?,
+            base.checked_add(*end)?,
+        )?;
         (self.source.get(span.as_range())? == text).then_some(())?;
         self.original_operand(span)
     }
@@ -2233,6 +2234,44 @@ mod original_expression_owner_tests {
                 _ => None,
             })
             .expect("original fixture condition")
+    }
+
+    #[test]
+    fn command_expression_operands_retain_their_complete_source_extent() {
+        for getter in [
+            "[HTTP::path]",
+            "[HTTP::header \"X-λ\"]",
+            "[string tolower [HTTP::path]]",
+        ] {
+            let source =
+                format!("# λ\nwhen HTTP_REQUEST {{if {{{getter} eq \"/a\"}} {{pool route}}}}");
+            let registry = irules_registry();
+            let (unit, analysis) = translation_source(&source, registry);
+            let clause = first_clause(&unit.ir_module);
+            let context = TranslationContext::new(&source, &analysis, &unit.ir_module, registry);
+            let advice = SourceExpressionAdvice::new(&context, clause.condition_base);
+            let ExprNode::Binary { left, .. } = &clause.condition else {
+                panic!("the fixture is a comparison");
+            };
+            let operand = advice
+                .expression_operand(left)
+                .expect("the complete original getter operand");
+            assert_eq!(source.get(operand.span().as_range()), Some(getter));
+            assert_eq!(operand.image(), &unit.ir_module.source);
+            assert_eq!(operand.config(), unit.ir_module.lexer_config);
+            assert!(advice.command_for_operand(&operand).is_some(), "{getter}");
+            assert!(
+                advice.command_owners_available(&clause.condition),
+                "{getter}"
+            );
+
+            let mut clipped = left.as_ref().clone();
+            let ExprNode::Command { end, .. } = &mut clipped else {
+                panic!("the fixture's left operand is a command");
+            };
+            *end -= 1;
+            assert!(advice.expression_operand(&clipped).is_none());
+        }
     }
 
     #[test]

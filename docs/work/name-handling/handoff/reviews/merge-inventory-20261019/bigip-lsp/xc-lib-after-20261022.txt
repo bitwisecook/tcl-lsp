@@ -1,0 +1,40 @@
+   Compiling f5-xc v0.1.0 (/workspace/bigip-lsp/rust/f5-xc)
+    Finished `test` profile [unoptimized] target(s) in 17.58s
+RUN /workspace/bigip-lsp/target/debug/deps/f5_xc-87c4aa4f17d8d7e0 ['--test-threads=2']
+
+running 31 tests
+test diagnostics::tests::emitted_codes_are_catalogued ... ok
+test names::tests::a_name_without_a_leading_letter_still_becomes_valid ... ok
+test names::tests::a_partition_qualified_path_keeps_its_partition ... ok
+test names::tests::a_very_long_path_is_truncated_to_a_valid_label ... ok
+test names::tests::an_already_valid_name_is_untouched ... ok
+test names::tests::names_that_fold_alike_stay_distinct ... ok
+test names::tests::the_description_names_the_source_object ... ok
+test names::tests::the_same_pool_in_two_partitions_stays_two_objects ... ok
+test diagnostics::tests::a_diagnostic_converts_to_a_finding_with_its_byte_span ... ok
+test report::tests::both_carries_terraform_and_json ... ok
+test report::tests::both_stays_terraform_and_json_only ... ok
+test report::tests::console_format_carries_neither_other_rendering ... ok
+test report::tests::console_document_names_are_valid_xc_names ... ok
+test report::tests::items_are_status_tagged_and_counted ... ok
+test report::tests::console_objects_are_one_pasteable_document_each ... ok
+test report::tests::unknown_format_argument_falls_back_to_both ... ok
+test terraform::ident_tests::deterministic ... ok
+test terraform::ident_tests::distinct_names_that_sanitise_alike_stay_distinct ... ok
+test terraform::ident_tests::leading_digit_is_prefixed ... ok
+test terraform::ident_tests::slashed_name_is_sanitised_to_valid_identifier ... ok
+test terraform::ident_tests::valid_identifier_passes_through_unchanged ... ok
+test report::tests::single_format_omits_the_other_rendering ... ok
+test translator::original_call_owner_tests::translated_actions_use_original_source_owners_and_decline_shadowed_heads ... ok
+test translator::original_expression_owner_tests::getter_source_advice_retains_original_positions_input_and_module ... ok
+test translator::original_expression_owner_tests::command_expression_operands_retain_their_complete_source_extent ... ok
+test translator::original_getter_geometry_tests::class_match_advice_reads_the_original_operand_instead_of_substrings ... ok
+test translator::original_getter_geometry_tests::scalar_getter_advice_matches_original_command_word_geometry ... ok
+test translator::supplied_source_registry_tests::document_translation_refuses_other_source_or_a_non_irules_input ... ok
+test translator::original_expression_owner_tests::replaced_getters_and_literal_switch_brackets_issue_no_getter_route ... ok
+test translator::supplied_source_registry_tests::document_translation_walks_the_documents_retained_registry ... ok
+test translator::supplied_source_registry_tests::supplied_registry_source_availability_cannot_borrow_shipped_translation ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 135.91s
+
+DELETED /workspace/bigip-lsp/target/debug/deps/f5_xc-87c4aa4f17d8d7e0
