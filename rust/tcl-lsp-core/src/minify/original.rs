@@ -135,6 +135,15 @@ impl MinifyRefusal {
 /// Eligibility of each name/effect-changing purpose is independent of syntax.
 /// Scalar body equivalence is supplied independently from its edit geometry.
 /// Isolation does not grant public procedure/global renaming or insertion.
+/// Review N15 (naming-migration-review-20261022.md): the lexical
+/// compatibility naming passes (`compact_names`, alias insertion) allocate
+/// names without the shared transactional rename planner — occupied command
+/// slots are not reserved and per-occurrence qualification is not preserved,
+/// so `proc a …; proc longName …` can collide and `[::longName]` is left
+/// behind. Until that planner exists the lexical path refuses those tiers
+/// exactly as the native path does and runs syntax compaction only.
+const LEXICAL_NAMING_PASSES: bool = false;
+
 fn naming_refusals(options: MinifyOptions, scalar_alpha: bool) -> Vec<MinifyRefusal> {
     let mut refusals = Vec::new();
     if options.tier != MinifyTier::Default && (!scalar_alpha || options.isolated) {
@@ -210,17 +219,27 @@ pub fn minify_with_analysis(
                 .push(MinifyRefusal::UnsupportedLexicalContext);
             return result;
         }
-        // Review N15: the lexical compatibility passes allocate names without
-        // the shared transactional rename planner (no reservation of occupied
-        // command slots, no per-occurrence qualification). Until that planner
-        // exists they refuse exactly as the native path does; only syntax
-        // compaction runs.
-        let _ = input;
-        result.refusals.extend(naming_refusals(options, false));
-        let transformed = super::lexical_default(source, analysis).map(|output| {
-            result.source = output;
-            result
-        });
+        let transformed = match options.tier {
+            MinifyTier::Compact if LEXICAL_NAMING_PASSES => {
+                super::lexical_compact(source, input, options.isolated).map(|(output, symbols)| {
+                    result.source = output;
+                    result.symbol_map = symbols;
+                    result
+                })
+            }
+            MinifyTier::Aggressive if LEXICAL_NAMING_PASSES => {
+                super::lexical_aggressive(source, input, options.isolated, options.abbreviations)
+            }
+            tier => {
+                if tier != MinifyTier::Default {
+                    result.refusals.extend(naming_refusals(options, false));
+                }
+                super::lexical_default(source, analysis).map(|output| {
+                    result.source = output;
+                    result
+                })
+            }
+        };
         return transformed.unwrap_or_else(|refusal| MinifyResult {
             source: source.to_owned(),
             original_length: source.len(),

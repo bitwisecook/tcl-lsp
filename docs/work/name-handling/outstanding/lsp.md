@@ -2,7 +2,7 @@
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-22T11:12Z
+Last updated: 2026-10-22T11:27Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -33,6 +33,10 @@ Maintained by the lsp agent. It lists what this agent considers it must still co
 - decision needed: references_residual `document_highlights_dedup_keeps_write_over_read_on_collision` (synthetic default AnalysisResult + injected reporting map, refused by the original-context contract) and `references_external_obj_method_inside_proc_body_subst` (tclsh contradicts the fixture: `$d` unset inside `proc run`).
 
 ## Done since the last update (with evidence: test counts, commit or snapshot)
+
+- Review N05 (pending measurement): `rename_in_program` refuses any edit that find-references from the same cursor does not report (overlap check, `unreferenced-edit`); `references_rename` N05 regressions (forced import, before/after `-force`, `forget`, redefinition after `-force`) assert edits ⊆ references and unchanged tclsh output for accepted renames. Cross-file case covered by force_import_shadow_consumers agreement test.
+- Review N15 (pending measurement): lexical ("tcl") Compact/Aggressive minify now refuse alpha renaming exactly like the native path (`LEXICAL_NAMING_PASSES = false` in minify/original.rs; the old `compact_names` passes are no longer reachable from any public entry, including the server's minifyDocument); `minify_residual` N15 regression asserts the refusal and executed output on tcl / tcl8.6 / tcl9.0.
+- references_residual rulings (A) real `incr x` write/read collision, (B) `global d` fixture + negative no-global case — applied, compile-checked, pending run.
 
 - name_resolution 68→69/77; hover_completion 50→55/56; hover_residual 27→33/36; references_residual 16→21/23; references_rename 70→71/98; force_import 2→6/10; call_hierarchy 7/7; inlay_hints 9/9 (runs p4/p5, scratch logs).
 - force_import ABSTAIN (decision 2026-10-22T07:18Z): `definition::program_forced_import_abstains`, consulted by definition/hover/references/signature/inlay/call-hierarchy prepare/inline-proc/rename/prepare-rename; 8 tests updated citing the decision; rename refuses and references omit any oracle-only-shadowed call (N05 consistency) + new agreement test.

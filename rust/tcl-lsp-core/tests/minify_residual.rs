@@ -720,3 +720,64 @@ fn isolated_compact_renames_global_and_round_trips_value() {
         "{map:?}",
     );
 }
+
+// Review N15 (naming-migration-review-20261022.md): compact / aggressive
+// minification must not run its own unsafe naming transformation. Until the
+// shared transactional rename planner exists both the native and the lexical
+// ("tcl") paths refuse alpha renaming explicitly, and the emitted source keeps
+// the program's output (tclsh 8.6.18 / 9.0.4 outputs recorded per fixture).
+const N15_FIXTURES: &[(&str, &str)] = &[
+    (
+        "proc a {} {return OLD}\nproc longName {} {return NEW}\nputs [a]\nputs [longName]\n",
+        "OLD\nNEW\n",
+    ),
+    (
+        "proc longName {} {return NEW}\nputs [::longName]\n",
+        "NEW\n",
+    ),
+];
+
+#[test]
+fn n15_compact_and_aggressive_refuse_unsafe_renaming_and_keep_the_output() {
+    use tcl_lsp_core::minify::{MinifyOptions, MinifyRefusal, MinifyTier, minify_with_profile};
+    let tclsh = tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V9_0)
+        .or_else(|| tcl_test_support::witness_tclsh(tcl_dialect::TclVersion::V8_6));
+    for dialect in ["tcl", "tcl8.6", "tcl9.0"] {
+        let profile = tcl_dialect::DialectProfile::find(dialect).expect("known dialect");
+        let registry = static_context_for(dialect).commands();
+        for tier in [MinifyTier::Compact, MinifyTier::Aggressive] {
+            for (source, expected) in N15_FIXTURES {
+                let result = minify_with_profile(
+                    source,
+                    profile,
+                    registry,
+                    MinifyOptions {
+                        tier,
+                        isolated: true,
+                        ..MinifyOptions::default()
+                    },
+                );
+                assert!(
+                    result
+                        .refusals
+                        .contains(&MinifyRefusal::MissingAlphaRenameContract),
+                    "{dialect} {tier:?}: alpha renaming must refuse: {:?}\n{}",
+                    result.refusals,
+                    result.source
+                );
+                if let Some(tclsh) = &tclsh {
+                    let outcome =
+                        tcl_test_support::run_script(&tclsh.path, result.source.as_bytes())
+                            .unwrap_or_else(|error| panic!("running Tcl oracle: {error}"));
+                    assert!(outcome.success(), "{dialect} {tier:?}:\n{}", result.source);
+                    assert_eq!(
+                        String::from_utf8_lossy(&outcome.stdout),
+                        *expected,
+                        "{dialect} {tier:?} changed the output:\n{}",
+                        result.source
+                    );
+                }
+            }
+        }
+    }
+}
