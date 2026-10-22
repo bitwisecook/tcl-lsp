@@ -293,10 +293,20 @@ impl ModuleCommandBindings {
         );
         let (replacement, worker) = match selected {
             NativeEnsembleWorkerSelection::Generic => return Some(ActualEnsemblePlan::Generic),
-            NativeEnsembleWorkerSelection::Unknown => return Some(ActualEnsemblePlan::Unknown),
+            NativeEnsembleWorkerSelection::Unknown => {
+                #[cfg(test)]
+                if std::env::var_os("ZZ_PROBE_ENSEMBLE").is_some() {
+                    eprintln!("ZZ_ENSEMBLE head={head} public worker selection unknown");
+                }
+                return Some(ActualEnsemblePlan::Unknown);
+            }
             NativeEnsembleWorkerSelection::Worker { member, binding } => (member, binding),
         };
         if !self.original_compiler_worker_node_holds(&worker) {
+            #[cfg(test)]
+            if std::env::var_os("ZZ_PROBE_ENSEMBLE").is_some() {
+                eprintln!("ZZ_ENSEMBLE head={head} worker node does not hold {:?} opaque={}", worker.slot, self.has_opaque_domain());
+            }
             return Some(ActualEnsemblePlan::Unknown);
         }
         let Ok(replacement) = replacement.try_utf8() else {
@@ -305,6 +315,10 @@ impl ModuleCommandBindings {
         let Some(prerequisite) =
             self.runtime_ensemble_prerequisite(public, &worker, head, namespace)
         else {
+            #[cfg(test)]
+            if std::env::var_os("ZZ_PROBE_ENSEMBLE").is_some() {
+                eprintln!("ZZ_ENSEMBLE head={head} no runtime prerequisite");
+            }
             return Some(ActualEnsemblePlan::Unknown);
         };
         let replacements = [replacement.as_bytes().to_vec()];
@@ -338,6 +352,21 @@ impl ModuleCommandBindings {
                 }
             },
         );
+        #[cfg(test)]
+        if std::env::var_os("ZZ_PROBE_ENSEMBLE").is_some() {
+            eprintln!(
+                "ZZ_ENSEMBLE head={head} worker={:?} hook={:?} trace={} compilation={}",
+                selected.worker.slot,
+                selected.worker.compiler_hook,
+                selected.worker.has_execution_trace,
+                match &selected.compilation {
+                    OriginalSelectedWorkerCompilation::PublicGeneric => "generic",
+                    OriginalSelectedWorkerCompilation::Unavailable => "unavailable",
+                    OriginalSelectedWorkerCompilation::Named(_) => "named",
+                    OriginalSelectedWorkerCompilation::Operation { .. } => "operation",
+                }
+            );
+        }
         project_original_worker_plan(selected)
     }
 

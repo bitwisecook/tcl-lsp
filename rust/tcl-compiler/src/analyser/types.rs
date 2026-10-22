@@ -5780,6 +5780,10 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
             ),
             (
                 "tcl8.6",
+                "namespace eval ::a {proc p {} {}; namespace export p}\nnamespace import ::a::p\np\n",
+            ),
+            (
+                "tcl8.6",
                 "oo::class create Widget {\r\n    method render {} {\r\n        puts \"widget $label\"\r\n    }\r\n}",
             ),
             (

@@ -1082,33 +1082,38 @@ fn script_words<'c>(
     let args = cmd.args();
     let words: Vec<&str> = args.iter().map(String::as_str).collect();
     let bodies = registry.argument_indices(cmd.name(), &words, tcl_registry::ArgRole::Body);
-    let case = registry.case_invocation(cmd.name(), &words);
+    // The case-list layout is read independently of the body roles: a
+    // computed subject (`switch -glob $x {…}`) can leave the role resolution
+    // without a selected form while the clause list itself stays literal.
+    let case = registry
+        .case_invocation(cmd.name(), &words)
+        .and_then(|(spec, invocation)| Some((spec, invocation.clause_list_index?)));
     let mut scripts = Vec::new();
-    for (index, _) in cmd.arg_tokens().iter().enumerate() {
-        if !bodies.contains(&index) {
-            continue;
-        }
-        let Some(word) = args.get(index) else {
-            continue;
+    if let Some((spec, index)) = &case
+        && let Some(word) = args.get(*index)
+    {
+        let shape = tcl_syntax::case_list::CaseListShape {
+            clause_flags: spec.clause_flags,
+            clause_value_flags: spec.clause_value_flags,
         };
-        match &case {
-            Some((spec, invocation)) if invocation.clause_list_index == Some(index) => {
-                let shape = tcl_syntax::case_list::CaseListShape {
-                    clause_flags: spec.clause_flags,
-                    clause_value_flags: spec.clause_value_flags,
-                };
-                let Ok(elements) = tcl_syntax::list::split_list(word) else {
-                    // An unreadable clause list may hold any action.
-                    scripts.push(std::borrow::Cow::Borrowed(word.as_str()));
-                    continue;
-                };
+        match tcl_syntax::list::split_list(word) {
+            Ok(elements) => {
                 for clause in tcl_syntax::case_list::split_case_list(word, &shape) {
                     if let Some(body) = clause.body_index.and_then(|body| elements.get(body)) {
                         scripts.push(body.clone());
                     }
                 }
             }
-            _ => scripts.push(std::borrow::Cow::Borrowed(word.as_str())),
+            // An unreadable clause list may hold any action.
+            Err(_) => scripts.push(std::borrow::Cow::Borrowed(word.as_str())),
+        }
+    }
+    for (index, _) in cmd.arg_tokens().iter().enumerate() {
+        if !bodies.contains(&index) || case.as_ref().is_some_and(|(_, list)| *list == index) {
+            continue;
+        }
+        if let Some(word) = args.get(index) {
+            scripts.push(std::borrow::Cow::Borrowed(word.as_str()));
         }
     }
     scripts

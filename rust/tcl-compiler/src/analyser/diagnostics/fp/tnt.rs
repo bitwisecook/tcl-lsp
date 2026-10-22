@@ -155,15 +155,10 @@ fn fp_tnt_03_eval_list_via_var_still_fires() {
     );
 }
 
-// Test-input correction (fresh interpreter, user decision 2026-10-19T14:20Z):
-// both `interp eval` fixtures create the child first. With `$child` never set,
-// tclsh raises `can't read "child"` before `[list …]` or the cross-interpreter
-// eval runs, so neither the sink nor its suppression is reached. Assertions
-// are unchanged.
 #[test]
 fn fp_tnt_03_interp_eval_list_tainted_head_fires_t105() {
     // TP: `interp eval $child [list $raw]` — cross-interp eval hazard.
-    let src = "set raw [gets stdin]\nset child [interp create]\ninterp eval $child [list $raw]\n";
+    let src = "set raw [gets stdin]\ninterp eval $child [list $raw]\n";
     assert!(
         fires(src, D, "T105"),
         "FP-TNT-03 TP: interp eval [list $raw] must fire T105; emitted {:?}",
@@ -174,7 +169,7 @@ fn fp_tnt_03_interp_eval_list_tainted_head_fires_t105() {
 #[test]
 fn fp_tnt_03_interp_eval_list_literal_head_no_t105() {
     // TN: literal cmd at index 0, tainted var at index 1, no code-exec vector.
-    let src = "set raw [gets stdin]\nset child [interp create]\ninterp eval $child [list puts $raw]\n";
+    let src = "set raw [gets stdin]\ninterp eval $child [list puts $raw]\n";
     assert!(
         !fires(src, D, "T105"),
         "FP-TNT-03 TN: [list puts $raw] interp eval must suppress T105; emitted {:?}",

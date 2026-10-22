@@ -751,16 +751,79 @@ fn original_package_entries(
     entries
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(super) struct OriginalAutoIndexRegistration {
     input: SignatureSourceNameValue,
     file: PathBuf,
 }
 
+/// The `tclIndex` registrations whose target file exists.
+///
+/// The survey itself (a full analysis of the index) is a pure function of the
+/// index bytes, its directory and the selected grammar and naming policy, so
+/// it is memoised across rescans (user decision 2026-10-19T11:00Z
+/// `product_fixes`: "host Tcl install rescan cache"): a folder add or
+/// workspace rescan re-surveys the same installed indexes. Only the extracted
+/// registrations are retained, never the analysis; existence is checked on
+/// every call. The memo is per thread (scans run on blocking workers), bounded
+/// by entry count and retained index bytes.
 fn original_index_entries(
     content: &str,
     index_dir: &Path,
     exists: &dyn Fn(&Path) -> bool,
+    config: LexerConfig,
+    policy: NamePolicyProtocol,
+) -> Vec<OriginalAutoIndexRegistration> {
+    type Row = (
+        Box<str>,
+        PathBuf,
+        LexerConfig,
+        NamePolicyProtocol,
+        Vec<OriginalAutoIndexRegistration>,
+    );
+    const MAX_ENTRIES: usize = 64;
+    const MAX_INDEX_BYTES: usize = 4 * 1024 * 1024;
+    thread_local! {
+        static MEMO: std::cell::RefCell<std::collections::VecDeque<Row>> =
+            const { std::cell::RefCell::new(std::collections::VecDeque::new()) };
+    }
+    let cached = MEMO.with_borrow(|memo| {
+        memo.iter()
+            .find(|(bytes, dir, grammar, naming, _)| {
+                bytes.as_ref() == content
+                    && dir.as_path() == index_dir
+                    && *grammar == config
+                    && *naming == policy
+            })
+            .map(|row| row.4.clone())
+    });
+    let surveyed = cached.unwrap_or_else(|| {
+        let surveyed = survey_index_entries(content, index_dir, config, policy);
+        MEMO.with_borrow_mut(|memo| {
+            memo.push_back((
+                content.into(),
+                index_dir.to_path_buf(),
+                config,
+                policy,
+                surveyed.clone(),
+            ));
+            while memo.len() > MAX_ENTRIES
+                || memo.iter().map(|row| row.0.len()).sum::<usize>() > MAX_INDEX_BYTES
+            {
+                memo.pop_front();
+            }
+        });
+        surveyed
+    });
+    surveyed
+        .into_iter()
+        .filter(|entry| exists(&entry.file))
+        .collect()
+}
+
+fn survey_index_entries(
+    content: &str,
+    index_dir: &Path,
     config: LexerConfig,
     policy: NamePolicyProtocol,
 ) -> Vec<OriginalAutoIndexRegistration> {
@@ -787,9 +850,7 @@ fn original_index_entries(
                 continue;
             };
             let file = index_dir.join(filename);
-            if exists(&file) {
-                entries.push(OriginalAutoIndexRegistration { input, file });
-            }
+            entries.push(OriginalAutoIndexRegistration { input, file });
         }
         return entries;
     }
@@ -864,9 +925,7 @@ fn original_index_entries(
         let Some(file) = filenames.filename(&words[2], index_dir) else {
             continue;
         };
-        if exists(&file) {
-            entries.push(OriginalAutoIndexRegistration { input, file });
-        }
+        entries.push(OriginalAutoIndexRegistration { input, file });
     }
     entries
 }
@@ -1086,6 +1145,35 @@ mod tests {
                 vec![PathBuf::from("/library/b.tcl")]
             );
         }
+    }
+
+    /// The rescan memo retains the survey, never the existence answer: the
+    /// same index re-checks its target files on every call, and changed bytes
+    /// are surveyed again.
+    #[test]
+    fn index_survey_memo_rechecks_existence_and_misses_changed_bytes() {
+        let version = tcl_dialect::TclVersion::V8_6;
+        let config = LexerConfig::from_grammar(
+            tcl_registry::InvocationDialect::for_version(version).lexer_grammar,
+        );
+        let policy = NamePolicyProtocol::authored_tcl(version);
+        let source = "set auto_index(memo_probe) [list source [file join $dir m.tcl]]\n";
+        let dir = Path::new("/memo-library");
+        let present = original_index_entries(source, dir, &|_| true, config, policy);
+        assert_eq!(present.len(), 1);
+        assert_eq!(present[0].file, dir.join("m.tcl"));
+        assert!(original_index_entries(source, dir, &|_| false, config, policy).is_empty());
+        let edited = original_index_entries(
+            "set auto_index(memo_probe) [list source [file join $dir n.tcl]]\n",
+            dir,
+            &|_| true,
+            config,
+            policy,
+        );
+        assert_eq!(edited[0].file, dir.join("n.tcl"));
+        let other_dir =
+            original_index_entries(source, Path::new("/elsewhere"), &|_| true, config, policy);
+        assert_eq!(other_dir[0].file, Path::new("/elsewhere").join("m.tcl"));
     }
 
     #[test]

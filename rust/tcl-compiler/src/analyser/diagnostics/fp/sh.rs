@@ -1697,5 +1697,42 @@ fn zz_sol49_dict_for_probe() {
             }
         }
         eprintln!("  CODES {:?}", codes(src, D));
+        let module = &cu.ir_module;
+        let mut pending = vec![&module.top_level];
+        while let Some(script) = pending.pop() {
+            for statement in &script.statements {
+                pending.extend(statement.child_scripts());
+                if !statement.is_executable_invocation() {
+                    continue;
+                }
+                let tokens = script.retained_source_tokens_for_statement(statement);
+                let binding = tokens.and_then(|tokens| tokens.source_binding.as_ref());
+                let footprint = tokens.zip(binding).and_then(|(tokens, binding)| {
+                    binding.original_materialized_footprint_for_module(tokens, module, registry)
+                });
+                let purpose = footprint.as_ref().and_then(|footprint| {
+                    footprint
+                        .bindings()
+                        .retained_original_source_purpose(footprint.metadata_context(), registry)
+                });
+                let invocation = tokens.zip(footprint.as_ref()).and_then(|(tokens, footprint)| {
+                    crate::registry_invocation::original_callback_invocation_with_metadata_context(
+                        registry,
+                        footprint.metadata_context(),
+                        tokens,
+                    )
+                });
+                eprintln!(
+                    "  DW {:?} tokens={} binding={} footprint={} purpose={:?} invocation={} nested={}",
+                    statement.span(),
+                    tokens.is_some(),
+                    binding.is_some(),
+                    footprint.is_some(),
+                    purpose,
+                    invocation.is_some(),
+                    tokens.map_or(0, |tokens| tokens.nested_bindings.len()),
+                );
+            }
+        }
     }
 }
