@@ -60,3 +60,7 @@ Files touched by me (all already in snapshots up to `ddb21ae4db` except docs): t
 - Host-install decision 2026-10-19T11:00Z: test harness presets an empty discovered-installation survey; pinned fixture-install test; per-thread plain-data memo of tclIndex surveys (`original_index_entries`) + unit test. `cargo check -p tcl-lsp-core -p tcl-lsp-server -p tcl-compiler --all-targets` clean.
 - Contract D itcl `Class::proc` command_query branch (fn_to_tp_itcl_class_proc_colon_dispatch passes); class superclass/mixin operand references; declaration-name end-of-word cursor tolerance; constructor/destructor keyword hover; builtin/scoped-operation hover labels; caller-registry opt-in for builtin completion and intrep hover lines; scoped-body operation completion; 8.x namespace→global variable completion; undeclared-variable highlights empty; forced-import sibling test offsets on the call head word (decision 2026-10-18T16:00Z).
 - Diagnosed WASI row 17 (inline spawn_blocking on one thread + analysis/pack-load cost) and the folder-add "hang" (host tclIndex analysis), see lsp-NOTES.md §4.
+
+## Coordinator note (2026-10-22T13:20Z)
+
+The Default-tier minify question is decided (`user-decisions-20261022T1317Z.json`): minify removes all whitespace it can, including inside braced expressions. `minify_preserves_string_and_expr_results` and `minify_strips_comments_and_collapses_whitespace_factorial` are correct as written; fix the native minify path to strip expression whitespace. No origin/rust check is needed for that decision.
