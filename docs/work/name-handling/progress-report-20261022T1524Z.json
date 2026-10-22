@@ -1,0 +1,67 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge and release readiness into rust first, including required compiler/registry/syntax/lexer paths and SpecTcl execution; remaining general VM parity follows release. No PR without user request.",
+  "stage_order": [
+    "Resolve release-blocking identities, providers, transformations and SpecTcl behavior",
+    "Meet section F and zero pass-to-fail against origin/rust on the named shipping snapshot",
+    "Prepare the clean release comparison when the user requests it",
+    "Resume the parked migration after release"
+  ],
+  "utc": "2026-10-22T15:24:56.174577+00:00",
+  "scheduled_report_utc": "2026-10-22T15:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-22T15:55:37+00:00",
+  "change_since_previous_report": [
+    "First g4 retry reached compiler test-binary compilation; no fresh test verdict. Missing-input interruption remains distinct from product behavior.",
+    "Separate publication checkout now preserves active build files and mtimes while WIP snapshots are rebased and pushed.",
+    "Native D1 package and D3 lifecycle protocol tests are being prepared with independent readiness and first-answer assertions. D2/D4/D5/D6 ownership is explicit.",
+    "Compiler, codegen and VM lint patches are prepared off-tree; no canonical lint clearing or repository gate result.",
+    "External perf reports matching partial lexer and SpecTcl observations, but complete corpus/PackSet equality is pending; routed patch remains withheld."
+  ],
+  "committed": [
+    "fabfda18b"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Early g4, then original N17 probe and narrow fix, C6, VM acceptance, native protocol checks and minify/hover.",
+    "Publish complete active WIP from isolated publisher; retain active source hold and map both snapshot hashes.",
+    "Required section F, shipping performance/host gates and zero pass-to-fail comparison remain open."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T14:58Z",
+    "perf": "2026-10-22T15:16Z",
+    "review-triage": "2026-10-22T14:42:43Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No fresh product test verdict or admission. Existing validated rows stay unchanged; prepared fixtures, oracle controls, static checks and partial external results are explicitly scoped.",
+  "disk_free_bytes": 14129811456
+}

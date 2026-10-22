@@ -212,11 +212,16 @@ fn workspace_symbols_empty_document_is_empty_and_does_not_panic() {
 
 #[test]
 fn workspace_symbols_classmethod_surfaces_as_method() {
-    // tclsh: `oo::class create C { self method make {} {} }` (a class/`self`
-    // method) is a real member — `info class methods C -all` lists it. The
-    // provider surfaces a classmethod with kind Method (structural).
+    // Fixture-profile correction authorised by decision 2026-10-17T20:30Z,
+    // non_tcl_tests: classmethod under tcl8.6 follows C Tcl. The exact script
+    // below fails in pinned 8.6.18 with `invalid command name "classmethod"`;
+    // pinned 9.0.4 and 9.1.0 accept it and `info class methods C` reports make.
+    // Keep the member/kind assertions and analyse the genuine 9.0 declaration.
     let src = "oo::class create C {\n    classmethod make {} {}\n}\n";
-    let syms = symbols(src, "make");
+    let analysis = Analyser::new().analyse(src, "tcl9.0");
+    let mut index = WorkspaceIndex::new();
+    index.add_document("file:///doc.tcl", &analysis);
+    let syms = index.symbols_matching("make", MAX_WORKSPACE_SYMBOL_RESULTS);
     assert_eq!(syms.len(), 1, "{syms:?}");
     assert_eq!(syms[0].name, "make");
     assert_eq!(syms[0].kind, WorkspaceSymbolKind::Method);

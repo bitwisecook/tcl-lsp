@@ -154,20 +154,66 @@ fn assert_old_revision_is_retired(lsp: &mut Lsp, uri: &str, text: &str, diagnost
     );
 }
 
-fn await_document_revision(lsp: &Lsp, uri: &str, version: i64, cursor: usize) -> Vec<Value> {
-    let diagnostics = lsp.await_first_diagnostics(uri, TIMEOUT);
-    let first_version = lsp.notifications().iter().find_map(|note| {
-        let params = note
-            .get("method")
-            .filter(|method| method.as_str() == Some("textDocument/publishDiagnostics"))
-            .and_then(|_| note.get("params"))?;
-        (params.get("uri").and_then(Value::as_str) == Some(uri))
-            .then(|| params.get("version").and_then(Value::as_i64))
-            .flatten()
-    });
-    assert_eq!(first_version, Some(version));
-    lsp.await_log(&["workspace_state.update", uri], TIMEOUT, cursor);
-    diagnostics
+fn await_completed_revision_diagnostics(
+    lsp: &Lsp,
+    uri: &str,
+    version: i64,
+    cursor: usize,
+) -> Vec<Value> {
+    // The server may publish a provisional fast-tier result before this marker.
+    // Select the first completed update after the caller's cursor, then pair it
+    // with the nearest preceding exact-URI publish at the expected document
+    // version; do not return the earlier provisional notification.
+    let uri_marker = format!("(uri={uri},");
+    lsp.await_log(&["workspace_state.update", &uri_marker], TIMEOUT, cursor);
+
+    let notifications = lsp.notifications();
+    let update_index = notifications
+        .iter()
+        .enumerate()
+        .skip(cursor)
+        .find_map(|(index, note)| {
+            let message = note
+                .get("method")
+                .filter(|method| method.as_str() == Some("window/logMessage"))
+                .and_then(|_| note.get("params"))
+                .and_then(|params| params.get("message"))
+                .and_then(Value::as_str)?;
+            (message.contains("workspace_state.update") && message.contains(&uri_marker))
+                .then_some(index)
+        })
+        .expect("awaited per-URI workspace update is present in notification snapshot");
+
+    notifications
+        .iter()
+        .take(update_index)
+        .enumerate()
+        .skip(cursor)
+        .rev()
+        .find_map(|(_, note)| {
+            let params = note
+                .get("method")
+                .filter(|method| method.as_str() == Some("textDocument/publishDiagnostics"))
+                .and_then(|_| note.get("params"))?;
+            if params.get("uri").and_then(Value::as_str) != Some(uri) {
+                return None;
+            }
+            assert_eq!(params.get("version").and_then(Value::as_i64), Some(version));
+            Some(
+                params
+                    .get("diagnostics")
+                    .and_then(Value::as_array)
+                    .expect("completed diagnostic publish has a findings array")
+                    .clone(),
+            )
+        })
+        .expect("completed per-URI update has a preceding diagnostic publish")
+}
+
+fn open_and_await_completed_diagnostics(lsp: &mut Lsp, uri: &str, text: &str) -> Vec<Value> {
+    let cursor = lsp.notification_cursor();
+    lsp.open_document(uri, text);
+    await_completed_revision_diagnostics(lsp, uri, 1, cursor)
 }
 
 fn await_workspace_scan(lsp: &Lsp) {
@@ -194,16 +240,18 @@ fn file_uri(path: &Path) -> String {
 fn warm_lifecycle_answers_match_fresh_after_open_and_closed_provider_changes() {
     let (old, new) = lifecycle_sources();
 
+    // Both sources execute successfully: the p/q call sites are in procedure
+    // bodies that the fixture never invokes, so old p may be retired.
     // Open-buffer leg: use the exact N12 before/after pair through didChange.
     let uri = unique_uri("tcl");
     let mut warm = Lsp::tcl();
-    let old_diagnostics = warm.open_ready(&uri, &old);
+    let old_diagnostics = open_and_await_completed_diagnostics(&mut warm, &uri, &old);
     assert_old_revision_is_retired(&mut warm, &uri, &old, &old_diagnostics);
 
     warm.clear_notifications();
     let cursor = warm.notification_cursor();
     warm.replace_document(&uri, 2, &new);
-    let new_diagnostics = await_document_revision(&warm, &uri, 2, cursor);
+    let new_diagnostics = await_completed_revision_diagnostics(&warm, &uri, 2, cursor);
     let (new_definition, new_references) = query_p(&mut warm, &uri, &new);
     assert_new_p_targets(&new_definition, &new_references, &uri, &uri, &new);
     assert!(
@@ -212,7 +260,7 @@ fn warm_lifecycle_answers_match_fresh_after_open_and_closed_provider_changes() {
     );
 
     let mut fresh = Lsp::tcl();
-    let fresh_diagnostics = fresh.open_ready(&uri, &new);
+    let fresh_diagnostics = open_and_await_completed_diagnostics(&mut fresh, &uri, &new);
     let (fresh_definition, fresh_references) = query_p(&mut fresh, &uri, &new);
     assert_same_answers(
         &new_definition,
@@ -239,7 +287,7 @@ fn warm_lifecycle_answers_match_fresh_after_open_and_closed_provider_changes() {
 
     let mut warm = Lsp::at_workspace_root(&root);
     await_workspace_scan(&warm);
-    let old_diagnostics = warm.open_ready(&consumer_uri, &consumer);
+    let old_diagnostics = open_and_await_completed_diagnostics(&mut warm, &consumer_uri, &consumer);
     assert_old_revision_is_retired(&mut warm, &consumer_uri, &consumer, &old_diagnostics);
 
     // Clear first, then take the cursor. The workspace update marker identifies
@@ -254,7 +302,7 @@ fn warm_lifecycle_answers_match_fresh_after_open_and_closed_provider_changes() {
         "workspace/didChangeWatchedFiles",
         json!({ "changes": [{ "uri": provider_uri, "type": 2 }] }),
     );
-    let new_diagnostics = await_document_revision(&warm, &consumer_uri, 1, cursor);
+    let new_diagnostics = await_completed_revision_diagnostics(&warm, &consumer_uri, 1, cursor);
     let (new_definition, new_references) = query_p(&mut warm, &consumer_uri, &consumer);
     assert_new_p_targets(
         &new_definition,
@@ -270,7 +318,8 @@ fn warm_lifecycle_answers_match_fresh_after_open_and_closed_provider_changes() {
 
     let mut fresh = Lsp::at_workspace_root(&root);
     await_workspace_scan(&fresh);
-    let fresh_diagnostics = fresh.open_ready(&consumer_uri, &consumer);
+    let fresh_diagnostics =
+        open_and_await_completed_diagnostics(&mut fresh, &consumer_uri, &consumer);
     let (fresh_definition, fresh_references) = query_p(&mut fresh, &consumer_uri, &consumer);
     assert_same_answers(
         &new_definition,

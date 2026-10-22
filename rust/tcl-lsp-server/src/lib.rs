@@ -46572,6 +46572,13 @@ info exists ::N::v\uD800";
                 vec![Uri::from_file_path(workspace.0.join("reporoot/examples")).unwrap()];
             backend.scan_workspace_folders().await.unwrap();
             for (uri, source) in &callers {
+                // Opening replaces the scanned standalone view. The generic
+                // register helper intentionally accumulates source-site views.
+                backend
+                    .workspace_index
+                    .write()
+                    .await
+                    .remove_document(uri.as_str());
                 register(&backend, uri, source).await;
             }
             for caller in order {
@@ -46596,6 +46603,11 @@ info exists ::N::v\uD800";
                 }
             }
             let changed = callers[0].1.replace("-exact P 1.0", "-exact P 2.0");
+            backend
+                .workspace_index
+                .write()
+                .await
+                .remove_document(callers[0].0.as_str());
             register(&backend, &callers[0].0, &changed).await;
             let locations = backend
                 .compute_definition(

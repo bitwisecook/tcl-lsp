@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T15:02Z
+Last updated: 2026-10-22T15:24:34Z
 
 ## In progress
 
@@ -27,7 +27,7 @@ Last updated: 2026-10-22T15:02Z
 
 - 12:50–13:12Z: re-armed the 30-minute cycle. Pushed the full tree (`1c719796fe`). Mirrored agent-referenced scratchpad files to `scratchpad-mirror/` (`6bc8ceaed2`) so agents in the user's separate session can read them. Truncated compiler-names' 2.1 GB runaway log (disk 1.7 → 2.7 GB). Archived the coordinator's three duplicate cloud sessions (no commits). Refreshed the agent table in `current-state.md` from all outstanding files.
 - Ruled for compiler-names: `compiled_invocation.rs` import-alias gate and the W210 pkgIndex `dir` entry option are its own; it coordinates the `compilation_unit.rs` construction sites with the compiler agent; the `other.tcl` W210 row narrows to `dir` only (tclsh: the read of `dir` raises before `$missing` is substituted).
-- Note: `outstanding/bigip-lsp.md` says "Last updated: 2026-10-22T14:05Z", which is later than the time it was pushed; the separate session should correct it on its next update.
+- The old BIG-IP handoff timestamp discrepancy is resolved: the external file now reports an actual 14:58Z update. Future freshness checks use current reported times.
 
 - 11:40–12:10Z: the session usage limit stopped every agent; all eight resumed at 12:12Z from their transcripts. 3.65 GB of superseded libraries and 0.32 GB of idle test executables pruned while no build ran (disk 966 MB → 4.4 GB).
 - Full working tree pushed on the user's request (`2fe1d48d97`, includes two temporary probes).
@@ -61,3 +61,12 @@ Last updated: 2026-10-22T15:02Z
 - External files checked at 14:53: bigip-lsp 14:43, perf 14:38, review-triage 14:42:43. Perf equality is pending; do not apply its realm/interprocedural patch. Its analyser image and segment drafts remain unproven.
 - Review-triage follow-up after R1: inspect N01 provider behavior and typed allocations, alongside N04-N07 edits across six profiles. A display-map count alone cannot establish a slot collision. Run6 already prints definitions; avoid a duplicate full replay.
 - Wasmtime 49.0.3, Binaryen 133, WASI SDK 34.0 and the Rust WASM targets are ready. Tool availability receipts do not establish host acceptance. Next cycle: 15:25:37 UTC. About 14 GB is free.
+
+### Current cycle and routing (15:25 UTC)
+
+- Active build files remain untouched. The separate publication checkout at `/workspace/naming-migration-publish/tcl-lsp` borrows active Git objects, fetches only `work` at depth one, and rebases/pushes snapshots there. Active WIP commits and published commits are mapped in `coordinator-20261022/publisher-workflow.json`; product tree differences must be recorded before integrating updates between build windows. No active rebase during compilation.
+- The g4 retry reached compiler test-binary compilation. No fresh product test result exists. Keep the early g4/N17 source hold; no target cleanup during builds.
+- Section D routing: coordination checks owns new native D1 and D3 test modules; LSP owns D2 inherited/deep state and D5 protocol edits; VM owns D4 unchanged environment transitions; root coordinates D6 browser/WASI and editor gates. Prepared tests and manual oracle controls do not close these gates. D3 readiness was corrected to consume the completed exact-URI update rather than provisional diagnostics.
+- External files checked this cycle: BIG-IP 14:58, perf 15:16, review-triage 14:42:43. All are under 60 minutes old. Perf equality is still pending and its realm/interprocedural patch remains withheld. Strict lint blockers and ILX are already routed to compiler/VM owners; R1 remains with compiler-names.
+- Shadow lint patches are prepared by compiler, compiler-names, compiler-codegen and VM; canonical production sources remain held. After the N17 functional chain, coordinate their shared API batch before broad compiler acceptance to avoid repeated expensive rebuilds. No new lint allowances.
+- No validated product row, audit admission or release checkbox changed. Next cycle is due at 15:55:37 UTC.

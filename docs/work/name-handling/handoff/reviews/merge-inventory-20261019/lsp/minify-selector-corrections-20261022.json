@@ -23,5 +23,12 @@
   "unchanged_default_selectors": [
     "minify_preserves_string_and_expr_results",
     "minify_strips_comments_and_collapses_whitespace_factorial"
-  ]
+  ],
+  "updated_utc": "2026-10-22T15:18:03.335037+00:00",
+  "default_policy_selector": {
+    "old": "minify::original::tests::native_syntax_compaction_uses_pure_original_expression_gap_receipt",
+    "new": "minify::original::tests::native_syntax_compaction_uses_selected_original_expression_gaps",
+    "authority": "user-decisions-20261022T1317Z.json: minify removes all whitespace it can, including braced expressions",
+    "correction": "Use independently selected syntax-only expression gap owner for Default; expression division by zero, variable and function token gaps no longer require the separate finite-pure-value receipt. Existing pure receipt unit tests remain unchanged. Malformed expression and observed dispatch negative controls remain."
+  }
 }

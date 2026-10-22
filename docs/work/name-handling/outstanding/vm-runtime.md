@@ -2,7 +2,7 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T14:56Z (blocked on the shared build sequence; planning only)
+Last updated: 2026-10-22T15:22Z (blocked on the shared build sequence; shadow lint patch prepared)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -26,6 +26,18 @@ reported **379 VM diagnostics across 72 paths**. Inventory:
 These are old-snapshot observations, not a current source measurement. Prepare the
 cleanup off-tree during the source hold, then fix it after SpecTcl/Jim triage;
 no new lint allowances. A selected `--no-deps` run does not clear the full gate.
+
+Actual mechanical shadow patch is ready at
+`/tmp/vm-runtime-lint-shadow/mechanical.patch`, SHA-256
+`6d93623097aff7c10061ca9138c4eff0be15a271f30fd1a6724051fd567762c9`.
+It contains **149 edit groups across 44 files**: identity conversions, docs,
+unit patterns/semicolons, method closures, unnecessary borrows, declaration
+placement and small equivalent combinators. The receipt beside it records
+current base/shadow hashes and every edit. All 44 shadows parsed/formatted with
+rustfmt; `git apply --check` passes and base drift is zero at 15:22Z. This is
+off-tree only, with no typecheck, Clippy count, behavioural result or canonical
+VM source edit. TLS retirement `try_with` guards are untouched. Refusal-sensitive
+and structural helpers remain in the separate plan for review after acceptance.
 
 The scratch runner is `/tmp/vm-runtime-preflight/seq-safe.sh`: one `cargo test`
 build/run per target, draining filtered logs capped at 20 MB, recording exit and

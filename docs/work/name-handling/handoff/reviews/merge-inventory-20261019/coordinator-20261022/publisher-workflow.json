@@ -1,0 +1,19 @@
+{
+  "created_utc": "2026-10-22T15:17:08.060204+00:00",
+  "active_root": "/workspace/naming-migration-active/tcl-lsp",
+  "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
+  "last_source_snapshot": "fabfda18b",
+  "last_published_snapshot": "fabfda18b",
+  "source_branch": "work",
+  "publisher_branch": "work",
+  "rules": [
+    "Commit the complete active WIP using the user probe exclusion; do not rebase or check out the active source tree during a build.",
+    "Publisher borrows active Git objects, so new active commits are visible without another source/history fetch.",
+    "In publisher, fetch depth1 origin work, restore only provably cached shallow boundaries, fetch individual missing commit parents depth1 only if required. Never unshallow.",
+    "Fast-forward publisher work onto origin/work, then cherry-pick every unpublished active WIP commit in order. Resolve conflicts in publisher without changing active build files.",
+    "Before pushing, fetch depth1 work and rebase publisher work onto it. Push only HEAD:work. Never force push or create a PR.",
+    "Record source/published commit mapping and diff both trees excluding docs/work/name-handling. Any product divergence must remain explicit and be integrated into active source only between build windows.",
+    "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
+    "Keep active logs under /tmp; preserve all target/executable disk rules."
+  ]
+}

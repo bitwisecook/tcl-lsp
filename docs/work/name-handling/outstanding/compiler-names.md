@@ -2,13 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-22T14:55Z (agent-reported work only)
+Last updated: 2026-10-22T15:07Z (agent-reported work only)
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
 
-Initial clean g4 build is active under the global lock; no test verdict yet. The first tool-sandbox attempt failed resolving sha2 before compilation; the network-enabled retry reached tcl-compiler. Its verified process tree was SIGSTOP/SIGCONT around the coordinator's documentation-only rebase. Active logs and exits are `/tmp/compiler-names-g4/`; completed receipts will be copied into evidence. Young executables are retained. No audit admission or validated row changes.
+Early g4 restarted from main at 15:06:56Z after coordinator Git CLEAR on fabfda18b. The first tool-sandbox attempt failed resolving sha2 before compilation. The network-enabled clean build then stopped after nine missing tracked include-file errors (five unique paths), zero tests, no product verdict; only its verified cargo/rustc subtree was terminated with coordinator authorisation. The coordinator materialised all 166 missing literal inputs from exact HEAD. The old paused orchestration was retired/reaped and failed logs preserved as `/tmp/compiler-names-g4/missing-includes-g4-main.*`, with `g4-main-interrupted.json`. Active logs/exits remain `/tmp/compiler-names-g4/`; only completed receipts are copied into evidence. Runner now aborts on build/harness failures while preserving assertion-failure receipts for attribution. No cleanup, audit admission or validated row changes.
 
 1. **R1 guardrail plus global hook guard** (`rust/tcl-compiler/src/command_binding.rs`). Coordinator rulings of 11:20Z and 12:50Z.
    - `command_world_closed_on_normal_return(target, facts)`. A handler without a closed receipt keeps the completed world only when it:
@@ -37,7 +37,7 @@ Initial clean g4 build is active under the global lock; no test verdict yet. The
 
 ## Outstanding (in priority order, after the above)
 
-N13 is additionally assigned after R1/W210: issue an authenticated source-only parent point/namespace/path seed from the existing private SourceLookupSnapshot/ModuleCommandBindings owner. Retain exact complete parent source/input/config/point/frame/provenance; refuse stale, wrong-frame, ambiguous or incomplete state. NativeCompilationEntry remains physical runtime capture and is never fabricated from namespace strings. LSP owns server/index transport and warm/fresh convergence; coordinate compiler compilation_unit hunks before editing. Planning only during early g4 and N17 build windows.
+N13 is additionally assigned after R1/W210: issue an authenticated source-only parent point/namespace/path seed from the existing private SourceLookupSnapshot/ModuleCommandBindings owner. Retain exact complete parent source/input/config/point/frame/provenance; refuse stale, wrong-frame, ambiguous or incomplete state. NativeCompilationEntry remains physical runtime capture and is never fabricated from namespace strings. LSP owns server/index transport and warm/fresh convergence; coordinate compiler compilation_unit hunks before editing. Planning only during early g4 and N17 build windows. Planned issuer `OriginalProjectSourceLoad::source_point_entry(&AnalysisResult)` returns an opaque Clone+Eq entry; LSP accepts this shape and separately transports current-interpreter project loads versus child-interpreter visibility advice. Hash/serialisation are not required by the host.
 
 1. Verify g4: the main set, zz probes, W210 probe, the 8 regressions singly, `signature_scan::` and `command_binding::`. Report the numbers to the coordinator.
 2. Run the LSP-level R1 check after the compiler is green: `cargo test --locked -p tcl-lsp-core --test references_rename rename_proc_updates_definition_and_all_call_sites -- --test-threads=1` and `references_proc_from_definition_includes_decl_and_both_calls`, then delete the executable.
@@ -68,7 +68,7 @@ Until routed, build nothing that re-parses display strings into identities or as
 
 ## Blocked (on whom, and what is needed)
 
-- External strict Clippy inventory (14:43, aeecf397, Rust 1.99.1) reports 789 Compiler and 379 VM errors; dependent consumers were not reached. This is external agent-reported evidence, not a local run or admission. Names-domain paths are assigned here after R1 attribution, pending the coordinator's exact inventory routing. Plan off-tree during source holds; preserve guards and semantics, add no allows. Canonical incoming inventory: bigip-lsp/clippy-dependency-blockers-20261022.json.
+- External strict Clippy inventory (14:43, aeecf397, Rust 1.99.1) reports 789 Compiler and 379 VM errors; dependent consumers were not reached. This is external agent-reported evidence, not a local run or admission. Exact old-snapshot inventory `/tmp/naming-clippy-compiler-names.json` has 170 diagnostics/51 paths; names retains 156 after original_literal_argv_rewrite.rs 2 routed to LSP and body_effects.rs 8 plus four C6 root command_binding diagnostics routed to compiler. Two metadata tri-states will use compiler's InvocationMetadataSelection; class relation tri-states keep their separate meanings. Functional R1 attribution still precedes lint application. Plan off-tree during source holds; preserve guards and semantics, add no allows. Canonical incoming inventory: bigip-lsp/clippy-dependency-blockers-20261022.json.
 
 - R1 and import fixes remain unverified; early g4 main/zz and eight regression attribution run first after coordinator GO. User decision 20261022T1317Z permits narrow after-load Reached corrections, jointly classified with compiler.
 - The 8 `command_binding` pass→fail in g1 (`compiler-names/g1-command_binding-pass2fail.txt`) have been forwarded to the compiler agent to classify against C6. They were all ok in sol49 z2 (00:00). Their assertions (uncalled-body commands now carry proved execution targets; Reached versus Conditional) point at C6's `uncalled_body_after_load` and conditional in-frame hunks.

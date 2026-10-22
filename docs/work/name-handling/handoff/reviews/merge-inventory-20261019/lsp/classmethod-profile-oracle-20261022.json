@@ -1,0 +1,26 @@
+{
+  "observed_utc": "2026-10-22T15:03:30.001501+00:00",
+  "scope": "Manual fixture profile control; no LSP execution or admission.",
+  "authority": "user-decisions-20261017T2030Z non_tcl_tests",
+  "source": "oo::class create C {\n    classmethod make {} {}\n}\nputs [info class methods C]\n",
+  "results": [
+    {
+      "engine": "8.6",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "invalid command name \"classmethod\"\n    while executing\n\"classmethod make {} {}\"\n    (in definition script for class \"::C\" line 2)\n    invoked from within\n\"oo::class create C {\n    classmethod make {} {}\n}\"\n    (file \"/tmp/lsp-classmethod-profile.tcl\" line 1)\n"
+    },
+    {
+      "engine": "9.0",
+      "exit": 0,
+      "stdout": "make\n",
+      "stderr": ""
+    },
+    {
+      "engine": "9.1",
+      "exit": 0,
+      "stdout": "make\n",
+      "stderr": ""
+    }
+  ]
+}

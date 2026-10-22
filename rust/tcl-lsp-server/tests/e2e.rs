@@ -126,12 +126,14 @@ mod issue996_stack_overflow;
 mod jim;
 #[path = "e2e/name_resolution.rs"]
 mod name_resolution;
+#[path = "e2e/naming_lifecycle.rs"]
+mod naming_lifecycle;
+#[path = "e2e/naming_packages.rs"]
+mod naming_packages;
 #[path = "e2e/navigation.rs"]
 mod navigation;
 #[path = "e2e/navigation_extras.rs"]
 mod navigation_extras;
-#[path = "e2e/naming_lifecycle.rs"]
-mod naming_lifecycle;
 #[path = "e2e/precision_review.rs"]
 mod precision_review;
 #[path = "e2e/recovery.rs"]

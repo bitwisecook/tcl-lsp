@@ -19,11 +19,17 @@ run() {
         cargo test --locked -p tcl-compiler --lib "$filter" -- --nocapture --test-threads=1 2>&1 | python3 "$EVIDENCE/capped-log.py" "$D/$TAG-$label.log"
         statuses=("${PIPESTATUS[@]}")
         printf '%s\n' "cargo=${statuses[0]} filter=${statuses[1]}" > "$D/$TAG-$label.exit"
-        if rg -q '^error.*failed to get|^error.*could not compile' "$D/$TAG-$label.log"; then exit 91; fi
+        if (( statuses[1] != 0 )); then exit 92; fi
+        if (( statuses[0] != 0 )) && ! rg -q '^test result:' "$D/$TAG-$label.log"; then
+            echo "BUILD_OR_HARNESS_FAILED $TAG-$label (no completed test result)"
+            exit 91
+        fi
         rg '^test result:|^error' "$D/$TAG-$label.log" || true
         # Fresh shared executables stay in place for at least sixty minutes.
         echo "LOCK_RELEASED $TAG-$label $(date -u +%FT%TZ)"
     ) 9>/tmp/tcl-lsp-naming-build.lock
+    local run_status=$?
+    if (( run_status != 0 )); then exit "$run_status"; fi
 }
 case "$STAGE" in
     early)

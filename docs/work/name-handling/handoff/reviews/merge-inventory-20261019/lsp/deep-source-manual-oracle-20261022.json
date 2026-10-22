@@ -1,0 +1,51 @@
+{
+  "observed_utc": "2026-10-22T15:10:17.332423+00:00",
+  "scope": "Manual C Tcl fixture control only:12 source hops, inherited root path, global directory read after hop5, same child under two namespaces. No compiler/LSP execution or Section D2 admission.",
+  "files": {
+    "root.tcl": "namespace eval lib {proc héλper {} {return GOOD}}\nset ::sourceDir [file dirname [info script]]\nnamespace eval app {namespace path ::lib; source [file join $::sourceDir hop1.tcl]}\nnamespace eval other {namespace path ::lib; source [file join $::sourceDir hop1.tcl]}\nputs [app::run]\nputs [other::run]\n",
+    "hop1.tcl": "source [file join [file dirname [info script]] hop2.tcl]\n",
+    "hop2.tcl": "source [file join [file dirname [info script]] hop3.tcl]\n",
+    "hop3.tcl": "source [file join [file dirname [info script]] hop4.tcl]\n",
+    "hop4.tcl": "source [file join [file dirname [info script]] hop5.tcl]\n",
+    "hop5.tcl": "source [file join [file dirname [info script]] hop6.tcl]\n",
+    "hop6.tcl": "source $::sourceDir/hop7.tcl\n",
+    "hop7.tcl": "source [file join [file dirname [info script]] hop8.tcl]\n",
+    "hop8.tcl": "source [file join [file dirname [info script]] hop9.tcl]\n",
+    "hop9.tcl": "source [file join [file dirname [info script]] hop10.tcl]\n",
+    "hop10.tcl": "source [file join [file dirname [info script]] hop11.tcl]\n",
+    "hop11.tcl": "source [file join [file dirname [info script]] hop12.tcl]\n",
+    "hop12.tcl": "source [file join [file dirname [info script]] leaf.tcl]\n",
+    "leaf.tcl": "proc run {} {héλper}\n"
+  },
+  "results": [
+    {
+      "engine": "8.5",
+      "exit": 0,
+      "stdout": "GOOD\nGOOD\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "engine": "8.6",
+      "exit": 0,
+      "stdout": "GOOD\nGOOD\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "engine": "9.0",
+      "exit": 0,
+      "stdout": "GOOD\nGOOD\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "engine": "9.1",
+      "exit": 0,
+      "stdout": "GOOD\nGOOD\n",
+      "stderr": "",
+      "pass_fixture": true
+    }
+  ],
+  "updated_utc": "2026-10-22T15:18:29.131389+00:00"
+}

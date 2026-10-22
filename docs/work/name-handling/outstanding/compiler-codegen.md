@@ -2,7 +2,7 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-22T14:45Z (RESUMED; agent-reported, not validation)
+Last updated: 2026-10-22T15:06Z (RESUMED; agent-reported, not validation)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -42,6 +42,9 @@ The probe compares O129 output for the pack registry (`registry_for_dialect_with
 **Files I touched this session:** `rust/tcl-compiler/src/compile_service.rs`, `command_binding/compiled_preflight.rs`, `command_binding/compiled_preflight/original_preparation.rs`, `codegen/control_flow.rs`, `codegen/emitter/mod.rs`, `codegen/statements/native_scalar.rs`, `codegen/native_failure.rs`, `optimiser/manager.rs`; `rust/tcl-spectcl/src/install.rs`, `rust/tcl-spectcl/tests/variable_reference_boundaries.rs` (new), `rust/tcl-spectcl/tests/zz_ccg_fold_probe.rs` (TEMP); `rust/tcl-registry/src/native_string_operand_compilation.rs`, `native_compilation.rs`, `commands/tcl/string_.rs`; `runtime/rust/src/interp/native_body_artifact/native_string_operand.rs`; docs: this file, `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen-NOTES.md`, `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/`.
 
 ## In progress
+
+- As of the `fabfda18b` coordinator snapshot: compiler-names first early-window attempt executed zero tests because tracked include inputs were missing; those inputs are restored and its first window is restarting. This role has not started cargo, no N17 verdict is claimed, and the original const-subst barrier remains unchanged until the fold probe measures it. New controls are written/formatted only.
+- Release lint work added by the coordinator: `/tmp/naming-clippy-compiler-codegen.json` is an external `aeecf397` Rust 1.99.1 inventory, 54 diagnostics across 17 owned paths. Current hunks are inspected; mechanical fixes and helper splits are being prepared in `/tmp/ccg-lint-{base,work}`, with no canonical product edits. A shared `registry_invocation::InvocationMetadataSelection { Standalone, Retained(context) }` (outer absence still terminal refusal) is coordinated with compiler: compiler owns the API plus SSA/static_loops consumers, this role owns method_barrier and emitter consumers. No duplicate alias/enum will ship. The coordinator explicitly postpones canonical lint/API application until the unchanged N17 probe and functional chain are measured.
 
 - const_fold live hooks (release-blocking, coordinator's top item): no live pack const_fold hook folds in `optimise_raw`. The world-barrier hypothesis and the probe are in Resume.
 
