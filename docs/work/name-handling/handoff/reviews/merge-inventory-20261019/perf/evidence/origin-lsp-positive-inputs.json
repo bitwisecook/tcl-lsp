@@ -1,0 +1,10 @@
+{
+  "source_base": "fcb7927f",
+  "externs": {
+    "tcl_compiler": "/workspace/tcl-lsp-rust/target/debug/deps/libtcl_compiler-3c4d2ba7e0fbd52f.rlib",
+    "tcl_lsp_core": "/workspace/tcl-lsp-rust/target/debug/deps/libtcl_lsp_core-ce43dfdf5f7d5767.rlib",
+    "tcl_dialect": "/workspace/tcl-lsp-rust/target/debug/deps/libtcl_dialect-1d408ce7a4c937b1.rlib"
+  },
+  "method": "direct rustc with original completed library artifacts; avoids unused core test dependencies",
+  "positive_control": "all fixture lenses retain the one positive reference"
+}

@@ -1,0 +1,8 @@
+{
+  "source_base": "e4a01bbe plus full batch",
+  "externs": {
+    "tcl_compiler": "/workspace/tcl-lsp-work/target-tests/debug/deps/libtcl_compiler-e1d5cac931c54ee4.rlib",
+    "tcl_lexer": "/workspace/tcl-lsp-work/target-tests/debug/deps/libtcl_lexer-ff172cc3515b8ad8.rlib"
+  },
+  "profile": "normal test libraries; direct diagnostic binary opt-level=0 debug=0, debug and overflow assertions on"
+}

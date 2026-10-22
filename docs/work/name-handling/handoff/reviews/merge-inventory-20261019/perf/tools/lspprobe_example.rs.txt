@@ -12,13 +12,15 @@ fn main() {
     let profile = tcl_dialect::DialectProfile::find("tcl8.6").expect("stock profile");
     for n in sizes.split(',').map(|s| s.parse::<usize>().expect("size")) {
         if mode == "chain" {
-            let edges: Vec<_> = (1..n).map(|i| RunEdge {
-                parent: format!("file:///f{}.tcl", i - 1),
-                child: format!("file:///f{i}.tcl"),
-                at: 1,
-                enclosing_body: None,
-                kind: RunEdgeKind::Source,
-            }).collect();
+            let edges: Vec<_> = (1..n)
+                .map(|i| RunEdge {
+                    parent: format!("file:///f{}.tcl", i - 1),
+                    child: format!("file:///f{i}.tcl"),
+                    at: 1,
+                    enclosing_body: None,
+                    kind: RunEdgeKind::Source,
+                })
+                .collect();
             for repetition in 0..3 {
                 let start = Instant::now();
                 let order = RunOrder::build(black_box(&edges));
@@ -28,31 +30,62 @@ fn main() {
             }
             continue;
         }
-        let source: String = (0..n).map(|i| format!("proc p{i:08} {{}} {{}}\np{i:08}\n")).collect();
+        let source: String = (0..n)
+            .map(|i| format!("proc p{i:08} {{}} {{}}\np{i:08}\n"))
+            .collect();
         let start = Instant::now();
-        let analysis = Analyser::new().analyse(&source, "tcl8.6");
+        // Match the document driver: supply the independently retained editing input.
+        let input = Analyser::new()
+            .prepare_analysis_input("tcl8.6")
+            .expect("available editing input");
+        let analysis = Analyser::new()
+            .with_resolved_input(input)
+            .analyse(&source, "tcl8.6");
         let analyse_us = start.elapsed().as_micros();
-        assert_eq!(analysis.all_procs.len(), n, "the actual declarations must be retained");
+        assert_eq!(
+            analysis.all_procs.len(),
+            n,
+            "the actual declarations must be retained"
+        );
         let uri = "file:///flat.tcl";
         for repetition in 0..3 {
             let start = Instant::now();
             let index = WorkspaceIndex::from_documents([(uri, &analysis)]);
             let index_us = start.elapsed().as_micros();
-            assert_eq!(index.procs().count(), n, "index intake cannot withdraw the measured rows");
+            assert_eq!(
+                index.procs().count(),
+                n,
+                "index intake cannot withdraw the measured rows"
+            );
             let start = Instant::now();
             for _ in 0..100 {
                 assert!(!black_box(&index).workspace_command_exists_for_call("::missing", false));
             }
             let existence_us = start.elapsed().as_micros();
             let start = Instant::now();
-            let lenses = tcl_lsp_core::code_lens::code_lenses(&source, profile, Some(&analysis), None, uri);
+            let lenses =
+                tcl_lsp_core::code_lens::code_lenses(&source, profile, Some(&analysis), None, uri);
             let lenses_us = start.elapsed().as_micros();
-            assert_eq!(lenses.len(), n, "an unavailable provider is not a fast successful result");
-            assert!(lenses.iter().all(|lens| matches!(lens.command_title.as_str(), "1 reference" | "at least 1 reference")),
+            assert_eq!(
+                lenses.len(),
+                n,
+                "an unavailable provider is not a fast successful result"
+            );
+            assert!(
+                lenses.iter().all(|lens| matches!(
+                    lens.command_title.as_str(),
+                    "1 reference" | "at least 1 reference"
+                )),
                 "each fixture procedure must retain its one positive call; unavailable reports are not a speedup: {:?}",
-                lenses.iter().map(|lens| &lens.command_title).collect::<Vec<_>>());
+                lenses
+                    .iter()
+                    .map(|lens| &lens.command_title)
+                    .collect::<Vec<_>>()
+            );
             black_box(lenses);
-            println!("document n={n} repetition={repetition} analyse_us={analyse_us} index_us={index_us} existence_100_us={existence_us} lenses_us={lenses_us}");
+            println!(
+                "document n={n} repetition={repetition} analyse_us={analyse_us} index_us={index_us} existence_100_us={existence_us} lenses_us={lenses_us}"
+            );
         }
     }
 }

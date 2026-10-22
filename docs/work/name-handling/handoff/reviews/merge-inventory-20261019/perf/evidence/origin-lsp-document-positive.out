@@ -1,0 +1,12 @@
+document n=10 repetition=0 analyse_us=628278 index_us=129 existence_100_us=348 lenses_us=1053
+document n=10 repetition=1 analyse_us=628278 index_us=41 existence_100_us=485 lenses_us=5338
+document n=10 repetition=2 analyse_us=628278 index_us=39 existence_100_us=196 lenses_us=1180
+document n=20 repetition=0 analyse_us=393099 index_us=82 existence_100_us=4932 lenses_us=1171
+document n=20 repetition=1 analyse_us=393099 index_us=58 existence_100_us=6476 lenses_us=2172
+document n=20 repetition=2 analyse_us=393099 index_us=820 existence_100_us=4895 lenses_us=8820
+document n=40 repetition=0 analyse_us=894570 index_us=322 existence_100_us=3590 lenses_us=36303
+document n=40 repetition=1 analyse_us=894570 index_us=1409 existence_100_us=1227 lenses_us=11356
+document n=40 repetition=2 analyse_us=894570 index_us=381 existence_100_us=1057 lenses_us=27844
+document n=80 repetition=0 analyse_us=1579928 index_us=326 existence_100_us=172623 lenses_us=106465
+document n=80 repetition=1 analyse_us=1579928 index_us=2261 existence_100_us=4502 lenses_us=74255
+document n=80 repetition=2 analyse_us=1579928 index_us=497 existence_100_us=2717 lenses_us=113079

@@ -1,1 +1,3 @@
 Timing only; eq=true is a probe placeholder, not an AnalysisResult equality proof. Production base 8a01a718 plus full batch.
+OK memo_ms=326554 plain_ms=0 eq=true /tmp/perf-inputs/tclIndex-253.tcl
+files=1 mismatches=0
