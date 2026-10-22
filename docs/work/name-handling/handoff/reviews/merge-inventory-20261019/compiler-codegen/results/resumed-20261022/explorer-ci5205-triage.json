@@ -1,0 +1,853 @@
+{
+  "utc": "2026-10-22T23:24:14.921347+00:00",
+  "scope": "Read-only older CI5205 source2b934 exact baseline/current Explorer21 plus CLI native hotloop1; no current run or single-cause attribution",
+  "source_comparison": {
+    "path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/ci5205-shard3-exact-selector-join-20261022T2307Z/comparison.json.gz",
+    "sha256": "1827f2e8afd41bf36a0f75cdf995c8d9b64fd31532f6530a40987a10cbdf9dc5"
+  },
+  "raw_log": {
+    "path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/ci5205-shard3-exact-selector-join-20261022T2307Z/shard3-raw.log",
+    "sha256": "278aff271a8b44ec5def7e6180349d64e1d5e7e7916dd76a2a5f9678a79c9c45"
+  },
+  "counts": {
+    "explorer_confirmed_pass_to_fail": 21,
+    "cli_hotloop_confirmed_pass_to_fail": 1,
+    "explorer_unmatched_nonpass_retained_unknown": 3,
+    "axes": {
+      "native-lowering-admission-premise-or-producer-unmeasured": 5,
+      "durable-coverage-table-omission": 1,
+      "unavailable-floating-string-policy-projected-as-empty": 1,
+      "upstream-analysis-or-entry-route-unmeasured": 13,
+      "upstream-bytecode-operation-selection-unmeasured": 1,
+      "actual-method-unit-or-publication-unmeasured": 1
+    }
+  },
+  "rows": [
+    {
+      "key": {
+        "binary_id": "tcl-cli::compile_verbs",
+        "selector": "compwasm_codegen_passes_natively_lower_a_hot_loop"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-cli",
+        "binary_label_as_rendered": "compile_verbs",
+        "selector": "compwasm_codegen_passes_natively_lower_a_hot_loop",
+        "status": "PASS",
+        "reporter_ordinal": 67,
+        "reporter_total": 3331,
+        "binary_id": "tcl-cli::compile_verbs"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:28:30.5228634Z",
+        "duration": "  97.509s",
+        "reporter_ordinal": 68,
+        "reporter_total": 3897,
+        "package": "tcl-cli",
+        "binary_label_as_rendered": "compile_verbs",
+        "binary_id": "tcl-cli::compile_verbs",
+        "selector": "compwasm_codegen_passes_natively_lower_a_hot_loop",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'compwasm_codegen_passes_natively_lower_a_hot_loop' (17520) panicked at rust/tcl-cli/tests/compile_verbs.rs:231:9:\u001b[0m\n2026-10-22T20:28:30.5308656Z     \u001b[31;1m--codegen-passes native-tier emitted no `i64.add`:\u001b[0m\n2026-10-22T20:28:30.5309522Z     (module\n2026-10-22T20:28:30.5310127Z       (type $t0 (func  (result i32)))\n2026-10-22T20:28:30.5310933Z       (type $t1 (func (param i32) (param i32) (result i32)))\n2026-10-22T20:28:30.5312022Z       (type $t2 (func (param i32) (result i32)))\n2026-10-22T20:28:30.5312928Z       (type $t3 (func (param i32) (param i32) (param i32) (result i32)))\n",
+      "triage_axis": "native-lowering-admission-premise-or-producer-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "coverage::tests::every_durable_field_is_reviewed_in_the_coverage_table"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "coverage::tests::every_durable_field_is_reviewed_in_the_coverage_table",
+        "status": "PASS",
+        "reporter_ordinal": 1444,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:38:26.0233073Z",
+        "duration": "   0.403s",
+        "reporter_ordinal": 1546,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "coverage::tests::every_durable_field_is_reviewed_in_the_coverage_table",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'coverage::tests::every_durable_field_is_reviewed_in_the_coverage_table' (20646) panicked at rust/tcl-explorer/src/coverage.rs:269:13:\u001b[0m\n2026-10-22T20:38:26.0392138Z     \u001b[31;1massertion `left == right` failed: CompilationUnit::source_class_facts must have exactly one ARTIFACT_COVERAGE destination or exclusion\u001b[0m\n2026-10-22T20:38:26.0422782Z       left: 0\n2026-10-22T20:38:26.0449748Z      right: 1\n2026-10-22T20:38:26.0472181Z     stack backtrace:\n2026-10-22T20:38:26.0501948Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:38:26.0522324Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n",
+      "triage_axis": "durable-coverage-table-omission",
+      "cause_status": "Local static product gap established"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "formatters::tests::a_lattice_constant_is_spelled_as_the_fold_spells_it"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "formatters::tests::a_lattice_constant_is_spelled_as_the_fold_spells_it",
+        "status": "PASS",
+        "reporter_ordinal": 1451,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:38:26.3113897Z",
+        "duration": "   0.157s",
+        "reporter_ordinal": 1554,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "formatters::tests::a_lattice_constant_is_spelled_as_the_fold_spells_it",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'formatters::tests::a_lattice_constant_is_spelled_as_the_fold_spells_it' (20662) panicked at rust/tcl-explorer/src/formatters.rs:505:13:\u001b[0m\n2026-10-22T20:38:26.3282366Z     \u001b[31;1massertion `left == right` failed\u001b[0m\n2026-10-22T20:38:26.3283099Z       left: \"const()\"\n2026-10-22T20:38:26.3283682Z      right: \"const(1.0)\"\n2026-10-22T20:38:26.3284576Z     stack backtrace:\n2026-10-22T20:38:26.3285240Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:38:26.3286287Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n",
+      "triage_axis": "unavailable-floating-string-policy-projected-as-empty",
+      "cause_status": "Local static product gap established"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "render::tests::aot_text_follows_the_pass_selection"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "render::tests::aot_text_follows_the_pass_selection",
+        "status": "PASS",
+        "reporter_ordinal": 1464,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:39:23.6253827Z",
+        "duration": "  50.209s",
+        "reporter_ordinal": 1567,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "render::tests::aot_text_follows_the_pass_selection",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'render::tests::aot_text_follows_the_pass_selection' (20682) panicked at rust/tcl-explorer/src/render.rs:406:9:\u001b[0m\n2026-10-22T20:39:23.6516157Z     \u001b[31;1massertion `left == right` failed\u001b[0m\n2026-10-22T20:39:23.6523752Z       left: \"    \u2514\u2500\u2500 native i64 add: declined (4 premises)\\n        \u251c\u2500\u2500 sealed-program: hosted-environment\\n        \u251c\u2500\u2500 pass native-integer: pass-disabled\\n        \u251c\u2500\u2500 closed-program: hosted-environment\\n        \u2514\u2500\u2500 direct-call: execution-trace\\n            \u00b7 site: ::top block 0 statement 5, argument 0\"\n2026-10-22T20:39:23.6530273Z      right: \"    \u2514\u2500\u2500 native i64 add: declined (7 premises)\\n        \u251c\u2500\u2500 sealed-program: hosted-environment\\n        \u251c\u2500\u2500 pass native-integer: pass-disabled\\n        \u251c\u2500\u2500 closed-program: hosted-environment\\n        \u251c\u2500\u2500 direct-body: native-integer-pass-disabled\\n        \u2502   \u00b7 site: ::top block 0 statement 3, argument 0\\n        \u251c\u2500\u2500 frame: frame-not-elidable\\n        \u2502   \u00b7 site: ::top block 0 statement 3, argument 0\\n        \u251c\u2500\u2500 actuals: hosted-top-level-observable\\n        \u2502   \u00b7 site: ::top block 0 statement 3, argument 0\\n        \u2514\u2500\u2500 native-integer: pass-disabled\\n            \u00b7 site: ::top block 0 statement 3, argument 0\"\n2026-10-22T20:39:23.6534423Z     stack backtrace:\n2026-10-22T20:39:23.6534836Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:39:23.6535678Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n",
+      "triage_axis": "native-lowering-admission-premise-or-producer-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "render::tests::sccp_text_prints_each_edge_refinement"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "render::tests::sccp_text_prints_each_edge_refinement",
+        "status": "PASS",
+        "reporter_ordinal": 1469,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:40:42.4584896Z",
+        "duration": "  45.893s",
+        "reporter_ordinal": 1573,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "render::tests::sccp_text_prints_each_edge_refinement",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'render::tests::sccp_text_prints_each_edge_refinement' (20780) panicked at rust/tcl-explorer/src/render.rs:311:9:\u001b[0m\n2026-10-22T20:40:42.4834160Z     \u001b[31;1m=== sccp ===\u001b[0m\n2026-10-22T20:40:42.4862079Z     \u251c\u2500\u2500 function ::top\n2026-10-22T20:40:42.4862681Z     \u2502   \u251c\u2500\u2500 executable blocks: entry_1, exit_2\n2026-10-22T20:40:42.4863297Z     \u2502   \u2502   \u00b7 edges: 1\n2026-10-22T20:40:42.4864002Z     \u2502   \u2514\u2500\u2500 routes entered: direct 0 \u00b7 expression 0 \u00b7 implementation 0\n2026-10-22T20:40:42.4864768Z     \u2514\u2500\u2500 function ::p\n",
+      "triage_axis": "upstream-analysis-or-entry-route-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "render::tests::sccp_text_prints_each_enumerated_loop"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "render::tests::sccp_text_prints_each_enumerated_loop",
+        "status": "PASS",
+        "reporter_ordinal": 1472,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:40:42.3182012Z",
+        "duration": "  45.365s",
+        "reporter_ordinal": 1572,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "render::tests::sccp_text_prints_each_enumerated_loop",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'render::tests::sccp_text_prints_each_enumerated_loop' (20782) panicked at rust/tcl-explorer/src/render.rs:341:9:\u001b[0m\n2026-10-22T20:40:42.3457450Z     \u001b[31;1m=== sccp ===\u001b[0m\n2026-10-22T20:40:42.3515550Z     \u2514\u2500\u2500 function ::top\n2026-10-22T20:40:42.3516090Z         \u251c\u2500\u2500 i#1 = overdefined\n2026-10-22T20:40:42.3516618Z         \u251c\u2500\u2500 i#2 = overdefined\n2026-10-22T20:40:42.3517097Z         \u251c\u2500\u2500 i#3 = overdefined\n2026-10-22T20:40:42.3517956Z         \u251c\u2500\u2500 executable blocks: entry_1, exit_6, for_body_3, for_end_5, for_header_2, for_step_4\n",
+      "triage_axis": "upstream-analysis-or-entry-route-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "render::tests::sccp_text_prints_the_route_of_each_cell_update"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "render::tests::sccp_text_prints_the_route_of_each_cell_update",
+        "status": "PASS",
+        "reporter_ordinal": 1471,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:40:44.7673967Z",
+        "duration": "  44.907s",
+        "reporter_ordinal": 1574,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "render::tests::sccp_text_prints_the_route_of_each_cell_update",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'render::tests::sccp_text_prints_the_route_of_each_cell_update' (20784) panicked at rust/tcl-explorer/src/render.rs:271:9:\u001b[0m\n2026-10-22T20:40:44.7740340Z     \u001b[31;1m=== sccp ===\u001b[0m\n2026-10-22T20:40:44.7740940Z     \u251c\u2500\u2500 function ::top\n2026-10-22T20:40:44.7741757Z     \u2502   \u251c\u2500\u2500 executable blocks: entry_1, exit_2\n2026-10-22T20:40:44.7742391Z     \u2502   \u2502   \u00b7 edges: 1\n2026-10-22T20:40:44.7743126Z     \u2502   \u2514\u2500\u2500 routes entered: direct 0 \u00b7 expression 0 \u00b7 implementation 0\n2026-10-22T20:40:44.7743962Z     \u2514\u2500\u2500 function ::p\n",
+      "triage_axis": "upstream-analysis-or-entry-route-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::aot_view_carries_the_plan_and_every_rejected_native_premise"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::aot_view_carries_the_plan_and_every_rejected_native_premise",
+        "status": "PASS",
+        "reporter_ordinal": 1476,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:42:21.3384058Z",
+        "duration": "  47.746s",
+        "reporter_ordinal": 1588,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::aot_view_carries_the_plan_and_every_rejected_native_premise",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::aot_view_carries_the_plan_and_every_rejected_native_premise' (20831) panicked at rust/tcl-explorer/src/serialise.rs:4333:9:\u001b[0m\n2026-10-22T20:42:21.3744854Z     \u001b[31;1massertion `left == right` failed\u001b[0m\n2026-10-22T20:42:21.3772682Z       left: [(\"sealed-program\", \"hosted-environment\"), (\"pass\", \"pass-disabled\"), (\"closed-program\", \"hosted-environment\"), (\"direct-call\", \"execution-trace\")]\n2026-10-22T20:42:21.3803600Z      right: [(\"sealed-program\", \"hosted-environment\"), (\"pass\", \"pass-disabled\"), (\"closed-program\", \"hosted-environment\"), (\"direct-body\", \"native-integer-pass-disabled\"), (\"frame\", \"frame-not-elidable\"), (\"actuals\", \"hosted-top-level-observable\"), (\"native-integer\", \"pass-disabled\")]\n2026-10-22T20:42:21.3805804Z     stack backtrace:\n2026-10-22T20:42:21.3831983Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:42:21.3862236Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n",
+      "triage_axis": "native-lowering-admission-premise-or-producer-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::asm_emits_structured_instructions_for_top_level"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::asm_emits_structured_instructions_for_top_level",
+        "status": "PASS",
+        "reporter_ordinal": 1477,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:42:55.2074271Z",
+        "duration": "  44.703s",
+        "reporter_ordinal": 1589,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::asm_emits_structured_instructions_for_top_level",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::asm_emits_structured_instructions_for_top_level' (20837) panicked at rust/tcl-explorer/src/serialise.rs:5292:9:\u001b[0m\n2026-10-22T20:42:55.2552229Z     \u001b[31;1massertion failed: ops.contains(&\"storeStk\")\u001b[0m\n2026-10-22T20:42:55.2581945Z     stack backtrace:\n2026-10-22T20:42:55.2611989Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:42:55.2642426Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n2026-10-22T20:42:55.2672021Z        1: core::panicking::panic_fmt\n2026-10-22T20:42:55.2702354Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14\n",
+      "triage_axis": "upstream-bytecode-operation-selection-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::durable_compiler_views_are_present_and_cover_extra_units"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::durable_compiler_views_are_present_and_cover_extra_units",
+        "status": "PASS",
+        "reporter_ordinal": 1485,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:44:25.6153963Z",
+        "duration": "  44.548s",
+        "reporter_ordinal": 1598,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::durable_compiler_views_are_present_and_cover_extra_units",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::durable_compiler_views_are_present_and_cover_extra_units' (20870) panicked at rust/tcl-explorer/src/serialise.rs:4631:9:\u001b[0m\n2026-10-22T20:44:25.6309263Z     \u001b[31;1massertion failed: semantic.iter().any(|f| f[\"name\"] == \"::C::m\")\u001b[0m\n2026-10-22T20:44:25.6310289Z     stack backtrace:\n2026-10-22T20:44:25.6310943Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:44:25.6312407Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n2026-10-22T20:44:25.6313562Z        1: core::panicking::panic_fmt\n2026-10-22T20:44:25.6314664Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14\n",
+      "triage_axis": "actual-method-unit-or-publication-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::interproc_view_shows_the_param_constant_seed_and_its_withdrawal"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::interproc_view_shows_the_param_constant_seed_and_its_withdrawal",
+        "status": "PASS",
+        "reporter_ordinal": 1494,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:46:03.6784039Z",
+        "duration": "  45.062s",
+        "reporter_ordinal": 1609,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::interproc_view_shows_the_param_constant_seed_and_its_withdrawal",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::interproc_view_shows_the_param_constant_seed_and_its_withdrawal' (20904) panicked at rust/tcl-explorer/src/serialise.rs:4532:9:\u001b[0m\n2026-10-22T20:46:03.6920287Z     \u001b[31;1massertion `left == right` failed\u001b[0m\n2026-10-22T20:46:03.6920941Z       left: Array []\n2026-10-22T20:46:03.6921756Z      right: Array [String(\"mode = prod\")]\n2026-10-22T20:46:03.6922400Z     stack backtrace:\n2026-10-22T20:46:03.6922953Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:46:03.6923951Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n",
+      "triage_axis": "upstream-analysis-or-entry-route-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::optimisations_reports_constant_fold_with_range"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::optimisations_reports_constant_fold_with_range",
+        "status": "PASS",
+        "reporter_ordinal": 1503,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:47:30.7943773Z",
+        "duration": "  43.848s",
+        "reporter_ordinal": 1619,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::optimisations_reports_constant_fold_with_range",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::optimisations_reports_constant_fold_with_range' (20935) panicked at rust/tcl-explorer/src/serialise.rs:5377:9:\u001b[0m\n2026-10-22T20:47:30.8178528Z     \u001b[31;1mexpected at least one optimisation\u001b[0m\n2026-10-22T20:47:30.8179060Z     stack backtrace:\n2026-10-22T20:47:30.8179474Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:47:30.8180299Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n2026-10-22T20:47:30.8181152Z        1: core::panicking::panic_fmt\n2026-10-22T20:47:30.8182220Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14\n",
+      "triage_axis": "upstream-analysis-or-entry-route-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::sccp_reports_each_statements_completion_paths"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::sccp_reports_each_statements_completion_paths",
+        "status": "PASS",
+        "reporter_ordinal": 1510,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:49:00.7614099Z",
+        "duration": "  46.472s",
+        "reporter_ordinal": 1627,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::sccp_reports_each_statements_completion_paths",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::sccp_reports_each_statements_completion_paths' (20968) panicked at rust/tcl-explorer/src/serialise.rs:5052:18:\u001b[0m\n2026-10-22T20:49:00.7739859Z     \u001b[31;1mthe lassign route\u001b[0m\n2026-10-22T20:49:00.7740329Z     stack backtrace:\n2026-10-22T20:49:00.7740747Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:49:00.7741814Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n2026-10-22T20:49:00.7742677Z        1: core::panicking::panic_fmt\n2026-10-22T20:49:00.7743517Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14\n",
+      "triage_axis": "upstream-analysis-or-entry-route-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::sccp_reports_each_statements_route_and_answer"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::sccp_reports_each_statements_route_and_answer",
+        "status": "PASS",
+        "reporter_ordinal": 1511,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:49:39.2364153Z",
+        "duration": "  45.328s",
+        "reporter_ordinal": 1628,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::sccp_reports_each_statements_route_and_answer",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::sccp_reports_each_statements_route_and_answer' (20975) panicked at rust/tcl-explorer/src/serialise.rs:5014:14:\u001b[0m\n2026-10-22T20:49:39.2842101Z     \u001b[31;1mthe incr route\u001b[0m\n2026-10-22T20:49:39.2871962Z     stack backtrace:\n2026-10-22T20:49:39.2892113Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:49:39.2962459Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n2026-10-22T20:49:39.2982100Z        1: core::panicking::panic_fmt\n2026-10-22T20:49:39.2992419Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14\n",
+      "triage_axis": "upstream-analysis-or-entry-route-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::sccp_reports_folded_types"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::sccp_reports_folded_types",
+        "status": "PASS",
+        "reporter_ordinal": 1515,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:49:47.9714465Z",
+        "duration": "  51.918s",
+        "reporter_ordinal": 1633,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::sccp_reports_folded_types",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::sccp_reports_folded_types' (20979) panicked at rust/tcl-explorer/src/serialise.rs:5209:9:\u001b[0m\n2026-10-22T20:49:47.9909140Z     \u001b[31;1massertion `left == right` failed\u001b[0m\n2026-10-22T20:49:47.9909688Z       left: None\n2026-10-22T20:49:47.9910105Z      right: Some(\"int (constructed)\")\n2026-10-22T20:49:47.9910590Z     stack backtrace:\n2026-10-22T20:49:47.9911023Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:49:47.9912161Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n",
+      "triage_axis": "upstream-analysis-or-entry-route-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::sccp_reports_the_route_tally"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::sccp_reports_the_route_tally",
+        "status": "PASS",
+        "reporter_ordinal": 1512,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:49:43.8803748Z",
+        "duration": "  46.398s",
+        "reporter_ordinal": 1629,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::sccp_reports_the_route_tally",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::sccp_reports_the_route_tally' (20981) panicked at rust/tcl-explorer/src/serialise.rs:5115:9:\u001b[0m\n2026-10-22T20:49:43.9162244Z     \u001b[31;1massertion `left == right` failed\u001b[0m\n2026-10-22T20:49:43.9163075Z       left: Number(0)\n2026-10-22T20:49:43.9192020Z      right: 1\n2026-10-22T20:49:43.9222015Z     stack backtrace:\n2026-10-22T20:49:43.9242031Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:49:43.9252463Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n",
+      "triage_axis": "upstream-analysis-or-entry-route-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::sccp_reports_the_selection"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::sccp_reports_the_selection",
+        "status": "PASS",
+        "reporter_ordinal": 1516,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:49:47.1123829Z",
+        "duration": "  46.351s",
+        "reporter_ordinal": 1632,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::sccp_reports_the_selection",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::sccp_reports_the_selection' (20983) panicked at rust/tcl-explorer/src/serialise.rs:5138:9:\u001b[0m\n2026-10-22T20:49:47.1249006Z     \u001b[31;1massertion `left == right` failed: {\u001b[0m\n2026-10-22T20:49:47.1249539Z       \"name\": \"::p\",\n2026-10-22T20:49:47.1249915Z       \"bodyId\": 0,\n2026-10-22T20:49:47.1250298Z       \"bodyKey\": \"body:5:0\",\n2026-10-22T20:49:47.1250721Z       \"kind\": \"procedure\",\n2026-10-22T20:49:47.1251130Z       \"values\": [\n",
+      "triage_axis": "upstream-analysis-or-entry-route-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::sccp_reports_the_unreached_arms"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::sccp_reports_the_unreached_arms",
+        "status": "PASS",
+        "reporter_ordinal": 1517,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:50:25.4609725Z",
+        "duration": "  46.226s",
+        "reporter_ordinal": 1634,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::sccp_reports_the_unreached_arms",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::sccp_reports_the_unreached_arms' (20988) panicked at rust/tcl-explorer/src/serialise.rs:5167:9:\u001b[0m\n2026-10-22T20:50:25.4779299Z     \u001b[31;1massertion `left == right` failed: {\u001b[0m\n2026-10-22T20:50:25.4779989Z       \"name\": \"::p\",\n2026-10-22T20:50:25.4780487Z       \"bodyId\": 0,\n2026-10-22T20:50:25.4780986Z       \"bodyKey\": \"body:5:0\",\n2026-10-22T20:50:25.4781798Z       \"kind\": \"procedure\",\n2026-10-22T20:50:25.4782646Z       \"values\": [\n",
+      "triage_axis": "upstream-analysis-or-entry-route-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::shimmer_reports_intrep_conversion"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::shimmer_reports_intrep_conversion",
+        "status": "PASS",
+        "reporter_ordinal": 1520,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:50:32.0663936Z",
+        "duration": "  44.094s",
+        "reporter_ordinal": 1637,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::shimmer_reports_intrep_conversion",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::shimmer_reports_intrep_conversion' (21001) panicked at rust/tcl-explorer/src/serialise.rs:5361:14:\u001b[0m\n2026-10-22T20:50:32.1023178Z     \u001b[31;1mS100 warning\u001b[0m\n2026-10-22T20:50:32.1042139Z     stack backtrace:\n2026-10-22T20:50:32.1071995Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:50:32.1102363Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n2026-10-22T20:50:32.1103547Z        1: core::panicking::panic_fmt\n2026-10-22T20:50:32.1132438Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/panicking.rs:80:14\n",
+      "triage_axis": "upstream-analysis-or-entry-route-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::unit_scope_reports_uniform_literals_and_no_boundary"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::unit_scope_reports_uniform_literals_and_no_boundary",
+        "status": "PASS",
+        "reporter_ordinal": 1529,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:52:41.0204460Z",
+        "duration": "  44.841s",
+        "reporter_ordinal": 1648,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::unit_scope_reports_uniform_literals_and_no_boundary",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::unit_scope_reports_uniform_literals_and_no_boundary' (21037) panicked at rust/tcl-explorer/src/serialise.rs:5509:9:\u001b[0m\n2026-10-22T20:52:41.0652068Z     \u001b[31;1massertion `left == right` failed\u001b[0m\n2026-10-22T20:52:41.0681977Z       left: String(\"not uniform\")\n2026-10-22T20:52:41.0711952Z      right: \"uniform literal \\\"prod\\\"\"\n2026-10-22T20:52:41.0741892Z     stack backtrace:\n2026-10-22T20:52:41.0772023Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:52:41.0802347Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n",
+      "triage_axis": "upstream-analysis-or-entry-route-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::wasm_view_exposes_common_native_i64_selection_evidence"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::wasm_view_exposes_common_native_i64_selection_evidence",
+        "status": "PASS",
+        "reporter_ordinal": 1531,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:52:44.1004059Z",
+        "duration": "  44.559s",
+        "reporter_ordinal": 1649,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::wasm_view_exposes_common_native_i64_selection_evidence",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::wasm_view_exposes_common_native_i64_selection_evidence' (21042) panicked at rust/tcl-explorer/src/serialise.rs:4288:9:\u001b[0m\n2026-10-22T20:52:44.1476872Z     \u001b[31;1massertion `left == right` failed\u001b[0m\n2026-10-22T20:52:44.1502167Z       left: String(\"general\")\n2026-10-22T20:52:44.1532425Z      right: \"native-i64-add\"\n2026-10-22T20:52:44.1561980Z     stack backtrace:\n2026-10-22T20:52:44.1585588Z        0: __rustc::rust_begin_unwind\n2026-10-22T20:52:44.1632378Z                  at /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/std/src/panicking.rs:679:5\n",
+      "triage_axis": "native-lowering-admission-premise-or-producer-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::wasm_view_exposes_the_native_tier_lowering_record"
+      },
+      "baseline_status": "actualPASS",
+      "current_status": "actualFAIL",
+      "baseline_record": {
+        "job": "rust-tests-shard-3",
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "selector": "serialise::tests::wasm_view_exposes_the_native_tier_lowering_record",
+        "status": "PASS",
+        "reporter_ordinal": 1532,
+        "reporter_total": 3331,
+        "binary_id": "tcl-explorer"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:53:23.4418999Z",
+        "duration": "  44.613s",
+        "reporter_ordinal": 1651,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::wasm_view_exposes_the_native_tier_lowering_record",
+        "duplicate_summary_lines": 1
+      },
+      "first_panic_excerpt": "thread 'serialise::tests::wasm_view_exposes_the_native_tier_lowering_record' (21047) panicked at rust/tcl-explorer/src/serialise.rs:4457:9:\u001b[0m\n2026-10-22T20:53:23.4433762Z     \u001b[31;1massertion failed: statements.iter().any(|statement|\u001b[0m\n2026-10-22T20:53:23.4434567Z             {\n2026-10-22T20:53:23.4435161Z                 statement[\"instruction\"] == \"invoke\" &&\n2026-10-22T20:53:23.4436006Z                     statement[\"outcome\"] == \"native-intrinsic\"\n2026-10-22T20:53:23.4436718Z             })\n2026-10-22T20:53:23.4437230Z     stack backtrace:\n",
+      "triage_axis": "native-lowering-admission-premise-or-producer-unmeasured",
+      "cause_status": "No first producer/admission decline measured; not a proven rendering loss"
+    }
+  ],
+  "unmatched_explorer_unknown": [
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::retained_explorer_source_tests::remaining_actual_cu_views_retain_profiles_and_ignore_display_labels"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:41:27.5844587Z",
+        "duration": "   1.553s",
+        "reporter_ordinal": 1578,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::retained_explorer_source_tests::remaining_actual_cu_views_retain_profiles_and_ignore_display_labels",
+        "duplicate_summary_lines": 1
+      },
+      "reason": "current_nonpass_without_baseline"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::taint_replay_availability_is_separate_from_empty_warning_arrays"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:51:52.9604555Z",
+        "duration": "  43.022s",
+        "reporter_ordinal": 1642,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "serialise::tests::taint_replay_availability_is_separate_from_empty_warning_arrays",
+        "duplicate_summary_lines": 1
+      },
+      "reason": "current_nonpass_without_baseline"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-explorer",
+        "selector": "tests::supplied_analysis_input_controls_the_document_pipeline"
+      },
+      "current_record": {
+        "status": "FAIL",
+        "timestamp": "2026-10-22T20:54:50.8064021Z",
+        "duration": "   0.469s",
+        "reporter_ordinal": 1659,
+        "reporter_total": 3897,
+        "package": "tcl-explorer",
+        "binary_label_as_rendered": null,
+        "binary_id": "tcl-explorer",
+        "selector": "tests::supplied_analysis_input_controls_the_document_pipeline",
+        "duplicate_summary_lines": 1
+      },
+      "reason": "current_nonpass_without_baseline"
+    }
+  ],
+  "current_source_findings": {
+    "coverage": "Exhaustive actual durable inventory42 vs coverage table misses four rows: source_class_facts, source_body_cfgs, FunctionUnit.body_id, original_hosted_procedure_body. Off-tree2f09 proposal adds truthful exclusions/already-existing semantic projection; assertions unchanged.",
+    "formatter": "const_value_repr uses conservative format_constant(c).unwrap_or_default. format_constant explicitly refuses floating string materialisation without selected native FoldPolicy; absent materialisation becomes false empty display. Root requires explicit refusal, no invented1.0 or Native policy; old expected const(1.0) remains unresolved unless valid evidence/decision.",
+    "pipeline": "run_pipeline None source_input currently calls CompilationUnit::build_with_options; explicit input branch calls build_with_analysis_input. Retained metadata/context is an investigation boundary, not proof all analysis failures share cause. No URI/name/string reconstruction or fabricated Native entry proposed.",
+    "native": "AOT native i64 common example actual old general/direct-call execution-trace and four-vs-seven premises, plus CLI native-tier hotloop actual missing i64.add/host_refusal_pending, are admission/producer axes pending typed first decline. Runtime.wasm missing infrastructure is separate; these reporting tests do not execute standalone runtime."
+  },
+  "source_records": [
+    {
+      "path": "rust/tcl-explorer/src/coverage.rs",
+      "sha256": "80ed9e5a48082e784051fa61efc47a3f1596209a055bdb270bb9faec3f9cbf29"
+    },
+    {
+      "path": "rust/tcl-explorer/src/formatters.rs",
+      "sha256": "3dceb135aad916ed15f49c59db5348b105fb3d2752ffc87a02021a991675e6ab"
+    },
+    {
+      "path": "rust/tcl-explorer/src/lib.rs",
+      "sha256": "e73b90a686e7c1d9d9b40a62ac4b4637978a31792100d6a5fc451ee3c34124ac"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "sha256": "dd8b7fd7d962bddce2b0e0928dd75aafc1b2143a4b61ba736bb5b96d4d3e1925"
+    },
+    {
+      "path": "rust/tcl-explorer/src/render.rs",
+      "sha256": "77fbdc832fbafe6c769e594a17a62888729e4471b86d8cb4eb72042f0e09530f"
+    },
+    {
+      "path": "rust/tcl-cli/tests/compile_verbs.rs",
+      "sha256": "d4bbaa31d9f0b70b95cb201cae25051b01a3e77e3b73d59af33a16ce8d903fb8"
+    },
+    {
+      "path": "rust/tcl-compiler/src/optimiser/helpers/literals.rs",
+      "sha256": "ebdcdceba2332b0f55628237f785124b43bb70223c533f3cd7ec08f1faa2e15c"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "sha256": "7eb7a987c0c1b9fc56e7b5b1c456b7e9a1988a910c102837cdb1844a35697a83"
+    }
+  ],
+  "limits": "No tests queued, no assertions modified, no pass/no latest-source verdict. Root owns source window and acceptance routing. Exact21 and3unknown never coalesced."
+}

@@ -1,0 +1,8 @@
+{
+  "utc": "2026-10-22T23:30:05.445035+00:00",
+  "status": "Agent-reported bounded static peer review, not type/runtime acceptance",
+  "reviewer_role": "vm-runtime",
+  "reviewed_patch_sha256": "084648afdbdecd99533f2e33106ff44140d53af6c58140b3405a80ccc1b45137",
+  "findings": "Five original branch predicates/returns remain, reporting after rejection only, no private validity reevaluation; four input reports use same actual retained FunctionAsm/entry. Frame Copy permits borrowed finite getters; exactoptin/ZZ preserves ordinary behavior/filter. No authority/refusal blocker. InvalidErrorPresentation retains original Some(&self.name).",
+  "evidence_source": "VM peer collaboration message, independently byte-reviewed by that role; CCG did not run/typecheck."
+}

@@ -1,0 +1,22 @@
+{
+  "utc": "2026-10-22T23:54:06.182363+00:00",
+  "status": "AST and exact mapping checks only; no Cargo/lock/provider/test execution",
+  "selected": 19,
+  "targets": 12,
+  "excluded_ccg_witness": true,
+  "family_wide_closure": false,
+  "files": {
+    "representatives19-plan.json": "b17f0fcc80b93f9cc0f44401c477a87b8c4d2db49756665f627d108b6cbbdf5f",
+    "run.py": "b7919d972f780eeef0839bcd86959d73bdb1088a4d703f43d023031313380bcc",
+    "provider-chain.py": "a647bf8699e1eecebce0702d01d11206f4d8a1a7d09f6661afd9ef928a52a5d9"
+  },
+  "parent_driver_sha256": "46abd51e68751dcb4dce5e660b3922c782b8bc8cb72253764520aa6e7c6c68c5",
+  "changes": [
+    "exact package/target/kind case mapping replaces package-only selection",
+    "full Tcl/Jim C headers/library sources/configuration pinned alongside recursive tool/proxy/shared-library chains",
+    "executable byte seal before each exact selector and after target/final guard",
+    "19 exact starts/completions; one representative cannot close its family",
+    "typed/unexpected warnings terminal; 180 seconds per selector; aggregate20MiB; 2GiB floor; whole nonblocking lock; no cleanup",
+    "deadline/disk/log monitoring also continues if child closes both pipes while still running; no unbounded wait after EOF"
+  ]
+}

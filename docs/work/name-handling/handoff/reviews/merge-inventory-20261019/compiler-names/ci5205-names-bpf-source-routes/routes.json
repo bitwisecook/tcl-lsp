@@ -47,6 +47,13 @@
       "Do not replace selection with rendered head or generic registry lookup",
       "Do not alter BadAttach/TypeMismatch/UndefinedVar/UnknownCommand assertions",
       "No broad21 or554 rerun"
-    ]
+    ],
+    "later_static_refinement": {
+      "utc": "2026-10-22T23:28:44.727351Z",
+      "unseen_call_hypothesis": "Not established: CfgBuilder starts ModuleCommandBindings::default; command table premise unmeasured",
+      "stronger_static_path": "opaque_call_barrier -> source_global_writes -> absent default procedure-summary owner returns opaque=true -> CallerFrameOpaque Barrier at original relative command span",
+      "actual_current_row": "UNMEASURED; existing finite no_attach selector is the narrow first reproduction",
+      "no_fix": "No Tcl opacity guard change, generic marker skip, descriptor fallback, new Native grant or current regression closure"
+    }
   }
 }

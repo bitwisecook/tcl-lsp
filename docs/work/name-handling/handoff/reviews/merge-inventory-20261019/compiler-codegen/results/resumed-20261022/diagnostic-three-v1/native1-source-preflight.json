@@ -1,0 +1,20 @@
+[
+  {
+    "path": "rust/tcl-vm/tests/cmd_control_e2e.rs",
+    "sha256": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1",
+    "actual_now": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1",
+    "matches_now": true
+  },
+  {
+    "path": "rust/tcl-bytecode/src/lib.rs",
+    "sha256": "20dae111eda5c9620b0bbb1fa691db9ce296e14e5f6d3f1157a48d01fd53aa6e",
+    "actual_now": "c99992e5527357e7444b4618199d7e0e71acc33a9aaf86890e82d5cfc9ad2d75",
+    "matches_now": false
+  },
+  {
+    "path": "rust/tcl-compiler/src/compile_service.rs",
+    "sha256": "41f76c717a37f9be2ccafbdda0daf1c23c44641cc190acd3e849e5faee356e66",
+    "actual_now": "78ad48d832e0fc3347a6fa5df7310dd53a6523638fc529bb618ddbd241c509dc",
+    "matches_now": false
+  }
+]

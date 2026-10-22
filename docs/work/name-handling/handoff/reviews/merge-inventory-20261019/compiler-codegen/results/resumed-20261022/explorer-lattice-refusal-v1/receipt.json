@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-22T23:25:17.658652+00:00",
+  "status": "OFF-TREE explicit unavailable-value projection only; no Cargo/type/run",
+  "path": "rust/tcl-explorer/src/formatters.rs",
+  "before_sha256": "3dceb135aad916ed15f49c59db5348b105fb3d2752ffc87a02021a991675e6ab",
+  "proposed_sha256": "b7e69c4a57d9570e616d04f489e67e562a9847647243630604be932fc60c90b7",
+  "patch_sha256": "16a7794790caeb3a2b646c73a4d877e4d7ceb07cba362f3cbc4415e26444c5c4",
+  "problem": "format_constant refuses unproved native floating string materialisation, but unwrap_or_default turns None into misleading const().",
+  "behavior": "Retain Option through private representation helper; unavailable materialisation displays const(<string unavailable>). Known integer/bool/String materialisation unchanged; no new FoldPolicy or Native provider/precision assumption.",
+  "existing_test_status": "Entire original a_lattice_constant_is_spelled_as_the_fold_spells_it assertions remain unchanged. Its synthetic Float cases expect a native string without policy, so this truthful projection is NOT a claim that old test now passes. Old baseline release blocker requires actual retained-policy/contract resolution, not invented1.0 or weakened assertion.",
+  "checks": {
+    "stdin_rustfmt_parse_idempotence": true,
+    "git_apply_check": true,
+    "inverse": true
+  },
+  "source_policy": {
+    "path": "rust/tcl-compiler/src/optimiser/helpers/literals.rs",
+    "sha256": "ebdcdceba2332b0f55628237f785124b43bb70223c533f3cd7ec08f1faa2e15c"
+  },
+  "scope": "No broader formatter/summary emission, tests, transport/schema or fold admission changes."
+}

@@ -1,0 +1,41 @@
+{
+  "utc": "2026-10-22T23:54:21.291800+00:00",
+  "status": "Immutable off-tree preparation only; no Cargo execution/queue/source mutation",
+  "plans": [
+    {
+      "path": "/tmp/ccg-diagnostic-three-v1/native1-plan.json",
+      "sha256": "b91de2316efb3d6a7a7c458083062ccbd1db04109a80202e0026e2074a186d39"
+    },
+    {
+      "path": "/tmp/ccg-diagnostic-three-v1/n17two-plan.json",
+      "sha256": "892c0c8ad34cbe5b737c040a0d654b3db3dc893fe53db1b5f6277e5e036eb575"
+    }
+  ],
+  "parent_guard_protocol": {
+    "path": "/tmp/ccg-postbatch-functional-v3-plan.json",
+    "sha256": "fb691896d55f76b63402581e67e9dc858f66ed7caf602079936154fbcaff5f78"
+  },
+  "corrected_component_set": {
+    "path": "/tmp/coordinator-n13-candidate-2321/receipt.json",
+    "sha256": "8f2d1a97a5d15f891b5ee91c16264790b17d1263f8b034418c222de9ea0a59cb"
+  },
+  "runner_files": [
+    {
+      "path": "/tmp/ccg-diagnostic-three-v1/guarded-cargo.py",
+      "sha256": "a4c2b1d357bc064501f00813fa10bf725c11d791f39bc798f1551ea9bddc0325"
+    },
+    {
+      "path": "/tmp/ccg-diagnostic-three-v1/suite.py",
+      "sha256": "2fde5183a1dbd812f57a2aa4a8cdc0df7730fc705e0c802ca588e1d094cf9566"
+    },
+    {
+      "path": "/tmp/ccg-diagnostic-three-v1/run.sh",
+      "sha256": "a0cc4dcd5cc0ba4b1db34288dba464701f2a0820d08b7635a6ea7fc22414a68e"
+    }
+  ],
+  "static_checks": {
+    "python_AST": true,
+    "suite_exact_inverse_routing_only": true
+  },
+  "limits": "Deadline wrapper remains unreviewed/unexecuted; no source/provider/functional acceptance. Native formatted pin is expected candidate, not an assertion that source applied. Original assertions and full source/provider/tool/artifact guards remain unchanged."
+}

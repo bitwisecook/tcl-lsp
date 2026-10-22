@@ -1,0 +1,81 @@
+{
+  "utc": "2026-10-22T23:24:28.274459+00:00",
+  "status": "OFF-TREE explicit coverage declarations only; no Cargo/type/run",
+  "path": "rust/tcl-explorer/src/coverage.rs",
+  "before_sha256": "80ed9e5a48082e784051fa61efc47a3f1596209a055bdb270bb9faec3f9cbf29",
+  "proposed_sha256": "a744fc563fae86360bf97618e7b42ec8e68086e9a9a886339a06a8c3abc53399",
+  "patch_sha256": "01a850dfbc11761f4d28f7db10015bf9fc3a68dc4164755f08a70cb7eaa05799",
+  "missing_before": [
+    "CompilationUnit::source_class_facts",
+    "CompilationUnit::source_body_cfgs",
+    "FunctionUnit::body_id",
+    "FunctionUnit::original_hosted_procedure_body"
+  ],
+  "inventory_field_count": 42,
+  "proposed_each_inventory_count": {
+    "FunctionUnit::original_lattice_worker": 1,
+    "FunctionUnit::original_lattice_callback_admission": 1,
+    "FunctionUnit::source_metadata_input": 1,
+    "FunctionUnit::source_config": 1,
+    "FunctionUnit::name": 1,
+    "FunctionUnit::body_id": 1,
+    "FunctionUnit::cfg": 1,
+    "FunctionUnit::ssa": 1,
+    "FunctionUnit::def_use": 1,
+    "FunctionUnit::sccp": 1,
+    "FunctionUnit::semantic_value_projection": 1,
+    "FunctionUnit::retained_semantic_value_owner": 1,
+    "FunctionUnit::types": 1,
+    "FunctionUnit::return_type": 1,
+    "FunctionUnit::taints": 1,
+    "FunctionUnit::rendered_props": 1,
+    "FunctionUnit::memory_ssa": 1,
+    "FunctionUnit::dynamic_names": 1,
+    "FunctionUnit::complexity_guarded": 1,
+    "FunctionUnit::tier": 1,
+    "FunctionUnit::base_offset": 1,
+    "FunctionUnit::method_facts": 1,
+    "FunctionUnit::irules_event_body": 1,
+    "FunctionUnit::original_hosted_procedure_body": 1,
+    "FunctionUnit::semantic_facts": 1,
+    "CompilationUnit::optimiser_source_owner": 1,
+    "CompilationUnit::source": 1,
+    "CompilationUnit::ir_module": 1,
+    "CompilationUnit::cfg_module": 1,
+    "CompilationUnit::command_mutations": 1,
+    "CompilationUnit::source_class_facts": 1,
+    "CompilationUnit::top_level": 1,
+    "CompilationUnit::procedures": 1,
+    "CompilationUnit::methods": 1,
+    "CompilationUnit::body_units": 1,
+    "CompilationUnit::carried_installed_lowerings": 1,
+    "CompilationUnit::source_body_cfgs": 1,
+    "CompilationUnit::interproc": 1,
+    "CompilationUnit::connection_scope": 1,
+    "CompilationUnit::caller_scope": 1,
+    "CompilationUnit::declared_commands": 1,
+    "CompilationUnit::transfers": 1
+  },
+  "meaning": "Three truthful private/evidence/cache exclusions plus body_id already carried as semantic bodyId/bodyKey; no added authority/view payload/no expected assertion edits. Existing exact-one coverage assertion unchanged.",
+  "proof_sources": [
+    {
+      "path": "rust/tcl-compiler/src/compilation_unit.rs",
+      "sha256": "7eb7a987c0c1b9fc56e7b5b1c456b7e9a1988a910c102837cdb1844a35697a83"
+    },
+    {
+      "path": "rust/tcl-explorer/src/serialise.rs",
+      "sha256": "dd8b7fd7d962bddce2b0e0928dd75aafc1b2143a4b61ba736bb5b96d4d3e1925"
+    }
+  ],
+  "checks": {
+    "stdin_rustfmt_parse_idempotence": true,
+    "current_git_apply_check": true,
+    "exact_inverse": true,
+    "static_actual_inventory_one_row_each": true
+  },
+  "limits": "Static current source inventory join only; actual old coverage test failed first at source_class_facts. No claim other20 Explorer failures closed.",
+  "successor_of": {
+    "patch_sha256": "2f09c84bbd6b35992744b790174effd0abbc7804ee957fd20bde2b64016d655d",
+    "only_delta": "Names peer precision: source_body_cfgs description changed to genuine prepared child CFG cache used by checked body joins, avoiding broader Installed store claim."
+  }
+}

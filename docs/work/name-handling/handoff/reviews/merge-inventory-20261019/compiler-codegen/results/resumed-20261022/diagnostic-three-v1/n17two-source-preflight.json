@@ -1,0 +1,14 @@
+[
+  {
+    "path": "rust/tcl-spectcl/tests/pack_source_e2e.rs",
+    "sha256": "e1ed4fb25d4aeba91df7e0185dec4b029d11bd7dda8d7093750bdc22f76307b7",
+    "actual_now": "e1ed4fb25d4aeba91df7e0185dec4b029d11bd7dda8d7093750bdc22f76307b7",
+    "matches_now": true
+  },
+  {
+    "path": "rust/tcl-spectcl/tests/support/derived_first_decline.rs",
+    "sha256": "6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1",
+    "actual_now": "6f430e9f4ef863ba559714749f5eddec5f09f07abe549dbb654c7a33d5f07bc1",
+    "matches_now": true
+  }
+]

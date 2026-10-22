@@ -1,0 +1,217 @@
+--- a/rust/bpf-tcl-ir/src/source/phase.rs
++++ b/rust/bpf-tcl-ir/src/source/phase.rs
+@@ -206,14 +206,14 @@
+             None => unrolled,
+         };
+         crate::capability::check_policy(&expanded, &self.environment.policy, registry)?;
+-        let function = tcl_compiler::cfg_builder::build_cfg_function_in_runtime_selected_scope(
++        let function = tcl_compiler::cfg_builder::build_source_bpf_cfg_function(
+             name,
+             &expanded,
+-            false,
++            module,
++            &self.context,
+             registry,
+-            false,
+-            self.source.config,
+-        );
++        )
++        .ok_or_else(|| unavailable(Span::empty(0)))?;
+         Ok(BpfPreparedFunction {
+             function,
+             registry: self.registry,
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -437,6 +437,7 @@
+     /// must not promote a generic call to a builtin-specific return/loop edge,
+     /// because the live command may have been replaced.
+     plain_command_dispatch: bool,
++    source_bpf_commands: Vec<crate::ir::SourceBpfCommand>,
+     /// The exact registry that lowered the IR this builder consumes.  CFG
+     /// variable-write recovery must query this registry rather than rebuilding
+     /// a release-only approximation from [`Module::dialect`]: callers may add
+@@ -652,6 +653,7 @@
+             unwinding_tails: FxHashSet::default(),
+             faithful_exceptions: false,
+             plain_command_dispatch: false,
++            source_bpf_commands: Vec::new(),
+             registry,
+             command_classes,
+             throw_blocks: None,
+@@ -995,7 +997,36 @@
+     /// `upvar #0`, see [`global_write_info`]) — a global name doesn't
+     /// depend on call-site arguments, so no params-based mapping is
+     /// needed, just the literal name list.
++    fn is_source_bpf_command(&self, stmt: &Statement) -> bool {
++        let (args, tokens) = match stmt {
++            Statement::Call {
++                args,
++                tokens: Some(tokens),
++                ..
++            }
++            | Statement::Barrier {
++                args,
++                tokens: Some(tokens),
++                ..
++            } => (args, tokens),
++            _ => return false,
++        };
++        tokens.source_bpf_command.as_ref().is_some_and(|receipt| {
++            self.source_bpf_commands.contains(receipt)
++                && receipt
++                    .descriptor(tokens, args, self.registry)
++                    .flatten()
++                    .and_then(|spec| spec.bpf_op)
++                    .is_some()
++        })
++    }
++
+     fn apply_upvar_invalidation(&mut self, stmt: Statement) -> Vec<Statement> {
++        // A selected closed-DSL operation is lowered by its typed descriptor;
++        // it is not a possible Tcl procedure call with missing summaries.
++        if self.is_source_bpf_command(&stmt) {
++            return vec![stmt];
++        }
+         self.record_caller_frame_barrier(&stmt);
+         self.record_alias_observed(&stmt);
+         let original = matches!(
+@@ -4051,6 +4082,57 @@
+         .build_function(name, script)
+ }
+ 
++/// Build a source-only closed BPF phase from its genuine current module.
++/// The private BPF phase issuer remains responsible for complete transformation
++/// coverage. This does not issue Tcl invocation, frame, or Native advice.
++#[must_use]
++pub fn build_source_bpf_cfg_function(
++    name: &str,
++    script: &Script,
++    module: &Module,
++    context: &crate::ir::SourceBpfModuleContext,
++    registry: &CommandRegistry,
++) -> Option<Function> {
++    if !context.matches_module(module, registry) {
++        return None;
++    }
++    let mut commands = Vec::new();
++    let mut pending = vec![script];
++    while let Some(script) = pending.pop() {
++        for statement in &script.statements {
++            match statement {
++                Statement::Call {
++                    args,
++                    tokens: Some(tokens),
++                    ..
++                }
++                | Statement::Barrier {
++                    args,
++                    tokens: Some(tokens),
++                    ..
++                } => {
++                    let receipt = tokens.source_bpf_command.as_ref()?;
++                    receipt.descriptor(tokens, args, registry)??.bpf_op?;
++                    if let Some(words) = receipt.original_words(tokens, args, registry)
++                        && words.iter().any(|word| word.image() != &module.source)
++                    {
++                        return None;
++                    }
++                    commands.push(receipt.clone());
++                }
++                Statement::If { .. } => {}
++                _ => return None,
++            }
++            pending.extend(statement.child_scripts());
++        }
++    }
++    let mut builder = CfgBuilder::new(false, registry)
++        .with_lexer_config(module.native_lexer_config())
++        .with_invocation_namespace(crate::ir::ExecutionNamespace::RuntimeSelected);
++    builder.source_bpf_commands = commands;
++    Some(builder.build_function(name, script))
++}
++
+ /// Build a secondary analysis body in its retained execution namespace.
+ /// Possible body regions and exceptional continuations remain analysis facts;
+ /// the synthetic unit label does not select a command lookup namespace.
+@@ -8448,3 +8530,81 @@
+         );
+     }
+ }
++
++#[cfg(test)]
++mod source_bpf_cfg_tests {
++    use super::*;
++
++    #[test]
++    fn checked_source_bpf_scope_preserves_selection_and_refuses_missing_or_foreign_owners() {
++        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
++        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
++        let module =
++            crate::lowering::lower_to_ir_with_dialect("pass", registry, config, registry.profile());
++        let context = module.source_bpf_module_context(registry).unwrap();
++        let mut script = module.top_level.clone();
++        let Statement::Call {
++            args,
++            tokens: Some(tokens),
++            ..
++        } = &mut script.statements[0]
++        else {
++            panic!("actual source command");
++        };
++        assert!(tokens.install_source_bpf_command(
++            module.source.clone(),
++            Span::new(0, 4),
++            config,
++            tcl_lexer::SourceSegmentationPurpose::WholeInput,
++            args,
++            registry,
++        ));
++        let function = build_source_bpf_cfg_function("label", &script, &module, &context, registry)
++            .expect("actual selected source operation");
++        assert!(
++            function
++                .blocks
++                .values()
++                .flat_map(|block| &block.statements)
++                .all(|statement| {
++                    matches!(statement, Statement::Call { tokens: Some(tokens), .. }
++                if tokens.source_bpf_command.is_some() && tokens.synthetic.is_none())
++                })
++        );
++        let mut missing = script.clone();
++        let Statement::Call { tokens, .. } = &mut missing.statements[0] else {
++            unreachable!()
++        };
++        *tokens = None;
++        assert!(
++            build_source_bpf_cfg_function("label", &missing, &module, &context, registry).is_none()
++        );
++        let mut changed = module.clone();
++        changed.lexer_config.strict_quoting = !changed.lexer_config.strict_quoting;
++        assert!(
++            build_source_bpf_cfg_function("label", &script, &changed, &context, registry).is_none()
++        );
++        let mut changed = module.clone();
++        changed.source = tcl_lexer::SourceImage::native(module.source.bytes());
++        assert!(
++            build_source_bpf_cfg_function("label", &script, &changed, &context, registry).is_none()
++        );
++        let mut marker = script.clone();
++        marker
++            .statements
++            .push(Statement::unseen_call_marker(Span::empty(0)));
++        assert!(
++            build_source_bpf_cfg_function("label", &marker, &module, &context, registry).is_none()
++        );
++        assert!(
++            build_source_bpf_cfg_function(
++                "label",
++                &script,
++                &module,
++                &context,
++                &CommandRegistry::build_default()
++            )
++            .is_none()
++        );
++    }
++}

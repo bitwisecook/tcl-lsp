@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-22T23:29:24.973352+00:00",
+  "status": "OFF-TREE test-only observer, parse/type/run pending",
+  "path": "rust/bpf-tcl-ir/src/source/phase.rs",
+  "before_sha256": "506d15bca8878e94a34b19c15688a93a8064e1ac4f9737056daf35d678c34cdd",
+  "after_sha256": "51d58967ee7c245c75a003ad930406674e01262efff9183250354f090996c83c",
+  "patch_sha256": "7343f02173fb8fc2e1de8b68328eccd9b7e27d436be36b4cc36aa4b85a13324b",
+  "selector": "source::phase::tests::losing_a_selected_command_never_proves_an_empty_policy_or_map_inventory",
+  "expected_selected": 1,
+  "env": {
+    "TCL_LSP_TRACE_BPF_PHASE": "1"
+  },
+  "scope": "Existing exact producer test and all assertions unchanged. At most16 actual prepared CFG rows print typed marker/receipt/selection tags before original baseline lowering. No product semantics, receipts, effects, Native grants or failure correction.",
+  "rustfmt_check_exit": 0,
+  "current_applycheck_exit": 0
+}

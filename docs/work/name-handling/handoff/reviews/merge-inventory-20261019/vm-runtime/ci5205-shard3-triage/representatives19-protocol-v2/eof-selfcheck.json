@@ -1,0 +1,21 @@
+{
+  "status": "disposable Python process selfcheck only; no Cargo/Rust/Tcl/provider/lock execution",
+  "result": {
+    "label": "eof-still-live",
+    "argv": [
+      "python",
+      "-c",
+      "import os,time; os.close(1); os.close(2); time.sleep(30)"
+    ],
+    "cwd": "/workspace/naming-migration-active/tcl-lsp",
+    "exit": -2,
+    "started_utc": "2026-10-22T23:54:42.940675+00:00",
+    "ended_utc": "2026-10-22T23:54:44.031871+00:00",
+    "stdout_stderr_bytes": 0,
+    "aggregate_retained_bytes": 0,
+    "stopped": "per-selector deadline exceeded",
+    "deadline_seconds": 0.05,
+    "minimum_free_bytes": 3221225472
+  },
+  "output": "/tmp/vm-representatives19-eof-selfcheck-8uynbl2i"
+}

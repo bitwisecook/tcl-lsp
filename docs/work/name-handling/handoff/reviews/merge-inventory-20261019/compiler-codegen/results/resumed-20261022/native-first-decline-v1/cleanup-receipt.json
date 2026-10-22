@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-22T23:28:26.140562+00:00",
+  "status": "Dry-copy-only exact restoration; canonical source untouched",
+  "cleanup_sha256": "331603d0d1b5f662ef43372f7b52958581ae428f1a594dda0d6d7ac9c1aedee9",
+  "proposal_sha256": "084648afdbdecd99533f2e33106ff44140d53af6c58140b3405a80ccc1b45137",
+  "checks": {
+    "all_proposed_and_before_hashes_checked_before_any_write": true,
+    "two_original_full_file_hashes_restored": true,
+    "python_ast_parsed": true
+  },
+  "copy_root": "/tmp/ccg-native-first-decline-cleanup-po_oq6ld",
+  "stdout": "{\"checked_paths\": 2, \"applied\": true}\n",
+  "limits": "Only root/coordinator may apply canonical cleanup in later source window after measurement, no Cargo running. Stops rather than overwriting any source drift; no Git/target/executable operations."
+}

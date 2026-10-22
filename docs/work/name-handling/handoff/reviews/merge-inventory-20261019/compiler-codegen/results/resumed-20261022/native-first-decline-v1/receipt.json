@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-22T23:20:48.998444+00:00",
+  "status": "OFF-TREE temporary opt-in actual first-decline diagnostic; syntax/apply only, no Cargo/type/run",
+  "patch_sha256": "084648afdbdecd99533f2e33106ff44140d53af6c58140b3405a80ccc1b45137",
+  "records": [
+    {
+      "path": "rust/tcl-bytecode/src/lib.rs",
+      "before_sha256": "c99992e5527357e7444b4618199d7e0e71acc33a9aaf86890e82d5cfc9ad2d75",
+      "proposed_sha256": "20dae111eda5c9620b0bbb1fa691db9ce296e14e5f6d3f1157a48d01fd53aa6e"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compile_service.rs",
+      "before_sha256": "78ad48d832e0fc3347a6fa5df7310dd53a6523638fc529bb618ddbd241c509dc",
+      "proposed_sha256": "76a8b1a8c9fa7c13cc9e226d13062da57035a2f4b093a286bf40bea522ac5470"
+    }
+  ],
+  "purpose": "Exact env TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC=first-decline-v1 only; default has no output, diagnostic grants no authority or fallback",
+  "validator_proof": "All original predicate bytes/short-circuit order/returns recover byte-for-byte by removing only five rejection-report calls. Private validity predicates are not re-evaluated. Reports execute only after actual predicate rejected.",
+  "input_proof": "Four original compile-service validations preceded by finite getters over the SAME finished FunctionAsm and actual supplied entry/profile/target source length. No Native entry/table/source/frame manufactured or modified. No source text/command names/graph dump.",
+  "output": "Leading newline plus ZZ_NATIVE_ADMISSION_ prefix is retained by existing compiler-c6 log filter and preserves first-line boundary after libtest prefix.",
+  "representative": {
+    "binary": "tcl-vm::cmd_control_e2e",
+    "selector": "a_catch_body_write_is_visible_after_the_catch",
+    "expected_selected": 1,
+    "known_old_status": "actual baselinePASS/current2b934FAIL, not a latest-source verdict",
+    "first_original_fixture": "proc f {} { catch {set x 42}; return $x }; f",
+    "assertions": "Entire test and its three source inputs untouched; first old failure aborts original selector naturally."
+  },
+  "guards": "No queue. Root next compiler35 first; optional later one exact test under whole-command global lock, full-source/provider/tool seals,20MiB/2GiB watchdog and actual exe receipts. No87 suite or test rewrites. Retire only these owned diagnostic inserts later."
+}

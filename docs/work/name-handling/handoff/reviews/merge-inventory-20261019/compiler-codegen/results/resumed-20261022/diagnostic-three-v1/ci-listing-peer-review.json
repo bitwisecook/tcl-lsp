@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-22T23:54:21.291800+00:00",
+  "reviewer_role": "compiler-codegen",
+  "status": "Bounded static peer clear; no CI execution or test acceptance",
+  "patch": {
+    "path": "/tmp/coordinator-ci-failed-shard-listing-v1/proposal.patch",
+    "sha256": "78fca4e5499bacb3644939b6d7ce07dce65ff262b3b8a8c1c2937e1f95227ab2"
+  },
+  "scope": "Only selected shard listing condition adds always() && !cancelled(); original changed/docs/already-green filters preserved. Test command and its condition unchanged; listing after a failed test is evidence availability, never PASS. Cancellation still suppresses listing. Existing upload step is unchanged.",
+  "provenance": "Replacement role re-read exact patch and surrounding canonical CI listing/upload steps; confirms predecessor static clear reported by coordinator."
+}

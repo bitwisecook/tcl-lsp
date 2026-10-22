@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T23:25:37.302781+00:00
+Last updated: 2026-10-22T23:56:25.694045+00:00
 
 ## In progress
 
@@ -333,3 +333,18 @@ Last updated: 2026-10-22T23:25:37.302781+00:00
 - Compiler35 actual guarded start23:22:55 on551aa, receipt compiler-postbatch-focused-v2-runs/20261022T232255.302907Z; external watchdog attached before tests during initial source seal. No current outcome inferred.
 - Shard1 log retrieval through connector did not complete; bounded GitHub API fallback returned Forbidden with zero retained log bytes. Its failure conclusion is known but named outcomes remain unavailable/unknown, not a baseline regression count. No token or temporary redirect URL is printed or published.
 - VM checked actual origin/rust standalone runtime log: both no-tommath655/655 and full753/753 passed; original catch8.4 passed both. New Jim import selector is absent from baseline, and no-tommath excludes if/while/for by declared build guards. Full-backend Jim acceptance remains required; no test disabling or unsupported fallback applied.
+
+### Current cycle and routing (23:55 UTC)
+
+- Primary goal remains clean LSP merge/release readiness from rust, then deferred parity. Work-only normal pushes; no PR/merge/tag/release. All eight section F boxes and audit admissions remain open.
+- Previous23:25 UTC cycle pushed58b209ab6 after fresh depth1 fetch/rebase/product-tree equality; next23:55 reminder process survived. Executor failed initialization during active compiler35; no outage-derived result was admitted.
+- Restored same filesystem and active daf77/product551aa. No live Cargo/rustc and free whole lock independently verified. Old role tool attachments remained unavailable despite root recovery; root stopped them and restarted five implementation roles plus a fresh coordination helper against the same shared tree, all with functioning executors.
+- Interrupted35 actual build completed21m20s with zero warnings. Exactly two original G4 tests executed and FAIL: each source/provider/artifact seal stable, exactcount1, direct admitted compiler visit1 with matching owner/words/policy, Reached but noNativeentry. Watchdog retained2records/no timeout. No final suite receipt, no whole35 verdict.
+- Immutable remaining33 protocol preserves original v2 required_filters[2:] exactly:23filters33tests, all exact script inverses/hashes checked by root, no repeats of measured2. Added terminal23/33 validation, unchanged full source/provider/current-Cargo-artifact/log20MiB/disk2GiB and watchdog-v5runtime180s guards. Actual start23:53:26, receipt compiler-postbatch-remaining33-v1-runs/20261022T235326.171067Z; source HOLD/docs CLEAR.
+- Corrected next-source candidate76d0dafd is off-tree23paths/sixparts, exact base hashes and independent reapply verified; pinnedrustfmt normalized2copies. Old1f128 was rejected before apply because it mistakenly included float display16a and omitted requested explorercoverage01a. Current candidate includes coverage, hostv12/pathadapter, nativepreflight/BPF/C84 observers; no type/runtime or fullhost admission.
+- New BPF closed-DSL source-purpose draft is under bounded peer review; actual first failing CFG typedrow still unmeasured. Generic Tcl source-opacity guards and actualselectedDSL/currentness refusals remain unchanged in canonical source.
+- LSP native path controls require authentic materialized positive before negative saved-handle/session/shadow/effect cases; draft session assertion corrected to actual16byte array. Manual C8.6 fixtures9PASS are semantics only, no native protocol result. Fullv12 deep completed-child/globalreturn continuity remains explicitlyUnavailable.
+- Report comparison inventory covers all90AnalysisResult fields and12typeddiagnostic variants. Capture lifecycle kernel peer-clear, but complete native/body/hosted correspondence remains unfinished and comparisonUnavailable. User2256 fullreport contract preserved, strictglobal/runtimeEq/cache cutoffs unchanged, perf patches withheld.
+- VM main171olderCI regressions are separate from olderfinite/heavy/VM71 suites. New exact19 representative plan across12artifacts is preparation only; CCGonepreflight witness excluded and151remainunsampled. StandalonefullTommath5 separates truecatchP2F from newJim unsupportednoTommath control. No fallback/testdisable/changed original assertions applied.
+- One-line CI listing metadata proposal peer-cleared off-tree: record selected shard listing after assertion failure while respecting cancellation/change/docs/already-green guards. Listing proves identities only, neverPASS. Existing unavailable shard1/2/4 namedlogs remainunknown and mainshard3confirmed822P2FolderCI source remains releaseblocking.
+- External BIGIP18:08/perf21:00/completedtriage19:57:30 headers still stale; user notified and no duplicate roles. Root cycle performs official report/table/freshness/fullWIP excludingzzprobes, depth1fetch/FF/rebase+normalpush, productequality,diskcheck and rearm00:25:37UTC. No target/executablecleanup.

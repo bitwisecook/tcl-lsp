@@ -1,0 +1,151 @@
+{
+  "utc": "2026-10-22T23:17:38.980621+00:00",
+  "scope": "Root-assigned actual13 cshim baselinePASS/currentFAIL bridge regressions; older2b934 only, no current outcome or commoncause inferred",
+  "count": 13,
+  "raw_sha256": "278aff271a8b44ec5def7e6180349d64e1d5e7e7916dd76a2a5f9678a79c9c45",
+  "rows": [
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "doors::tests::a_command_the_c_code_created_is_published_before_the_script_that_calls_it"
+      },
+      "header_LF_line": 23820,
+      "baseline": "actualPASS",
+      "current": "actualFAIL on older2b934",
+      "first_failure": "thread 'doors::tests::a_command_the_c_code_created_is_published_before_the_script_that_calls_it' (20440) panicked at rust/tcl-cshim/src/doors.rs:1096:9:\n    assertion `left == right` failed\n      left: [\"eval late\"]\n     right: [\"define late\", \"eval late\"]",
+      "truncated": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "doors::tests::a_value_read_is_a_new_object_that_outlives_later_calls"
+      },
+      "header_LF_line": 23873,
+      "baseline": "actualPASS",
+      "current": "actualFAIL on older2b934",
+      "first_failure": "thread 'doors::tests::a_value_read_is_a_new_object_that_outlives_later_calls' (20467) panicked at rust/tcl-cshim/src/doors.rs:796:13:\n    typed, not text",
+      "truncated": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "load::tests::a_failing_entry_point_is_the_error_load_reports_and_can_be_tried_again"
+      },
+      "header_LF_line": 23968,
+      "baseline": "actualPASS",
+      "current": "actualFAIL on older2b934",
+      "first_failure": "thread 'load::tests::a_failing_entry_point_is_the_error_load_reports_and_can_be_tried_again' (20508) panicked at rust/tcl-cshim/src/load.rs:529:22:\n    [\"\", \"Demo\"]: ScriptBytes { message: [110, 111, 32, 108, 105, 99, 101, 110, 99, 101], code: Some([68, 69, 77, 79, 32, 76, 73, 67, 69, 78, 67, 69]), options: None }",
+      "truncated": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "obj::tests::the_declared_prefix_is_the_layout_the_header_declares"
+      },
+      "header_LF_line": 24070,
+      "baseline": "actualPASS",
+      "current": "actualFAIL on older2b934",
+      "first_failure": "thread 'obj::tests::the_declared_prefix_is_the_layout_the_header_declares' (20581) panicked at rust/tcl-cshim/src/obj.rs:1736:9:\n    assertion `left == right` failed: the shim's own state starts where the declared struct ends\n      left: 64\n     right: 48",
+      "truncated": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "tests::a_c_command_returning_break_is_a_break_completion"
+      },
+      "header_LF_line": 24032,
+      "baseline": "actualPASS",
+      "current": "actualFAIL on older2b934",
+      "first_failure": "thread 'tests::a_c_command_returning_break_is_a_break_completion' (20586) panicked at rust/tcl-cshim/src/lib.rs:1349:9:\n    assertion `left == right` failed\n      left: Some([78, 79, 78, 69])\n     right: None",
+      "truncated": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "tests::a_code_that_is_not_a_return_carries_no_options_whatever_the_evaluation_left"
+      },
+      "header_LF_line": 24108,
+      "baseline": "actualPASS",
+      "current": "actualFAIL on older2b934",
+      "first_failure": "thread 'tests::a_code_that_is_not_a_return_carries_no_options_whatever_the_evaluation_left' (20587) panicked at rust/tcl-cshim/src/lib.rs:1244:13:\n    Dict([(StringBytes([45, 99, 111, 100, 101]), Int(0)), (StringBytes([45, 108, 101, 118, 101, 108]), Int(0))])",
+      "truncated": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "tests::a_command_an_engine_runs_without_a_door_reaches_no_variable"
+      },
+      "header_LF_line": 24186,
+      "baseline": "actualPASS",
+      "current": "actualFAIL on older2b934",
+      "first_failure": "thread 'tests::a_command_an_engine_runs_without_a_door_reaches_no_variable' (20591) panicked at rust/tcl-cshim/src/lib.rs:1379:9:\n    assertion `left == right` failed\n      left: Some([78, 79, 78, 69])\n     right: None",
+      "truncated": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "tests::an_evaluation_that_did_not_end_in_a_return_leaves_no_options_for_a_later_one"
+      },
+      "header_LF_line": 24226,
+      "baseline": "actualPASS",
+      "current": "actualFAIL on older2b934",
+      "first_failure": "thread 'tests::an_evaluation_that_did_not_end_in_a_return_leaves_no_options_for_a_later_one' (20601) panicked at rust/tcl-cshim/src/lib.rs:1261:9:\n    a return of the command's own is a plain one",
+      "truncated": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim",
+        "selector": "tests::deleting_a_command_reaches_the_engine_and_runs_the_delete_proc"
+      },
+      "header_LF_line": 24260,
+      "baseline": "actualPASS",
+      "current": "actualFAIL on older2b934",
+      "first_failure": "thread 'tests::deleting_a_command_reaches_the_engine_and_runs_the_delete_proc' (20603) panicked at rust/tcl-cshim/src/lib.rs:1521:9:\n    assertion failed: matches!(interp.sync().expect(\"syncs\").as_slice(),\n        [CommandChange::Created(publication)] if publication.original.as_ref() ==\n        b\"temp\")",
+      "truncated": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim::pkga_e2e",
+        "selector": "client_data_and_delete_procs_work_across_calls"
+      },
+      "header_LF_line": 24298,
+      "baseline": "actualPASS",
+      "current": "actualFAIL on older2b934",
+      "first_failure": "thread 'client_data_and_delete_procs_work_across_calls' (20621) panicked at rust/tcl-cshim/tests/pkga_e2e.rs:451:5:\n    assertion `left == right` failed\n      left: (1, \"wrong # args: should be \\\"pkga_count\\\"\", \"NONE\")\n     right: (1, \"wrong # args: should be \\\"pkga_count\\\"\", \"TCL WRONGARGS\")",
+      "truncated": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim::pkga_e2e",
+        "selector": "load_through_the_host_bridge_defines_the_commands"
+      },
+      "header_LF_line": 24343,
+      "baseline": "actualPASS",
+      "current": "actualFAIL on older2b934",
+      "first_failure": "thread 'load_through_the_host_bridge_defines_the_commands' (20626) panicked at rust/tcl-cshim/tests/pkga_e2e.rs:247:5:\n    assertion `left == right` failed\n      left: (1, \"no library with prefix \\\"Nosuch\\\" is loaded statically\", \"NONE\")\n     right: (1, \"no library with prefix \\\"Nosuch\\\" is loaded statically\", \"TCL OPERATION LOAD NOTSTATIC\")",
+      "truncated": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim::pkga_e2e",
+        "selector": "results_and_errors_match_c_tcl_byte_for_byte"
+      },
+      "header_LF_line": 24381,
+      "baseline": "actualPASS",
+      "current": "actualFAIL on older2b934",
+      "first_failure": "thread 'results_and_errors_match_c_tcl_byte_for_byte' (20631) panicked at rust/tcl-cshim/tests/pkga_e2e.rs:167:9:\n    assertion `left == right` failed: pkga_eq a\n      left: (1, \"wrong # args: should be \\\"pkga_eq string1 string2\\\"\", \"NONE\")\n     right: (1, \"wrong # args: should be \\\"pkga_eq string1 string2\\\"\", \"TCL WRONGARGS\")",
+      "truncated": false
+    },
+    {
+      "key": {
+        "binary_id": "tcl-cshim::pkga_e2e",
+        "selector": "the_same_vectors_run_through_the_host_load_bridge"
+      },
+      "header_LF_line": 24512,
+      "baseline": "actualPASS",
+      "current": "actualFAIL on older2b934",
+      "first_failure": "thread 'the_same_vectors_run_through_the_host_load_bridge' (20640) panicked at rust/tcl-cshim/tests/pkga_e2e.rs:167:9:\n    assertion `left == right` failed: pkga_eq a\n      left: (1, \"wrong # args: should be \\\"pkga_eq string1 string2\\\"\", \"NONE\")\n     right: (1, \"wrong # args: should be \\\"pkga_eq string1 string2\\\"\", \"TCL WRONGARGS\")",
+      "truncated": false
+    }
+  ]
+}

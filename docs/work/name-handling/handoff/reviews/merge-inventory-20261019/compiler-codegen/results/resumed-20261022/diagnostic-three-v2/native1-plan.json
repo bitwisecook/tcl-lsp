@@ -1,0 +1,269 @@
+{
+  "repo": "/workspace/naming-migration-active/tcl-lsp",
+  "runner_inputs": [
+    {
+      "path": "/tmp/tcl-lsp-naming-env.sh",
+      "sha256": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+    },
+    {
+      "path": "/tmp/compiler-c6-guarded-cargo.py",
+      "sha256": "527ffffa5560d484fb5c0938a70686b568d83f88957110719d4171817ca5470e"
+    },
+    {
+      "path": "/tmp/compiler-c6-provider-manifest.py",
+      "sha256": "5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e"
+    },
+    {
+      "path": "/tmp/ccg-postbatch-functional-v3-suite.py",
+      "sha256": "ca7782e4d6426a3097e20bcbf86a09abeb27c45380379636aa3c11151ec22bd3"
+    },
+    {
+      "path": "/tmp/ccg-postbatch-functional-v3-run.sh",
+      "sha256": "810d41d2674c9a42ebcfb269388529ba3ee361c1fafef5843ca996d16cbefb07"
+    },
+    {
+      "path": "/tmp/naming-oracle-setup.json",
+      "sha256": "40cdc417fd9aa05661047b5cf501f9b2a57a5c03f08f984b784e109213a00f99"
+    },
+    {
+      "path": "/tmp/ccg-current-base-provider-seal-20261022.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    },
+    {
+      "path": "/tmp/ccg-selected-actual-tool-pins-20261022.json",
+      "sha256": "0fd7889eacd0bd61ea2aaa2bc8a1f750521858b87cacd4609cfa353ed2e76d72"
+    },
+    {
+      "path": "/tmp/ccg-actual-c-and-rust-linker-supplement-20261022.json",
+      "sha256": "35e5be51ba674ab4c763679dbee60ae5590e299086e54bc0867eec00d2c0f2e8"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+      "sha256": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d"
+    },
+    {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/liblto_plugin.so",
+      "sha256": "1160335db754d964f3560d403aa58e21380b2284439fe75317ffe5652e8bd839"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+      "sha256": "7a27acdd82e38dbddd8568d54de0df4358e71a3c387d5c1d999d369450c1bf6a"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libsframe.so.1",
+      "sha256": "adb0b9a33909e7264ad724e138eb97995832e535b22b192c1a898c349c918a9f"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libz.so.1",
+      "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libzstd.so.1",
+      "sha256": "27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21"
+    },
+    {
+      "path": "/usr/bin/ar",
+      "sha256": "f8fe09d485b40b1d47c534c96f5cbaaa9148e247aa0494c087104421f48ac5eb"
+    },
+    {
+      "path": "/usr/bin/as",
+      "sha256": "07dd8551ea0aa065975e4dddb8e1bb7dc308d12d54eca22c3858db79467c7cb9"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libgmp.so.10",
+      "sha256": "d15e1585c6c267296459570c8ac217ca9123044bcd4e896d2f686b32333445d2"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libmpfr.so.6",
+      "sha256": "4e3ccf5b442fc91054b0153140fe62939009f98ca1367f45de62376d5b18d28c"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libisl.so.23",
+      "sha256": "2c3414e22aef73d2955be7acc1e6213c3e12953d9b6b5f748381bb1e326a8147"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libmpc.so.3",
+      "sha256": "0b478209dd7a8bc37b4f4627795f9214f02572393bacbac04b8fe610ea22e5d0"
+    },
+    {
+      "path": "/usr/libexec/gcc/x86_64-linux-gnu/14/cc1",
+      "sha256": "02675980109a4a5496cddf67d5286de57942759edc830deaa525e36f9a2a0291"
+    },
+    {
+      "path": "/usr/bin/cc",
+      "sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f"
+    },
+    {
+      "path": "/usr/libexec/gcc/x86_64-linux-gnu/14/collect2",
+      "sha256": "ea31a4cebd9df1b6428c463428d461ccecfe66c897936409d5b2cde0b3af9e27"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libctf.so.0",
+      "sha256": "bdcd09af9314ef2a40dd137882523e7cb5944189220980257c5ebcc1fe0c9b5b"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libjansson.so.4",
+      "sha256": "424135d01f0f2f957bd61d6a56f5f0cf7afa146a677a216173f1a20e8cd1ad8e"
+    },
+    {
+      "path": "/usr/bin/ld",
+      "sha256": "d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libdl.so.2",
+      "sha256": "295fa521a03cd2faa99974f378c9e23dd622021ec7d32bcad4f8ea61aec8a872"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libgcc_s.so.1",
+      "sha256": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libpthread.so.0",
+      "sha256": "85e21f7dba0394411d00959176fd18b470e575b0b05f1f4f41e5636802ce0500"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/librt.so.1",
+      "sha256": "7b7b84d1aedda0e0b2bdfc68844362782132180b8f02be1300e21e77572e514b"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/../../../libLLVM.so.23.1-rust-1.99.1-stable",
+      "sha256": "1cfbe1392a767227b88b33ab6187283e281c63f80f9b1ca9010d9cee5fdf9131"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+      "sha256": "9b6f51f983a8184f5d47d224e336cdb35171ad5b138981bc62a22e6d65e7b214"
+    }
+  ],
+  "provider_seal": {
+    "path": "/tmp/ccg-current-base-provider-seal-20261022.json",
+    "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+  },
+  "actual_tool_selectors": {
+    "path": "/tmp/ccg-selected-actual-tool-pins-20261022.json",
+    "sha256": "0fd7889eacd0bd61ea2aaa2bc8a1f750521858b87cacd4609cfa353ed2e76d72"
+  },
+  "actual_tool_pin_successor": {
+    "utc": "2026-10-22T22:58:21.491996+00:00",
+    "prior_plan": {
+      "path": "/tmp/ccg-postbatch-functional-v2-plan.json",
+      "sha256": "45fd1079922c0693c0b1a13a003053401df866b5225852ada1c939eabdc30216"
+    },
+    "scope": "No source/oracle/provider identity drift refreshed. Add exact selected native CC/AR/driver/link tools +rust-lld and linkedlibs to existing every-command pin checks; refuse changed compiler overrides/selected PATH. Existing jobs/features/budgets/assertions/sourcepins/provider seals identical.",
+    "supplement": {
+      "path": "/tmp/ccg-actual-c-and-rust-linker-supplement-20261022.json",
+      "sha256": "35e5be51ba674ab4c763679dbee60ae5590e299086e54bc0867eec00d2c0f2e8"
+    },
+    "actual_tool_records": 27,
+    "suite_inverse": "Exact prior suite recovered after only removal of pure selector guard and inverse filename routing."
+  },
+  "utc": "2026-10-22T23:21:21.864570+00:00",
+  "status": "OFF-TREE immutable exact diagnostic plan; NOT QUEUED; root GO and watchdog peer review required",
+  "owner": "compiler-codegen",
+  "expected_selected_total": 1,
+  "jobs": [
+    {
+      "label": "native_admission_first_decline",
+      "package": "tcl-vm",
+      "target": "cmd_control_e2e",
+      "selector": "a_catch_body_write_is_visible_after_the_catch",
+      "expected_selected": 1,
+      "selected_tests": [
+        "a_catch_body_write_is_visible_after_the_catch"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-vm",
+        "--test",
+        "cmd_control_e2e",
+        "a_catch_body_write_is_visible_after_the_catch",
+        "--",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "artifact_stem": "cmd_control_e2e",
+      "env": {
+        "TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC": "first-decline-v1"
+      },
+      "notes": "Original three inputs/assertions unchanged. Output is diagnostic, not a provider/admission grant; no repeat87."
+    }
+  ],
+  "test_inventory_sources": [
+    {
+      "path": "rust/tcl-vm/tests/cmd_control_e2e.rs",
+      "sha256": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1"
+    },
+    {
+      "path": "rust/tcl-bytecode/src/lib.rs",
+      "sha256": "20dae111eda5c9620b0bbb1fa691db9ce296e14e5f6d3f1157a48d01fd53aa6e"
+    },
+    {
+      "path": "rust/tcl-compiler/src/compile_service.rs",
+      "sha256": "41f76c717a37f9be2ccafbdda0daf1c23c44641cc190acd3e849e5faee356e66"
+    }
+  ],
+  "parent_guard_protocol": {
+    "path": "/tmp/ccg-postbatch-functional-v3-plan.json",
+    "sha256": "fb691896d55f76b63402581e67e9dc858f66ed7caf602079936154fbcaff5f78",
+    "scope": "Inherits immutable reviewed whole-command source/provider/artifact/disk/log/tool guard implementation only. Does not change/claim original51 inventory or results."
+  },
+  "diagnostic_patch": {
+    "path": "/tmp/ccg-native-first-decline-v1/proposal.patch",
+    "sha256": "084648afdbdecd99533f2e33106ff44140d53af6c58140b3405a80ccc1b45137"
+  },
+  "guard_contract": [
+    "Root compiler35 remains first; source window/apply only after peer approval; no Cargo queued.",
+    "One exact integration selector/expected1, default features; no compiler whole-lib target.",
+    "Full command global flock, before/after full source and actual provider+tool seals,20MiB filtered log and2GiB five-second own-session watchdog, actual Cargo Running executable hash/mtime; no target cleanup or directexe reuse.",
+    "ZZ_NATIVE_ADMISSION_INPUT row joins finished FunctionAsm to original actual policy.entry/profile/current namespace; ZZ_NATIVE_ADMISSION_DECLINE reports first actual failed predicate only, preserving guard order.",
+    "Raw log is authoritative; if no decline, do not infer a cause. One PASS closes only this representative; one FAIL cannot classify all87. Warning/logcap/source/provider/artifact drift invalidates acceptance.",
+    "Exact cleanup restores both original full-file hashes, only owned inserts removed in coordinator source window after measurement."
+  ],
+  "commands": {
+    "assigned_slot_only": "bash /tmp/ccg-postbatch-functional-v3-run.sh /tmp/ccg-native-first-decline-v1/plan.json"
+  },
+  "full_inverse": true,
+  "limits": "Syntax/static protocol only, untyped/unrun; no source/Native/frame/handler/provider authority fabricated. Earlier2b934 failure is historical, not asserted current.",
+  "immutable_predecessor": {
+    "path": "/tmp/ccg-native-first-decline-v1/plan.json",
+    "sha256": "ac12d07ddd89d2048033958428074539e0d80180b4a55dfae2aede970ab69193"
+  },
+  "source_pin_delta": "Only reviewed corrected76d0 rustfmt two-line opt-in if joins one line; no semantic/assertion delta.",
+  "external_runtime_watchdog": {
+    "adapted": {
+      "path": "/tmp/ccg-diagnostic-three-v2/runtime-watchdog.py",
+      "sha256": "7495aee1f9e85080dff5c2fdd67595257908b138a85ae315b2319ccbfa08d3f7"
+    },
+    "reviewed_model": {
+      "path": "/tmp/compiler-focused-runtime-watchdog-v5.py",
+      "sha256": "c3a9ddbd812938dbfb336e96b4616361c378e030aa1b1d8fdd609a5f483f4191"
+    },
+    "budget_seconds": 180,
+    "scope": "Each selected diagnostic executable; compilation excluded. Exact PID/start/owned-group authority and bounded INT/TERM/KILL cleanup unchanged.",
+    "attachment": "Coordinator starts watcher with actual suite PID and that suite exact receipt directory, before any selected executable begins. Require runtime_timer_attached_before_test_start=true for all selected processes; otherwise no runtime acceptance.",
+    "command_template": "python3 /tmp/ccg-diagnostic-three-v2/runtime-watchdog.py <actual-suite-PID> <actual-suite-receipt-directory>",
+    "acceptance": "Require completed watcher receipt with no watchdog_failure, no timed_out/acceptance_invalid, observed exact selected process inventory and exited_before_deadline for every process. Suite result alone is insufficient."
+  },
+  "execution_command": "bash /tmp/ccg-postbatch-functional-v3-run.sh /tmp/ccg-diagnostic-three-v2/native1-plan.json",
+  "root_prerequisites": [
+    "Compiler remaining33 sole build slot completed; root explicitly assigns slot. No queued Cargo.",
+    "Corrected six-component76d0 source applied coherently; Float16a excluded. Exact sourcepins must match; do not refresh silently.",
+    "Deadline watcher adaptation peer reviewed; attach before test process begins. Full51v3 guard/suite/run scripts remain byte unchanged.",
+    "Before/eachjob/after actual provider/tool/runner guards and fullsource stability required;2GiB minimum,20MiB filtered logs,2jobs/debug0/incremental0,ordinary Cargo artifact provenance unchanged."
+  ]
+}

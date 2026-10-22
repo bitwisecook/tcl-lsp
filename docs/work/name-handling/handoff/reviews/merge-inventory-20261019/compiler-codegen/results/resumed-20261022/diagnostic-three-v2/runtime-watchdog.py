@@ -1,0 +1,179 @@
+"""External, source-preserving 180-second runtime guard for one frozen suite."""
+import datetime
+import json
+import os
+from pathlib import Path
+import signal
+import sys
+import time
+
+suite_pid = int(sys.argv[1])
+receipt = Path(sys.argv[2]).resolve()
+budget = 180.0
+hz = os.sysconf('SC_CLK_TCK')
+records = []
+watchdog_failure = None
+seen = set()
+
+def utc():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+def info(pid):
+    try:
+        path = Path('/proc') / str(pid)
+        stat = (path / 'stat').read_text().rsplit(')', 1)[1].split()
+        argv = [x.decode(errors='replace') for x in (path / 'cmdline').read_bytes().split(b'\0') if x]
+        executable = Path(argv[0]) if argv else Path('unavailable')
+        return {'pid': pid, 'state': stat[0], 'ppid': int(stat[1]),
+                'start': int(stat[19]) / hz,
+                'argv': argv, 'exe': executable.name, 'exe_path': str(executable)}
+    except (OSError, ValueError):
+        return None
+
+def children(pid):
+    found = []
+    for path in Path('/proc').iterdir():
+        if path.name.isdigit():
+            item = info(int(path.name))
+            if item and item['ppid'] == pid:
+                found.append(item)
+    return found
+
+suite = info(suite_pid)
+assert suite and len(suite['argv']) > 1 and suite['argv'][1] == '/tmp/ccg-postbatch-functional-v3-suite.py'
+suite_start = suite['start']
+output = receipt / 'runtime-watchdog.json'
+started = utc()
+attached_uptime = float(Path('/proc/uptime').read_text().split()[0])
+while True:
+    current = info(suite_pid)
+    if not current or current['state'] == 'Z' or current['start'] != suite_start:
+        break
+    for guard in children(suite_pid):
+        args = guard['argv']
+        if len(args) < 4 or args[1] != '/tmp/compiler-c6-guarded-cargo.py':
+            continue
+        log = Path(args[2]).resolve()
+        if log.parent != receipt:
+            continue
+        for cargo in children(guard['pid']):
+            if cargo['exe'] != 'cargo' or cargo['argv'][1:3] != ['test', '--locked']:
+                continue
+            for test in children(cargo['pid']):
+                if not test['exe'].startswith(('cmd_control_e2e-', 'pack_source_e2e-')) or '/debug/deps/' not in test['exe_path']:
+                    continue
+                key = (test['pid'], test['start'])
+                if key in seen:
+                    continue
+                seen.add(key)
+                row = {'log': str(log), 'test_pid': test['pid'], 'cargo_pid': cargo['pid'],
+                       'observed_utc': utc(), 'start_uptime_seconds': test['start'],
+                       'exe_path': test['exe_path'], 'exe_device': Path(test['exe_path']).stat().st_dev,
+                       'exe_inode': Path(test['exe_path']).stat().st_ino, 'cargo_start_uptime_seconds': cargo['start'],
+                       'guard_pid': guard['pid'], 'guard_start_uptime_seconds': guard['start'],
+                       'test_argv': test['argv'], 'cargo_argv': cargo['argv'],
+                       'suite_start_uptime_seconds': suite_start,
+                       'budget_seconds': budget, 'budget_scope': 'entire selected test process; compilation excluded',
+                       'signals': [], 'timed_out': False, 'outcome': 'running',
+                       'runtime_timer_attached_before_test_start':
+                       test['start'] >= attached_uptime}
+                records.append(row)
+                while True:
+                    live = info(test['pid'])
+                    elapsed = float(Path('/proc/uptime').read_text().split()[0]) - test['start']
+                    if not live or live['state'] == 'Z' or live['start'] != test['start']:
+                        row['finished_observed_utc'] = utc()
+                        row['runtime_observed_seconds'] = elapsed
+                        if elapsed >= budget and not row['timed_out']:
+                            # Exit may have happened between polls: never call a threshold-crossing
+                            # observation an enforced before-deadline success.
+                            row['timed_out'] = True
+                            row['outcome'] = 'deadline_threshold_ambiguous_at_exit'
+                            row['acceptance_invalid'] = True
+                        else:
+                            row['outcome'] = 'deadline_exceeded' if row['timed_out'] else 'exited_before_deadline'
+                        break
+                    if elapsed >= budget:
+                        row['timed_out'] = True
+                        row['outcome'] = 'deadline_exceeded'
+                        owner = info(cargo['pid'])
+                        try:
+                            owned_group = (os.getpgid(test['pid']) == cargo['pid']
+                                           and live['start'] == test['start'])
+                            if not owned_group:
+                                owned_group = bool(owner and owner['start'] == cargo['start']
+                                                   and os.getpgid(cargo['pid']) == cargo['pid'])
+                        except (ProcessLookupError, PermissionError) as error:
+                            owned_group = False
+                            row['group_check_error'] = type(error).__name__
+                        if not owned_group:
+                            watchdog_failure = 'runtime expired but original Cargo process-group authority unavailable'
+                            row['watchdog_failure'] = watchdog_failure
+                            row['outcome'] = 'watchdog_failure_after_deadline'
+                            row['selected_test_alive_on_authority_failure'] = True
+                            break
+                        signals = [signal.SIGINT, signal.SIGTERM, signal.SIGKILL]
+                        index = len(row['signals'])
+                        if index < 3 and elapsed >= budget + index * 10:
+                            try:
+                                os.killpg(cargo['pid'], signals[index])
+                                row['signals'].append({'signal': signals[index].name, 'utc': utc(), 'elapsed_seconds': elapsed})
+                            except ProcessLookupError:
+                                row['signal_race'] = {'utc': utc(), 'signal': signals[index].name}
+                                continue
+                            except PermissionError:
+                                watchdog_failure = 'permission denied signalling original Cargo process group'
+                                row['watchdog_failure'] = watchdog_failure
+                                row['outcome'] = 'watchdog_failure_after_deadline'
+                                break
+                        if elapsed >= budget + 30:
+                            watchdog_failure = 'selected test remained alive after bounded INT/TERM/KILL cleanup'
+                            row['watchdog_failure'] = watchdog_failure
+                            row['outcome'] = 'watchdog_failure_after_deadline'
+                            break
+                    output.write_text(json.dumps({'started_utc': started, 'suite_pid': suite_pid, 'records': records}, indent=2)+'\n')
+                    time.sleep(0.25)
+                if watchdog_failure:
+                    break
+            if watchdog_failure:
+                break
+        if watchdog_failure:
+            break
+    if watchdog_failure:
+        break
+    output.write_text(json.dumps({'started_utc': started, 'suite_pid': suite_pid, 'records': records}, indent=2)+'\n')
+    time.sleep(0.25)
+if watchdog_failure:
+    # Fail closed: stop this exact suite, never another suite or shared process group.
+    current = info(suite_pid)
+    if current and current['start'] == suite_start:
+        try:
+            os.kill(suite_pid, signal.SIGINT)
+        except (ProcessLookupError, PermissionError) as error:
+            records[-1]['suite_stop_error'] = type(error).__name__
+    # If PG authority was unavailable, only the same original test PID may be cleaned up.
+    row = records[-1]
+    for sig in [signal.SIGINT, signal.SIGTERM, signal.SIGKILL]:
+        current = info(row['test_pid'])
+        if not current or current['state'] == 'Z' or current['start'] != row['start_uptime_seconds']:
+            break
+        try:
+            os.kill(row['test_pid'], sig)
+            row.setdefault('exact_pid_cleanup', []).append({'signal': sig.name, 'utc': utc()})
+        except (ProcessLookupError, PermissionError) as error:
+            row['exact_pid_cleanup_error'] = type(error).__name__
+            break
+        until = time.monotonic() + 10
+        while time.monotonic() < until:
+            current = info(row['test_pid'])
+            if not current or current['state'] == 'Z' or current['start'] != row['start_uptime_seconds']:
+                break
+            time.sleep(0.25)
+    current = info(row['test_pid'])
+    row['original_test_still_alive_after_cleanup'] = bool(
+        current and current['state'] != 'Z' and current['start'] == row['start_uptime_seconds'])
+    row['acceptance_invalid'] = True
+output.write_text(json.dumps({'started_utc': started, 'finished_utc': utc(), 'suite_pid': suite_pid, 'records': records, 'watchdog_failure': watchdog_failure}, indent=2)+'\n')
+
+if watchdog_failure:
+    raise SystemExit(2)

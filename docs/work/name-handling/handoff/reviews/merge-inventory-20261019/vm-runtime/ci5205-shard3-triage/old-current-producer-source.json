@@ -1,0 +1,26 @@
+[
+  {
+    "source": "rust/tcl-vm/tests/cmd_control_e2e.rs",
+    "old_sha256": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1",
+    "evidence": "/tmp/vm-runtime-ci5205-shard3-triage/ci2b934-rust_tcl-vm_tests_cmd_control_e2e.rs.txt",
+    "current_sha256": "a89c3a8e1fde338f4e485adeed59054c2fad3dfe7a16548084e37e37a7e37db1"
+  },
+  {
+    "source": "rust/tcl-vm/tests/run_script.rs",
+    "old_sha256": "12cd34a53b607a424ae9e5baa820dfdaa95a5791c8ec63cc5f7551dece290854",
+    "evidence": "/tmp/vm-runtime-ci5205-shard3-triage/ci2b934-rust_tcl-vm_tests_run_script.rs.txt",
+    "current_sha256": "12cd34a53b607a424ae9e5baa820dfdaa95a5791c8ec63cc5f7551dece290854"
+  },
+  {
+    "source": "rust/tcl-vm/src/exec.rs",
+    "old_sha256": "79ed82dfb08f687c59a1d3affa2e6056d036e6f81fe7054c251e2bf3f75445c0",
+    "evidence": "/tmp/vm-runtime-ci5205-shard3-triage/ci2b934-rust_tcl-vm_src_exec.rs.txt",
+    "current_sha256": "79ed82dfb08f687c59a1d3affa2e6056d036e6f81fe7054c251e2bf3f75445c0"
+  },
+  {
+    "source": "rust/tcl-vm/src/test_support.rs",
+    "old_sha256": "b2522f3bb81cb1f21e10c80d98555c48d063a2fc101b7fdec441ae3724ea45eb",
+    "evidence": "/tmp/vm-runtime-ci5205-shard3-triage/ci2b934-rust_tcl-vm_src_test_support.rs.txt",
+    "current_sha256": "b2522f3bb81cb1f21e10c80d98555c48d063a2fc101b7fdec441ae3724ea45eb"
+  }
+]

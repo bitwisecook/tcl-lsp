@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-22T23:33:03.817812+00:00",
+  "scope": "Older CI5205 source2b934 actual171 owned baselinePASS/currentFAIL, not current source outcomes",
+  "new_jobs_authorized": false,
+  "counts": {
+    "owned_total": 171,
+    "hooks_studio_spectcl_in_additional_C1C2_static_map": 15,
+    "VM142_CLI1_cshim13_without_existing_finite_plan": 156,
+    "finite14_11_20_VM71_stack3_named_overlap": 0
+  },
+  "files": {
+    "phase-groups.json": "00dca33721f181c23483735b7f1e64c3e827a0e8ddd3e1e53b4fcd6d3a26f282",
+    "exact-plan-reconciliation.json": "a14fa8e2fbdbb6f6d5c0e4711d9d2df2aa15cdd406fc25044ca3421c83b387a3",
+    "cshim13-first-failures.json": "716dda574b25352fb7e71d45eec075ddcf07f4c00dee7e0fbac84eff2d36d19b",
+    "old-current-producer-source.json": "d6ce6e357794a4b27e9c73f060a5db5030654483910425dcf645edec6c1f6a74"
+  }
+}

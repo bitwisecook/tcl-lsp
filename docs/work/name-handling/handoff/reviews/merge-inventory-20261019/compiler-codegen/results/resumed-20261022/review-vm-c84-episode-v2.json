@@ -1,0 +1,31 @@
+{
+  "utc": "2026-10-22T23:33:01.163765+00:00",
+  "reviewer_role": "compiler-codegen",
+  "patch_sha256": "c0c5ad46b1ccd296f57f08bd579718b019842bf6b25cf29c0381497018b94b16",
+  "scope": "Independent bounded STATIC review of original callback/guard/refusal behavior; no Cargo/type/runtime",
+  "current_bases": [
+    {
+      "path": "runtime/rust/src/cmd_error.rs",
+      "base_matches": true
+    },
+    {
+      "path": "runtime/rust/src/interp.rs",
+      "base_matches": true
+    },
+    {
+      "path": "runtime/rust/src/interp/native_error_variables.rs",
+      "base_matches": true
+    }
+  ],
+  "findings": [
+    "All original guard/currency/refusal/eval/publication calls remain in original order; inserted observations do not rerun them.",
+    "Observer exact env/cfg(test) uses Cell getters, Rc::as_ptr, try_borrow and retained Vec/Option fields only; it performs no Tcl variable/object getter or Native currentness validation and donates no authority. Borrow contention returns a labeled observation gap rather than panicking or changing control gates.",
+    "Two mutually exclusive cfg setter branches execute each original setter once. Original var_set returns Result<(), VarError>; VarError derives Copy with no destructor. Retaining the actual result through is_ok observation adds no owned object/drop callback, and rearm/check/drop(code) order stays after the same setter.",
+    "Original source/assertions untouched; body dispatch code/frame push/pop and catch publication checks remain. Successful seed label reports branch success only, not semantic acceptance."
+  ],
+  "precision": [
+    "exc.code is the already-retained Vec<u8>, printed through Debug; this is a read-only payload observation, not a typed Code enum or object getter. Its output size is constrained by actual fixed input and outer log guard, not by a truncation bound in the observer.",
+    "Observed owner/result addresses and epochs are correlation data only, not Native authority or currentness proofs."
+  ],
+  "verdict": "No concrete authority/refusal/order blocker found in bounded static review. Type/run and exact original test outcome remain unmeasured."
+}

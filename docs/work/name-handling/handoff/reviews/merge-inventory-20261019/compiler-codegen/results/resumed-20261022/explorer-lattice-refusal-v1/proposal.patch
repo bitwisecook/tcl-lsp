@@ -1,0 +1,34 @@
+--- a/rust/tcl-explorer/src/formatters.rs
++++ b/rust/tcl-explorer/src/formatters.rs
+@@ -353,15 +353,16 @@
+ /// A single SCCP constant as the fold spells it (`1` for a true boolean,
+ /// `1e+301` for a double), text quoted `repr()`-style, so it reads as
+ /// [`format_return_shape`] reads the same value.
+-fn const_value_repr(c: &ConstValue) -> String {
++fn const_value_repr(c: &ConstValue) -> Option<String> {
+     match c {
+-        ConstValue::String(s) => py_repr_str(s),
+-        _ => format_constant(c).unwrap_or_default(),
++        ConstValue::String(s) => Some(py_repr_str(s)),
++        _ => format_constant(c),
+     }
+ }
+ 
+ /// Project an SCCP lattice value to its display string
+ /// (`unknown` / `overdefined` / `const(<repr>)`).
++/// An unproved constant string representation remains explicitly unavailable.
+ /// A `ConstSet` renders as `const(None)` because the constset's scalar
+ /// `value` field is `None`.
+ #[must_use]
+@@ -369,7 +370,10 @@
+     match value {
+         LatticeValue::Unknown => "unknown".to_owned(),
+         LatticeValue::Overdefined => "overdefined".to_owned(),
+-        LatticeValue::Const(c) => format!("const({})", const_value_repr(c)),
++        LatticeValue::Const(c) => const_value_repr(c).map_or_else(
++            || "const(<string unavailable>)".to_owned(),
++            |text| format!("const({text})"),
++        ),
+         LatticeValue::ConstSet(_) => "const(None)".to_owned(),
+     }
+ }

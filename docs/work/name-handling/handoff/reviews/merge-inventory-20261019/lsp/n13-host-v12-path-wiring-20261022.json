@@ -1,0 +1,131 @@
+{
+  "status": "Frozen off-tree; source syntax formatted, current-before hashes checked; bounded v12 review/type/lint/native controls PENDING",
+  "sha256": "9ee04dc3c681f841437e25cd8aa2771bec791be399705f7e246e17b0ec907f57",
+  "delta_from_v8_sha256": "d1be85c1c67f67fef63f5cc86bae5c69bf5d8d64b75a140c284c5680b8a955ab",
+  "compiler_prerequisite": "Canonical stage6/09e9 plus frontier-v4 b8e4ebb4a9950c01e31fab04cdb32ca8987ef5e49f4f3d3e040e2e72daf425f1",
+  "paths": [
+    {
+      "path": "rust/tcl-lsp-core/src/lib.rs",
+      "before": "d6c5da9b17812a3ad53c99ea183c096817ba53285e8c096de1d32f6025abaacc",
+      "proposed": "9a6f2420193787a4db5e97880e1d87634f4c5189d617d4a3335d1a94e2c6df24",
+      "actual_current": "d6c5da9b17812a3ad53c99ea183c096817ba53285e8c096de1d32f6025abaacc",
+      "current_matches": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "before": "d665ce6edc542e38135ff367e8c0398f2afa6f5d2d6de73c6151af9653abe60a",
+      "proposed": "e17b21a594fb4492c8661f7d203cad955dd964b908ea3c55442e1db4afce811b",
+      "actual_current": "d665ce6edc542e38135ff367e8c0398f2afa6f5d2d6de73c6151af9653abe60a",
+      "current_matches": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_source_views.rs",
+      "before": null,
+      "proposed": "07421f4170c7ca81f753e5971c6d248d935198cafb5fc5480436de38aa571696",
+      "actual_current": null,
+      "current_matches": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/workspace_index/source_views.rs",
+      "before": null,
+      "proposed": "e3bccc60905fdd814fc405ec0f581559bf43107ba30260cc42a63613f9ec78cb",
+      "actual_current": null,
+      "current_matches": true
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "before": "cdcf378220769d158a96f1999b1f82b546d9ea6ab375209ce7f0792f56672937",
+      "proposed": "97be797b76cf30e1b2d887f50f21e801fa13d8f658d7cc47bac82304d7f73b20",
+      "actual_current": "cdcf378220769d158a96f1999b1f82b546d9ea6ab375209ce7f0792f56672937",
+      "current_matches": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before": "3346713545c342e97329be798d77a99a8a0587776f8732826d74455878c4cd87",
+      "proposed": "1923206a9a6793d56808e78f9f89eb671f959cb2865036e9d980fe9701ce9b97",
+      "actual_current": "3346713545c342e97329be798d77a99a8a0587776f8732826d74455878c4cd87",
+      "current_matches": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "before": null,
+      "proposed": "73f64882ffc5ee33234f38d758ac40e688d554ea5617ef23c3c16a32d392be2a",
+      "actual_current": null,
+      "current_matches": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "before": "b5e220cccb332a42ba1d4d95dbf0fedc08a5def1b51be9471e3b9d389f919ac0",
+      "proposed": "b3330e27a594229ad424d4c4108497242720bcfc97ef3cbe989e6131e1ac8ba5",
+      "actual_current": "b5e220cccb332a42ba1d4d95dbf0fedc08a5def1b51be9471e3b9d389f919ac0",
+      "current_matches": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_source_view_owners.rs",
+      "before": null,
+      "proposed": "5c109d0b4d7b0e3d2e0e0a1d908987050458db2fb9bd5d9d557cbb71f4d00b23",
+      "actual_current": null,
+      "current_matches": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_source_views.rs",
+      "before": "2ee1a761bee85d0c3fe502a163369c475e3bb9474a65f3283064685a1143390c",
+      "proposed": "ce18742de81c758d14db7c30162ce34fcd8411a8c43b943f2bea14c5fcbc2f50",
+      "actual_current": "2ee1a761bee85d0c3fe502a163369c475e3bb9474a65f3283064685a1143390c",
+      "current_matches": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e.rs",
+      "before": "9dc807c513520f22da82a5e20d953dcf170340faa641218f9ae71ef20982f476",
+      "proposed": "5fd514f9a91a2c232538a53116a697bdf164265accd0987b9ed81492e3ecd8af",
+      "actual_current": "9dc807c513520f22da82a5e20d953dcf170340faa641218f9ae71ef20982f476",
+      "current_matches": true
+    }
+  ],
+  "bootstrap_review": "ee539567 bounded actual lease/Core inventory clear, no whole selection approval",
+  "scope_review": "b922071e immutable initial scope delta under names review; exact scope source bytes remain440e59d5",
+  "actual_source_base": "All11 recorded before hashes independently compared to active canonical source and local base, exact",
+  "controls": [
+    "Existing12hop D2 exact first inventory/reference rosters + retirement unchanged",
+    "Existing two-parent A8.6/B9.0+physicalchild8.5 savedA-retired/B-current exactbytes control unchanged",
+    "New native pending_source_scopes_and_rootless_cycles_keep_independent_first_answers unrun; C8.6 matched semantics only; all original assertions retained"
+  ],
+  "manual_C_control_receipt": "/tmp/lsp-n13-frontier-scope-oracles/profile-classification-correction.json;14positive+1negative8.4floor, initial incorrect all-profile positive receipt preserved",
+  "remaining": [
+    "Coupled typing, strict zero-warning lint and all native protocols pending",
+    "Completed-child/region/global-return path continuity remains unavailable; deep12 D2 still may refuse",
+    "Ordinary direct Core typed-path document links do not automatically use this Backend adapter",
+    "Actual folder/current13/Core2 and source/context browser/WASI/editor P2Fs require focused verification",
+    "Conditional-body prefix scheduling does not authorize aggregate absence or edits; unavailable class/member/hover/rename region paths remain unavailable"
+  ],
+  "delta_from_v9_sha256": "70410522ba367393df0b34b776b34ced757dc35e57388384f95a02a453209305",
+  "accepted_corrections": [
+    "c8c3 actual materialized producer coverage replaces mistaken potential target/NoCut coverage; native D-potential-A/A-potential-B negative appended",
+    "e696 association ledger withdrawal requires same positive direct compiler replay+exact actual successor card; actual visited URIs remain required"
+  ],
+  "peer_review_scope": "Names bounded ee539/b922+c8c3/e696 actual-lease/selection/revision/callback review; no new examined authority blocker after correction; not full host or type/runtime approval",
+  "delta_from_v10_sha256": "e049d5dff83afafda6b73117df0aa06020ea4e7bf657ed8fa2f7d208e90b21a0",
+  "structural_delta": "Refresh root loop extracted to publish_initial_original_roots, reconcile_excluded_original_roots and finish_original_root_reconciliation with private reconciliation state. Guard order, publication order, same bool/None terminal exits and final revision window retained. Four new phase functions each under100 formatted source lines; no lint allows. Static source parser only, no lint/type/run claim.",
+  "delta_from_v11_sha256": "795731baf22aa486ab5a9506933006e3b04e3b337e66c9cc2d4e53ed7882c00f",
+  "compiler_path_prerequisite": {
+    "path": "/tmp/compiler-names-n13-path-adapter-v1/proposal.patch",
+    "sha256": "e8e201887fcb2cbf96dd650c127d86c50f3c91dfe7163d778016c89f61fd10c5"
+  },
+  "path_delta": [
+    "Actual cut-head prefix owner joins, actual physical admission filename; no word-offset barrier stripping",
+    "Incoming optional globals retain exact parent allocation/cut; matches_producer and cache/reuse require that same request; all physical/ancestor currency remains independent",
+    "Inherited/region own RHS folding accepts only genuine Original source expressions evaluable without variable resolution; other writes withdraw path constants",
+    "Import map participates only when actual raw write vector is empty; existing barriers and unavailable scopes retained by fold",
+    "Inherited/region final variable reads require selected naming recipe Absolute qualification; no bare/local/root fallback",
+    "Conditional potential/Unknown edges can resolve only variable-free genuine original expressions, never word-offset variable fallback",
+    "Completed-child-to-region incoming advice remains absent; no effect/unchanged-cell absence proof"
+  ],
+  "captured_utc": "2026-10-22T23:27:42Z",
+  "current_apply_check": "PASS git apply --check on actual551aa, no application or source mutation",
+  "review_status": "Names bounded normalized c81dc5/full9ee04 review clear in examined fold/import/name-home/reuse seams; no whole-host/type/runtime approval",
+  "acceptance_controls_pending": [
+    "Meaningful actual incoming unknown namespace/local shadow negative",
+    "Intermediate variable-dependent own RHS negative with explicit absolute final reference",
+    "Completed-child return remains unavailable until authentic full selected effect/outcome receipt"
+  ]
+}

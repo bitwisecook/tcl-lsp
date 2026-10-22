@@ -2,69 +2,102 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T22:50:48Z (correctedruntime6 canonical archive4PASS2FAIL lossless/dedup complete; exactJim correction retained; C84boundary3/Jim1 plans frozenv3, noCargoqueue; product HOLD/docs CLEAR)
+Last updated: 2026-10-22T23:54:06Z (replacement shell verified; representative19 runnable protocol prepared off-tree only; compiler remaining33 sole window; product HOLD/docs CLEAR)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Completed runtime6 evidence was canonically archived at22:50:20Z, including
-raw test logs, artifact/refresh proofs, exact Jim assertion correction and full
-old/new source bytes. Identical6MB before/after inventories (SHA-256 `a0a72dd2`)
-share one lossless gzip with both logical paths recorded; decompression was
-verified. Original oldb37 raw receipts/source/executable remain untouched.
-Archive manifest is `decc0b89a33374203fb1f82c0d72449ceea5616481693d034c95b4926948e0c1`.
+Replacement vm-runtime shell recovered at23:54Z on active `daf77ef40` and
+verified frozen observer/full-TomMath5/shard3 roster hashes unchanged. No VM
+Cargo/queue, product edit or cleanup was performed. Compiler remaining33 owns
+the sole build window; host typing/probes precede any VM allocation.
 
-Separate guarded runtime boundary plans are frozen in
-`/tmp/vm-runtime-runtime-boundaries-v3/`: existing C84 boundary3 `ee6aa943`,
-optional Jim import1 `53f03321`, driver `4c3d524a`. Each future invocation obtains
-an actual current Cargo-owned artifact, including measured standalone target
-kind `[rlib, cdylib, staticlib]`, inside the whole source/provider/build/run guard.
-No direct old executable execution is planned. Optional Jim requires root to
-integrate diagnostic candidate `87824c4a` first; the actual same failing import
-assertion will report initial refusal, result and genuine full completion or
-capture error without changing its script/pass condition. All boundary-plan
-cases are unrun and no Cargo/lock is queued. Catch source triage identifies the
-existing C84 first-episode logger/global setter path, but has no proven product
-root cause or proposed production change yet.
+Representative19 runnable successor is frozen under
+`/tmp/vm-runtime-shard3-representatives-v2/`: plan `b17f0fcc`, driver
+`b7919d97`, recursive provider helper `a647bf86`. Evidence copies are in
+`vm-runtime/ci5205-shard3-triage/representatives19-protocol-v2/`.
+AST and unique exact19-case/12-target mapping checks passed. A disposable
+Python child that closes both pipes while remaining alive was stopped by the
+owned deadline with exit-2; deadline monitoring continues after pipe EOF.
+No acceptance driver, Cargo, provider capture, lock acquisition or Rust/Tcl test ran. Actual artifacts must
+come from that execution's Cargo JSON with exact manifest/target/kind/test
+identity; roster and byte seals are mandatory. The driver fixes inherited
+package-only case selection to exact package/target/kind, important because
+this roster spans multiple binaries within a package. Full source/fixtures,
+Tcl/Jim C headers/library/configuration, recursive compiler/proxy/shared-library
+providers and artifacts are captured before/after. Whole nonblocking global
+lock, jobs2/debug0/incremental0,180s exact selectors,20MiB aggregate logs and
+2GiB disk floor apply; typed/unexpected warnings stop the phase. No cleanup.
+The older CI all-features full-workspace dependency-unification limitation is
+retained; per-package all-features cannot prove equivalent unification.
+One representative PASS cannot close its family or the151 unsampled rows.
+CCG's preflight witness remains excluded/owned by CCG. Full-TomMath5 stays a
+separate phase requiring observer source application and explicit root GO.
 
-Corrected runtime6 closed/reaped at22:39:53Z with exact full source/provider
-comparison (35074 source entries), independent lock-free confirmation and
-actual artifact `5600ac5f`. Results: alias enumeration, both metadata-TLS controls
-and corrected OO callback-phase test PASS; catch8.4 and Jim import FAIL101.
-No timeout/abort occurred. Build had zero typed warnings and only the deliberate
-no-tommath notice; this is not a zero-warning gate or full-runtime claim.
-Completed logs/guards are in `vm-runtime/runs/corrected-runtime6-20261022T223953Z/`.
 
-Catch's original script returns guest CodeError with native refusal `None` and
-exact bytes `can't read "::errorCode": no such variable`. Original assertions
-remain unchanged. The Jim failure is the SAME import assertion in both oldb37
-and new5600 runs: `namespace eval dest {namespace import ::src::x}`. Archived
-old source/log identify7056, new7059 differs by three added diagnostic lines.
-Both initial namespace/proc setup assertions passed. The earlier report saying
-first setup failed was an attribution mistake and is explicitly superseded by
-`jim-exact-assertion-comparison.json`; raw logs/old receipts remain preserved.
-No Jim progress or first host-refusal cause is established. Compiler55 may use
-the released slot; VM has no additional Cargo queued. Narrow catch guest-state
-triage continues read-only/off-tree; general parity remains parked.
+Guarded C84 boundary3 closed at23:11:56Z with3/3 PASS; subsequent Jim import1
+closed at23:19:34Z with0/1 PASS. Both used authentic current Cargo-owned artifacts
+`a60b3a65`, source `ba02fd7035`, exact44795 source/3471 provider plus artifact
+postguards, isolated180-second deadlines and no cleanup/abort/timeout. No typed
+warnings occurred; both retained the intentional no-TomMath build notice, so
+neither is a zero-warning gate. No VM Cargo is active or queued. Root's later
+small3 source checkpoint is `551aa7d7`; compiler35 owns the next build window.
 
-Corrected runtime6 has explicit coordinator GO after TEMP3 closed at22:35:33Z.
-Mirror refresh completed at22:36:43Z, copying exactly the three current diagnostic/
-OO-phase test deltas and retaining the old `b37b2b51` executable plus all prior
-changed bytes. Frozen network-enabled driver `c1dd9389` is active under the whole
-global lock on its unique no-tommath target. Initial source/provider seal is
-captured and Cargo is active; no selector has run and final guards are pending.
-Compiler55 remains held until this command closes. Existing14/11/20 and VM71
-remain separate and unrun. No canonical product/provider/target cleanup occurs.
+The three passing C84 controls exercise genuine native-core/error observer
+paths, while the original failing catch test uses plain `Interp::new()` followed
+by the C8.4 runtime selection. Their success does not repair the original catch.
+Its exact actual guest failure remains `can't read "::errorCode": no such variable`,
+native refusal None. Existing episode/global publication path is being traced
+read-only; no product fix or weakened assertion is proposed.
 
-Root reports checkpoint `54daa7bc6` includes the authentic new-control fixture
-refinement `7651cdfa` and three small compile/guard fixes. Root's Core type check
-closed at22:17:32Z with0 errors and0 warnings on that checkpoint; this is a
-coordinator-reported result, not a VM test result. Compiler TEMP3/55 owns the
-next guarded execution. Docs are explicitly CLEAR; product/source/provider
-inputs remain frozen. No VM Cargo job is running or queued. All14 new VM
-controls,11 exact heavy baseline regressions,20 absent-baseline cases,
-corrected runtime6 and VM71 still require actual current-source execution.
+Jim's diagnostic preserves the exact import assertion and reports native refusal
+None, guest CodeError `invalid command name "if"`, with the full original
+NativeReturnOptions completion/error-info identifying `nshelper.tcl` line66.
+`cmd_control::install` explicitly omits if/while/for under the deliberately absent
+TomMath backend. This is ordinary bootstrap absence, not a nested lookup or
+Native authority defect. The test is absent from the baseline, so no named
+baseline-pass-to-fail claim applies to Jim1. Its assertion remains unchanged.
+Full-TomMath finite5 (Jim1, original catch, three C84 controls) is preparation
+only on a separate target, no queue. A later no-TomMath test-contract adjustment
+would need its documented contract plus a measured full-backend positive first.
+
+The actual baseline runtime job119956196088 (source `fcb7927f`) ran both declared
+flavors successfully: no-TomMath library655/655, full-backend753/753. Original
+catch8.4 is explicitly PASS in both; it is a confirmed release regression.
+Makefile documents no-TomMath as a no-expr/no-if fallback and full backend with
+engine enabled. No generic fallback or cfg-disable change has been applied.
+
+Lossless canonical archive is
+`vm-runtime/runs/runtime-boundaries-20261022T231934Z/`, manifest
+`bf14be0add0ba6f13e156f1e4ed655b577f6f0f04c4f6a4b12a18ef68b6acb51`:
+66 logical files in57 content-addressed blobs, including all final guards/logs,
+frozen protocol, exact source snapshots and full baseline log. Shared bytes are
+deduplicated; compressed bytes were round-trip verified. Original `/tmp` logs,
+old executable generations and historical receipts remain untouched.
+
+Earlier corrected runtime6 closed22:39:53Z with4 PASS/2 FAIL: alias, both metadata
+TLS controls and corrected OO callback phase PASS; original catch and Jim import
+FAIL. Its canonical lossless archive remains
+`vm-runtime/runs/corrected-runtime6-20261022T223953Z/`, manifest `decc0b89`.
+The exact old/new Jim comparison corrects the previous attribution mistake:
+both oldb37 and5600 failed the SAME import assertion, line7056→7059 from added
+earlier diagnostic lines. Both initial namespace/proc setup assertions passed;
+there is no Jim progress claim from line shifts. Raw superseded receipts remain.
+
+Older CI5205 shard3 adds171 exact owned baseline-pass/current-fail rows:
+VM142+CLI1+hooks12+studio1+SpectCl2+cshim13. Those are older source `2b934`
+observations, not current-source results;22 unmatched rows remain separate
+unknowns across owners. No huge142 rerun is planned. Actual preflight error has
+four possible artifact-admission predicates, so87 raw NativePreflightRequired
+cases do not by themselves prove a missing installer or require_provider call.
+CCG owns a bounded opt-in first-decline diagnostic; VM static review found no
+predicate/return/authority change, with typing/execution unmeasured.
+
+Existing14 new VM controls,11 exact heavy baseline regressions,20 baseline-absent
+heavy controls, VM71/SpecTcl acceptance and stack3 remain separate and unrun.
+General parity is parked; actual named baseline regressions remain release gaps.
+No full runtime/SectionF/zero-warning/zero-pass-to-fail closure is claimed.
 
 A separate immutable native-stack plan is ready at
 `/tmp/vm-runtime-stack3-acceptance/`: pre-lint plan `19a3840a`, post-lint plan

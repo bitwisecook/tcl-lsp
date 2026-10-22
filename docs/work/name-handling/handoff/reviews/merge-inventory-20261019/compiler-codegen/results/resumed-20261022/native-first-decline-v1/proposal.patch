@@ -1,0 +1,148 @@
+--- a/rust/tcl-bytecode/src/lib.rs
++++ b/rust/tcl-bytecode/src/lib.rs
+@@ -2627,6 +2627,7 @@
+             NativeCompilationAdmissionError as Error, NativeCompilationPreflight,
+         };
+         if self.native_compilation_preflight != NativeCompilationPreflight::NotRequired {
++            self.report_native_admission_decline("preflight_flag");
+             return Err(Error::NativePreflightRequired);
+         }
+         if self
+@@ -2634,6 +2635,7 @@
+             .iter()
+             .any(|required| required.guard() != tcl_runtime_api::CommandBindingGuard::ChunkEntry)
+         {
++            self.report_native_admission_decline("compiler_prerequisite_guard");
+             return Err(Error::NativePreflightRequired);
+         }
+         if self
+@@ -2641,9 +2643,11 @@
+             .as_ref()
+             .is_some_and(|error| error.error_info_for_procedure(Some(&self.name)).is_none())
+         {
++            self.report_native_admission_decline("invalid_error_presentation");
+             return Err(Error::InvalidErrorPresentation);
+         }
+         if !self.native_operation_sites_valid() || !self.native_fixed_math_calls_valid() {
++            self.report_native_admission_decline("native_operation_or_fixed_math");
+             return Err(Error::NativePreflightRequired);
+         }
+         if self.instructions.iter().any(|instruction| {
+@@ -2652,9 +2656,25 @@
+                 .as_ref()
+                 .is_some_and(|context| context.path() != &instruction.source_command_namespace)
+         }) {
++            self.report_native_admission_decline("source_namespace_context");
+             return Err(Error::NativePreflightRequired);
+         }
+         Ok(())
++    }
++    fn report_native_admission_decline(&self, predicate: &str) {
++        if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() != Ok("first-decline-v1")
++        {
++            return;
++        }
++        eprintln!(
++            "\nZZ_NATIVE_ADMISSION_DECLINE predicate={predicate} preflight={:?} prerequisites={} instructions={} procedure_body={} failure={} math_prerequisite={}",
++            self.native_compilation_preflight,
++            self.native_compiler_prerequisites.len(),
++            self.instructions.len(),
++            self.proc_body_src.is_some(),
++            self.native_compilation_failure.is_some(),
++            self.native_math_table_prerequisite.is_some(),
++        );
+     }
+     fn native_fixed_math_calls_valid(&self) -> bool {
+         use tcl_runtime_api::native_compilation::NativeMathFunctionResolution;
+--- a/rust/tcl-compiler/src/compile_service.rs
++++ b/rust/tcl-compiler/src/compile_service.rs
+@@ -93,6 +93,33 @@
+     function
+         .validate_native_compilation_entry()
+         .map_err(CompileError::NativeCompilationAdmission)
++}
++
++fn report_native_admission_input(
++    kind: &str,
++    function: &tcl_bytecode::FunctionAsm,
++    entry: Option<&tcl_runtime_api::NativeCompilationEntry>,
++    profile: &'static DialectProfile,
++    source_len: usize,
++) {
++    if std::env::var("TCL_LSP_NATIVE_ADMISSION_DIAGNOSTIC").as_deref() != Ok("first-decline-v1")
++    {
++        return;
++    }
++    eprintln!(
++        "\nZZ_NATIVE_ADMISSION_INPUT kind={kind} source_len={source_len} entry={} profile_matches={:?} physical_point={} logical_policy={} closed={:?} frame={:?} current_namespace={:?} namespaces={:?} preflight={:?} instructions={} procedure_body={}",
++        entry.is_some(),
++        entry.map(|entry| entry.profile == profile.cache_key()),
++        entry.is_some_and(|entry| entry.execution_point.is_some()),
++        entry.is_some_and(|entry| entry.invocation_policy.is_some()),
++        entry.map(|entry| entry.closed),
++        entry.map(|entry| entry.frame),
++        entry.map(|entry| entry.current_namespace),
++        entry.map(|entry| entry.namespaces.len()),
++        function.native_compilation_preflight,
++        function.instructions.len(),
++        function.proc_body_src.is_some(),
++    );
+ }
+ 
+ enum RegistryTarget {
+@@ -432,6 +459,13 @@
+             module.profile = carried;
+             module.manifest = Some(Arc::new(crate::codegen::emitter::module_manifest(&module)));
+         }
++        report_native_admission_input(
++            "script_text",
++            &module.top_level,
++            policy.entry,
++            module.profile,
++            target.source.len(),
++        );
+         validate_native_function(&module.top_level)?;
+         Ok(module)
+     }
+@@ -596,6 +630,13 @@
+             ModuleEmissionScope::EnteredSource,
+         )?;
+         module.profile = profile;
++        report_native_admission_input(
++            "procedure_text",
++            &module.top_level_body,
++            native_entry,
++            profile,
++            target.source.len(),
++        );
+         validate_native_function(&module.top_level_body)?;
+         Ok(module)
+     }
+@@ -639,6 +680,13 @@
+             ModuleEmissionScope::EnteredSource,
+         )?;
+         module.profile = profile;
++        report_native_admission_input(
++            "script_bytes",
++            &module.top_level,
++            entry,
++            profile,
++            target.source.len(),
++        );
+         validate_native_function(&module.top_level)?;
+         Ok(module)
+     }
+@@ -684,6 +732,13 @@
+             ModuleEmissionScope::EnteredSource,
+         )?;
+         module.profile = profile;
++        report_native_admission_input(
++            "procedure_bytes",
++            &module.top_level_body,
++            entry,
++            profile,
++            target.source.len(),
++        );
+         validate_native_function(&module.top_level_body)?;
+         Ok(module)
+     }

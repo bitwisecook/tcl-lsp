@@ -1,0 +1,106 @@
+--- a/rust/tcl-compiler/src/cfg_builder/mod.rs
++++ b/rust/tcl-compiler/src/cfg_builder/mod.rs
+@@ -972,6 +972,30 @@
+         }
+     }
+ 
++    fn is_source_bpf_command(&self, stmt: &Statement) -> bool {
++        let (args, tokens) = match stmt {
++            Statement::Call {
++                args,
++                tokens: Some(tokens),
++                ..
++            }
++            | Statement::Barrier {
++                args,
++                tokens: Some(tokens),
++                ..
++            } => (args, tokens),
++            _ => return false,
++        };
++        tokens.source_bpf_command.as_ref().is_some_and(|receipt| {
++            self.source_bpf_commands.contains(receipt)
++                && receipt
++                    .descriptor(tokens, args, self.registry)
++                    .flatten()
++                    .and_then(|spec| spec.bpf_op)
++                    .is_some()
++        })
++    }
++
+     /// Augment a statement's effective `defs` with caller-side
+     /// variable names that any callee proc will modify via `upvar`.
+     /// Returns a list of statements — the original (possibly with
+@@ -997,30 +1021,6 @@
+     /// `upvar #0`, see [`global_write_info`]) — a global name doesn't
+     /// depend on call-site arguments, so no params-based mapping is
+     /// needed, just the literal name list.
+-    fn is_source_bpf_command(&self, stmt: &Statement) -> bool {
+-        let (args, tokens) = match stmt {
+-            Statement::Call {
+-                args,
+-                tokens: Some(tokens),
+-                ..
+-            }
+-            | Statement::Barrier {
+-                args,
+-                tokens: Some(tokens),
+-                ..
+-            } => (args, tokens),
+-            _ => return false,
+-        };
+-        tokens.source_bpf_command.as_ref().is_some_and(|receipt| {
+-            self.source_bpf_commands.contains(receipt)
+-                && receipt
+-                    .descriptor(tokens, args, self.registry)
+-                    .flatten()
+-                    .and_then(|spec| spec.bpf_op)
+-                    .is_some()
+-        })
+-    }
+-
+     fn apply_upvar_invalidation(&mut self, stmt: Statement) -> Vec<Statement> {
+         // A selected closed-DSL operation is lowered by its typed descriptor;
+         // it is not a possible Tcl procedure call with missing summaries.
+@@ -4114,7 +4114,10 @@
+                     let receipt = tokens.source_bpf_command.as_ref()?;
+                     receipt.descriptor(tokens, args, registry)??.bpf_op?;
+                     if let Some(words) = receipt.original_words(tokens, args, registry)
+-                        && words.iter().any(|word| word.image() != &module.source)
++                        && words.iter().any(|word| {
++                            word.image() != &module.source
++                                || word.config() != module.native_lexer_config()
++                        })
+                     {
+                         return None;
+                     }
+@@ -8571,6 +8574,29 @@
+                 if tokens.source_bpf_command.is_some() && tokens.synthetic.is_none())
+                 })
+         );
++        let mut mismatched = script.clone();
++        let Statement::Call {
++            args,
++            tokens: Some(tokens),
++            ..
++        } = &mut mismatched.statements[0]
++        else {
++            unreachable!()
++        };
++        let mut different_config = config;
++        different_config.strict_quoting = !different_config.strict_quoting;
++        assert!(tokens.install_source_bpf_command(
++            module.source.clone(),
++            Span::new(0, 4),
++            different_config,
++            tcl_lexer::SourceSegmentationPurpose::WholeInput,
++            args,
++            registry,
++        ));
++        assert!(
++            build_source_bpf_cfg_function("label", &mismatched, &module, &context, registry)
++                .is_none()
++        );
+         let mut missing = script.clone();
+         let Statement::Call { tokens, .. } = &mut missing.statements[0] else {
+             unreachable!()

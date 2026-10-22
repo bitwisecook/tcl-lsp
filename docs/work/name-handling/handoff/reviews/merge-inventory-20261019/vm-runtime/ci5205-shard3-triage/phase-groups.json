@@ -1,0 +1,2760 @@
+{
+  "utc": "2026-10-22T23:13:14.738730+00:00",
+  "scope": "158 exact baselinePASS/currentFAIL owned entries on olderCI5205 source only; no current run/pass/repair claim",
+  "raw_log_sha256": "278aff271a8b44ec5def7e6180349d64e1d5e7e7916dd76a2a5f9678a79c9c45",
+  "join_sha256": "b03734d3c887fc1f09e4dc054881bf8bfde96edb34e9e1800e8bad9385140d1d",
+  "count": 158,
+  "groups": {
+    "hook-answer-mismatch-without-host-cause": 12,
+    "spec-studio-ported-versus-shipped-contract-diff": 1,
+    "pack-origin-dependency-authority-refusal": 1,
+    "pack-warm-cache-population-contract": 1,
+    "assertion-mismatch-needs-bounded-triage": 23,
+    "other-first-failure-needs-bounded-triage": 11,
+    "original-object-currentness-refusal": 2,
+    "OO-parent-namespace-store-failure": 6,
+    "external-exact-oracle-missing": 4,
+    "original-compound-string-updater-unavailable": 10,
+    "typed-NativePreflightRequired-first-artifact-predicate-unmeasured": 87
+  },
+  "package_groups": {
+    "tcl-spec-hooks": {
+      "hook-answer-mismatch-without-host-cause": 12
+    },
+    "tcl-spec-studio": {
+      "spec-studio-ported-versus-shipped-contract-diff": 1
+    },
+    "tcl-spectcl": {
+      "pack-origin-dependency-authority-refusal": 1,
+      "pack-warm-cache-population-contract": 1
+    },
+    "tcl-vm": {
+      "native-compiler-preflight-provider-required": 87,
+      "assertion-mismatch-needs-bounded-triage": 22,
+      "other-first-failure-needs-bounded-triage": 11,
+      "original-object-currentness-refusal": 2,
+      "OO-parent-namespace-store-failure": 6,
+      "external-exact-oracle-missing": 4,
+      "original-compound-string-updater-unavailable": 10
+    },
+    "tcl-vm-cli": {
+      "assertion-mismatch-needs-bounded-triage": 1
+    }
+  },
+  "rows": [
+    {
+      "key": {
+        "binary_id": "tcl-spec-hooks::containment_e2e",
+        "selector": "a_body_with_a_global_counter_answers_identically_on_every_call"
+      },
+      "package": "tcl-spec-hooks",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "hook-answer-mismatch-without-host-cause",
+      "header_LF_line": 28320,
+      "status": "FAIL",
+      "binary": "tcl-spec-hooks::containment_e2e",
+      "selector": "a_body_with_a_global_counter_answers_identically_on_every_call",
+      "first_panic": "thread 'a_body_with_a_global_counter_answers_identically_on_every_call' (22486) panicked at rust/tcl-spec-hooks/tests/containment_e2e.rs:267:9:\n    assertion `left == right` failed\n      left: Fold(\"1\")\n     right: Abstain",
+      "first_panic_site": "rust/tcl-spec-hooks/tests/containment_e2e.rs:267:9:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spec-hooks::containment_e2e",
+        "selector": "a_declared_budget_above_the_hosts_runs_under_the_hosts"
+      },
+      "package": "tcl-spec-hooks",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "hook-answer-mismatch-without-host-cause",
+      "header_LF_line": 28282,
+      "status": "FAIL",
+      "binary": "tcl-spec-hooks::containment_e2e",
+      "selector": "a_declared_budget_above_the_hosts_runs_under_the_hosts",
+      "first_panic": "thread 'a_declared_budget_above_the_hosts_runs_under_the_hosts' (22492) panicked at rust/tcl-spec-hooks/tests/containment_e2e.rs:553:5:\n    assertion `left == right` failed: []\n      left: 0\n     right: 1",
+      "first_panic_site": "rust/tcl-spec-hooks/tests/containment_e2e.rs:553:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spec-hooks::containment_e2e",
+        "selector": "a_declared_budget_narrows_the_host_for_its_call_only"
+      },
+      "package": "tcl-spec-hooks",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "hook-answer-mismatch-without-host-cause",
+      "header_LF_line": 28364,
+      "status": "FAIL",
+      "binary": "tcl-spec-hooks::containment_e2e",
+      "selector": "a_declared_budget_narrows_the_host_for_its_call_only",
+      "first_panic": "thread 'a_declared_budget_narrows_the_host_for_its_call_only' (22495) panicked at rust/tcl-spec-hooks/tests/containment_e2e.rs:498:5:\n    an overrun quarantines",
+      "first_panic_site": "rust/tcl-spec-hooks/tests/containment_e2e.rs:498:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spec-hooks::containment_e2e",
+        "selector": "the_generator_is_refused_under_every_pinned_release"
+      },
+      "package": "tcl-spec-hooks",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "hook-answer-mismatch-without-host-cause",
+      "header_LF_line": 28396,
+      "status": "FAIL",
+      "binary": "tcl-spec-hooks::containment_e2e",
+      "selector": "the_generator_is_refused_under_every_pinned_release",
+      "first_panic": "thread 'the_generator_is_refused_under_every_pinned_release' (22508) panicked at rust/tcl-spec-hooks/tests/containment_e2e.rs:336:9:\n    assertion `left == right` failed: tcl8.4: abs\n      left: Abstain\n     right: Fold(\"1\")",
+      "first_panic_site": "rust/tcl-spec-hooks/tests/containment_e2e.rs:336:9:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spec-hooks::families_e2e",
+        "selector": "a_literal_validator_sees_kinds_and_reports_a_typed_issue::runtime"
+      },
+      "package": "tcl-spec-hooks",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "hook-answer-mismatch-without-host-cause",
+      "header_LF_line": 28441,
+      "status": "FAIL",
+      "binary": "tcl-spec-hooks::families_e2e",
+      "selector": "a_literal_validator_sees_kinds_and_reports_a_typed_issue::runtime",
+      "first_panic": "thread 'a_literal_validator_sees_kinds_and_reports_a_typed_issue::runtime' (22528) panicked at rust/tcl-spec-hooks/tests/families_e2e.rs:314:13:\n    the body reports an invalid member",
+      "first_panic_site": "rust/tcl-spec-hooks/tests/families_e2e.rs:314:13:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spec-hooks::families_e2e",
+        "selector": "a_release_pinned_hook_runs_under_the_calls_release::runtime"
+      },
+      "package": "tcl-spec-hooks",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "hook-answer-mismatch-without-host-cause",
+      "header_LF_line": 28520,
+      "status": "FAIL",
+      "binary": "tcl-spec-hooks::families_e2e",
+      "selector": "a_release_pinned_hook_runs_under_the_calls_release::runtime",
+      "first_panic": "thread 'a_release_pinned_hook_runs_under_the_calls_release::runtime' (22532) panicked at rust/tcl-spec-hooks/tests/families_e2e.rs:239:13:\n    assertion `left == right` failed: Some(\"f5-irules\")\n      left: None\n     right: Some(\"8\")",
+      "first_panic_site": "rust/tcl-spec-hooks/tests/families_e2e.rs:239:13:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spec-hooks::families_e2e",
+        "selector": "a_release_pinned_hook_runs_under_the_calls_release::tclvm"
+      },
+      "package": "tcl-spec-hooks",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "hook-answer-mismatch-without-host-cause",
+      "header_LF_line": 28477,
+      "status": "FAIL",
+      "binary": "tcl-spec-hooks::families_e2e",
+      "selector": "a_release_pinned_hook_runs_under_the_calls_release::tclvm",
+      "first_panic": "thread 'a_release_pinned_hook_runs_under_the_calls_release::tclvm' (22534) panicked at rust/tcl-spec-hooks/tests/families_e2e.rs:239:13:\n    assertion `left == right` failed: Some(\"tcl8.6\")\n      left: None\n     right: Some(\"8\")",
+      "first_panic_site": "rust/tcl-spec-hooks/tests/families_e2e.rs:239:13:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spec-hooks::families_e2e",
+        "selector": "a_silent_target_declines_the_whole_answer::tclvm"
+      },
+      "package": "tcl-spec-hooks",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "hook-answer-mismatch-without-host-cause",
+      "header_LF_line": 28561,
+      "status": "FAIL",
+      "binary": "tcl-spec-hooks::families_e2e",
+      "selector": "a_silent_target_declines_the_whole_answer::tclvm",
+      "first_panic": "thread 'a_silent_target_declines_the_whole_answer::tclvm' (22545) panicked at rust/tcl-spec-hooks/tests/families_e2e.rs:625:9:\n    assertion `left == right` failed\n      left: Abstain\n     right: Evaluation(EvaluationAnswer { result: Some(\"1\"), stores: [(1, Some(\"x\")), (2, None)] })",
+      "first_panic_site": "rust/tcl-spec-hooks/tests/families_e2e.rs:625:9:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spec-hooks::families_e2e",
+        "selector": "a_state_transition_body_emits_alias_facts_only::runtime"
+      },
+      "package": "tcl-spec-hooks",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "hook-answer-mismatch-without-host-cause",
+      "header_LF_line": 28601,
+      "status": "FAIL",
+      "binary": "tcl-spec-hooks::families_e2e",
+      "selector": "a_state_transition_body_emits_alias_facts_only::runtime",
+      "first_panic": "thread 'a_state_transition_body_emits_alias_facts_only::runtime' (22547) panicked at rust/tcl-spec-hooks/tests/families_e2e.rs:726:9:\n    assertion `left == right` failed\n      left: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: \"sum\", argument_index: 2 }, target: CallerSelectedFrame { frame: Explicit(LocatedLiteral { value: \"#0\", argument_index: 0 }), variable: LocatedLiteral { value: \"total\", argument_index: 1 } }, writes_value: false, words: AliasWords { local: 2, target: 1 } })\n     right: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: Literal(\"sum\"), target: CallerSelectedFrame { frame: Explicit(Literal(\"#0\")), variable: Literal(\"total\") }, writes_value: false, words: AliasWords { local: 2, target: 1 } })",
+      "first_panic_site": "rust/tcl-spec-hooks/tests/families_e2e.rs:726:9:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spec-hooks::families_e2e",
+        "selector": "a_state_transition_body_emits_alias_facts_only::tclvm"
+      },
+      "package": "tcl-spec-hooks",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "hook-answer-mismatch-without-host-cause",
+      "header_LF_line": 28642,
+      "status": "FAIL",
+      "binary": "tcl-spec-hooks::families_e2e",
+      "selector": "a_state_transition_body_emits_alias_facts_only::tclvm",
+      "first_panic": "thread 'a_state_transition_body_emits_alias_facts_only::tclvm' (22550) panicked at rust/tcl-spec-hooks/tests/families_e2e.rs:726:9:\n    assertion `left == right` failed\n      left: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: LocatedLiteral { value: \"sum\", argument_index: 2 }, target: CallerSelectedFrame { frame: Explicit(LocatedLiteral { value: \"#0\", argument_index: 0 }), variable: LocatedLiteral { value: \"total\", argument_index: 1 } }, writes_value: false, words: AliasWords { local: 2, target: 1 } })\n     right: VariableCellAlias(VariableCellAliasTransition { destination: CurrentNamespaceOrLocal, local: Literal(\"sum\"), target: CallerSelectedFrame { frame: Explicit(Literal(\"#0\")), variable: Literal(\"total\") }, writes_value: false, words: AliasWords { local: 2, target: 1 } })",
+      "first_panic_site": "rust/tcl-spec-hooks/tests/families_e2e.rs:726:9:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spec-hooks::families_e2e",
+        "selector": "an_option_arity_hook_reads_its_option_keys_and_consumes::tclvm"
+      },
+      "package": "tcl-spec-hooks",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "hook-answer-mismatch-without-host-cause",
+      "header_LF_line": 28690,
+      "status": "FAIL",
+      "binary": "tcl-spec-hooks::families_e2e",
+      "selector": "an_option_arity_hook_reads_its_option_keys_and_consumes::tclvm",
+      "first_panic": "thread 'an_option_arity_hook_reads_its_option_keys_and_consumes::tclvm' (22571) panicked at rust/tcl-spec-hooks/tests/families_e2e.rs:375:9:\n    assertion `left == right` failed: consume 0 is a report, not an abstention\n      left: 1\n     right: 0",
+      "first_panic_site": "rust/tcl-spec-hooks/tests/families_e2e.rs:375:9:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spec-hooks::families_e2e",
+        "selector": "command_prefix_resolver_emits_positions_and_appended_arity::runtime"
+      },
+      "package": "tcl-spec-hooks",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "hook-answer-mismatch-without-host-cause",
+      "header_LF_line": 28733,
+      "status": "FAIL",
+      "binary": "tcl-spec-hooks::families_e2e",
+      "selector": "command_prefix_resolver_emits_positions_and_appended_arity::runtime",
+      "first_panic": "thread 'command_prefix_resolver_emits_positions_and_appended_arity::runtime' (22582) panicked at rust/tcl-spec-hooks/tests/families_e2e.rs:135:9:\n    assertion `left == right` failed\n      left: []\n     right: [(2, Exactly(4))]",
+      "first_panic_site": "rust/tcl-spec-hooks/tests/families_e2e.rs:135:9:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spec-studio::spectcl_ports",
+        "selector": "every_port_loads_and_matches_its_shipped_spec"
+      },
+      "package": "tcl-spec-studio",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "spec-studio-ported-versus-shipped-contract-diff",
+      "header_LF_line": 28789,
+      "status": "FAIL",
+      "binary": "tcl-spec-studio::spectcl_ports",
+      "selector": "every_port_loads_and_matches_its_shipped_spec",
+      "first_panic": "thread 'every_port_loads_and_matches_its_shipped_spec' (22613) panicked at rust/tcl-spec-studio/tests/spectcl_ports.rs:550:5:\n    assertion `left == right` failed: undocumented draft differences:\n\n    === lsort.tclspec \u2014 pack `tcl` v2.1 (1 command(s), 0 notice(s))\n      lsort @ tcl9.1: 1 differing field(s)\n        [documented] __unrenderable\n            ported : []\n            shipped: [\"native_compilation\"]\n            reason : the shipped spec carries a `native_compilation` recipe (its native compileProc registration), which SpecTcl has no surface for; the port does not transcribe it\n\n    === foreach.tclspec \u2014 pack `tcl` v2.1 (1 command(s), 1 notice(s))\n        notice: command foreach:54: names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it\n      foreach @ tcl9.1: 2 differing field(s)\n        [documented] successful_handler\n            ported : null\n            shipped: \"Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::PossibleBodies)\"\n            reason : the shipped spec's `successful_handler` engine contract, which a pack may not author for strong analysis (see `SUCCESSFUL_HANDLER`); the port does not transcribe it\n        [documented] __unrenderable\n            ported : [\"arg_role_count_resolver\"]\n            shipped: [\"arg_role_count_resolver\",\"native_compilation\"]\n            reason : the shipped spec declares its value-transfer `semantics` (the explicit iteration declaration of `docs/design/compiler/value-transfers.md`); the port does not transcribe it, so it stays on the unrenderable list. Every field the port does carry matches\n\n    === switch.tclspec \u2014 pack `tcl` v2.1 (1 command(s), 1 notice(s))\n        notice: command switch:51: names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it\n      switch @ tcl9.1: 2 differing field(s)\n        [documented] successful_handler\n            ported : null\n            shipped: \"Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::PossibleBodies)\"\n            reason : the shipped spec's `successful_handler` engine contract, which a pack may not author for strong analysis (see `SUCCESSFUL_HANDLER`); the port does not transcribe it\n        [documented] __unrenderable\n            ported : [\"arg_role_resolver\",\"case_list\"]\n            shipped: [\"arg_role_resolver\",\"native_compilation\",\"case_list\"]\n            reason : the shipped spec carries a `native_compilation` recipe (its native compileProc registration), which SpecTcl has no surface for; the port does not transcribe it\n\n    === if.tclspec \u2014 pack `tcl` v2.1 (1 command(s), 1 notice(s))\n        notice: command if:47: names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it\n      if @ tcl9.1: 2 differing field(s)\n        [documented] successful_handler\n            ported : null\n            shipped: \"Some(tcl_registry::native_compilation::SuccessfulHandlerSpec::PossibleBodies)\"\n            reason : the shipped spec's `successful_handler` engine contract, which a pack may not author for strong analysis (see `SUCCESSFUL_HANDLER`); the port does not transcribe it\n        [documented] __unrenderable\n            ported : []\n            shipped: [\"arg_role_layout_resolver\",\"bpf_op\",\"native_lowering\",\"clause_shape_check\",\"native_compilation\"]\n            reason : the shipped spec carries the compiler-owned `native_lowering` descriptor (the native-tier shape stamped beside the lowering hook); SpecTcl has no surface for it, so it stays on the unrenderable list and the port does not transcribe it. Every field the port does carry matches\n\n    === upvar.tclspec \u2014 pack `tcl` v1.1 (1 command(s), 1 notice(s))\n        notice: command upvar:49: names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it\n      upvar @ tcl9.1: 1 differing field(s)\n        [documented] __unrenderable\n            ported : [\"frame_effect\",\"world_effects\",\"state_transitions\"]\n            shipped: [\"frame_effect\",\"native_lowering\",\"completion\",\"world_effects\",\"state_transitions\",\"native_result\",\"native_compilation\"]\n            reason : the shipped spec carries the compiler-owned `native_lowering` descriptor (the native-tier shape stamped beside the lowering hook); SpecTcl has no surface for it, so it stays on the unrenderable list and the port does not transcribe it. Every field the port does carry matches\n\n    === geturl.tclspec \u2014 pack `tcl` v2.0 (2 command(s), 0 notice(s))\n      uri::geturl @ tcl9.1: 1 differing field(s)\n        [documented] surface\n            ported : null\n            shipped: [\"tcl8.5\",\"tcl8.6\",\"tcl9.0\",\"tcl9.1\"]\n            reason : the port is faithful to the `.rs` (`surface: None`), but the shipped registry states a tcllib command's surface at REGISTRATION time \u2014 `tcllib_command_specs` gives every tcllib command the Tcl core rows its modules need, since a tcllib module is a `package require` away and the F5 embedded surfaces have none. A pack loader installing into a registry would apply the same blanket rule; the spec field itself matches\n      http::geturl @ tcl9.1: 0 differing field(s)\n\n    === irules-http-header.tclspec \u2014 pack `f5-irules` v1.1 (1 command(s), 0 notice(s))\n      HTTP::header @ f5-irules: 3 differing field(s)\n        [documented] traits\n            ported : [\"PURE\",\"CSE_CANDIDATE\",\"DIAGRAM_ACTION\"]\n            shipped: [\"PURE\",\"CSE_CANDIDATE\",\"REQUIRES_HTTP_CONTEXT\",\"DIAGRAM_ACTION\"]\n            reason : the shipped registry adds REQUIRES_HTTP_CONTEXT at registration (irules/mod.rs's http_context() wrapper over IRULES_SPECS \u2014 pack-level curation, the IRULE1201 source of truth), not in the spec literal. The port is faithful to the .rs; a pack loader installing into the iRules registry applies the same wrapper policy, exactly like the tcllib dialect fill above\n        [documented] subcommands[value].successful_handler\n            por",
+      "first_panic_site": "rust/tcl-spec-studio/tests/spectcl_ports.rs:550:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spectcl::workspace_packs",
+        "selector": "a_manifest_that_places_nothing_does_not_lift_its_pack"
+      },
+      "package": "tcl-spectcl",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "pack-origin-dependency-authority-refusal",
+      "header_LF_line": 29166,
+      "status": "FAIL",
+      "binary": "tcl-spectcl::workspace_packs",
+      "selector": "a_manifest_that_places_nothing_does_not_lift_its_pack",
+      "first_panic": "thread 'a_manifest_that_places_nothing_does_not_lift_its_pack' (22738) panicked at rust/tcl-spectcl/tests/workspace_packs.rs:649:28:\n    `direct::unpack` loads: [\n        PackNotice {\n            path: \"/tmp/tcl-spectcl-workspace-capability-unplaced-22737-ThreadId(2)/lib/deep-1.0.0/deep.tclspec\",\n            line: 2,\n            context: \"command deep::unpack\",\n            message: \"`alias_of lassign` refused for `deep::unpack`: a transitive dependency's pack may not declare `alias_of`; only the workspace's own package and its direct dependencies may\",\n            severity: Warning,\n            subject: None,\n        },\n        PackNotice {\n            path: \"/tmp/tcl-spectcl-workspace-capability-unplaced-22737-ThreadId(2)/lib/deep-1.0.0/deep.tclspec\",\n            line: 2,\n            context: \"command deep::unpack\",\n            message: \"`codegen_hook Lassign` refused for `deep::unpack`: a trusted workspace pack may not name a codegen catalogue member; only a bundled pack may carry `alias_of lassign`'s own stamp\",\n            severity: Warning,\n            subject: None,\n        },\n        PackNotice {\n            path: \"/tmp/tcl-spectcl-workspace-capability-unplaced-22737-ThreadId(2)/lib/deep-1.0.0/deep.tclspec\",\n            line: 2,\n            context: \"command deep::unpack\",\n            message: \"`runtime_backing shipped-builtin lassign` refused for `deep::unpack`: a transitive dependency's pack may not declare a `runtime_backing`; only the workspace's own package and its direct dependencies may\",\n            severity: Warning,\n            subject: None,\n        },\n        PackNotice {\n            path: \"/tmp/tcl-spectcl-workspace-capability-unplaced-22737-ThreadId(2)/lib/devdep-1.0.0/devdep.tclspec\",\n            line: 2,\n            context: \"command devdep::unpack\",\n            message: \"`alias_of lassign` refused for `devdep::unpack`: a development dependency's pack may not declare `alias_of`; only the workspace's own package and its direct dependencies may\",\n            severity: Warning,\n            subject: None,\n        },\n        PackNotice {\n            path: \"/tmp/tcl-spectcl-workspace-capability-unplaced-22737-ThreadId(2)/lib/devdep-1.0.0/devdep.tclspec\",\n            line: 2,\n            context: \"command devdep::unpack\",\n            message: \"`codegen_hook Lassign` refused for `devdep::unpack`: a trusted workspace pack may not name a codegen catalogue member; only a bundled pack may carry `alias_of lassign`'s own stamp\",\n            severity: Warning,\n            subject: None,\n        },\n        PackNotice {\n            path: \"/tmp/tcl-spectcl-workspace-capability-unplaced-22737-ThreadId(2)/lib/devdep-1.0.0/devdep.tclspec\",\n            line: 2,\n            context: \"command devdep::unpack\",\n            message: \"`runtime_backing shipped-builtin lassign` refused for `devdep::unpack`: a development dependency's pack may not declare a `runtime_backing`; only the workspace's own package and its direct dependencies may\",\n            severity: Warning,\n            subject: None,\n        },\n        PackNotice {\n            path: \"/tmp/tcl-spectcl-workspace-capability-unplaced-22737-ThreadId(2)/myapp.tclspec\",\n            line: 2,\n            context: \"command myapp::unpack\",\n            message: \"`codegen_hook Lassign` refused for `myapp::unpack`: a trusted workspace pack may not name a codegen catalogue member; only a bundled pack may carry `alias_of lassign`'s own stamp\",\n            severity: Warning,\n            subject: None,\n        },\n    ]",
+      "first_panic_site": "rust/tcl-spectcl/tests/workspace_packs.rs:649:28:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-spectcl::workspace_packs",
+        "selector": "a_warm_cache_produces_the_identical_load"
+      },
+      "package": "tcl-spectcl",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "pack-warm-cache-population-contract",
+      "header_LF_line": 29267,
+      "status": "FAIL",
+      "binary": "tcl-spectcl::workspace_packs",
+      "selector": "a_warm_cache_produces_the_identical_load",
+      "first_panic": "thread 'a_warm_cache_produces_the_identical_load' (22751) panicked at rust/tcl-spectcl/tests/workspace_packs.rs:218:5:\n    a cold load populated the cache directory",
+      "first_panic_site": "rust/tcl-spectcl/tests/workspace_packs.rs:218:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm-cli::script_errors",
+        "selector": "a_nested_error_logs_each_level_the_release_evaluates"
+      },
+      "package": "tcl-vm-cli",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 40692,
+      "status": "FAIL",
+      "binary": "tcl-vm-cli::script_errors",
+      "selector": "a_nested_error_logs_each_level_the_release_evaluates",
+      "first_panic": "thread 'a_nested_error_logs_each_level_the_release_evaluates' (26612) panicked at rust/tcl-vm-cli/tests/script_errors.rs:381:17:\n    assertion `left == right` failed: 8.5: proc p {} {error boom}\n    set w [expr {[p]}]\n\n      left: (\"\", \"boom\\n    while executing\\n\\\"error boom\\\"\\n    (procedure \\\"p\\\" line 1)\\n    invoked from within\\n\\\"p\\\"\\n    (file \\\"PATH\\\" line 2)\\n\", true)\n     right: (\"\", \"boom\\n    while executing\\n\\\"error boom\\\"\\n    (procedure \\\"p\\\" line 1)\\n    invoked from within\\n\\\"p\\\"\\n    invoked from within\\n\\\"expr {[p]}\\\"\\n    invoked from within\\n\\\"set w [expr {[p]}]\\\"\\n    (file \\\"PATH\\\" line 2)\\n\", true)",
+      "first_panic_site": "rust/tcl-vm-cli/tests/script_errors.rs:381:17:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::c_error_paths_e2e",
+        "selector": "error_stack_inner_names_the_failing_instruction"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30276,
+      "status": "FAIL",
+      "binary": "tcl-vm::c_error_paths_e2e",
+      "selector": "error_stack_inner_names_the_failing_instruction",
+      "first_panic": "thread 'error_stack_inner_names_the_failing_instruction' (24481) panicked at rust/tcl-vm/tests/c_error_paths_e2e.rs:35:46:\n    original source provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/c_error_paths_e2e.rs:35:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::c_error_paths_e2e",
+        "selector": "execution_trace_errors_name_the_trace"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30316,
+      "status": "FAIL",
+      "binary": "tcl-vm::c_error_paths_e2e",
+      "selector": "execution_trace_errors_name_the_trace",
+      "first_panic": "thread 'execution_trace_errors_name_the_trace' (24486) panicked at rust/tcl-vm/tests/c_error_paths_e2e.rs:35:46:\n    original source provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/c_error_paths_e2e.rs:35:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::c_error_paths_e2e",
+        "selector": "lsort_comparator_error_logs_the_callback"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 30356,
+      "status": "FAIL",
+      "binary": "tcl-vm::c_error_paths_e2e",
+      "selector": "lsort_comparator_error_logs_the_callback",
+      "first_panic": "thread 'lsort_comparator_error_logs_the_callback' (24492) panicked at rust/tcl-vm/tests/c_error_paths_e2e.rs:50:9:\n    assertion `left == right` failed: V8_4\n      left: \"{cmp:b\\n    while executing\\n\\\"error \\\"cmp:$a\\\" \\\"\\n    (procedure \\\"cmp\\\" line 1)\\n    invoked from within\\n\\\"cmp b a\\\"\\n    (-compare command)\\n    invoked from within\\n\\\"lsort -command cmp {b a}\\\"\\n    (\\\"uplevel\\\" body line 1)\\n    invoked from within\\n\\\"uplevel 1 $script\\\"} {cmp:b\\n    while executing\\n\\\"error \\\"cmp:$a\\\" \\\"\\n    (procedure \\\"cmp\\\" line 1)\\n    invoked from within\\n\\\"cmp b a\\\"\\n    (-compare command)\\n    invoked from within\\n\\\"lsort -command cmp {b a}\\\"\\n    (\\\"uplevel\\\" body line 1)\\n    invoked from within\\n\\\"uplevel 1 $script\\\"\\n    invoked from within\\n\\\"nosuch b a\\\"\\n    (-compare command)\\n    invoked from within\\n\\\"lsort -command nosuch {b a}\\\"\\n    (\\\"uplevel\\\" body line 1)\\n    invoked from within\\n\\\"uplevel 1 $script\\\"}\"\n     right: \"{cmp:b\\n    while executing\\n\\\"error \\\"cmp:$a\\\" \\\"\\n    (procedure \\\"cmp\\\" line 1)\\n    invoked from within\\n\\\"cmp b a\\\"\\n    (-compare command)\\n    invoked from within\\n\\\"lsort -command cmp {b a}\\\"\\n    (\\\"uplevel\\\" body line 1)\\n    invoked from within\\n\\\"uplevel 1 $script\\\"} {invalid command name \\\"nosuch\\\"\\n    while executing\\n\\\"nosuch b a\\\"\\n    (-compare command)\\n    invoked from within\\n\\\"lsort -command nosuch {b a}\\\"\\n    (\\\"uplevel\\\" body line 1)\\n    invoked from within\\n\\\"uplevel 1 $script\\\"}\"",
+      "first_panic_site": "rust/tcl-vm/tests/c_error_paths_e2e.rs:50:9:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::c_error_paths_e2e",
+        "selector": "regsub_command_error_logs_the_callback"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30402,
+      "status": "FAIL",
+      "binary": "tcl-vm::c_error_paths_e2e",
+      "selector": "regsub_command_error_logs_the_callback",
+      "first_panic": "thread 'regsub_command_error_logs_the_callback' (24503) panicked at rust/tcl-vm/tests/c_error_paths_e2e.rs:35:46:\n    original source provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/c_error_paths_e2e.rs:35:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::c_error_paths_e2e",
+        "selector": "sourced_file_frames_and_returns"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30443,
+      "status": "FAIL",
+      "binary": "tcl-vm::c_error_paths_e2e",
+      "selector": "sourced_file_frames_and_returns",
+      "first_panic": "thread 'sourced_file_frames_and_returns' (24511) panicked at rust/tcl-vm/tests/c_error_paths_e2e.rs:35:46:\n    original source provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/c_error_paths_e2e.rs:35:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "a_catch_body_write_is_visible_after_the_catch"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30490,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "a_catch_body_write_is_visible_after_the_catch",
+      "first_panic": "thread 'a_catch_body_write_is_visible_after_the_catch' (24526) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "a_deferred_parse_error_is_raised_before_the_activation_is_torn_down"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30529,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "a_deferred_parse_error_is_raised_before_the_activation_is_torn_down",
+      "first_panic": "thread 'a_deferred_parse_error_is_raised_before_the_activation_is_torn_down' (24528) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "a_multi_command_catch_body_discards_all_but_its_last_result"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30568,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "a_multi_command_catch_body_discards_all_but_its_last_result",
+      "first_panic": "thread 'a_multi_command_catch_body_discards_all_but_its_last_result' (24532) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "a_procedure_body_that_does_not_parse_raises_on_entry_not_at_definition"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30606,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "a_procedure_body_that_does_not_parse_raises_on_entry_not_at_definition",
+      "first_panic": "thread 'a_procedure_body_that_does_not_parse_raises_on_entry_not_at_definition' (24534) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "a_top_level_catch_is_not_inlined"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30644,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "a_top_level_catch_is_not_inlined",
+      "first_panic": "thread 'a_top_level_catch_is_not_inlined' (24537) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "an_inlined_catch_still_catches"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30682,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "an_inlined_catch_still_catches",
+      "first_panic": "thread 'an_inlined_catch_still_catches' (24540) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "an_unpinnable_term_logs_no_frame_rather_than_a_wrong_one"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 30720,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "an_unpinnable_term_logs_no_frame_rather_than_a_wrong_one",
+      "first_panic": "thread 'an_unpinnable_term_logs_no_frame_rather_than_a_wrong_one' (24542) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:2269:5:\n    assertion `left == right` failed\n      left: \"missing \\\"\\n    while executing\\n\\\"set x [list \\\"\\\"\"\n     right: \"missing \\\"\"",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:2269:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "catch_and_nested_try_decline_dynamic_phase_words"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30759,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "catch_and_nested_try_decline_dynamic_phase_words",
+      "first_panic": "thread 'catch_and_nested_try_decline_dynamic_phase_words' (24547) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "catch_declines_unbraced_script_body"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30799,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "catch_declines_unbraced_script_body",
+      "first_panic": "thread 'catch_declines_unbraced_script_body' (24550) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "catch_destinations_that_need_resolving_are_not_inlined"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30837,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "catch_destinations_that_need_resolving_are_not_inlined",
+      "first_panic": "thread 'catch_destinations_that_need_resolving_are_not_inlined' (24552) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "catch_returns_its_code_wherever_it_sits"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30875,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "catch_returns_its_code_wherever_it_sits",
+      "first_panic": "thread 'catch_returns_its_code_wherever_it_sits' (24554) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "deeply_nested_command_substitution_is_unaffected"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30915,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "deeply_nested_command_substitution_is_unaffected",
+      "first_panic": "thread 'deeply_nested_command_substitution_is_unaffected' (24560) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "eval_executes_prefix_before_fatal_tail"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 30991,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "eval_executes_prefix_before_fatal_tail",
+      "first_panic": "thread 'eval_executes_prefix_before_fatal_tail' (24566) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "for_runtime_arity"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31029,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "for_runtime_arity",
+      "first_panic": "thread 'for_runtime_arity' (24573) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "for_runtime_body_error_adds_frame"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31068,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "for_runtime_body_error_adds_frame",
+      "first_panic": "thread 'for_runtime_body_error_adds_frame' (24578) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "foreach_in_package_ifneeded_logs_invocation_before_loader_frame"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31114,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "foreach_in_package_ifneeded_logs_invocation_before_loader_frame",
+      "first_panic": "thread 'foreach_in_package_ifneeded_logs_invocation_before_loader_frame' (24618) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "foreach_lmap_runtime_arity"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31153,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "foreach_lmap_runtime_arity",
+      "first_panic": "thread 'foreach_lmap_runtime_arity' (24620) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "foreach_lmap_runtime_empty_varlist"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31191,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "foreach_lmap_runtime_empty_varlist",
+      "first_panic": "thread 'foreach_lmap_runtime_empty_varlist' (24623) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "foreach_lmap_runtime_explicit_error_info_logs_invocation"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31229,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "foreach_lmap_runtime_explicit_error_info_logs_invocation",
+      "first_panic": "thread 'foreach_lmap_runtime_explicit_error_info_logs_invocation' (24625) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "foreach_runtime_body_error_adds_frame"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31269,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "foreach_runtime_body_error_adds_frame",
+      "first_panic": "thread 'foreach_runtime_body_error_adds_frame' (24631) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "foreach_runtime_var_write_failure"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31309,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "foreach_runtime_var_write_failure",
+      "first_panic": "thread 'foreach_runtime_var_write_failure' (24637) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "if_runtime_grammar_errors"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31351,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "if_runtime_grammar_errors",
+      "first_panic": "thread 'if_runtime_grammar_errors' (24650) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "literal_catch_executes_complete_prefix_before_later_parse_error"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31392,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "literal_catch_executes_complete_prefix_before_later_parse_error",
+      "first_panic": "thread 'literal_catch_executes_complete_prefix_before_later_parse_error' (24658) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "literal_catch_multicommand_proc_body_executes_in_order"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31430,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "literal_catch_multicommand_proc_body_executes_in_order",
+      "first_panic": "thread 'literal_catch_multicommand_proc_body_executes_in_order' (24660) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "literal_catch_preserves_braced_first_and_last_words"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31468,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "literal_catch_preserves_braced_first_and_last_words",
+      "first_panic": "thread 'literal_catch_preserves_braced_first_and_last_words' (24664) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "literal_catch_replays_only_the_stale_nested_command_after_mutation"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31506,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "literal_catch_replays_only_the_stale_nested_command_after_mutation",
+      "first_panic": "thread 'literal_catch_replays_only_the_stale_nested_command_after_mutation' (24666) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "literal_catch_reports_incomplete_body_before_substitution_side_effects"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31545,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "literal_catch_reports_incomplete_body_before_substitution_side_effects",
+      "first_panic": "thread 'literal_catch_reports_incomplete_body_before_substitution_side_effects' (24669) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "multiline_catch_epilogue_does_not_replay_the_enclosing_command"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31585,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "multiline_catch_epilogue_does_not_replay_the_enclosing_command",
+      "first_panic": "thread 'multiline_catch_epilogue_does_not_replay_the_enclosing_command' (24674) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "nested_catch_try_binds_result_and_options_variables"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31661,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "nested_catch_try_binds_result_and_options_variables",
+      "first_panic": "thread 'nested_catch_try_binds_result_and_options_variables' (24679) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "nested_catch_try_multicommand_phases_preserve_results"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31699,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "nested_catch_try_multicommand_phases_preserve_results",
+      "first_panic": "thread 'nested_catch_try_multicommand_phases_preserve_results' (24681) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "nested_try_executes_complete_phase_prefix_before_later_parse_error"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31738,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "nested_try_executes_complete_phase_prefix_before_later_parse_error",
+      "first_panic": "thread 'nested_try_executes_complete_phase_prefix_before_later_parse_error' (24687) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "nested_try_handler_declines_dynamic_set_target"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31776,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "nested_try_handler_declines_dynamic_set_target",
+      "first_panic": "thread 'nested_try_handler_declines_dynamic_set_target' (24690) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "switch_error_paths"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31824,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "switch_error_paths",
+      "first_panic": "thread 'switch_error_paths' (24715) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "switch_runtime_matchvar_write_failure"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31875,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "switch_runtime_matchvar_write_failure",
+      "first_panic": "thread 'switch_runtime_matchvar_write_failure' (24741) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "tailcalled_each_loop_retains_its_entered_error_invocation"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31913,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "tailcalled_each_loop_retains_its_entered_error_invocation",
+      "first_panic": "thread 'tailcalled_each_loop_retains_its_entered_error_invocation' (24743) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "throw_command"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31953,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "throw_command",
+      "first_panic": "thread 'throw_command' (24751) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_add_during_replaces_existing"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 31991,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "try_add_during_replaces_existing",
+      "first_panic": "thread 'try_add_during_replaces_existing' (24753) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_add_during_replaces_in_nested_chain"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32029,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "try_add_during_replaces_in_nested_chain",
+      "first_panic": "thread 'try_add_during_replaces_in_nested_chain' (24756) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_dash_fallthrough"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32069,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "try_dash_fallthrough",
+      "first_panic": "thread 'try_dash_fallthrough' (24762) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_grammar_errors"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32110,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "try_grammar_errors",
+      "first_panic": "thread 'try_grammar_errors' (24771) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_handler_throws_chains_during"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32148,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "try_handler_throws_chains_during",
+      "first_panic": "thread 'try_handler_throws_chains_during' (24772) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_handler_type_resolves_like_tcl_get_index_from_obj"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32188,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "try_handler_type_resolves_like_tcl_get_index_from_obj",
+      "first_panic": "thread 'try_handler_type_resolves_like_tcl_get_index_from_obj' (24775) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_handler_var_bind_failure_chains_during"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32226,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "try_handler_var_bind_failure_chains_during",
+      "first_panic": "thread 'try_handler_var_bind_failure_chains_during' (24779) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_on_code_out_of_int_range"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32266,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "try_on_code_out_of_int_range",
+      "first_panic": "thread 'try_on_code_out_of_int_range' (24784) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_trap_bad_pattern_list"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32306,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "try_trap_bad_pattern_list",
+      "first_panic": "thread 'try_trap_bad_pattern_list' (24791) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_trap_errorcode_prefix"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32344,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "try_trap_errorcode_prefix",
+      "first_panic": "thread 'try_trap_errorcode_prefix' (24793) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "try_trap_no_match_propagates"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32382,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "try_trap_no_match_propagates",
+      "first_panic": "thread 'try_trap_no_match_propagates' (24795) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "while_runtime_arity"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32420,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "while_runtime_arity",
+      "first_panic": "thread 'while_runtime_arity' (24799) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_control_e2e",
+        "selector": "while_runtime_error_adds_body_frame"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32461,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_control_e2e",
+      "selector": "while_runtime_error_adds_body_frame",
+      "first_panic": "thread 'while_runtime_error_adds_body_frame' (24805) panicked at rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_math_expr_e2e",
+        "selector": "a_comment_only_expression_is_the_empty_expression"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32503,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_math_expr_e2e",
+      "selector": "a_comment_only_expression_is_the_empty_expression",
+      "first_panic": "thread 'a_comment_only_expression_is_the_empty_expression' (24816) panicked at rust/tcl-vm/tests/cmd_math_expr_e2e.rs:60:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_math_expr_e2e.rs:60:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_math_expr_e2e",
+        "selector": "expr_read_trace_fires_on_operand"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32577,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_math_expr_e2e",
+      "selector": "expr_read_trace_fires_on_operand",
+      "first_panic": "thread 'expr_read_trace_fires_on_operand' (24891) panicked at rust/tcl-vm/tests/cmd_math_expr_e2e.rs:60:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_math_expr_e2e.rs:60:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_math_expr_e2e",
+        "selector": "expr_runtime_operand_type_errors"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "other-first-failure-needs-bounded-triage",
+      "header_LF_line": 32624,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_math_expr_e2e",
+      "selector": "expr_runtime_operand_type_errors",
+      "first_panic": "thread 'expr_runtime_operand_type_errors' (24913) panicked at rust/tcl-vm/tests/cmd_math_expr_e2e.rs:992:5:\n    assertion failed: !ok",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_math_expr_e2e.rs:992:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_math_expr_e2e",
+        "selector": "expr_stk_dynamic_evaluation"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "original-object-currentness-refusal",
+      "header_LF_line": 32707,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_math_expr_e2e",
+      "selector": "expr_stk_dynamic_evaluation",
+      "first_panic": "thread 'expr_stk_dynamic_evaluation' (24933) panicked at rust/tcl-vm/tests/cmd_math_expr_e2e.rs:60:46:\n    the VM's own compile entry: ValueAccessRefusal(CommandProtocolUnavailable(\"retired native object header\"))",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_math_expr_e2e.rs:60:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_math_expr_e2e",
+        "selector": "expr_stk_rejects_an_unparsable_expression"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32667,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_math_expr_e2e",
+      "selector": "expr_stk_rejects_an_unparsable_expression",
+      "first_panic": "thread 'expr_stk_rejects_an_unparsable_expression' (24935) panicked at rust/tcl-vm/tests/cmd_math_expr_e2e.rs:60:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_math_expr_e2e.rs:60:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_math_expr_e2e",
+        "selector": "mathop_invoked_name_via_namespace_path"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32788,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_math_expr_e2e",
+      "selector": "mathop_invoked_name_via_namespace_path",
+      "first_panic": "thread 'mathop_invoked_name_via_namespace_path' (25029) panicked at rust/tcl-vm/tests/cmd_math_expr_e2e.rs:60:46:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_math_expr_e2e.rs:60:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "private_instance_variable_on_a_class_matches_var_29_3"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32882,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_oo_e2e",
+      "selector": "private_instance_variable_on_a_class_matches_var_29_3",
+      "first_panic": "thread 'private_instance_variable_on_a_class_matches_var_29_3' (25156) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "private_instance_variable_on_an_object_matches_var_29_6"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32926,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_oo_e2e",
+      "selector": "private_instance_variable_on_an_object_matches_var_29_6",
+      "first_panic": "thread 'private_instance_variable_on_an_object_matches_var_29_6' (25158) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "retained_and_recreated_tcloo_commands_have_distinct_identity"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 32975,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_oo_e2e",
+      "selector": "retained_and_recreated_tcloo_commands_have_distinct_identity",
+      "first_panic": "thread 'retained_and_recreated_tcloo_commands_have_distinct_identity' (25179) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "retained_tcloo_self_destroy_retires_the_exact_command_token"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 33017,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_oo_e2e",
+      "selector": "retained_tcloo_self_destroy_retires_the_exact_command_token",
+      "first_panic": "thread 'retained_tcloo_self_destroy_retires_the_exact_command_token' (25182) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "tcl_oo_package_and_version_vars"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 33064,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_oo_e2e",
+      "selector": "tcl_oo_package_and_version_vars",
+      "first_panic": "thread 'tcl_oo_package_and_version_vars' (25196) panicked at rust/tcl-vm/tests/cmd_oo_e2e.rs:340:5:\n    assertion `left == right` failed\n      left: \"\"\n     right: \"1.3.1\"",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_oo_e2e.rs:340:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "tip558_configurable_configure_get_set_list"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "OO-parent-namespace-store-failure",
+      "header_LF_line": 33104,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_oo_e2e",
+      "selector": "tip558_configurable_configure_get_set_list",
+      "first_panic": "thread 'tip558_configurable_configure_get_set_list' (25200) panicked at rust/tcl-vm/tests/cmd_oo_e2e.rs:88:5:\n    script errored: can't set \"oo::Obj12::x\": parent namespace doesn't exist",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_oo_e2e.rs:88:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "tip558_configurable_inheritance_and_next"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "OO-parent-namespace-store-failure",
+      "header_LF_line": 33179,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_oo_e2e",
+      "selector": "tip558_configurable_inheritance_and_next",
+      "first_panic": "thread 'tip558_configurable_inheritance_and_next' (25207) panicked at rust/tcl-vm/tests/cmd_oo_e2e.rs:88:5:\n    script errored: can't set \"oo::Obj14::x\": parent namespace doesn't exist",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_oo_e2e.rs:88:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "tip558_configurable_kind_readable_and_writable"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "OO-parent-namespace-store-failure",
+      "header_LF_line": 33141,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_oo_e2e",
+      "selector": "tip558_configurable_kind_readable_and_writable",
+      "first_panic": "thread 'tip558_configurable_kind_readable_and_writable' (25209) panicked at rust/tcl-vm/tests/cmd_oo_e2e.rs:474:5:\n    assertion `left == right` failed\n      left: \"can't set \\\"oo::Obj12::x\\\": parent namespace doesn't exist\"\n     right: \"property \\\"-x\\\" is write only\"",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_oo_e2e.rs:474:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "tip558_configurable_not_on_plain_class"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "OO-parent-namespace-store-failure",
+      "header_LF_line": 33214,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_oo_e2e",
+      "selector": "tip558_configurable_not_on_plain_class",
+      "first_panic": "thread 'tip558_configurable_not_on_plain_class' (25213) panicked at rust/tcl-vm/tests/cmd_oo_e2e.rs:88:5:\n    script errored: can't set \"oo::Obj14::x\": parent namespace doesn't exist",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_oo_e2e.rs:88:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "tip558_configurable_per_object_property"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "OO-parent-namespace-store-failure",
+      "header_LF_line": 33248,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_oo_e2e",
+      "selector": "tip558_configurable_per_object_property",
+      "first_panic": "thread 'tip558_configurable_per_object_property' (25217) panicked at rust/tcl-vm/tests/cmd_oo_e2e.rs:88:5:\n    script errored: can't set \"oo::Obj12::x\": parent namespace doesn't exist",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_oo_e2e.rs:88:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cmd_oo_e2e",
+        "selector": "tip558_configurable_property_abbreviates"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "OO-parent-namespace-store-failure",
+      "header_LF_line": 33282,
+      "status": "FAIL",
+      "binary": "tcl-vm::cmd_oo_e2e",
+      "selector": "tip558_configurable_property_abbreviates",
+      "first_panic": "thread 'tip558_configurable_property_abbreviates' (25219) panicked at rust/tcl-vm/tests/cmd_oo_e2e.rs:518:5:\n    assertion `left == right` failed\n      left: \"can't set \\\"oo::Obj12::yellow\\\": parent namespace doesn't exist\"\n     right: \"bad property \\\"-zz\\\": must be -yellow or -zed\"",
+      "first_panic_site": "rust/tcl-vm/tests/cmd_oo_e2e.rs:518:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::command_traces_e2e",
+        "selector": "native_invoke_uses_the_post_enter_trace_owner_snapshot"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 33399,
+      "status": "FAIL",
+      "binary": "tcl-vm::command_traces_e2e",
+      "selector": "native_invoke_uses_the_post_enter_trace_owner_snapshot",
+      "first_panic": "thread 'native_invoke_uses_the_post_enter_trace_owner_snapshot' (25242) panicked at rust/tcl-vm/tests/command_traces_e2e.rs:969:5:\n    assertion `left == right` failed\n      left: \"\"\n     right: \"NATIVE\"",
+      "first_panic_site": "rust/tcl-vm/tests/command_traces_e2e.rs:969:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::command_traces_e2e",
+        "selector": "vectors_match_real_tclsh"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "external-exact-oracle-missing",
+      "header_LF_line": 33438,
+      "status": "FAIL",
+      "binary": "tcl-vm::command_traces_e2e",
+      "selector": "vectors_match_real_tclsh",
+      "first_panic": "thread 'vectors_match_real_tclsh' (25249) panicked at rust/tcl-vm/tests/command_traces_e2e.rs:993:10:\n    both pinned command-trace engines: InvalidInterpreter(\"missing required C Tcl 8.6.18 oracle; set TCL_LSP_TCLSH86\")",
+      "first_panic_site": "rust/tcl-vm/tests/command_traces_e2e.rs:993:10:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::command_traces_e2e",
+        "selector": "vm_matches_the_pinned_trace_vectors"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "other-first-failure-needs-bounded-triage",
+      "header_LF_line": 33477,
+      "status": "FAIL",
+      "binary": "tcl-vm::command_traces_e2e",
+      "selector": "vm_matches_the_pinned_trace_vectors",
+      "first_panic": "thread 'vm_matches_the_pinned_trace_vectors' (25252) panicked at rust/tcl-vm/tests/common/mod.rs:72:10:\n    original source provider: ValueAccessRefusal(CommandProtocolUnavailable(\"original lookup selected command binding\"))",
+      "first_panic_site": "rust/tcl-vm/tests/common/mod.rs:72:10:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cross_interp_alias_e2e",
+        "selector": "vectors_match_real_tclsh"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "external-exact-oracle-missing",
+      "header_LF_line": 33596,
+      "status": "FAIL",
+      "binary": "tcl-vm::cross_interp_alias_e2e",
+      "selector": "vectors_match_real_tclsh",
+      "first_panic": "thread 'vectors_match_real_tclsh' (25282) panicked at rust/tcl-vm/tests/cross_interp_alias_e2e.rs:237:53:\n    all five pinned C alias engines: InvalidInterpreter(\"missing required C Tcl 8.4.20 oracle; set TCL_LSP_TCLSH84\")",
+      "first_panic_site": "rust/tcl-vm/tests/cross_interp_alias_e2e.rs:237:53:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cross_interp_alias_e2e",
+        "selector": "vm_matches_the_pinned_cross_interp_alias_vectors"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "original-object-currentness-refusal",
+      "header_LF_line": 33634,
+      "status": "FAIL",
+      "binary": "tcl-vm::cross_interp_alias_e2e",
+      "selector": "vm_matches_the_pinned_cross_interp_alias_vectors",
+      "first_panic": "thread 'vm_matches_the_pinned_cross_interp_alias_vectors' (25284) panicked at rust/tcl-vm/tests/common/mod.rs:72:10:\n    original source provider: ValueAccessRefusal(CommandProtocolUnavailable(\"retired native object header\"))",
+      "first_panic_site": "rust/tcl-vm/tests/common/mod.rs:72:10:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cross_version_info_surface_e2e",
+        "selector": "representation_reports_the_value_as_each_release_does"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 33674,
+      "status": "FAIL",
+      "binary": "tcl-vm::cross_version_info_surface_e2e",
+      "selector": "representation_reports_the_value_as_each_release_does",
+      "first_panic": "thread 'representation_reports_the_value_as_each_release_does' (25286) panicked at rust/tcl-vm/tests/cross_version_info_surface_e2e.rs:53:37:\n    original source provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cross_version_info_surface_e2e.rs:53:37:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cross_version_info_surface_e2e",
+        "selector": "tcloo_info_ensembles_follow_the_selected_release"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 33712,
+      "status": "FAIL",
+      "binary": "tcl-vm::cross_version_info_surface_e2e",
+      "selector": "tcloo_info_ensembles_follow_the_selected_release",
+      "first_panic": "thread 'tcloo_info_ensembles_follow_the_selected_release' (25299) panicked at rust/tcl-vm/tests/cross_version_info_surface_e2e.rs:53:37:\n    original source provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cross_version_info_surface_e2e.rs:53:37:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::cross_version_info_surface_e2e",
+        "selector": "tcloo_info_vectors_match_real_tclsh_when_available"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 33753,
+      "status": "FAIL",
+      "binary": "tcl-vm::cross_version_info_surface_e2e",
+      "selector": "tcloo_info_vectors_match_real_tclsh_when_available",
+      "first_panic": "thread 'tcloo_info_vectors_match_real_tclsh_when_available' (25301) panicked at rust/tcl-vm/tests/cross_version_info_surface_e2e.rs:53:37:\n    original source provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/cross_version_info_surface_e2e.rs:53:37:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::embed_api_e2e",
+        "selector": "an_inlined_loop_dispatches_nothing_and_so_is_not_charged"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "other-first-failure-needs-bounded-triage",
+      "header_LF_line": 33799,
+      "status": "FAIL",
+      "binary": "tcl-vm::embed_api_e2e",
+      "selector": "an_inlined_loop_dispatches_nothing_and_so_is_not_charged",
+      "first_panic": "thread 'an_inlined_loop_dispatches_nothing_and_so_is_not_charged' (25372) panicked at rust/tcl-vm/tests/embed_api_e2e.rs:339:5:\n    an inlined loop is not charged: command count limit exceeded",
+      "first_panic_site": "rust/tcl-vm/tests/embed_api_e2e.rs:339:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::embed_api_e2e",
+        "selector": "native_mathfunc_identity_survives_rename_and_hide_expose_across_profiles"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "other-first-failure-needs-bounded-triage",
+      "header_LF_line": 33845,
+      "status": "FAIL",
+      "binary": "tcl-vm::embed_api_e2e",
+      "selector": "native_mathfunc_identity_survives_rename_and_hide_expose_across_profiles",
+      "first_panic": "thread 'native_mathfunc_identity_survives_rename_and_hide_expose_across_profiles' (25398) panicked at rust/tcl-vm/tests/embed_api_e2e.rs:268:5:\n    assertion failed: !vm.invoke_command(\"finite2\", &[]).code.is_ok()",
+      "first_panic_site": "rust/tcl-vm/tests/embed_api_e2e.rs:268:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::embed_api_e2e",
+        "selector": "retain_commands_reduces_the_table_to_a_whitelist"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "other-first-failure-needs-bounded-triage",
+      "header_LF_line": 33879,
+      "status": "FAIL",
+      "binary": "tcl-vm::embed_api_e2e",
+      "selector": "retain_commands_reduces_the_table_to_a_whitelist",
+      "first_panic": "thread 'retain_commands_reduces_the_table_to_a_whitelist' (25402) panicked at rust/tcl-vm/tests/embed_api_e2e.rs:400:5:\n    assertion failed: ok.code.is_ok()",
+      "first_panic_site": "rust/tcl-vm/tests/embed_api_e2e.rs:400:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::literal_index_encoding_e2e",
+        "selector": "a_literal_index_reads_as_the_release_compiles_it"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 34034,
+      "status": "FAIL",
+      "binary": "tcl-vm::literal_index_encoding_e2e",
+      "selector": "a_literal_index_reads_as_the_release_compiles_it",
+      "first_panic": "thread 'a_literal_index_reads_as_the_release_compiles_it' (25436) panicked at rust/tcl-vm/tests/literal_index_encoding_e2e.rs:79:59:\n    script compiles: Host(Execution(CompilationAdmission(NativePreflightRequired)))",
+      "first_panic_site": "rust/tcl-vm/tests/literal_index_encoding_e2e.rs:79:59:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::mathfunc_derivation_e2e",
+        "selector": "expr_canonicalises_a_preserved_integer"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 34075,
+      "status": "FAIL",
+      "binary": "tcl-vm::mathfunc_derivation_e2e",
+      "selector": "expr_canonicalises_a_preserved_integer",
+      "first_panic": "thread 'expr_canonicalises_a_preserved_integer' (25481) panicked at rust/tcl-vm/tests/mathfunc_derivation_e2e.rs:539:9:\n    assertion `left == right` failed: [V8_6]\n      left: [\"16\", \"16\", \"16\", \"0x10\", \"0x10\"]\n     right: [\"16\", \"16\", \"16\", \"16\", \"16\"]",
+      "first_panic_site": "rust/tcl-vm/tests/mathfunc_derivation_e2e.rs:539:9:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::mathfunc_derivation_e2e",
+        "selector": "tip745_functions_are_gated_to_tcl91"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 34117,
+      "status": "FAIL",
+      "binary": "tcl-vm::mathfunc_derivation_e2e",
+      "selector": "tip745_functions_are_gated_to_tcl91",
+      "first_panic": "thread 'tip745_functions_are_gated_to_tcl91' (25492) panicked at rust/tcl-vm/tests/mathfunc_derivation_e2e.rs:220:9:\n    assertion `left == right` failed: [V8_4] nextafter must not resolve\n      left: \"unknown math function \\\"nextafter\\\"\"\n     right: \"syntax error in expression \\\"nextafter(0.5)\\\": unexpected operator ne\"",
+      "first_panic_site": "rust/tcl-vm/tests/mathfunc_derivation_e2e.rs:220:9:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "a_command_deleted_from_a_retained_frame_reports_its_own_namespace"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "original-compound-string-updater-unavailable",
+      "header_LF_line": 34159,
+      "status": "FAIL",
+      "binary": "tcl-vm::namespace_surface_e2e",
+      "selector": "a_command_deleted_from_a_retained_frame_reports_its_own_namespace",
+      "first_panic": "thread 'a_command_deleted_from_a_retained_frame_reports_its_own_namespace' (25506) panicked at rust/tcl-vm/src/value.rs:7165:22:\n    selected compound updater requires checked child storage: StringUpdater",
+      "first_panic_site": "rust/tcl-vm/src/value.rs:7165:22:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "a_deferred_namespace_is_unpublished_for_every_caller"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "original-compound-string-updater-unavailable",
+      "header_LF_line": 34207,
+      "status": "FAIL",
+      "binary": "tcl-vm::namespace_surface_e2e",
+      "selector": "a_deferred_namespace_is_unpublished_for_every_caller",
+      "first_panic": "thread 'a_deferred_namespace_is_unpublished_for_every_caller' (25508) panicked at rust/tcl-vm/src/value.rs:7165:22:\n    selected compound updater requires checked child storage: StringUpdater",
+      "first_panic_site": "rust/tcl-vm/src/value.rs:7165:22:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "a_deferred_teardown_keeps_tcl_hash_order"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "original-compound-string-updater-unavailable",
+      "header_LF_line": 34255,
+      "status": "FAIL",
+      "binary": "tcl-vm::namespace_surface_e2e",
+      "selector": "a_deferred_teardown_keeps_tcl_hash_order",
+      "first_panic": "thread 'a_deferred_teardown_keeps_tcl_hash_order' (25511) panicked at rust/tcl-vm/src/value.rs:7165:22:\n    selected compound updater requires checked child storage: StringUpdater",
+      "first_panic_site": "rust/tcl-vm/src/value.rs:7165:22:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "a_relative_namespace_eval_enters_the_retained_child"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 34311,
+      "status": "FAIL",
+      "binary": "tcl-vm::namespace_surface_e2e",
+      "selector": "a_relative_namespace_eval_enters_the_retained_child",
+      "first_panic": "thread 'a_relative_namespace_eval_enters_the_retained_child' (25525) panicked at rust/tcl-vm/tests/namespace_surface_e2e.rs:54:10:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/namespace_surface_e2e.rs:54:10:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "a_renamed_tcloo_root_still_gates_by_its_registry_identity"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "other-first-failure-needs-bounded-triage",
+      "header_LF_line": 34351,
+      "status": "FAIL",
+      "binary": "tcl-vm::namespace_surface_e2e",
+      "selector": "a_renamed_tcloo_root_still_gates_by_its_registry_identity",
+      "first_panic": "thread 'a_renamed_tcloo_root_still_gates_by_its_registry_identity' (25529) panicked at rust/tcl-vm/tests/namespace_surface_e2e.rs:79:14:\n    the VM's own compile entry: ValueAccessRefusal(ScalarNumericInputUnavailable)",
+      "first_panic_site": "rust/tcl-vm/tests/namespace_surface_e2e.rs:79:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "a_suspended_coroutine_releases_its_retained_namespace_on_completion"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "original-compound-string-updater-unavailable",
+      "header_LF_line": 34399,
+      "status": "FAIL",
+      "binary": "tcl-vm::namespace_surface_e2e",
+      "selector": "a_suspended_coroutine_releases_its_retained_namespace_on_completion",
+      "first_panic": "thread 'a_suspended_coroutine_releases_its_retained_namespace_on_completion' (25554) panicked at rust/tcl-vm/src/value.rs:7165:22:\n    selected compound updater requires checked child storage: StringUpdater",
+      "first_panic_site": "rust/tcl-vm/src/value.rs:7165:22:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "an_active_child_defers_while_its_parent_tears_down"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "original-compound-string-updater-unavailable",
+      "header_LF_line": 34449,
+      "status": "FAIL",
+      "binary": "tcl-vm::namespace_surface_e2e",
+      "selector": "an_active_child_defers_while_its_parent_tears_down",
+      "first_panic": "thread 'an_active_child_defers_while_its_parent_tears_down' (25558) panicked at rust/tcl-vm/src/value.rs:7165:22:\n    selected compound updater requires checked child storage: StringUpdater",
+      "first_panic_site": "rust/tcl-vm/src/value.rs:7165:22:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "command_delete_traces_wait_for_the_last_activation"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "original-compound-string-updater-unavailable",
+      "header_LF_line": 34501,
+      "status": "FAIL",
+      "binary": "tcl-vm::namespace_surface_e2e",
+      "selector": "command_delete_traces_wait_for_the_last_activation",
+      "first_panic": "thread 'command_delete_traces_wait_for_the_last_activation' (25566) panicked at rust/tcl-vm/src/value.rs:7165:22:\n    selected compound updater requires checked child storage: StringUpdater",
+      "first_panic_site": "rust/tcl-vm/src/value.rs:7165:22:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "ensemble_default_target_miss_names_the_rewritten_subcommand"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "other-first-failure-needs-bounded-triage",
+      "header_LF_line": 34570,
+      "status": "FAIL",
+      "binary": "tcl-vm::namespace_surface_e2e",
+      "selector": "ensemble_default_target_miss_names_the_rewritten_subcommand",
+      "first_panic": "thread 'ensemble_default_target_miss_names_the_rewritten_subcommand' (25619) panicked at rust/tcl-vm/tests/namespace_surface_e2e.rs:54:10:\n    the VM's own compile entry: HostCommandRefusal(NativeHostCommandRefusal { reason: \"native error result lifetime expired\", source_profile: DialectProfileKey { core_point: None, name: \"tcl9.0\", aliases: [], display_name: \"Tcl 9.0\", short_name: \"Tcl 9.0\", editor_language_id: Some(\"tcl90\"), filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [Core(Tcl, \"9.0\")], grammar_union: [Core(Tcl)], version_ceiling: Some(V9_0), signature_base: Some(V9_0), runtime_base: Some(V9_0), leading_zero_is_octal: No, expr_grammar_base: Some(V9_0), grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: Tcl9Nesting, array_index: Tcl9, script_skips_leading_bom: true, expr_comments: Hash, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, source_line_endings: TranslateAuto, numbers: Tcl90, escapes: Tcl90 }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, evaluation_evidence: ReferenceToolchain, libraries: [LibraryPin { package: \"Tk\", version: TracksBase, ambient: false }, LibraryPin { package: \"Itcl\", version: Pinned(\"4.2\"), ambient: false }], help_terms: [\"tcl\", \"tk\"] }, native_profile: DialectProfileKey { core_point: None, name: \"tcl9.0\", aliases: [], display_name: \"Tcl 9.0\", short_name: \"Tcl 9.0\", editor_language_id: Some(\"tcl90\"), filenames: [], file_extensions: [], vendor_surface: None, surface_packages: [], base_layers: [Core(Tcl, \"9.0\")], grammar_union: [Core(Tcl)], version_ceiling: Some(V9_0), signature_base: Some(V9_0), runtime_base: Some(V9_0), leading_zero_is_octal: No, expr_grammar_base: Some(V9_0), grammar: LexerGrammar { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, braced_var: Tcl9Nesting, array_index: Tcl9, script_skips_leading_bom: true, expr_comments: Hash, word_separators: Tcl, brace_backslash_newline: Folds, quote_termination: Strict, var_syntax: Tcl, list_parse: Strict, source_line_endings: TranslateAuto, numbers: Tcl90, escapes: Tcl90 }, operators_as_commands: true, tcloo: true, has_fixed_ensembles: false, vm_runtime_version: V9_0, evaluation_evidence: ReferenceToolchain, libraries: [LibraryPin { package: \"Tk\", version: TracksBase, ambient: false }, LibraryPin { package: \"Itcl\", version: Pinned(\"4.2\"), ambient: false }], help_terms: [\"tcl\", \"tk\"] }, interpreter: NativeInterpreterIdentity { owner: 1, interpreter: 0 }, frame: 0, namespace: \"\", namespace_token: Some(0) })",
+      "first_panic_site": "rust/tcl-vm/tests/namespace_surface_e2e.rs:54:10:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "ensemble_unknown_deleted_seeds_the_handler_errorinfo_frame"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 34615,
+      "status": "FAIL",
+      "binary": "tcl-vm::namespace_surface_e2e",
+      "selector": "ensemble_unknown_deleted_seeds_the_handler_errorinfo_frame",
+      "first_panic": "thread 'ensemble_unknown_deleted_seeds_the_handler_errorinfo_frame' (25632) panicked at rust/tcl-vm/tests/namespace_surface_e2e.rs:54:10:\n    the VM's own compile entry: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/namespace_surface_e2e.rs:54:10:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "ensemble_unknown_exceptional_codes_and_malformed_results_match_c"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 34656,
+      "status": "FAIL",
+      "binary": "tcl-vm::namespace_surface_e2e",
+      "selector": "ensemble_unknown_exceptional_codes_and_malformed_results_match_c",
+      "first_panic": "thread 'ensemble_unknown_exceptional_codes_and_malformed_results_match_c' (25634) panicked at rust/tcl-vm/tests/namespace_surface_e2e.rs:2230:5:\n    assertion `left == right` failed\n      left: \"{1 VALUE NONE} {1 {unknown subcommand handler returned bad code: break} NONE} {1 {unknown subcommand handler returned bad code: continue} NONE} {1 {unknown subcommand handler returned bad code: return} NONE} {1 {unknown subcommand handler returned bad code: 7} NONE}\"\n     right: \"{1 VALUE NONE} {1 {unknown subcommand handler returned bad code: break} {TCL ENSEMBLE UNKNOWN_RESULT}} {1 {unknown subcommand handler returned bad code: continue} {TCL ENSEMBLE UNKNOWN_RESULT}} {1 {unknown subcommand handler returned bad code: return} {TCL ENSEMBLE UNKNOWN_RESULT}} {1 {unknown subcommand handler returned bad code: 7} {TCL ENSEMBLE UNKNOWN_RESULT}}\"",
+      "first_panic_site": "rust/tcl-vm/tests/namespace_surface_e2e.rs:2230:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "inscope_and_apply_frames_defer_their_own_deletion"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "original-compound-string-updater-unavailable",
+      "header_LF_line": 34711,
+      "status": "FAIL",
+      "binary": "tcl-vm::namespace_surface_e2e",
+      "selector": "inscope_and_apply_frames_defer_their_own_deletion",
+      "first_panic": "thread 'inscope_and_apply_frames_defer_their_own_deletion' (25672) panicked at rust/tcl-vm/src/value.rs:7165:22:\n    selected compound updater requires checked child storage: StringUpdater",
+      "first_panic_site": "rust/tcl-vm/src/value.rs:7165:22:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "retained_and_recreated_namespace_variables_have_distinct_cells"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 34799,
+      "status": "FAIL",
+      "binary": "tcl-vm::namespace_surface_e2e",
+      "selector": "retained_and_recreated_namespace_variables_have_distinct_cells",
+      "first_panic": "thread 'retained_and_recreated_namespace_variables_have_distinct_cells' (25758) panicked at rust/tcl-vm/tests/namespace_surface_e2e.rs:2702:5:\n    assertion `left == right` failed\n      left: \"{OLDQ OLDQ OLD OLD2 NEW q ::N::q ::N 0 1} NEW NEWQ\"\n     right: \"{OLDQ NEWQ OLD OLD2 NEW q ::N::q ::N 0 1} NEW NEWQ\"",
+      "first_panic_site": "rust/tcl-vm/tests/namespace_surface_e2e.rs:2702:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::namespace_surface_e2e",
+        "selector": "retained_command_rename_mutates_the_exact_token_table"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "original-compound-string-updater-unavailable",
+      "header_LF_line": 34837,
+      "status": "FAIL",
+      "binary": "tcl-vm::namespace_surface_e2e",
+      "selector": "retained_command_rename_mutates_the_exact_token_table",
+      "first_panic": "thread 'retained_command_rename_mutates_the_exact_token_table' (25760) panicked at rust/tcl-vm/src/value.rs:7165:22:\n    selected compound updater requires checked child storage: StringUpdater",
+      "first_panic_site": "rust/tcl-vm/src/value.rs:7165:22:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_number_semantics_e2e",
+        "selector": "doubles_overflow_and_divide_by_zero_per_release"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 34899,
+      "status": "FAIL",
+      "binary": "tcl-vm::release_number_semantics_e2e",
+      "selector": "doubles_overflow_and_divide_by_zero_per_release",
+      "first_panic": "thread 'doubles_overflow_and_divide_by_zero_per_release' (25798) panicked at rust/tcl-vm/tests/release_number_semantics_e2e.rs:69:9:\n    assertion `left == right` failed: V8_4\n      left: \"{ERR floating-point value too large to represent | ARITH OVERFLOW {floating-point value too large to represent}} {ERR divide by zero | ARITH DIVZERO {divide by zero}} {ERR divide by zero | ARITH DIVZERO {divide by zero}} 1e999 1e999 1e-999 0.0 {ERR floating-point value too large to represent | ARITH OVERFLOW {floating-point value too large to represent}} 0.0 {ERR floating-point value too large to represent | ARITH OVERFLOW {floating-point value too large to represent}}\"\n     right: \"{ERR floating-point value too large to represent | ARITH OVERFLOW {floating-point value too large to represent}} {ERR divide by zero | ARITH DIVZERO {divide by zero}} {ERR divide by zero | ARITH DIVZERO {divide by zero}} {ERR floating-point value too large to represent | ARITH OVERFLOW {floating-point value too large to represent}} 1e999 {ERR floating-point value too small to represent | ARITH UNDERFLOW {floating-point value too small to represent}} 0.0 {ERR floating-point value too large to represent | ARITH OVERFLOW {floating-point value too large to represent}} {ERR floating-point value too small to represent | ARITH UNDERFLOW {floating-point value too small to represent}} {ERR floating-point value too large to represent | ARITH OVERFLOW {floating-point value too large to represent}}\"",
+      "first_panic_site": "rust/tcl-vm/tests/release_number_semantics_e2e.rs:69:9:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_number_semantics_e2e",
+        "selector": "expr_syntax_errors_per_release"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 34940,
+      "status": "FAIL",
+      "binary": "tcl-vm::release_number_semantics_e2e",
+      "selector": "expr_syntax_errors_per_release",
+      "first_panic": "thread 'expr_syntax_errors_per_release' (25800) panicked at rust/tcl-vm/tests/release_number_semantics_e2e.rs:37:46:\n    original source provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/release_number_semantics_e2e.rs:37:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_number_semantics_e2e",
+        "selector": "integers_wrap_at_64_bits_on_8_4"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "original-compound-string-updater-unavailable",
+      "header_LF_line": 34980,
+      "status": "FAIL",
+      "binary": "tcl-vm::release_number_semantics_e2e",
+      "selector": "integers_wrap_at_64_bits_on_8_4",
+      "first_panic": "thread 'integers_wrap_at_64_bits_on_8_4' (25802) panicked at rust/tcl-vm/tests/release_number_semantics_e2e.rs:49:10:\n    original source provider: ValueAccessRefusal(StringAccess(Unavailable(StringUpdater)))",
+      "first_panic_site": "rust/tcl-vm/tests/release_number_semantics_e2e.rs:49:10:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_number_semantics_e2e",
+        "selector": "math_functions_follow_the_release"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "original-compound-string-updater-unavailable",
+      "header_LF_line": 35020,
+      "status": "FAIL",
+      "binary": "tcl-vm::release_number_semantics_e2e",
+      "selector": "math_functions_follow_the_release",
+      "first_panic": "thread 'math_functions_follow_the_release' (25804) panicked at rust/tcl-vm/tests/release_number_semantics_e2e.rs:49:10:\n    original source provider: ValueAccessRefusal(StringAccess(Unavailable(StringUpdater)))",
+      "first_panic_site": "rust/tcl-vm/tests/release_number_semantics_e2e.rs:49:10:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_number_semantics_e2e",
+        "selector": "operand_errors_per_release"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "other-first-failure-needs-bounded-triage",
+      "header_LF_line": 35060,
+      "status": "FAIL",
+      "binary": "tcl-vm::release_number_semantics_e2e",
+      "selector": "operand_errors_per_release",
+      "first_panic": "thread 'operand_errors_per_release' (25809) panicked at rust/tcl-vm/tests/release_number_semantics_e2e.rs:37:46:\n    original source provider: ValueAccessRefusal(CommandProtocolUnavailable(\"native private errorInfo result\"))",
+      "first_panic_site": "rust/tcl-vm/tests/release_number_semantics_e2e.rs:37:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_number_semantics_e2e",
+        "selector": "string_bytelength_counts_internal_utf8"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 35102,
+      "status": "FAIL",
+      "binary": "tcl-vm::release_number_semantics_e2e",
+      "selector": "string_bytelength_counts_internal_utf8",
+      "first_panic": "thread 'string_bytelength_counts_internal_utf8' (25813) panicked at rust/tcl-vm/tests/release_number_semantics_e2e.rs:37:46:\n    original source provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/release_number_semantics_e2e.rs:37:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_number_semantics_e2e",
+        "selector": "string_follows_the_release"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 35143,
+      "status": "FAIL",
+      "binary": "tcl-vm::release_number_semantics_e2e",
+      "selector": "string_follows_the_release",
+      "first_panic": "thread 'string_follows_the_release' (25815) panicked at rust/tcl-vm/tests/release_number_semantics_e2e.rs:37:46:\n    original source provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/release_number_semantics_e2e.rs:37:46:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::release_running_bytecode_e2e",
+        "selector": "running_bytecode_sees_a_command_table_change_as_its_release_does"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 35193,
+      "status": "FAIL",
+      "binary": "tcl-vm::release_running_bytecode_e2e",
+      "selector": "running_bytecode_sees_a_command_table_change_as_its_release_does",
+      "first_panic": "thread 'running_bytecode_sees_a_command_table_change_as_its_release_does' (25832) panicked at rust/tcl-vm/tests/release_running_bytecode_e2e.rs:50:54:\n    source compiles: Host(Execution(CompilationAdmission(NativePreflightRequired)))",
+      "first_panic_site": "rust/tcl-vm/tests/release_running_bytecode_e2e.rs:50:54:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::rename_return_source_e2e",
+        "selector": "source_settles_a_return_and_records_where_an_error_occurred"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "other-first-failure-needs-bounded-triage",
+      "header_LF_line": 35231,
+      "status": "FAIL",
+      "binary": "tcl-vm::rename_return_source_e2e",
+      "selector": "source_settles_a_return_and_records_where_an_error_occurred",
+      "first_panic": "thread 'source_settles_a_return_and_records_where_an_error_occurred' (25958) panicked at rust/tcl-vm/tests/rename_return_source_e2e.rs:53:54:\n    source compiles: Host(Execution(ValueAccessRefusal(CommandProtocolUnavailable(\"original C86 split worker\"))))",
+      "first_panic_site": "rust/tcl-vm/tests/rename_return_source_e2e.rs:53:54:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "a_proc_runs_the_body_the_compiler_emitted_for_it"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 35279,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "a_proc_runs_the_body_the_compiler_emitted_for_it",
+      "first_panic": "thread 'a_proc_runs_the_body_the_compiler_emitted_for_it' (25984) panicked at rust/tcl-vm/tests/run_script.rs:2338:5:\n    assertion `left == right` failed\n      left: \"SOURCE\"\n     right: \"PRECOMPILED\"",
+      "first_panic_site": "rust/tcl-vm/tests/run_script.rs:2338:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "a_value_position_catch_inlines_only_a_single_command_body"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 35318,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "a_value_position_catch_inlines_only_a_single_command_body",
+      "first_panic": "thread 'a_value_position_catch_inlines_only_a_single_command_body' (25988) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "an_inlined_catch_body_expands_a_star_word"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 35359,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "an_inlined_catch_body_expands_a_star_word",
+      "first_panic": "thread 'an_inlined_catch_body_expands_a_star_word' (25993) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "an_inlined_catch_body_keeps_the_braces_that_belong_to_its_script"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 35399,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "an_inlined_catch_body_keeps_the_braces_that_belong_to_its_script",
+      "first_panic": "thread 'an_inlined_catch_body_keeps_the_braces_that_belong_to_its_script' (25995) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "an_inlined_catch_body_substitutes_its_command_name"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 35439,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "an_inlined_catch_body_substitutes_its_command_name",
+      "first_panic": "thread 'an_inlined_catch_body_substitutes_its_command_name' (25997) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "autoloader_installs_unknown_and_reports_miss"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 35480,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "autoloader_installs_unknown_and_reports_miss",
+      "first_panic": "thread 'autoloader_installs_unknown_and_reports_miss' (26002) panicked at rust/tcl-vm/tests/run_script.rs:373:5:\n    assertion `left == right` failed: unknown proc is installed\n      left: \"\"\n     right: \"unknown\"",
+      "first_panic_site": "rust/tcl-vm/tests/run_script.rs:373:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "break_continue_reject_arguments"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 35521,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "break_continue_reject_arguments",
+      "first_panic": "thread 'break_continue_reject_arguments' (26010) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "encoding_command"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 35575,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "encoding_command",
+      "first_panic": "thread 'encoding_command' (26039) panicked at rust/tcl-vm/tests/run_script.rs:2018:5:\n    assertion `left == right` failed\n      left: \"utf-8\"\n     right: \"iso8859-1\"",
+      "first_panic_site": "rust/tcl-vm/tests/run_script.rs:2018:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "inline_cmd_subst_review_fixes"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 35625,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "inline_cmd_subst_review_fixes",
+      "first_panic": "thread 'inline_cmd_subst_review_fixes' (26067) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "loop_body_redefining_continue_is_honoured"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 35674,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "loop_body_redefining_continue_is_honoured",
+      "first_panic": "thread 'loop_body_redefining_continue_is_honoured' (26087) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "multiline_cmd_subst_in_assignment_keeps_all_args"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 35721,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "multiline_cmd_subst_in_assignment_keeps_all_args",
+      "first_panic": "thread 'multiline_cmd_subst_in_assignment_keeps_all_args' (26109) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "nan_operand_error_wording"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 35766,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "nan_operand_error_wording",
+      "first_panic": "thread 'nan_operand_error_wording' (26119) panicked at rust/tcl-vm/tests/run_script.rs:222:5:\n    assertion `left == right` failed\n      left: \"NaN\"\n     right: \"cannot use non-numeric floating-point value \\\"nan\\\" as left operand of \\\"+\\\"\"",
+      "first_panic_site": "rust/tcl-vm/tests/run_script.rs:222:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "raw_backslash_cr_is_data_not_a_line_continuation"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 35810,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "raw_backslash_cr_is_data_not_a_line_continuation",
+      "first_panic": "thread 'raw_backslash_cr_is_data_not_a_line_continuation' (26134) panicked at rust/tcl-vm/tests/run_script.rs:482:9:\n    assertion `left == right` failed: \"set x \\\"a\\\\\\rb\\\"; set x\"\n      left: \"a b\"\n     right: \"a\\rb\"",
+      "first_panic_site": "rust/tcl-vm/tests/run_script.rs:482:9:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "set_inline_cmd_subst"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 35850,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "set_inline_cmd_subst",
+      "first_panic": "thread 'set_inline_cmd_subst' (26139) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "string_map_three_args_bad_option"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 35898,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "string_map_three_args_bad_option",
+      "first_panic": "thread 'string_map_three_args_bad_option' (26157) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "subst_backslash_escapes_handle_multibyte_and_hex"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 35939,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "subst_backslash_escapes_handle_multibyte_and_hex",
+      "first_panic": "thread 'subst_backslash_escapes_handle_multibyte_and_hex' (26161) panicked at rust/tcl-vm/tests/run_script.rs:750:5:\n    assertion `left == right` failed\n      left: \"a b\"\n     right: \"a\\r\\n   b\"",
+      "first_panic_site": "rust/tcl-vm/tests/run_script.rs:750:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "tailcall_exec_trace_timing_and_ownership"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 35985,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "tailcall_exec_trace_timing_and_ownership",
+      "first_panic": "thread 'tailcall_exec_trace_timing_and_ownership' (26182) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "the_inline_catch_needs_a_braced_body_that_is_only_one_command"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 36025,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "the_inline_catch_needs_a_braced_body_that_is_only_one_command",
+      "first_panic": "thread 'the_inline_catch_needs_a_braced_body_that_is_only_one_command' (26184) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::run_script",
+        "selector": "the_proc_command_that_runs_is_the_one_whose_body_is_installed"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 36065,
+      "status": "FAIL",
+      "binary": "tcl-vm::run_script",
+      "selector": "the_proc_command_that_runs_is_the_one_whose_body_is_installed",
+      "first_panic": "thread 'the_proc_command_that_runs_is_the_one_whose_body_is_installed' (26186) panicked at rust/tcl-vm/src/exec.rs:1753:14:\n    module requires a genuine native compiler preflight provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/src/exec.rs:1753:14:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::tclsh_parity_e2e",
+        "selector": "the_vm_reads_each_script_as_each_tclsh_does"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "other-first-failure-needs-bounded-triage",
+      "header_LF_line": 36142,
+      "status": "FAIL",
+      "binary": "tcl-vm::tclsh_parity_e2e",
+      "selector": "the_vm_reads_each_script_as_each_tclsh_does",
+      "first_panic": "MISMATCH condition_errors on V8_4 from File\n    --- expected\n    syntax error in expression \"1 +\": premature end of expression |     while executing | \"expr {1 +}\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     while executing | \"if {1 +} {}\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     while executing | \"while {1 +} {}\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     while executing | \"for {} {1 +} {} {}\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     while executing | \"for {} {1 +} {} {}\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     while executing | \"expr $e\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    can't read \"nosuch\": no such variable |     while executing | \"if {$nosuch} {}\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     (\"if\" test expression) |     while compiling | \"if {1 +} {} \" |     (compiling body of proc \"p1\", line 1) |     invoked from within | \"p1\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     while compiling | \"expr {1 +} \" |     (compiling body of proc \"p2\", line 1) |     invoked from within | \"p2\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     (\"while\" test expression) |     while compiling | \"while {1 +} {} \" |     (compiling body of proc \"p3\", line 1) |     invoked from within | \"p3\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     (\"for\" test expression) |     while compiling | \"for {} {1 +} {} {} \" |     (compiling body of proc \"p4\", line 1) |     invoked from within | \"p4\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    can't read \"nosuch\": no such variable |     while executing | \"if {$nosuch} {} \" |     (procedure \"p5\" line 1) |     invoked from within | \"p5\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    x |     while executing | \"error x\" |     (procedure \"p6\" line 1) |     invoked from within | \"p6\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    --- actual\n\n    --- end\n    MISMATCH condition_errors on V8_4 from Stdin\n    --- expected\n    syntax error in expression \"1 +\": premature end of expression |     while executing | \"expr {1 +}\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     while executing | \"if {1 +} {}\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     while executing | \"while {1 +} {}\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     while executing | \"for {} {1 +} {} {}\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     while executing | \"for {} {1 +} {} {}\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     while executing | \"expr $e\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    can't read \"nosuch\": no such variable |     while executing | \"if {$nosuch} {}\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     (\"if\" test expression) |     while compiling | \"if {1 +} {} \" |     (compiling body of proc \"p1\", line 1) |     invoked from within | \"p1\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     while compiling | \"expr {1 +} \" |     (compiling body of proc \"p2\", line 1) |     invoked from within | \"p2\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     (\"while\" test expression) |     while compiling | \"while {1 +} {} \" |     (compiling body of proc \"p3\", line 1) |     invoked from within | \"p3\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    syntax error in expression \"1 +\": premature end of expression |     (\"for\" test expression) |     while compiling | \"for {} {1 +} {} {} \" |     (compiling body of proc \"p4\", line 1) |     invoked from within | \"p4\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    can't read \"nosuch\": no such variable |     while executing | \"if {$nosuch} {} \" |     (procedure \"p5\" line 1) |     invoked from within | \"p5\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    x |     while executing | \"error x\" |     (procedure \"p6\" line 1) |     invoked from within | \"p6\" |     (\"uplevel\" body line 1) |     invoked from within | \"uplevel 1 $script\"\n    --- actual\n    --- stderr\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n    --- end\n    MISMATCH condition_errors on V8_5 from File\n    --- expected\n    missing operand at _@_ | in expression \"1 +_@_\" |     (parsing expression \"1 +\") |     invoked",
+      "first_panic_site": "no Rust panic header"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_name_resolution_e2e",
+        "selector": "release_invariant_vectors_hold_at_every_release"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 40241,
+      "status": "FAIL",
+      "binary": "tcl-vm::variable_name_resolution_e2e",
+      "selector": "release_invariant_vectors_hold_at_every_release",
+      "first_panic": "thread 'release_invariant_vectors_hold_at_every_release' (26388) panicked at rust/tcl-vm/tests/variable_name_resolution_e2e.rs:544:13:\n    assertion `left == right` failed: [V8_4] array set rejects an element-form target before it parses the list\n      left: \"1:can't array set \\\"(x)\\\": variable isn't array\\n1:can't array set \\\"(x)\\\": variable isn't array\\n1:can't array set \\\"zarr(k)\\\": variable isn't array\\n1:can't array set \\\"zarr(k)\\\": variable isn't array\\n1:list must have an even number of elements\\n0:\\n0:\\n0:\\na 1:a 1:a\"\n     right: \"1:can't set \\\"(x)\\\": variable isn't array\\n1:can't set \\\"(x)\\\": variable isn't array\\n1:can't set \\\"zarr(k)\\\": variable isn't array\\n1:can't set \\\"zarr(k)\\\": variable isn't array\\n1:list must have an even number of elements\\n0:\\n0:\\n0:\\na 1:a 1:a\"",
+      "first_panic_site": "rust/tcl-vm/tests/variable_name_resolution_e2e.rs:544:13:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_name_resolution_e2e",
+        "selector": "vectors_match_real_tclsh"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "external-exact-oracle-missing",
+      "header_LF_line": 40122,
+      "status": "FAIL",
+      "binary": "tcl-vm::variable_name_resolution_e2e",
+      "selector": "vectors_match_real_tclsh",
+      "first_panic": "thread 'vectors_match_real_tclsh' (26395) panicked at rust/tcl-vm/tests/variable_name_resolution_e2e.rs:557:53:\n    all five pinned C Tcl oracles: InvalidInterpreter(\"missing required C Tcl 8.4.20 oracle; set TCL_LSP_TCLSH84\")",
+      "first_panic_site": "rust/tcl-vm/tests/variable_name_resolution_e2e.rs:557:53:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_name_resolution_e2e",
+        "selector": "vm_matches_the_pinned_variable_name_vectors"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 40158,
+      "status": "FAIL",
+      "binary": "tcl-vm::variable_name_resolution_e2e",
+      "selector": "vm_matches_the_pinned_variable_name_vectors",
+      "first_panic": "thread 'vm_matches_the_pinned_variable_name_vectors' (26398) panicked at rust/tcl-vm/tests/common/mod.rs:72:10:\n    original source provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/common/mod.rs:72:10:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "alias_wrappers_begin_a_fresh_completion_option_scope"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 40198,
+      "status": "FAIL",
+      "binary": "tcl-vm::variable_trace_semantics_e2e",
+      "selector": "alias_wrappers_begin_a_fresh_completion_option_scope",
+      "first_panic": "thread 'alias_wrappers_begin_a_fresh_completion_option_scope' (26402) panicked at rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:816:5:\n    assertion `left == right` failed\n      left: \"{{list 0 inside 1} {try 0 inside 1} {eval 0 inside 0} {switch 0 inside 0}} {0 inside 0} {0 value BAR}\"\n     right: \"{{list 0 inside 0} {try 0 inside 0} {eval 0 inside 0} {switch 0 inside 0}} {0 inside 0} {0 value BAR}\"",
+      "first_panic_site": "rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:816:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "array_for_tracks_structural_revision_and_read_trace_deletion"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "other-first-failure-needs-bounded-triage",
+      "header_LF_line": 40280,
+      "status": "FAIL",
+      "binary": "tcl-vm::variable_trace_semantics_e2e",
+      "selector": "array_for_tracks_structural_revision_and_read_trace_deletion",
+      "first_panic": "thread 'array_for_tracks_structural_revision_and_read_trace_deletion' (26414) panicked at rust/tcl-vm/tests/common/mod.rs:72:10:\n    original source provider: ValueAccessRefusal(CommandProtocolUnavailable(\"actual original array member key\"))",
+      "first_panic_site": "rust/tcl-vm/tests/common/mod.rs:72:10:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "array_operation_reference_preserves_same_binding_recreation"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 40320,
+      "status": "FAIL",
+      "binary": "tcl-vm::variable_trace_semantics_e2e",
+      "selector": "array_operation_reference_preserves_same_binding_recreation",
+      "first_panic": "thread 'array_operation_reference_preserves_same_binding_recreation' (26418) panicked at rust/tcl-vm/tests/common/mod.rs:72:10:\n    original source provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/common/mod.rs:72:10:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "array_trace_resolution_distinguishes_direct_and_linked_elements"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 40363,
+      "status": "FAIL",
+      "binary": "tcl-vm::variable_trace_semantics_e2e",
+      "selector": "array_trace_resolution_distinguishes_direct_and_linked_elements",
+      "first_panic": "thread 'array_trace_resolution_distinguishes_direct_and_linked_elements' (26434) panicked at rust/tcl-vm/tests/common/mod.rs:72:10:\n    original source provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/common/mod.rs:72:10:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "array_trace_resolution_handles_undefined_scalar_and_alias_cells"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 40405,
+      "status": "FAIL",
+      "binary": "tcl-vm::variable_trace_semantics_e2e",
+      "selector": "array_trace_resolution_handles_undefined_scalar_and_alias_cells",
+      "first_panic": "thread 'array_trace_resolution_handles_undefined_scalar_and_alias_cells' (26436) panicked at rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:640:5:\n    assertion `left == right` failed\n      left: \"0 0 1 {{absent absent {} array} {scalar scalar {} array} {alias a {} array}}\"\n     right: \"0 0 1 {{absent absent {} array} {alias a {} array}}\"",
+      "first_panic_site": "rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:640:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "unset_element_miss_kind_survives_parent_mutation_in_its_callback"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 40449,
+      "status": "FAIL",
+      "binary": "tcl-vm::variable_trace_semantics_e2e",
+      "selector": "unset_element_miss_kind_survives_parent_mutation_in_its_callback",
+      "first_panic": "thread 'unset_element_miss_kind_survives_parent_mutation_in_its_callback' (26454) panicked at rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:1114:5:\n    assertion `left == right` failed\n      left: \"{{1 {can't unset \\\"a(missing)\\\": no such element in array} {TCL LOOKUP ELEMENT missing}} {1 {can't unset \\\"b(missing)\\\": no such element in array} {TCL LOOKUP ELEMENT missing}}} 2 scalar\"\n     right: \"{{1 {can't unset \\\"a(missing)\\\": no such element in array} {TCL UNSET VARNAME}} {1 {can't unset \\\"b(missing)\\\": no such element in array} {TCL UNSET VARNAME}}} 2 scalar\"",
+      "first_panic_site": "rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:1114:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "unset_from_an_active_write_trace_fires_the_taken_unset_list"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 40487,
+      "status": "FAIL",
+      "binary": "tcl-vm::variable_trace_semantics_e2e",
+      "selector": "unset_from_an_active_write_trace_fires_the_taken_unset_list",
+      "first_panic": "thread 'unset_from_an_active_write_trace_fires_the_taken_unset_list' (26456) panicked at rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:1232:5:\n    assertion `left == right` failed\n      left: \"{W a k write} {W ::a(k) k unset}\"\n     right: \"{W a k write} {W ::a k unset}\"",
+      "first_panic_site": "rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:1232:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "unsetting_a_trace_only_array_element_fires_then_reports_it_missing"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 40561,
+      "status": "FAIL",
+      "binary": "tcl-vm::variable_trace_semantics_e2e",
+      "selector": "unsetting_a_trace_only_array_element_fires_then_reports_it_missing",
+      "first_panic": "thread 'unsetting_a_trace_only_array_element_fires_then_reports_it_missing' (26458) panicked at rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:1086:5:\n    assertion `left == right` failed\n      left: \"{1 {can't unset \\\"a(missing)\\\": no such element in array} {TCL LOOKUP ELEMENT missing}} 1\"\n     right: \"{1 {can't unset \\\"a(missing)\\\": no such element in array} {TCL UNSET VARNAME}} 1\"",
+      "first_panic_site": "rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:1086:5:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "vectors_match_real_tclsh"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "external-exact-oracle-missing",
+      "header_LF_line": 40525,
+      "status": "FAIL",
+      "binary": "tcl-vm::variable_trace_semantics_e2e",
+      "selector": "vectors_match_real_tclsh",
+      "first_panic": "thread 'vectors_match_real_tclsh' (26460) panicked at rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:1284:53:\n    all five pinned C Tcl oracles: InvalidInterpreter(\"missing required C Tcl 8.4.20 oracle; set TCL_LSP_TCLSH84\")",
+      "first_panic_site": "rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:1284:53:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "vm_matches_the_pinned_trace_vectors"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "assertion-mismatch-needs-bounded-triage",
+      "header_LF_line": 40647,
+      "status": "FAIL",
+      "binary": "tcl-vm::variable_trace_semantics_e2e",
+      "selector": "vm_matches_the_pinned_trace_vectors",
+      "first_panic": "thread 'vm_matches_the_pinned_trace_vectors' (26462) panicked at rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:513:13:\n    assertion `left == right` failed: [V9_1] lappend fires read on the dispatched and multi-value paths only\n      left: \"top-1: read write\\ntop-0: read\\ntop-2: read write\\ntop-eval: read write\\ntop-if: read write\\nproc-local2: read write\\nproc-local0: read\\nproc-local1: write\\nproc-eval: read write\\nproc-elem2: read write\\nproc-elem1: write\"\n     right: \"top-1: read write\\ntop-0: read\\ntop-2: read write\\ntop-eval: read write\\ntop-if: read write\\nproc-local2: read write\\nproc-local0: read\\nproc-local1: write\\nproc-eval: write\\nproc-elem2: read write\\nproc-elem1: write\"",
+      "first_panic_site": "rust/tcl-vm/tests/variable_trace_semantics_e2e.rs:513:13:"
+    },
+    {
+      "key": {
+        "binary_id": "tcl-vm::variable_trace_semantics_e2e",
+        "selector": "whole_array_unset_retargets_live_alias_and_preserves_const_error"
+      },
+      "package": "tcl-vm",
+      "baseline": "actualPASS",
+      "current_source": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+      "current_status": "actualFAIL",
+      "phase_group": "typed-NativePreflightRequired-first-artifact-predicate-unmeasured",
+      "header_LF_line": 40602,
+      "status": "FAIL",
+      "binary": "tcl-vm::variable_trace_semantics_e2e",
+      "selector": "whole_array_unset_retargets_live_alias_and_preserves_const_error",
+      "first_panic": "thread 'whole_array_unset_retargets_live_alias_and_preserves_const_error' (26473) panicked at rust/tcl-vm/tests/common/mod.rs:72:10:\n    original source provider: CompilationAdmission(NativePreflightRequired)",
+      "first_panic_site": "rust/tcl-vm/tests/common/mod.rs:72:10:"
+    }
+  ],
+  "limits": "Groups use actual first failure text, not generic source inference. Unmatched22 not included. No broad rerun/extra Cargo.",
+  "provider_refusal_sites": {
+    "rust/tcl-vm/tests/c_error_paths_e2e.rs:35:46:": 4,
+    "rust/tcl-vm/tests/cmd_control_e2e.rs:75:46:": 48,
+    "rust/tcl-vm/tests/cmd_math_expr_e2e.rs:60:46:": 4,
+    "rust/tcl-vm/src/exec.rs:1753:14:": 17,
+    "rust/tcl-vm/tests/cross_version_info_surface_e2e.rs:53:37:": 3,
+    "rust/tcl-vm/tests/literal_index_encoding_e2e.rs:79:59:": 1,
+    "rust/tcl-vm/tests/namespace_surface_e2e.rs:54:10:": 2,
+    "rust/tcl-vm/tests/release_number_semantics_e2e.rs:37:46:": 3,
+    "rust/tcl-vm/tests/release_running_bytecode_e2e.rs:50:54:": 1,
+    "rust/tcl-vm/tests/common/mod.rs:72:10:": 4
+  },
+  "provider_refusal_targets": {
+    "tcl-vm::c_error_paths_e2e": 4,
+    "tcl-vm::cmd_control_e2e": 48,
+    "tcl-vm::cmd_math_expr_e2e": 4,
+    "tcl-vm::cmd_oo_e2e": 4,
+    "tcl-vm::cross_version_info_surface_e2e": 3,
+    "tcl-vm::literal_index_encoding_e2e": 1,
+    "tcl-vm::namespace_surface_e2e": 2,
+    "tcl-vm::release_number_semantics_e2e": 3,
+    "tcl-vm::release_running_bytecode_e2e": 1,
+    "tcl-vm::run_script": 13,
+    "tcl-vm::variable_name_resolution_e2e": 1,
+    "tcl-vm::variable_trace_semantics_e2e": 3
+  },
+  "classification_correction": "Raw NativePreflightRequired represents four possible artifact-admission predicates; no actual provider-required predicate proven. CCG owns one opt-in first-decline diagnostic. Prior /tmp working copy retained as earlier labeling provenance."
+}

@@ -1,0 +1,25 @@
+{
+  "patch_sha256": "81f05efcaa13e6e0614acbae665071b8a5c6139a2a03efac7b2bc253c9190550",
+  "v1_delta_sha256": "6ef3a461e864a4eac53a9ee921795cdde95e7c6689604dc00ca9d143d4c72897",
+  "files": [
+    {
+      "path": "rust/bpf-tcl-ir/src/source/phase.rs",
+      "base_sha256": "506d15bca8878e94a34b19c15688a93a8064e1ac4f9737056daf35d678c34cdd",
+      "proposed_sha256": "cddc4470faa6f3ad0b690cc3d924134fda9bd1e723172d3b8771abc9fe500106"
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+      "base_sha256": "df22e8c64c69248ea5a56d439c214b534f287d1874b113b6383dc56d448bf0d0",
+      "proposed_sha256": "8e4f9e907c4d96489cc99affc63afbc36e3e4ee4593dff954d0023a5b5a3e8b9"
+    }
+  ],
+  "status": "off-tree; rustfmt parsed; untyped/unrun; peer review requested",
+  "fix": "join each original receipt word full config to actual module and genuine mismatched-receipt negative; doc correctly attached",
+  "limits": [
+    "BPF first marker unmeasured",
+    "no Native/runtime/procedure-entry/authored-simulation change",
+    "generic selected scope unchanged",
+    "private BPF prepared issuer retained",
+    "unsupported structured forms conservatively refuse"
+  ]
+}

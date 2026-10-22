@@ -1,0 +1,19 @@
+{
+  "reviewer": "compiler-names",
+  "kind": "bounded static delta review",
+  "proposal": "/tmp/lsp-n13-native-path-controls-v1/proposal.patch",
+  "sha256": "bd8c0bff76fc6f9c5fafe1b5b5b2d67577f17192d77a85c24bff0e3be76780a4",
+  "concrete_blockers": [],
+  "examined": [
+    "actual schema5 child and positive outgoing parent before refusal perturbations",
+    "same-session/current versus foreign/missing session controls",
+    "exact GOOD to BAD to variable-free own GOOD target and range plus old handle retirement",
+    "five shadow/intermediate/effect/missing negatives forbid wrong GOOD",
+    "existing fixture assertions unchanged by formatting"
+  ],
+  "limits": [
+    "No Rust compilation or native protocol execution",
+    "C oracle9/9 reported by LSP, not independently rerun",
+    "Does not establish D2/deep continuity or whole host acceptance"
+  ]
+}

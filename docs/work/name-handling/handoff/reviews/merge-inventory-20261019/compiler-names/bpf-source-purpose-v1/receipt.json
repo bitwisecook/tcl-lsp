@@ -1,0 +1,24 @@
+{
+  "patch_sha256": "d538ddb9501b62de04363050bd057849858ae7b55a427025c8bc67c700660159",
+  "files": [
+    {
+      "path": "rust/bpf-tcl-ir/src/source/phase.rs",
+      "base_sha256": "506d15bca8878e94a34b19c15688a93a8064e1ac4f9737056daf35d678c34cdd",
+      "proposed_sha256": "cddc4470faa6f3ad0b690cc3d924134fda9bd1e723172d3b8771abc9fe500106"
+    },
+    {
+      "path": "rust/tcl-compiler/src/cfg_builder/mod.rs",
+      "base_sha256": "df22e8c64c69248ea5a56d439c214b534f287d1874b113b6383dc56d448bf0d0",
+      "proposed_sha256": "9dbf77ae5eed262e41044797f0b752b708f6dda4866e9e12b39ace8c22ceaae0"
+    }
+  ],
+  "status": "off-tree draft; rustfmt parses; untyped/unrun; not apply-ready",
+  "scope": "SourceBpfModuleContext/current module/registry/full selected-command census; private BPF issuer; generic API unchanged",
+  "limits": [
+    "first generic marker unmeasured",
+    "whole original module config and source currentness required",
+    "no Native/runtime/procedure-entry or authored-simulation change",
+    "structured If retains generic embedded-control effect guards",
+    "unsupported structured forms conservatively refuse"
+  ]
+}

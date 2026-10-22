@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-22T23:54:49.946723+00:00",
+  "status": "OFF-TREE preparation only; no queue/build/sourcewrite",
+  "plans": [
+    {
+      "path": "/tmp/ccg-diagnostic-three-v2/native1-plan.json",
+      "sha256": "19efc866e31d8ea28fc2218b29ac0b41f618e7bead2d871307476836db75daed"
+    },
+    {
+      "path": "/tmp/ccg-diagnostic-three-v2/n17two-plan.json",
+      "sha256": "a39d53d200d49e78d30a8b2b5c40897081cb4529e4d0647a01a6897517824a70"
+    }
+  ],
+  "watchdog": {
+    "path": "/tmp/ccg-diagnostic-three-v2/runtime-watchdog.py",
+    "sha256": "7495aee1f9e85080dff5c2fdd67595257908b138a85ae315b2319ccbfa08d3f7"
+  },
+  "model": {
+    "path": "/tmp/compiler-focused-runtime-watchdog-v5.py",
+    "sha256": "c3a9ddbd812938dbfb336e96b4616361c378e030aa1b1d8fdd609a5f483f4191"
+  },
+  "exact_inverse": "Only suite path, guard path, and two actual executable stems changed; inverse byte equality and AST parse pass. Budget180 and all ownership/cleanup semantics unchanged.",
+  "full51v3": {
+    "path": "/tmp/ccg-postbatch-functional-v3-plan.json",
+    "sha256": "fb691896d55f76b63402581e67e9dc858f66ed7caf602079936154fbcaff5f78"
+  },
+  "supersedes": "v1 unreviewed whole-command2700 wrapper is NOT proposed for execution. No45min ceiling used or substituted for180sec selected executable runtime.",
+  "pins_unchanged": "Native test a89c3a8e / bytecode20dae111; N17 helper e1ed4fb2 + support6f430e9f. Only native compile_service becomes formatted41f76c71 from corrected76d0.",
+  "limits": "Static preparation only. Native084 and N17 public041eb preserve original assertions; diagnostic facts require separate review. No full51 acceptance and no claim of all87 or general parity closure."
+}

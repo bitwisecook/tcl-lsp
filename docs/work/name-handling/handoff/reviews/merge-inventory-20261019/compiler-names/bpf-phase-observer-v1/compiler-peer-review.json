@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-22T23:30:56.398440Z",
+  "kind": "agent-reported bounded static peer review",
+  "reviewer_role": "compiler",
+  "sha256": "7343f02173fb8fc2e1de8b68328eccd9b7e27d436be36b4cc36aa4b85a13324b",
+  "status": "No concrete blocker in examined test-only observer; untyped/unrun",
+  "checks": [
+    "env-gated existing cfgtest module",
+    "max16 actual prepared CFG rows, compact typed marker/receipt/selection",
+    "all assertions/calls/count1 unchanged",
+    "extra selected_command query readonly, no descriptor fallback or authority grant"
+  ],
+  "limits": [
+    "Rows are after preparation: earlier failure means no rows, never proof no barrier",
+    "No current BPF diagnosis/fix or source integration acceptance"
+  ]
+}
