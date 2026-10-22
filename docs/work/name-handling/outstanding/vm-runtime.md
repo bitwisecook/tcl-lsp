@@ -2,7 +2,7 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T19:52:17Z (CI5204 standalone runtime TLS abort triangulated; two exact baseline regressions; narrow TLS patch peer-approved off-tree, no VM Cargo queued)
+Last updated: 2026-10-22T19:59:32Z (four auxiliary evidence source extensions renamed .txt byteidentically; transient guard-input change recorded, no stability inference; no Rust/Cargo)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -176,6 +176,31 @@ release. Names independently found no remaining bounded static blocker after
 requiring those nonvacuous probes. UNCOMPILED/UNRUN, held for root publisher
 window; original CI abort selector, both new controls and two baseline regressions
 still require exact execution. No canonical Rust writes or Cargo here.
+
+The finite C controls are now retained under the CI5204 canonical run directory's
+`finite-c-oracles/`: exact alias fixture returns `store =` on all five pinned
+C Tcl8.4–9.1 providers, while the old test expects BTreeMap-specific sorted
+`= store`. Tcl8.4 independently confirms both existing catch expected answers,
+so that expectation is unchanged. No runtime Rust output or pass is inferred.
+An exact-byte oracle correction proposal (no set/sort/assertion weakening or
+production ordering change) is held off-tree:
+`/tmp/vm-runtime-runtime-alias-oracle-shadow/alias-order-oracle-correction.patch`,
+SHA-256 `f58c914f27be639d0f871a6d01a8e97dfeb4970c262d30199dc2911f7ed2898f`.
+Names statically reviewed the narrow correction policy and requested its comment
+refer only to this exact fixture rather than a general registration-order
+contract; that wording is incorporated. Root has the proposal for disposition.
+
+The optional exact runtime followup plan is
+`/tmp/vm-runtime-ci5204-exact-selector-plan.json`: five selectors (catch baseline,
+alias baseline, two new TLS controls, original Jim abort-thread test), each
+separately executed with --exact --nocapture so abort cannot hide preceding
+assertion diagnostics. It remains UNQUEUED. Actual CI failure is the no-tommath
+build; local build.rs flavor must be recorded/matched rather than silently
+substituting another closure. Existing Make fallback renames/removes the Tcl
+source fixture directory and must not be used under another guarded command.
+No Cargo, active Rust write, provider mutation or target cleanup here. The
+current catch failure's exact assertion/counter cause remains untriaged until
+its isolated original selector is authorized and executed.
 
 Trusted Jim proc attachment has compiler static approval, including exact
 trusted compiled-in boundary, selected row and pointer/generation idempotence.
@@ -527,3 +552,11 @@ The state is in WIP snapshot `56893780b9`, plus the working tree since.
   - `cmd_package` `version_conflict` takes the protocol release.
   - Redundant runtime `#[path]` attributes removed (owner gate).
   - The engine wall-clock test comment is corrected.
+
+Auxiliary archive correction at 2026-10-22T19:59:32Z: newly copied baseline-cmd_alias.rs,
+baseline-cmd_error.rs and finite-c-oracles/{aliases,catch84}.tcl under the CI5204
+run archive were renamed to .rs.txt/.tcl.txt with identical bytes/SHA-256. The
+receipt retains exact old/new path provenance. Their transient source extensions
+may have entered broad live source guards even under docs; no source-stability
+pass is inferred. No product/test source or executable changed. Future evidence
+inside the active tree uses .json/.txt/.patch during source hold.

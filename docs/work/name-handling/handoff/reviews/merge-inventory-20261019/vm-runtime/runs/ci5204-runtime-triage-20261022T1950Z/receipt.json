@@ -21,14 +21,16 @@
       "sha256": "17c406a3fda310b097989413423a2774c5e95ffaf31ea4972eee35d942653803"
     },
     {
-      "file": "baseline-cmd_alias.rs",
+      "file": "baseline-cmd_alias.rs.txt",
       "bytes": 73003,
-      "sha256": "5105c00da950c1560fc382b0de4a1b7c981a7c3e3562b39bb1e11b0609ca61bd"
+      "sha256": "5105c00da950c1560fc382b0de4a1b7c981a7c3e3562b39bb1e11b0609ca61bd",
+      "original_archive_path": "baseline-cmd_alias.rs"
     },
     {
-      "file": "baseline-cmd_error.rs",
+      "file": "baseline-cmd_error.rs.txt",
       "bytes": 40344,
-      "sha256": "425bbcd7b2ce89f893184094a7374c603b583061dfb86bbec74dce37c066b92c"
+      "sha256": "425bbcd7b2ce89f893184094a7374c603b583061dfb86bbec74dce37c066b92c",
+      "original_archive_path": "baseline-cmd_error.rs"
     },
     {
       "file": "runtime-two-regression-source.json",
@@ -48,8 +50,38 @@
   "two_regression_sources": "Fetched exactfcb7927f rawsources throughGitHubplugin; both currenttest function bodies byte-identical tobaseline, hashes/runtime-two-regression-source.json. CIabort prevents per-testassertiondiagnostic summary, so notyet knownsemanticassertionvsleakcounters. Originalexpectations unchanged.",
   "finite_c_oracles": {
     "path": "finite-c-oracles/receipt.json",
-    "sha256": "2653306c1296094228aead0e38b0c37d888b94601e36b43ef752e210f47f5197",
+    "sha256": "ea36082e9e07366eaf6e644b93b46ba2020c74608e15fdd5bb1d849cfff13af1",
     "result": "Aliasstore = measuredonall5pinnedCproviders, oldtestexpects = store(BTreeMapsort).8.4catch exactoldexpectationconfirmed. NoRustresultorassertionchange.",
     "scope": "Narrow documentedC-oracle correctioncandidate; currentruntimeactualfailedassertion unavailablebecauseCIabort. No weakerassertion/prodorderingfixproposed."
+  },
+  "archive_extension_correction": {
+    "recorded_utc": "2026-10-22T19:59:32.855745+00:00",
+    "reason": "Four newly archived source/oracle evidence files used .rs/.tcl extensions during active sourcehold; broadguard mayinclude docs. Renamed onlythose auxiliaryfiles .txt with byteidenticalhashes. Product/testsource unchanged. No inferred source-stabilitygreen; root/LSP must assessactualguardinventory transientchange.",
+    "files": [
+      {
+        "old_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/baseline-cmd_alias.rs",
+        "new_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/baseline-cmd_alias.rs.txt",
+        "sha256": "5105c00da950c1560fc382b0de4a1b7c981a7c3e3562b39bb1e11b0609ca61bd",
+        "bytes": 73003
+      },
+      {
+        "old_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/baseline-cmd_error.rs",
+        "new_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/baseline-cmd_error.rs.txt",
+        "sha256": "425bbcd7b2ce89f893184094a7374c603b583061dfb86bbec74dce37c066b92c",
+        "bytes": 40344
+      },
+      {
+        "old_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/finite-c-oracles/aliases.tcl",
+        "new_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/finite-c-oracles/aliases.tcl.txt",
+        "sha256": "1a075844d3539d9311e24f3e4218d6545af95de5155f55107477221af54e5ac4",
+        "bytes": 96
+      },
+      {
+        "old_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/finite-c-oracles/catch84.tcl",
+        "new_path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/ci5204-runtime-triage-20261022T1950Z/finite-c-oracles/catch84.tcl.txt",
+        "sha256": "467dde88232b702441a8e8784efd2c835b8c2ea4882ae3fb183945f729117981",
+        "bytes": 135
+      }
+    ]
   }
 }

@@ -1,0 +1,31 @@
+{
+  "utc": "2026-10-22T19:56:22.807197+00:00",
+  "patch": "/tmp/compiler-c6-actual-compiler-owner.patch",
+  "sha256": "86106880f5021a215eecc7464cfad8d794f6be3fdba5ad00d59e0599cea607e4",
+  "files": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+      "before_sha256": "03e25731908184ff3101bdad20acb58ef982050d27fa6db1cc9d9171f1fba31e",
+      "after_sha256": "fa973a25618cf921bd51b6eed3f3fc8410c9ddaf52b557784196135a47198402",
+      "diff_lines": 191
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_taint.rs",
+      "before_sha256": "fa5e3c7e7702b5c73d8d9b8d06328764c4f7a1f0f67c50d0745d8889ba202023",
+      "after_sha256": "d31f6865610a5d9bb4a221d2b17852804c89f5aac650216d91031130af3a5cec",
+      "diff_lines": 141
+    },
+    {
+      "path": "rust/tcl-compiler/src/taint.rs",
+      "before_sha256": "e44f95cda281895ce898d006fe3e3f89c843f15fb551e498adaf9496a78ac8eb",
+      "after_sha256": "22faf1f3acda6c5361899039d2fbfcbfcb71398aba2a9e81754a31a76d77cdfb",
+      "diff_lines": 244
+    }
+  ],
+  "status": "OFF-TREE candidate only; production helper/join bounded peer-reviewed at12f0d24, successor86106880 adds unrun controls; not applied/typechecked/Cargo or accepted",
+  "authority": "Distinct actual compiler snapshot/vector/input/source/world descriptive-frame syntax owner; no new runtime/frame/handler or inherited source-only compiler grant. Native/hosted invocation owner retained beside original-read inventory. Exact parent/current tokens retained for source-point correspondence.",
+  "validation": "Existing original18 failures remain evidence. No current Cargo queued; root explicit source window/build required.",
+  "controls": "One actual captured-compiler fixture test acrossC8.4/C9.1: exact original syntax after earlier undefined read; independent complete context input/config; synthetic/argv and withdrawn snapshot/policy/words. Genuine inherited/tail and exact frame consumer controls remain required, not fabricated.",
+  "remaining_precision": "Actual compiler attachment/join clears lookup and preparation on full table variance. Candidate retains this refusal; no recipe reconstruction or world-equality shortcut. Await exact positive diagnostic.",
+  "peer_review": "Names bounded production review approved12f0d24 Unowned authenticated fallback. New tests uncompiled/unrun."
+}

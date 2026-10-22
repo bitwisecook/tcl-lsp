@@ -124,5 +124,10 @@
     }
   ],
   "recorded_provider_hashes_utc": "2026-10-22T19:54:27.969577+00:00",
-  "interpretation": "AliasexactC result store = across all5; oldBTreeMap-sorted = store expectedvalue differsfromC.8.4catch originalexpectationmatchesC unchanged. NotRustruntimeacceptance."
+  "interpretation": "AliasexactC result store = across all5; oldBTreeMap-sorted = store expectedvalue differsfromC.8.4catch originalexpectationmatchesC unchanged. NotRustruntimeacceptance.",
+  "canonical_archive_paths": {
+    "aliases.tcl": "aliases.tcl.txt",
+    "catch84.tcl": "catch84.tcl.txt",
+    "note": "Recordedexecutionargv continues to reference original /tmp scripts unchanged; canonicalauxiliaryarchive renamed byteidentically to keep extensions out of active sourceguard."
+  }
 }
