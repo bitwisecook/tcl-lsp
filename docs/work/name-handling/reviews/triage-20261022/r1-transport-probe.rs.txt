@@ -1,0 +1,47 @@
+// Temporary review probe; restore only as tests/zz_review_probe.rs.
+use tcl_compiler::analyser::Analyser;
+
+#[test]
+fn completed_world_transport_before_and_after_core_surface_seed() {
+    for seeded in [false, true] {
+        if seeded {
+            tcl_spectcl::core_surfaces::ensure();
+        }
+        for dialect in ["tcl8.6", "tcl9.0"] {
+            for (case, source) in [
+                ("puts", "puts hi\n"),
+                ("declaration", "proc foo {} {return A}\n"),
+                ("bare-call", "proc foo {} {return A}\nfoo\n"),
+                ("puts-call", "proc foo {} {return A}\nputs [foo]\n"),
+            ] {
+                let analysis = Analyser::new().analyse(source, dialect);
+                let realm_world = analysis.retained_command_realm().is_some_and(|realm| {
+                    realm.original_completed_command_world().is_some()
+                });
+                let result_world = analysis.original_completed_command_world().is_some();
+                let calls: Vec<_> = analysis.command_invocations.iter().map(|call| {
+                    (call.name.as_str(), call.original_lookup.is_some())
+                }).collect();
+                println!("R1_TRANSPORT seeded={seeded} {dialect} {case}: realm={realm_world} analysis={result_world} calls={calls:?}");
+            }
+        }
+    }
+}
+
+#[test]
+fn z_braced_indirect_parser_and_scalar_parentheses() {
+    let source = "set \"a\\{b\" arr\nset ${a{b}(status) 1\nputs $arr(status)\n";
+    println!("N03_INDIRECT helper={}", tcl_syntax::naming::is_braced_indirect_array_ref("${a{b}(status)"));
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "jim"] {
+        let analysis = Analyser::new().analyse(source, dialect);
+        let diagnostics: Vec<_> = analysis.diagnostics.iter().map(|d| {
+            (format!("{:?}", d.code), d.message.as_str())
+        }).collect();
+        println!("N03_INDIRECT {dialect}: {diagnostics:?}");
+    }
+    for style in [tcl_dialect::BracedVarStyle::FirstClose, tcl_dialect::BracedVarStyle::Tcl9Nesting] {
+        for name in ["a(b", "a(b)c"] {
+            println!("N03_SCALAR {style:?} {name:?} -> {:?}", tcl_syntax::naming::normalise_var_name_for_style(name, style));
+        }
+    }
+}

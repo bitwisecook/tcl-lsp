@@ -2,7 +2,7 @@
 
 Area: Replay of the external review's findings on the current tree.
 
-Last updated: 2026-10-22T14:17:22Z
+Last updated: 2026-10-22T14:42:43Z
 
 Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. This agent commits and pushes it after each run and at least every 30 minutes.
 
@@ -40,8 +40,8 @@ The complete original checkout was too large to recover promptly; the user autho
 | N02 | CHANGED (Jim identities distinct; definition abstains) |
 | N03 | C Tcl FIXED; Jim CHANGED (definition/references abstain; rename refuses) |
 | N08 | FIXED |
-| N09 | constructor FIXED; call graph CHANGED (no summary for `::n::c`) |
-| N10 | CHANGED; `namespace path` class selection REPRODUCES |
+| N09 | FIXED in current constructor/call-graph repros (`::n::c` → `::lib::p`); taint not independently executed |
+| N10 | CHANGED: path definition now correct; hover/type hierarchy remain empty |
 | N11 | CHANGED (`if {0}` is `Conditional`, still selected); merge early return REPRODUCES (static) |
 | N12 | FIXED |
 | N13 | REPRODUCES |
@@ -59,7 +59,7 @@ The complete original checkout was too large to recover promptly; the user autho
 **Refused, pending R1** (compiler-names' completed-command-world fix): N04, N05, N06, N07. Rename refuses even `proc foo; puts [foo]`.
 
 **Pending:**
-1. N17: existing live-fold e2e FAILS (DSL 1, expected ["5"], got []). Run6 must determine whether the live callback works directly and whether a declared pure effect footprint restores optimiser folding. Owner: compiler-codegen (`const_subst.rs`).
+1. N17 is now settled: direct callbacks return `good` in all 8 DSL/reference/effects combinations. Explicit `world_effects none` gives O129 `good`; undeclared effects give no fold. Existing control e2e FAILS. Compiler-codegen owns the compatibility gate fix; triage only needs final latest-work confirmation and output replay.
 2. Nested passthrough lowering for iRules: run 4's probe was inconclusive and has been reworked.
 3. Extract/inline: print `Refactoring::disabled` to confirm these are refusals.
 4. Section 4.1 scaling rows at P = 25–200. Run 3 measured 248 s to analyse a 250-proc file.
@@ -80,7 +80,7 @@ It restores the probe, builds, runs and deletes the executables in one command, 
 
 ## In progress
 
-- Run6 active: current prefix evidence is in `run6-progress.log`. Pending direct/pure live-hook contrast, seam checks, server-shaped rename controls, remaining findings and scaling.
+- Run6 active: current prefix evidence is in `run6-progress.log`. The direct/pure live-hook contrast is complete. Pending seam checks, completion of server-shaped controls, scaling and output replay.
 - Required release gates `make rust-check` and `make prep-pr` are not run; this is evidence-only work under the active `work` development-push exception.
 
 ## Outstanding (in priority order)
@@ -109,3 +109,5 @@ It restores the probe, builds, runs and deletes the executables in one command, 
 - 2026-10-22T13:59:37Z: run5 finished; repeat of the existing fold test confirms a real failure (0 passed / 1 failed; DSL 1 expected ["5"], got []). Evidence: `run5-e2e-repeat.log`. No product files or tests were edited. Required release gates remain unrun.
 
 - 2026-10-22T14:16:15Z: checkpoint of the first completed run6 observations; the active log is preserved outside the index. Snapshot: `run6-progress.log`. No new edit output has yet been validated on the oracles; those outputs remain uncommitted until replay.
+
+- 2026-10-22T14:42:43Z: run6 confirms N09 call graph fixed, N10 path definition fixed (hover/hierarchy still missing), and N17 direct scanner results correct. Both DSLs fold with declared pure effects and fail to fold without that declaration. Server-shaped C controls so far: bare `foo` renames with a world; `puts [foo]` has no world; `set x [foo]` has a world but refuses coverage. R1 remains incomplete for the required positive case. A small prepared `run-r1-transport.sh` / `r1-transport-probe.rs.txt` can compare realm/result worlds before/after core seeding after the full run; it also checks N03 parser-debt helpers. These diagnostics are not yet executed.

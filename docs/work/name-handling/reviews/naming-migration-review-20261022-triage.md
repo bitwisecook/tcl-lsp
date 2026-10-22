@@ -6,7 +6,7 @@ Evidence, scripts and logs: [triage-20261022/](triage-20261022/README.md). Live 
 
 This report is updated after every probe run. Rows marked **PENDING** are not settled.
 
-Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. Rust 1.99.1 and the exact six engines are provisioned; see [cloud-setup.log](triage-20261022/cloud-setup.log). Run5 completed with checkout-related failures before its main/scaling probes ran. All embedded fixtures and shared libraries are now available. The repeated existing live-fold e2e test fails as detailed below; the complete current-API replay is next. `make rust-check` and `make prep-pr` have not run in this evidence-only session.
+Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. Rust 1.99.1 and the exact six engines are provisioned; see [cloud-setup.log](triage-20261022/cloud-setup.log). Run5 completed with checkout-related failures before its main/scaling probes ran. All embedded fixtures and shared libraries are now available. The repeated existing live-fold e2e test fails as detailed below; the complete current-API replay is active; the closed prefix contains the current observations below. `make rust-check` and `make prep-pr` have not run in this evidence-only session.
 
 ## Cloud validation progress
 
@@ -51,8 +51,8 @@ Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. R
 | N06 collision checks | Refused, pending R1. Run6 class/proc and sibling cases refuse with UnknownWorld; methods lack a complete current member roster | lsp | same; `rename.rs` `cross_document_symbol_edits` |
 | N07 speculative proc variable | Refused, pending R1. Definition no longer walks to the global | lsp | `rename.rs`, `definition.rs` |
 | N08 inliner subset oracle + nested lowering | FIXED (edits and unit inference) | — | — |
-| N09 type/call/taint | Constructor typing FIXED; call graph CHANGED (`::n::c` has no summary, so it abstains) | unowned | `tcl-compiler/src/interprocedural.rs` |
-| N10 OO class/relation | CHANGED: relation site and missing qualified class FIXED; `namespace path` class selection REPRODUCES | lsp | `tcl-lsp-core/src/definition.rs:4260` (`resolve_class_target_at`) |
+| N09 type/call/taint | FIXED for executed constructor and call-graph repros; taint not independently executed | — | — |
+| N10 OO class/relation | CHANGED: relations, qualified miss and path-based definition FIXED; path hover/type hierarchy still empty | lsp | `tcl-lsp-core/src/definition.rs:4260` (`resolve_class_target_at`) |
 | N11 packages | CHANGED: `if {0}` provider classified `Conditional` and still selected; `merge_library_files` early return REPRODUCES (static); `auto_qualify` Unicode FIXED | lsp | `tcl-lsp-core/src/package_resolver.rs`, `package_resolver/reachability.rs`, `tcl-lsp-server/src/lib.rs:17823` |
 | N12 incremental lifecycle | FIXED | — | — |
 | N13 source environment | REPRODUCES (path not inherited); 5-round and 4-round caps present (static) | lsp, unowned (`analyser/state.rs`) | `tcl-compiler/src/analyser/state.rs:2197`, `tcl-lsp-core/src/workspace_index.rs:3354`, `tcl-lsp-server/src/lib.rs:28775` |
@@ -60,15 +60,15 @@ Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. R
 | N15 minifier compaction | CHANGED (refuses `MissingAlphaRenameContract`); output behaviour-preserving | lsp | `tcl-lsp-core/src/minify.rs`, `minify/original.rs` |
 | N16 provider fallbacks | FIXED (4/4 rows) | — | — |
 | N17 SpecTcl template | FIXED | — | — |
-| N17 live hook | CHANGED/REGRESSED: no O129 at all, including for the shipped-style `mylib::strlen` control. Existing fold e2e **FAILS** (DSL 1: expected `["5"]`, got `[]`); direct/pure contrast **PENDING** run6 | compiler-codegen (`const_subst.rs`, per user decision 13:17Z); vm-runtime (host) | see detail |
+| N17 live hook | CHANGED: direct hooks correctly return `good`; explicit pure effects allow O129; undeclared effects suppress folding. Existing control e2e FAILS | compiler-codegen (`const_subst.rs`, per user decision 13:17Z); vm-runtime (host) | see detail |
 | Seam `ns_var_global_fallback` | FIXED (static) | — | — |
 | Seam `WorkspaceIndex::registry_for` | FIXED (static) | — | — |
 | Seam `analyse_with_workspace_classes` | CHANGED (static): resolved input, resource inputs and base-analysis identity retained; source-entry parity not shown | lsp | `tcl-lsp-server/src/lib.rs:20036–20120` |
-| Seam nested passthrough lowering | **PENDING** (run4 probe inconclusive; reworked for run5). Static: nested lowering now uses `analyse_script_at_site` and `entry.options()` | compiler | `tcl-compiler/src/inline_uplevel.rs:559–660` |
+| Seam nested passthrough lowering | **PENDING** (run4 was inconclusive; run5 main did not execute; run6 now walks actual IR statements). Static: nested lowering now uses `analyse_script_at_site` and `entry.options()` | compiler | `tcl-compiler/src/inline_uplevel.rs:559–660` |
 | Seam `insert_rebound_candidates` | NOT-APPLICABLE (removed) | — | — |
 | Seam `method_barrier` | FIXED (static) | — | — |
 | Seam linked-editing self-name fallback | FIXED (static, plus executed probe) | — | — |
-| Seam extract/inline refactors | Safe in run4 (no behaviour-changing edit); whether this is a disabled refusal is **PENDING** run5 | lsp | `tcl-lsp-core/src/refactor/` |
+| Seam extract/inline refactors | Safe in run4 (no behaviour-changing edit); whether this is a disabled refusal is **PENDING** the active run6 | lsp | `tcl-lsp-core/src/refactor/` |
 | 4.1 scaling rows | **PENDING** run5 (run4 was stopped before scaling). Run3 measured 248 s to analyse a flat 250-proc file and 6.5 s to index it (review: 5.7 ms) | perf / lsp | `workspace_index.rs:7496`, `source_graph.rs:1627`, `code_lens.rs` |
 
 ## Per-finding detail
@@ -167,20 +167,19 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 ### N09: compiler type / call / taint
 
-- **Status:** constructor typing FIXED; call graph CHANGED.
-- **Constructor typing:** with `::Foo` and `::n::Foo` classes, `::n::c` returns `Object(::n::Foo)`. With `proc ::n::Foo` shadowing a global class, `::n::c` is `Overdefined`, so the nearer non-class command blocks the global class. `constructor_object_type` uses `resolve_command_with`.
-- **Call graph** for `tcl/n09.tcl` (the oracle prints `LIB` on 8.5–9.1): `with_interprocedural` gives summaries only for `::lib::p` and `::p`, so `::n::c` has no summary. The analyser invocation resolves to `::lib::p`. There is no wrong definite `::p` edge any more; the caller simply has no summary.
-- **Owner:** unowned (`tcl-compiler/src/interprocedural.rs`, `taint_interproc.rs`).
-- **Fix direction:** one site-level resolution result feeding interprocedural, taint and type consumers. Missing context should widen explicitly rather than dropping the summary silently. Confirm the conformance projection.
+- **Status:** FIXED for the executed constructor and direct-call repros.
+- **Fresh run6:** the nearer class gives `Object(::n::Foo)`. A nearer non-class procedure blocks global class inference, leaving `::n::c` `Overdefined`.
+- The path fixture now has a `::n::c` summary with `direct_calls=["::lib::p"]`; the other summaries are `::lib::p` and `::p` with no direct calls. The earlier missing-caller result is no longer current. C Tcl's expected result is `LIB`.
+- The legacy analyser `resolved_qualified_name` field is `None` for the `p` occurrence; the current call graph does not choose the wrong global procedure.
+- **Scope:** taint output was not independently executed. The review's demonstrated wrong definite call edge is corrected; this does not claim a complete new taint conformance matrix.
 
 ### N10: OO class / relation resolution
 
 - **Status:** CHANGED.
-- **Relation site:** `supertypes("::B::Child")` gives `["::A::Base"]`. FIXED; the oracle on 8.6–9.1 is `::A::Base`.
-- **Missing qualified class:** `superclass ::missing::Base` gives `[]` with no unique-tail rescue. FIXED.
-- **`namespace path` class selection:** `C new` inside `app` with path `::lib` gives `hover=None`, `type_hierarchy=[]`, `definition=[]`. REPRODUCES. `resolve_class_target_at` (`definition.rs:4260`) still says "classes never consult `namespace path`".
-- **Owner:** lsp (`tcl-lsp-core/src/definition.rs`).
-- **Fix direction:** direct class commands use ordinary command settlement, then a kind check.
+- **Fresh run6 relation site:** `supertypes("::B::Child")=["::A::Base"]`, matching C Tcl 8.6–9.1. FIXED.
+- **Missing qualified class:** `superclass ::missing::Base` gives `[]`, without unrelated unique-tail rescue. FIXED.
+- **Path-based class call:** `C new` inside `app` with path `::lib` now has definition `[0]`, the correct class declaration. Hover remains `None` and type hierarchy remains `[]`; these provider gaps persist.
+- **Owner:** lsp. The old “classes never consult namespace path” code in `resolve_class_target_at` is behind a legacy advice gate. That comment is not proof that current definition ignores the path; the executed definition result now demonstrates otherwise.
 
 ### N11: package availability / provider
 
@@ -235,13 +234,18 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 ### N17: SpecTcl template and live hook
 
-- **Template: FIXED.** `evaluate_pack_with` registers `["good"]` with 0 notices in all 16 variants (DSL 1 or 2.0, direct or helper, unbraced or braced, fast path on or off). The capture driver (`tcl/n17drv.tcl`) gives `good` on six engines. Codegen `push_array_key` now decomposes through `ExecutablePartArena` (944d156922).
-- **Live hook: CHANGED / regression suspected.** The path is `pack::load` → `hooks::plan_for` → `tclvm_host().install_pack_hooks` (declined `None`) → `pack_hooks::install_host` → `registry_for_dialect_with_packs("tcl8.6")` → `optimise_raw`.
-  - It emits **no** O129 for `fold $arr($a:b)`, `fold $arr(${a}:b)`, `fold good`, or `fold [string length [lindex $words 0]]`.
-  - The shipped-style `mylib::strlen` control, which matches `pack_source_e2e.rs`, also gives `O129=[]` and no optimisation codes at all.
-  - So the wrong `bad` replacement is gone, but live const-fold hooks do not fold through this path. The review's C.1 requires hooks to execute with meaningful answers.
-  - **Executed on `53ec43d1`:** the existing `pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser` fails: DSL 1 expected `["5"]`, got `[]` (0 passed / 1 failed; 16.17 s). See `run5-e2e-repeat.log`. This confirms the no-fold regression for the supported control. **Pending run6:** direct callback invocation and a `world_effects none` contrast, so this is not a claim that every possible live hook fails.
-- **Owner:** compiler-codegen owns `const_subst.rs` and the N17 live-fold fix per the user's recorded 13:17Z decision; vm-runtime owns the host. The baseline toggle remains unset here.
+- **Template: FIXED.** Fresh run6 again registers only `good`, with no notices/load errors, in all 16 combinations of DSL 1/2.0, direct/helper, unbraced/braced and fast-path on/off. The capture driver independently registers `good` on all six pinned engines.
+- **Live-hook substitution: FIXED in direct execution.** All eight run6 controls (two DSLs × braced/unbraced reference × declared/undeclared pure effects) install with no decline or notice and directly return `Some("good")`. The earlier wrong `bad` result is gone in these cases.
+- **Optimiser behavior: REGRESSED for undeclared effects.** Some live hooks do fold; the effect declaration is the distinguishing condition:
+
+| DSL / array reference forms | Effects declaration | Direct callback | `optimise_raw` O129 |
+|---|---|---|---|
+| 1 and 2.0; `$arr($a:b)` and `$arr(${a}:b)` | absent | `good` in all four cases | `[]` in all four cases |
+| 1 and 2.0; both forms | `world_effects none` | `good` in all four cases | `["good"]` in all four cases |
+
+- The ordinary `mylib::strlen` control emits no optimisation even with a returned value. The existing `a_pack_file_folds_a_call_site_in_the_optimiser` independently fails for DSL 1: expected `["5"]`, got `[]` (0 passed / 1 failed; `run5-e2e-repeat.log`). This is not a claim that the hook engine or every possible live hook is dead.
+- **Static cause supported by the controlled contrast:** `const_subst.rs::fold_retained_at_depth` rejects `requires_world_barrier()`, while undeclared world effects receive a conservative unknown/re-entrant footprint. Requiring old packs to add a pure declaration is not the selected compatibility fix; the user assigned compiler-codegen the scoped gate correction.
+- **Owner:** compiler-codegen (`const_subst.rs`), per the recorded 13:17Z user decision. No product change was made by triage. The eight generated execution drivers await the fresh output replay after the active run finishes.
 
 ### Section 3.2 / 3.3 seams
 
@@ -268,6 +272,6 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 ### Section 4.1 scaling rows
 
-**PENDING** run5, which uses smaller sizes (P = 25, 50, 100, 200; code lenses P = 25, 50, 100; source chain F = 250–2000). Run4 was stopped before scaling ran. Run3: analysing a flat file of 250 `proc pNNNNNNNN {} {}` took 248,263 ms of wall time in the debug test profile, on a heavily shared machine; `WorkspaceIndex::from_documents` took 6,538 ms (the review measured 5.718 ms); 100 missing `workspace_command_exists_for_call` calls took 13.9 ms. The process was then killed by the session stop.
+**PENDING** the active run6, which uses smaller sizes (P = 25, 50, 100, 200; code lenses P = 25, 50, 100; source chain F = 250–2000). Run4 was stopped before scaling ran. Run3: analysing a flat file of 250 `proc pNNNNNNNN {} {}` took 248,263 ms of wall time in the debug test profile, on a heavily shared machine; `WorkspaceIndex::from_documents` took 6,538 ms (the review measured 5.718 ms); 100 missing `workspace_command_exists_for_call` calls took 13.9 ms. The process was then killed by the session stop.
 
 By reading the code, the linear scan in `workspace_command_exists_for_call` (`workspace_index.rs:7496`) and the root-ward `paths: UriMap<Vec<Placed>>` in `RunOrder` (`source_graph.rs:1627`) are both still present.
