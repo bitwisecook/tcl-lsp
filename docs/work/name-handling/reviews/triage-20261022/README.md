@@ -4,6 +4,8 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 
 | Item | What it is |
 | --- | --- |
+| `run7-progress.log`, `run7-pending-oracles.log`, `run7-pending-oracle-summary.json`, `run7-source-audit.log` | Closed semantic progress on `0434e7e7`; 180 engine executions / 60 matched generated checks, no unexpected result; static seam audit. Larger lens rows active. |
+| `run-final.sh`, `final-probe.rs.txt` | Prepared latest-work replay of every finding and seam, including a direct N09 taint-dependency projection and the existing fold e2e control. |
 | `run-pending.sh`, `pending-probe.rs.txt` | Fresh build, seams first, then bounded R1/parser/source-chain/lens cases; deletes source after build and executable at exit. |
 | `run6.log`, `run6-oracles.log`, `run6-oracle-summary.json`, `run6-source-audit.log` | Completed main snapshot (cap reached during scaling), full 576-execution replay, 126 matched checks with no unexpected result, and later static audit. |
 | `run-r1-transport.sh`, `r1-transport-probe.rs.txt` | Prepared focused R1 transport/bootstrap and N03 parser-debt diagnostic; run after the active full replay. |

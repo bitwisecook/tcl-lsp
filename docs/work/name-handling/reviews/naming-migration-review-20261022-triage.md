@@ -21,6 +21,8 @@ Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. R
 
 **Completed run6 replay:** [run6.log](triage-20261022/run6.log), [run6-oracles.log](triage-20261022/run6-oracles.log), [summary](triage-20261022/run6-oracle-summary.json). There were **96 files / 576 engine executions**, including **76 generated outputs / 126 intended-profile checks**, with **0 unexpected matched results**. Every file ran on every engine; cross-family Unicode-prefix differences are not failures of a C-profile edit. All eight N17 drivers print `good` everywhere. The main executable was built at `5bd5a503`; the later e2e cargo command rebuilt after incoming compiler changes at `90fe96e2` and still fails with no O129. A complete final latest-code check is not claimed yet.
 
+**Run7 completed semantic groups on `0434e7e7`:** three seams pass (122.00 s); eight N17 direct/effect controls pass (36.62 s); R1 transport/seeding controls pass (34.71 s); N03 parser/scalar controls pass (11.28 s). The harness passes mean the observational probe completed, not that every product result is correct. R1 is still absent for plain `puts` and `puts [foo]` in both the retained realm and analyser result on C 8.6/9.0, before/after `core_surfaces::ensure`. Declaration-only and bare-call controls have both worlds. Thus this refusal originates before analyser transport and is not repaired by that bootstrap. No post-fix rename matrix was triggered. N03's valid first-close indirect input has no diagnostics on C 8.4/8.5/8.6/Jim, despite the profileless helper returning false; scalar `a(b` and `a(b)c` remain intact for both styles. No current diagnostic bug is inferred from the helper alone. Source-chain rows completed and the lens series is active; the active log remains untracked until closed. Closed progress evidence is `run7-progress.log`. The fresh oracle replay covers 30 files / 180 executions, including 10 generated files / 60 matched checks with no unexpected result: N17 `good`, inline `LOCAL`, extraction `5|1` on every engine.
+
 ## Method
 
 - **Oracles.** Each Tcl repro from the review (`triage-20261022/tcl/`) was run with `triage-20261022/oracle.sh <file>` on six engines: `tclsh8.4` (8.4.20), `tclsh8.5` (8.5.19), `tclsh8.6` (8.6.18), `tclsh9.0` (9.0.4), `tclsh9.1` (9.1.0) and Jim 0.84 (`tmp/jimtcl-oracle/jimsh`). Every oracle answer matches the review's expected outcome, including feature-unavailable rows: TclOO is missing on 8.4, 8.5 and Jim, and `namespace path` on 8.4 and Jim.
@@ -66,12 +68,12 @@ Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. R
 | Seam `ns_var_global_fallback` | FIXED (static) | — | — |
 | Seam `WorkspaceIndex::registry_for` | FIXED (static) | — | — |
 | Seam `analyse_with_workspace_classes` | CHANGED (static): resolved input, resource inputs and base-analysis identity retained; source-entry parity not shown | lsp | `tcl-lsp-server/src/lib.rs:20036–20120` |
-| Seam nested passthrough lowering | **PENDING** (run4 was inconclusive; run5 main did not execute; run6 now walks actual IR statements). Static: nested lowering now uses `analyse_script_at_site` and `entry.options()` | compiler | `tcl-compiler/src/inline_uplevel.rs:559–660` |
+| Seam nested passthrough lowering | CHANGED: iRules retains generic calls and declines inlining; Tcl control inlines with parsed condition. Context forwarding FIXED (static) | compiler | `tcl-compiler/src/inline_uplevel.rs` |
 | Seam `insert_rebound_candidates` | NOT-APPLICABLE (removed) | — | — |
 | Seam `method_barrier` | FIXED (static) | — | — |
 | Seam linked-editing self-name fallback | FIXED (static, plus executed probe) | — | — |
-| Seam extract/inline refactors | Safe in run4 (no behaviour-changing edit); whether this is a disabled refusal is **PENDING** the active run6 | lsp | `tcl-lsp-core/src/refactor/` |
-| 4.1 scaling rows | **PENDING** run5 (run4 was stopped before scaling). Run3 measured 248 s to analyse a flat 250-proc file and 6.5 s to index it (review: 5.7 ms) | perf / lsp | `workspace_index.rs:7496`, `source_graph.rs:1627`, `code_lens.rs` |
+| Seam extract/inline refactors | CHANGED: explicitly disabled refusals with zero edits in both repros | lsp | `tcl-lsp-core/src/refactor/` |
+| 4.1 scaling rows | Substantial flat/index/chain costs REPRODUCE; P25 lens measured, P50/P100 follow-up active | perf / lsp | `workspace_index.rs`, `source_graph.rs`, `code_lens.rs` |
 
 ## Per-finding detail
 
@@ -223,7 +225,7 @@ Each row gives the evidence (probe call or command and the observed output), the
 - **Evidence:** both `minify_with_profile` and `minify_with_analysis` (the call the server's `minifyDocument` makes) were run for both repros, under tcl8.6, tcl9.0 and Jim, for the Compact and Aggressive tiers, isolated and not. Every run returned refusal `MissingAlphaRenameContract`, plus three more refusals for Aggressive. The symbol map is empty and the output is separator compaction only.
 - **Execution:** all 48 outputs print `OLD|NEW` or `NEW` on six engines.
 - **Residual:** the legacy `compact_names` path survives behind `allows_lexical_declaration_advice()` in `minify/original.rs`. These inputs did not reach it.
-- **Owner:** lsp (`tcl-lsp-core/src/minify.rs`, `minify/original.rs`; the latter shows ` M` in `git status`, an in-flight edit).
+- **Owner:** lsp (`tcl-lsp-core/src/minify.rs`, `minify/original.rs`).
 - **Fix direction:** a shared transactional rename planner, or keep the server-side refusal.
 
 ### N16: provider fallbacks
@@ -247,7 +249,7 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 - The ordinary `mylib::strlen` control emits no optimisation even with a returned value. The existing `a_pack_file_folds_a_call_site_in_the_optimiser` independently fails for DSL 1: expected `["5"]`, got `[]` (0 passed / 1 failed; `run5-e2e-repeat.log`). This is not a claim that the hook engine or every possible live hook is dead.
 - **Static cause supported by the controlled contrast:** `const_subst.rs::fold_retained_at_depth` rejects `requires_world_barrier()`, while undeclared world effects receive a conservative unknown/re-entrant footprint. Requiring old packs to add a pure declaration is not the selected compatibility fix; the user assigned compiler-codegen the scoped gate correction.
-- **Owner:** compiler-codegen (`const_subst.rs`), per the recorded 13:17Z user decision. No product change was made by triage. The eight generated execution drivers await the fresh output replay after the active run finishes.
+- **Owner:** compiler-codegen (`const_subst.rs`), per the recorded 13:17Z user decision. No product change was made by triage. All eight run6 execution drivers printed `good` on all six engines. Run7 repeats the same effect contrast; all eight fresh drivers also print `good` on all six engines.
 
 ### Section 3.2 / 3.3 seams
 
@@ -258,19 +260,15 @@ Each row gives the evidence (probe call or command and the observed output), the
   - Not visibly forwarded: the source-analysis entry or seed.
   - No parity test was found.
   - Location: `tcl-lsp-server/src/lib.rs:20036–20120`. Owner: lsp.
-- **Nested passthrough lowering:** **PENDING.** The run4 probe (`CompilationUnit::build_for_profile`, then counting `op: Contains` in `Debug` of `ir_module`) found no `Contains`/`Eq` ops even for the direct condition, so the count pattern was wrong.
-  - The iRules case produced no inlined `Block` (the `run {...}` call inside `when` is not inlined).
-  - The Tcl case inlined one `Block`.
-  - The probe was rewritten for run5 to list all ops and `if` condition node kinds, and to try `call run {...}` and a proc-body form under `f5-irules`.
-  - Static: nested lowering now passes `entry.options()` and the site-analysed bindings (`inline_uplevel.rs`, `try_inline_callsite`).
+- **Nested passthrough lowering: CHANGED / conservative decline.** Fresh run7 walks actual `Statement` nodes from every top-level/procedure/body-unit root. Both iRules forms (`call run` in an event and `run` in a proc) retain generic `if`/dispatcher calls, with no inlined block and no typed direct condition. The old `Binary(Contains)` direct versus `Raw` inlined mismatch is therefore not present on this path; it would overstate the evidence to claim that specialised iRules inlining is working. The ordinary Tcl control produces one inlined `Block` and a parsed `Binary(StrEq)` direct condition; the literal inlined `if` is retained generically.
+  - Static context forwarding is repaired: `try_inline_callsite` obtains site-analysed bindings with `analyse_script_at_site`, calls `set_source_analysis_options(entry.options())`, and lowers with those bindings. A declined specialisation is permitted by the lowering contract; no product fix was made by triage.
 - **`insert_rebound_candidates`: NOT-APPLICABLE.** Removed in cf8f1bc85b and replaced by `collect_namespace_resolution` (`command_binding.rs`).
 - **`method_barrier`: FIXED (static).** The global-first and first-tail `class_head_component` was removed (944d156922). `hierarchy_components` unions only retained relation candidates and widens on unknowns; test `retained_dispatch_does_not_select_an_unrelated_class_tail`.
 - **Linked-editing self-name fallback: FIXED (static).** `OriginalLinkedSourceSpelling::capture` requires `invocation_targets_declaration` or a call-declaration match. The literal fallback survives only as a `#[cfg(test)]` helper. Executed (run4): for `proc greet {} {greet}` plus an unrelated `n::greet`, `linked_editing_ranges` from the declaration gives `[(0,5),(0,15)]`, the declaration and its own resolved self-call only.
-- **Extract/inline refactors** (run4):
-  - `inline_proc` on `[p]` in `::n::c`, with `::p` and `::n::p` both defined, returned "Inline proc 'p'" (N08 shape).
-  - `extract_variable(.., "result")` was offered where `result` already exists.
-  - Applying either one's `edits` left the source unchanged (`out/seam_inline.tcl` prints `LOCAL`; `out/seam_extract.tcl` prints `5|1` on six engines). Both are therefore probably `disabled` refusals, which a `Refactoring` with no edits signals.
-  - No unsafe edit was observed. Run5 prints `disabled` to confirm.
+- **Extract/inline refactors: explicit disabled refusals.** Fresh run7 reports:
+  - `inline_proc`: zero edits; `disabled = "the copied command's implementation is not preserved in the caller namespace"`.
+  - `extract_variable(.., "result")`: zero edits; `disabled = "The selection is not a pure original complete word at a reached local source point"`.
+  - These repros are contained by disabled actions; they are not silently offered successful zero-edit transformations. Their scratch sources are unchanged. This does not claim every extract/inline feature is globally disabled or broken.
 
 ### Section 4.1 scaling rows
 

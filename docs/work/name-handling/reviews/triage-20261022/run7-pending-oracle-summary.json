@@ -1,0 +1,8 @@
+{
+  "files": 30,
+  "engine_executions": 180,
+  "generated_output_files": 10,
+  "matched_profile_checks": 60,
+  "unexpected_matched_results": [],
+  "note": "All ten generated files have the same expected output on all six engines; eight N17 drivers good, disabled inline LOCAL, disabled extraction 5|1."
+}
