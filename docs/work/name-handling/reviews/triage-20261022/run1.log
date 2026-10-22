@@ -1,0 +1,117 @@
+
+running 6 tests
+test n05_forced_import ... N05 tcl8.4 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 tcl8.6 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 tcl9.0 refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+N05 jim refs=[(2, 9)] REFUSED RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 2, start_character: 9, end_line: 2, end_character: 12 }) }
+ok
+test n07_speculative_var ... N07 tcl8.4 def=[] diags=["W210"] rename=[L1:16 "$g"->"$h"] 
+N07 tcl8.6 def=[] diags=["W210"] rename=[L1:16 "$g"->"$h"] 
+N07 tcl9.0 def=[] diags=["W210"] rename=[L1:16 "$g"->"$h"] 
+N07 jim def=[] diags=["W210"] rename=[L1:16 "$g"->"$h"] 
+ok
+test n08_inliner ... N08 tcl8.4 single-pass=[]
+N08 tcl8.4 changed=false
+N08 tcl8.6 single-pass=[]
+N08 tcl8.6 changed=false
+N08 tcl9.0 single-pass=[]
+N08 tcl9.0 changed=false
+N08 jim single-pass=[]
+N08 jim changed=false
+ok
+test n15_minify ... N15 a tcl8.6 Compact iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a tcl8.6 Compact iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a tcl8.6 Aggressive iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a tcl8.6 Aggressive iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a tcl9.0 Compact iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a tcl9.0 Compact iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a tcl9.0 Aggressive iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a tcl9.0 Aggressive iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a jim Compact iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a jim Compact iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a jim Aggressive iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 a jim Aggressive iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc a {} {return OLD};proc longName {} {return NEW};puts [a];puts [longName]"
+N15 b tcl8.6 Compact iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b tcl8.6 Compact iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b tcl8.6 Aggressive iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b tcl8.6 Aggressive iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b tcl9.0 Compact iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b tcl9.0 Compact iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b tcl9.0 Aggressive iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b tcl9.0 Aggressive iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b jim Compact iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b jim Compact iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b jim Aggressive iso=true
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+N15 b jim Aggressive iso=false
+   profile: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+   analysis: procs={} refusals=[MissingAlphaRenameContract, MissingAliasInsertionContract, MissingSemanticRewriteContract, MissingKeywordSelectionContract] out="proc longName {} {return NEW};puts [::longName]"
+ok
+test n17_live_hook ... N17H dsl=1 notices=0 plan_empty=false declined=["None"] O129=[]
+N17H dsl=2.0 notices=0 plan_empty=false declined=["None"] O129=[]
+ok
+test n17_template_registration ... N17T dsl=1 helper=false braced=false fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=1 helper=false braced=false fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=1 helper=false braced=true fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=1 helper=false braced=true fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=1 helper=true braced=false fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=1 helper=true braced=false fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=1 helper=true braced=true fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=1 helper=true braced=true fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=false braced=false fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=false braced=false fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=false braced=true fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=false braced=true fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=true braced=false fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=true braced=false fast=false -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=true braced=true fast=true -> commands=["good"] notices=0 load_error=None
+N17T dsl=2.0 helper=true braced=true fast=false -> commands=["good"] notices=0 load_error=None
+ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 124.59s
+

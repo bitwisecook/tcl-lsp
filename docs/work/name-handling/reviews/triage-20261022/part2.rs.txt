@@ -1,0 +1,391 @@
+
+// ================================================================ part 2
+
+fn rename_report(tag: &str, src: &str, dialect: &str, at: (u32, u32), new_name: &str) {
+    let analysis = analyse(src, dialect);
+    let prof = profile(dialect);
+    match tcl_lsp_core::rename::rename_with_diagnosis(src, prof, at.0, at.1, new_name, &analysis, None) {
+        Ok(edits) => {
+            let edited = apply(src, &edits);
+            save(&format!("{tag}_{dialect}.tcl"), &edited);
+            println!("{tag} {dialect} edits={} -> saved {tag}_{dialect}.tcl", show_edits(src, &edits));
+        }
+        Err(refusal) => println!("{tag} {dialect} REFUSED {:?}", refusal.reason),
+    }
+}
+
+// ---------------------------------------------------------------- N01
+
+#[test]
+fn n01_identity() {
+    let src = "namespace eval a: {proc p {} {return LEFT}}\nnamespace eval a  {proc :p {} {return RIGHT}}\nputs [namespace eval a: {p}]\nputs [namespace eval a  {:p}]\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let analysis = analyse(src, dialect);
+        let mut keys: Vec<String> = analysis.all_procs.keys().cloned().collect();
+        keys.sort();
+        let diags: Vec<String> = analysis.diagnostics.iter().map(|d| format!("{:?}:{}", d.code, d.message)).collect();
+        println!("N01 {dialect} all_procs={keys:?} diags={diags:?}");
+    }
+    let src2 = "namespace eval n {}\nproc n:: {} {return EMPTY}\ninterp alias {} a {} n::\nputs [a]\n";
+    let analysis = analyse(src2, "tcl8.6");
+    let mut keys: Vec<String> = analysis.all_procs.keys().cloned().collect();
+    keys.sort();
+    let index = tcl_lsp_core::workspace_index::WorkspaceIndex::from_documents([("file:///n01.tcl", &analysis)]);
+    let links: Vec<(String, String)> = index.command_links().map(|l| (l.linked_qname.clone(), l.target_qname.clone())).collect();
+    println!("N01 empty-tail all_procs={keys:?} links={links:?}");
+}
+
+// ---------------------------------------------------------------- N02
+
+#[test]
+fn n02_jim() {
+    let src = "namespace eval a {}\nproc a::p  {} {return TWO}\nproc a:::p {} {return THREE}\nputs [list [a::p] [a:::p]]\n";
+    for dialect in ["jim", "tcl8.6"] {
+        let analysis = analyse(src, dialect);
+        let mut keys: Vec<String> = analysis.all_procs.keys().cloned().collect();
+        keys.sort();
+        let (l1, c1) = pos(src, "[a::p]", 0, 1);
+        let (l2, c2) = pos(src, "[a:::p]", 0, 1);
+        let d1 = tcl_lsp_core::definition::definition(src, l1, c1, &analysis);
+        let d2 = tcl_lsp_core::definition::definition(src, l2, c2, &analysis);
+        println!("N02 {dialect} all_procs={keys:?} def(a::p)={:?} def(a:::p)={:?}",
+            d1.iter().map(|r| r.start_line).collect::<Vec<_>>(), d2.iter().map(|r| r.start_line).collect::<Vec<_>>());
+    }
+}
+
+// ---------------------------------------------------------------- N03
+
+#[test]
+fn n03_variables() {
+    let src = "set caf A\nset café B\nputs $café\n";
+    for dialect in ["tcl8.6", "tcl9.0", "jim"] {
+        let analysis = analyse(src, dialect);
+        let (l, c) = pos(src, "$café", 0, 2);
+        let d = tcl_lsp_core::definition::definition(src, l, c, &analysis);
+        let refs = tcl_lsp_core::references::references(src, profile(dialect), l, c, &analysis, true);
+        println!("N03 café {dialect} def={:?} refs={:?}", d.iter().map(|r| (r.start_line, r.start_character, r.end_character)).collect::<Vec<_>>(), refs.iter().map(|r| (r.start_line, r.start_character, r.end_character)).collect::<Vec<_>>());
+        rename_report("n03cafe", src, dialect, (l, c), "zz");
+    }
+    let src2 = "set \"a\\{b\" X\nset \"a\\{b\\}\" Y\nputs ${a{b}}\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        let analysis = analyse(src2, dialect);
+        let (l, c) = pos(src2, "${a{b}}", 0, 3);
+        let d = tcl_lsp_core::definition::definition(src2, l, c, &analysis);
+        println!("N03 nested-brace {dialect} def={:?}", d.iter().map(|r| (r.start_line, r.start_character, r.end_character)).collect::<Vec<_>>());
+    }
+    let src3 = "set foo 1\nset bar 2\nputs $foo-bar\n";
+    let analysis = analyse(src3, "tcl8.6");
+    let (l, c) = pos(src3, "-bar", 0, 2);
+    let d = tcl_lsp_core::definition::definition(src3, l, c, &analysis);
+    println!("N03 suffix tcl8.6 cursor-on-literal-bar def={:?}", d.iter().map(|r| (r.start_line, r.start_character)).collect::<Vec<_>>());
+}
+
+// ---------------------------------------------------------------- N04
+
+#[test]
+fn n04_import_rename() {
+    let wild = "namespace eval Foo {\n    proc bar {} {return 1}\n    namespace export bar\n}\nnamespace import ::Foo::*\nputs [bar]\n";
+    let exact = "namespace eval Foo {\n    proc bar {} {return 1}\n    namespace export *\n}\nnamespace import ::Foo::bar\nputs [bar]\n";
+    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
+        rename_report("n04wild", wild, dialect, pos(wild, "proc bar", 0, 5), "baz");
+        rename_report("n04exact", exact, dialect, pos(exact, "proc bar", 0, 5), "baz");
+    }
+}
+
+// ---------------------------------------------------------------- N06
+
+#[test]
+fn n06_collisions() {
+    let class = "oo::class create A {method m {} {return A}}\noo::class create B {method m {} {return B}}\nputs [[A new] m]\nputs [[B new] m]\n";
+    let method = "oo::class create K {\n    method old {} {return OLD}\n    method dest {} {return DEST}\n}\nset k [K new]\nputs \"[$k old] [$k dest]\"\n";
+    let proc_class = "proc P {} {return P}\noo::class create C {}\nputs [P]\n";
+    for dialect in ["tcl8.6", "tcl9.0"] {
+        rename_report("n06class", class, dialect, pos(class, "create A", 0, 7), "B");
+        rename_report("n06method", method, dialect, pos(method, "method old", 0, 7), "dest");
+        rename_report("n06proc", proc_class, dialect, pos(proc_class, "proc P", 0, 5), "C");
+    }
+    // local declaration p -> q while a sibling file declares q
+    let local = "proc p {} {return P}\nputs [p]\n";
+    let sibling = "proc q {} {return Q}\n";
+    let a1 = analyse(local, "tcl8.6");
+    let a2 = analyse(sibling, "tcl8.6");
+    let index = tcl_lsp_core::workspace_index::WorkspaceIndex::from_documents([("file:///local.tcl", &a1), ("file:///sib.tcl", &a2)]);
+    let (l, c) = pos(local, "proc p", 0, 5);
+    let core = tcl_lsp_core::rename::rename_with_diagnosis(local, profile("tcl8.6"), l, c, "q", &a1, None);
+    println!("N06 local->sibling core={:?} workspace_has_q={}", core.as_ref().map(|e| show_edits(local, e)).map_err(|r| r.reason.clone()), index.workspace_command_exists("::q"));
+    let cross = tcl_lsp_core::rename::cross_document_symbol_edits("::p", "q", &index, "file:///local.tcl");
+    let ws = tcl_lsp_core::rename::workspace_symbol_rename_edits("::p", "q", &index);
+    println!("N06 local->sibling cross_document_edits={} workspace_symbol_rename_edits={:?} allows_lexical_rename_advice={}", cross.len(), ws.map(|v| v.len()), index.allows_lexical_rename_advice());
+}
+
+// ---------------------------------------------------------------- N09
+
+#[test]
+fn n09_compiler_facts() {
+    use tcl_compiler::compilation_unit::CompilationUnit;
+    let ctor = "oo::class create Foo {}\nnamespace eval n {\n    oo::class create Foo {}\n    proc c {} {set o [Foo new]; return $o}\n}\n";
+    let ctor_shadow = "oo::class create Foo {}\nnamespace eval n {\n    proc Foo {args} {return notaclass}\n    proc c {} {set o [Foo new]; return $o}\n}\n";
+    let path = "proc p {} {return GLOBAL}\nnamespace eval lib {proc p {} {return LIB}}\nnamespace eval n {\n    namespace path ::lib\n    proc c {} {return [p]}\n}\nputs [n::c]\n";
+    let registry = tcl_spectcl::bundled::registry_for_dialect("tcl8.6");
+    let prof = profile("tcl8.6");
+    for (tag, src) in [("ctor", ctor), ("ctor_shadow", ctor_shadow)] {
+        let cu = CompilationUnit::build_for_profile(src, &registry, false, prof);
+        for (id, unit) in &cu.procedures {
+            let objs: Vec<String> = unit.types.values().map(|t| format!("{t:?}")).filter(|s| s.contains("bject")).collect();
+            println!("N09 {tag} proc={} return={:?} object-types={objs:?}", unit.name, unit.return_type);
+        }
+    }
+    let cu = CompilationUnit::build_for_profile(path, &registry, false, prof).with_interprocedural(&registry, Some(prof));
+    if let Some(ia) = &cu.interproc {
+        for (id, summary) in &ia.procedures {
+            let calls: Vec<String> = summary.direct_calls.iter().map(|c| ia.procedures.get(c).map_or_else(|| format!("{c:?}"), |s| s.qualified_name.clone())).collect();
+            println!("N09 path proc={} direct_calls={calls:?}", summary.qualified_name);
+        }
+    } else {
+        println!("N09 path: no interproc");
+    }
+    let analysis = analyse(path, "tcl8.6");
+    for inv in &analysis.command_invocations {
+        if inv.name == "p" {
+            println!("N09 path analyser invocation p -> {:?}", inv.resolved_qualified_name);
+        }
+    }
+}
+
+// ---------------------------------------------------------------- N10
+
+#[test]
+fn n10_classes() {
+    let pathsrc = "namespace eval lib {oo::class create C {method m {} {return 1}}}\nnamespace eval app {namespace path ::lib; set o [C new]}\n";
+    let analysis = analyse(pathsrc, "tcl8.6");
+    let (l, c) = pos(pathsrc, "[C new]", 0, 1);
+    let h = tcl_lsp_core::hover::hover(pathsrc, l, c, &analysis, None);
+    let th = tcl_lsp_core::type_hierarchy::prepare(pathsrc, l, c, &analysis);
+    let d = tcl_lsp_core::definition::definition(pathsrc, l, c, &analysis);
+    println!("N10 path hover={:?} type_hierarchy={:?} def={:?}", h.map(|h| h.value.chars().take(120).collect::<String>()), th.iter().map(|i| i.name.clone()).collect::<Vec<_>>(), d.iter().map(|r| r.start_line).collect::<Vec<_>>());
+    let mro = "namespace eval A {oo::class create Base {}}\nnamespace eval B {oo::class create Base {}; oo::class create Child {}}\nnamespace eval A {oo::define ::B::Child superclass Base}\n";
+    let analysis = analyse(mro, "tcl8.6");
+    let sup = tcl_lsp_core::type_hierarchy::supertypes("::B::Child", mro, &analysis);
+    let classes: Vec<(String, Vec<String>)> = analysis.all_classes.iter().map(|(k, v)| (k.clone(), v.superclasses.clone())).collect();
+    println!("N10 relation-site supertypes={:?} classes={classes:?}", sup.iter().map(|i| i.name.clone()).collect::<Vec<_>>());
+    let missing = "namespace eval unrelated {oo::class create Base {}}\noo::class create Child {}\noo::define Child superclass ::missing::Base\n";
+    let analysis = analyse(missing, "tcl8.6");
+    let sup = tcl_lsp_core::type_hierarchy::supertypes("::Child", missing, &analysis);
+    println!("N10 missing-qualified supertypes={:?}", sup.iter().map(|i| i.name.clone()).collect::<Vec<_>>());
+}
+
+// ---------------------------------------------------------------- N11
+
+#[test]
+fn n11_packages() {
+    let dir = scratch().join("n11pkg");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("pkgIndex.tcl"), "package ifneeded P 1.0 [list source [file join $dir p1.tcl]]\nif {0} {\n    package ifneeded P 2.0 [list source [file join $dir p2.tcl]]\n}\n").unwrap();
+    std::fs::write(dir.join("p1.tcl"), "package provide P 1.0\nnamespace eval P {proc run {} {return 1}}\n").unwrap();
+    std::fs::write(dir.join("p2.tcl"), "package provide P 2.0\nnamespace eval P {proc run {} {return 2}}\n").unwrap();
+    let mut resolver = tcl_lsp_core::package_resolver::PackageResolver::new();
+    resolver.scan_path(&dir);
+    let compat = resolver.resolve_require("P", None, false, tcl_dialect::PackagePrefer::Latest);
+    let targeted = resolver.candidate_providers_for_require("P", &[], false, tcl_dialect::PackagePrefer::Latest, Some(tcl_dialect::TclVersion::V8_6));
+    let profiled = resolver.resolve_require_for_profile("P", &[], false, tcl_dialect::PackagePrefer::Latest, Some(profile("tcl8.6")));
+    println!("N11 resolve_require={compat:?}\nN11 candidate(8.6)={:?}\nN11 for_profile={profiled:?}", targeted.iter().map(|i| i.version.clone()).collect::<Vec<_>>());
+    println!("N11 auto_qualify(café, ::)={:?} auto_qualify(café, ::ns)={:?}", tcl_lsp_core::package_resolver::auto_qualify("café", "::"), tcl_lsp_core::package_resolver::auto_qualify("café", "::ns"));
+}
+
+// ---------------------------------------------------------------- N12
+
+#[test]
+fn n12_incremental() {
+    let old = "proc p {} {return initial}\nproc p {} {}\nrename p q\n#padding0123\n";
+    let new = "proc p {} {return initial}\n#padding0123\nrename p q\nproc p {} {}\n";
+    assert_eq!(old.find("rename"), new.find("rename"));
+    let a_old = analyse(old, "tcl8.6");
+    let a_new = analyse(new, "tcl8.6");
+    let mut index = tcl_lsp_core::workspace_index::WorkspaceIndex::from_documents([("file:///n12.tcl", &a_old)]);
+    let warm = (index.workspace_command_exists("::p"), index.workspace_command_exists_for_call("::p", false));
+    index.replace_document("file:///n12.tcl", &a_new);
+    let after = (index.workspace_command_exists("::p"), index.workspace_command_exists_for_call("::p", false));
+    let fresh = tcl_lsp_core::workspace_index::WorkspaceIndex::from_documents([("file:///n12.tcl", &a_new)]);
+    let fresh_ans = (fresh.workspace_command_exists("::p"), fresh.workspace_command_exists_for_call("::p", false));
+    println!("N12 warm-old={warm:?} replaced={after:?} fresh-new={fresh_ans:?}");
+    save("n12_old.tcl", &format!("{old}puts [llength [info commands ::p]]\n"));
+    save("n12_new.tcl", &format!("{new}puts [llength [info commands ::p]]\n"));
+}
+
+// ---------------------------------------------------------------- N13
+
+#[test]
+fn n13_source_env() {
+    let child = "proc run {} {helper}\n";
+    let analysis = Analyser::new().analyse_with_source_namespace(child, "tcl8.6", "::app");
+    for inv in &analysis.command_invocations {
+        if inv.name == "helper" {
+            let lk = format!("{:?}", inv.original_lookup);
+            println!("N13 seeded-child helper resolved={:?} lookup={}", inv.resolved_qualified_name, lk.chars().take(1500).collect::<String>());
+        }
+    }
+}
+
+// ---------------------------------------------------------------- N14
+
+#[test]
+fn n14_semantic_tokens() {
+    let src = "namespace eval A {proc touch {v} {upvar 1 $v x; set x 1}}\nnamespace eval B {proc touch {v} {return $v}; touch plain}\n";
+    let registry = tcl_spectcl::bundled::registry_for_dialect("tcl8.6");
+    let toks = tcl_lsp_core::semantic_tokens::full(src, profile("tcl8.6"), &registry);
+    let types = tcl_lsp_core::semantic_tokens::legend_token_types();
+    let mods = tcl_lsp_core::semantic_tokens::legend_token_modifiers();
+    let target = pos(src, "plain", 0, 0);
+    let (mut line, mut ch) = (0u32, 0u32);
+    for q in toks.data.chunks(5) {
+        if q[0] != 0 { line += q[0]; ch = q[1]; } else { ch += q[1]; }
+        if line == target.0 && ch == target.1 {
+            let m: Vec<&str> = mods.iter().enumerate().filter(|(i, _)| q[4] & (1 << i) != 0).map(|(_, m)| *m).collect();
+            println!("N14 token at 'plain': type={} mods={m:?}", types.get(q[3] as usize).unwrap_or(&"?"));
+        }
+    }
+}
+
+// ---------------------------------------------------------------- N16
+
+#[test]
+fn n16_providers() {
+    for (dialect, text) in [("tcl8.4", "namespace path "), ("tcl8.6", "namespace pat "), ("tcl8.6", "namespace path ")] {
+        let src = format!("{text}\n");
+        let analysis = analyse(&src, dialect);
+        let registry = tcl_spectcl::bundled::registry_for_dialect(dialect);
+        let sh = tcl_lsp_core::signature_help::signature_help(&src, 0, text.len() as u32, &analysis, Some(&registry));
+        println!("N16 sighelp {dialect} {text:?} -> {:?}", sh.map(|s| s.signatures.iter().map(|x| x.label.clone()).collect::<Vec<_>>()));
+    }
+    let alias = "interp alias {} a {} puts\nnamespace eval n {\n    proc a {} {return local}\n    a\n}\n";
+    let analysis = analyse(alias, "tcl8.6");
+    let (l, c) = pos(alias, "    a\n", 0, 4);
+    let h = tcl_lsp_core::hover::hover(alias, l, c, &analysis, None);
+    println!("N16 alias-hover={:?}", h.map(|h| h.value.chars().take(160).collect::<String>()));
+    let td = "oo::class create K {\n    method greet {} {return hi}\n    method m {} {puts greet}\n}\n";
+    let analysis = analyse(td, "tcl8.6");
+    let (l, c) = pos(td, "puts greet", 0, 6);
+    let r = tcl_lsp_core::type_definition::type_definition(td, l, c, &analysis);
+    println!("N16 type_definition(puts greet)={:?}", r.iter().map(|r| (r.start_line, r.start_character)).collect::<Vec<_>>());
+    let lib = "namespace eval A {proc f {} {}}\nnamespace eval B {proc f {} {}}\n";
+    let user = "f";
+    let a_lib = analyse(lib, "tcl8.6");
+    let a_user = analyse(user, "tcl8.6");
+    let index = tcl_lsp_core::workspace_index::WorkspaceIndex::from_documents([("file:///lib.tcl", &a_lib), ("file:///user.tcl", &a_user)]);
+    let items = tcl_lsp_core::completion::completions(user, 0, 1, &a_user, None, Some(&index), profile("tcl8.6"));
+    let fs: Vec<(String, String)> = items.iter().filter(|i| i.label.contains('f') && (i.insert_text.contains("::f") || i.label == "f")).map(|i| (i.label.clone(), i.insert_text.clone())).collect();
+    println!("N16 completion f-items={fs:?}");
+}
+
+// ---------------------------------------------------------------- seams
+
+#[test]
+fn seam_nested_passthrough_irules() {
+    use tcl_compiler::compilation_unit::CompilationUnit;
+    let src = "proc run {body} {uplevel 1 $body}\nwhen HTTP_REQUEST {\n    set x abc\n    if {$x contains \"a\"} {log local0. direct}\n    run {if {$x contains \"a\"} {log local0. inl}}\n}\n";
+    let tclsrc = "proc run {body} {uplevel 1 $body}\nproc t {} {\n    set x abc\n    if {$x eq \"a\"} {puts direct}\n    run {if {$x eq \"a\"} {puts inl}}\n}\n";
+    for (dialect, s, op) in [("f5-irules", src, "Contains"), ("tcl8.6", tclsrc, "Eq")] {
+        let registry = tcl_spectcl::bundled::registry_for_dialect(dialect);
+        let cu = CompilationUnit::build_for_profile(s, &registry, false, profile(dialect));
+        let dbg = format!("{:?}", cu.ir_module);
+        println!("SEAM nested {dialect} op={op} count_op={} count_Block={} count_Raw={}", dbg.matches(&format!("op: {op}")).count(), dbg.matches("Block {").count(), dbg.matches("Raw").count());
+    }
+}
+
+#[test]
+fn seam_extract_inline() {
+    // inline proc across a shadowing namespace (N08 shape)
+    let src = "proc p {} {return GLOBAL}\nnamespace eval n {\n    proc p {} {return LOCAL}\n    proc c {} {return [p]}\n}\nputs [n::c]\n";
+    let analysis = analyse(src, "tcl8.6");
+    let registry = tcl_spectcl::bundled::registry_for_dialect("tcl8.6");
+    let cursor = src.find("[p]").unwrap() as u32 + 1;
+    let r = tcl_lsp_core::refactor::inline_proc(src, cursor, &analysis, &registry);
+    match r {
+        Some(r) => {
+            let mut out = src.to_owned();
+            let mut edits = r.edits.clone();
+            edits.sort_by(|a, b| b.start.cmp(&a.start));
+            for e in edits { out.replace_range(e.start as usize..e.end as usize, &e.new_text); }
+            save("seam_inline.tcl", &out);
+            println!("SEAM inline_proc title={:?} saved seam_inline.tcl", r.title);
+        }
+        None => println!("SEAM inline_proc: none offered"),
+    }
+    // extract variable named `result` when `result` already exists
+    let src2 = "proc f {} {\n    set result 1\n    puts [expr {2 + 3}]\n    return $result\n}\nputs [f]\n";
+    let analysis = analyse(src2, "tcl8.6");
+    let li = tcl_lexer::LineIndex::new_lsp(src2);
+    let s = src2.find("[expr").unwrap() as u32;
+    let e = s + "[expr {2 + 3}]".len() as u32;
+    let r = tcl_lsp_core::refactor::extract_variable(src2, (s, e), "result", &analysis, &li);
+    match r {
+        Some(r) => {
+            let mut out = src2.to_owned();
+            let mut edits = r.edits.clone();
+            edits.sort_by(|a, b| b.start.cmp(&a.start));
+            for e in edits { out.replace_range(e.start as usize..e.end as usize, &e.new_text); }
+            save("seam_extract.tcl", &out);
+            println!("SEAM extract_variable(result) offered; saved seam_extract.tcl");
+        }
+        None => println!("SEAM extract_variable(result): none offered"),
+    }
+}
+
+#[test]
+fn seam_linked_editing() {
+    let src = "proc greet {} {greet}\nnamespace eval n {proc greet {} {}}\n";
+    let analysis = analyse(src, "tcl8.6");
+    let (l, c) = pos(src, "proc greet", 0, 5);
+    let r = tcl_lsp_core::linked_editing_range::linked_editing_ranges(src, l, c, &analysis);
+    println!("SEAM linked_editing={:?}", r.map(|r| r.ranges.iter().map(|x| (x.start_line, x.start_character)).collect::<Vec<_>>()));
+}
+
+// ---------------------------------------------------------------- 4.1 scaling
+
+fn cpu_ms<F: FnMut()>(mut f: F) -> f64 {
+    let t = std::time::Instant::now();
+    f();
+    t.elapsed().as_secs_f64() * 1000.0
+}
+
+#[test]
+fn scaling_rows() {
+    for n in [250usize, 500, 1000, 2000] {
+        let mut src = String::new();
+        for i in 0..n { let _ = writeln!(src, "proc p{i:08} {{}} {{}}"); }
+        let a = analyse(&src, "tcl8.6");
+        let mut idx = None;
+        let mut best_idx = f64::MAX;
+        for _ in 0..3 { best_idx = best_idx.min(cpu_ms(|| { idx = Some(tcl_lsp_core::workspace_index::WorkspaceIndex::from_documents([("file:///flat.tcl", &a)])); })); }
+        let idx = idx.unwrap();
+        let mut best_q = f64::MAX;
+        for _ in 0..3 { best_q = best_q.min(cpu_ms(|| { for _ in 0..100 { std::hint::black_box(idx.workspace_command_exists_for_call("::missing", false)); } })); }
+        // procs in separate documents too
+        let docs: Vec<(String, AnalysisResult)> = (0..n.min(1000)).map(|i| (format!("file:///f{i}.tcl"), analyse(&format!("proc p{i:08} {{}} {{}}\n"), "tcl8.6"))).collect();
+        let mut best_multi = f64::MAX;
+        for _ in 0..3 { best_multi = best_multi.min(cpu_ms(|| { std::hint::black_box(tcl_lsp_core::workspace_index::WorkspaceIndex::from_documents(docs.iter().map(|(u, a)| (u.as_str(), a)))); })); }
+        println!("SCALE flat P={n} index_ms={best_idx:.3} 100_missing_exists_ms={best_q:.3} index_{}docs_ms={best_multi:.3}", docs.len());
+    }
+    for f in [250usize, 500, 1000, 2000] {
+        let edges: Vec<tcl_lsp_core::source_graph::RunEdge> = (1..f).map(|i| tcl_lsp_core::source_graph::RunEdge {
+            parent: format!("file:///c{:05}.tcl", i - 1),
+            child: format!("file:///c{i:05}.tcl"),
+            at: 10,
+            enclosing_body: None,
+            kind: tcl_lsp_core::source_graph::RunEdgeKind::Source,
+        }).collect();
+        let mut best = f64::MAX;
+        for _ in 0..3 { best = best.min(cpu_ms(|| { std::hint::black_box(tcl_lsp_core::source_graph::RunOrder::build(&edges)); })); }
+        println!("SCALE source-chain F={f} build_ms={best:.3}");
+    }
+    for n in [125usize, 250, 500] {
+        let mut src = String::new();
+        for i in 0..n { let _ = write!(src, "proc p{i:08} {{}} {{}}\np{i:08}\n"); }
+        let a = analyse(&src, "tcl8.6");
+        let mut best = f64::MAX;
+        let mut count = 0;
+        for _ in 0..3 { best = best.min(cpu_ms(|| { count = tcl_lsp_core::code_lens::code_lenses(&src, profile("tcl8.6"), Some(&a), None, "file:///lens.tcl").len(); })); }
+        println!("SCALE code-lens P={n} ms={best:.3} lenses={count}");
+    }
+}

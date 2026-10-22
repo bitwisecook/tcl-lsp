@@ -1,0 +1,513 @@
+start Thu Oct 22 11:05:39 UTC 2026 avail= 2163M
+    Blocking waiting for file lock on build directory
+   Compiling tcl-compiler v0.1.0 (/home/user/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-sslictcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/home/user/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-engine-tclvm v0.1.0 (/home/user/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/home/user/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-bigip v0.1.0 (/home/user/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/home/user/tcl-lsp/rust/tcl-lsp-core)
+warning: function `lexical_aggressive` is never used
+   --> rust/tcl-lsp-core/src/minify.rs:701:4
+    |
+701 | fn lexical_aggressive(
+    |    ^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `lexical_compact` is never used
+   --> rust/tcl-lsp-core/src/minify.rs:797:4
+    |
+797 | fn lexical_compact(
+    |    ^^^^^^^^^^^^^^^
+
+warning: fields `analysis` and `registry` are never read
+   --> rust/tcl-lsp-core/src/minify.rs:863:5
+    |
+859 | struct MinifyEnv<'a> {
+    |        --------- fields in this struct
+...
+863 |     analysis: &'a AnalysisResult,
+    |     ^^^^^^^^
+...
+873 |     registry: &'a CommandRegistry,
+    |     ^^^^^^^^
+    |
+    = note: `MinifyEnv` has a derived impl for the trait `Clone`, but this is intentionally ignored during dead code analysis
+
+warning: function `child_scope_label` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1021:4
+     |
+1021 | fn child_scope_label(parent_label: &str, child_name: &str) -> String {
+     |    ^^^^^^^^^^^^^^^^^
+
+warning: function `source_scope_at_offset` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1030:4
+     |
+1030 | fn source_scope_at_offset<'a>(
+     |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `record_variable_report` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1057:4
+     |
+1057 | fn record_variable_report(
+     |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `RenameBarriers` is never constructed
+    --> rust/tcl-lsp-core/src/minify.rs:1074:8
+     |
+1074 | struct RenameBarriers<'a> {
+     |        ^^^^^^^^^^^^^^
+
+warning: method `allows_scope` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1093:8
+     |
+1092 | impl RenameBarriers<'_> {
+     | ----------------------- method in this implementation
+1093 |     fn allows_scope(&self, scope: &Scope) -> bool {
+     |        ^^^^^^^^^^^^
+
+warning: function `find_rename_barriers` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1105:4
+     |
+1105 | fn find_rename_barriers<'a>(
+     |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `apply_rename_traits` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1147:4
+     |
+1147 | fn apply_rename_traits<'a>(out: &mut RenameBarriers<'a>, traits: Traits, scope: Option<&'a Scope>) {
+     |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `rename_params_in_list` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1166:4
+     |
+1166 | fn rename_params_in_list(
+     |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `slice` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1189:4
+     |
+1189 | fn slice(source: &str, span: Span) -> &str {
+     |    ^^^^^
+
+warning: function `current_proc_call_sites` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1199:4
+     |
+1199 | fn current_proc_call_sites(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `compact_names` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1264:4
+     |
+1264 | fn compact_names(
+     |    ^^^^^^^^^^^^^
+
+warning: function `compact_logical_formals` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1402:4
+     |
+1402 | fn compact_logical_formals(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `ScopeCtx` is never constructed
+    --> rust/tcl-lsp-core/src/minify.rs:1490:8
+     |
+1490 | struct ScopeCtx<'a> {
+     |        ^^^^^^^^
+
+warning: struct `ScopeOut` is never constructed
+    --> rust/tcl-lsp-core/src/minify.rs:1502:8
+     |
+1502 | struct ScopeOut<'a, 'scope> {
+     |        ^^^^^^^^
+
+warning: function `variable_reference_name_spans` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1510:4
+     |
+1510 | fn variable_reference_name_spans(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `process_scope` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1539:4
+     |
+1539 | fn process_scope<'a>(
+     |    ^^^^^^^^^^^^^
+
+warning: function `rmw_target_var_names` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1688:4
+     |
+1688 | fn rmw_target_var_names(
+     |    ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `is_clause_keyword` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1737:4
+     |
+1737 | fn is_clause_keyword(word: &str) -> bool {
+     |    ^^^^^^^^^^^^^^^^^
+
+warning: function `collect_symbol_shorts` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1746:4
+     |
+1746 | fn collect_symbol_shorts(sm: &SymbolMap) -> HashSet<String> {
+     |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: enum `LiveNameInventoryGap` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1764:6
+     |
+1764 | enum LiveNameInventoryGap {
+     |      ^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `LiveNameInventory` is never constructed
+    --> rust/tcl-lsp-core/src/minify.rs:1772:8
+     |
+1772 | struct LiveNameInventory {
+     |        ^^^^^^^^^^^^^^^^^
+
+warning: function `collect_live_names` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1777:4
+     |
+1777 | fn collect_live_names(
+     |    ^^^^^^^^^^^^^^^^^^
+
+warning: struct `AuthoredAliasSpelling` is never constructed
+    --> rust/tcl-lsp-core/src/minify.rs:1855:8
+     |
+1855 | struct AuthoredAliasSpelling {
+     |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `authored_alias_spelling` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1860:4
+     |
+1860 | fn authored_alias_spelling(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: enum `AliasWordPurpose` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1876:6
+     |
+1876 | enum AliasWordPurpose {
+     |      ^^^^^^^^^^^^^^^^
+
+warning: function `source_alias_uses` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1883:4
+     |
+1883 | fn source_alias_uses(
+     |    ^^^^^^^^^^^^^^^^^
+
+warning: function `alias_by_uses` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:1955:4
+     |
+1955 | fn alias_by_uses(
+     |    ^^^^^^^^^^^^^
+
+warning: function `alias_repeated_commands` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2023:4
+     |
+2023 | fn alias_repeated_commands(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `abbreviate_keywords` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2057:4
+     |
+2057 | fn abbreviate_keywords(
+     |    ^^^^^^^^^^^^^^^^^^^
+
+warning: function `alias_repeated_arguments` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2083:4
+     |
+2083 | fn alias_repeated_arguments(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `build_suffix_array` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2093:4
+     |
+2093 | fn build_suffix_array(text: &[u8]) -> Vec<usize> {
+     |    ^^^^^^^^^^^^^^^^^^
+
+warning: function `build_lcp_array` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2100:4
+     |
+2100 | fn build_lcp_array(text: &[u8], sa: &[usize]) -> Vec<usize> {
+     |    ^^^^^^^^^^^^^^^
+
+warning: function `string_alias_candidates` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2130:4
+     |
+2130 | fn string_alias_candidates(segments: &[StringLiteralFragment]) -> BTreeMap<Vec<u8>, Vec<usize>> {
+     |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `alias_string_literals` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2196:4
+     |
+2196 | fn alias_string_literals(
+     |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `StringLiteralFragment` is never constructed
+    --> rust/tcl-lsp-core/src/minify.rs:2295:8
+     |
+2295 | struct StringLiteralFragment {
+     |        ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `collect_string_literals` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2303:4
+     |
+2303 | fn collect_string_literals(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `standalone_alias_word` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2356:4
+     |
+2356 | fn standalone_alias_word(source: &str, config: LexerConfig) -> Option<tcl_lexer::NativeWord> {
+     |    ^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `alias_string_reference` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2376:4
+     |
+2376 | fn alias_string_reference(
+     |    ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `find_subslice` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2424:4
+     |
+2424 | fn find_subslice(haystack: &[u8], needle: &[u8], from: usize) -> Option<usize> {
+     |    ^^^^^^^^^^^^^
+
+warning: function `safe_taint_colours` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2436:4
+     |
+2436 | fn safe_taint_colours() -> TaintColour {
+     |    ^^^^^^^^^^^^^^^^^^
+
+warning: function `fold_original_static_substrings` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2445:4
+     |
+2445 | fn fold_original_static_substrings(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `fold_original_word_parts` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2533:4
+     |
+2533 | fn fold_original_word_parts(
+     |    ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `const_to_string` is never used
+    --> rust/tcl-lsp-core/src/minify.rs:2818:4
+     |
+2818 | fn const_to_string(cv: &ConstValue) -> Option<String> {
+     |    ^^^^^^^^^^^^^^^
+
+warning: function `abbreviate` is never used
+  --> rust/tcl-lsp-core/src/minify/lexical_keywords.rs:26:15
+   |
+26 | pub(super) fn abbreviate(source: &str, env: MinifyEnv<'_>) -> (String, usize) {
+   |               ^^^^^^^^^^
+
+warning: function `abbreviate_command` is never used
+  --> rust/tcl-lsp-core/src/minify/lexical_keywords.rs:53:4
+   |
+53 | fn abbreviate_command(
+   |    ^^^^^^^^^^^^^^^^^^
+
+warning: function `subcommand_table` is never used
+  --> rust/tcl-lsp-core/src/minify/lexical_keywords.rs:96:4
+   |
+96 | fn subcommand_table(
+   |    ^^^^^^^^^^^^^^^^
+
+warning: function `empty_table` is never used
+   --> rust/tcl-lsp-core/src/minify/lexical_keywords.rs:116:4
+    |
+116 | fn empty_table() -> KeywordTable<'static> {
+    |    ^^^^^^^^^^^
+
+warning: function `keyword_tables` is never used
+   --> rust/tcl-lsp-core/src/minify/lexical_keywords.rs:122:4
+    |
+122 | fn keyword_tables(
+    |    ^^^^^^^^^^^^^^
+
+warning: function `push_word_edit` is never used
+   --> rust/tcl-lsp-core/src/minify/lexical_keywords.rs:160:4
+    |
+160 | fn push_word_edit(
+    |    ^^^^^^^^^^^^^^
+
+warning: function `shortest_spelling` is never used
+   --> rust/tcl-lsp-core/src/minify/lexical_keywords.rs:188:4
+    |
+188 | fn shortest_spelling(
+    |    ^^^^^^^^^^^^^^^^^
+
+warning: function `with_command_schema` is never used
+  --> rust/tcl-lsp-core/src/minify/lexical_metadata.rs:26:15
+   |
+26 | pub(super) fn with_command_schema<T>(
+   |               ^^^^^^^^^^^^^^^^^^^
+
+warning: function `with_editable_command_schema` is never used
+  --> rust/tcl-lsp-core/src/minify/lexical_metadata.rs:48:15
+   |
+48 | pub(super) fn with_editable_command_schema<T>(
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `parameter_name_sources` is never used
+  --> rust/tcl-lsp-core/src/minify/lexical_metadata.rs:75:15
+   |
+75 | pub(super) fn parameter_name_sources(
+   |               ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `ascii_value` is never used
+   --> rust/tcl-lsp-core/src/minify/lexical_metadata.rs:131:15
+    |
+131 | pub(super) fn ascii_value(word: &NativeWord) -> Option<String> {
+    |               ^^^^^^^^^^^
+
+warning: struct `CommandCensus` is never constructed
+   --> rust/tcl-lsp-core/src/minify/lexical_metadata.rs:137:19
+    |
+137 | pub(super) struct CommandCensus<'a> {
+    |                   ^^^^^^^^^^^^^
+
+warning: methods `observed_commands` and `is_complete` are never used
+   --> rust/tcl-lsp-core/src/minify/lexical_metadata.rs:145:19
+    |
+144 | impl CommandCensus<'_> {
+    | ---------------------- methods in this implementation
+145 |     pub(super) fn observed_commands(&self) -> &[NativeScriptCommandWords] {
+    |                   ^^^^^^^^^^^^^^^^^
+...
+149 |     pub(super) fn is_complete(
+    |                   ^^^^^^^^^^^
+
+warning: function `command_census` is never used
+   --> rust/tcl-lsp-core/src/minify/lexical_metadata.rs:164:15
+    |
+164 | pub(super) fn command_census<'a>(source: &str, env: MinifyEnv<'a>) -> Option<CommandCensus<'a>> {
+    |               ^^^^^^^^^^^^^^
+
+warning: function `analysis_with_input` is never used
+   --> rust/tcl-lsp-core/src/minify/original.rs:411:15
+    |
+411 | pub(super) fn analysis_with_input(source: &str, input: &ResolvedAnalysisInput) -> AnalysisResult {
+    |               ^^^^^^^^^^^^^^^^^^^
+
+warning: fields `name_span` and `token_span` are never read
+   --> rust/tcl-lsp-core/src/source_structure.rs:661:16
+    |
+659 | pub(crate) struct SourceVariableReference<'a> {
+    |                   ----------------------- fields in this struct
+660 |     pub(crate) root: &'a str,
+661 |     pub(crate) name_span: Span,
+    |                ^^^^^^^^^
+662 |     pub(crate) whole_span: Span,
+663 |     pub(crate) token_span: Span,
+    |                ^^^^^^^^^^
+
+warning: struct `OriginalVariableReferences` is never constructed
+   --> rust/tcl-lsp-core/src/source_structure.rs:885:19
+    |
+885 | pub(crate) struct OriginalVariableReferences<'a> {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated items `capture` and `reference_at` are never used
+   --> rust/tcl-lsp-core/src/source_structure.rs:893:19
+    |
+892 | impl<'a> OriginalVariableReferences<'a> {
+    | --------------------------------------- associated items in this implementation
+893 |     pub(crate) fn capture(source: &'a str, analysis: &'a AnalysisResult) -> Option<Self> {
+    |                   ^^^^^^^
+...
+904 |     pub(crate) fn reference_at(&self, cursor: u32) -> Option<SourceVariableReference<'a>> {
+    |                   ^^^^^^^^^^^^
+
+   Compiling tcl-spectcl v0.1.0 (/home/user/tcl-lsp/rust/tcl-spectcl)
+warning: `tcl-lsp-core` (lib) generated 64 warnings
+    Finished `test` profile [unoptimized] target(s) in 15m 09s
+     Running tests/zz_review_probe.rs (target/debug/deps/zz_review_probe-c6f4e9c3e1246f5c)
+
+running 19 tests
+test n01_identity ... N01 tcl8.6 all_procs=["::a:::p"] diags=[]
+N01 tcl9.0 all_procs=["::a:::p"] diags=[]
+N01 empty-tail all_procs=["::n::"] links=[("::a", "::n::")]
+ok
+test n02_jim ... N02 jim all_procs=["::a:::p", "::a::p"] def(a::p)=[] def(a:::p)=[]
+N02 tcl8.6 all_procs=["::a::p"] def(a::p)=[2] def(a:::p)=[2]
+ok
+test n03_variables ... N03 café tcl8.6 def=[(0, 4, 7)] refs=[(0, 4, 7), (2, 5, 9)]
+n03cafe tcl8.6 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved n03cafe_tcl8.6.tcl
+N03 café tcl9.0 def=[(0, 4, 7)] refs=[(0, 4, 7), (2, 5, 9)]
+n03cafe tcl9.0 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved n03cafe_tcl9.0.tcl
+N03 café jim def=[(1, 4, 8)] refs=[(1, 4, 8), (2, 5, 10)]
+n03cafe jim edits=[L1:4 "café"->"zz"] [L2:5 "$café"->"$zz"]  -> saved n03cafe_jim.tcl
+N03 nested-brace tcl8.6 def=[(0, 4, 9)]
+N03 nested-brace tcl9.0 def=[(1, 4, 11)]
+N03 suffix tcl8.6 cursor-on-literal-bar def=[]
+ok
+test n04_import_rename ... n04wild tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+n04exact tcl8.4 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+n04wild tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+n04exact tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+n04wild tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+n04exact tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+n04wild jim REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+n04exact jim REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+ok
+test n05_control_plain_rename ... N05CTL plain tcl8.6 -> Err("incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage")
+N05CTL ns tcl8.6 -> Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage")
+N05CTL plain tcl9.0 -> Err("incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage")
+N05CTL ns tcl9.0 -> Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage")
+ok
+test n06_collisions ... n06class tcl8.6 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+n06method tcl8.6 REFUSED "original-member-collision: another retained source or builtin method occupies the proposed name"
+n06proc tcl8.6 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+n06class tcl9.0 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+n06method tcl9.0 REFUSED "original-member-collision: another retained source or builtin method occupies the proposed name"
+n06proc tcl9.0 REFUSED "original-command-collision: the proposed command name collides with a retained occupied command slot"
+N06 local->sibling core=Err("incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage") workspace_has_q=true
+N06 local->sibling cross_document_edits=0 workspace_symbol_rename_edits=None allows_lexical_rename_advice=false
+ok
+test n08_unit_inference ... N08U proc=::p return_type=TypeLattice { repr: Overdefined } sccp_mentions GLOBAL=0 LOCAL=0 INIT=0
+N08U proc=::n::p return_type=TypeLattice { repr: Overdefined } sccp_mentions GLOBAL=0 LOCAL=0 INIT=0
+N08U proc=::n::c return_type=TypeLattice { repr: Overdefined } sccp_mentions GLOBAL=0 LOCAL=0 INIT=0
+N08U ir_module mentions GLOBAL=235 LOCAL=712
+ok
+test n09_compiler_facts ... N09 ctor proc=::n::c return=TypeLattice { repr: Union(BoundedSet { items: [Object(Some("::n::Foo"))] }) } object-types=["TypeLattice { repr: Union(BoundedSet { items: [Object(Some(\"::n::Foo\"))] }) }"]
+N09 ctor_shadow proc=::n::Foo return=TypeLattice { repr: Union(BoundedSet { items: [String] }) } object-types=[]
+N09 ctor_shadow proc=::n::c return=TypeLattice { repr: Overdefined } object-types=[]
+N09 path proc=::lib::p direct_calls=[]
+N09 path proc=::p direct_calls=[]
+N09 path analyser invocation p -> Some("::lib::p")
+ok
+test n10_classes ... N10 path hover=None type_hierarchy=[] def=[]
+N10 relation-site supertypes=["::A::Base"] classes=[("::A::Base", []), ("::B::Base", []), ("::B::Child", ["Base"])]
+N10 missing-qualified supertypes=[]
+ok
+test n11_packages ... N11 resolve_require=["/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/triage/out/n11pkg/p1.tcl", "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/triage/out/n11pkg/p2.tcl"]
+N11 candidate(8.6)=["1.0", "2.0"]
+N11 for_profile=["/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/triage/out/n11pkg/p1.tcl", "/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/triage/out/n11pkg/p2.tcl"]
+N11 auto_qualify(café, ::)=["café"] auto_qualify(café, ::ns)=["::ns::café", "café"]
+ok
+test n12_incremental ... N12 warm-old=(false, false) replaced=(true, true) fresh-new=(true, true)
+ok
+test n13_source_env ... N13 seeded-child helper resolved=Some("::app::helper") lookup=Some(OriginalCommandLookup { input: OriginalWord(SignatureSourceNameKey { original: NativeWord { arena: ExecutablePartArena { image: SourceImage { bytes: [112, 114, 111, 99, 32, 114, 117, 110, 32, 123, 125, 32, 123, 104, 101, 108, 112, 101, 114, 125, 10], channel: Document, geometry: SourceImageGeometry { byte_hash: 14274516322718360627, line_index: Some(LineIndex { line_starts: [0, 21] }) } }, config: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict, source_line_endings: TranslateAuto }, variables: WrittenWord, lists: [[SpannedExecutablePart { part: Text(Original), span: Span { start: 13, end: 19 }, source_span: Span { start: 13, end: 19 }, error_term: None, error_kind: None }]] }, config: LexerConfig { expand_syntax: true, irules_brace_separator: false, brace_line_continuation: Terminates, strict_quoting: false, braced_var: FirstClose, array_index: Tcl8, base_offset: 0, base_line: 0, base_col: 0, leading_bom: Content, escapes: Tcl86, word_separators: Tcl, quote_termination: Strict, var_syntax: Tcl, brace_backslash_newline: Folds, list_parse: Strict, source_line_endings: TranslateAuto }, group: WordSpan { kind: Bare, expand: false, tokens: 0..1, span: Span { star
+ok
+test n14_semantic_tokens ... N14 token at 'plain': type=string mods=[]
+ok
+test n16_providers ... N16 sighelp tcl8.4 "namespace path " -> None
+N16 sighelp tcl8.6 "namespace pat " -> Some(["namespace path ?namespaceList?"])
+N16 sighelp tcl8.6 "namespace path " -> Some(["namespace path ?namespaceList?"])
+N16 alias-hover=Some("```tcl\nproc ::n::a {} {...}\n```")
+N16 type_definition(puts greet)=[]
+N16 completion f-items=[("f", "\"::A::f\""), ("f", "\"::B::f\"")]
+ok
+test n17_live_hook ... N17H dsl=1 fold=$arr($a:b) notices=0 plan_empty=false declined=["None"] O129=[]
+N17H dsl=2.0 fold=$arr($a:b) notices=0 plan_empty=false declined=["None"] O129=[]
+N17H dsl=2.0 fold=$arr(${a}:b) notices=0 plan_empty=false declined=["None"] O129=[]
+N17H dsl=2.0 fold=good notices=0 plan_empty=false declined=["None"] O129=[]
+N17H dsl=2.0 fold=[string length [lindex $words 0]] notices=0 plan_empty=false declined=["None"] O129=[]
+ok
+test scaling_rows ... error: test failed, to rerun pass `-p tcl-spectcl --test zz_review_probe`
+
+Caused by:
+  process didn't exit successfully: `/home/user/tcl-lsp/target/debug/deps/zz_review_probe-c6f4e9c3e1246f5c --nocapture --test-threads=1 --skip n17_template_registration --skip n15_minify --skip n07_speculative_var --skip n08_inliner --skip n05_forced_import` (signal: 15, SIGTERM: termination signal)
+exit=101 Thu Oct 22 11:25:50 UTC 2026
+cleaned

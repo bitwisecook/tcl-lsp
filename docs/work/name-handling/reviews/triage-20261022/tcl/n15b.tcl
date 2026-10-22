@@ -1,0 +1,2 @@
+proc longName {} {return NEW}
+puts [::longName]
