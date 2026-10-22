@@ -2,7 +2,7 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-22T11:40Z (Sol-49)
+Last updated: 2026-10-22T12:15Z (Sol-49)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -16,6 +16,7 @@ Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-2026
     - `cfg_builder/cfg_lower.rs::lower_opaque_switch` wires an opaque switch's `break`/`continue` to the enclosing loop before treating an all-exiting switch as a procedure exit. This also targets the earlier-failing `fp_rbs_15_all_break_switch_not_a_proc_terminator`.
   - **`fp_sh_21`.** `deferred_writes/supplied.rs` no longer turns `any` on for a nested receipt that is already a lowered statement of the command's own body script. The probe showed that `puts` inside a `dict for`/`foreach` body set `deferred_writes.any`, so SCCP went all Overdefined.
   - The `fp_inj` and `compilation_unit` corrections, and the CRLF lowering fix.
+  - Partial results of that batch (d1, against the pre-C6 baseline z2): `diagnostics::fp` 484 ok / 97 failed, with 3 pass-to-fail left (`fp_rbs_15_while1_break_in_opaque_switch_exits_loop`, `fp_sh_21_dict_literal_in_dict_for_silent`, `fp_tnt_03_interp_eval_list_literal_head_no_t105`) and 40 gains. `interprocedural` 76/51 with 0 regressions. `bounds_checks` 56/13. `diagnostics::helpers` 13/9. The `supplied.rs` change did not clear `fp_sh_21`; a probe build follows the batch.
 
 ## Outstanding (in priority order)
 

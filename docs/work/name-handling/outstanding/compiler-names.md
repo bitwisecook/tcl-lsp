@@ -2,11 +2,24 @@
 
 Area: command_binding.rs (except the C6 hunks), source name lookup, analyser scope/commands, nested lookups.
 
-Last updated: 2026-10-22T11:45Z
+Last updated: 2026-10-22T13:05Z
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress
+
+- **Status 13:05Z.** Build g1 (guard only) results:
+  - `puts hi` → world;
+  - unknown, bad-proc, `string $op`, `eval`, `chan create`, `trace add variable`, `trace add execution` and `namespace unknown` → withheld;
+  - three cases were wrongly given a world: `lsort -command greet`, `chan push stdout ::xf; puts hi` and `proc unknown …; puts hi`.
+
+  Fix (build g2 running):
+  - `installs_reentry_hook`: any COMMAND_PREFIX, TRACE or HOST callback, or the variable-trace trait, marks the world as unclosed for the whole document. This is the coordinator's global hook guard.
+  - `unknown_handler_is_original`: `::unknown` must still be the stock builtin, or absent.
+
+  The partial g1 `command_binding::` run shows 8 tests failing that were ok in my earlier final run. They are being rerun singly in g2 to attribute them, since the tree has moved (C6 etc.).
+- **W210:** found it is not barrier-related. Only the first undefined read in a `[..]` is reported (`[file join $dir $missing]` reports `dir` only). Presence probe in g2.
+- **Import alias:** no `actual_ensemble_plan` probe fired, so the Unknown comes from `registered_compiler_selection`. Probe in g2.
 
 - **R1 guardrail on "undeclared descriptors count as closed"** (`command_binding.rs`, `command_world_closed_on_normal_return`). An invocation that has no closed receipt leaves the completed world available only if all of these hold:
   - it resolves to an unperturbed registry `Builtin` with no prefix;

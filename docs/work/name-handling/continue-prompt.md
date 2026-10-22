@@ -31,7 +31,7 @@ The disk is shared and tight (about 3 GB free). An unbounded test log once fille
 - Check `df -h /` before every build. Stop building below 2 GB.
 - Pipe test output through a filter that keeps only test, panic and assert lines, capped at 20 MB.
 - Delete test executables when done. Test executables are shared: every agent's `cargo test -p <crate> --lib` writes the same `target/debug/deps/<crate>-<hash>` file. Build and run in ONE `cargo test` command, and delete the executable only in that same command after your run; never rely on an executable built by an earlier command.
-- Safe to remove only when **no build is running** (`[ -n "$(pgrep -x rustc; pgrep -x cargo)" ]`; plain `pgrep -f` matches its own command line): `target/debug/incremental` directories older than 30 minutes, and superseded `target/debug/deps` rlibs, keeping the newest of each crate. Deleting rlibs under a running build breaks it.
+- Safe to remove only when **no build is running** (`[ -n "$(pgrep -x rustc; pgrep -x cargo)" ]`; plain `pgrep -f` matches its own command line): `target/debug/incremental` directories older than 30 minutes, and superseded `target/debug/deps` rlibs, keeping the newest of each crate. Deleting rlibs under a running build breaks it. Never delete a test executable younger than 60 minutes, even if no process is running it: agents run several filters from one binary, and it is idle between runs.
 - `/dev/shm` (RAM-backed) can host a small isolated `CARGO_TARGET_DIR`; keep it under 3 GB and watch `free -g`.
 - If the container restarts, every agent and build stops; uncommitted edits survive. Snapshot the tree, prune, then resume agents.
 

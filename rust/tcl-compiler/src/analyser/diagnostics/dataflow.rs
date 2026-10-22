@@ -2051,6 +2051,19 @@ is renamed or deleted in this file."
                     continue;
                 };
                 for access in &tokens.variable_accesses {
+                    #[cfg(test)]
+                    if std::env::var_os("ZZ_PROBE_LOWER").is_some() {
+                        eprintln!(
+                            "ZZ_W210 block={block:?} index={index} name={:?} presence={:?}",
+                            access.original_spelling,
+                            view.read_contents_presence_alternatives_at(
+                                &access.source,
+                                &access.original_spelling,
+                                &registry,
+                            )
+                            .map(|presence| (presence.may_be_undefined(), presence.may_be_defined()))
+                        );
+                    }
                     let Some(presence) = view
                         .read_contents_presence_alternatives_at(
                             &access.source,

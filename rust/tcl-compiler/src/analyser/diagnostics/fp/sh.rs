@@ -1698,6 +1698,7 @@ fn zz_sol49_dict_for_probe() {
             }
         }
         for (name, fu) in cu.procedures.iter().map(|(id, fu)| (format!("{id:?}"), fu)) {
+            eprintln!("  FU {name} dynamic_writes={}", fu.dynamic_names.writes);
             let mut ids: Vec<_> = fu.cfg.blocks.keys().collect();
             ids.sort();
             for id in ids {

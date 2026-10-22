@@ -4583,6 +4583,43 @@ impl CapturedNativeCompletionReceipts {
     }
 }
 
+/// Whether an invocation installs a hook through which a builtin can later
+/// re-enter Tcl: a channel transform or reflected channel (`chan push`,
+/// `chan create`), a trace, or another command-prefix or host callback. The
+/// closed-builtin shortcut rests on the fresh-interpreter premise that no
+/// such hook exists, so a program that installs one withholds the shortcut
+/// for the whole document.
+fn installs_reentry_hook(facts: &InvocationFacts) -> bool {
+    use tcl_registry::CallbackKinds;
+    let kinds = facts.effects.callback().kinds;
+    kinds.contains(CallbackKinds::COMMAND_PREFIX)
+        || kinds.contains(CallbackKinds::TRACE)
+        || kinds.contains(CallbackKinds::HOST)
+        || facts
+            .traits
+            .intersects(tcl_registry::extension_default::TRACES)
+}
+
+impl ModuleCommandBindings {
+    /// Whether `::unknown` is still the fresh interpreter's handler (or
+    /// absent). A redefined handler is a hook the closed-builtin shortcut
+    /// does not model, so it withholds that shortcut.
+    fn unknown_handler_is_original(&self) -> bool {
+        let root = self
+            .native_root_namespace_key()
+            .unwrap_or_else(|| SourceNamespaceKey::Authored("::".to_owned()));
+        let binding = source_binding_projection(self, "::unknown", &root);
+        !binding.unknown
+            && binding.targets.iter().all(|target| {
+                target.registry_backed
+                    && target.kind == BindingKind::Builtin
+                    && target.prepended.is_empty()
+                    && target.implementation_generation == 0
+                    && target.implementation_allocation.is_none()
+            })
+    }
+}
+
 /// Whether a handler without its own closed receipt still leaves the command
 /// world exactly as the walk models it on normal return.
 ///
@@ -6506,7 +6543,8 @@ impl SourceOutcomes {
                 && !normal.unclosed_command_world
                 && !normal.has_opaque_domain()
                 && !normal.source_step_observed()
-                && !normal.source_execution_observed(None));
+                && !normal.source_execution_observed(None)
+                && normal.unknown_handler_is_original());
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
@@ -10435,8 +10473,9 @@ impl SourceCommandBindings {
         if let Some(mut outcomes) =
             Self::prepare_non_body_source_result(native, facts, state, context)
         {
-            if outcomes.normal_completion.is_none()
-                && !command_world_closed_on_normal_return(native.target, facts)
+            if (installs_reentry_hook(facts)
+                || (outcomes.normal_completion.is_none()
+                    && !command_world_closed_on_normal_return(native.target, facts)))
                 && let Some(normal) = outcomes.normal.as_mut()
             {
                 #[cfg(test)]
@@ -10520,8 +10559,9 @@ impl SourceCommandBindings {
             context,
             receipts.normal_write.as_ref().filter(|_| write_complete),
         );
-        if outcomes.normal_completion.is_none()
-            && !command_world_closed_on_normal_return(native.target, facts)
+        if (installs_reentry_hook(facts)
+            || (outcomes.normal_completion.is_none()
+                    && !command_world_closed_on_normal_return(native.target, facts)))
             && let Some(normal) = outcomes.normal.as_mut()
         {
             #[cfg(test)]

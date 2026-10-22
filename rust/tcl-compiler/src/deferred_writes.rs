@@ -175,7 +175,7 @@ fn include_original_callback_procedure_writes(
                 let summaries = writes
                     .get_or_init(|| detect_global_write_procs_with_registry(module, registry));
                 let Some(summary) = summaries.get(&id) else {
-                    effects.any = true;
+                    effects.any = supplied::zz_sol49_any(line!());
                     continue;
                 };
                 effects.any |= summary.opaque_global_frame;
@@ -256,7 +256,7 @@ impl Scan<'_> {
         if matches!(stmt, Statement::NativeCall { .. }) {
             // Ordinary dispatch may register an unmodelled future write.
             // Original words do not select a catalogue callback descriptor.
-            self.out.any = true;
+            self.out.any = supplied::zz_sol49_any(line!());
             return;
         }
         if let Statement::Call {
@@ -464,7 +464,7 @@ impl Scan<'_> {
             if words.is_some() {
                 self.script(&joined, depth);
             } else {
-                self.out.any = true;
+                self.out.any = supplied::zz_sol49_any(line!());
             }
             return;
         }
@@ -477,7 +477,7 @@ impl Scan<'_> {
     /// [`Self::command_prefix`] reads the command a `[list …]` word builds.
     fn prefix_command(&mut self, head: &str, rest: &[Arg], depth: u32) {
         if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
-            self.out.any = true;
+            self.out.any = supplied::zz_sol49_any(line!());
             return;
         }
         self.invocation(head, rest, depth);
@@ -507,11 +507,11 @@ impl Scan<'_> {
     fn command_prefix(&mut self, text: &str, depth: u32) {
         let commands = tokenise_command_words(text, self.config);
         let [words] = commands.as_slice() else {
-            self.out.any = true;
+            self.out.any = supplied::zz_sol49_any(line!());
             return;
         };
         let Some(builder) = words.first().and_then(CommandWord::literal) else {
-            self.out.any = true;
+            self.out.any = supplied::zz_sol49_any(line!());
             return;
         };
         let spellings: Vec<&str> = words
@@ -525,7 +525,7 @@ impl Scan<'_> {
                 .invocation_traits(builder, &spellings, self.registry.own_surface_query())
                 .contains(Traits::BUILDS_COMMAND_PREFIX)
         {
-            self.out.any = true;
+            self.out.any = supplied::zz_sol49_any(line!());
             return;
         }
         self.command(&words[1..], depth);
@@ -534,7 +534,7 @@ impl Scan<'_> {
     /// The names every command of `text`, run as a script, writes.
     fn script(&mut self, text: &str, depth: u32) {
         if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
-            self.out.any = true;
+            self.out.any = supplied::zz_sol49_any(line!());
             return;
         }
         for words in tokenise_command_words(text, self.config) {
@@ -553,13 +553,13 @@ impl Scan<'_> {
         }
         let Some(head) = words.first().and_then(CommandWord::literal) else {
             // A computed command is any command at all.
-            self.out.any = true;
+            self.out.any = supplied::zz_sol49_any(line!());
             return;
         };
         if words.iter().skip(1).any(|word| word.expanded) {
             self.procedure(head);
             // Which word is which is unknown, so any variable may be written.
-            self.out.any = true;
+            self.out.any = supplied::zz_sol49_any(line!());
             return;
         }
         let args: Vec<Arg> = words
@@ -623,7 +623,7 @@ impl Scan<'_> {
     /// is no such list raises before the body runs.
     fn lambda(&mut self, text: &str, depth: u32) {
         if MAX_BRACKET_TEXT_DEPTH.exceeded(depth) {
-            self.out.any = true;
+            self.out.any = supplied::zz_sol49_any(line!());
             return;
         }
         let Ok(elements) = WordValueRules::from_config(&self.config).split_list(text) else {
@@ -641,7 +641,7 @@ impl Scan<'_> {
             && (self.module.source_metadata_input.is_some()
                 || !self.module.source_entry.metadata_context.is_standalone())
         {
-            self.out.any = true;
+            self.out.any = supplied::zz_sol49_any(line!());
             return;
         }
         let config = self.config.nested().normalized();
@@ -675,7 +675,7 @@ impl Scan<'_> {
                 .as_deref()
                 .and_then(crate::command_binding::SourceNamespaceKey::advisory_key)
             else {
-                self.out.any = true;
+                self.out.any = supplied::zz_sol49_any(line!());
                 continue;
             };
             frames.push((&unit.body, namespace));
@@ -738,7 +738,7 @@ impl Scan<'_> {
             )
         });
         if effect.is_some_and(|effect| effect.layout == FrameArgLayout::OpaqueCallerVars) {
-            self.out.any = true;
+            self.out.any = supplied::zz_sol49_any(line!());
         }
     }
 
