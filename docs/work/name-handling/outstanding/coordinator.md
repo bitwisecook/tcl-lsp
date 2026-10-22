@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T11:12Z
+Last updated: 2026-10-22T12:13Z
 
 ## In progress
 
@@ -24,6 +24,9 @@ Last updated: 2026-10-22T11:12Z
 - Validated rows in `current-state.md`: the user's validation agent last committed 2026-10-21 17:51 UTC; fresh validation runs are needed before agent-reported fixes count toward the gate.
 
 ## Done since the last update
+
+- 11:40–12:10Z: the session usage limit stopped every agent; all eight resumed at 12:12Z from their transcripts. 3.65 GB of superseded libraries and 0.32 GB of idle test executables pruned while no build ran (disk 966 MB → 4.4 GB).
+- Full working tree pushed on the user's request (`2fe1d48d97`, includes two temporary probes).
 
 - All eight active agents' outstanding files are filled in and pushed; agent table in `current-state.md` refreshed from them.
 - Routed: thread-exit TLS panic (vm-runtime), relative object names (compiler-names), schema withdrawal on undefined reads (compiler), N17 live hook depends on const-fold (compiler-codegen), N05 regression after R1 (compiler-names, lsp), N15 regressions and `compact_names` path (lsp); perf batch hunks for `realm.rs`/`interprocedural.rs` go through the compiler agent.

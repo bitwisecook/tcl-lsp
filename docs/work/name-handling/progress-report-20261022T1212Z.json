@@ -1,0 +1,74 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-22T12:12:49.425066+00:00",
+  "scheduled_report_utc": "2026-10-22T11:38:00Z (handled 12:13Z after the usage-limit pause)",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "committed": {
+    "2fe1d48d97": "full working tree pushed on user request (includes two temporary probes)",
+    "8ed190e7fe..e137b5c7a1": "WIP snapshots"
+  },
+  "events": {
+    "usage_limit": "11:40-12:10Z all agents stopped; resumed 12:12Z",
+    "disk": "966 MB -> 4.4 GB after pruning superseded libraries with no build running"
+  },
+  "progress_in_tree": {
+    "lsp": "N05 guard: rename edits must be a subset of find-references from the same cursor; N15: lexical minify path now refuses name compaction like native; rulings A/B applied (real incr collision; global d fixture plus negative)",
+    "review_triage": "N17 template fixed, N08 fixed, N07 fixed, N05/N15 refuse; second batch pending"
+  },
+  "in_progress": {
+    "lsp": "resumed",
+    "compiler": "resumed",
+    "compiler-names": "resumed",
+    "compiler-codegen": "resumed",
+    "vm-runtime": "resumed",
+    "bigip-lsp": "resumed",
+    "perf": "resumed",
+    "review-triage": "resumed"
+  },
+  "resources": "disk 4.4 GB, RAM 8 GB available, /dev/shm 3.2 GB (perf asked to trim)",
+  "next_report_utc": "2026-10-22T12:44:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
