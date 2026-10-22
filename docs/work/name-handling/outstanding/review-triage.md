@@ -2,13 +2,17 @@
 
 Area: Replay of the external review's findings on the current tree.
 
-Last updated: 2026-10-22T12:45Z
+Last updated: 2026-10-22T13:17:02Z
 
-Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
+Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. This agent commits and pushes it after each run and at least every 30 minutes.
 
 ## Resume
 
-Handed off at 12:45Z. The triage moves to its own cloud session on branch `work`.
+Resumed on the separate cloud disk at 2026-10-22T13:17:02Z. Active checkout: `/workspace/tcl-lsp-triage`, a shallow selective checkout of `work`. Rust 1.99.1 and all six pinned oracle engines are ready. No new triage test has run yet.
+
+**Next command:** source `/tmp/review-triage-env.sh`, then run `bash docs/work/name-handling/reviews/triage-20261022/run5.sh` from this checkout. The oracle trees are reused via the ignored `tmp` symlink. Setup evidence: `../reviews/triage-20261022/cloud-setup.log`.
+
+The complete original checkout was too large to recover promptly; the user authorised a shallow selective clone. `experiments/`, unrelated documentation and two unrelated fixture directories are omitted. Fetch/rebase before each push; deepen the shallow clone only if a later rebase needs history.
 
 - **Status per finding:** see [../reviews/naming-migration-review-20261022-triage.md](../reviews/naming-migration-review-20261022-triage.md). It has a summary table and per-finding detail, and is up to date through run 4.
 - **Evidence:** [../reviews/triage-20261022/](../reviews/triage-20261022/README.md), containing the probe source `zz_review_probe.rs.txt`, logs `run1.log`…`run4.log`, edited outputs in `out/`, repros in `tcl/`, and `oracle.sh`.
@@ -62,12 +66,14 @@ It restores the probe, builds, runs and deletes the executables in one command, 
 
 ## In progress
 
-- Nothing. Work is handed off.
+- Starting run5: pending seam checks, live-fold control/e2e, rename with registry, and small scaling rows.
+- Required release gates `make rust-check` and `make prep-pr` are not run; this is evidence-only work under the active `work` development-push exception.
 
 ## Outstanding (in priority order)
 
 1. Run `run5.sh` in the cloud session and settle the pending items listed above.
-2. After R1 lands, re-check N04, N05, N06 and N07.
+2. After R1 lands, re-check N04, N05, N06 and N07 on all six profiles, apply returned edits and execute them on the matching engines.
+3. Fetch latest `work` and re-check every finding and static seam before the final summary.
 
 ## Blocked (on whom, and what is needed)
 
@@ -81,3 +87,5 @@ It restores the probe, builds, runs and deletes the executables in one command, 
   - The nested-passthrough probe was inconclusive.
 - Run 4 was stopped before scaling and the e2e step when the triage was moved.
 - The evidence directory was refreshed with the probe copy, `run3.log`, `run4.log`, `out/`, `run4.sh`, `oracle.sh` and the new `run5.sh`. The probe file was deleted from the tree, and the triage executables were deleted from `target/`.
+
+- Cloud setup completed: Rust 1.99.1; C Tcl 8.4.20/8.5.19/8.6.18/9.0.4/9.1.0; Jim 0.84 at `5bac7c99ad65864c87da513e22e2f01703fa4e03`. The standard setup hook stopped at missing sudo; its Rust and Tcl build helpers were reused with writable local paths.

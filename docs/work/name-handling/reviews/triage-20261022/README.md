@@ -4,6 +4,7 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 
 | Item | What it is |
 | --- | --- |
+| `cloud-setup.log` | Cloud checkout, compiler and pinned engine versions; no new probe results. |
 | `zz_review_probe.rs.txt` | Copy of the probe test (`rust/tcl-spectcl/tests/zz_review_probe.rs`); restore it under that path to re-run. |
 | `part2.rs.txt` | Second probe batch draft. |
 | `run5.sh` | **Resume batch**: restores the probe, builds+runs+deletes, logs to `run5.log` here (run from repo root). |

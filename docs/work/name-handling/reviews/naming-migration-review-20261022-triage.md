@@ -6,6 +6,8 @@ Evidence, scripts and logs: [triage-20261022/](triage-20261022/README.md). Live 
 
 This report is updated after every probe run. Rows marked **PENDING** are not settled.
 
+Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. Rust 1.99.1 and the exact six engines are provisioned; see [cloud-setup.log](triage-20261022/cloud-setup.log). Run5 is next; prior statuses below are unchanged until its results are recorded. `make rust-check` and `make prep-pr` have not run in this evidence-only session.
+
 ## Method
 
 - **Oracles.** Each Tcl repro from the review (`triage-20261022/tcl/`) was run with `triage-20261022/oracle.sh <file>` on six engines: `tclsh8.4` (8.4.20), `tclsh8.5` (8.5.19), `tclsh8.6` (8.6.18), `tclsh9.0` (9.0.4), `tclsh9.1` (9.1.0) and Jim 0.84 (`tmp/jimtcl-oracle/jimsh`). Every oracle answer matches the review's expected outcome, including feature-unavailable rows: TclOO is missing on 8.4, 8.5 and Jim, and `namespace path` on 8.4 and Jim.

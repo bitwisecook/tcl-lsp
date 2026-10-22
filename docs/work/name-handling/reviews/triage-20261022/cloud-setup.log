@@ -1,0 +1,13 @@
+Thu Oct 22 13:17:02 UTC 2026
+9cd5a75b74614f2df055f2dc9fcc36a9603af4bd
+rustc 1.99.1 (58cf8f9c3 2026-10-13)
+cargo 1.99.1 (5f94df478 2026-08-27)
+2fbef9a7403efc4f03d57e634ca04b88ef55c5b160320c556bbce2ed175e2dd2  /tmp/review-triage-jim.tar.gz
+tclsh8.4 8.4.20
+tclsh8.5 8.5.19
+tclsh8.6 8.6.18
+tclsh9.0 9.0.4
+tclsh9.1 9.1.0
+/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh 0.84
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          32G  2.4G   28G   8% /
