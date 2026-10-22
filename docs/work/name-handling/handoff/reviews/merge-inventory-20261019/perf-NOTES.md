@@ -128,7 +128,11 @@ new budget-axis and eda_xilinx interpreted wall-budget assertions. Old
 completed 27 pass / 1 fail (2712.566 s): ONE observed pass-to-fail on the
 every_shipped_pack comparison. Its unchanged single-case controlled repeat
 is active in both modes on an otherwise idle host. Original evidence is kept
-in latest-e4a01bbe/tests-spectcl-default-summary.json; the repeat cannot erase it. Latest optimized eval_loader completed all 28 PASS in BOTH modes
+in latest-e4a01bbe/tests-spectcl-default-summary.json; the repeat cannot erase it.
+Controlled BOTH cases PASSED: new 1150.068 s wall / 1141.846 s CPU;
+old 1429.759 s wall / 1409.186 s CPU. No assertion or budget changed.
+The cgroup has four CPU cores of quota, no new memory-limit events or OOM;
+this is a quiet-host repeat, not an assertion/budget change. Latest optimized eval_loader completed all 28 PASS in BOTH modes
 (new 1,488.967 s / old 1,568.082 s), zero pass-to-fail. Latest optimized
 golden_packs completed all 3 PASS in BOTH modes
 (new 651.764 s / old 864.494 s), zero pass-to-fail. Profile

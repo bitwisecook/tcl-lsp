@@ -1,0 +1,13 @@
+{
+  "cpu_max": "400000 100000",
+  "memory_events": [
+    "low 0",
+    "high 0",
+    "max 32276",
+    "oom 0",
+    "oom_kill 0",
+    "oom_group_kill 0"
+  ],
+  "memory_current": 5886021632,
+  "note": "sample after new passed and old began; memory max-event count remained 32276 and OOM counts zero"
+}

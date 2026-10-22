@@ -5,5 +5,12 @@
     "cpu_seconds": 1141.846,
     "result": "ok",
     "log": "new.out"
+  },
+  "old": {
+    "returncode": 0,
+    "seconds": 1429.759,
+    "cpu_seconds": 1409.186,
+    "result": "ok",
+    "log": "old.out"
   }
 }

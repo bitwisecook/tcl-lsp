@@ -56,7 +56,10 @@ Rust 1.99.1, opt-level 1, debug assertions and line tables, incremental off,
 `-j2`; separate target directories for each tree. Builds ran concurrently,
 so these wall-clock diagnostics are not release latency or a clean exponent
 measurement. The baseline is the verified origin/rust `fcb7927f`; work proof
-is based on `8a01a718` plus the refreshed full batch. Work corpus/synthetic/PackSet results remain in progress; the completed ordinary LSP rows below are pinned to this base, before rebasing.
+is based on `8a01a718` plus the refreshed full batch. This historical base corpus aborted at its strict mismatch/byte-input gates;
+its PackSet and tclIndex comparisons subsequently completed. Its skipped
+synthetic cases were completed separately on e4a01bbe below. Ordinary LSP rows
+in this historical section remain pinned to 8a01a718 before rebasing.
 
 Tk 8.6.18 `library/tclIndex`: 253 lines, SHA-256
 `e7ea83cd5df322fb760c9787c9eda92bad3d048737be28d2c9606b9243cf0bbb`.
@@ -64,14 +67,14 @@ Exactly the same first 10/40/100/253 lines are used in both trees.
 
 | Input | origin/rust | work old | work full batch |
 |---|---:|---:|---:|
-| calls 10 (median of 3 warmed runs) | 56 ms | pending | pending |
-| calls 20 (median of 3 warmed runs) | 76 ms | pending | pending |
-| calls 40 (median of 3 warmed runs) | 129 ms | pending | pending |
-| calls 80 (median of 3 warmed runs) | 109 ms | pending | pending |
+| calls 10 (median of 3 warmed runs) | 56 ms | not run on this base | not run on this base |
+| calls 20 (median of 3 warmed runs) | 76 ms | not run on this base | not run on this base |
+| calls 40 (median of 3 warmed runs) | 129 ms | not run on this base | not run on this base |
+| calls 80 (median of 3 warmed runs) | 109 ms | not run on this base | not run on this base |
 | tclIndex 10 lines | 163 ms | 1084 ms | 920 ms |
 | tclIndex 40 lines | 492 ms | 34482 ms | 16086 ms |
 | tclIndex 100 lines | 1021 ms | 459444 ms (instrumented) | 37237 ms |
-| tclIndex 253 lines | 1596 ms | pending | pending |
+| tclIndex 253 lines | 1596 ms | 5108792 ms | 189404 ms |
 | load_embedded | 4665 ms | old1 62828 / old2 120495 ms | 25493 ms |
 
 Raw timing-only runs: `origin-calls.out`, `origin-upvar.out`, `origin-procs.out`,
@@ -171,7 +174,9 @@ release-latency claim follows from this table. Units: milliseconds.
 
 Raw work data: latest-e4a01bbe/continued-proof/{calls,procs,upvar}.out.
 All 15 hosted iRules still fail strict whole-result equality. The ordinary Tcl
-corpus is incomplete; synthetic successes do not discharge that gate. See analysis-equality-routing.md for all-old
+corpus completed 100 equal / 2 unequal with zero panics; the E003 and
+aliases failures also occur in isolated forced-old controls. Synthetic
+successes do not discharge that blocked gate. See analysis-equality-routing.md for all-old
 controls and the privately traced object-report comparison blocker.
 
 Latest full ordered PackSet Debug comparison PASSED: all 484,936 lines agree;
@@ -207,3 +212,21 @@ with deterministic endpoints (n=1 warmup excluded):
 | 30 | 71930 | 18670 | 58020 |
 
 Raw: latest-e4a01bbe/synthetic-cpu-upvar{.out,-inputs.json,-summary.json}.
+
+All four base-8a tclIndex prefixes now have exact full old/new/old equality
+and deterministic old endpoints (work-tclIndex-threeway.out). The 253-line
+row was not debugger sampled; its wall times remain contended observations.
+The separate latest-e4 new-only table remains timing-only, not equality proof.
+
+## Default-profile wall-budget investigation
+
+The original complete-input default eval_loader run had an observed pass-to-fail:
+new 26 pass / 2 fail versus old 27 pass / 1 fail. Every-shipped-pack hit the
+30-minute per-pack interpreter wall budget in new mode, while old passed.
+A targeted repeat of only that exact test on an otherwise idle host kept
+the original source, profile, assertions and budgets. BOTH passed: new
+1150.068 s wall / 1141.846 s CPU; old 1429.759 s wall / 1409.186 s CPU.
+The initial full-suite result remains recorded, rather than being overwritten
+by the controlled repeat or optimized green runs. Raw: latest-e4a01bbe/
+controlled-default-eval/. The original separate five-second budget-axis
+assertion failed in both default-profile modes; it was not changed.

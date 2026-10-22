@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 20:12 UTC
+Last updated: 2026-10-22 20:37 UTC
 
 ## Resume
 
@@ -14,10 +14,24 @@ assertion. Preserve these outcomes. A targeted controlled repeat of ONLY that
 case is active, both modes on the now-idle host with identical unmodified
 30-minute budget/assertions. /tmp/perf-controlled-eval-proof.py, log
 /tmp/perf-controlled-eval-proof.log; outputs latest-e4a01bbe/controlled-default-eval/.
-Build succeeded in 22.78 s with zero warnings. No other heavy job remains.
+Build succeeded in 22.78 s with zero warnings. Controlled BOTH PASSED: new 1150.068 s wall / 1141.846 s CPU, old
+1429.759 s wall / 1409.186 s CPU. The test executable was deleted. Four CPU cores of quota,
+no new memory-limit events or OOM, no other heavy job. Original failure stays
+recorded; the quiet-host targeted case has zero pass-to-fail. Fresh latest
+shallow checkout preparation has now begun in /workspace/tcl-lsp-current;
+log /tmp/perf-current-controls.log, runner /tmp/perf-current-controls.py.
 Do not replace the failed comparison with optimized green results or claim
 zero pass-to-fail until the controlled result is assessed and the initial
 observation remains explicit.
+
+CURRENT FRESH CHECK: shallow /workspace/tcl-lsp-current at 39b39296,
+full batch --zz applied. New default-profile compiler probe build is ACTIVE.
+Log /tmp/perf-current-controls.log; evidence perf/evidence/current-39b39296/.
+The copied target is physically separate and all local package fingerprints,
+build outputs and local dependency rlibs were invalidated before Cargo; only
+third-party caches can be reused. AGENTS.md is byte-identical to the already
+read guide. Keep current source frozen through old-only/mixed controls.
+The original /workspace/tcl-lsp-work remains the frozen e4 evidence publisher.
 
 Next after the controlled case finishes: verify the all-old equality blockers
 on a FRESH latest-work build before any final hand-back or production commit.

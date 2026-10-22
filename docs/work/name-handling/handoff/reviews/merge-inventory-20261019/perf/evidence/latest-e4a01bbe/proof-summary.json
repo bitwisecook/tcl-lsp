@@ -1,0 +1,219 @@
+{
+  "production_base": "e4a01bbe",
+  "status": "BLOCKED; no production commit and no compiler-patch proven claim",
+  "tcl_corpus": {
+    "inputs": 102,
+    "equal": 100,
+    "unequal": 2,
+    "panics": 0,
+    "equal_cases_have_deterministic_old_endpoints": true,
+    "mismatches": [
+      "samples/diagnostics/E003_proc_call_arity/example.tcl",
+      "rust/tcl-compiler/tests/data/name-consumers/aliases.tcl"
+    ],
+    "both_mismatches_fail_isolated_all_old_controls": true
+  },
+  "irules": {
+    "inputs": 15,
+    "equal": 0,
+    "unequal": 15,
+    "all_15_also_fail_forced_old_only": true
+  },
+  "synthetics": {
+    "calls": [
+      10,
+      20,
+      40,
+      80
+    ],
+    "procs": [
+      41
+    ],
+    "upvar": [
+      10,
+      30
+    ],
+    "full_results_equal_and_deterministic": true,
+    "additional_cpu_controls": "synthetic-cpu-summary.json and synthetic-cpu-upvar-summary.json"
+  },
+  "packset": {
+    "complete_ordered_debug_equal": true,
+    "lines": 484936,
+    "old_endpoints_deterministic": true,
+    "raw": "continued-proof/packset.out"
+  },
+  "lexer": {
+    "lexer/lib/new": {
+      "returncode": 101,
+      "seconds": 8.869,
+      "passed": 583,
+      "failed": 3,
+      "ignored": 0,
+      "timed_out": [],
+      "log": "tests-lexer-lib-new.out"
+    },
+    "lexer/lib/old": {
+      "returncode": 101,
+      "seconds": 13.526,
+      "passed": 583,
+      "failed": 3,
+      "ignored": 0,
+      "timed_out": [],
+      "log": "tests-lexer-lib-old.out"
+    }
+  },
+  "compiler": {
+    "compiler/lib/new": {
+      "returncode": 101,
+      "seconds": 4888.586,
+      "passed": 151,
+      "failed": 75,
+      "ignored": 0,
+      "timed_out": [],
+      "log": "tests-compiler-lib-new.out"
+    },
+    "compiler/lib/old": {
+      "returncode": 101,
+      "seconds": 2048.696,
+      "passed": 151,
+      "failed": 75,
+      "ignored": 0,
+      "timed_out": [],
+      "log": "tests-compiler-lib-old.out"
+    }
+  },
+  "spectcl_optimized": {
+    "eval_loader/new": {
+      "returncode": 0,
+      "seconds": 1488.967,
+      "passed": 28,
+      "failed": 0
+    },
+    "eval_loader/old": {
+      "returncode": 0,
+      "seconds": 1568.082,
+      "passed": 28,
+      "failed": 0
+    },
+    "golden_packs/new": {
+      "returncode": 0,
+      "seconds": 651.764,
+      "passed": 3,
+      "failed": 0
+    },
+    "golden_packs/old": {
+      "returncode": 0,
+      "seconds": 864.494,
+      "passed": 3,
+      "failed": 0
+    }
+  },
+  "spectcl_default": {
+    "comparison": {
+      "spectcl/eval_loader/new": {
+        "returncode": 101,
+        "seconds": 4418.488,
+        "passed": 26,
+        "failed": 2,
+        "ignored": 0,
+        "timed_out": [],
+        "log": "tests-spectcl-eval_loader-new.out"
+      },
+      "spectcl/eval_loader/old": {
+        "returncode": 101,
+        "seconds": 2712.566,
+        "passed": 27,
+        "failed": 1,
+        "ignored": 0,
+        "timed_out": [],
+        "log": "tests-spectcl-eval_loader-old.out"
+      }
+    },
+    "observed_pass_to_fail": [
+      "every_shipped_pack_loads_identically_with_and_without_the_static_fast_path"
+    ],
+    "controlled_repeat": {
+      "source": "controlled-default-eval/summary.json",
+      "both_passed": true,
+      "new": {
+        "returncode": 0,
+        "seconds": 1150.068,
+        "cpu_seconds": 1141.846,
+        "result": "ok",
+        "log": "new.out"
+      },
+      "old": {
+        "returncode": 0,
+        "seconds": 1429.759,
+        "cpu_seconds": 1409.186,
+        "result": "ok",
+        "log": "old.out"
+      },
+      "original_full_suite_pass_to_fail_retained": true
+    }
+  },
+  "server": {
+    "server/startup/new": {
+      "returncode": 101,
+      "seconds": 24.451,
+      "passed": 0,
+      "failed": 1,
+      "ignored": 0,
+      "timed_out": [],
+      "log": "tests-server-startup-new.out"
+    },
+    "server/startup/old": {
+      "returncode": 101,
+      "seconds": 23.893,
+      "passed": 0,
+      "failed": 1,
+      "ignored": 0,
+      "timed_out": [],
+      "log": "tests-server-startup-old.out"
+    },
+    "server/workspace_symbol/new": {
+      "returncode": "timeout180",
+      "seconds": 180.085,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "timed_out": [
+        "tests::workspace_symbol_caps_its_answer"
+      ],
+      "log": "tests-server-workspace_symbol-new.out"
+    },
+    "server/workspace_symbol/old": {
+      "returncode": "timeout180",
+      "seconds": 180.224,
+      "passed": 0,
+      "failed": 0,
+      "ignored": 0,
+      "timed_out": [
+        "tests::workspace_symbol_caps_its_answer"
+      ],
+      "log": "tests-server-workspace_symbol-old.out"
+    }
+  },
+  "real_tclIndex": {
+    "base": "8a01a718",
+    "lines": [
+      10,
+      40,
+      100,
+      253
+    ],
+    "full_results_equal_and_deterministic": true,
+    "timing_100_old_instrumented": true,
+    "raw": "../work-tclIndex-threeway.out"
+  },
+  "latest_work": {
+    "main_patch_base": "6df7bbeaac6090d7c62b15fa2cc8a3c9bb9c4c7d",
+    "validation": "clean application only; fresh latest-work equality controls planned after quiet-host repeat"
+  },
+  "limits": [
+    "Equality failures are not waived by diagnostic Debug equality.",
+    "Matching failed/timed-out tests are not green gates.",
+    "Optimized green tests do not erase default-profile pass-to-fail.",
+    "No assertions, budgets, owner checks or comparators changed."
+  ]
+}

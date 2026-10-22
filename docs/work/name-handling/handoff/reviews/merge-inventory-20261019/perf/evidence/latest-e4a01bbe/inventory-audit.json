@@ -1,0 +1,62 @@
+{
+  "tests-compiler-lib-new.out": {
+    "declared": 226,
+    "reported": 226,
+    "complete": true,
+    "returncode": 101
+  },
+  "tests-compiler-lib-old.out": {
+    "declared": 226,
+    "reported": 226,
+    "complete": true,
+    "returncode": 101
+  },
+  "tests-lexer-lib-new.out": {
+    "declared": 586,
+    "reported": 586,
+    "complete": true,
+    "returncode": 101
+  },
+  "tests-lexer-lib-old.out": {
+    "declared": 586,
+    "reported": 586,
+    "complete": true,
+    "returncode": 101
+  },
+  "tests-server-startup-new.out": {
+    "declared": 1,
+    "reported": 1,
+    "complete": true,
+    "returncode": 101
+  },
+  "tests-server-startup-old.out": {
+    "declared": 1,
+    "reported": 1,
+    "complete": true,
+    "returncode": 101
+  },
+  "tests-server-workspace_symbol-new.out": {
+    "declared": 1,
+    "reported": 0,
+    "complete": false,
+    "returncode": "timeout180"
+  },
+  "tests-server-workspace_symbol-old.out": {
+    "declared": 1,
+    "reported": 0,
+    "complete": false,
+    "returncode": "timeout180"
+  },
+  "tests-spectcl-eval_loader-new.out": {
+    "declared": 28,
+    "reported": 28,
+    "complete": true,
+    "returncode": 101
+  },
+  "tests-spectcl-eval_loader-old.out": {
+    "declared": 28,
+    "reported": 28,
+    "complete": true,
+    "returncode": 101
+  }
+}
