@@ -59,10 +59,10 @@ Where to pick up:
    - remove the temporary `zz_sol49_dict_for_probe` test
 4. IRULE4001/6001 in hosted procedure and event bodies (`source_graph::ordinary_rule_init_reporting_name_*`, `irule4001_fires_for_static_write_outside_rule_init`, `irule6001_*`). The body's `set ::static::x` has no original variable operands, so `NormalTransferInvocation::mutation_places` returns `unknown_top`. These were already failing before my iRules work.
 5. Review findings, pending triage routing:
-   - N08: `inline_uplevel` existence oracle and nested `lower_literal_script` context
-   - N09: `type_infer` constructor lookup is global-first; interprocedural/taint resolution ignores `namespace path`
-   - N10: superclass/mixin identity is rebuilt from the class owner, plus the unique-tail rescue
-   - §3.3: `optimiser::method_barrier` global-first / first-tail class lookup
+   - The triage report `docs/work/name-handling/reviews/naming-migration-review-20261022-triage.md` (12:43Z) lists N08 and §3.3 `method_barrier` as FIXED.
+   - Still open, not yet routed to me:
+     - N09: constructor typing is fixed, but `::n::c` gets no call-graph summary.
+     - N10: a class selected through `namespace path` still gives no hover, type hierarchy or definition.
 
 ## Blocked (on whom, and what is needed)
 

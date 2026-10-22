@@ -2,69 +2,68 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 12:36 UTC
+Last updated: 2026-10-22 12:47 UTC
 
 Maintained by the perf agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Evidence and tooling live in the repo at `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/`:
+The session moved to its own cloud session at the user's decision. All /dev/shm state (exp copy, target, rust-wt) has been deleted, and nothing is applied to the tree.
 
-- `perf.patch`: the clean batch, diffed against the tree as of the last update.
-- `batch/apply_batch.py ROOT [--zz]`: re-applies the batch by exact anchors to any tree. `--zz` adds the in-process old/new toggles. The `.rs.txt` blocks beside it hold the bodies it splices in.
-- `tools/`: probe sources (`perfprobe_example.rs.txt`, `spectclprobe_example.rs.txt`), the gdb sampler `pmp.sh`, and `stacks.py`/`inc.py`/`cat.py` to aggregate samples.
-- `evidence/`: `timings.md`, corpus lists and outputs, sampled stacks.
+Repo evidence: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/`, with the summary in `../perf-NOTES.md` beside it.
 
-To rebuild the experiment (RAM-backed; keep /dev/shm under 3 GB and build with `-j2`):
+- `perf.patch`: the whole batch, `git apply`-able against the tree as of the last update. It is the concatenation of:
+  - `perf-owned.patch` (6 files, perf's own): tcl-lexer `parse_cut.rs` and `source_map.rs`; `parsing/spectcl_source/original_word.rs`; `command_binding/original_name_value.rs`, `formal_call_advice.rs`, `incomplete_body_metadata.rs`.
+  - `perf-realm-interprocedural.patch` (2 files, compiler agent's `realm.rs` and `interprocedural.rs`): hand to the coordinator.
+- `batch/apply_batch.py ROOT [--zz]`: re-applies the batch by exact anchors. Use it if the patch stops applying, then regenerate the patches with `diff -u`. `--zz` adds the in-process old/new toggles for probes: `tcl_lexer::ZZ_OLD` / `zz_old()` (also env `ZZ_OLD_ENV=1`) and `tcl_compiler::realm::ZZ_NO_MEMO`.
+- `tools/`: `perfprobe_example.rs.txt` and `spectclprobe_example.rs.txt` (tcl-compiler examples), `pmp.sh` (gdb sampler), and `stacks.py` / `inc.py` / `cat.py` (aggregation).
+- `evidence/`: `timings.md`, corpus lists, run-1 corpus outputs, sampled stacks.
 
-1. Copy the tracked and untracked files of `rust/` into `/dev/shm/exp`: `(git ls-files rust; git ls-files --others --exclude-standard rust) | grep -v zz_ | tar -cf - -T - | tar -xf - -C /dev/shm/exp`.
-2. Copy the root `Cargo.toml` and `Cargo.lock`, and symlink the other top-level dirs (specs, editors, runtime, ...).
-3. Replace `/dev/shm/exp/rust/tcl-registry/tests/data` (839 MB) with a symlink to the tree's copy.
-4. Run `python3 .../perf/batch/apply_batch.py /dev/shm/exp --zz`.
-5. Copy the probe `.rs.txt` files to `/dev/shm/exp/rust/tcl-compiler/examples/zz_perfprobe.rs` and `zz_spectclprobe.rs`.
-6. Build: `cd /dev/shm/exp && CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=/dev/shm/perf-target CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_PROFILE_DEV_DEBUG=line-tables-only cargo build -j2 -p tcl-compiler --example zz_perfprobe --example zz_spectclprobe`.
+State of each fix:
 
-The runs:
+| Fix | Written | Exactness | Proven |
+|---|---|---|---|
+| original_name_value memo | yes | pure per-site memo | synthetic + tclIndex `==` |
+| formal_call_advice survey memo | yes | pure per-callee memo | synthetic + tclIndex `==` |
+| realm invocation_at_source memo | yes | head ignored by callee | synthetic + tclIndex `==` |
+| incomplete_body header memo | yes | pure, image-retaining key | tclIndex `==` |
+| parse_cut image hoist | yes | same bytes and channel | PackSet equal |
+| SourceImage ptr_eq | yes | ptr_eq implies equal bytes | PackSet equal |
+| original_word link-only check | yes | invariant by construction; new unit test | PackSet equal |
 
-- `ZZ_COMPARE=1 zz_perfprobe files <paths>` reports old1/new/old2 equality and timings per file. `ZZ_DIALECT=f5-irules` switches dialect. `zz_perfprobe calls|procs|upvar 10,20,40` runs the synthetic shapes. `TCL_LSP_TRACE_SOURCE_PHASES=1` prints analyser phases.
-- `ZZ_COMPARE=1 zz_spectclprobe` compares load_embedded old vs new.
-- `tools/pmp.sh out 40 0.2 -- <cmd>`, then `stacks.py out > out.stacks; inc.py out.stacks 50`, profiles.
+None of the crate tests has been run yet.
+
+Exact commands on a fresh machine (no /dev/shm limits needed there, but build with `-j2`):
+
+1. `git apply docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/perf.patch` in a scratch worktree, or run `apply_batch.py <worktree> --zz` for toggled probes.
+2. Copy the probe sources into `rust/tcl-compiler/examples/zz_perfprobe.rs` and `zz_spectclprobe.rs`.
+3. Build: `CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_PROFILE_DEV_DEBUG=line-tables-only cargo build -j2 -p tcl-compiler --example zz_perfprobe --example zz_spectclprobe`.
+4. Equality: `ZZ_COMPARE=1 target/debug/examples/zz_perfprobe files $(cat .../perf/evidence/corpus.txt)`, then the same with `ZZ_DIALECT=f5-irules` over `corpus_irules.txt`. Expect `eq=true` (new == old1 or old2). `det=false` lines flag warm-process nondeterminism, not the batch.
+5. `ZZ_COMPARE=1 target/debug/examples/zz_spectclprobe`.
+6. Tests, each run twice (plain, then `ZZ_OLD_ENV=1`); diff the pass/fail sets:
+   - `cargo test -j2 -p tcl-lexer --lib`
+   - `cargo test -j2 -p tcl-compiler --lib -- spectcl_source original_name_value formal_call_advice realm interprocedural w216 w143`
+   - `cargo test -j2 -p tcl-spectcl --test eval_loader --test golden_packs`
 
 ## In progress
 
-- AnalysisResult equality corpus. The first pass flagged 2/101 `.tcl` and 15/15 `.irul` mismatches. The same mismatch appears old-vs-old (ZZ_SAME=old): a second analysis in a warm process differs in retained registry/OnceLock fields (`<uninit>` vs initialised). It is a probe artifact, not a semantic change. Diagnostics are equal in every case. The probe is being reworked to run old1/new/old2 and compare new against the old runs.
-- tclIndex (253 lines, opt-level 1): 208 s → 29 s after the `incomplete_body_metadata::header` memo. The rest is diffuse per-command whole-document work: SourceImage/SourceMap/LineIndex rebuilt per command (~20%) and re-segmentation per query (~25%). Still mildly super-linear (100 lines 7.9 s, 253 lines 29 s).
+- None. Handed back for the move to a cloud session.
 
 ## Outstanding (in priority order)
 
-1. tclIndex repro (`/usr/share/tcltk/tk8.6/tclIndex`, 253 `set auto_index(..) [list source [file join $dir f.tcl]]`). Confirm the memo batch makes it linear. If another hot path dominates, profile and report it.
-2. Crate tests in exp, aiming for zero pass-to-fail: tcl-lexer lib; tcl-compiler lib filters (spectcl_source, original_name_value, formal_call_advice, realm, interprocedural, w216, w143); tcl-spectcl `eval_loader` and `golden_packs`.
-3. Land the batch in ONE application. Re-check `git status` and diff exp against the tree for each file, and message the coordinator first. Files:
-   - tcl-lexer `parse_cut.rs` and `source_map.rs`
-   - tcl-compiler `parsing/spectcl_source/original_word.rs`
-   - `command_binding/incomplete_body_metadata.rs`
-   - `command_binding/original_name_value.rs` and `command_binding/formal_call_advice.rs`
-   - `realm.rs` and `interprocedural.rs`: compiler agent's files. Send the hunks to the coordinator, diffed against the current tree.
-4. origin/rust comparison timings: build rust-wt only after the exp target is deleted, then delete both.
-5. Write the perf-NOTES.md handback (`docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf-NOTES.md`).
-6. Next: the review's section 4.1/4.2 scaling shapes that are still super-linear on the LSP ordinary path. The coordinator will pass the confirmed list from the triage agent.
+1. Three-way corpus equality rerun (resume step 4).
+2. Crate tests with and without `ZZ_OLD_ENV` (step 6), aiming for zero pass-to-fail.
+3. origin/rust timings for the same inputs: `git worktree add <dir> origin/rust`, copy the probe without the `ZZ_*` toggles, then time `calls 10,20,40,80`, the tclIndex prefixes, and load_embedded.
+4. Land: message the coordinator, apply `perf-owned.patch` in one go after `git status`, and pass `perf-realm-interprocedural.patch` to the compiler agent via the coordinator.
+5. tclIndex residual (253 lines, 29 s at opt-level 1, mildly super-linear): per-command whole-document SourceImage/SourceMap/LineIndex rebuilds and re-segmentation. Candidate fix: one cached document SourceImage on the Analyser. Those are compiler-names / unowned files; send a patch.
+6. `incomplete_body_operand_layout_advice` still loops over every earlier site per command (now ~7% of tclIndex samples). Index the sites if needed.
+7. The review's section 4.1/4.2 scaling shapes: wait for the coordinator's confirmed list.
 
 ## Blocked (on whom, and what is needed)
 
-- None.
+- `realm.rs` / `interprocedural.rs` hunks: compiler agent, via the coordinator.
 
 ## Done since the last update (with evidence: test counts, commit or snapshot)
 
-- Root cause of the Analyser quadratic (gdb stack sampling):
-  - `SourceCommandBindings::original_written_word_observations_at_span` rebuilds a binding for every prior dispatch offset on each W216/W143 query.
-  - `declaration_caller_alias_arguments` re-surveys the callee for each call.
-  - `realm.invocation_at_source` re-joins the n per-activation points.
-- Root cause of the spectcl load_embedded quadratic:
-  - `parse_cut::command_cut` builds a whole-source SourceImage per command.
-  - `original_word::in_body` re-proves the full ancestor chain with full-byte image compares.
-- Timings, opt-level 1, `p 1`×n:
-  - before: n=40 3.5 s, n=80 14.8 s
-  - after: n=40 1.4 s, n=80 2.9 s, n=160 ~7 s
-  - upvar shape n=30: 39.6 s → 11.8 s
-- load_embedded: 7.3 s → 1.9 s. With the coordinator-requested full-chain debug_assert it was 6.9 s, so that assert was replaced by the agreed inductive one.
-- In-process equality so far: all synthetic shapes `eq=true`. PackSet sorted `{:#?}` lines identical (484,936).
+- Saved the clean split patches, apply script, probes, tools, timings, corpus outputs and stacks under `perf/`. Wrote `perf-NOTES.md`.
+- Deleted /dev/shm/perf-target, /dev/shm/exp and the rust-wt worktree. The `zz_perfprobe.rs` tree probe was already deleted.
