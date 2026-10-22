@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T16:21Z
+Last updated: 2026-10-22T16:45Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -17,7 +17,9 @@ iRules, query fixtures and report generator tests. Their equivalent
 assert_eq!/assert_ne! comparisons preserve every empty/non-empty condition
 and show actual values on failure; verification is pending.
 The F5-reversed rewrite comparison and three editor-generator tests are
-building in one command (`/tmp/bigip-without-f5.log`). Its finally block
+building in one command (`/tmp/bigip-without-f5.log`). The comparison
+build has cleared Compiler, VM and core and is compiling the remaining
+engine/transport/CLI dependencies; no new Rust warning or error. Its finally block
 restores both loaned server files byte for byte. The with-F5 rewrite case
 failed at the existing "actual worker must retain an applicable rewrite"
 assertion; attribution awaits the reversed result.
@@ -109,7 +111,8 @@ assertion; attribution awaits the reversed result.
 ## Resume
 
 - Validation checkout: `/workspace/bigip-lsp`, source `aeecf397` plus the two
-  owned lint-only files now pushed in `f26f6a06`. Main branch HEAD stays
+  owned production lint-only files pushed in `f26f6a06` and the 50 test-only
+  assertion-style changes pushed in `e4a01bbe`. Main branch HEAD stays
   frozen during builds. A separate coordination-only worktree at
   `/workspace/bigip-coordination` fetches/rebases and pushes tracking snapshots.
   Its latest pushed HEAD includes newer compiler/core changes; these builds
