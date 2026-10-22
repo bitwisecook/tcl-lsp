@@ -1,0 +1,1024 @@
+start Thu Oct 22 13:18:05 UTC 2026 avail=28110M
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded const-oid v0.10.2
+  Downloaded aho-corasick v1.1.5
+  Downloaded cpubits v0.1.1
+  Downloaded cpufeatures v0.3.1
+  Downloaded crypto-common v0.2.2
+  Downloaded crypto-bigint v0.7.5
+  Downloaded crypto-primes v0.7.2
+  Downloaded ctutils v0.4.3
+  Downloaded data-encoding v2.11.1
+  Downloaded der v0.8.2
+  Downloaded der-parser v10.0.0
+  Downloaded deranged v0.5.9
+  Downloaded digest v0.11.3
+  Downloaded displaydoc v0.2.7
+  Downloaded ecdsa v0.17.0
+  Downloaded elliptic-curve v0.14.1
+  Downloaded equivalent v1.0.3
+  Downloaded find-msvc-tools v0.1.14
+  Downloaded ff v0.14.0
+  Downloaded getrandom v0.2.17
+  Downloaded foldhash v0.2.0
+  Downloaded fluent-uri v0.4.1
+  Downloaded group v0.14.0
+  Downloaded getrandom v0.4.3
+  Downloaded hashbrown v0.17.1
+  Downloaded hybrid-array v0.4.15
+  Downloaded indexmap v2.14.2
+  Downloaded hmac v0.13.0
+  Downloaded ipnet v2.12.2
+  Downloaded itoa v1.0.18
+  Downloaded lazy_static v1.5.1
+  Downloaded libc v0.2.190
+  Downloaded libm v0.2.16
+  Downloaded md-5 v0.11.0
+  Downloaded memchr v2.8.3
+  Downloaded minimal-lexical v0.2.1
+  Downloaded nix v0.31.3
+  Downloaded nom v7.1.3
+  Downloaded num-bigint v0.4.8
+  Downloaded num-conv v0.2.2
+  Downloaded num-bigint v0.5.1
+  Downloaded oid-registry v0.8.1
+  Downloaded num-traits v0.2.19
+  Downloaded once_cell v1.21.4
+  Downloaded p384 v0.14.0
+  Downloaded p256 v0.14.0
+  Downloaded pem-rfc7468 v1.0.0
+  Downloaded pkcs1 v0.8.0-rc.4
+  Downloaded num-integer v0.1.47
+  Downloaded pkcs8 v0.11.0
+  Downloaded powerfmt v0.2.1
+  Downloaded primefield v0.14.0
+  Downloaded primeorder v0.14.0
+  Downloaded proc-macro2 v1.0.107
+  Downloaded quote v1.0.47
+  Downloaded rand_core v0.10.1
+  Downloaded ref-cast v1.0.27
+  Downloaded ref-cast-impl v1.0.27
+  Downloaded regex v1.13.1
+  Downloaded regex-automata v0.4.18
+  Downloaded rfc6979 v0.6.0
+  Downloaded regex-syntax v0.8.11
+  Downloaded rustc-hash v2.1.3
+  Downloaded rsa v0.10.0-rc.18
+  Downloaded ring v0.17.14
+  Downloaded rusticata-macros v4.1.0
+  Downloaded sec1 v0.8.1
+  Downloaded serde_core v1.0.229
+  Downloaded serde v1.0.229
+  Downloaded serde_json v1.0.154
+  Downloaded serde_derive v1.0.229
+  Downloaded serdect v0.4.3
+  Downloaded sha1 v0.11.0
+  Downloaded sha2 v0.11.1
+  Downloaded shlex v2.0.1
+  Downloaded signature v3.0.0
+  Downloaded spki v0.8.1
+  Downloaded smallvec v1.16.3
+  Downloaded subtle v2.6.1
+  Downloaded syn v2.0.119
+  Downloaded syn v3.0.9
+  Downloaded synstructure v0.13.2
+  Downloaded thiserror v2.0.21
+  Downloaded thiserror-impl v2.0.21
+  Downloaded time v0.3.55
+  Downloaded time-core v0.1.9
+  Downloaded time-macros v0.2.32
+  Downloaded typenum v1.20.1
+  Downloaded unicode-ident v1.0.27
+  Downloaded unicode-general-category v1.1.0
+  Downloaded untrusted v0.9.0
+  Downloaded wnaf v0.14.1
+  Downloaded x509-parser v0.18.1
+  Downloaded xxhash-rust v0.8.19
+  Downloaded zeroize v1.9.1
+  Downloaded zmij v1.0.23
+  Downloaded asn1-rs v0.7.2
+  Downloaded asn1-rs-derive v0.6.0
+  Downloaded asn1-rs-impl v0.2.0
+  Downloaded autocfg v1.5.1
+  Downloaded base16ct v1.0.0
+  Downloaded base64 v0.23.1
+  Downloaded base64ct v1.8.3
+  Downloaded bitflags v2.13.2
+  Downloaded bytecount v0.6.9
+  Downloaded borrow-or-share v0.2.4
+  Downloaded block-buffer v0.12.1
+  Downloaded cfg-if v1.0.5
+  Downloaded cfg_aliases v0.2.2
+  Downloaded cc v1.8.0
+  Downloaded cmov v0.5.4
+   Compiling libc v0.2.190
+   Compiling zeroize v1.9.1
+   Compiling subtle v2.6.1
+   Compiling proc-macro2 v1.0.107
+   Compiling autocfg v1.5.1
+   Compiling cfg-if v1.0.5
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.27
+   Compiling typenum v1.20.1
+   Compiling rand_core v0.10.1
+   Compiling hybrid-array v0.4.15
+   Compiling num-traits v0.2.19
+   Compiling getrandom v0.4.3
+   Compiling cmov v0.5.4
+   Compiling const-oid v0.10.2
+   Compiling syn v3.0.9
+   Compiling ctutils v0.4.3
+   Compiling block-buffer v0.12.1
+   Compiling thiserror v2.0.21
+   Compiling bitflags v2.13.2
+   Compiling num-integer v0.1.47
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-dialect)
+   Compiling tcl-core-types v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-core-types)
+   Compiling memchr v2.8.3
+   Compiling crypto-common v0.2.2
+   Compiling cpufeatures v0.3.1
+   Compiling libm v0.2.16
+   Compiling digest v0.11.3
+   Compiling thiserror-impl v2.0.21
+   Compiling bytecount v0.6.9
+   Compiling sha2 v0.11.1
+   Compiling num-bigint v0.5.1
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.14
+   Compiling cc v1.8.0
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-lexer)
+   Compiling base64ct v1.8.3
+   Compiling tcl-platform v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-platform)
+   Compiling pem-rfc7468 v1.0.0
+   Compiling cpubits v0.1.1
+   Compiling crypto-bigint v0.7.5
+   Compiling der v0.8.2
+   Compiling md-5 v0.11.0
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-syntax)
+   Compiling sha1 v0.11.0
+   Compiling ff v0.14.0
+   Compiling aho-corasick v1.1.5
+   Compiling spki v0.8.1
+   Compiling syn v2.0.119
+   Compiling regex-syntax v0.8.11
+   Compiling pkcs8 v0.11.0
+   Compiling group v0.14.0
+   Compiling rustc-hash v2.1.3
+   Compiling num-conv v0.2.2
+   Compiling time-core v0.1.9
+   Compiling serde_core v1.0.229
+   Compiling smallvec v1.16.3
+   Compiling minimal-lexical v0.2.1
+   Compiling base16ct v1.0.0
+   Compiling unicode-general-category v1.1.0
+   Compiling regex-automata v0.4.18
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-bytecode)
+   Compiling synstructure v0.13.2
+   Compiling regex v1.13.1
+   Compiling sec1 v0.8.1
+   Compiling nom v7.1.3
+   Compiling time-macros v0.2.32
+   Compiling powerfmt v0.2.1
+   Compiling zmij v1.0.23
+   Compiling deranged v0.5.9
+   Compiling asn1-rs-derive v0.6.0
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-regex)
+   Compiling rusticata-macros v4.1.0
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-registry)
+   Compiling time v0.3.55
+   Compiling asn1-rs-impl v0.2.0
+   Compiling elliptic-curve v0.14.1
+   Compiling primefield v0.14.0
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-host-c-abi)
+   Compiling hmac v0.13.0
+   Compiling signature v3.0.0
+   Compiling displaydoc v0.2.7
+   Compiling equivalent v1.0.3
+   Compiling serde_json v1.0.154
+   Compiling cfg_aliases v0.2.2
+   Compiling hashbrown v0.17.1
+   Compiling nix v0.31.3
+   Compiling asn1-rs v0.7.2
+   Compiling indexmap v2.14.2
+   Compiling rfc6979 v0.6.0
+   Compiling wnaf v0.14.1
+   Compiling ring v0.17.14
+   Compiling itoa v1.0.18
+   Compiling serde v1.0.229
+   Compiling oid-registry v0.8.1
+   Compiling foldhash v0.2.0
+   Compiling primeorder v0.14.0
+   Compiling ecdsa v0.17.0
+   Compiling serde_derive v1.0.229
+   Compiling getrandom v0.2.17
+   Compiling num-bigint v0.4.8
+   Compiling untrusted v0.9.0
+   Compiling der-parser v10.0.0
+   Compiling crypto-primes v0.7.2
+   Compiling pkcs1 v0.8.0-rc.4
+   Compiling lazy_static v1.5.1
+   Compiling data-encoding v2.11.1
+   Compiling ref-cast v1.0.27
+   Compiling x509-parser v0.18.1
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-host-native)
+   Compiling rsa v0.10.0-rc.18
+   Compiling p384 v0.14.0
+   Compiling p256 v0.14.0
+   Compiling ref-cast-impl v1.0.27
+   Compiling base64 v0.23.1
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-engine-api)
+   Compiling borrow-or-share v0.2.4
+   Compiling ipnet v2.12.2
+   Compiling fluent-uri v0.4.1
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-pkg-model)
+   Compiling xxhash-rust v0.8.19
+   Compiling tcl-userdirs v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-userdirs)
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-test-support)
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:37:13
+   |
+37 | /             include_str!(
+38 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-relative-raw-nul/stdout"
+39 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:40:13
+   |
+40 | /             include_str!(
+41 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-relative-raw-nul/stdout"
+42 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:43:13
+   |
+43 | /             include_str!(
+44 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-relative-raw-nul/stdout"
+45 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:46:13
+   |
+46 | /             include_str!(
+47 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-relative-raw-nul/stdout"
+48 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:55:13
+   |
+55 | /             include_str!(
+56 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-rooted-raw-nul/stdout"
+57 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:58:13
+   |
+58 | /             include_str!(
+59 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-rooted-raw-nul/stdout"
+60 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:61:13
+   |
+61 | /             include_str!(
+62 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-rooted-raw-nul/stdout"
+63 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:64:13
+   |
+64 | /             include_str!(
+65 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-rooted-raw-nul/stdout"
+66 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:73:13
+   |
+73 | /             include_str!(
+74 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-relative-raw-nul/stdout"
+75 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:76:13
+   |
+76 | /             include_str!(
+77 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-relative-raw-nul/stdout"
+78 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:79:13
+   |
+79 | /             include_str!(
+80 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-relative-raw-nul/stdout"
+81 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:82:13
+   |
+82 | /             include_str!(
+83 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-relative-raw-nul/stdout"
+84 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:91:13
+   |
+91 | /             include_str!(
+92 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-rooted-raw-nul/stdout"
+93 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:94:13
+   |
+94 | /             include_str!(
+95 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-rooted-raw-nul/stdout"
+96 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:97:13
+   |
+97 | /             include_str!(
+98 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-rooted-raw-nul/stdout"
+99 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/ensemble_map_prefix.rs:100:13
+    |
+100 | /             include_str!(
+101 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-rooted-raw-nul/stdout"
+102 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-global-relative-raw-nul/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/ensemble_map_prefix.rs:109:13
+    |
+109 | /             include_str!(
+110 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-global-relative-raw-nul/stdout"
+111 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-global-relative-raw-nul/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/ensemble_map_prefix.rs:112:13
+    |
+112 | /             include_str!(
+113 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-global-relative-raw-nul/stdout"
+114 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-global-relative-raw-nul/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/ensemble_map_prefix.rs:115:13
+    |
+115 | /             include_str!(
+116 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-global-relative-raw-nul/stdout"
+117 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-global-relative-raw-nul/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/ensemble_map_prefix.rs:118:13
+    |
+118 | /             include_str!(
+119 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-global-relative-raw-nul/stdout"
+120 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-eacute/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:42:13
+   |
+42 | /             include_str!(
+43 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-eacute/stdout"
+44 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-eacute/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:45:13
+   |
+45 | /             include_str!(
+46 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-eacute/stdout"
+47 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-eacute/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:48:13
+   |
+48 | /             include_str!(
+49 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-eacute/stdout"
+50 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-eacute/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:51:13
+   |
+51 | /             include_str!(
+52 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-eacute/stdout"
+53 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-eacute/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:54:13
+   |
+54 | /             include_str!(
+55 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-eacute/stdout"
+56 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-modified-zero/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:63:13
+   |
+63 | /             include_str!(
+64 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-modified-zero/stdout"
+65 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-modified-zero/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:66:13
+   |
+66 | /             include_str!(
+67 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-modified-zero/stdout"
+68 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-modified-zero/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:69:13
+   |
+69 | /             include_str!(
+70 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-modified-zero/stdout"
+71 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-modified-zero/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:72:13
+   |
+72 | /             include_str!(
+73 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-modified-zero/stdout"
+74 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-modified-zero/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:75:13
+   |
+75 | /             include_str!(
+76 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-modified-zero/stdout"
+77 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-literal-zero/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:84:13
+   |
+84 | /             include_str!(
+85 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-literal-zero/stdout"
+86 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-literal-zero/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:87:13
+   |
+87 | /             include_str!(
+88 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-literal-zero/stdout"
+89 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-literal-zero/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:90:13
+   |
+90 | /             include_str!(
+91 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-literal-zero/stdout"
+92 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-literal-zero/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:93:13
+   |
+93 | /             include_str!(
+94 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-literal-zero/stdout"
+95 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-literal-zero/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/encoding_utf8.rs:96:13
+   |
+96 | /             include_str!(
+97 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-literal-zero/stdout"
+98 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-ff/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:105:13
+    |
+105 | /             include_str!(
+106 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-ff/stdout"
+107 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-ff/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:108:13
+    |
+108 | /             include_str!(
+109 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-ff/stdout"
+110 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-ff/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:111:13
+    |
+111 | /             include_str!(
+112 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-ff/stdout"
+113 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-ff/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:114:13
+    |
+114 | /             include_str!(
+115 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-ff/stdout"
+116 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-ff/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:117:13
+    |
+117 | /             include_str!(
+118 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-ff/stdout"
+119 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-ff/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:126:13
+    |
+126 | /             include_str!(
+127 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-ff/stdout"
+128 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-ff/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:129:13
+    |
+129 | /             include_str!(
+130 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-ff/stdout"
+131 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-ff/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:132:13
+    |
+132 | /             include_str!(
+133 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-ff/stdout"
+134 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-ff/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:135:13
+    |
+135 | /             include_str!(
+136 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-ff/stdout"
+137 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-ff/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:138:13
+    |
+138 | /             include_str!(
+139 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-ff/stdout"
+140 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-zero/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:147:13
+    |
+147 | /             include_str!(
+148 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-zero/stdout"
+149 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-zero/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:150:13
+    |
+150 | /             include_str!(
+151 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-zero/stdout"
+152 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-zero/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:153:13
+    |
+153 | /             include_str!(
+154 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-zero/stdout"
+155 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-zero/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:156:13
+    |
+156 | /             include_str!(
+157 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-zero/stdout"
+158 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-zero/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:159:13
+    |
+159 | /             include_str!(
+160 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-zero/stdout"
+161 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-surrogate-pair/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:168:13
+    |
+168 | /             include_str!(
+169 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-surrogate-pair/stdout"
+170 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-surrogate-pair/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:171:13
+    |
+171 | /             include_str!(
+172 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-surrogate-pair/stdout"
+173 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-surrogate-pair/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:174:13
+    |
+174 | /             include_str!(
+175 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-surrogate-pair/stdout"
+176 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-surrogate-pair/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:177:13
+    |
+177 | /             include_str!(
+178 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-surrogate-pair/stdout"
+179 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-surrogate-pair/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:180:13
+    |
+180 | /             include_str!(
+181 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-surrogate-pair/stdout"
+182 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-single-high-surrogate/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:189:13
+    |
+189 | /             include_str!(
+190 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-single-high-surrogate/stdout"
+191 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-single-high-surrogate/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:192:13
+    |
+192 | /             include_str!(
+193 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-single-high-surrogate/stdout"
+194 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-single-high-surrogate/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:195:13
+    |
+195 | /             include_str!(
+196 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-single-high-surrogate/stdout"
+197 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-single-high-surrogate/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:198:13
+    |
+198 | /             include_str!(
+199 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-single-high-surrogate/stdout"
+200 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-single-high-surrogate/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:201:13
+    |
+201 | /             include_str!(
+202 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-single-high-surrogate/stdout"
+203 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-astral/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:210:13
+    |
+210 | /             include_str!(
+211 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/string-astral/stdout"
+212 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-astral/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:213:13
+    |
+213 | /             include_str!(
+214 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/string-astral/stdout"
+215 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-astral/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:216:13
+    |
+216 | /             include_str!(
+217 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/string-astral/stdout"
+218 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-astral/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:219:13
+    |
+219 | /             include_str!(
+220 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/string-astral/stdout"
+221 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-astral/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:222:13
+    |
+222 | /             include_str!(
+223 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/string-astral/stdout"
+224 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-utf8-eacute-octets/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:231:13
+    |
+231 | /             include_str!(
+232 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.4.20/byte-array-utf8-eacute-octets/stdout"
+233 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-utf8-eacute-octets/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:234:13
+    |
+234 | /             include_str!(
+235 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.5.19/byte-array-utf8-eacute-octets/stdout"
+236 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-utf8-eacute-octets/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:237:13
+    |
+237 | /             include_str!(
+238 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/8.6.18/byte-array-utf8-eacute-octets/stdout"
+239 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-utf8-eacute-octets/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:240:13
+    |
+240 | /             include_str!(
+241 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.0.4/byte-array-utf8-eacute-octets/stdout"
+242 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-utf8-eacute-octets/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:243:13
+    |
+243 | /             include_str!(
+244 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_object306/9.1.0/byte-array-utf8-eacute-octets/stdout"
+245 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_offset307/8.4.20/string-eacute-single-high-surrogate/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:252:13
+    |
+252 | /             include_str!(
+253 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_offset307/8.4.20/string-eacute-single-high-surrogate/stdout"
+254 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_offset307/8.5.19/string-eacute-single-high-surrogate/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:255:13
+    |
+255 | /             include_str!(
+256 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_offset307/8.5.19/string-eacute-single-high-surrogate/stdout"
+257 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_offset307/8.6.18/string-eacute-single-high-surrogate/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:258:13
+    |
+258 | /             include_str!(
+259 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_offset307/8.6.18/string-eacute-single-high-surrogate/stdout"
+260 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_offset307/9.0.4/string-eacute-single-high-surrogate/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:261:13
+    |
+261 | /             include_str!(
+262 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_offset307/9.0.4/string-eacute-single-high-surrogate/stdout"
+263 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_offset307/9.1.0/string-eacute-single-high-surrogate/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:264:13
+    |
+264 | /             include_str!(
+265 | |                 "../../tcl-registry/tests/data/native_encoding_utf8_offset307/9.1.0/string-eacute-single-high-surrogate/stdout"
+266 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_encoding_utf8_object306/jim/string-eacute/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/encoding_utf8.rs:307:36
+    |
+307 |   pub const JIM_AVAILABILITY: &str = include_str!(
+    |  ____________________________________^
+308 | |     "../../tcl-registry/tests/data/native_encoding_utf8_object306/jim/string-eacute/stdout"
+309 | | );
+    | |_^
+
+error: could not compile `tcl-test-support` (lib) due to 76 previous errors
+warning: build failed, waiting for other jobs to finish...
+exit-main=101
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-vm)
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-test-support)
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:37:13
+   |
+37 | /             include_str!(
+38 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-relative-raw-nul/stdout"
+39 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:40:13
+   |
+40 | /             include_str!(
+41 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-relative-raw-nul/stdout"
+42 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:43:13
+   |
+43 | /             include_str!(
+44 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-relative-raw-nul/stdout"
+45 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:46:13
+   |
+46 | /             include_str!(
+47 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-relative-raw-nul/stdout"
+48 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:55:13
+   |
+55 | /             include_str!(
+56 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-rooted-raw-nul/stdout"
+57 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:58:13
+   |
+58 | /             include_str!(
+59 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-rooted-raw-nul/stdout"
+60 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:61:13
+   |
+61 | /             include_str!(
+62 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-rooted-raw-nul/stdout"
+63 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:64:13
+   |
+64 | /             include_str!(
+65 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-rooted-raw-nul/stdout"
+66 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:73:13
+   |
+73 | /             include_str!(
+74 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-relative-raw-nul/stdout"
+75 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:76:13
+   |
+76 | /             include_str!(
+77 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-relative-raw-nul/stdout"
+78 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:79:13
+   |
+79 | /             include_str!(
+80 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-relative-raw-nul/stdout"
+81 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-relative-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:82:13
+   |
+82 | /             include_str!(
+83 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-relative-raw-nul/stdout"
+84 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:91:13
+   |
+91 | /             include_str!(
+92 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/configure-rooted-raw-nul/stdout"
+93 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:94:13
+   |
+94 | /             include_str!(
+95 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/configure-rooted-raw-nul/stdout"
+96 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+  --> rust/tcl-test-support/src/ensemble_map_prefix.rs:97:13
+   |
+97 | /             include_str!(
+98 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/configure-rooted-raw-nul/stdout"
+99 | |             ),
+   | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-rooted-raw-nul/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/ensemble_map_prefix.rs:100:13
+    |
+100 | /             include_str!(
+101 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/configure-rooted-raw-nul/stdout"
+102 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-global-relative-raw-nul/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/ensemble_map_prefix.rs:109:13
+    |
+109 | /             include_str!(
+110 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.5.19/create-global-relative-raw-nul/stdout"
+111 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-global-relative-raw-nul/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/ensemble_map_prefix.rs:112:13
+    |
+112 | /             include_str!(
+113 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/8.6.18/create-global-relative-raw-nul/stdout"
+114 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-global-relative-raw-nul/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/ensemble_map_prefix.rs:115:13
+    |
+115 | /             include_str!(
+116 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.0.4/create-global-relative-raw-nul/stdout"
+117 | |             ),
+    | |_____________^
+
+error: couldn't read `rust/tcl-test-support/src/../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-global-relative-raw-nul/stdout`: No such file or directory (os error 2)
+   --> rust/tcl-test-support/src/ensemble_map_prefix.rs:118:13
+    |
+118 | /             include_str!(
+119 | |                 "../../tcl-registry/tests/data/native_ensemble_map_prefix312/9.1.0/create-global-relative-raw-nul/stdout"
+120 | |             ),
+    | |_____________^
+
+error: could not compile `tcl-test-support` (lib) due to 20 previous errors
+warning: build failed, waiting for other jobs to finish...
+exit-scale=101
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-irules)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-engine-tclvm)
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-test-support)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-spec-hooks)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-lsp-core)

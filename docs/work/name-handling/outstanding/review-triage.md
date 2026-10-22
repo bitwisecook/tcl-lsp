@@ -2,11 +2,17 @@
 
 Area: Replay of the external review's findings on the current tree.
 
-Last updated: 2026-10-22T13:17:02Z
+Last updated: 2026-10-22T13:47:32Z
 
 Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. This agent commits and pushes it after each run and at least every 30 minutes.
 
 ## Resume
+
+**Active:** run5 is still running (shell PID 18462; log `../reviews/triage-20261022/run5.log`). The first main command exited 101 because the selective checkout omitted compile-time fixture includes. The scaling command also exited 101 for missing includes while the compiler continued building. The compiler library is now built, and the e2e step is building its remaining dependencies. All three fixture trees embedded by `tcl-test-support` are now restored: `native_encoding_utf8_object306`, `native_encoding_utf8_offset307`, `native_ensemble_map_prefix312`. No new named probe result is available yet; do not count these checkout errors as product failures. The saved temporary probe was deleted before this checkpoint: both probe commands already failed in a dependency, and the remaining e2e step does not need it. Exact launched source: `run5-source.rs.txt`.
+
+**Next:** let run5 finish, record all three exit codes and any e2e result, then record and commit/push its final result. The partial log and independent oracle/static runs are checkpointed while code generation continues. Fetch/rebase as required. Run `source /tmp/review-triage-env.sh; bash docs/work/name-handling/reviews/triage-20261022/run6.sh` for the full replay (fresh `out/run6/`, six-profile rename, completed-world presence, N01 navigation, N17 direct/pure effect control, sibling collision from both cursor origins, all findings and scaling). Then run `bash .../replay-oracles.sh run6` and `python3 .../source-audit.py > .../run6-source-audit.log`. `run6.sh` restores and removes the temporary probe and deletes each executable in the same command. Its exit status reports real test failures, including the live-fold e2e test.
+
+The run5 temporary `.rs` is the earlier source copied at launch; the evidence `.rs.txt` now contains the expanded follow-up. Run5's tested source is recoverable from checkpoint `81a911af`. The latest fetched remote is `f2e58ee7`; its changes after `81a911af` are documentation only. N17 `const_subst.rs` is now owned by compiler-codegen per the user's 13:17Z recorded decision.
 
 Resumed on the separate cloud disk at 2026-10-22T13:17:02Z. Active checkout: `/workspace/tcl-lsp-triage`, a shallow selective checkout of `work`. Rust 1.99.1 and all six pinned oracle engines are ready. No new triage test has run yet.
 
@@ -89,3 +95,5 @@ It restores the probe, builds, runs and deletes the executables in one command, 
 - The evidence directory was refreshed with the probe copy, `run3.log`, `run4.log`, `out/`, `run4.sh`, `oracle.sh` and the new `run5.sh`. The probe file was deleted from the tree, and the triage executables were deleted from `target/`.
 
 - Cloud setup completed: Rust 1.99.1; C Tcl 8.4.20/8.5.19/8.6.18/9.0.4/9.1.0; Jim 0.84 at `5bac7c99ad65864c87da513e22e2f01703fa4e03`. The standard setup hook stopped at missing sudo; its Rust and Tcl build helpers were reused with writable local paths.
+
+- 2026-10-22T13:45:08Z: cloud baseline replay completed: 19 preserved Tcl files, 114 engine executions, no timeouts (`cloud-baseline-oracles.log`). Feature-unavailable rows retain their nonzero exit codes. N17 driver registers `good` on all six engines. Static source excerpts: `cloud-source-audit.log`; pending current-API rows remain pending.

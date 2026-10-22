@@ -28,10 +28,12 @@ fn save(name: &str, text: &str) {
 }
 
 fn profile(name: &str) -> &'static tcl_dialect::DialectProfile {
+    tcl_spectcl::core_surfaces::ensure();
     tcl_registry::model::ingress::resolve_environment(name).analyser_profile()
 }
 
 fn analyse(source: &str, dialect: &str) -> AnalysisResult {
+    tcl_spectcl::core_surfaces::ensure();
     Analyser::new().analyse(source, dialect)
 }
 
@@ -201,7 +203,7 @@ const N08: &str = "proc p {} {uplevel 1 {set result GLOBAL}}\nnamespace eval n {
 
 #[test]
 fn n08_inliner() {
-    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let registry = tcl_spectcl::bundled::registry_for_dialect(dialect);
         let prof = profile(dialect);
         let opts = tcl_compiler::optimiser::manager::optimise_with_dialect(N08, &registry, Some(prof));
@@ -221,7 +223,7 @@ const N05: &str = "namespace eval a {namespace export *; proc foo {} {return A}}
 
 #[test]
 fn n05_forced_import() {
-    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let analysis = analyse(N05, dialect);
         let prof = profile(dialect);
         let (l, c) = pos(N05, "proc foo {} {return B}", 0, 5);
@@ -246,7 +248,7 @@ fn n05_forced_import() {
 fn n05_control_plain_rename() {
     let plain = "proc foo {} {return A}\nputs [foo]\n";
     let ns = "namespace eval b {\n    proc foo {} {return B}\n    puts [foo]\n}\n";
-    for dialect in ["tcl8.6", "tcl9.0"] {
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         for (tag, src) in [("plain", plain), ("ns", ns)] {
             let analysis = analyse(src, dialect);
             let (l, c) = pos(src, "proc foo", 0, 5);
@@ -275,7 +277,7 @@ const N07: &str = "set g 1\nproc p {} {puts $g}\n";
 
 #[test]
 fn n07_speculative_var() {
-    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         let analysis = analyse(N07, dialect);
         let prof = profile(dialect);
         let (l, c) = pos(N07, "$g", 0, 1);
@@ -349,6 +351,7 @@ fn server_rename(src: &str, dialect: &str, at: (u32, u32), new_name: &str, analy
 
 fn rename_report(tag: &str, src: &str, dialect: &str, at: (u32, u32), new_name: &str) {
     let analysis = analyse(src, dialect);
+    println!("WORLD {tag} {dialect} completed={}", analysis.original_completed_command_world().is_some());
     match server_rename(src, dialect, at, new_name, &analysis) {
         Ok(edits) => {
             let edited = apply(src, &edits);
@@ -361,7 +364,7 @@ fn rename_report(tag: &str, src: &str, dialect: &str, at: (u32, u32), new_name: 
 
 #[test]
 fn rename_with_registry() {
-    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         rename_report("r_n05", N05, dialect, pos(N05, "proc foo {} {return B}", 0, 5), "baz");
         rename_report("r_n07", N07, dialect, pos(N07, "$g", 0, 1), "h");
         let plain = "proc foo {} {return A}\nputs [foo]\n";
@@ -377,7 +380,7 @@ fn rename_with_registry() {
         let caf = "set caf A\nset café B\nputs $café\n";
         rename_report("r_n03", caf, dialect, pos(caf, "$café", 0, 2), "zz");
     }
-    for dialect in ["tcl8.6", "tcl9.0"] {
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let class = "oo::class create A {method m {} {return A}}\noo::class create B {method m {} {return B}}\nputs [[A new] m]\nputs [[B new] m]\n";
         let method = "oo::class create K {\n    method old {} {return OLD}\n    method dest {} {return DEST}\n}\nset k [K new]\nputs \"[$k old] [$k dest]\"\n";
         let proc_class = "proc P {} {return P}\noo::class create C {}\nputs [P]\n";
@@ -427,12 +430,17 @@ fn n17_control_mylib() {
 #[test]
 fn n01_identity() {
     let src = "namespace eval a: {proc p {} {return LEFT}}\nnamespace eval a  {proc :p {} {return RIGHT}}\nputs [namespace eval a: {p}]\nputs [namespace eval a  {:p}]\n";
-    for dialect in ["tcl8.6", "tcl9.0"] {
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let analysis = analyse(src, dialect);
         let mut keys: Vec<String> = analysis.all_procs.keys().cloned().collect();
         keys.sort();
         let diags: Vec<String> = analysis.diagnostics.iter().map(|d| format!("{:?}:{}", d.code, d.message)).collect();
         println!("N01 {dialect} all_procs={keys:?} diags={diags:?}");
+        for needle in ["{p}]", "{:p}]"] {
+            let (l, c) = pos(src, needle, 0, 1);
+            let definitions = tcl_lsp_core::definition::definition(src, l, c, &analysis);
+            println!("N01 {dialect} call={needle:?} definitions={:?}", definitions.iter().map(|d| (d.start_line, d.start_character)).collect::<Vec<_>>());
+        }
     }
     let src2 = "namespace eval n {}\nproc n:: {} {return EMPTY}\ninterp alias {} a {} n::\nputs [a]\n";
     let analysis = analyse(src2, "tcl8.6");
@@ -475,7 +483,7 @@ fn n03_variables() {
         rename_report("n03cafe", src, dialect, (l, c), "zz");
     }
     let src2 = "set \"a\\{b\" X\nset \"a\\{b\\}\" Y\nputs ${a{b}}\n";
-    for dialect in ["tcl8.6", "tcl9.0"] {
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         let analysis = analyse(src2, dialect);
         let (l, c) = pos(src2, "${a{b}}", 0, 3);
         let d = tcl_lsp_core::definition::definition(src2, l, c, &analysis);
@@ -494,7 +502,7 @@ fn n03_variables() {
 fn n04_import_rename() {
     let wild = "namespace eval Foo {\n    proc bar {} {return 1}\n    namespace export bar\n}\nnamespace import ::Foo::*\nputs [bar]\n";
     let exact = "namespace eval Foo {\n    proc bar {} {return 1}\n    namespace export *\n}\nnamespace import ::Foo::bar\nputs [bar]\n";
-    for dialect in ["tcl8.4", "tcl8.6", "tcl9.0", "jim"] {
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
         rename_report("n04wild", wild, dialect, pos(wild, "proc bar", 0, 5), "baz");
         rename_report("n04exact", exact, dialect, pos(exact, "proc bar", 0, 5), "baz");
     }
@@ -507,7 +515,7 @@ fn n06_collisions() {
     let class = "oo::class create A {method m {} {return A}}\noo::class create B {method m {} {return B}}\nputs [[A new] m]\nputs [[B new] m]\n";
     let method = "oo::class create K {\n    method old {} {return OLD}\n    method dest {} {return DEST}\n}\nset k [K new]\nputs \"[$k old] [$k dest]\"\n";
     let proc_class = "proc P {} {return P}\noo::class create C {}\nputs [P]\n";
-    for dialect in ["tcl8.6", "tcl9.0"] {
+    for dialect in ["tcl8.6", "tcl9.0", "tcl9.1"] {
         rename_report("n06class", class, dialect, pos(class, "create A", 0, 7), "B");
         rename_report("n06method", method, dialect, pos(method, "method old", 0, 7), "dest");
         rename_report("n06proc", proc_class, dialect, pos(proc_class, "proc P", 0, 5), "C");
@@ -803,5 +811,72 @@ fn scaling_rows() {
         let mut count = 0;
         for _ in 0..runs { best = best.min(cpu_ms(|| { count = tcl_lsp_core::code_lens::code_lenses(&src, profile("tcl8.6"), Some(&a), None, "file:///lens.tcl").len(); })); }
         println!("SCALE code-lens P={n} analyse_ms={analyse_ms:.1} ms={best:.3} lenses={count}");
+    }
+}
+
+
+#[test]
+fn n17_live_hook_effect_control() {
+    for dsl in ["1", "2.0"] {
+        for pure in [false, true] {
+            for braced in [false, true] {
+                let folded = if braced { "$arr(${a}:b)" } else { "$arr($a:b)" };
+                let authored = n17_hook_source(dsl, folded);
+                let authored = if pure {
+                    authored.replacen("        arity 1\n", "        arity 1\n        world_effects none\n", 1)
+                } else { authored };
+                let tag = format!("n17_effect_{dsl}_{pure}_{braced}");
+                let dir = scratch().join(&tag);
+                std::fs::create_dir_all(&dir).unwrap();
+                let path = dir.join("edge.tclspec");
+                std::fs::write(&path, &authored).unwrap();
+                let packs = tcl_spectcl::pack::load(&[PackFile { tier: Tier::Workspace, path, origin: Origin::DotDir, dependency_tier: None }]);
+                let plan = hooks::plan_for(&packs);
+                let host = Rc::new(tclvm_host());
+                let mut declined = Vec::new();
+                for programs in plan.packs() {
+                    for installed in host.install_pack_hooks(programs.clone()) {
+                        declined.push(format!("{:?}", installed.declined));
+                    }
+                }
+                pack_hooks::install_host(host);
+                let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+                let direct = registry.get("edge::test").and_then(|s| s.run_const_fold(&["abcde"], Some(tcl_dialect::TclVersion::V8_6)));
+                let src = "proc ::f {} {\n    set y [edge::test abcde]\n    return $y\n}\n";
+                let opts = tcl_compiler::optimiser::optimise_raw(src, &registry, Some("tcl8.6"));
+                let folds: Vec<_> = opts.iter().filter(|o| o.code.as_str() == "O129").map(|o| o.replacement.clone()).collect();
+                println!("N17_EFFECT dsl={dsl} pure={pure} braced={braced} notices={:?} declined={declined:?} direct={direct:?} O129={folds:?}", packs.notices);
+                let edited = tcl_compiler::optimiser::apply_optimisations(src, &opts);
+                let driver = "namespace eval edge {}\nproc edge::test {input} {set a x; set a:b BAD; set arr(x:b) good; set arr(BAD) bad; return $arr($a:b)}\n";
+                save(&format!("{tag}.tcl"), &format!("{driver}{edited}puts [f]\n"));
+                pack_hooks::clear_host();
+            }
+        }
+    }
+}
+
+#[test]
+fn n06_sibling_profile_matrix() {
+    let local = "proc p {} {return P}\nputs [p]\n";
+    let sibling = "proc q {} {return Q}\n";
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
+        let a1 = analyse(local, dialect);
+        let a2 = analyse(sibling, dialect);
+        let index = tcl_lsp_core::workspace_index::WorkspaceIndex::from_documents([("file:///main.tcl", &a1), ("file:///sibling.tcl", &a2)]);
+        let exports = index.export_snapshot();
+        for (origin, at) in [("declaration", pos(local, "proc p", 0, 5)), ("call", pos(local, "[p]", 0, 1))] {
+            let result = tcl_lsp_core::rename::rename_in_program(local, profile(dialect), at.0, at.1, "q", &a1,
+                tcl_lsp_core::definition::CallResolution {
+                    registry: Some(tcl_registry::model::ingress::static_context_for(dialect).commands()),
+                    program: Some(tcl_lsp_core::definition::ProgramExports { uri: "file:///main.tcl", oracle: exports.as_ref() }),
+                });
+            match result {
+                Ok(edits) => {
+                    println!("N06_SIBLING {dialect} {origin} edits={}", show_edits(local, &edits));
+                    save(&format!("n06_sibling_{dialect}_{origin}.tcl"), &format!("{sibling}{}puts [q]\n", apply(local, &edits)));
+                }
+                Err(reason) => println!("N06_SIBLING {dialect} {origin} REFUSED {:?}", reason.reason),
+            }
+        }
     }
 }

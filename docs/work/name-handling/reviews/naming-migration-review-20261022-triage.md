@@ -6,7 +6,14 @@ Evidence, scripts and logs: [triage-20261022/](triage-20261022/README.md). Live 
 
 This report is updated after every probe run. Rows marked **PENDING** are not settled.
 
-Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. Rust 1.99.1 and the exact six engines are provisioned; see [cloud-setup.log](triage-20261022/cloud-setup.log). Run5 is next; prior statuses below are unchanged until its results are recorded. `make rust-check` and `make prep-pr` have not run in this evidence-only session.
+Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. Rust 1.99.1 and the exact six engines are provisioned; see [cloud-setup.log](triage-20261022/cloud-setup.log). Run5 is building; its first main command failed because the selective checkout omitted compile-time fixture includes. All three embedded fixture trees are now restored. No new named probe result is available yet; these checkout errors are not product findings. `make rust-check` and `make prep-pr` have not run in this evidence-only session.
+
+## Cloud validation progress
+
+- **2026-10-22T13:45:08Z:** 19 preserved Tcl inputs replayed on six exact engines: **114 executions, no timeouts**. Complete outputs, exit codes and hashes: [cloud-baseline-oracles.log](triage-20261022/cloud-baseline-oracles.log). Feature-unavailable rows are retained, including Jim's unsupported `interp alias` form; they are not incorrect oracle answers. N17's capture driver registers `good` on every engine.
+- [cloud-source-audit.log](triage-20261022/cloud-source-audit.log) rechecks the static seams on `81a911af`. N11's existing-command early return and N13's four/five-round caps remain. These are source inspections, not server protocol executions.
+- `run5.log` is a **partial, active build log**. The initial main command exited 101 for omitted embedded fixture files; the scaling command also encountered missing includes before all three trees were restored, while the compiler continued building. No named probe result is inferred from these errors. The exact launched source is `run5-source.rs.txt`.
+- The prepared `run6.sh` restores the expanded probe into the authorised temporary path, uses a fresh output directory, records completed-world presence, seeds Jim's compiled-in surfaces as production does, covers all six rename profiles and both sibling collision origins, and distinguishes direct hook answers from optimiser folding with/without declared pure effects. It also replays all findings, scaling and the existing fold e2e test. This is prepared work, not an executed result.
 
 ## Method
 
@@ -49,7 +56,7 @@ Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. R
 | N15 minifier compaction | CHANGED (refuses `MissingAlphaRenameContract`); output behaviour-preserving | lsp | `tcl-lsp-core/src/minify.rs`, `minify/original.rs` |
 | N16 provider fallbacks | FIXED (4/4 rows) | — | — |
 | N17 SpecTcl template | FIXED | — | — |
-| N17 live hook | CHANGED/REGRESSED: no O129 at all, including for the shipped-style `mylib::strlen` control. **PENDING** run5 check of the existing `pack_source_e2e` fold test | unowned (`tcl-spec-hooks`, `tcl-registry/src/pack_hooks`), vm-runtime (`tcl-spectcl/src/hooks.rs`), compiler-codegen (`install.rs`) | see detail |
+| N17 live hook | CHANGED/REGRESSED: no O129 at all, including for the shipped-style `mylib::strlen` control. **PENDING** run5 check of the existing `pack_source_e2e` fold test | compiler-codegen (`const_subst.rs`, per user decision 13:17Z); vm-runtime (host) | see detail |
 | Seam `ns_var_global_fallback` | FIXED (static) | — | — |
 | Seam `WorkspaceIndex::registry_for` | FIXED (static) | — | — |
 | Seam `analyse_with_workspace_classes` | CHANGED (static): resolved input, resource inputs and base-analysis identity retained; source-entry parity not shown | lsp | `tcl-lsp-server/src/lib.rs:20036–20120` |
