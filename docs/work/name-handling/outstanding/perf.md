@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 14:38 UTC
+Last updated: 2026-10-22 15:16 UTC
 
 Maintained by the perf agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -63,6 +63,18 @@ and two routed files, no switch. `tools/refresh_patches.py ROOT --snapshot
 /tmp/perf-clean-batch --check-toggled` reproduces the proof tree byte-for-byte.
 
 ## In progress
+
+- SpecTcl's initial eval_loader run completed with the same 26 passes and two
+  failures in both modes, zero pass-to-fail. One failure was the omitted sparse
+  shipped-pack inventory directory; that directory is now fetched and the full
+  SpecTcl stage is queued to rerun in both modes. The other is the unchanged
+  budget-axis assertion (wall-clock budget reached before command-step budget)
+  on this contended host. Initial logs will be preserved as incomplete-input
+  evidence, not accepted as the final complete-input proof.
+- Optimized corpus compilation and compiler test compilation remain CPU-active;
+  do not interrupt them. The optimized document/tclIndex and ordinary LSP probes
+  are queued behind the same completed optimized libraries. No equality verdict
+  or fixed-timeout claim is available yet.
 
 - Current proofs are compiling the final owned cleanup. Do not reapply the
   batch or interrupt a build merely to publish evidence. A docs-only worktree

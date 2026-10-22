@@ -7,12 +7,12 @@ The clean split patches are refreshed: six perf-owned files, two compiler-owned
 files, no temporary switch and no new Clippy allowance. The formal-advice memo
 API also compiles independently of the routed realm caller.
 
-Current evidence (2026-10-22 14:38 UTC):
+Current evidence (2026-10-22 15:16 UTC):
 
 - origin/rust `fcb7927f` timings complete for 102 Tcl + 15 iRules, synthetic
   calls/procs/upvar, all four tclIndex prefixes and ordinary LSP shapes.
 - lexer lib: 583 passed / the same 3 failed in each switch mode; zero pass-to-fail.
-- full-batch corpus, compiler/SpecTcl/server proofs: pending compilation.
+- full-batch corpus/compiler proofs: CPU-active compilation. Initial SpecTcl eval_loader has the same 26 pass / 2 fail in both modes, but one failure is missing sparse pack inventory; complete-input rerun is queued. Server proof remains pending.
 - Clippy: cleaned owned-only snapshot has zero diagnostics in the six owned files; 783 diagnostics elsewhere remain. No workspace-green claim.
 - `perf-analyser-images.patch` plus `perf-analyser-segments.patch`: unproven compiler-names drafts, not applied; see residual-routing.md.
 
