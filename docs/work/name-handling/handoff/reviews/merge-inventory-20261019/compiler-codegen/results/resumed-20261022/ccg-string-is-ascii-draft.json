@@ -1,74 +1,167 @@
 {
+  "utc": "2026-10-22T17:32:07.156535+00:00",
   "agent_reported": true,
   "guarded_validation": false,
-  "utc": "2026-10-22T17:22:06.824083+00:00",
   "canonical_applied": false,
   "cargo_or_typecheck": false,
-  "rustfmt_syntax": "all copied files parse; no canonical formatting",
   "patch": "/tmp/ccg-string-is-ascii.patch",
-  "patch_sha256": "71d37fd3cc00801d8e4e7de38bbfe9989525605b10bf153af284eae001eab38f",
+  "patch_sha256": "e91c0a6472319fef685151aa83d75b44f657fe55ce6fcba605bd04e3ed15e998",
+  "file_count": 11,
   "files": [
     {
       "path": "runtime/rust/src/interp/native_body_artifact/native_scalar.rs",
-      "before": "6e1199d63a54944e1bf773b2d9d6cab617bba358c952f395c2e3b83306cb47e6",
-      "after": "e000176cac93c8e19afabdaa3d3de11329bad1ab429fec980b5c745b2d50892a"
+      "shadow_before_sha256": "6e1199d63a54944e1bf773b2d9d6cab617bba358c952f395c2e3b83306cb47e6",
+      "canonical_observed_sha256": "6e1199d63a54944e1bf773b2d9d6cab617bba358c952f395c2e3b83306cb47e6",
+      "shadow_before_equals_canonical": true,
+      "after_sha256": "e000176cac93c8e19afabdaa3d3de11329bad1ab429fec980b5c745b2d50892a"
     },
     {
       "path": "rust/tcl-compiler/src/codegen/statements/native_scalar.rs",
-      "before": "0b3c6a62e8ab134141605be793d6cdf40cdbc8f45fefc9d69ea2f86975f74f05",
-      "after": "baeb92b97bda9f407db17da021d9fc427de290d980eb09387c58b1b6075d770e"
+      "shadow_before_sha256": "0b3c6a62e8ab134141605be793d6cdf40cdbc8f45fefc9d69ea2f86975f74f05",
+      "canonical_observed_sha256": "543b68dde8c69948e883b58a2b1dede11929e7ea0e7be45a2b15dc616e1c167c",
+      "shadow_before_equals_canonical": false,
+      "after_sha256": "baeb92b97bda9f407db17da021d9fc427de290d980eb09387c58b1b6075d770e"
     },
     {
       "path": "rust/tcl-registry/src/commands/tcl/string_.rs",
-      "before": "9b67edef5a47a4bc8256b8b9d750e7f995b8d40409f555f87ac6713079f052cf",
-      "after": "569770a2fee12a8a6134e7659ac38734d4c7212464bea4ee06cba4802fd9c412"
+      "shadow_before_sha256": "9b67edef5a47a4bc8256b8b9d750e7f995b8d40409f555f87ac6713079f052cf",
+      "canonical_observed_sha256": "fc8ea26daaea3009d543f3022a5c0c6e46c67da60217dabcf260be3bef67430a",
+      "shadow_before_equals_canonical": false,
+      "after_sha256": "569770a2fee12a8a6134e7659ac38734d4c7212464bea4ee06cba4802fd9c412"
     },
     {
       "path": "rust/tcl-registry/src/lib.rs",
-      "before": "0a62fcb6cb8ae0bd49754dd29e90eafaba140deb58fb33eb9d1214b81a7c74e9",
-      "after": "067d91edb1b21c22610dfc5990773f2ea0943598daeba970c0a7756bc6156290"
+      "shadow_before_sha256": "0a62fcb6cb8ae0bd49754dd29e90eafaba140deb58fb33eb9d1214b81a7c74e9",
+      "canonical_observed_sha256": "0a62fcb6cb8ae0bd49754dd29e90eafaba140deb58fb33eb9d1214b81a7c74e9",
+      "shadow_before_equals_canonical": true,
+      "after_sha256": "067d91edb1b21c22610dfc5990773f2ea0943598daeba970c0a7756bc6156290"
     },
     {
       "path": "rust/tcl-registry/src/native_compilation.rs",
-      "before": "5960db8e335d328cd3bdca5ceafac557e8d3ebfc98181db4fb13f363a32114a8",
-      "after": "10e99ab6899b9537c026cba6b7f0efde55b616c6e0ebc83ddc9d6b5e31d9c8d2"
+      "shadow_before_sha256": "5960db8e335d328cd3bdca5ceafac557e8d3ebfc98181db4fb13f363a32114a8",
+      "canonical_observed_sha256": "5960db8e335d328cd3bdca5ceafac557e8d3ebfc98181db4fb13f363a32114a8",
+      "shadow_before_equals_canonical": true,
+      "after_sha256": "10e99ab6899b9537c026cba6b7f0efde55b616c6e0ebc83ddc9d6b5e31d9c8d2"
     },
     {
       "path": "rust/tcl-registry/src/native_instruction_plan.rs",
-      "before": "9b0d17b62d1b7e17b68cd7538dacb21f72aa8b5b0d3c34bed74072439e8cc545",
-      "after": "e7899aab3bb18581a94e8a3ec737b7d934c20bb3e0e58186577a9b059c973b5f"
+      "shadow_before_sha256": "9b0d17b62d1b7e17b68cd7538dacb21f72aa8b5b0d3c34bed74072439e8cc545",
+      "canonical_observed_sha256": "9b0d17b62d1b7e17b68cd7538dacb21f72aa8b5b0d3c34bed74072439e8cc545",
+      "shadow_before_equals_canonical": true,
+      "after_sha256": "e7899aab3bb18581a94e8a3ec737b7d934c20bb3e0e58186577a9b059c973b5f"
     },
     {
       "path": "rust/tcl-registry/src/native_scalar_compilation.rs",
-      "before": "bb08f46026232334f8ab7d47128bc9e8fdd01215b8f99fe613730f395682ebec",
-      "after": "873c11a44b5430838d44fc1f843b20a6d28b93ba5f04ad41a6dc4ecbe4817058"
+      "shadow_before_sha256": "bb08f46026232334f8ab7d47128bc9e8fdd01215b8f99fe613730f395682ebec",
+      "canonical_observed_sha256": "bb08f46026232334f8ab7d47128bc9e8fdd01215b8f99fe613730f395682ebec",
+      "shadow_before_equals_canonical": true,
+      "after_sha256": "46cc68894fbaf6998ef664aa7d95dca38cd71020372a9094cd64fe1db47ac140"
     },
     {
       "path": "rust/tcl-registry/src/native_string_is_compilation.rs",
-      "before": null,
-      "after": "6284bb4753101e1a7ee6efba3fc6200bdeb75c42e729c93910230d3adbc1d49f"
+      "shadow_before_sha256": null,
+      "canonical_observed_sha256": null,
+      "shadow_before_equals_canonical": true,
+      "after_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06"
     },
     {
       "path": "rust/tcl-registry/src/registry.rs",
-      "before": "236871165dab352c72c58fa38c702232f4996e44b53ec992a8cf6938b71e5f3c",
-      "after": "4e824ad0bfc4f5ad6436d180fa94277c3af1e3abddc9e5b6e0da718f031f5871"
-    },
-    {
-      "path": "rust/tcl-vm/src/exec/native_scalar.rs",
-      "before": "578654fae82bfcb1602885e2e6be13c4e8290f8b74204984abb39bb273a99cd6",
-      "after": "241e8f30a5112cc7606e12d6086202beba12e576878a9e7bbec5fca949ca5d2c"
+      "shadow_before_sha256": "236871165dab352c72c58fa38c702232f4996e44b53ec992a8cf6938b71e5f3c",
+      "canonical_observed_sha256": "236871165dab352c72c58fa38c702232f4996e44b53ec992a8cf6938b71e5f3c",
+      "shadow_before_equals_canonical": true,
+      "after_sha256": "4e824ad0bfc4f5ad6436d180fa94277c3af1e3abddc9e5b6e0da718f031f5871"
     },
     {
       "path": "rust/tcl-vm/src/exec.rs",
-      "before": "cbd6fe9e58f53b284b25bf95e4d628cb037399c7de80e9c1efe7c80966c6e919",
-      "after": "31b5e82456abfbee3b154b03772b41638e0caf8bcc06007d68972a3a844ec86e"
+      "shadow_before_sha256": "cbd6fe9e58f53b284b25bf95e4d628cb037399c7de80e9c1efe7c80966c6e919",
+      "canonical_observed_sha256": "cbd6fe9e58f53b284b25bf95e4d628cb037399c7de80e9c1efe7c80966c6e919",
+      "shadow_before_equals_canonical": true,
+      "after_sha256": "31b5e82456abfbee3b154b03772b41638e0caf8bcc06007d68972a3a844ec86e"
+    },
+    {
+      "path": "rust/tcl-vm/src/exec/native_scalar.rs",
+      "shadow_before_sha256": "578654fae82bfcb1602885e2e6be13c4e8290f8b74204984abb39bb273a99cd6",
+      "canonical_observed_sha256": "578654fae82bfcb1602885e2e6be13c4e8290f8b74204984abb39bb273a99cd6",
+      "shadow_before_equals_canonical": true,
+      "after_sha256": "241e8f30a5112cc7606e12d6086202beba12e576878a9e7bbec5fca949ca5d2c"
     }
   ],
-  "scope": "Exact non-strict compile-known ascii class only; unmodeled class/options/expansions remain Unknown; authentic>=8.6 hook/private mapping, no new provider API",
-  "backend_patch_sha256": "99c4090107130e629e490ecb76b91831f2393a7442b166f31cb533c57c05e3af",
+  "dry_apply_current_canonical": {
+    "returncode": 0,
+    "stdout": "checking file runtime/rust/src/interp/native_body_artifact/native_scalar.rs\nchecking file rust/tcl-compiler/src/codegen/statements/native_scalar.rs\nchecking file rust/tcl-registry/src/commands/tcl/string_.rs\nHunk #1 succeeded at 1437 (offset -1 lines).\nchecking file rust/tcl-registry/src/lib.rs\nchecking file rust/tcl-registry/src/native_compilation.rs\nchecking file rust/tcl-registry/src/native_instruction_plan.rs\nchecking file rust/tcl-registry/src/native_scalar_compilation.rs\nchecking file rust/tcl-registry/src/native_string_is_compilation.rs\nchecking file rust/tcl-registry/src/registry.rs\nchecking file rust/tcl-vm/src/exec.rs\nchecking file rust/tcl-vm/src/exec/native_scalar.rs\n",
+    "stderr": ""
+  },
+  "syntax_check": "11/11 rustfmt syntax parses",
+  "scope": "Exact compile-known non-strict ascii + one original subject; public/private actual descriptor; no WithImplementationPath capability grant",
+  "controls": {
+    "registry_new_tests": [
+      "a_real_private_descriptor_keeps_the_single_original_subject",
+      "unmodeled_original_class_options_and_expansions_keep_refusing",
+      "old_or_missing_compiler_point_cannot_make_a_native_plan"
+    ],
+    "status": "OFF-TREE, UNRUN; no acceptance verdict",
+    "planned_external": "VM same original guarded hook positive and real private-worker deletion/replacement controls; missing prerequisite must not emit stock ASCII"
+  },
   "unmeasured": [
-    "same-body positive post-descriptor control",
-    "typecheck/lint/semantic suites",
-    "all final merged-source gates"
+    "new controls typecheck and execution",
+    "same original hook post-descriptor positive",
+    "all final combined-source gates"
+  ],
+  "syntax_rows": [
+    {
+      "path": "runtime/rust/src/interp/native_body_artifact/native_scalar.rs",
+      "exit": 0,
+      "stderr": ""
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/statements/native_scalar.rs",
+      "exit": 0,
+      "stderr": ""
+    },
+    {
+      "path": "rust/tcl-registry/src/commands/tcl/string_.rs",
+      "exit": 0,
+      "stderr": ""
+    },
+    {
+      "path": "rust/tcl-registry/src/lib.rs",
+      "exit": 0,
+      "stderr": ""
+    },
+    {
+      "path": "rust/tcl-registry/src/native_compilation.rs",
+      "exit": 0,
+      "stderr": ""
+    },
+    {
+      "path": "rust/tcl-registry/src/native_instruction_plan.rs",
+      "exit": 0,
+      "stderr": ""
+    },
+    {
+      "path": "rust/tcl-registry/src/native_scalar_compilation.rs",
+      "exit": 0,
+      "stderr": ""
+    },
+    {
+      "path": "rust/tcl-registry/src/native_string_is_compilation.rs",
+      "exit": 0,
+      "stderr": ""
+    },
+    {
+      "path": "rust/tcl-registry/src/registry.rs",
+      "exit": 0,
+      "stderr": ""
+    },
+    {
+      "path": "rust/tcl-vm/src/exec.rs",
+      "exit": 0,
+      "stderr": ""
+    },
+    {
+      "path": "rust/tcl-vm/src/exec/native_scalar.rs",
+      "exit": 0,
+      "stderr": ""
+    }
   ]
 }

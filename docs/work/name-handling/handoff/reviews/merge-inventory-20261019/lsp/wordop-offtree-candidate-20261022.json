@@ -1,0 +1,33 @@
+{
+  "status": "off-tree syntax candidate only; no production run",
+  "decision": "2026-10-22T13:17Z",
+  "base": "minify.rs composed lint shadow; minify_residual.rs active canonical",
+  "original_selectors_retained": [
+    "minify::tests::keeps_word_operator_spacing",
+    "minify::tests::expr_string_and_membership_inversion_still_applies",
+    "expr_comparison_inversion_string_equal",
+    "expr_comparison_inversion_membership"
+  ],
+  "new_selector": "native_word_operators_remove_safe_gaps_without_changing_tokens_or_data",
+  "unchanged": "configured pairwise and complete token identity, checked parser, source/channel/Selected binding/observer/currentness guards; all AST inversion expectations retained; unsupported8.x lt expectation unchanged",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-core/src/minify.rs",
+      "before_sha256": "b7d4c678efb2aae6a4452db171565bbbb52a4e68ec949d21b3bd782b453f2557",
+      "canonical_before_sha256": "d00f94b9a173ab1c3ccd161d583e1f972c4740085dca364882d2f981a9b34b78",
+      "proposed_after_lint_and_wordop_sha256": "0cc2fca3b02ad57997d5d175dbdf94600979ba62f5305e9f8384bbce93dbe392",
+      "proposed_full_file": "/tmp/lsp-wordop-minify/minify-proposed.rs"
+    },
+    {
+      "path": "rust/tcl-lsp-core/tests/minify_residual.rs",
+      "before_sha256": "0990d85fecdd389d280034594d30ed6b19cfa391e7bae21e4b15631bbeabd15a",
+      "canonical_before_sha256": "0990d85fecdd389d280034594d30ed6b19cfa391e7bae21e4b15631bbeabd15a",
+      "proposed_after_lint_and_wordop_sha256": "af7db1140f0a8495e7a55e282396cda92ceae0bff8c2b789c9d72c3ff9f72e22",
+      "proposed_full_file": "/tmp/lsp-wordop-minify/minify-residual-proposed.rs"
+    }
+  ],
+  "patch_sha256": "96f38f307e5add98592a90129c9779e1eb731ab852271acc9a55b5e4d31bfc13",
+  "validation": "rustfmt parsed both proposed full files; no compiler/native minifier result",
+  "integration": "ApplyCore40lintshadow first, then this delta. Verify canonical_before/lint_before/proposed hashes; never overwrite unrelated guard/lint changes. No canonical GO yet.",
+  "authoritative_d1": "/tmp/naming-d1-reference-rosters-20261022/full-head-proposal.patch"
+}

@@ -2,7 +2,7 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-22T17:28Z (agent-reported work only)
+Last updated: 2026-10-22T17:30Z (agent-reported work only)
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -115,14 +115,13 @@ Perf aliases evidence reviewed read-only after staged GO: all-old control proves
 
 ## Resume
 
-- **Next diagnostic command**, only after coordinator N17 freeze release, coordinated R1 application and a granted build slot:
-  `/tmp/compiler-names-g4/run-r1-public-diagnosis.sh`
-  This builds the normal compiler library plus a temporary public-API integration probe, then removes only that unchanged owned probe. Diagnosis only; not acceptance or a replacement for the following canonical checks.
+- **Current state:** the one public normal-library R1 diagnosis completed successfully at17:27:36Z (1aggregate, all54world/body cases; zero source changes, no warnings/errors). Its own probe is removed and lock handed to compiler for C6. Do not rerun it unchanged or claim canonical g4/ZZ/eight acceptance from this diagnosis.
+- **Next work:** compiler reports C6 measured close17:29:54Z, aggregate0/1 with5of8row mismatches and zero source changes; this is compiler-agent-reported, not independently validated here. Remain source/Cargo frozen pending coordinator next-batch GO. The proposed post-C6 batch is inventoried in compiler-names/post-c6-batch-manifest.json with exact patch paths, SHA256, owners and order. It currently lists12parked patches/56unique paths, expanded from the earlier49-path sketch; applied R1 and diagnostic-only perf helper are omitted. All12apply in order to copied /tmp sources (post-c6-batch-assembly.json); no Cargo/typecheck or canonical mutation. Await coordinator GO before any integration or Cargo. W210/N13 implementation remains separate and parked.
 - **Required canonical filters once source stabilises** (separately locked complete cargo-test build/run filters; draining output capped at 20 MB; executables younger than 60 minutes retained):
   `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/buildrun.sh g4`
   - Active logs: `/tmp/compiler-names-g4/g4-*.log` (copy completed receipts into evidence); source `/tmp/tcl-lsp-naming-env.sh`; first run main/zz and eight regressions, broad batches later. Runner audited for stale paths, global lock, disk and bounded draining output before use.
   - It needs more than 2.3 GB free disk.
-  - Do not restart unchanged early g4 now: main failed as above; remaining filters deferred after the freshness incident. Compiler-codegen owns the next N17 window and source hold remains until coordinator CLEAR. Historical pre-restart interruptions and ZZ zero-test interruption are not product results.
+  - Run only after measured C6 plus the coherent coordinator-approved batch. N17 is complete and compiler reports C6 closed; the coordinator still owns the next source/batch clearance. Historical pre-restart interruptions and ZZ zero-test interruption are not product results. The old main failure remains preserved alongside the passing public R1 diagnosis.
 - **Then:**
   1. Check `g4-main.log`: `completed_world…` should have no mismatches. If `puts hi` is still withheld, read `ZZ_UNKNOWN_HANDLER` in `g4-zz.log`.
   2. Check `g4-zz.log`: the eval-body import `p` should have a lookup and reference.
@@ -145,6 +144,7 @@ Perf aliases evidence reviewed read-only after staged GO: all-old control proves
   - `cfg_builder/mod.rs`: ZZ_EMBEDDED, ZZ_CALL_BARRIER;
   - `analyser/diagnostics/dataflow.rs`: ZZ_W210;
   - test `zz_probe_import_and_crlf` in `analyser/types.rs` (copy: `compiler-names/zz_probe_import_and_crlf.rs.txt`).
+- **Completed R1 evidence:** g4-public-r1-summary.json retains all54exact cases, nonempty body assertions, source/provider/artifact/commit-during-run attribution; matching log, exit, before/after, linked-artifact and applied-patch files are in the same evidence directory.
 - **Evidence in the repo:** `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/`:
   - `buildrun.sh`, `runfilters.sh`;
   - `baseline-command_binding-ok.txt` (00:12 run);

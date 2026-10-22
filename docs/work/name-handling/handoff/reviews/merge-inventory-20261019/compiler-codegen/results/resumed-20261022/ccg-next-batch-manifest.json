@@ -1,0 +1,1229 @@
+{
+  "utc": "2026-10-22T17:34:52.443849+00:00",
+  "status": "OFF-TREE ONLY; no canonical apply, Cargo/typecheck/lint/semantic execution",
+  "canonical_head_observed": "d7ff1142a478fcdb8231457723033865e4f818ee",
+  "assembly": "/tmp/ccg-next-batch-assembly",
+  "patches": [
+    {
+      "owner": "compiler-codegen + vm-runtime",
+      "scope": "measured ASCII semantic draft with3 registry controls",
+      "patch": "/tmp/ccg-string-is-ascii.patch",
+      "order": 1,
+      "sha256": "e91c0a6472319fef685151aa83d75b44f657fe55ce6fcba605bd04e3ed15e998",
+      "paths": [
+        "runtime/rust/src/interp/native_body_artifact/native_scalar.rs",
+        "rust/tcl-compiler/src/codegen/statements/native_scalar.rs",
+        "rust/tcl-registry/src/commands/tcl/string_.rs",
+        "rust/tcl-registry/src/lib.rs",
+        "rust/tcl-registry/src/native_compilation.rs",
+        "rust/tcl-registry/src/native_instruction_plan.rs",
+        "rust/tcl-registry/src/native_scalar_compilation.rs",
+        "rust/tcl-registry/src/native_string_is_compilation.rs",
+        "rust/tcl-registry/src/registry.rs",
+        "rust/tcl-vm/src/exec.rs",
+        "rust/tcl-vm/src/exec/native_scalar.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file runtime/rust/src/interp/native_body_artifact/native_scalar.rs\npatching file rust/tcl-compiler/src/codegen/statements/native_scalar.rs\npatching file rust/tcl-registry/src/commands/tcl/string_.rs\nHunk #1 succeeded at 1437 (offset -1 lines).\npatching file rust/tcl-registry/src/lib.rs\npatching file rust/tcl-registry/src/native_compilation.rs\npatching file rust/tcl-registry/src/native_instruction_plan.rs\npatching file rust/tcl-registry/src/native_scalar_compilation.rs\npatching file rust/tcl-registry/src/native_string_is_compilation.rs\npatching file rust/tcl-registry/src/registry.rs\npatching file rust/tcl-vm/src/exec.rs\npatching file rust/tcl-vm/src/exec/native_scalar.rs\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "compiler-codegen + vm-runtime",
+      "scope": "same-body/direct original-object/actual-worker controls",
+      "patch": "/tmp/ccg-string-is-ascii-controls.patch",
+      "order": 2,
+      "sha256": "fd2c2009af5db70bedbdb0d2b9d6b94bec9f8e42185058cdc1f3b4636303509c",
+      "paths": [
+        "rust/tcl-spectcl/tests/pack_source_e2e.rs",
+        "rust/tcl-spectcl/tests/support/native_string_is_ascii.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-spectcl/tests/pack_source_e2e.rs\npatching file rust/tcl-spectcl/tests/support/native_string_is_ascii.rs\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "compiler",
+      "scope": "shared API",
+      "patch": "/tmp/compiler-invocation-metadata-selection.patch",
+      "order": 3,
+      "sha256": "20c92791fa04ff250bed837829a5105a7409af6e9c52f609ed37e364c5c9edf2",
+      "paths": [
+        "rust/tcl-compiler/src/registry_invocation/metadata_context.rs",
+        "rust/tcl-compiler/src/registry_invocation.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-compiler/src/registry_invocation/metadata_context.rs\npatching file rust/tcl-compiler/src/registry_invocation.rs\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "compiler",
+      "scope": "shared API consumers",
+      "patch": "/tmp/compiler-metadata-selection-consumers/compatibility.patch",
+      "order": 4,
+      "sha256": "bde39e475b4dfeb70f0fc74860c565436c5db250dc70cfa9dda74d81e9ed66a6",
+      "paths": [
+        "rust/tcl-compiler/src/existence_query.rs",
+        "rust/tcl-compiler/src/cell_state_ssa.rs",
+        "rust/tcl-compiler/src/place_bridge/original_read_source.rs",
+        "rust/tcl-compiler/src/variable_bindings.rs",
+        "rust/tcl-compiler/src/ssa.rs",
+        "rust/tcl-compiler/src/static_loops/original_simulation.rs",
+        "rust/tcl-compiler/src/connection_scope.rs",
+        "rust/tcl-compiler/src/uri_split.rs",
+        "rust/tcl-compiler/src/dynamic_names.rs",
+        "rust/tcl-compiler/src/value_transfer.rs",
+        "rust/tcl-compiler/src/increment_rewrite.rs",
+        "rust/tcl-compiler/src/place_bridge.rs",
+        "rust/tcl-compiler/src/value_provenance.rs",
+        "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
+        "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+        "rust/tcl-compiler/src/table_value_provenance.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-compiler/src/existence_query.rs\npatching file rust/tcl-compiler/src/cell_state_ssa.rs\npatching file rust/tcl-compiler/src/place_bridge/original_read_source.rs\npatching file rust/tcl-compiler/src/variable_bindings.rs\npatching file rust/tcl-compiler/src/ssa.rs\npatching file rust/tcl-compiler/src/static_loops/original_simulation.rs\npatching file rust/tcl-compiler/src/connection_scope.rs\npatching file rust/tcl-compiler/src/uri_split.rs\npatching file rust/tcl-compiler/src/dynamic_names.rs\npatching file rust/tcl-compiler/src/value_transfer.rs\npatching file rust/tcl-compiler/src/increment_rewrite.rs\npatching file rust/tcl-compiler/src/place_bridge.rs\npatching file rust/tcl-compiler/src/value_provenance.rs\npatching file rust/tcl-compiler/src/analyser/diagnostics/var_command.rs\npatching file rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs\npatching file rust/tcl-compiler/src/table_value_provenance.rs\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "compiler-names",
+      "scope": "shared API consumers",
+      "patch": "/tmp/compiler-names-metadata-selection.patch",
+      "order": 5,
+      "sha256": "55991206318540dd41ab463483000c9e1322c24b08d6586c2a1ae54314a49f4b",
+      "paths": [
+        "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
+        "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+        "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+        "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+        "rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs",
+        "rust/tcl-compiler/src/command_binding.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-compiler/src/command_binding/materialized_footprint.rs\npatching file rust/tcl-compiler/src/command_binding/declaration_layout.rs\npatching file rust/tcl-compiler/src/command_binding/declaration_preview.rs\npatching file rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs\npatching file rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs\npatching file rust/tcl-compiler/src/command_binding.rs\nHunk #1 succeeded at 13671 (offset 32 lines).\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "compiler-names",
+      "scope": "mechanical lints",
+      "patch": "/tmp/compiler-names-mechanical-lints.patch",
+      "order": 6,
+      "sha256": "569938aa34615e8676a198501083af31ea17396467f2b5bcca90ddc2472dab3b",
+      "paths": [
+        "rust/tcl-compiler/src/analyser/commands.rs",
+        "rust/tcl-compiler/src/analyser/handlers.rs",
+        "rust/tcl-compiler/src/analyser/scope.rs",
+        "rust/tcl-compiler/src/command_binding/original_compiler_effects.rs",
+        "rust/tcl-compiler/src/command_binding/deferred_namespace_index.rs",
+        "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+        "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+        "rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs",
+        "rust/tcl-compiler/src/command_binding/logical_variable_scope.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/source_namespace.rs",
+        "rust/tcl-compiler/src/command_binding/pre_handler_failure.rs",
+        "rust/tcl-compiler/src/command_binding/retained_source.rs",
+        "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+        "rust/tcl-compiler/src/command_binding/source_read_scope.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/c_namespace.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/source_configured_class.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+        "rust/tcl-compiler/src/command_binding/formal_value.rs",
+        "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs",
+        "rust/tcl-compiler/src/command_binding/package_target_survey.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-compiler/src/analyser/commands.rs\npatching file rust/tcl-compiler/src/analyser/handlers.rs\npatching file rust/tcl-compiler/src/analyser/scope.rs\npatching file rust/tcl-compiler/src/command_binding/original_compiler_effects.rs\npatching file rust/tcl-compiler/src/command_binding/deferred_namespace_index.rs\npatching file rust/tcl-compiler/src/command_binding/declaration_preview.rs\npatching file rust/tcl-compiler/src/command_binding/origin_inventory.rs\npatching file rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs\npatching file rust/tcl-compiler/src/command_binding/logical_variable_scope.rs\npatching file rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs\npatching file rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs\npatching file rust/tcl-compiler/src/command_binding/source_transition_advice/source_namespace.rs\npatching file rust/tcl-compiler/src/command_binding/pre_handler_failure.rs\npatching file rust/tcl-compiler/src/command_binding/retained_source.rs\npatching file rust/tcl-compiler/src/command_binding/declaration_flow.rs\npatching file rust/tcl-compiler/src/command_binding/source_read_scope.rs\npatching file rust/tcl-compiler/src/command_binding/source_transition_advice/c_namespace.rs\npatching file rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs\npatching file rust/tcl-compiler/src/command_binding/source_transition_advice/source_configured_class.rs\npatching file rust/tcl-compiler/src/command_binding/source_transition_advice.rs\npatching file rust/tcl-compiler/src/command_binding/formal_value.rs\npatching file rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs\npatching file rust/tcl-compiler/src/command_binding/package_target_survey.rs\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "compiler-names",
+      "scope": "query tri-state lint",
+      "patch": "/tmp/compiler-names-class-relation-tristate.patch",
+      "order": 7,
+      "sha256": "46e9ec58b3400ab64203dcf2e1a3042ce244e4ae0c7ae2d9f5e2da78f5b938e3",
+      "paths": [
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs",
+        "rust/tcl-compiler/src/analyser/types/logical_members.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs\npatching file rust/tcl-compiler/src/analyser/types/logical_members.rs\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "compiler-names",
+      "scope": "sealed visit buckets lint",
+      "patch": "/tmp/compiler-names-layout-visits.patch",
+      "order": 8,
+      "sha256": "3871e6cc4f7ce60a986e7d42387d713704356ceb94aa9b01170ecc9a342a2ed1",
+      "paths": [
+        "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-compiler/src/command_binding/declaration_preview.rs\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "compiler-names",
+      "scope": "independent scope axis lint",
+      "patch": "/tmp/compiler-names-scope-source-boundary.patch",
+      "order": 9,
+      "sha256": "5e8fc5d669c6aacb9709ef555c1dbf7b768847daca19cbe4028afa74827162e5",
+      "paths": [
+        "rust/tcl-compiler/src/analyser/types.rs",
+        "rust/tcl-compiler/src/analyser/handlers.rs",
+        "rust/tcl-compiler/src/analyser/scope.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-compiler/src/analyser/types.rs\npatching file rust/tcl-compiler/src/analyser/handlers.rs\npatching file rust/tcl-compiler/src/analyser/scope.rs\nHunk #1 succeeded at 571 (offset -1 lines).\nHunk #2 succeeded at 6893 (offset -1 lines).\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "compiler-names",
+      "scope": "exhaustive report Eq extraction lint",
+      "patch": "/tmp/compiler-names-analysis-report-eq.patch",
+      "order": 10,
+      "sha256": "027a9fa9b99e9c34e432ea7545016834fae6c075d425482bc698cd61f5e4bd00",
+      "paths": [
+        "rust/tcl-compiler/src/analyser/types.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-compiler/src/analyser/types.rs\nHunk #1 succeeded at 2894 (offset 12 lines).\nHunk #2 succeeded at 2982 (offset 12 lines).\nHunk #3 succeeded at 2997 (offset 12 lines).\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "compiler-names",
+      "scope": "small helper extraction lints",
+      "patch": "/tmp/compiler-names-small-extractions.patch",
+      "order": 11,
+      "sha256": "a8b28d3d47769760d6b39bf377db124f9aab29186bc21dcba7b0b28b8b1af56e",
+      "paths": [
+        "rust/tcl-compiler/src/analyser/commands.rs",
+        "rust/tcl-compiler/src/command_binding/logical_operation.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-compiler/src/analyser/commands.rs\npatching file rust/tcl-compiler/src/command_binding/logical_operation.rs\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "compiler-names",
+      "scope": "additional mechanical lints",
+      "patch": "/tmp/compiler-names-extra-mechanical.patch",
+      "order": 12,
+      "sha256": "f09c994670fe8cf42b4dc91560e109015c721ae0080bd2263410ae16bb4164c2",
+      "paths": [
+        "rust/tcl-compiler/src/command_binding/source_arguments.rs",
+        "rust/tcl-compiler/src/command_binding/try_bodies.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/native_declared_body.rs",
+        "rust/tcl-compiler/src/command_binding/generated_procedures.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-compiler/src/command_binding/source_arguments.rs\npatching file rust/tcl-compiler/src/command_binding/try_bodies.rs\npatching file rust/tcl-compiler/src/command_binding/source_transition_advice/native_declared_body.rs\npatching file rust/tcl-compiler/src/command_binding/generated_procedures.rs\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "compiler-names",
+      "scope": "functional OO publication candidate; distinct validation required",
+      "patch": "/tmp/compiler-names-object-publication.patch",
+      "order": 13,
+      "sha256": "92bfb8b72a9aae39f7e3290badee059a74161b2ab780bd361fbf3a65403ed737",
+      "paths": [
+        "rust/tcl-compiler/src/command_binding/namespace_slots.rs",
+        "rust/tcl-compiler/src/command_binding/original_command_table.rs",
+        "rust/tcl-compiler/src/command_binding/named_manufacture.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-compiler/src/command_binding/namespace_slots.rs\npatching file rust/tcl-compiler/src/command_binding/original_command_table.rs\npatching file rust/tcl-compiler/src/command_binding/named_manufacture.rs\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "compiler-names",
+      "scope": "typed N01 allocation regression only; provider replay still required",
+      "patch": "/tmp/compiler-names-n01-regression.patch",
+      "order": 14,
+      "sha256": "8ff25605228105856ea145c214a2da1fc0733a4144f30e8b64716d1131d05500",
+      "paths": [
+        "rust/tcl-compiler/src/analyser/types.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-compiler/src/analyser/types.rs\nHunk #1 succeeded at 5509 (offset -68 lines).\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "compiler-codegen",
+      "scope": "18 lint/API-consumer paths",
+      "patch": "/tmp/ccg-lint-post-cleanup.patch",
+      "order": 15,
+      "sha256": "9897a8ab45537c9213723d0a106d1b7000a7606116dab5a6eea6ba31c2815f42",
+      "paths": [
+        "rust/tcl-compiler/src/codegen/cmd_subst.rs",
+        "rust/tcl-compiler/src/codegen/control_flow.rs",
+        "rust/tcl-compiler/src/codegen/emitter/loop_blocks.rs",
+        "rust/tcl-compiler/src/codegen/emitter/mod.rs",
+        "rust/tcl-compiler/src/codegen/emitter/try_blocks.rs",
+        "rust/tcl-compiler/src/codegen/values.rs",
+        "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+        "rust/tcl-compiler/src/codegen/wasm/ir.rs",
+        "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs",
+        "rust/tcl-compiler/src/compile_service.rs",
+        "rust/tcl-compiler/src/optimiser/chain_fold.rs",
+        "rust/tcl-compiler/src/optimiser/elimination/source_reads.rs",
+        "rust/tcl-compiler/src/optimiser/elimination.rs",
+        "rust/tcl-compiler/src/optimiser/manager.rs",
+        "rust/tcl-compiler/src/optimiser/method_barrier.rs",
+        "rust/tcl-compiler/src/optimiser/original_report.rs",
+        "rust/tcl-compiler/src/optimiser/propagation.rs",
+        "rust/tcl-compiler/src/optimiser/unused_procs.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-compiler/src/codegen/cmd_subst.rs\npatching file rust/tcl-compiler/src/codegen/control_flow.rs\npatching file rust/tcl-compiler/src/codegen/emitter/loop_blocks.rs\npatching file rust/tcl-compiler/src/codegen/emitter/mod.rs\npatching file rust/tcl-compiler/src/codegen/emitter/try_blocks.rs\npatching file rust/tcl-compiler/src/codegen/values.rs\npatching file rust/tcl-compiler/src/codegen/wasm/backend.rs\npatching file rust/tcl-compiler/src/codegen/wasm/ir.rs\npatching file rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs\npatching file rust/tcl-compiler/src/compile_service.rs\nHunk #1 succeeded at 471 (offset -35 lines).\npatching file rust/tcl-compiler/src/optimiser/chain_fold.rs\npatching file rust/tcl-compiler/src/optimiser/elimination/source_reads.rs\npatching file rust/tcl-compiler/src/optimiser/elimination.rs\npatching file rust/tcl-compiler/src/optimiser/manager.rs\npatching file rust/tcl-compiler/src/optimiser/method_barrier.rs\npatching file rust/tcl-compiler/src/optimiser/original_report.rs\npatching file rust/tcl-compiler/src/optimiser/propagation.rs\npatching file rust/tcl-compiler/src/optimiser/unused_procs.rs\n",
+        "stderr": ""
+      }
+    },
+    {
+      "owner": "vm-runtime",
+      "scope": "47 mechanical+structural lint paths; rebase after ASCII exec.rs",
+      "patch": "/tmp/vm-runtime-structural-shadow/combined.patch",
+      "order": 16,
+      "sha256": "1498e4a51ea0652bb7d4af7754e82e1a79ac29d6b3403d27a2e8ee556051b50f",
+      "paths": [
+        "rust/tcl-vm/src/cmd_binary.rs",
+        "rust/tcl-vm/src/cmd_coro.rs",
+        "rust/tcl-vm/src/cmd_file.rs",
+        "rust/tcl-vm/src/cmd_list.rs",
+        "rust/tcl-vm/src/cmd_math.rs",
+        "rust/tcl-vm/src/cmd_namespace.rs",
+        "rust/tcl-vm/src/cmd_namespace/native_jim_subcommands.rs",
+        "rust/tcl-vm/src/cmd_oo.rs",
+        "rust/tcl-vm/src/cmd_oo/native_method_cache.rs",
+        "rust/tcl-vm/src/cmd_oo/native_properties.rs",
+        "rust/tcl-vm/src/cmd_oo/native_properties/mutation.rs",
+        "rust/tcl-vm/src/cmd_oo/variable_mapping.rs",
+        "rust/tcl-vm/src/cmd_package.rs",
+        "rust/tcl-vm/src/cmd_try.rs",
+        "rust/tcl-vm/src/command.rs",
+        "rust/tcl-vm/src/embed.rs",
+        "rust/tcl-vm/src/exec.rs",
+        "rust/tcl-vm/src/expr/native_boolean_truth.rs",
+        "rust/tcl-vm/src/interp.rs",
+        "rust/tcl-vm/src/interp/authored_package.rs",
+        "rust/tcl-vm/src/interp/command_cleanup.rs",
+        "rust/tcl-vm/src/interp/execution_name_policy.rs",
+        "rust/tcl-vm/src/interp/jim_table_keys.rs",
+        "rust/tcl-vm/src/interp/native_append.rs",
+        "rust/tcl-vm/src/interp/native_command_names.rs",
+        "rust/tcl-vm/src/interp/native_error_variables.rs",
+        "rust/tcl-vm/src/interp/native_interpreter_paths.rs",
+        "rust/tcl-vm/src/interp/native_jim_increment.rs",
+        "rust/tcl-vm/src/interp/native_jim_links.rs",
+        "rust/tcl-vm/src/interp/native_jim_lookup.rs",
+        "rust/tcl-vm/src/interp/native_name_queries.rs",
+        "rust/tcl-vm/src/interp/native_name_world.rs",
+        "rust/tcl-vm/src/interp/native_namespace_names/jim_parent.rs",
+        "rust/tcl-vm/src/interp/native_numeric_ops.rs",
+        "rust/tcl-vm/src/interp/native_original_lookup.rs",
+        "rust/tcl-vm/src/interp/native_procedure_artifacts.rs",
+        "rust/tcl-vm/src/interp/native_variable_names.rs",
+        "rust/tcl-vm/src/interp/variable_cleanup.rs",
+        "rust/tcl-vm/src/literal_pool.rs",
+        "rust/tcl-vm/src/native_jim_script.rs",
+        "rust/tcl-vm/src/return_options.rs",
+        "rust/tcl-vm/src/value.rs",
+        "rust/tcl-vm/src/value/native_jim_subcommand.rs",
+        "rust/tcl-vm/src/value/native_list_storage.rs",
+        "rust/tcl-vm/src/value_ops.rs",
+        "rust/tcl-vm/src/value_ops/native_indexed_append.rs",
+        "rust/tcl-vm/src/value_ops/native_jim_index.rs"
+      ],
+      "copied_tree_apply": {
+        "exit": 0,
+        "stdout": "patching file rust/tcl-vm/src/cmd_binary.rs\npatching file rust/tcl-vm/src/cmd_coro.rs\npatching file rust/tcl-vm/src/cmd_file.rs\npatching file rust/tcl-vm/src/cmd_list.rs\npatching file rust/tcl-vm/src/cmd_math.rs\npatching file rust/tcl-vm/src/cmd_namespace.rs\npatching file rust/tcl-vm/src/cmd_namespace/native_jim_subcommands.rs\npatching file rust/tcl-vm/src/cmd_oo.rs\npatching file rust/tcl-vm/src/cmd_oo/native_method_cache.rs\npatching file rust/tcl-vm/src/cmd_oo/native_properties.rs\npatching file rust/tcl-vm/src/cmd_oo/native_properties/mutation.rs\npatching file rust/tcl-vm/src/cmd_oo/variable_mapping.rs\npatching file rust/tcl-vm/src/cmd_package.rs\npatching file rust/tcl-vm/src/cmd_try.rs\npatching file rust/tcl-vm/src/command.rs\npatching file rust/tcl-vm/src/embed.rs\npatching file rust/tcl-vm/src/exec.rs\nHunk #27 succeeded at 7556 (offset 16 lines).\nHunk #28 succeeded at 7578 (offset 16 lines).\nHunk #29 succeeded at 9469 (offset 16 lines).\nHunk #30 succeeded at 9643 (offset 16 lines).\nHunk #31 succeeded at 9908 (offset 16 lines).\nHunk #32 succeeded at 11066 (offset 16 lines).\nHunk #33 succeeded at 11081 (offset 16 lines).\nHunk #34 succeeded at 11191 (offset 16 lines).\nHunk #35 succeeded at 11349 (offset 16 lines).\nHunk #36 succeeded at 11509 (offset 16 lines).\npatching file rust/tcl-vm/src/expr/native_boolean_truth.rs\npatching file rust/tcl-vm/src/interp.rs\npatching file rust/tcl-vm/src/interp/authored_package.rs\npatching file rust/tcl-vm/src/interp/command_cleanup.rs\npatching file rust/tcl-vm/src/interp/execution_name_policy.rs\npatching file rust/tcl-vm/src/interp/jim_table_keys.rs\npatching file rust/tcl-vm/src/interp/native_append.rs\npatching file rust/tcl-vm/src/interp/native_command_names.rs\npatching file rust/tcl-vm/src/interp/native_error_variables.rs\npatching file rust/tcl-vm/src/interp/native_interpreter_paths.rs\npatching file rust/tcl-vm/src/interp/native_jim_increment.rs\npatching file rust/tcl-vm/src/interp/native_jim_links.rs\npatching file rust/tcl-vm/src/interp/native_jim_lookup.rs\npatching file rust/tcl-vm/src/interp/native_name_queries.rs\npatching file rust/tcl-vm/src/interp/native_name_world.rs\npatching file rust/tcl-vm/src/interp/native_namespace_names/jim_parent.rs\npatching file rust/tcl-vm/src/interp/native_numeric_ops.rs\npatching file rust/tcl-vm/src/interp/native_original_lookup.rs\npatching file rust/tcl-vm/src/interp/native_procedure_artifacts.rs\npatching file rust/tcl-vm/src/interp/native_variable_names.rs\npatching file rust/tcl-vm/src/interp/variable_cleanup.rs\npatching file rust/tcl-vm/src/literal_pool.rs\npatching file rust/tcl-vm/src/native_jim_script.rs\npatching file rust/tcl-vm/src/return_options.rs\npatching file rust/tcl-vm/src/value.rs\npatching file rust/tcl-vm/src/value/native_jim_subcommand.rs\npatching file rust/tcl-vm/src/value/native_list_storage.rs\npatching file rust/tcl-vm/src/value_ops.rs\npatching file rust/tcl-vm/src/value_ops/native_indexed_append.rs\npatching file rust/tcl-vm/src/value_ops/native_jim_index.rs\n",
+        "stderr": ""
+      }
+    }
+  ],
+  "unique_path_count": 133,
+  "canonical_observed_sha256": {
+    "runtime/rust/src/interp/native_body_artifact/native_scalar.rs": "6e1199d63a54944e1bf773b2d9d6cab617bba358c952f395c2e3b83306cb47e6",
+    "rust/tcl-compiler/src/analyser/commands.rs": "544c091ec74a06a8fb878ee4b54261e87c288b0d8845215347f223b67ce7aa94",
+    "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs": "910c9cb56e8b84ea105de6a48ba86333853b78447a70ec1d2dbbadc0497a4fb8",
+    "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs": "2be1cd46f300210c89ad70b1ba3e4823fa054d3b0f5691d951dd45e9fa2eeed0",
+    "rust/tcl-compiler/src/analyser/handlers.rs": "d5f1d6caa99c737402bafdeb4b9467fb7f9fc2b91cd3bd48db1611f2672a70b6",
+    "rust/tcl-compiler/src/analyser/scope.rs": "f3bca8a35dcabe0fcb3b4e655eb64e6321f7e896d8ce971aa543d5fb016dee54",
+    "rust/tcl-compiler/src/analyser/types.rs": "b2f374362c01a744f18c6ea6e729b17b06aa27d5cc3dac6b91067dcd2daf5dab",
+    "rust/tcl-compiler/src/analyser/types/logical_members.rs": "689a7c8b67a15cef29939beaeb5824518fb172c9d46d64c1775323bd6f0806b7",
+    "rust/tcl-compiler/src/cell_state_ssa.rs": "c2533e90e593151fac239627574d8d20b7fe1a927f4c428831c6306a439d1225",
+    "rust/tcl-compiler/src/codegen/cmd_subst.rs": "e39829c03a3a906522a8a69e0f3034ecb40ddcca2d83d76b80779f94f81267e7",
+    "rust/tcl-compiler/src/codegen/control_flow.rs": "33a7869f64f8acc08aace5986623f13203874912c81fd73dff22e5843f67dab7",
+    "rust/tcl-compiler/src/codegen/emitter/loop_blocks.rs": "a26822454aef319470500f9450756e032d31981b5761a7dacb23524246824df8",
+    "rust/tcl-compiler/src/codegen/emitter/mod.rs": "df7cb2faba1f00925344632780e58fb6e0766e50a120577c69318a1ac7b80308",
+    "rust/tcl-compiler/src/codegen/emitter/try_blocks.rs": "0aed176411f29bdac35abee2af7ff4fc260dbe215779923ab2fabf67967377f6",
+    "rust/tcl-compiler/src/codegen/statements/native_scalar.rs": "543b68dde8c69948e883b58a2b1dede11929e7ea0e7be45a2b15dc616e1c167c",
+    "rust/tcl-compiler/src/codegen/values.rs": "6bb8a283dd01acdcdb7af3388debe65608e8d5e2c5b95eac439c76f9272dbff8",
+    "rust/tcl-compiler/src/codegen/wasm/backend.rs": "568f37ccec9945ac9d31ce75710410f32890aed8fcf3e429b9487229c75b74b4",
+    "rust/tcl-compiler/src/codegen/wasm/ir.rs": "c784269b7862bc84bb92a7f12bbc47f806ed053dff18313dea8a0e1a8d179eff",
+    "rust/tcl-compiler/src/command_binding.rs": "65bae9b94617ba047795169d78b72e04f14f0ade3d668a9cdde16ea6cd6ef0b0",
+    "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs": "0da1f39821e4159f0f8a76d729b611d65c2c9db6b310a1ec0d16364bf978444d",
+    "rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs": "b17ce6b3d6d1260a839eccdf2dda0f378ad806e14137242c6d5d07a93903b92e",
+    "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs": "596cb4cb041a65f871dc5e2d9298562d3386c3a6c937ecc91808a9302b993ab2",
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "12ee46ee22f7ed206a472af268a501790e52232f76b3c66d22f41c8486fdb279",
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "f9485a9095cade925bf4d8c264f60e32d335706c55fbba9290ee9cca2ff7a48e",
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs": "43b54f5d353b8a3bf7fb830fc0e312fcb6519e98506921246deeb47460bb1f25",
+    "rust/tcl-compiler/src/command_binding/deferred_namespace_index.rs": "c3d96538a8dc16dff5496c0d1c15dfc37f52c45dfd1661e19d4dc82fb075f246",
+    "rust/tcl-compiler/src/command_binding/formal_value.rs": "c2ec592adb8e12597221e19ee9c18bdb619e08242dddc11fa3d3d34cb9cae3a3",
+    "rust/tcl-compiler/src/command_binding/generated_procedures.rs": "03314ddaa1cf3ac3f32165aa9d25ca16c61ce06ebb0e719f5b7cebdaed516158",
+    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs": "b5173442fc1c788612918fd1e5574ba719911a397b449397b9fb320f77bd16d8",
+    "rust/tcl-compiler/src/command_binding/logical_operation.rs": "0db1b07189a83f46e2229ea38e818720d784825e9eb90b35d20089fa2b488e0d",
+    "rust/tcl-compiler/src/command_binding/logical_variable_scope.rs": "992d3cd8547809e20d034aacef6ac3fc5875f04b391bc15addc84540adafc683",
+    "rust/tcl-compiler/src/command_binding/materialized_footprint.rs": "7e60d0581ae49ead7cd109eb878328cccbbb28b9c37f13ade429f62d1008cf7f",
+    "rust/tcl-compiler/src/command_binding/named_manufacture.rs": "03204286f02a273ae66968ee89d3d6c636655e828c4486179b118d43222a078c",
+    "rust/tcl-compiler/src/command_binding/namespace_slots.rs": "684246b368d009b8c2d536fb272c7beff93b4038e66ce06abed8c3f18158e546",
+    "rust/tcl-compiler/src/command_binding/origin_inventory.rs": "ce697700f954af119b94a28d18ceb8c99273df229742cb2d6e5ad5cd0274dc1b",
+    "rust/tcl-compiler/src/command_binding/original_command_table.rs": "c4e621d477967a445f4ea999ead2316afa9c88b0bbeca49f62ebbe81f6649b39",
+    "rust/tcl-compiler/src/command_binding/original_compiler_effects.rs": "f316738d766fd72c8b8d3292e3bba3cf075ef2388628bb836d42a8d8cd624ff3",
+    "rust/tcl-compiler/src/command_binding/package_target_survey.rs": "15ac1631cbc8d6f4795151ece71b91eb79e6a8625d448fe801555c30fc6f6ff3",
+    "rust/tcl-compiler/src/command_binding/pre_handler_failure.rs": "82f1e3fc7dfd08dc4a5506007b5f2a25024ac7a364d7e0cf1ab1b4c6f54d1ab7",
+    "rust/tcl-compiler/src/command_binding/retained_source.rs": "d31e71bfabc4f447bc12b55b68b9a66a6bce5f2d656cc2da1ace1ed263d9ece5",
+    "rust/tcl-compiler/src/command_binding/source_arguments.rs": "7f8821c164bb39c536a95f46b6b7c8f2f6190e180b0e9666c4306ac137b1681f",
+    "rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs": "8d5a4c21e06c14338c2dc0558fe19e07bbf6223f567012e440d2a7b6a3a8d9e0",
+    "rust/tcl-compiler/src/command_binding/source_read_scope.rs": "c05fa850f073c09f74be822185f55326c936279ca4332aa829ff007c7ab537d3",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "4b8f4349aafd29599f930e0969cfd0575ddd8b5dbccd0b85ac4ff860e6df81fd",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/c_namespace.rs": "6a2c43fa05519e59177d9c95a82e767d47aa058c017e31e214165945c983fc65",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs": "8aa25f3952599f8fd7f2275eb118ccb0f08138fb54cca3f702af5fdd830d395c",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/native_declared_body.rs": "9bc06bb82bb958562fae5cefc0683640d44bfd4c5fd3139ad351640a073f87c5",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs": "3046769e0e1172be751bb0e087facf20e3d9d78cdce358ed1c92d760c258d52f",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_configured_class.rs": "93c8a511aaad5718c9aeb62ba9784bcaffabe62b6824ad8928b20b34e6b6cbda",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_namespace.rs": "29feecc952902f504a0926fd84df5281143038244f8574d19ed403e80186aa7e",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs": "afdbfeef1e33ad8cd06b34993d7b474c0f4231d8750a84f73a75ce99b675e234",
+    "rust/tcl-compiler/src/command_binding/try_bodies.rs": "5ec8be6a1e97a8965ad050d4f1ebdbb3c3313dd24384b8ac392a05087561c556",
+    "rust/tcl-compiler/src/compile_service.rs": "231c5d0d6793c5b8a986d8b10c3e5f61d585d272e78207c9225fcc7f4fd9ce5d",
+    "rust/tcl-compiler/src/connection_scope.rs": "f013433e653f1f923055a2e7e110b5c6df7796081acd715351d3d03a7d999472",
+    "rust/tcl-compiler/src/dynamic_names.rs": "a30012610e091a180aa8ffaa4e930d9582da412ffaa1253604c0d2b0578aef09",
+    "rust/tcl-compiler/src/existence_query.rs": "2ba6ce1db321dee6742214aff7aff1f2eca871876e662b623aff1a3ccaf0aff4",
+    "rust/tcl-compiler/src/increment_rewrite.rs": "916c4646660817338506a6c58528e4c0bd11ea6303aa5bc5b077d66876ca4a31",
+    "rust/tcl-compiler/src/optimiser/chain_fold.rs": "45cd2519d479cab601c7884f424fac9949801311533571a5ce6242fb43182d3b",
+    "rust/tcl-compiler/src/optimiser/elimination.rs": "d05bca8882a0bed0ec31b59ddb635a7a7ff74ba375e2547f21272db448246838",
+    "rust/tcl-compiler/src/optimiser/elimination/source_reads.rs": "1ad6d868313ccddfc4dba3981d94d3d7178d93884f1154c9e7db5193e13cdff7",
+    "rust/tcl-compiler/src/optimiser/manager.rs": "db5bcde9fd386da944ac4e3dfedd801779833100c2503874cceacfc7883b3734",
+    "rust/tcl-compiler/src/optimiser/method_barrier.rs": "b3db047d9332a238fdcec5b9aa82fce26d3e95f13f9e5666a2f96b6d19dea691",
+    "rust/tcl-compiler/src/optimiser/original_report.rs": "7f7aa5226d5bce31ce36b6b2a1166ac489740d5a16c60b0d4c6441d082cfca39",
+    "rust/tcl-compiler/src/optimiser/propagation.rs": "6f16d82c9dccd6d190f086ea50f3277a965354a89ba932d5514fdef0d6e5b4f1",
+    "rust/tcl-compiler/src/optimiser/unused_procs.rs": "29e8902de4900650262a8db8e876227e6e5aa7eef013d1929f2a787d3b13f509",
+    "rust/tcl-compiler/src/place_bridge.rs": "fa160b2447126395a527157643927c24587b8721b4b0d51a97b77cdff607ae4b",
+    "rust/tcl-compiler/src/place_bridge/original_read_source.rs": "bde9243780aeee283c2f2a3cee3b78962ecba364451df1da3b31d195bee19214",
+    "rust/tcl-compiler/src/registry_invocation.rs": "ce45b04ba79a9d5ddae241f4a459eca8e99096534b84f34e389e74fa1092ff43",
+    "rust/tcl-compiler/src/registry_invocation/metadata_context.rs": "d6585ad7853c73f600b5f7a1bc0ba2dd59728cce7d1d0b944ef029c14a066ffd",
+    "rust/tcl-compiler/src/ssa.rs": "2207b505241df3947b5581bbd4f08a5c805559924bd7789f7e132dc02f0c92cc",
+    "rust/tcl-compiler/src/static_loops/original_simulation.rs": "a8d5e9b0e0f142d88bac8e27935ee6bc42b67d1788ac58ceba7fe7a373581600",
+    "rust/tcl-compiler/src/table_value_provenance.rs": "486afd6b987a0a23494b715707fbef40b4a6d5e20b0ab27dc92d7e82aca4ca16",
+    "rust/tcl-compiler/src/uri_split.rs": "2a8cc5b89355aa29bf4ff659921860f9e3c7a59e5145d7ea7ee8222866611684",
+    "rust/tcl-compiler/src/value_provenance.rs": "68cd36c2413d5a2d40243806a006131e94a3b28f9b9b91d828698f80230a65c0",
+    "rust/tcl-compiler/src/value_transfer.rs": "56b452683a5081190884cc9e07f96248301198b36a4f9c6bc9e6862d5b95d620",
+    "rust/tcl-compiler/src/variable_bindings.rs": "445f5353c58446ab22a23f2c3843db649c1dd8867383703d55628e2e5258b08b",
+    "rust/tcl-registry/src/commands/tcl/string_.rs": "fc8ea26daaea3009d543f3022a5c0c6e46c67da60217dabcf260be3bef67430a",
+    "rust/tcl-registry/src/lib.rs": "0a62fcb6cb8ae0bd49754dd29e90eafaba140deb58fb33eb9d1214b81a7c74e9",
+    "rust/tcl-registry/src/native_compilation.rs": "5960db8e335d328cd3bdca5ceafac557e8d3ebfc98181db4fb13f363a32114a8",
+    "rust/tcl-registry/src/native_instruction_plan.rs": "9b0d17b62d1b7e17b68cd7538dacb21f72aa8b5b0d3c34bed74072439e8cc545",
+    "rust/tcl-registry/src/native_scalar_compilation.rs": "bb08f46026232334f8ab7d47128bc9e8fdd01215b8f99fe613730f395682ebec",
+    "rust/tcl-registry/src/native_string_is_compilation.rs": null,
+    "rust/tcl-registry/src/registry.rs": "236871165dab352c72c58fa38c702232f4996e44b53ec992a8cf6938b71e5f3c",
+    "rust/tcl-spectcl/tests/pack_source_e2e.rs": "a73df6d81356d95baa203c94375ad9239709e79a8ca1a278095677feacdceb85",
+    "rust/tcl-spectcl/tests/support/native_string_is_ascii.rs": null,
+    "rust/tcl-vm/src/cmd_binary.rs": "24642b5a709f470eedea32963ff76e06e1400f00a34b1e22a8a947d9c699f024",
+    "rust/tcl-vm/src/cmd_coro.rs": "7d2d050d3d1fcb2e5cdac1d266479b06dcaba8413a920973d2827c0a101c419e",
+    "rust/tcl-vm/src/cmd_file.rs": "fd163b5602134777b7989770c8dddae18200a9e6f57d5a573a1ff55894c9d472",
+    "rust/tcl-vm/src/cmd_list.rs": "0aff1b0fbb6f1a78ede917653015f092b330b840e83b6c99af18e4ec962d8bce",
+    "rust/tcl-vm/src/cmd_math.rs": "9753fa953407048c8818152d229fd93f3204644ca96180a41582ad22c98c2254",
+    "rust/tcl-vm/src/cmd_namespace.rs": "843e2b92bc50a9e44bb7afbb5590481fea3619efcbeeb6da33e2865429c110d8",
+    "rust/tcl-vm/src/cmd_namespace/native_jim_subcommands.rs": "9228a5c4eef41b605aebf8f3354a0db114992617ea120ce198054499a357ffd2",
+    "rust/tcl-vm/src/cmd_oo.rs": "f4555c823f4e818c23060f5755135288c1db3b76a0c0a0c295fd71e832577914",
+    "rust/tcl-vm/src/cmd_oo/native_method_cache.rs": "9ef3e21ebf27b4afefe5c609f5409e6f8865dca4108e641426b5d8e74429a8ab",
+    "rust/tcl-vm/src/cmd_oo/native_properties.rs": "8a893706e47e5efb18a47508b2c908c0bb3e768955a77a6c013f81f1cb14d408",
+    "rust/tcl-vm/src/cmd_oo/native_properties/mutation.rs": "7abb418fb8542ae8c8e95700e8a42bbce7938ad0e0f7128106e424642fc5a8af",
+    "rust/tcl-vm/src/cmd_oo/variable_mapping.rs": "112c4ccaa655856e93e9577ac03113857e287d84f174975e3d12f020d0407840",
+    "rust/tcl-vm/src/cmd_package.rs": "5040d0c939ff732312e27a7d0885621e2130c99bf613dbfeca5e4ec8369d2838",
+    "rust/tcl-vm/src/cmd_try.rs": "459f85ac7a93c49aa786a287cbd1c4b2547acb6994479793375a75c7df937fdb",
+    "rust/tcl-vm/src/command.rs": "9f7252ec750dfcd1173ae18a87a968ca1c8f4dcc8700a4fe4267a3f08c1daccc",
+    "rust/tcl-vm/src/embed.rs": "b22442e1ab18c71a26a7fe9d723e1223cbc5ad0380c30d25c5d6ccdc7559215e",
+    "rust/tcl-vm/src/exec.rs": "cbd6fe9e58f53b284b25bf95e4d628cb037399c7de80e9c1efe7c80966c6e919",
+    "rust/tcl-vm/src/exec/native_scalar.rs": "578654fae82bfcb1602885e2e6be13c4e8290f8b74204984abb39bb273a99cd6",
+    "rust/tcl-vm/src/expr/native_boolean_truth.rs": "e2c5e617931ace5220e8ae0beb008df8ebc8f013b126403e8b47bd4c1cdfccb8",
+    "rust/tcl-vm/src/interp.rs": "759a66038692a13b4d26085558fe4426ac5d77d270dadfc6ca39f49cf272164b",
+    "rust/tcl-vm/src/interp/authored_package.rs": "3ea96be8175495b2b3115a2a8cf7247e8ea4c173eb90c9364cce6161c1408faa",
+    "rust/tcl-vm/src/interp/command_cleanup.rs": "0047ce47f9c22dc8ee0d62d6e31089385c2fa8d9cd276b5e51c6bc6e7759dcb1",
+    "rust/tcl-vm/src/interp/execution_name_policy.rs": "31de3d37d725a8ac38abba9339f43dd9a0bea777843e6ce7d87862e1d2fb9146",
+    "rust/tcl-vm/src/interp/jim_table_keys.rs": "1564386499e5d5a9e59c9faf6e185ca33a4625856219507c6e6efe8e0d7ffbe4",
+    "rust/tcl-vm/src/interp/native_append.rs": "fc6a1a868059df80542cc3725c935103a99d26097f1a9ba763ea4ea1ba898053",
+    "rust/tcl-vm/src/interp/native_command_names.rs": "615d0f01689900354c52002243c28dfe2017f82ea52c72ad8440fc08cb4b21b5",
+    "rust/tcl-vm/src/interp/native_error_variables.rs": "e90a98d0795c2ba39a91304b596582f234081bc1891e96d47952b8d813dfe858",
+    "rust/tcl-vm/src/interp/native_interpreter_paths.rs": "100b48517a90ec32da17a06e7551ce435092d9e1b6815a1be9c6e2f73bf1ed54",
+    "rust/tcl-vm/src/interp/native_jim_increment.rs": "4bcf0105873eda021ef77b1f83d7049c0e9e61b3c99d867e4b3d945bb21ebd3e",
+    "rust/tcl-vm/src/interp/native_jim_links.rs": "fe8586cb82dadbc417b77a0c9717dbe6f8637ceed612736ce48ef0b9ca2836ac",
+    "rust/tcl-vm/src/interp/native_jim_lookup.rs": "01ca91b55d7b2de70b8c809a144d606a659fe53943a0e0dd031cd8cfcc5b9f03",
+    "rust/tcl-vm/src/interp/native_name_queries.rs": "91ed32e19f0cafb0c81f5d73052b872d1977238990b999ce9a530ad900e98dbd",
+    "rust/tcl-vm/src/interp/native_name_world.rs": "2558299f2e229d52d50a20c72764da0d4fe9017c9556f7cce745d70a186d249c",
+    "rust/tcl-vm/src/interp/native_namespace_names/jim_parent.rs": "42ce3aa2714f5fd462484ce2dbc8aa2a66717eee80772e809cf9ab30a630edfb",
+    "rust/tcl-vm/src/interp/native_numeric_ops.rs": "f5533c43c588fee110ae79bca4f1df73f721d5fc5b85047b90b6cb369c3f316e",
+    "rust/tcl-vm/src/interp/native_original_lookup.rs": "9202596c9fbf59e618524f31c1449e0b5764b80806114bc1052dff618e2c9c0f",
+    "rust/tcl-vm/src/interp/native_procedure_artifacts.rs": "5ed106639372955646795a5f22f35c1dfc4eccd54d32cabb19e5e42e9b74665b",
+    "rust/tcl-vm/src/interp/native_variable_names.rs": "ebaec21409fd5d24e5176fd36140d37beeee22cd96caf04409c1d94a3b9f4290",
+    "rust/tcl-vm/src/interp/variable_cleanup.rs": "3be5de5fb8478d89c361d3d109b129bc4fa00f43d88fa3e8d78afc76e71c44a9",
+    "rust/tcl-vm/src/literal_pool.rs": "277d0ee0d20f8bb96faec46bcb0fe5e649f9fde61aebaf4616c11abfee6c323e",
+    "rust/tcl-vm/src/native_jim_script.rs": "41e155cbe6a17109735e4b080e455d64f6f36af8308c602d5fc511567fd79df5",
+    "rust/tcl-vm/src/return_options.rs": "738de00874badce84c91c571d79caee4512962f249edcab2debfa0a57d9ceb47",
+    "rust/tcl-vm/src/value.rs": "c4907fa5fb74ada5bd8814ef321da0ac246a4715fa65add6122f264b827f9b95",
+    "rust/tcl-vm/src/value/native_jim_subcommand.rs": "f3a86b8ea0bdd2926ab4462636697c7c4092bcde520df63f49ea0d9edd7c344b",
+    "rust/tcl-vm/src/value/native_list_storage.rs": "007feefc60fc9090807a0edd983e86436e6c7816e2a817a2ec457c22115c1b92",
+    "rust/tcl-vm/src/value_ops.rs": "cf857afe7a483f115c11e52da71de7389cce0b3176673c6cdfe44ae931c0bb11",
+    "rust/tcl-vm/src/value_ops/native_indexed_append.rs": "eaaf7b33928c9bc21289e45624ffdbbb07d0e984f1c1257a7c69e59413645e65",
+    "rust/tcl-vm/src/value_ops/native_jim_index.rs": "1db0836fc5b8d09da7db6b386e4c800f49d8305d0d8ca236595c33825912c433"
+  },
+  "overlaps": {
+    "rust/tcl-vm/src/exec.rs": [
+      1,
+      16
+    ],
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs": [
+      5,
+      6,
+      8
+    ],
+    "rust/tcl-compiler/src/analyser/commands.rs": [
+      6,
+      11
+    ],
+    "rust/tcl-compiler/src/analyser/handlers.rs": [
+      6,
+      9
+    ],
+    "rust/tcl-compiler/src/analyser/scope.rs": [
+      6,
+      9
+    ],
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs": [
+      6,
+      7
+    ],
+    "rust/tcl-compiler/src/analyser/types.rs": [
+      9,
+      10,
+      14
+    ]
+  },
+  "all_copied_applies_pass": true,
+  "canonical_hashes_after_equal": true,
+  "notes": [
+    "ASCII11 already includes VM3 semantic backend paths: do not apply the separate VM ASCII patch again.",
+    "Names entries11/12 are optional functional candidates requiring distinct validation; source assembly is not approval to land them.",
+    "Compiler post-C6 functional corrections/additional compiler lint/ILX and LSP gate patches are not yet part of this manifest.",
+    "Final batch must typecheck all crates/targets together after root CLEAR before functional and strict lint claims."
+  ],
+  "assembled_syntax_check": {
+    "utc": "2026-10-22T17:36:47.903974+00:00",
+    "count": 133,
+    "passed": 133,
+    "rows": [
+      {
+        "path": "runtime/rust/src/interp/native_body_artifact/native_scalar.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/commands.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/handlers.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/scope.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/types.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/analyser/types/logical_members.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/cell_state_ssa.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/codegen/cmd_subst.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/codegen/control_flow.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/codegen/emitter/loop_blocks.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/codegen/emitter/mod.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/codegen/emitter/try_blocks.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/codegen/statements/native_scalar.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/codegen/values.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/codegen/wasm/ir.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/deferred_namespace_index.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/formal_value.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/generated_procedures.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/logical_operation.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/logical_variable_scope.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/named_manufacture.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/namespace_slots.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_command_table.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/original_compiler_effects.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/package_target_survey.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/pre_handler_failure.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/retained_source.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_arguments.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_read_scope.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/c_namespace.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/native_declared_body.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_configured_class.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_namespace.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/command_binding/try_bodies.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/compile_service.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/connection_scope.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/dynamic_names.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/existence_query.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/increment_rewrite.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/chain_fold.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/elimination.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/elimination/source_reads.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/manager.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/method_barrier.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/original_report.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/optimiser/unused_procs.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/place_bridge.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/place_bridge/original_read_source.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/registry_invocation/metadata_context.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/ssa.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/static_loops/original_simulation.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/table_value_provenance.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/uri_split.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/value_provenance.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/value_transfer.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-compiler/src/variable_bindings.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-registry/src/commands/tcl/string_.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-registry/src/lib.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-registry/src/native_compilation.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-registry/src/native_instruction_plan.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-registry/src/native_scalar_compilation.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-registry/src/native_string_is_compilation.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-registry/src/registry.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-spectcl/tests/pack_source_e2e.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-spectcl/tests/support/native_string_is_ascii.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_binary.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_coro.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_file.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_list.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_math.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_namespace.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_namespace/native_jim_subcommands.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_oo.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_oo/native_method_cache.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_oo/native_properties.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_oo/native_properties/mutation.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_oo/variable_mapping.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_package.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/cmd_try.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/command.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/embed.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/exec.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/exec/native_scalar.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/expr/native_boolean_truth.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/authored_package.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/command_cleanup.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/execution_name_policy.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/jim_table_keys.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_append.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_command_names.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_error_variables.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_interpreter_paths.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_jim_increment.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_jim_links.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_jim_lookup.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_name_queries.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_name_world.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_namespace_names/jim_parent.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_numeric_ops.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_original_lookup.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_procedure_artifacts.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/native_variable_names.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/interp/variable_cleanup.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/literal_pool.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/native_jim_script.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/return_options.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/value.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/value/native_jim_subcommand.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/value/native_list_storage.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/value_ops.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/value_ops/native_indexed_append.rs",
+        "exit": 0,
+        "stderr": ""
+      },
+      {
+        "path": "rust/tcl-vm/src/value_ops/native_jim_index.rs",
+        "exit": 0,
+        "stderr": ""
+      }
+    ],
+    "scope": "syntax only; no Cargo/typecheck or canonical writes"
+  },
+  "superseding_controls": {
+    "utc": "2026-10-22T17:37:34.769867+00:00",
+    "patch": "/tmp/ccg-string-is-ascii-controls.patch",
+    "sha256": "9afb11774d200e58512dccc6e02dd2c8d6cf0fa9e3c3a37175f06ac1dae8ac4b",
+    "scope": "Root-directed new-control lint preparation only: exact HookPlan predicate retained in local has_programs bool, three Vec.empty assertions converted to len0 with messages unchanged. No canonical/Cargo. Earlier16patchassembly historical; root22patch global manifest authoritative."
+  }
+}

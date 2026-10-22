@@ -2,7 +2,7 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T17:21:31Z (canonical Rust/tests frozen; structural lint draft prepared off-tree; no VM build started)
+Last updated: 2026-10-22T17:36:49Z (canonical Rust/tests frozen; structural lint draft prepared off-tree; no VM build started)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -116,6 +116,29 @@ check passes, but no typecheck/build/runtime/Clippy acceptance was run. The draf
 depends on CCG's typed ASCII-only descriptor/enum and root's later explicit release.
 No VM Cargo process has started; after8b/Jim/TLS remains first execution priority.
 
+All 17 prior `jim_document` failures now have an explicit source/log
+classification in `../handoff/reviews/merge-inventory-20261019/vm-runtime/jim-document-source-triage-20261022.json`.
+Three procedure-shape cases directly encounter the missing typed descriptor;
+four class-list cases use separate retained source-purpose/original-list
+premises; five member/receiver joins, three disabled-availability diagnostics,
+one distinct two-word unknown command and one compound program remain separate
+obligations. No current Rust test or pass-count is inferred from this triage.
+Pinned Jim0.84 passes 25 finite semantic controls (proc3/4/static copy/reference,
+class dictionaries/inheritance/methods and invalid shapes), archived under
+`runs/vm-runtime-jim-document-oracle-20261022T172713Z/`. This preserves the original
+semantic expectations without granting analyser admission.
+
+A minimal Jim typed descriptor draft is ready ONLY in
+`/tmp/vm-runtime-jim-descriptor-shadow/trusted-jim-proc.patch`, SHA-256
+`a727fa744fe696eb5d2b71404658cc081a47875d649b9ec9e64c6e918ef86e05`.
+It attaches the existing Core procedure descriptor at trusted compiled-in
+Core(Jim) registration, preserving selected availability, pointer idempotence,
+ordinary pack restrictions and no-fallback consumer semantics. Original argv,
+body-range, missing-grammar/expansion/Tcl4/shadowing and registration controls
+are drafted beside it. Compiler accepted the boundary plan; implementation
+peer review is pending. Both shadow files and controls parse, application check
+passes and canonical hashes are unchanged; no typecheck/Cargo run has occurred.
+
 The scratch runner is `/tmp/vm-runtime-preflight/seq-safe.sh`: one `cargo test`
 build/run per target, draining filtered logs capped at 20 MB, recording exit and
 warning counts, no deletion of fresh shared executables. Source
@@ -128,10 +151,11 @@ environments. Server lib and general section D lifecycle seams stay with lsp.
 
 **After8 (review C.2 Jim/EDA targets).**
 - Finished: `jim_document` **9 passed / 17 failed / 26**. The panic summaries are in
-  `…/vm-runtime/runs/after8.jim_document.failures.txt`. They are W123 "class" unknown in
-  Jim documents, missing class/method facts and `all_classes` entries, i.e. Jim
-  class/document analysis. No pre-change baseline exists. Not yet triaged: owner is
-  probably the compiler/LSP side, VM to be ruled out.
+  `…/vm-runtime/runs/after8.jim_document.failures.txt`. No pre-change baseline
+  exists. All 17 have now been classified by source/log family in the triage
+  receipt above; the three direct proc-shape failures have a narrow descriptor
+  draft, while class-source and diagnostic-provenance causes remain separate.
+  Guarded current rerun is still pending; no general VM parity repair is shown.
 - Not run: `jim_own_surface`, `jim_surface_roster`, `jim_generation_zero`,
   `jim_seed_after_publish`, `eda_loadables`, `eda_environment_packs`.
 

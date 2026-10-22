@@ -1,0 +1,3108 @@
+{
+  "created_utc": "2026-10-22T17:32:50.819604+00:00",
+  "status": "manual source controls only; no native minifier/compiler test verdict",
+  "decision": "2026-10-22T13:17Z removes all safely removable whitespace",
+  "initial_observation": "Initial108 controls: numeric1ne2 matched on all six, and trueeqtrue matched onlyJim; initial receipt preserved separately. TIP461 lt additionally succeeded onC9.0/9.1 andJim, with8.x errors; both intermediate receipts retained. Final classification follows measured native results, not assumed errors.",
+  "witnesses": [
+    {
+      "profile": "tcl8.4",
+      "executable": "/workspace/naming-toolchains/bin/tclsh8.4",
+      "sha256": "d47422869429a960bccf50aee8a56ce7a6a4250e7d54235b4fe5628eef3420d1",
+      "version": {
+        "exit_code": 0,
+        "stdout": "8.4.20\n",
+        "stderr": ""
+      }
+    },
+    {
+      "profile": "tcl8.5",
+      "executable": "/workspace/naming-toolchains/bin/tclsh8.5",
+      "sha256": "9a9d095dbb73cad65fb94e0ba5535f4ac2eacc7ad724221c2a7a10cfba293c72",
+      "version": {
+        "exit_code": 0,
+        "stdout": "8.5.19\n",
+        "stderr": ""
+      }
+    },
+    {
+      "profile": "tcl8.6",
+      "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+      "sha256": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+      "version": {
+        "exit_code": 0,
+        "stdout": "8.6.18\n",
+        "stderr": ""
+      }
+    },
+    {
+      "profile": "tcl9.0",
+      "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+      "sha256": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+      "version": {
+        "exit_code": 0,
+        "stdout": "9.0.4\n",
+        "stderr": ""
+      }
+    },
+    {
+      "profile": "tcl9.1",
+      "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
+      "sha256": "8cbf4f56b0831bc96f057e37cf762d12e981f44d3fd42f1c5ae130880c79ad06",
+      "version": {
+        "exit_code": 0,
+        "stdout": "9.1.0\n",
+        "stderr": ""
+      }
+    },
+    {
+      "profile": "jimtcl",
+      "executable": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh",
+      "sha256": "0f634c82506c87484326b8f8ad33ab284a1806ef6b6f1e43f012a2314166942e",
+      "version": {
+        "exit_code": 0,
+        "stdout": "0.84\n",
+        "stderr": ""
+      }
+    }
+  ],
+  "rows": [
+    {
+      "profile": "tcl8.4",
+      "case": "eq_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq $b}]\n",
+        "source_sha256": "e5fbbcf5574fd5c9b95a850c57a020addf308a08e22508c4bc2cad83ac56ef22",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq$b}]\n",
+        "source_sha256": "728e5965c55f2e9a91c41b4908910984faf7c6e5d1ec64c774da5c27a9a4d0af",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "ne_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne $c}]\n",
+        "source_sha256": "90d441188ce46582516d7dde27e3e9ee606c1ca3f2785c1f40287b3c859269c5",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne$c}]\n",
+        "source_sha256": "5b6ba7decb0559192a9c16bc35e0c3c3680ded882380118a7cf51cacdc710841",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "eq_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) eq ($b)}]\n",
+        "source_sha256": "8f48a1789e09c26c56a6b90188f967d2a36e1a03d68452d5ad05a52b3dbaa7f6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)eq($b)}]\n",
+        "source_sha256": "cd9016cd0ebf37c8b74d74a099a81a3329f52686dcf99ad830cee0103bb15fad",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "ne_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) ne ($c)}]\n",
+        "source_sha256": "3e7637b2a135a6fc7054e4cbed2fb7500c755fad2bea8904e0fc6c3e85ef1d61",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)ne($c)}]\n",
+        "source_sha256": "e98db12cb902c4d84866d0fbec73e5330278405e8ad64df13261859ca951f4cd",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "eq_quotes",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\" eq \"a\"}]\n",
+        "source_sha256": "09d5601a26182705407c1ece7776348ad5af17aab584f1f3180e54721c2dceab",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\"eq\"a\"}]\n",
+        "source_sha256": "00d1f744cd54d3b9ccc4f17ca73ad49e17fb9c56581b5b23198792ab34229745",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "ne_variable_quote",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne \"x\"}]\n",
+        "source_sha256": "ad78e529a79697c4c0e2ac5f8c9e737552aae0251ea9e50b03e86246963ec76c",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne\"x\"}]\n",
+        "source_sha256": "9f25b43ad17584d2816edf24959fc7d7c440358c0837afc9060fa9366d5052cc",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "eq_variable_quote",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq \"x\"}]\n",
+        "source_sha256": "55c21b7dcf8a33e3764cb47359c73ca809c1199571c25294b69697cda599593c",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq\"x\"}]\n",
+        "source_sha256": "f67ff30e0fe030743d8f7faaefd57acbdf4ea184130da41198667e2edb9cc028",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "ni_variable_literal",
+      "negative": false,
+      "unsupported_profile_control": true,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni {a b}}]\n",
+        "source_sha256": "612d80270e15402fe5f8a0777a094130aa26c7521a63dbed1645eb51aaaca9af",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"$c ni {a b}\": extra tokens at end of expression\n    while executing\n\"expr {$c ni {a b}}\"\n    invoked from within\n\"puts [expr {$c ni {a b}}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-ni_variable_literal-original.tcl\" line 5)\n"
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni{a b}}]\n",
+        "source_sha256": "5182ad9e9d4db42c2e692736c9b6d45f52e3acb3768f8ceda5b37806836b9b6a",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"$c ni{a b}\": extra tokens at end of expression\n    while executing\n\"expr {$c ni{a b}}\"\n    invoked from within\n\"puts [expr {$c ni{a b}}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-ni_variable_literal-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "eq_braced_data",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b} eq {a b}}]\n",
+        "source_sha256": "71edd609ea8809d7fda5fba992f1d87907720d637979cc0da874007d1c2bb635",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b}eq{a b}}]\n",
+        "source_sha256": "0c815991074ac90a45250c30a7b7d27193606ec8c5319588c42b7aac40c5f0eb",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "eq_quoted_data",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\" eq \"a b\"}]\n",
+        "source_sha256": "d16ef068db2aab77c4929613237a5f784148af452dc6502d0ec9b38726f9c567",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\"eq\"a b\"}]\n",
+        "source_sha256": "e59e4be241aee51afddab5a7c85595c218be58191e7eb73a79abce6ccb72f2b6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "numeric_ne",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {1 ne 2}]\n",
+        "source_sha256": "9e93cece3ae4092bd0e725e0cdf924fccddd268b478a8baea20c3339cbebb672",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {1ne2}]\n",
+        "source_sha256": "a13cd4624b9d40a587306b80b1bf95a79ea4f25f614f7acc6f018c8265d2e9ea",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "lt_variable",
+      "negative": false,
+      "unsupported_profile_control": true,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a lt $c}]\n",
+        "source_sha256": "9862a457315fa280e103b44f469033255ddd0e92753cce3af82f5518d595078d",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"$a lt $c\": extra tokens at end of expression\n    while executing\n\"expr {$a lt $c}\"\n    invoked from within\n\"puts [expr {$a lt $c}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-lt_variable-original.tcl\" line 5)\n"
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a lt$c}]\n",
+        "source_sha256": "b616cd885c6a63acc2566463d3f9a8436e5ef6be6e017bafe192ab2e705a797a",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"$a lt$c\": extra tokens at end of expression\n    while executing\n\"expr {$a lt$c}\"\n    invoked from within\n\"puts [expr {$a lt$c}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-lt_variable-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "lt_parens",
+      "negative": false,
+      "unsupported_profile_control": true,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) lt ($c)}]\n",
+        "source_sha256": "2668fa23b3cffe90b6c1002f10403d7d2599d73944457602e23990502b19607a",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"($a) lt ($c)\": extra tokens at end of expression\n    while executing\n\"expr {($a) lt ($c)}\"\n    invoked from within\n\"puts [expr {($a) lt ($c)}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-lt_parens-original.tcl\" line 5)\n"
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)lt($c)}]\n",
+        "source_sha256": "43cea6d1382cb82cdde1cfafcc2e090e9da780813adaf58ee7dc85b39d4d34c5",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"($a)lt($c)\": extra tokens at end of expression\n    while executing\n\"expr {($a)lt($c)}\"\n    invoked from within\n\"puts [expr {($a)lt($c)}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-lt_parens-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "in_variable",
+      "negative": false,
+      "unsupported_profile_control": true,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in $items}]\n",
+        "source_sha256": "c473031fe45fe7ea172892e2d4ad01995c7e86e376fc2cd712436055e94de81a",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"$a in $items\": extra tokens at end of expression\n    while executing\n\"expr {$a in $items}\"\n    invoked from within\n\"puts [expr {$a in $items}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-in_variable-original.tcl\" line 5)\n"
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in$items}]\n",
+        "source_sha256": "17f3b95d42bd50b608d1b7b40323d62a3ddbfb39521c25685b10e35830de7b70",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"$a in$items\": extra tokens at end of expression\n    while executing\n\"expr {$a in$items}\"\n    invoked from within\n\"puts [expr {$a in$items}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-in_variable-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "ni_variable",
+      "negative": false,
+      "unsupported_profile_control": true,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni $items}]\n",
+        "source_sha256": "9560651d436d392157b3e58d8980077a39bd47d75137c7c1ca284fa7b29ff96e",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"$c ni $items\": extra tokens at end of expression\n    while executing\n\"expr {$c ni $items}\"\n    invoked from within\n\"puts [expr {$c ni $items}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-ni_variable-original.tcl\" line 5)\n"
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni$items}]\n",
+        "source_sha256": "8c3d1af4c448ae74a462b07ca8600ba638261e05769991249de3c8341af10c13",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"$c ni$items\": extra tokens at end of expression\n    while executing\n\"expr {$c ni$items}\"\n    invoked from within\n\"puts [expr {$c ni$items}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-ni_variable-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "in_parens",
+      "negative": false,
+      "unsupported_profile_control": true,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) in ($items)}]\n",
+        "source_sha256": "f60ee7108faedfd61056bbbc0a1055e9c38c19e7bc129a8a83ec70f3ed17b204",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"($a) in ($items)\": extra tokens at end of expression\n    while executing\n\"expr {($a) in ($items)}\"\n    invoked from within\n\"puts [expr {($a) in ($items)}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-in_parens-original.tcl\" line 5)\n"
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)in($items)}]\n",
+        "source_sha256": "cab2132453fcafb79a4c4cad8ac967572c0867be5b78033304288bcb7773b067",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"($a)in($items)\": extra tokens at end of expression\n    while executing\n\"expr {($a)in($items)}\"\n    invoked from within\n\"puts [expr {($a)in($items)}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-in_parens-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "in_literal",
+      "negative": false,
+      "unsupported_profile_control": true,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\" in {a b}}]\n",
+        "source_sha256": "f88dba4411361e70fbdd4a71e14c1bd15d80a465bd5306d21655552e6cbbdfe9",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"\"a\" in {a b}\": extra tokens at end of expression\n    while executing\n\"expr {\"a\" in {a b}}\"\n    invoked from within\n\"puts [expr {\"a\" in {a b}}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-in_literal-original.tcl\" line 5)\n"
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\"in{a b}}]\n",
+        "source_sha256": "6fc1b24ed110c0ea8fc7e6fcd303f041132732c0a950f60d34748a7ffc350d90",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"\"a\"in{a b}\": extra tokens at end of expression\n    while executing\n\"expr {\"a\"in{a b}}\"\n    invoked from within\n\"puts [expr {\"a\"in{a b}}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-in_literal-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "ni_literal",
+      "negative": false,
+      "unsupported_profile_control": true,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"c\" ni {a b}}]\n",
+        "source_sha256": "26541b7a31bb833ed6dba1a7a0685dee3ad13751f699c78d1f449ddd8db32568",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"\"c\" ni {a b}\": extra tokens at end of expression\n    while executing\n\"expr {\"c\" ni {a b}}\"\n    invoked from within\n\"puts [expr {\"c\" ni {a b}}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-ni_literal-original.tcl\" line 5)\n"
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"c\"ni{a b}}]\n",
+        "source_sha256": "48f4fc9d8e3ca9f0524fd9aa1bc71713d763a09de7b4e8fc7abd9c6dbc5be621",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"\"c\"ni{a b}\": extra tokens at end of expression\n    while executing\n\"expr {\"c\"ni{a b}}\"\n    invoked from within\n\"puts [expr {\"c\"ni{a b}}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-ni_literal-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "variable_token_merge",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq $b}]\n",
+        "source_sha256": "e5fbbcf5574fd5c9b95a850c57a020addf308a08e22508c4bc2cad83ac56ef22",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$aeq$b}]\n",
+        "source_sha256": "5253e58f5a54e1ffa7351e1ca6cc598d66377ee63cbe1ed12e713f5dcb91bad9",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"$aeq$b\": extra tokens at end of expression\n    while executing\n\"expr {$aeq$b}\"\n    invoked from within\n\"puts [expr {$aeq$b}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-variable_token_merge-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "boolean_token_merge",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {true eq true}]\n",
+        "source_sha256": "2193ece1c9acbb13b147aacbcf0db5431ec1123f41ac5604bc6b1168119bde34",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {trueeqtrue}]\n",
+        "source_sha256": "cb6b4f3e6027406125f6be402d37d9f61748e58875ccc5393859421c077c520f",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"trueeqtrue\": variable references require preceding $\n    while executing\n\"expr {trueeqtrue}\"\n    invoked from within\n\"puts [expr {trueeqtrue}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-boolean_token_merge-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "braced_literal_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a  b} eq {a b}}]\n",
+        "source_sha256": "c9103d62c786ef315202ba0fd58dd006005d769d7e43e15693d9c746cc60a5e2",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b}eq{a b}}]\n",
+        "source_sha256": "0c815991074ac90a45250c30a7b7d27193606ec8c5319588c42b7aac40c5f0eb",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "quoted_literal_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a  b\" eq \"a b\"}]\n",
+        "source_sha256": "b147d672e35c06dd8ddb03a5fb552cf72d298c3bb4fb548bda4a414c6bda63a3",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\"eq\"a b\"}]\n",
+        "source_sha256": "e59e4be241aee51afddab5a7c85595c218be58191e7eb73a79abce6ccb72f2b6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.4",
+      "case": "membership_list_data",
+      "negative": true,
+      "unsupported_profile_control": true,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in {a  b}}]\n",
+        "source_sha256": "c9e515773346cfc84c4e7d2c7ed24e696659b722c6d23c42d9f82b607dd9931a",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"$a in {a  b}\": extra tokens at end of expression\n    while executing\n\"expr {$a in {a  b}}\"\n    invoked from within\n\"puts [expr {$a in {a  b}}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-membership_list_data-original.tcl\" line 5)\n"
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in{ab}}]\n",
+        "source_sha256": "83db6b8913dc457d25f7e6a39df7326f715788a5f15af183c4815048b6127b31",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "syntax error in expression \"$a in{ab}\": extra tokens at end of expression\n    while executing\n\"expr {$a in{ab}}\"\n    invoked from within\n\"puts [expr {$a in{ab}}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.4-membership_list_data-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "eq_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq $b}]\n",
+        "source_sha256": "e5fbbcf5574fd5c9b95a850c57a020addf308a08e22508c4bc2cad83ac56ef22",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq$b}]\n",
+        "source_sha256": "728e5965c55f2e9a91c41b4908910984faf7c6e5d1ec64c774da5c27a9a4d0af",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "ne_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne $c}]\n",
+        "source_sha256": "90d441188ce46582516d7dde27e3e9ee606c1ca3f2785c1f40287b3c859269c5",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne$c}]\n",
+        "source_sha256": "5b6ba7decb0559192a9c16bc35e0c3c3680ded882380118a7cf51cacdc710841",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "eq_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) eq ($b)}]\n",
+        "source_sha256": "8f48a1789e09c26c56a6b90188f967d2a36e1a03d68452d5ad05a52b3dbaa7f6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)eq($b)}]\n",
+        "source_sha256": "cd9016cd0ebf37c8b74d74a099a81a3329f52686dcf99ad830cee0103bb15fad",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "ne_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) ne ($c)}]\n",
+        "source_sha256": "3e7637b2a135a6fc7054e4cbed2fb7500c755fad2bea8904e0fc6c3e85ef1d61",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)ne($c)}]\n",
+        "source_sha256": "e98db12cb902c4d84866d0fbec73e5330278405e8ad64df13261859ca951f4cd",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "eq_quotes",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\" eq \"a\"}]\n",
+        "source_sha256": "09d5601a26182705407c1ece7776348ad5af17aab584f1f3180e54721c2dceab",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\"eq\"a\"}]\n",
+        "source_sha256": "00d1f744cd54d3b9ccc4f17ca73ad49e17fb9c56581b5b23198792ab34229745",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "ne_variable_quote",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne \"x\"}]\n",
+        "source_sha256": "ad78e529a79697c4c0e2ac5f8c9e737552aae0251ea9e50b03e86246963ec76c",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne\"x\"}]\n",
+        "source_sha256": "9f25b43ad17584d2816edf24959fc7d7c440358c0837afc9060fa9366d5052cc",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "eq_variable_quote",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq \"x\"}]\n",
+        "source_sha256": "55c21b7dcf8a33e3764cb47359c73ca809c1199571c25294b69697cda599593c",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq\"x\"}]\n",
+        "source_sha256": "f67ff30e0fe030743d8f7faaefd57acbdf4ea184130da41198667e2edb9cc028",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "ni_variable_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni {a b}}]\n",
+        "source_sha256": "612d80270e15402fe5f8a0777a094130aa26c7521a63dbed1645eb51aaaca9af",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni{a b}}]\n",
+        "source_sha256": "5182ad9e9d4db42c2e692736c9b6d45f52e3acb3768f8ceda5b37806836b9b6a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "eq_braced_data",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b} eq {a b}}]\n",
+        "source_sha256": "71edd609ea8809d7fda5fba992f1d87907720d637979cc0da874007d1c2bb635",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b}eq{a b}}]\n",
+        "source_sha256": "0c815991074ac90a45250c30a7b7d27193606ec8c5319588c42b7aac40c5f0eb",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "eq_quoted_data",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\" eq \"a b\"}]\n",
+        "source_sha256": "d16ef068db2aab77c4929613237a5f784148af452dc6502d0ec9b38726f9c567",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\"eq\"a b\"}]\n",
+        "source_sha256": "e59e4be241aee51afddab5a7c85595c218be58191e7eb73a79abce6ccb72f2b6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "numeric_ne",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {1 ne 2}]\n",
+        "source_sha256": "9e93cece3ae4092bd0e725e0cdf924fccddd268b478a8baea20c3339cbebb672",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {1ne2}]\n",
+        "source_sha256": "a13cd4624b9d40a587306b80b1bf95a79ea4f25f614f7acc6f018c8265d2e9ea",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "lt_variable",
+      "negative": false,
+      "unsupported_profile_control": true,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a lt $c}]\n",
+        "source_sha256": "9862a457315fa280e103b44f469033255ddd0e92753cce3af82f5518d595078d",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "invalid bareword \"lt\"\nin expression \"$a lt $c\";\nshould be \"$lt\" or \"{lt}\" or \"lt(...)\" or ...\n    (parsing expression \"$a lt $c\")\n    invoked from within\n\"expr {$a lt $c}\"\n    invoked from within\n\"puts [expr {$a lt $c}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.5-lt_variable-original.tcl\" line 5)\n"
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a lt$c}]\n",
+        "source_sha256": "b616cd885c6a63acc2566463d3f9a8436e5ef6be6e017bafe192ab2e705a797a",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "invalid bareword \"lt\"\nin expression \"$a lt$c\";\nshould be \"$lt\" or \"{lt}\" or \"lt(...)\" or ...\n    (parsing expression \"$a lt$c\")\n    invoked from within\n\"expr {$a lt$c}\"\n    invoked from within\n\"puts [expr {$a lt$c}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.5-lt_variable-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "lt_parens",
+      "negative": false,
+      "unsupported_profile_control": true,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) lt ($c)}]\n",
+        "source_sha256": "2668fa23b3cffe90b6c1002f10403d7d2599d73944457602e23990502b19607a",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "missing operator at _@_\nin expression \"($a) _@_lt ($c)\"\n    (parsing expression \"($a) lt ($c)\")\n    invoked from within\n\"expr {($a) lt ($c)}\"\n    invoked from within\n\"puts [expr {($a) lt ($c)}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.5-lt_parens-original.tcl\" line 5)\n"
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)lt($c)}]\n",
+        "source_sha256": "43cea6d1382cb82cdde1cfafcc2e090e9da780813adaf58ee7dc85b39d4d34c5",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "missing operator at _@_\nin expression \"($a)_@_lt($c)\"\n    (parsing expression \"($a)lt($c)\")\n    invoked from within\n\"expr {($a)lt($c)}\"\n    invoked from within\n\"puts [expr {($a)lt($c)}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.5-lt_parens-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "in_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in $items}]\n",
+        "source_sha256": "c473031fe45fe7ea172892e2d4ad01995c7e86e376fc2cd712436055e94de81a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in$items}]\n",
+        "source_sha256": "17f3b95d42bd50b608d1b7b40323d62a3ddbfb39521c25685b10e35830de7b70",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "ni_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni $items}]\n",
+        "source_sha256": "9560651d436d392157b3e58d8980077a39bd47d75137c7c1ca284fa7b29ff96e",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni$items}]\n",
+        "source_sha256": "8c3d1af4c448ae74a462b07ca8600ba638261e05769991249de3c8341af10c13",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "in_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) in ($items)}]\n",
+        "source_sha256": "f60ee7108faedfd61056bbbc0a1055e9c38c19e7bc129a8a83ec70f3ed17b204",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)in($items)}]\n",
+        "source_sha256": "cab2132453fcafb79a4c4cad8ac967572c0867be5b78033304288bcb7773b067",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "in_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\" in {a b}}]\n",
+        "source_sha256": "f88dba4411361e70fbdd4a71e14c1bd15d80a465bd5306d21655552e6cbbdfe9",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\"in{a b}}]\n",
+        "source_sha256": "6fc1b24ed110c0ea8fc7e6fcd303f041132732c0a950f60d34748a7ffc350d90",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "ni_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"c\" ni {a b}}]\n",
+        "source_sha256": "26541b7a31bb833ed6dba1a7a0685dee3ad13751f699c78d1f449ddd8db32568",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"c\"ni{a b}}]\n",
+        "source_sha256": "48f4fc9d8e3ca9f0524fd9aa1bc71713d763a09de7b4e8fc7abd9c6dbc5be621",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "variable_token_merge",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq $b}]\n",
+        "source_sha256": "e5fbbcf5574fd5c9b95a850c57a020addf308a08e22508c4bc2cad83ac56ef22",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$aeq$b}]\n",
+        "source_sha256": "5253e58f5a54e1ffa7351e1ca6cc598d66377ee63cbe1ed12e713f5dcb91bad9",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "missing operator at _@_\nin expression \"$aeq_@_$b\"\n    (parsing expression \"$aeq$b\")\n    invoked from within\n\"expr {$aeq$b}\"\n    invoked from within\n\"puts [expr {$aeq$b}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.5-variable_token_merge-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "boolean_token_merge",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {true eq true}]\n",
+        "source_sha256": "2193ece1c9acbb13b147aacbcf0db5431ec1123f41ac5604bc6b1168119bde34",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {trueeqtrue}]\n",
+        "source_sha256": "cb6b4f3e6027406125f6be402d37d9f61748e58875ccc5393859421c077c520f",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "invalid bareword \"trueeqtrue\"\nin expression \"trueeqtrue\";\nshould be \"$trueeqtrue\" or \"{trueeqtrue}\" or \"trueeqtrue(...)\" or ...\n    (parsing expression \"trueeqtrue\")\n    invoked from within\n\"expr {trueeqtrue}\"\n    invoked from within\n\"puts [expr {trueeqtrue}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.5-boolean_token_merge-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "braced_literal_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a  b} eq {a b}}]\n",
+        "source_sha256": "c9103d62c786ef315202ba0fd58dd006005d769d7e43e15693d9c746cc60a5e2",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b}eq{a b}}]\n",
+        "source_sha256": "0c815991074ac90a45250c30a7b7d27193606ec8c5319588c42b7aac40c5f0eb",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "quoted_literal_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a  b\" eq \"a b\"}]\n",
+        "source_sha256": "b147d672e35c06dd8ddb03a5fb552cf72d298c3bb4fb548bda4a414c6bda63a3",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\"eq\"a b\"}]\n",
+        "source_sha256": "e59e4be241aee51afddab5a7c85595c218be58191e7eb73a79abce6ccb72f2b6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.5",
+      "case": "membership_list_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in {a  b}}]\n",
+        "source_sha256": "c9e515773346cfc84c4e7d2c7ed24e696659b722c6d23c42d9f82b607dd9931a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in{ab}}]\n",
+        "source_sha256": "83db6b8913dc457d25f7e6a39df7326f715788a5f15af183c4815048b6127b31",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "eq_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq $b}]\n",
+        "source_sha256": "e5fbbcf5574fd5c9b95a850c57a020addf308a08e22508c4bc2cad83ac56ef22",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq$b}]\n",
+        "source_sha256": "728e5965c55f2e9a91c41b4908910984faf7c6e5d1ec64c774da5c27a9a4d0af",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "ne_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne $c}]\n",
+        "source_sha256": "90d441188ce46582516d7dde27e3e9ee606c1ca3f2785c1f40287b3c859269c5",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne$c}]\n",
+        "source_sha256": "5b6ba7decb0559192a9c16bc35e0c3c3680ded882380118a7cf51cacdc710841",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "eq_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) eq ($b)}]\n",
+        "source_sha256": "8f48a1789e09c26c56a6b90188f967d2a36e1a03d68452d5ad05a52b3dbaa7f6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)eq($b)}]\n",
+        "source_sha256": "cd9016cd0ebf37c8b74d74a099a81a3329f52686dcf99ad830cee0103bb15fad",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "ne_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) ne ($c)}]\n",
+        "source_sha256": "3e7637b2a135a6fc7054e4cbed2fb7500c755fad2bea8904e0fc6c3e85ef1d61",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)ne($c)}]\n",
+        "source_sha256": "e98db12cb902c4d84866d0fbec73e5330278405e8ad64df13261859ca951f4cd",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "eq_quotes",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\" eq \"a\"}]\n",
+        "source_sha256": "09d5601a26182705407c1ece7776348ad5af17aab584f1f3180e54721c2dceab",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\"eq\"a\"}]\n",
+        "source_sha256": "00d1f744cd54d3b9ccc4f17ca73ad49e17fb9c56581b5b23198792ab34229745",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "ne_variable_quote",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne \"x\"}]\n",
+        "source_sha256": "ad78e529a79697c4c0e2ac5f8c9e737552aae0251ea9e50b03e86246963ec76c",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne\"x\"}]\n",
+        "source_sha256": "9f25b43ad17584d2816edf24959fc7d7c440358c0837afc9060fa9366d5052cc",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "eq_variable_quote",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq \"x\"}]\n",
+        "source_sha256": "55c21b7dcf8a33e3764cb47359c73ca809c1199571c25294b69697cda599593c",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq\"x\"}]\n",
+        "source_sha256": "f67ff30e0fe030743d8f7faaefd57acbdf4ea184130da41198667e2edb9cc028",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "ni_variable_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni {a b}}]\n",
+        "source_sha256": "612d80270e15402fe5f8a0777a094130aa26c7521a63dbed1645eb51aaaca9af",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni{a b}}]\n",
+        "source_sha256": "5182ad9e9d4db42c2e692736c9b6d45f52e3acb3768f8ceda5b37806836b9b6a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "eq_braced_data",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b} eq {a b}}]\n",
+        "source_sha256": "71edd609ea8809d7fda5fba992f1d87907720d637979cc0da874007d1c2bb635",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b}eq{a b}}]\n",
+        "source_sha256": "0c815991074ac90a45250c30a7b7d27193606ec8c5319588c42b7aac40c5f0eb",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "eq_quoted_data",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\" eq \"a b\"}]\n",
+        "source_sha256": "d16ef068db2aab77c4929613237a5f784148af452dc6502d0ec9b38726f9c567",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\"eq\"a b\"}]\n",
+        "source_sha256": "e59e4be241aee51afddab5a7c85595c218be58191e7eb73a79abce6ccb72f2b6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "numeric_ne",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {1 ne 2}]\n",
+        "source_sha256": "9e93cece3ae4092bd0e725e0cdf924fccddd268b478a8baea20c3339cbebb672",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {1ne2}]\n",
+        "source_sha256": "a13cd4624b9d40a587306b80b1bf95a79ea4f25f614f7acc6f018c8265d2e9ea",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "lt_variable",
+      "negative": false,
+      "unsupported_profile_control": true,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a lt $c}]\n",
+        "source_sha256": "9862a457315fa280e103b44f469033255ddd0e92753cce3af82f5518d595078d",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "invalid bareword \"lt\"\nin expression \"$a lt $c\";\nshould be \"$lt\" or \"{lt}\" or \"lt(...)\" or ...\n    (parsing expression \"$a lt $c\")\n    invoked from within\n\"expr {$a lt $c}\"\n    invoked from within\n\"puts [expr {$a lt $c}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.6-lt_variable-original.tcl\" line 5)\n"
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a lt$c}]\n",
+        "source_sha256": "b616cd885c6a63acc2566463d3f9a8436e5ef6be6e017bafe192ab2e705a797a",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "invalid bareword \"lt\"\nin expression \"$a lt$c\";\nshould be \"$lt\" or \"{lt}\" or \"lt(...)\" or ...\n    (parsing expression \"$a lt$c\")\n    invoked from within\n\"expr {$a lt$c}\"\n    invoked from within\n\"puts [expr {$a lt$c}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.6-lt_variable-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "lt_parens",
+      "negative": false,
+      "unsupported_profile_control": true,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) lt ($c)}]\n",
+        "source_sha256": "2668fa23b3cffe90b6c1002f10403d7d2599d73944457602e23990502b19607a",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "missing operator at _@_\nin expression \"($a) _@_lt ($c)\"\n    (parsing expression \"($a) lt ($c)\")\n    invoked from within\n\"expr {($a) lt ($c)}\"\n    invoked from within\n\"puts [expr {($a) lt ($c)}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.6-lt_parens-original.tcl\" line 5)\n"
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)lt($c)}]\n",
+        "source_sha256": "43cea6d1382cb82cdde1cfafcc2e090e9da780813adaf58ee7dc85b39d4d34c5",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "missing operator at _@_\nin expression \"($a)_@_lt($c)\"\n    (parsing expression \"($a)lt($c)\")\n    invoked from within\n\"expr {($a)lt($c)}\"\n    invoked from within\n\"puts [expr {($a)lt($c)}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.6-lt_parens-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "in_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in $items}]\n",
+        "source_sha256": "c473031fe45fe7ea172892e2d4ad01995c7e86e376fc2cd712436055e94de81a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in$items}]\n",
+        "source_sha256": "17f3b95d42bd50b608d1b7b40323d62a3ddbfb39521c25685b10e35830de7b70",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "ni_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni $items}]\n",
+        "source_sha256": "9560651d436d392157b3e58d8980077a39bd47d75137c7c1ca284fa7b29ff96e",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni$items}]\n",
+        "source_sha256": "8c3d1af4c448ae74a462b07ca8600ba638261e05769991249de3c8341af10c13",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "in_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) in ($items)}]\n",
+        "source_sha256": "f60ee7108faedfd61056bbbc0a1055e9c38c19e7bc129a8a83ec70f3ed17b204",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)in($items)}]\n",
+        "source_sha256": "cab2132453fcafb79a4c4cad8ac967572c0867be5b78033304288bcb7773b067",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "in_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\" in {a b}}]\n",
+        "source_sha256": "f88dba4411361e70fbdd4a71e14c1bd15d80a465bd5306d21655552e6cbbdfe9",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\"in{a b}}]\n",
+        "source_sha256": "6fc1b24ed110c0ea8fc7e6fcd303f041132732c0a950f60d34748a7ffc350d90",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "ni_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"c\" ni {a b}}]\n",
+        "source_sha256": "26541b7a31bb833ed6dba1a7a0685dee3ad13751f699c78d1f449ddd8db32568",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"c\"ni{a b}}]\n",
+        "source_sha256": "48f4fc9d8e3ca9f0524fd9aa1bc71713d763a09de7b4e8fc7abd9c6dbc5be621",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "variable_token_merge",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq $b}]\n",
+        "source_sha256": "e5fbbcf5574fd5c9b95a850c57a020addf308a08e22508c4bc2cad83ac56ef22",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$aeq$b}]\n",
+        "source_sha256": "5253e58f5a54e1ffa7351e1ca6cc598d66377ee63cbe1ed12e713f5dcb91bad9",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "missing operator at _@_\nin expression \"$aeq_@_$b\"\n    (parsing expression \"$aeq$b\")\n    invoked from within\n\"expr {$aeq$b}\"\n    invoked from within\n\"puts [expr {$aeq$b}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.6-variable_token_merge-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "boolean_token_merge",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {true eq true}]\n",
+        "source_sha256": "2193ece1c9acbb13b147aacbcf0db5431ec1123f41ac5604bc6b1168119bde34",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {trueeqtrue}]\n",
+        "source_sha256": "cb6b4f3e6027406125f6be402d37d9f61748e58875ccc5393859421c077c520f",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "invalid bareword \"trueeqtrue\"\nin expression \"trueeqtrue\";\nshould be \"$trueeqtrue\" or \"{trueeqtrue}\" or \"trueeqtrue(...)\" or ...\n    (parsing expression \"trueeqtrue\")\n    invoked from within\n\"expr {trueeqtrue}\"\n    invoked from within\n\"puts [expr {trueeqtrue}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl8.6-boolean_token_merge-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "braced_literal_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a  b} eq {a b}}]\n",
+        "source_sha256": "c9103d62c786ef315202ba0fd58dd006005d769d7e43e15693d9c746cc60a5e2",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b}eq{a b}}]\n",
+        "source_sha256": "0c815991074ac90a45250c30a7b7d27193606ec8c5319588c42b7aac40c5f0eb",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "quoted_literal_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a  b\" eq \"a b\"}]\n",
+        "source_sha256": "b147d672e35c06dd8ddb03a5fb552cf72d298c3bb4fb548bda4a414c6bda63a3",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\"eq\"a b\"}]\n",
+        "source_sha256": "e59e4be241aee51afddab5a7c85595c218be58191e7eb73a79abce6ccb72f2b6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl8.6",
+      "case": "membership_list_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in {a  b}}]\n",
+        "source_sha256": "c9e515773346cfc84c4e7d2c7ed24e696659b722c6d23c42d9f82b607dd9931a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in{ab}}]\n",
+        "source_sha256": "83db6b8913dc457d25f7e6a39df7326f715788a5f15af183c4815048b6127b31",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "eq_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq $b}]\n",
+        "source_sha256": "e5fbbcf5574fd5c9b95a850c57a020addf308a08e22508c4bc2cad83ac56ef22",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq$b}]\n",
+        "source_sha256": "728e5965c55f2e9a91c41b4908910984faf7c6e5d1ec64c774da5c27a9a4d0af",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "ne_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne $c}]\n",
+        "source_sha256": "90d441188ce46582516d7dde27e3e9ee606c1ca3f2785c1f40287b3c859269c5",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne$c}]\n",
+        "source_sha256": "5b6ba7decb0559192a9c16bc35e0c3c3680ded882380118a7cf51cacdc710841",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "eq_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) eq ($b)}]\n",
+        "source_sha256": "8f48a1789e09c26c56a6b90188f967d2a36e1a03d68452d5ad05a52b3dbaa7f6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)eq($b)}]\n",
+        "source_sha256": "cd9016cd0ebf37c8b74d74a099a81a3329f52686dcf99ad830cee0103bb15fad",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "ne_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) ne ($c)}]\n",
+        "source_sha256": "3e7637b2a135a6fc7054e4cbed2fb7500c755fad2bea8904e0fc6c3e85ef1d61",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)ne($c)}]\n",
+        "source_sha256": "e98db12cb902c4d84866d0fbec73e5330278405e8ad64df13261859ca951f4cd",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "eq_quotes",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\" eq \"a\"}]\n",
+        "source_sha256": "09d5601a26182705407c1ece7776348ad5af17aab584f1f3180e54721c2dceab",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\"eq\"a\"}]\n",
+        "source_sha256": "00d1f744cd54d3b9ccc4f17ca73ad49e17fb9c56581b5b23198792ab34229745",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "ne_variable_quote",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne \"x\"}]\n",
+        "source_sha256": "ad78e529a79697c4c0e2ac5f8c9e737552aae0251ea9e50b03e86246963ec76c",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne\"x\"}]\n",
+        "source_sha256": "9f25b43ad17584d2816edf24959fc7d7c440358c0837afc9060fa9366d5052cc",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "eq_variable_quote",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq \"x\"}]\n",
+        "source_sha256": "55c21b7dcf8a33e3764cb47359c73ca809c1199571c25294b69697cda599593c",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq\"x\"}]\n",
+        "source_sha256": "f67ff30e0fe030743d8f7faaefd57acbdf4ea184130da41198667e2edb9cc028",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "ni_variable_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni {a b}}]\n",
+        "source_sha256": "612d80270e15402fe5f8a0777a094130aa26c7521a63dbed1645eb51aaaca9af",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni{a b}}]\n",
+        "source_sha256": "5182ad9e9d4db42c2e692736c9b6d45f52e3acb3768f8ceda5b37806836b9b6a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "eq_braced_data",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b} eq {a b}}]\n",
+        "source_sha256": "71edd609ea8809d7fda5fba992f1d87907720d637979cc0da874007d1c2bb635",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b}eq{a b}}]\n",
+        "source_sha256": "0c815991074ac90a45250c30a7b7d27193606ec8c5319588c42b7aac40c5f0eb",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "eq_quoted_data",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\" eq \"a b\"}]\n",
+        "source_sha256": "d16ef068db2aab77c4929613237a5f784148af452dc6502d0ec9b38726f9c567",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\"eq\"a b\"}]\n",
+        "source_sha256": "e59e4be241aee51afddab5a7c85595c218be58191e7eb73a79abce6ccb72f2b6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "numeric_ne",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {1 ne 2}]\n",
+        "source_sha256": "9e93cece3ae4092bd0e725e0cdf924fccddd268b478a8baea20c3339cbebb672",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {1ne2}]\n",
+        "source_sha256": "a13cd4624b9d40a587306b80b1bf95a79ea4f25f614f7acc6f018c8265d2e9ea",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "lt_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a lt $c}]\n",
+        "source_sha256": "9862a457315fa280e103b44f469033255ddd0e92753cce3af82f5518d595078d",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a lt$c}]\n",
+        "source_sha256": "b616cd885c6a63acc2566463d3f9a8436e5ef6be6e017bafe192ab2e705a797a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "lt_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) lt ($c)}]\n",
+        "source_sha256": "2668fa23b3cffe90b6c1002f10403d7d2599d73944457602e23990502b19607a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)lt($c)}]\n",
+        "source_sha256": "43cea6d1382cb82cdde1cfafcc2e090e9da780813adaf58ee7dc85b39d4d34c5",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "in_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in $items}]\n",
+        "source_sha256": "c473031fe45fe7ea172892e2d4ad01995c7e86e376fc2cd712436055e94de81a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in$items}]\n",
+        "source_sha256": "17f3b95d42bd50b608d1b7b40323d62a3ddbfb39521c25685b10e35830de7b70",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "ni_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni $items}]\n",
+        "source_sha256": "9560651d436d392157b3e58d8980077a39bd47d75137c7c1ca284fa7b29ff96e",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni$items}]\n",
+        "source_sha256": "8c3d1af4c448ae74a462b07ca8600ba638261e05769991249de3c8341af10c13",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "in_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) in ($items)}]\n",
+        "source_sha256": "f60ee7108faedfd61056bbbc0a1055e9c38c19e7bc129a8a83ec70f3ed17b204",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)in($items)}]\n",
+        "source_sha256": "cab2132453fcafb79a4c4cad8ac967572c0867be5b78033304288bcb7773b067",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "in_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\" in {a b}}]\n",
+        "source_sha256": "f88dba4411361e70fbdd4a71e14c1bd15d80a465bd5306d21655552e6cbbdfe9",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\"in{a b}}]\n",
+        "source_sha256": "6fc1b24ed110c0ea8fc7e6fcd303f041132732c0a950f60d34748a7ffc350d90",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "ni_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"c\" ni {a b}}]\n",
+        "source_sha256": "26541b7a31bb833ed6dba1a7a0685dee3ad13751f699c78d1f449ddd8db32568",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"c\"ni{a b}}]\n",
+        "source_sha256": "48f4fc9d8e3ca9f0524fd9aa1bc71713d763a09de7b4e8fc7abd9c6dbc5be621",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "variable_token_merge",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq $b}]\n",
+        "source_sha256": "e5fbbcf5574fd5c9b95a850c57a020addf308a08e22508c4bc2cad83ac56ef22",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$aeq$b}]\n",
+        "source_sha256": "5253e58f5a54e1ffa7351e1ca6cc598d66377ee63cbe1ed12e713f5dcb91bad9",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "missing operator at _@_\nin expression \"$aeq_@_$b\"\n    (parsing expression \"$aeq$b\")\n    invoked from within\n\"expr {$aeq$b}\"\n    invoked from within\n\"puts [expr {$aeq$b}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl9.0-variable_token_merge-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "boolean_token_merge",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {true eq true}]\n",
+        "source_sha256": "2193ece1c9acbb13b147aacbcf0db5431ec1123f41ac5604bc6b1168119bde34",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {trueeqtrue}]\n",
+        "source_sha256": "cb6b4f3e6027406125f6be402d37d9f61748e58875ccc5393859421c077c520f",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "invalid bareword \"trueeqtrue\"\nin expression \"trueeqtrue\";\nshould be \"$trueeqtrue\" or \"{trueeqtrue}\" or \"trueeqtrue(...)\" or ...\n    (parsing expression \"trueeqtrue\")\n    invoked from within\n\"expr {trueeqtrue}\"\n    invoked from within\n\"puts [expr {trueeqtrue}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl9.0-boolean_token_merge-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "braced_literal_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a  b} eq {a b}}]\n",
+        "source_sha256": "c9103d62c786ef315202ba0fd58dd006005d769d7e43e15693d9c746cc60a5e2",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b}eq{a b}}]\n",
+        "source_sha256": "0c815991074ac90a45250c30a7b7d27193606ec8c5319588c42b7aac40c5f0eb",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "quoted_literal_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a  b\" eq \"a b\"}]\n",
+        "source_sha256": "b147d672e35c06dd8ddb03a5fb552cf72d298c3bb4fb548bda4a414c6bda63a3",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\"eq\"a b\"}]\n",
+        "source_sha256": "e59e4be241aee51afddab5a7c85595c218be58191e7eb73a79abce6ccb72f2b6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.0",
+      "case": "membership_list_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in {a  b}}]\n",
+        "source_sha256": "c9e515773346cfc84c4e7d2c7ed24e696659b722c6d23c42d9f82b607dd9931a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in{ab}}]\n",
+        "source_sha256": "83db6b8913dc457d25f7e6a39df7326f715788a5f15af183c4815048b6127b31",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "eq_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq $b}]\n",
+        "source_sha256": "e5fbbcf5574fd5c9b95a850c57a020addf308a08e22508c4bc2cad83ac56ef22",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq$b}]\n",
+        "source_sha256": "728e5965c55f2e9a91c41b4908910984faf7c6e5d1ec64c774da5c27a9a4d0af",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "ne_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne $c}]\n",
+        "source_sha256": "90d441188ce46582516d7dde27e3e9ee606c1ca3f2785c1f40287b3c859269c5",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne$c}]\n",
+        "source_sha256": "5b6ba7decb0559192a9c16bc35e0c3c3680ded882380118a7cf51cacdc710841",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "eq_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) eq ($b)}]\n",
+        "source_sha256": "8f48a1789e09c26c56a6b90188f967d2a36e1a03d68452d5ad05a52b3dbaa7f6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)eq($b)}]\n",
+        "source_sha256": "cd9016cd0ebf37c8b74d74a099a81a3329f52686dcf99ad830cee0103bb15fad",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "ne_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) ne ($c)}]\n",
+        "source_sha256": "3e7637b2a135a6fc7054e4cbed2fb7500c755fad2bea8904e0fc6c3e85ef1d61",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)ne($c)}]\n",
+        "source_sha256": "e98db12cb902c4d84866d0fbec73e5330278405e8ad64df13261859ca951f4cd",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "eq_quotes",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\" eq \"a\"}]\n",
+        "source_sha256": "09d5601a26182705407c1ece7776348ad5af17aab584f1f3180e54721c2dceab",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\"eq\"a\"}]\n",
+        "source_sha256": "00d1f744cd54d3b9ccc4f17ca73ad49e17fb9c56581b5b23198792ab34229745",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "ne_variable_quote",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne \"x\"}]\n",
+        "source_sha256": "ad78e529a79697c4c0e2ac5f8c9e737552aae0251ea9e50b03e86246963ec76c",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne\"x\"}]\n",
+        "source_sha256": "9f25b43ad17584d2816edf24959fc7d7c440358c0837afc9060fa9366d5052cc",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "eq_variable_quote",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq \"x\"}]\n",
+        "source_sha256": "55c21b7dcf8a33e3764cb47359c73ca809c1199571c25294b69697cda599593c",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq\"x\"}]\n",
+        "source_sha256": "f67ff30e0fe030743d8f7faaefd57acbdf4ea184130da41198667e2edb9cc028",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "ni_variable_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni {a b}}]\n",
+        "source_sha256": "612d80270e15402fe5f8a0777a094130aa26c7521a63dbed1645eb51aaaca9af",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni{a b}}]\n",
+        "source_sha256": "5182ad9e9d4db42c2e692736c9b6d45f52e3acb3768f8ceda5b37806836b9b6a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "eq_braced_data",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b} eq {a b}}]\n",
+        "source_sha256": "71edd609ea8809d7fda5fba992f1d87907720d637979cc0da874007d1c2bb635",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b}eq{a b}}]\n",
+        "source_sha256": "0c815991074ac90a45250c30a7b7d27193606ec8c5319588c42b7aac40c5f0eb",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "eq_quoted_data",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\" eq \"a b\"}]\n",
+        "source_sha256": "d16ef068db2aab77c4929613237a5f784148af452dc6502d0ec9b38726f9c567",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\"eq\"a b\"}]\n",
+        "source_sha256": "e59e4be241aee51afddab5a7c85595c218be58191e7eb73a79abce6ccb72f2b6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "numeric_ne",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {1 ne 2}]\n",
+        "source_sha256": "9e93cece3ae4092bd0e725e0cdf924fccddd268b478a8baea20c3339cbebb672",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {1ne2}]\n",
+        "source_sha256": "a13cd4624b9d40a587306b80b1bf95a79ea4f25f614f7acc6f018c8265d2e9ea",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "lt_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a lt $c}]\n",
+        "source_sha256": "9862a457315fa280e103b44f469033255ddd0e92753cce3af82f5518d595078d",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a lt$c}]\n",
+        "source_sha256": "b616cd885c6a63acc2566463d3f9a8436e5ef6be6e017bafe192ab2e705a797a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "lt_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) lt ($c)}]\n",
+        "source_sha256": "2668fa23b3cffe90b6c1002f10403d7d2599d73944457602e23990502b19607a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)lt($c)}]\n",
+        "source_sha256": "43cea6d1382cb82cdde1cfafcc2e090e9da780813adaf58ee7dc85b39d4d34c5",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "in_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in $items}]\n",
+        "source_sha256": "c473031fe45fe7ea172892e2d4ad01995c7e86e376fc2cd712436055e94de81a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in$items}]\n",
+        "source_sha256": "17f3b95d42bd50b608d1b7b40323d62a3ddbfb39521c25685b10e35830de7b70",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "ni_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni $items}]\n",
+        "source_sha256": "9560651d436d392157b3e58d8980077a39bd47d75137c7c1ca284fa7b29ff96e",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni$items}]\n",
+        "source_sha256": "8c3d1af4c448ae74a462b07ca8600ba638261e05769991249de3c8341af10c13",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "in_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) in ($items)}]\n",
+        "source_sha256": "f60ee7108faedfd61056bbbc0a1055e9c38c19e7bc129a8a83ec70f3ed17b204",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)in($items)}]\n",
+        "source_sha256": "cab2132453fcafb79a4c4cad8ac967572c0867be5b78033304288bcb7773b067",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "in_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\" in {a b}}]\n",
+        "source_sha256": "f88dba4411361e70fbdd4a71e14c1bd15d80a465bd5306d21655552e6cbbdfe9",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\"in{a b}}]\n",
+        "source_sha256": "6fc1b24ed110c0ea8fc7e6fcd303f041132732c0a950f60d34748a7ffc350d90",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "ni_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"c\" ni {a b}}]\n",
+        "source_sha256": "26541b7a31bb833ed6dba1a7a0685dee3ad13751f699c78d1f449ddd8db32568",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"c\"ni{a b}}]\n",
+        "source_sha256": "48f4fc9d8e3ca9f0524fd9aa1bc71713d763a09de7b4e8fc7abd9c6dbc5be621",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "variable_token_merge",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq $b}]\n",
+        "source_sha256": "e5fbbcf5574fd5c9b95a850c57a020addf308a08e22508c4bc2cad83ac56ef22",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$aeq$b}]\n",
+        "source_sha256": "5253e58f5a54e1ffa7351e1ca6cc598d66377ee63cbe1ed12e713f5dcb91bad9",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "missing operator at _@_\nin expression \"$aeq_@_$b\"\n    (parsing expression \"$aeq$b\")\n    invoked from within\n\"expr {$aeq$b}\"\n    invoked from within\n\"puts [expr {$aeq$b}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl9.1-variable_token_merge-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "boolean_token_merge",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {true eq true}]\n",
+        "source_sha256": "2193ece1c9acbb13b147aacbcf0db5431ec1123f41ac5604bc6b1168119bde34",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {trueeqtrue}]\n",
+        "source_sha256": "cb6b4f3e6027406125f6be402d37d9f61748e58875ccc5393859421c077c520f",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "invalid bareword \"trueeqtrue\"\nin expression \"trueeqtrue\";\nshould be \"$trueeqtrue\" or \"{trueeqtrue}\" or \"trueeqtrue(...)\" or ...\n    (parsing expression \"trueeqtrue\")\n    invoked from within\n\"expr {trueeqtrue}\"\n    invoked from within\n\"puts [expr {trueeqtrue}]\"\n    (file \"/tmp/lsp-wordop-oracle/tcl9.1-boolean_token_merge-candidate.tcl\" line 5)\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "braced_literal_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a  b} eq {a b}}]\n",
+        "source_sha256": "c9103d62c786ef315202ba0fd58dd006005d769d7e43e15693d9c746cc60a5e2",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b}eq{a b}}]\n",
+        "source_sha256": "0c815991074ac90a45250c30a7b7d27193606ec8c5319588c42b7aac40c5f0eb",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "quoted_literal_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a  b\" eq \"a b\"}]\n",
+        "source_sha256": "b147d672e35c06dd8ddb03a5fb552cf72d298c3bb4fb548bda4a414c6bda63a3",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\"eq\"a b\"}]\n",
+        "source_sha256": "e59e4be241aee51afddab5a7c85595c218be58191e7eb73a79abce6ccb72f2b6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "tcl9.1",
+      "case": "membership_list_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in {a  b}}]\n",
+        "source_sha256": "c9e515773346cfc84c4e7d2c7ed24e696659b722c6d23c42d9f82b607dd9931a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in{ab}}]\n",
+        "source_sha256": "83db6b8913dc457d25f7e6a39df7326f715788a5f15af183c4815048b6127b31",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "eq_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq $b}]\n",
+        "source_sha256": "e5fbbcf5574fd5c9b95a850c57a020addf308a08e22508c4bc2cad83ac56ef22",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq$b}]\n",
+        "source_sha256": "728e5965c55f2e9a91c41b4908910984faf7c6e5d1ec64c774da5c27a9a4d0af",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "ne_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne $c}]\n",
+        "source_sha256": "90d441188ce46582516d7dde27e3e9ee606c1ca3f2785c1f40287b3c859269c5",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne$c}]\n",
+        "source_sha256": "5b6ba7decb0559192a9c16bc35e0c3c3680ded882380118a7cf51cacdc710841",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "eq_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) eq ($b)}]\n",
+        "source_sha256": "8f48a1789e09c26c56a6b90188f967d2a36e1a03d68452d5ad05a52b3dbaa7f6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)eq($b)}]\n",
+        "source_sha256": "cd9016cd0ebf37c8b74d74a099a81a3329f52686dcf99ad830cee0103bb15fad",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "ne_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) ne ($c)}]\n",
+        "source_sha256": "3e7637b2a135a6fc7054e4cbed2fb7500c755fad2bea8904e0fc6c3e85ef1d61",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)ne($c)}]\n",
+        "source_sha256": "e98db12cb902c4d84866d0fbec73e5330278405e8ad64df13261859ca951f4cd",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "eq_quotes",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\" eq \"a\"}]\n",
+        "source_sha256": "09d5601a26182705407c1ece7776348ad5af17aab584f1f3180e54721c2dceab",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\"eq\"a\"}]\n",
+        "source_sha256": "00d1f744cd54d3b9ccc4f17ca73ad49e17fb9c56581b5b23198792ab34229745",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "ne_variable_quote",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne \"x\"}]\n",
+        "source_sha256": "ad78e529a79697c4c0e2ac5f8c9e737552aae0251ea9e50b03e86246963ec76c",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a ne\"x\"}]\n",
+        "source_sha256": "9f25b43ad17584d2816edf24959fc7d7c440358c0837afc9060fa9366d5052cc",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "eq_variable_quote",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq \"x\"}]\n",
+        "source_sha256": "55c21b7dcf8a33e3764cb47359c73ca809c1199571c25294b69697cda599593c",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq\"x\"}]\n",
+        "source_sha256": "f67ff30e0fe030743d8f7faaefd57acbdf4ea184130da41198667e2edb9cc028",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "ni_variable_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni {a b}}]\n",
+        "source_sha256": "612d80270e15402fe5f8a0777a094130aa26c7521a63dbed1645eb51aaaca9af",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni{a b}}]\n",
+        "source_sha256": "5182ad9e9d4db42c2e692736c9b6d45f52e3acb3768f8ceda5b37806836b9b6a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "eq_braced_data",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b} eq {a b}}]\n",
+        "source_sha256": "71edd609ea8809d7fda5fba992f1d87907720d637979cc0da874007d1c2bb635",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b}eq{a b}}]\n",
+        "source_sha256": "0c815991074ac90a45250c30a7b7d27193606ec8c5319588c42b7aac40c5f0eb",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "eq_quoted_data",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\" eq \"a b\"}]\n",
+        "source_sha256": "d16ef068db2aab77c4929613237a5f784148af452dc6502d0ec9b38726f9c567",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\"eq\"a b\"}]\n",
+        "source_sha256": "e59e4be241aee51afddab5a7c85595c218be58191e7eb73a79abce6ccb72f2b6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "numeric_ne",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {1 ne 2}]\n",
+        "source_sha256": "9e93cece3ae4092bd0e725e0cdf924fccddd268b478a8baea20c3339cbebb672",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {1ne2}]\n",
+        "source_sha256": "a13cd4624b9d40a587306b80b1bf95a79ea4f25f614f7acc6f018c8265d2e9ea",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "lt_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a lt $c}]\n",
+        "source_sha256": "9862a457315fa280e103b44f469033255ddd0e92753cce3af82f5518d595078d",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a lt$c}]\n",
+        "source_sha256": "b616cd885c6a63acc2566463d3f9a8436e5ef6be6e017bafe192ab2e705a797a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "lt_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) lt ($c)}]\n",
+        "source_sha256": "2668fa23b3cffe90b6c1002f10403d7d2599d73944457602e23990502b19607a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)lt($c)}]\n",
+        "source_sha256": "43cea6d1382cb82cdde1cfafcc2e090e9da780813adaf58ee7dc85b39d4d34c5",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "in_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in $items}]\n",
+        "source_sha256": "c473031fe45fe7ea172892e2d4ad01995c7e86e376fc2cd712436055e94de81a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in$items}]\n",
+        "source_sha256": "17f3b95d42bd50b608d1b7b40323d62a3ddbfb39521c25685b10e35830de7b70",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "ni_variable",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni $items}]\n",
+        "source_sha256": "9560651d436d392157b3e58d8980077a39bd47d75137c7c1ca284fa7b29ff96e",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$c ni$items}]\n",
+        "source_sha256": "8c3d1af4c448ae74a462b07ca8600ba638261e05769991249de3c8341af10c13",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "in_parens",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a) in ($items)}]\n",
+        "source_sha256": "f60ee7108faedfd61056bbbc0a1055e9c38c19e7bc129a8a83ec70f3ed17b204",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {($a)in($items)}]\n",
+        "source_sha256": "cab2132453fcafb79a4c4cad8ac967572c0867be5b78033304288bcb7773b067",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "in_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\" in {a b}}]\n",
+        "source_sha256": "f88dba4411361e70fbdd4a71e14c1bd15d80a465bd5306d21655552e6cbbdfe9",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a\"in{a b}}]\n",
+        "source_sha256": "6fc1b24ed110c0ea8fc7e6fcd303f041132732c0a950f60d34748a7ffc350d90",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "ni_literal",
+      "negative": false,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"c\" ni {a b}}]\n",
+        "source_sha256": "26541b7a31bb833ed6dba1a7a0685dee3ad13751f699c78d1f449ddd8db32568",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"c\"ni{a b}}]\n",
+        "source_sha256": "48f4fc9d8e3ca9f0524fd9aa1bc71713d763a09de7b4e8fc7abd9c6dbc5be621",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "variable_token_merge",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a eq $b}]\n",
+        "source_sha256": "e5fbbcf5574fd5c9b95a850c57a020addf308a08e22508c4bc2cad83ac56ef22",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$aeq$b}]\n",
+        "source_sha256": "5253e58f5a54e1ffa7351e1ca6cc598d66377ee63cbe1ed12e713f5dcb91bad9",
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "/tmp/lsp-wordop-oracle/jimtcl-variable_token_merge-candidate.tcl:5: Error: missing operator in expression: \"$aeq$b\"\nTraceback (most recent call last):\n  File \"/tmp/lsp-wordop-oracle/jimtcl-variable_token_merge-candidate.tcl\", line 5\n    expr {$aeq$b}\n"
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "boolean_token_merge",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {true eq true}]\n",
+        "source_sha256": "2193ece1c9acbb13b147aacbcf0db5431ec1123f41ac5604bc6b1168119bde34",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {trueeqtrue}]\n",
+        "source_sha256": "cb6b4f3e6027406125f6be402d37d9f61748e58875ccc5393859421c077c520f",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": true
+    },
+    {
+      "profile": "jimtcl",
+      "case": "braced_literal_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a  b} eq {a b}}]\n",
+        "source_sha256": "c9103d62c786ef315202ba0fd58dd006005d769d7e43e15693d9c746cc60a5e2",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {{a b}eq{a b}}]\n",
+        "source_sha256": "0c815991074ac90a45250c30a7b7d27193606ec8c5319588c42b7aac40c5f0eb",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "quoted_literal_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a  b\" eq \"a b\"}]\n",
+        "source_sha256": "b147d672e35c06dd8ddb03a5fb552cf72d298c3bb4fb548bda4a414c6bda63a3",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {\"a b\"eq\"a b\"}]\n",
+        "source_sha256": "e59e4be241aee51afddab5a7c85595c218be58191e7eb73a79abce6ccb72f2b6",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    },
+    {
+      "profile": "jimtcl",
+      "case": "membership_list_data",
+      "negative": true,
+      "unsupported_profile_control": false,
+      "original": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in {a  b}}]\n",
+        "source_sha256": "c9e515773346cfc84c4e7d2c7ed24e696659b722c6d23c42d9f82b607dd9931a",
+        "exit_code": 0,
+        "stdout": "1\n",
+        "stderr": ""
+      },
+      "candidate": {
+        "source": "set a a\nset b a\nset c c\nset items {a b}\nputs [expr {$a in{ab}}]\n",
+        "source_sha256": "83db6b8913dc457d25f7e6a39df7326f715788a5f15af183c4815048b6127b31",
+        "exit_code": 0,
+        "stdout": "0\n",
+        "stderr": ""
+      },
+      "passed": true,
+      "profile_specific_boolean_control": false
+    }
+  ],
+  "passed": 138,
+  "total": 138
+}

@@ -1,0 +1,182 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Exact native ASCII hook and authentic prerequisite regression controls.
+use super::{fold_source, pack_set_from};
+use std::cell::RefCell;
+use std::rc::Rc;
+use tcl_engine_api::{
+    CommandRegistrar, CompileUnit, Engine, EngineError, HostArgumentView, HostCommand, HostOutcome,
+    NativeStringCache, OriginalObject, OriginalObjectResult, Value,
+};
+use tcl_engine_tclvm::TclVmEngine;
+use tcl_registry::pack_hooks;
+use tcl_spec_hooks::tclvm_host;
+
+#[test]
+fn original_ascii_guarded_hook_body_answers_without_host_errors() {
+    let packs = pack_set_from("ascii-guard-original-body", &fold_source("1"));
+    assert_eq!(packs.notices.len(), 0, "{:?}", packs.notices);
+    let plan = tcl_spectcl::hooks::plan_for(&packs);
+    let has_programs = !plan.is_empty();
+    assert!(has_programs, "the original hook must reach installation");
+    let host = Rc::new(tclvm_host());
+    for programs in plan.packs() {
+        assert!(
+            host.install_pack_hooks(programs.clone())
+                .iter()
+                .all(|entry| entry.declined.is_none())
+        );
+    }
+    pack_hooks::install_host(host.clone());
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+    let spec = registry
+        .get("mylib::strlen")
+        .expect("same original test pack");
+    for (input, expected) in [("abcde", Some("5")), ("", Some("0")), ("é", None)] {
+        assert_eq!(
+            spec.run_const_fold(&[input], Some(tcl_dialect::TclVersion::V8_6))
+                .as_deref(),
+            expected,
+            "the existing guarded body, {input:?}"
+        );
+    }
+    assert_eq!(host.error_log().len(), 0, "{:?}", host.error_log());
+    assert_eq!(host.crash_records().len(), 0, "{:?}", host.crash_records());
+    pack_hooks::clear_host();
+}
+
+#[derive(Default)]
+struct ObserveOriginals {
+    observations: RefCell<Vec<(Option<NativeStringCache>, usize)>>,
+}
+impl HostCommand for ObserveOriginals {
+    fn argument_view(&self) -> HostArgumentView {
+        HostArgumentView::OriginalObjects
+    }
+    fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+        Err(EngineError::ExecutionRefusal(
+            "original object callback required".into(),
+        ))
+    }
+    fn invoke_original_objects_with_registrar(
+        &self,
+        _: &mut dyn CommandRegistrar,
+        arguments: &[Rc<dyn OriginalObject>],
+    ) -> Result<OriginalObjectResult, EngineError> {
+        let [subject, predicate] = arguments else {
+            return Err(EngineError::ExecutionRefusal(
+                "original predicate geometry".into(),
+            ));
+        };
+        self.observations
+            .borrow_mut()
+            .push((subject.string_cache(), predicate.identity()));
+        Ok(OriginalObjectResult::Original(Rc::clone(predicate)))
+    }
+}
+
+#[test]
+fn public_engine_reaches_original_unicode_and_reuses_boolean_owner() {
+    let mut engine = TclVmEngine::new();
+    let observer = Rc::new(ObserveOriginals::default());
+    engine
+        .define_command("observe_originals", observer.clone())
+        .unwrap();
+    let handle = engine
+        .compile(CompileUnit {
+            name: "original ASCII objects",
+            parameters: &["subject"],
+            body: "observe_originals $subject [string is ascii $subject]",
+        })
+        .unwrap();
+    for (text, expected) in [("abcde", 1), ("", 1), ("é", 0), ("a\0b", 1)] {
+        let result = engine.invoke(&handle, &[Value::string(text)]).unwrap();
+        assert_eq!(result.as_int(), Some(expected), "{text:?}");
+    }
+    let observations = observer.observations.borrow();
+    assert_eq!(observations.len(), 4);
+    for (cache, _) in &*observations {
+        assert!(
+            matches!(
+                cache,
+                Some(NativeStringCache::C {
+                    unicode: Some(_),
+                    ..
+                })
+            ),
+            "the original subject reached C Unicode storage: {cache:?}"
+        );
+    }
+    assert_eq!(
+        observations[0].1, observations[1].1,
+        "true uses one actual interpreter constant"
+    );
+    assert_eq!(observations[0].1, observations[3].1);
+    assert_ne!(
+        observations[0].1, observations[2].1,
+        "false has its own interpreter constant"
+    );
+}
+
+#[test]
+fn retiring_the_actual_private_worker_cannot_reuse_the_cached_ascii_recipe() {
+    let mut engine = TclVmEngine::new();
+    let handle = engine
+        .compile(CompileUnit {
+            name: "retained ASCII prerequisite",
+            parameters: &["subject"],
+            body: "string is ascii $subject",
+        })
+        .unwrap();
+    assert_eq!(
+        engine
+            .invoke(&handle, &[Value::string("abcde")])
+            .unwrap()
+            .as_int(),
+        Some(1)
+    );
+    let retired = engine
+        .vm_mut()
+        .try_eval_source("rename ::tcl::string::is {}")
+        .expect("authentic native worker retirement");
+    assert_eq!(retired.code, tcl_vm::Code::Ok);
+    assert!(
+        engine.invoke(&handle, &[Value::string("abcde")]).is_err(),
+        "the missing real private worker cannot be treated as the previously admitted ASCII compiler"
+    );
+    // Do not pin the host-refusal versus ordinary Tcl-error boundary before
+    // native measurement. The observable prohibition is stock recipe reuse.
+}
+
+struct ReplacementWorker;
+impl HostCommand for ReplacementWorker {
+    fn invoke(&self, _: &[Value]) -> Result<HostOutcome, EngineError> {
+        Ok(HostOutcome::ok(Value::string("REPLACED")))
+    }
+}
+
+#[test]
+fn replacing_the_actual_private_worker_never_bypasses_it_as_stock_ascii() {
+    let mut engine = TclVmEngine::new();
+    let handle = engine
+        .compile(CompileUnit {
+            name: "replaced ASCII prerequisite",
+            parameters: &["subject"],
+            body: "string is ascii $subject",
+        })
+        .unwrap();
+    assert_eq!(
+        engine
+            .invoke(&handle, &[Value::string("abcde")])
+            .unwrap()
+            .as_int(),
+        Some(1)
+    );
+    engine
+        .define_command("::tcl::string::is", Rc::new(ReplacementWorker))
+        .unwrap();
+    // A replacement may require generic dispatch or a fail-closed compiler
+    // refusal. Neither permits executing the old stock ASCII recipe.
+    if let Ok(value) = engine.invoke(&handle, &[Value::string("abcde")]) {
+        assert_eq!(value.as_str(), Some("REPLACED"));
+    }
+}

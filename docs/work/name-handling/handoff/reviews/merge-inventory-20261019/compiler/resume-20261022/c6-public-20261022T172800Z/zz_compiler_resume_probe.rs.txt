@@ -1,0 +1,197 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+use tcl_compiler::analyser::Analyser;
+use tcl_compiler::compilation_unit::CompilationUnit;
+use tcl_compiler::compiler_checks::run_all_checks;
+use tcl_registry::model::ingress::{resolve_environment, static_context_for};
+
+fn codes(source: &str) -> Vec<String> {
+    let started = std::time::Instant::now();
+    let mut out = Analyser::new()
+        .analyse(source, "tcl8.6")
+        .diagnostics
+        .iter()
+        .map(|diagnostic| diagnostic.code.to_string())
+        .collect::<Vec<_>>();
+    let analysed = started.elapsed();
+    let registry = static_context_for("tcl8.6").commands();
+    let profile = resolve_environment("tcl8.6").analyser_profile();
+    let unit = CompilationUnit::build_for_profile(source, registry, false, profile);
+    let built = started.elapsed();
+    eprintln!(
+        "ZZ_C6_BUILD deferred_any={} deferred_names={:?}",
+        unit.ir_module.deferred_writes.any, unit.ir_module.deferred_writes.names
+    );
+    for function in unit.all_body_function_units() {
+        for (block_id, block) in &function.cfg.blocks {
+            eprintln!(
+                "ZZ_C6_CFG function={} block={block_id:?} successors={:?} executable={}",
+                function.name,
+                block.successors(),
+                function.sccp.executable_blocks.contains(block_id)
+            );
+            for (index, statement) in block.statements.iter().enumerate() {
+                let kind = match statement {
+                    tcl_compiler::ir::Statement::Call { .. } => "Call",
+                    tcl_compiler::ir::Statement::Barrier { .. } => "Barrier",
+                    tcl_compiler::ir::Statement::Switch { .. } => "Switch",
+                    tcl_compiler::ir::Statement::While { .. } => "While",
+                    tcl_compiler::ir::Statement::AssignConst { .. } => "AssignConst",
+                    tcl_compiler::ir::Statement::AssignValue { .. } => "AssignValue",
+                    _ => "other",
+                };
+                let ssa = function
+                    .ssa
+                    .blocks
+                    .get(block_id)
+                    .and_then(|block| block.statements.get(index));
+                let uses = ssa.map(|statement| {
+                    statement
+                        .uses
+                        .iter()
+                        .map(|(symbol, version)| (function.ssa.var_name(*symbol), *version))
+                        .collect::<Vec<_>>()
+                });
+                let defs = ssa.map(|statement| {
+                    statement
+                        .defs
+                        .iter()
+                        .map(|(symbol, version)| (function.ssa.var_name(*symbol), *version))
+                        .collect::<Vec<_>>()
+                });
+                eprintln!(
+                    "ZZ_C6_STMT function={} block={block_id:?} index={index} kind={kind} argv={:?} uses={uses:?} defs={defs:?}",
+                    function.name,
+                    statement.tokens().map(|tokens| &tokens.argv_texts)
+                );
+            }
+        }
+    }
+    for diagnostic in run_all_checks(&unit, registry, Some(profile)) {
+        if !diagnostic.code.is_optimisation() {
+            out.push(diagnostic.code.to_string());
+        }
+    }
+    eprintln!(
+        "ZZ_PIPELINE source_bytes={} analyser_ms={} cu_ms={} checks_ms={}",
+        source.len(),
+        analysed.as_millis(),
+        (built - analysed).as_millis(),
+        (started.elapsed() - built).as_millis()
+    );
+    out
+}
+
+#[test]
+fn original_c6_inputs() {
+    let rows = [
+        (
+            "fp_rbs_15_while1",
+            "proc f {x} { while 1 { switch -glob $x {a* {break} default {break}} }; puts $y }\n",
+            "W210",
+            true,
+        ),
+        (
+            "fp_sh_21_dict_for",
+            "set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n",
+            "S100",
+            false,
+        ),
+        (
+            "fp_sh_21_dict_for_S101",
+            "set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n",
+            "S101",
+            false,
+        ),
+        (
+            "fp_tnt_03_interp_literal",
+            "set raw [gets stdin]\ninterp eval $child [list puts $raw]\n",
+            "T105",
+            false,
+        ),
+        (
+            "interp_tainted_original",
+            "set raw [gets stdin]\ninterp eval $child [list $raw]\n",
+            "T105",
+            true,
+        ),
+        (
+            "interp_tainted_created_after_raw",
+            "set raw [gets stdin]\nset child [interp create]\ninterp eval $child [list $raw]\n",
+            "T105",
+            true,
+        ),
+        (
+            "interp_tainted_created_before_raw",
+            "set child [interp create]\nset raw [gets stdin]\ninterp eval $child [list $raw]\n",
+            "T105",
+            true,
+        ),
+        (
+            "interp_literal_created_before_raw",
+            "set child [interp create]\nset raw [gets stdin]\ninterp eval $child [list puts $raw]\n",
+            "T105",
+            false,
+        ),
+    ];
+    let mut mismatches = Vec::new();
+    for (name, source, code, expected) in rows {
+        let actual = codes(source);
+        let matched = actual.iter().any(|actual| actual == code) == expected;
+        eprintln!(
+            "ZZ_C6 name={name} matched={matched} code={code} expected={expected} actual={actual:?} source={source:?}"
+        );
+        if !matched {
+            mismatches.push(name);
+        }
+    }
+    assert!(mismatches.is_empty(), "C6 probe mismatches: {mismatches:?}");
+}
+
+#[test]
+fn namespace_path_summary() {
+    let source = "proc p {} {return GLOBAL}\nnamespace eval lib {proc p {} {return LIB}}\nnamespace eval n { namespace path ::lib; proc c {} {return [p]} }\nputs [n::c]\n";
+    let registry = static_context_for("tcl8.6").commands();
+    let profile = resolve_environment("tcl8.6").analyser_profile();
+    let unit = CompilationUnit::build_for_profile(source, registry, false, profile)
+        .with_interprocedural(registry, Some(profile));
+    eprintln!(
+        "ZZ_N09 installed={:?} prepared={:?} summaries={:?}",
+        unit.ir_module
+            .procedures
+            .values()
+            .map(|procedure| &procedure.qualified_name)
+            .collect::<Vec<_>>(),
+        unit.procedures.keys().collect::<Vec<_>>(),
+        unit.interproc.as_ref().map(|analysis| analysis
+            .procedures
+            .values()
+            .map(|summary| (&summary.qualified_name, &summary.direct_calls))
+            .collect::<Vec<_>>())
+    );
+    let analysis = unit.interproc.as_ref().expect("interprocedural analysis");
+    let caller = analysis
+        .procedures
+        .values()
+        .find(|summary| summary.qualified_name == "::n::c")
+        .expect("caller summary missing");
+    let selected = analysis
+        .procedures
+        .iter()
+        .find(|(_, summary)| summary.qualified_name == "::lib::p")
+        .map(|(id, _)| *id)
+        .expect("namespace-path callee summary missing");
+    assert!(
+        caller.direct_calls.contains(&selected),
+        "namespace-path callee missing from caller's direct calls"
+    );
+    assert!(
+        caller.direct_calls.iter().all(|id| analysis
+            .procedures
+            .get(id)
+            .is_none_or(|summary| summary.qualified_name != "::p")),
+        "global fallback selected despite namespace-path command"
+    );
+}

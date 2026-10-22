@@ -1,0 +1,728 @@
+--- a/runtime/rust/src/interp/native_body_artifact/native_scalar.rs
++++ b/runtime/rust/src/interp/native_body_artifact/native_scalar.rs
+@@ -106,6 +106,13 @@
+                     )
+                     .map_err(|error| self.report_cmd_error(error.into()))?
+                 }
++                NativeScalarOperation::StringIsAscii => {
++                    let result = self
++                        .native_scalar_ascii_result(operands[0].as_ptr(), version)
++                        .map_err(|error| self.report_cmd_error(error))?;
++                    drop(operands);
++                    result
++                }
+                 operation => {
+                     let input = operands[0].as_ptr();
+                     let length = match operation {
+@@ -117,8 +124,9 @@
+                                 .map_err(|first| self.report_cmd_error(first))?;
+                             captured.length(self)
+                         }
+-                        NativeScalarOperation::StringEqual => {
+-                            unreachable!("equality handled above")
++                        NativeScalarOperation::StringEqual
++                        | NativeScalarOperation::StringIsAscii => {
++                            unreachable!("predicate handled above")
+                         }
+                     }
+                     .map_err(|error| self.report_cmd_error(error.into()))?;
+@@ -145,6 +153,54 @@
+             .check(self, &arguments)
+             .map_err(|first| self.report_cmd_error(first))?;
+         reached
++    }
++
++    /// Reach STR_CLASS's Unicode getter on its original stack operand, then
++    /// retain the actual C execution environment's Boolean result constant.
++    fn native_scalar_ascii_result(
++        &self,
++        input: *mut obj::TclObj,
++        version: tcl_dialect::TclVersion,
++    ) -> Result<obj::Owned, tcl_cmd_core::CmdError> {
++        let dialect = self.native_invocation_dialect();
++        if version < tcl_dialect::TclVersion::V8_6
++            || dialect.tcl_version != Some(version)
++            || dialect.native_error_log_protocol().is_none()
++        {
++            return Err(ValueError::CommandProtocolUnavailable(
++                "native compiled ASCII predicate issuer",
++            )
++            .into());
++        }
++        let protocol = self
++            .name_policy_protocol()
++            .ok_or(ValueError::CommandProtocolUnavailable(
++                "native compiled ASCII Unicode getter",
++            ))?
++            .string_protocol();
++        if protocol.tcl_version() != Some(version) {
++            return Err(ValueError::CommandProtocolUnavailable(
++                "native compiled ASCII Unicode version",
++            )
++            .into());
++        }
++        let arguments = OriginalArguments::enter(self, &[input])?;
++        let frame = BodyListFrame::capture(self);
++        let mut current = || {
++            frame.check(self, &arguments)?;
++            arguments.check_original_for(self, 0, input)
++        };
++        let units = obj::native_unicode_units_checked(input, protocol, &mut current, &mut || {
++            arguments.bytes_using(0, &|| frame.check(self, &arguments))
++        })?;
++        current()?;
++        let matched = units.iter().all(|unit| *unit <= 0x7f);
++        drop(units);
++        let result = self
++            .native_execution_boolean_constant(matched)
++            .map(obj::Owned::retain)?;
++        current()?;
++        Ok(result)
+     }
+ 
+     fn native_scalar_length_result(
+--- a/rust/tcl-compiler/src/codegen/statements/native_scalar.rs
++++ b/rust/tcl-compiler/src/codegen/statements/native_scalar.rs
+@@ -19,7 +19,7 @@
+ //! Original scalar operand preparation followed by genuine stack instructions.
+ 
+ use super::{CodegenCtx, NativeEmissionTask};
+-use tcl_bytecode::Op;
++use tcl_bytecode::{Op, Operand};
+ use tcl_registry::native_scalar_compilation::{NativeScalarInstruction, NativeScalarOperation};
+ 
+ impl CodegenCtx<'_> {
+@@ -41,9 +41,16 @@
+         let op = match recipe.operation {
+             NativeScalarOperation::StringEqual => Op::STR_EQ,
+             NativeScalarOperation::StringLength => Op::STR_LEN,
++            NativeScalarOperation::StringIsAscii => Op::STR_CLASS,
+             NativeScalarOperation::ListLength => Op::LIST_LENGTH,
+         };
+-        operations.push(NativeEmissionTask::SwitchOperation(op, Vec::new(), version));
++        let operands = if recipe.operation == NativeScalarOperation::StringIsAscii {
++            // STR_CLASS_ASCII in the C8.6/9.0/9.1 instruction enum.
++            vec![Operand::Imm(2)]
++        } else {
++            Vec::new()
++        };
++        operations.push(NativeEmissionTask::SwitchOperation(op, operands, version));
+         true
+     }
+ }
+--- a/rust/tcl-registry/src/commands/tcl/string_.rs
++++ b/rust/tcl-registry/src/commands/tcl/string_.rs
+@@ -1438,6 +1438,13 @@
+     },
+     SubCommand {
+         name: "is",
++        native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
++            grammar: crate::native_compilation::NativeCompilationGrammar::StringIsAscii(
++                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++            ),
++            operation: SemanticOperationId::Intrinsic(IntrinsicId::StringIs),
++            body: crate::native_compilation::NativeBodyCompilation::Inherit,
++        }),
+         semantic_operation: Some(SemanticOperationId::Intrinsic(IntrinsicId::StringIs)),
+         // `-failindex` is written only when the class test fails.
+         traits: Traits::CONDITIONAL_VARIABLE_WRITE,
+--- a/rust/tcl-registry/src/lib.rs
++++ b/rust/tcl-registry/src/lib.rs
+@@ -136,6 +136,7 @@
+ pub mod native_namespace_upvar_compilation;
+ pub mod native_scalar_compilation;
+ pub mod native_string_compilation;
++pub mod native_string_is_compilation;
+ pub mod native_string_operand_compilation;
+ pub mod native_string_trim_compilation;
+ pub mod native_switch_compilation;
+--- a/rust/tcl-registry/src/native_compilation.rs
++++ b/rust/tcl-registry/src/native_compilation.rs
+@@ -842,6 +842,8 @@
+     NamespaceString(crate::native_namespace_string_compilation::NativeNamespaceStringOperation),
+     /// Native string equality; unsupported options use a private invocation from 8.6.
+     StringEqual(crate::native_scalar_compilation::NativeScalarScope),
++    /// C8.6+ exact non-strict ASCII class test; other forms remain unclosed.
++    StringIsAscii(crate::native_scalar_compilation::NativeScalarScope),
+     /// C8.4+ string length accepts one evaluated operand; refused modern
+     /// public forms retain the selected private worker invocation.
+     StringLength(crate::native_scalar_compilation::NativeScalarScope),
+@@ -1898,6 +1900,14 @@
+                     && matches!(count, 1 | 2)
+             }
+             NativeCompilationGrammar::StringEqual(_) => count == 2,
++            NativeCompilationGrammar::StringIsAscii(scope) => {
++                let from = operand_from
++                    + usize::from(
++                        scope == crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++                    );
++                words.original_words().len().checked_sub(from) == Some(2)
++                    && words.literal(from) == Some(b"ascii")
++            }
+             NativeCompilationGrammar::StringLength(_)
+             | NativeCompilationGrammar::ListLength
+             | NativeCompilationGrammar::NamespaceOrigin
+@@ -2038,6 +2048,7 @@
+             | NativeCompilationGrammar::StringMatch(_)
+             | NativeCompilationGrammar::StringEqual(_)
+             | NativeCompilationGrammar::StringLength(_)
++            | NativeCompilationGrammar::StringIsAscii(_)
+             | NativeCompilationGrammar::StringOperand { .. }
+             | NativeCompilationGrammar::ListLength
+             | NativeCompilationGrammar::Tailcall
+@@ -2314,7 +2325,8 @@
+             | NativeCompilationGrammar::NamespaceCurrent
+             | NativeCompilationGrammar::NamespaceOrigin
+             | NativeCompilationGrammar::NamespaceCode
+-            | NativeCompilationGrammar::NamespaceString(_) => version >= TclVersion::V8_6,
++            | NativeCompilationGrammar::NamespaceString(_)
++            | NativeCompilationGrammar::StringIsAscii(_) => version >= TclVersion::V8_6,
+             NativeCompilationGrammar::Uplevel => version >= TclVersion::V9_1,
+             NativeCompilationGrammar::StringOperand { operation, .. } => {
+                 version >= operation.hook_from()
+@@ -2373,7 +2385,9 @@
+         }
+         if matches!(
+             self.grammar,
+-            NativeCompilationGrammar::StringEqual(
++            NativeCompilationGrammar::StringIsAscii(
++                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++            ) | NativeCompilationGrammar::StringEqual(
+                 crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+             ) | NativeCompilationGrammar::StringLength(
+                 crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+@@ -2449,6 +2463,14 @@
+                     STRING_EQUAL_IMPLEMENTATION
+                 },
+             );
++        }
++        if self.grammar
++            == NativeCompilationGrammar::StringIsAscii(
++                crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++            )
++        {
++            return implementation_version_matches(dialect, TclVersion::V8_5)
++                .then_some(crate::native_string_is_compilation::STRING_IS_IMPLEMENTATION);
+         }
+         if let NativeCompilationGrammar::StringTrim {
+             scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+@@ -2522,6 +2544,9 @@
+         if let NativeCompilationGrammar::WithImplementationPath { compiler, .. } = self.grammar {
+             return compiler.operation_matches_grammar() && self.operation == compiler.operation;
+         }
++        if matches!(self.grammar, NativeCompilationGrammar::StringIsAscii(_)) {
++            return self.operation == SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs);
++        }
+         self.operation != SemanticOperationId::Intrinsic(crate::IntrinsicId::ListConstruct)
+             || matches!(
+                 self.grammar,
+@@ -2825,6 +2850,15 @@
+         }
+         if let NativeCompilationGrammar::StringTrim { scope, .. } = self.grammar {
+             return Some(crate::native_string_trim_compilation::select_original(
++                words,
++                operand_from,
++                scope,
++                version,
++                self.operation,
++            ));
++        }
++        if let NativeCompilationGrammar::StringIsAscii(scope) = self.grammar {
++            return Some(crate::native_string_is_compilation::select_original(
+                 words,
+                 operand_from,
+                 scope,
+@@ -3310,7 +3344,9 @@
+         }
+         let retains_member = matches!(
+             self.grammar,
+-            NativeCompilationGrammar::StringEqual(
++            NativeCompilationGrammar::StringIsAscii(
++                crate::native_scalar_compilation::NativeScalarScope::PublicMember
++            ) | NativeCompilationGrammar::StringEqual(
+                 crate::native_scalar_compilation::NativeScalarScope::PublicMember
+             ) | NativeCompilationGrammar::StringLength(
+                 crate::native_scalar_compilation::NativeScalarScope::PublicMember
+@@ -4044,6 +4080,19 @@
+             }
+             NativeCompilationGrammar::InfoCommands => {
+                 info_commands_grammar(words, shapes, version, self.operation)
++            }
++            NativeCompilationGrammar::StringIsAscii(scope) => {
++                let from = usize::from(
++                    scope == crate::native_scalar_compilation::NativeScalarScope::PublicMember,
++                );
++                crate::native_string_is_compilation::select_shapes(
++                    shapes,
++                    words.arguments().literal_at(0).map(str::as_bytes),
++                    words.arguments().literal_at(from).map(str::as_bytes),
++                    scope,
++                    version,
++                    self.operation,
++                )
+             }
+             NativeCompilationGrammar::StringEqual(scope) => string_member_arity_grammar(
+                 words,
+--- a/rust/tcl-registry/src/native_instruction_plan.rs
++++ b/rust/tcl-registry/src/native_instruction_plan.rs
+@@ -945,6 +945,13 @@
+             .ok_or(Unavailable::OperandGeometry),
+         );
+     }
++    if let NativeCompilationGrammar::StringIsAscii(scope) = spec.grammar {
++        return Some(
++            crate::native_string_is_compilation::instruction(words, operand_from, scope, version)
++                .map(NativeInstructionPlan::Scalar)
++                .ok_or(Unavailable::OperandGeometry),
++        );
++    }
+     if let NativeCompilationGrammar::StringOperand { scope, operation } = spec.grammar {
+         return Some(
+             crate::native_string_operand_compilation::compile_native_string_operand(
+--- a/rust/tcl-registry/src/native_scalar_compilation.rs
++++ b/rust/tcl-registry/src/native_scalar_compilation.rs
+@@ -45,6 +45,8 @@
+     StringEqual,
+     /// Reach the original character-length accessor.
+     StringLength,
++    /// C8.6+ non-strict ASCII `STR_CLASS` over one original subject.
++    StringIsAscii,
+     /// Reach the original list-length accessor.
+     ListLength,
+ }
+@@ -55,7 +57,7 @@
+     pub const fn arity(self) -> usize {
+         match self {
+             Self::StringEqual => 2,
+-            Self::StringLength | Self::ListLength => 1,
++            Self::StringLength | Self::StringIsAscii | Self::ListLength => 1,
+         }
+     }
+ 
+@@ -65,6 +67,9 @@
+         match self {
+             Self::StringEqual => Some(&STRING_EQUAL_IMPLEMENTATION),
+             Self::StringLength => Some(&STRING_LENGTH_IMPLEMENTATION),
++            Self::StringIsAscii => {
++                Some(&crate::native_string_is_compilation::STRING_IS_IMPLEMENTATION)
++            }
+             Self::ListLength => None,
+         }
+     }
+@@ -110,6 +115,11 @@
+     semantic: SemanticOperationId,
+ ) -> NativeCompilationSelection {
+     use NativeCompilationSelection as Selection;
++    // StringIs needs its independent compile-known class gate before it
++    // can become a one-subject scalar instruction.
++    if operation == NativeScalarOperation::StringIsAscii {
++        return Selection::Unknown;
++    }
+     let Ok(projected) = project_native_compiler_words(words, version) else {
+         return Selection::Unknown;
+     };
+--- /dev/null
++++ b/rust/tcl-registry/src/native_string_is_compilation.rs
+@@ -0,0 +1,312 @@
++// SPDX-License-Identifier: AGPL-3.0-or-later
++//! The measured non-strict ASCII branch of C's StringIs compiler.
++//!
++//! C8.6/9.0/9.1 compile exactly one original subject followed by `STR_CLASS`
++//! ASCII. Class/options outside this branch stay unknown: their native
++//! compiler can have different getters, preparation, errors and instructions.
++
++use crate::SemanticOperationId;
++use crate::native_compilation::{
++    NativeCompilationGuard, NativeCompilationSelection, NativeCompilationWordShape as Shape,
++    NativeCompilerImplementationLookup,
++};
++use crate::native_compiler_word_projection::project_native_compiler_words;
++use crate::native_compiler_words::NativeCompilerWords;
++use crate::native_scalar_compilation::{
++    NativeScalarInstruction, NativeScalarOperation, NativeScalarScope,
++};
++use tcl_dialect::TclVersion;
++
++/// The real C8.5+ private worker; its compiler hook arrives in C8.6.
++pub const STRING_IS_IMPLEMENTATION: NativeCompilerImplementationLookup =
++    NativeCompilerImplementationLookup {
++        ensemble: "::string",
++        member: "is",
++        slot: "::tcl::string::is",
++        command: "string",
++        prepended: &["is"],
++    };
++
++fn simple(shape: Shape) -> bool {
++    matches!(
++        shape,
++        Shape::Literal | Shape::QuotedLiteral | Shape::BracedLiteral
++    )
++}
++
++/// Select only the exact class/value branch exercised by the pack hook.
++#[must_use]
++pub fn select_shapes(
++    shapes: &[Shape],
++    member: Option<&[u8]>,
++    class: Option<&[u8]>,
++    scope: NativeScalarScope,
++    version: TclVersion,
++    operation: SemanticOperationId,
++) -> NativeCompilationSelection {
++    use NativeCompilationSelection as Selection;
++    if version < TclVersion::V8_6 {
++        return Selection::Generic;
++    }
++    let from = usize::from(scope == NativeScalarScope::PublicMember);
++    if from == 1 && !(shapes.first().is_some_and(|shape| simple(*shape)) && member == Some(b"is")) {
++        return Selection::Unknown;
++    }
++    let Some(arguments) = shapes.get(from..) else {
++        return Selection::Unknown;
++    };
++    if arguments.len() != 2
++        || !simple(arguments[0])
++        || class != Some(b"ascii")
++        || arguments
++            .iter()
++            .any(|shape| matches!(shape, Shape::Opaque | Shape::Expanded))
++    {
++        return Selection::Unknown;
++    }
++    Selection::Inline {
++        operation,
++        guard: NativeCompilationGuard::BeforeArguments,
++    }
++}
++
++/// Retain source operands independently of names or computed argv values.
++#[must_use]
++pub fn select_original(
++    words: &NativeCompilerWords<'_>,
++    operand_from: usize,
++    scope: NativeScalarScope,
++    version: TclVersion,
++    operation: SemanticOperationId,
++) -> NativeCompilationSelection {
++    if operand_from == 0 {
++        return NativeCompilationSelection::Unknown;
++    }
++    let Some(original_shapes) = words.shapes().get(operand_from..) else {
++        return NativeCompilationSelection::Unknown;
++    };
++    // Static and dynamic expansions are deliberately outside this narrow model.
++    if original_shapes
++        .iter()
++        .any(|shape| matches!(shape, Shape::Opaque | Shape::Expanded))
++    {
++        return NativeCompilationSelection::Unknown;
++    }
++    let Ok(projected) = project_native_compiler_words(words, version) else {
++        return NativeCompilationSelection::Unknown;
++    };
++    let Some(arguments) = projected.get(operand_from..) else {
++        return NativeCompilationSelection::Unknown;
++    };
++    let from = usize::from(scope == NativeScalarScope::PublicMember);
++    let shapes: Vec<_> = arguments.iter().map(|word| word.shape).collect();
++    select_shapes(
++        &shapes,
++        arguments.first().and_then(|word| word.literal.as_deref()),
++        arguments.get(from).and_then(|word| word.literal.as_deref()),
++        scope,
++        version,
++        operation,
++    )
++}
++
++/// `CompileWord(subject)` once; the compile-known class is never a runtime operand.
++#[must_use]
++pub fn instruction(
++    words: &NativeCompilerWords<'_>,
++    operand_from: usize,
++    scope: NativeScalarScope,
++    version: TclVersion,
++) -> Option<NativeScalarInstruction> {
++    if !matches!(
++        select_original(
++            words,
++            operand_from,
++            scope,
++            version,
++            SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs)
++        ),
++        NativeCompilationSelection::Inline { .. }
++    ) {
++        return None;
++    }
++    let projected = project_native_compiler_words(words, version).ok()?;
++    let from = operand_from + usize::from(scope == NativeScalarScope::PublicMember);
++    Some(NativeScalarInstruction {
++        operation: NativeScalarOperation::StringIsAscii,
++        operands: vec![projected.get(from + 1)?.operand.clone()],
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::native_compilation::{
++        NativeCompilationContext, NativeCompilationGrammar, NativeCompilationMode,
++    };
++    use crate::native_compiler_word_projection::NativeCompilerWordOperand;
++    use crate::native_instruction_plan::{NativeInstructionPlan, native_instruction_plan};
++    use tcl_lexer::{LexerConfig, SourceImage, Span, native_script_words_in};
++    use tcl_syntax::native_string::NativeStringProtocol;
++
++    fn words(source: &[u8], version: TclVersion) -> Vec<tcl_lexer::NativeWord> {
++        // Keep original source words, not a generated argv spelling.
++        // This source-geometry fixture grants no live registration authority.
++        let profile = tcl_dialect::DialectProfile::find(version.dialect_name()).unwrap();
++        let mut parsed = native_script_words_in(
++            SourceImage::native(source),
++            Span::new(0, u32::try_from(source.len()).unwrap()),
++            LexerConfig::from_grammar(profile.grammar),
++        )
++        .unwrap();
++        parsed.commands.remove(0).words
++    }
++
++    #[test]
++    fn a_real_private_descriptor_keeps_the_single_original_subject() {
++        let registry = crate::CommandRegistry::build_default();
++        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
++            let dialect = crate::InvocationDialect::for_version(version);
++            let private = registry
++                .native_compilation_for_registration("::tcl::string::is", dialect)
++                .expect("the actual private StringIs compiler has a descriptor");
++            assert_eq!(
++                private.grammar,
++                NativeCompilationGrammar::StringIsAscii(NativeScalarScope::PrivateOperands)
++            );
++            assert_eq!(private.compiler_hook_presence(dialect), Some(true));
++            let public = registry
++                .get("string")
++                .unwrap()
++                .resolve_subcommand("is")
++                .unwrap()
++                .native_compilation
++                .expect("public member compiler");
++            assert_eq!(
++                public.implementation_prerequisites(dialect).unwrap(),
++                vec![STRING_IS_IMPLEMENTATION]
++            );
++            let context = NativeCompilationContext {
++                mode: NativeCompilationMode::BytecodeObject,
++                ..NativeCompilationContext::default()
++            };
++            for (source, spec, subject) in [
++                (b"renamed is ascii $subject".as_slice(), public, 3),
++                (b"renamed ascii $subject".as_slice(), private, 2),
++            ] {
++                let source_words = words(source, version);
++                let original =
++                    NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version))
++                        .unwrap();
++                let selection = spec.select_native_words(&original, 1, Some(dialect), context);
++                assert_eq!(
++                    native_instruction_plan(spec, selection, &original, 1, dialect, context),
++                    Ok(NativeInstructionPlan::Scalar(NativeScalarInstruction {
++                        operation: NativeScalarOperation::StringIsAscii,
++                        operands: vec![NativeCompilerWordOperand::Original(subject)],
++                    })),
++                    "{version:?}: {source:?}"
++                );
++                assert_eq!(
++                    select_original(
++                        &original,
++                        0,
++                        NativeScalarScope::PrivateOperands,
++                        version,
++                        SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs)
++                    ),
++                    NativeCompilationSelection::Unknown
++                );
++            }
++        }
++        assert!(
++            registry
++                .native_compilation_for_registration(
++                    "::tcl::string::not_is",
++                    crate::InvocationDialect::for_version(TclVersion::V9_0)
++                )
++                .is_none()
++        );
++        let c85 = crate::InvocationDialect::for_version(TclVersion::V8_5);
++        assert_eq!(
++            registry
++                .native_compilation_for_registration("::tcl::string::is", c85)
++                .unwrap()
++                .compiler_hook_presence(c85),
++            Some(false)
++        );
++    }
++
++    #[test]
++    fn unmodeled_original_class_options_and_expansions_keep_refusing() {
++        for version in [TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
++            for source in [
++                b"string is ascii -strict $subject".as_slice(),
++                b"string is ascii -failindex out $subject",
++                b"string is alpha $subject",
++                b"string is $class $subject",
++                b"string is asc $subject",
++                b"string is ascii {*}$subject",
++                b"string is {*}{ascii value}",
++            ] {
++                let source_words = words(source, version);
++                let original =
++                    NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version))
++                        .unwrap();
++                assert_eq!(
++                    select_original(
++                        &original,
++                        1,
++                        NativeScalarScope::PublicMember,
++                        version,
++                        SemanticOperationId::Intrinsic(crate::IntrinsicId::StringIs)
++                    ),
++                    NativeCompilationSelection::Unknown,
++                    "{version:?}: {source:?}"
++                );
++            }
++        }
++    }
++    #[test]
++    fn old_or_missing_compiler_point_cannot_make_a_native_plan() {
++        let registry = crate::CommandRegistry::build_default();
++        let spec = registry
++            .get("string")
++            .unwrap()
++            .resolve_subcommand("is")
++            .unwrap()
++            .native_compilation
++            .unwrap();
++        let context = NativeCompilationContext {
++            mode: NativeCompilationMode::BytecodeObject,
++            ..NativeCompilationContext::default()
++        };
++        for version in [TclVersion::V8_4, TclVersion::V8_5] {
++            let source_words = words(b"string is ascii $subject", version);
++            let original =
++                NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version))
++                    .unwrap();
++            let dialect = crate::InvocationDialect::for_version(version);
++            let selection = spec.select_native_words(&original, 1, Some(dialect), context);
++            assert!(!matches!(
++                selection,
++                NativeCompilationSelection::Inline { .. }
++            ));
++            assert!(
++                native_instruction_plan(spec, selection, &original, 1, dialect, context).is_err()
++            );
++        }
++        let version = TclVersion::V9_0;
++        let source_words = words(b"string is ascii $subject", version);
++        let original =
++            NativeCompilerWords::capture(&source_words, NativeStringProtocol::C(version)).unwrap();
++        assert_eq!(
++            spec.select_native_words(&original, 1, None, context),
++            NativeCompilationSelection::Unknown
++        );
++        let dialect = crate::InvocationDialect::for_version(version);
++        let selection = spec.select_native_words(&original, 0, Some(dialect), context);
++        assert_eq!(selection, NativeCompilationSelection::Unknown);
++        assert!(native_instruction_plan(spec, selection, &original, 0, dialect, context).is_err());
++    }
++}
+--- a/rust/tcl-registry/src/registry.rs
++++ b/rust/tcl-registry/src/registry.rs
+@@ -4023,6 +4023,7 @@
+                             crate::native_compilation::NativeCompilationGrammar::StringTrim { operation, .. } => crate::native_compilation::NativeCompilationGrammar::StringTrim { scope: crate::native_scalar_compilation::NativeScalarScope::PrivateOperands, operation },
+                             crate::native_compilation::NativeCompilationGrammar::StringEqual(_) => crate::native_compilation::NativeCompilationGrammar::StringEqual(crate::native_scalar_compilation::NativeScalarScope::PrivateOperands),
+                             crate::native_compilation::NativeCompilationGrammar::StringLength(_) => crate::native_compilation::NativeCompilationGrammar::StringLength(crate::native_scalar_compilation::NativeScalarScope::PrivateOperands),
++                            crate::native_compilation::NativeCompilationGrammar::StringIsAscii(_) => crate::native_compilation::NativeCompilationGrammar::StringIsAscii(crate::native_scalar_compilation::NativeScalarScope::PrivateOperands),
+                             crate::native_compilation::NativeCompilationGrammar::StringOperand { operation, .. } => crate::native_compilation::NativeCompilationGrammar::StringOperand { scope: crate::native_scalar_compilation::NativeScalarScope::PrivateOperands, operation },
+                             grammar => grammar,
+                         };
+--- a/rust/tcl-vm/src/exec.rs
++++ b/rust/tcl-vm/src/exec.rs
+@@ -7322,6 +7322,22 @@
+             // `INST_STR_CLASS`: the empty string matches, otherwise every
+             // character must satisfy the class comparator. Shares the classifier
+             // with the `string is` command.
++            Op::STR_CLASS if instr.native_switch_version.is_some() => {
++                if imm0(instr) != 2 {
++                    return Tick::Return(
++                        self.refuse_host_command(
++                            "unmodeled native string class instruction".into(),
++                        ),
++                    );
++                }
++                let original = pop(f);
++                let result = try_core!(self.execute_native_ascii_predicate(
++                    &original,
++                    instr.native_switch_version.unwrap(),
++                ));
++                drop(original);
++                f.stack.push(result);
++            }
+             Op::STR_CLASS => {
+                 let class_id = u8::try_from(imm0(instr)).unwrap_or(u8::MAX);
+                 let Some(class) = tcl_bytecode::str_class_name(class_id) else {
+--- a/rust/tcl-vm/src/exec/native_scalar.rs
++++ b/rust/tcl-vm/src/exec/native_scalar.rs
+@@ -23,6 +23,43 @@
+ use tcl_syntax::value::{ValueError, ValueOps};
+ 
+ impl Vm {
++    /// Only the admitted non-strict C ASCII STR_CLASS form reaches this worker.
++    pub(super) fn execute_native_ascii_predicate(
++        &mut self,
++        original: &Value,
++        version: tcl_dialect::TclVersion,
++    ) -> Result<Value, tcl_cmd_core::CmdError> {
++        let ops = crate::interp::native_numeric_ops::OriginalNumericOps::entered(self)?;
++        let dialect = ops.dialect();
++        if version < tcl_dialect::TclVersion::V8_6
++            || dialect.tcl_version != Some(version)
++            || dialect.native_error_log_protocol().is_none()
++        {
++            return Err(ValueError::CommandProtocolUnavailable(
++                "native compiled ASCII predicate issuer",
++            )
++            .into());
++        }
++        let protocol =
++            dialect
++                .native_string_protocol()
++                .ok_or(ValueError::CommandProtocolUnavailable(
++                    "native compiled ASCII Unicode getter",
++                ))?;
++        let units = original.native_unicode_units_checked(
++            protocol,
++            &mut || ops.current_for_value(original),
++            &mut || ops.string(original, protocol),
++        )?;
++        ops.current_for_value(original)?;
++        let matched = units.iter().all(|unit| *unit <= 0x7f);
++        drop(units);
++        ops.with_vm_for_value(original, |vm| {
++            vm.native_c_execution_boolean(matched, version)
++                .map_err(Into::into)
++        })
++    }
++
+     pub(super) fn execute_native_scalar_length(
+         &mut self,
+         original: &Value,
+@@ -38,7 +75,7 @@
+         let length = match operation {
+             NativeScalarOperation::StringLength => self.native_char_len(original)?,
+             NativeScalarOperation::ListLength => self.list_len(original)?,
+-            NativeScalarOperation::StringEqual => {
++            NativeScalarOperation::StringEqual | NativeScalarOperation::StringIsAscii => {
+                 return Err(ValueError::CommandProtocolUnavailable(
+                     "native length instruction",
+                 ));

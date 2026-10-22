@@ -1,0 +1,134 @@
+{
+  "observed_utc": "2026-10-22T17:35:52.408291+00:00",
+  "status": "Prior17failure source/log triage only. jim_document has not been rerun; no inferred pass count.",
+  "prior_log": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/runs/after8.jim_document.failures.txt",
+  "prior_log_sha256": "4d2db6596680606738509a1bf488ca4e279bbd07968c84d647fc524fd1e98c1d",
+  "prior_result": "9passed17failed26 old observation; no current acceptance.",
+  "failures": [
+    {
+      "test": "a_class_records_the_variables_its_dictionary_names",
+      "family": "class_source_lists",
+      "descriptor_gap": "No: the proc descriptor does not select class variable dictionary/base-list semantics.",
+      "boundary": "analyser/oo.rs original_jim_class_lists requires retained_source_advice_purpose; unavailable purpose gives empty variable/base facts. Native/advisory purpose also requires OriginalClassDefinerSource native_argument_input. Prior outputs match unavailable/absent-source-list projections but the exact current rejected predicate is unmeasured.",
+      "owner": "Compiler retained original source-purpose/class-list producers, after guarded Jim rerun."
+    },
+    {
+      "test": "a_derived_class_inherits_its_bases_variables",
+      "family": "class_source_lists",
+      "descriptor_gap": "No: the proc descriptor does not select class variable dictionary/base-list semantics.",
+      "boundary": "analyser/oo.rs original_jim_class_lists requires retained_source_advice_purpose; unavailable purpose gives empty variable/base facts. Native/advisory purpose also requires OriginalClassDefinerSource native_argument_input. Prior outputs match unavailable/absent-source-list projections but the exact current rejected predicate is unmeasured.",
+      "owner": "Compiler retained original source-purpose/class-list producers, after guarded Jim rerun."
+    },
+    {
+      "test": "a_method_body_can_construct_its_own_class",
+      "family": "class_member_receiver_publication",
+      "descriptor_gap": "Not confirmed. Proc descriptor can affect scanned raw two-word declarations, but cannot by itself repair class factory/receiver/source publication joins.",
+      "boundary": "OriginalClassDefinerSource capture and registry_invocation/source_structure class/constructor references feed handle_jim_class_member_call, inherited receiver vars and record_two_word_proc_member; no command spelling fallback is authorized.",
+      "owner": "Compiler class/procedure original-source publication and analyser joins."
+    },
+    {
+      "test": "a_method_body_sees_the_instance_variables_and_self",
+      "family": "class_member_receiver_publication",
+      "descriptor_gap": "Not confirmed. Proc descriptor can affect scanned raw two-word declarations, but cannot by itself repair class factory/receiver/source publication joins.",
+      "boundary": "OriginalClassDefinerSource capture and registry_invocation/source_structure class/constructor references feed handle_jim_class_member_call, inherited receiver vars and record_two_word_proc_member; no command spelling fallback is authorized.",
+      "owner": "Compiler class/procedure original-source publication and analyser joins."
+    },
+    {
+      "test": "a_raw_two_word_proc_is_a_method_without_the_class_variables",
+      "family": "class_member_receiver_publication",
+      "descriptor_gap": "Not confirmed. Proc descriptor can affect scanned raw two-word declarations, but cannot by itself repair class factory/receiver/source publication joins.",
+      "boundary": "OriginalClassDefinerSource capture and registry_invocation/source_structure class/constructor references feed handle_jim_class_member_call, inherited receiver vars and record_two_word_proc_member; no command spelling fallback is authorized.",
+      "owner": "Compiler class/procedure original-source publication and analyser joins."
+    },
+    {
+      "test": "a_jim_program_draws_no_findings",
+      "family": "compound_jim_program",
+      "descriptor_gap": "One constituent cause: fourword proc shape; class object/source receiver joins are independent.",
+      "boundary": "Combined class/statics/method/loop/sleep program; preserve complete assertions and rerun after narrow typed fix before any additional change.",
+      "owner": "Compiler/registry; no VM runtime parity change shown."
+    },
+    {
+      "test": "a_tcl_document_has_no_jim_class",
+      "family": "disabled_command_availability",
+      "descriptor_gap": "No: these Tcl-profile failures concern excluded Jim command provenance and diagnostic identity.",
+      "boundary": "emit_dispatch_site_diagnostics only emits W002 from original_source_command_availability proof; missing original Realm/input/selected unavailable descriptor leads no W002, while unknown command pass reports W123 and subsequent opaque effects may hide Point. Precise failed availability predicate remains unmeasured.",
+      "owner": "Compiler original unavailable-command source proof and registry excluded metadata."
+    },
+    {
+      "test": "a_two_word_proc_written_before_its_class_is_a_method",
+      "family": "class_member_receiver_publication",
+      "descriptor_gap": "Not confirmed. Proc descriptor can affect scanned raw two-word declarations, but cannot by itself repair class factory/receiver/source publication joins.",
+      "boundary": "OriginalClassDefinerSource capture and registry_invocation/source_structure class/constructor references feed handle_jim_class_member_call, inherited receiver vars and record_two_word_proc_member; no command spelling fallback is authorized.",
+      "owner": "Compiler class/procedure original-source publication and analyser joins."
+    },
+    {
+      "test": "an_object_is_typed_by_its_class_and_its_member_set_is_open",
+      "family": "class_member_receiver_publication",
+      "descriptor_gap": "Not confirmed. Proc descriptor can affect scanned raw two-word declarations, but cannot by itself repair class factory/receiver/source publication joins.",
+      "boundary": "OriginalClassDefinerSource capture and registry_invocation/source_structure class/constructor references feed handle_jim_class_member_call, inherited receiver vars and record_two_word_proc_member; no command spelling fallback is authorized.",
+      "owner": "Compiler class/procedure original-source publication and analyser joins."
+    },
+    {
+      "test": "an_odd_variable_dictionary_is_an_argument_shape_error",
+      "family": "class_source_lists",
+      "descriptor_gap": "No: the proc descriptor does not select class variable dictionary/base-list semantics.",
+      "boundary": "analyser/oo.rs original_jim_class_lists requires retained_source_advice_purpose; unavailable purpose gives empty variable/base facts. Native/advisory purpose also requires OriginalClassDefinerSource native_argument_input. Prior outputs match unavailable/absent-source-list projections but the exact current rejected predicate is unmeasured.",
+      "owner": "Compiler retained original source-purpose/class-list producers, after guarded Jim rerun."
+    },
+    {
+      "test": "a_two_element_proc_name_defines_a_two_word_command_in_every_dialect",
+      "family": "unresolved_two_word_command",
+      "descriptor_gap": "Not established; a direct 3word proc is already analysed and E002 still appears, while W123 for the distinct two-word head is absent.",
+      "boundary": "Original two-word unknown-command/conditional dispatch proof, independent of plain4word index correction. Do not infer fix from proc typed-field addition.",
+      "owner": "Compiler source command lookup/unresolved diagnostics."
+    },
+    {
+      "test": "loop_is_flagged_under_tcl_and_accepted_under_jim",
+      "family": "disabled_command_availability",
+      "descriptor_gap": "No: these Tcl-profile failures concern excluded Jim command provenance and diagnostic identity.",
+      "boundary": "emit_dispatch_site_diagnostics only emits W002 from original_source_command_availability proof; missing original Realm/input/selected unavailable descriptor leads no W002, while unknown command pass reports W123 and subsequent opaque effects may hide Point. Precise failed availability predicate remains unmeasured.",
+      "owner": "Compiler original unavailable-command source proof and registry excluded metadata."
+    },
+    {
+      "test": "only_a_computed_base_list_leaves_the_inheritance_unknown",
+      "family": "class_source_lists",
+      "descriptor_gap": "No: the proc descriptor does not select class variable dictionary/base-list semantics.",
+      "boundary": "analyser/oo.rs original_jim_class_lists requires retained_source_advice_purpose; unavailable purpose gives empty variable/base facts. Native/advisory purpose also requires OriginalClassDefinerSource native_argument_input. Prior outputs match unavailable/absent-source-list projections but the exact current rejected predicate is unmeasured.",
+      "owner": "Compiler retained original source-purpose/class-list producers, after guarded Jim rerun."
+    },
+    {
+      "test": "only_a_bare_or_ampersand_static_reads_the_enclosing_variable",
+      "family": "procedure_shape",
+      "descriptor_gap": "Real direct static cause for the wrong4word layout/missing signature. No pass-count claim; further original-source prerequisites still need execution.",
+      "boundary": "Jim embedded proc has no procedure_definition; registry8942 requires typed selected descriptor; analyser handlers2627 fallback TCL_PROC loses statics/index3; scan walker333 gates proc extraction on typed descriptor.",
+      "owner": "Registry trusted core attachment; compiler existing selected descriptor consumers.",
+      "fix_draft": "/tmp/vm-runtime-jim-descriptor-shadow/trusted-jim-proc.patch"
+    },
+    {
+      "test": "the_body_of_a_proc_with_statics_is_walked",
+      "family": "procedure_shape",
+      "descriptor_gap": "Real direct static cause for the wrong4word layout/missing signature. No pass-count claim; further original-source prerequisites still need execution.",
+      "boundary": "Jim embedded proc has no procedure_definition; registry8942 requires typed selected descriptor; analyser handlers2627 fallback TCL_PROC loses statics/index3; scan walker333 gates proc extraction on typed descriptor.",
+      "owner": "Registry trusted core attachment; compiler existing selected descriptor consumers.",
+      "fix_draft": "/tmp/vm-runtime-jim-descriptor-shadow/trusted-jim-proc.patch"
+    },
+    {
+      "test": "the_signature_scan_reads_the_four_word_definition",
+      "family": "procedure_shape",
+      "descriptor_gap": "Real direct static cause for the wrong4word layout/missing signature. No pass-count claim; further original-source prerequisites still need execution.",
+      "boundary": "Jim embedded proc has no procedure_definition; registry8942 requires typed selected descriptor; analyser handlers2627 fallback TCL_PROC loses statics/index3; scan walker333 gates proc extraction on typed descriptor.",
+      "owner": "Registry trusted core attachment; compiler existing selected descriptor consumers.",
+      "fix_draft": "/tmp/vm-runtime-jim-descriptor-shadow/trusted-jim-proc.patch"
+    },
+    {
+      "test": "the_same_program_under_tcl_is_rejected",
+      "family": "disabled_command_availability",
+      "descriptor_gap": "No: these Tcl-profile failures concern excluded Jim command provenance and diagnostic identity.",
+      "boundary": "emit_dispatch_site_diagnostics only emits W002 from original_source_command_availability proof; missing original Realm/input/selected unavailable descriptor leads no W002, while unknown command pass reports W123 and subsequent opaque effects may hide Point. Precise failed availability predicate remains unmeasured.",
+      "owner": "Compiler original unavailable-command source proof and registry excluded metadata."
+    }
+  ],
+  "pinned_jim_oracle": "/tmp/vm-runtime-jim-document-oracle-20261022T172713Z/receipt.json",
+  "pinned_jim_semantics": "25fixed controls passed, version0.84, exit0, no stderr; validates expectation semantics only, not Rust analyser behavior.",
+  "next": "After explicit VM slot, six after8b Jim/EDA32 then guarded jim_document26 plusTLS first; apply no source repair during R1/C6 hold."
+}

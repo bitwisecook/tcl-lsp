@@ -1,0 +1,26 @@
+{
+  "utc": "2026-10-22T17:38:40.406036+00:00",
+  "scope": "agent-reported three registry projection controls only; no compiler/LSP/zero-P2F admission",
+  "test_result": [
+    "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 1895 filtered out; finished in 0.50s"
+  ],
+  "build_completion": [
+    "    Finished `test` profile [unoptimized] target(s) in 4m 56s"
+  ],
+  "warnings": [],
+  "errors": [],
+  "before_head": "d7ff1142a478fcdb8231457723033865e4f818ee",
+  "after_head": "d7ff1142a478fcdb8231457723033865e4f818ee",
+  "source_count": 6509,
+  "source_changes": [],
+  "artifacts": [
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_registry-e1791ac08a41f14e",
+      "size": 63275384,
+      "mtime_ns": 1792690654342835050,
+      "sha256": "4cbeba3df5ce2e43f9ddd979ecfb3b6ac38944075a6b15aa4cc8be7cdc55ea90"
+    }
+  ],
+  "exits": "cargo=0 filter=0\n",
+  "lock_released_utc": "2026-10-22T17:37:51Z"
+}

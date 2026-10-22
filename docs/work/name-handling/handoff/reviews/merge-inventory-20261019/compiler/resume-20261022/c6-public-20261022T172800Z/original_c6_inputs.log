@@ -1,0 +1,273 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler)
+    Finished `test` profile [unoptimized] target(s) in 12.80s
+     Running tests/zz_compiler_resume_probe.rs (target/debug/deps/zz_compiler_resume_probe-48e10932545341e8)
+running 1 test
+test original_c6_inputs ... ZZ_COMPILER_DEFERRED 122 ["puts", "${y}"]
+ZZ_SOL49_ANY supplied.rs:124
+ZZ_COMPILER_DEFERRED 122 ["switch", "-glob", "${x}", "a* {break} default {break}"]
+ZZ_SOL49_ANY supplied.rs:124
+ZZ_COMPILER_DEFERRED 170 ["proc", "f", "x", " while 1 { switch -glob $x {a* {break} default {break}} }; puts $y "]
+ZZ_SOL49_ANY supplied.rs:172
+ZZ_COMPILER_DEFERRED 122 ["switch", "-glob", "${x}", "a* {break} default {break}"]
+ZZ_SOL49_ANY supplied.rs:124
+ZZ_COMPILER_DEFERRED 122 ["puts", "${y}"]
+ZZ_SOL49_ANY supplied.rs:124
+ZZ_COMPILER_DEFERRED 122 ["puts", "${y}"]
+ZZ_SOL49_ANY supplied.rs:124
+ZZ_COMPILER_DEFERRED 122 ["switch", "-glob", "${x}", "a* {break} default {break}"]
+ZZ_SOL49_ANY supplied.rs:124
+ZZ_COMPILER_DEFERRED 170 ["proc", "f", "x", " while 1 { switch -glob $x {a* {break} default {break}} }; puts $y "]
+ZZ_SOL49_ANY supplied.rs:172
+ZZ_COMPILER_DEFERRED 122 ["switch", "-glob", "${x}", "a* {break} default {break}"]
+ZZ_SOL49_ANY supplied.rs:124
+ZZ_COMPILER_DEFERRED 122 ["puts", "${y}"]
+ZZ_SOL49_ANY supplied.rs:124
+ZZ_C6_BUILD deferred_any=true deferred_names={}
+ZZ_C6_CFG function=::top block=BlockId(0) successors=[BlockId(1)] executable=true
+ZZ_C6_STMT function=::top block=BlockId(0) index=0 kind=Call argv=Some(["proc", "f", "x", " while 1 { switch -glob $x {a* {break} default {break}} }; puts $y "]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::top block=BlockId(0) index=1 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_CFG function=::top block=BlockId(1) successors=[] executable=true
+ZZ_C6_CFG function=::f block=BlockId(2) successors=[BlockId(1)] executable=true
+ZZ_C6_STMT function=::f block=BlockId(2) index=0 kind=Call argv=Some(["switch", "-glob", "${x}", "a* {break} default {break}"]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::f block=BlockId(2) index=1 kind=Barrier argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::f block=BlockId(2) index=2 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_CFG function=::f block=BlockId(3) successors=[BlockId(4)] executable=false
+ZZ_C6_STMT function=::f block=BlockId(3) index=0 kind=Call argv=Some(["puts", "${y}"]) uses=Some([("y", 0)]) defs=Some([])
+ZZ_C6_STMT function=::f block=BlockId(3) index=1 kind=Barrier argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::f block=BlockId(3) index=2 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_CFG function=::f block=BlockId(4) successors=[] executable=false
+ZZ_C6_CFG function=::f block=BlockId(1) successors=[BlockId(2), BlockId(3)] executable=true
+ZZ_C6_CFG function=::f block=BlockId(0) successors=[BlockId(1)] executable=true
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=2
+HOSTED_TAINT_SOURCE site=Some(0) stage=lowering-context-unavailable words=4 binding=true context=false
+ZZ_COMPILER_TAINT ["proc", "f", "x", " while 1 { switch -glob $x {a* {break} default {break}} }; puts $y "] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=0 conditional_source=true spellings=true origins=4 uses=0
+HOSTED_TAINT_SINK site=0 code=None args=3 uses=0
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(3) executable=false statements=3
+HOSTED_TAINT_BLOCK block=BlockId(4) executable=false statements=0
+HOSTED_TAINT_BLOCK block=BlockId(2) executable=true statements=3
+HOSTED_TAINT_SOURCE site=Some(23) stage=lowering-context-unavailable words=4 binding=true context=false
+ZZ_COMPILER_TAINT ["switch", "-glob", "${x}", "a* {break} default {break}"] native=false candidates=0
+HOSTED_TAINT_SOURCE site=Some(23) stage=lowering-context-unavailable words=4 binding=true context=false
+ZZ_PIPELINE source_bytes=81 analyser_ms=10544 cu_ms=1484 checks_ms=233
+ZZ_C6 name=fp_rbs_15_while1 matched=false code=W210 expected=true actual=[] source="proc f {x} { while 1 { switch -glob $x {a* {break} default {break}} }; puts $y }\n"
+ZZ_COMPILER_DEFERRED 161 ["puts", "${k}=${v}"]
+ZZ_SOL49_ANY supplied.rs:163
+ZZ_COMPILER_DEFERRED 161 ["puts", "${k}=${v}"]
+ZZ_SOL49_ANY supplied.rs:163
+ZZ_C6_BUILD deferred_any=true deferred_names={}
+ZZ_C6_CFG function=::top block=BlockId(3) successors=[BlockId(4)] executable=true
+ZZ_C6_CFG function=::top block=BlockId(0) successors=[BlockId(1)] executable=true
+ZZ_C6_STMT function=::top block=BlockId(0) index=0 kind=AssignConst argv=None uses=Some([]) defs=Some([("d", 1)])
+ZZ_C6_STMT function=::top block=BlockId(0) index=1 kind=Call argv=Some(["dict", "for", "k v", "${d}", " puts \"$k=$v\" "]) uses=Some([("d", 1)]) defs=Some([])
+ZZ_C6_CFG function=::top block=BlockId(4) successors=[] executable=true
+ZZ_C6_CFG function=::top block=BlockId(2) successors=[BlockId(1)] executable=true
+ZZ_C6_STMT function=::top block=BlockId(2) index=0 kind=Call argv=Some(["puts", "${k}=${v}"]) uses=Some([("v", 2), ("k", 2)]) defs=Some([])
+ZZ_C6_CFG function=::top block=BlockId(1) successors=[BlockId(2), BlockId(3)] executable=true
+ZZ_C6_STMT function=::top block=BlockId(1) index=0 kind=Call argv=Some(["dict for", "${d}"]) uses=Some([("d", 1), ("v", 2), ("k", 2)]) defs=Some([("k", 2), ("v", 2)])
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=2
+HOSTED_TAINT_SOURCE site=Some(16) stage=lowering-context-unavailable words=5 binding=true context=false
+ZZ_COMPILER_TAINT ["dict", "for", "k v", "${d}", " puts \"$k=$v\" "] native=false candidates=0
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=1
+HOSTED_TAINT_SOURCE site=Some(16) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_COMPILER_TAINT ["dict for", "${d}"] native=false candidates=0
+HOSTED_TAINT_BLOCK block=BlockId(3) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(4) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(2) executable=true statements=1
+HOSTED_TAINT_SOURCE site=Some(36) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_COMPILER_TAINT ["puts", "${k}=${v}"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=36 conditional_source=true spellings=true origins=2 uses=2
+HOSTED_TAINT_SINK site=36 code=Some(T101) args=1 uses=2
+HOSTED_TAINT_SOURCE site=Some(36) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_PIPELINE source_bytes=51 analyser_ms=4358 cu_ms=851 checks_ms=126
+ZZ_C6 name=fp_sh_21_dict_for matched=false code=S100 expected=false actual=["S100"] source="set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n"
+ZZ_COMPILER_DEFERRED 161 ["puts", "${k}=${v}"]
+ZZ_SOL49_ANY supplied.rs:163
+ZZ_COMPILER_DEFERRED 161 ["puts", "${k}=${v}"]
+ZZ_SOL49_ANY supplied.rs:163
+ZZ_C6_BUILD deferred_any=true deferred_names={}
+ZZ_C6_CFG function=::top block=BlockId(0) successors=[BlockId(1)] executable=true
+ZZ_C6_STMT function=::top block=BlockId(0) index=0 kind=AssignConst argv=None uses=Some([]) defs=Some([("d", 1)])
+ZZ_C6_STMT function=::top block=BlockId(0) index=1 kind=Call argv=Some(["dict", "for", "k v", "${d}", " puts \"$k=$v\" "]) uses=Some([("d", 1)]) defs=Some([])
+ZZ_C6_CFG function=::top block=BlockId(4) successors=[] executable=true
+ZZ_C6_CFG function=::top block=BlockId(1) successors=[BlockId(2), BlockId(3)] executable=true
+ZZ_C6_STMT function=::top block=BlockId(1) index=0 kind=Call argv=Some(["dict for", "${d}"]) uses=Some([("d", 1), ("v", 2), ("k", 2)]) defs=Some([("v", 2), ("k", 2)])
+ZZ_C6_CFG function=::top block=BlockId(3) successors=[BlockId(4)] executable=true
+ZZ_C6_CFG function=::top block=BlockId(2) successors=[BlockId(1)] executable=true
+ZZ_C6_STMT function=::top block=BlockId(2) index=0 kind=Call argv=Some(["puts", "${k}=${v}"]) uses=Some([("v", 2), ("k", 2)]) defs=Some([])
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=2
+HOSTED_TAINT_SOURCE site=Some(16) stage=lowering-context-unavailable words=5 binding=true context=false
+ZZ_COMPILER_TAINT ["dict", "for", "k v", "${d}", " puts \"$k=$v\" "] native=false candidates=0
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=1
+HOSTED_TAINT_SOURCE site=Some(16) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_COMPILER_TAINT ["dict for", "${d}"] native=false candidates=0
+HOSTED_TAINT_BLOCK block=BlockId(3) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(4) executable=true statements=0
+HOSTED_TAINT_BLOCK block=BlockId(2) executable=true statements=1
+HOSTED_TAINT_SOURCE site=Some(36) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_COMPILER_TAINT ["puts", "${k}=${v}"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=36 conditional_source=true spellings=true origins=2 uses=2
+HOSTED_TAINT_SINK site=36 code=Some(T101) args=1 uses=2
+HOSTED_TAINT_SOURCE site=Some(36) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_PIPELINE source_bytes=51 analyser_ms=20019 cu_ms=1143 checks_ms=286
+ZZ_C6 name=fp_sh_21_dict_for_S101 matched=true code=S101 expected=false actual=["S100"] source="set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n"
+ZZ_C6_BUILD deferred_any=false deferred_names={}
+ZZ_C6_CFG function=::top block=BlockId(1) successors=[] executable=true
+ZZ_C6_CFG function=::top block=BlockId(0) successors=[BlockId(1)] executable=true
+ZZ_C6_STMT function=::top block=BlockId(0) index=0 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::top block=BlockId(0) index=1 kind=AssignValue argv=Some(["set", "raw", "[gets stdin]"]) uses=Some([]) defs=Some([("raw", 1)])
+ZZ_C6_STMT function=::top block=BlockId(0) index=2 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::top block=BlockId(0) index=3 kind=Barrier argv=Some(["interp", "eval", "${child}", "[list puts $raw]"]) uses=Some([("child", 0), ("raw", 2)]) defs=Some([])
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=4
+HOSTED_TAINT_SOURCE site=Some(9) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_COMPILER_TAINT ["gets", "stdin"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=0 conditional_source=true spellings=true origins=2 uses=0
+HOSTED_TAINT_SINK site=0 code=None args=1 uses=0
+HOSTED_TAINT_SOURCE site=Some(21) stage=lowering-context-unavailable words=4 binding=true context=false
+ZZ_COMPILER_TAINT ["interp", "eval", "${child}", "[list puts $raw]"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=21 conditional_source=true spellings=true origins=4 uses=2
+HOSTED_TAINT_SINK site=21 code=None args=3 uses=2
+HOSTED_TAINT_READ site=33 read=true version=false lattice=false tainted=true
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+ZZ_PIPELINE source_bytes=57 analyser_ms=7224 cu_ms=4089 checks_ms=197
+ZZ_C6 name=fp_tnt_03_interp_literal matched=false code=T105 expected=false actual=["T105"] source="set raw [gets stdin]\ninterp eval $child [list puts $raw]\n"
+ZZ_C6_BUILD deferred_any=false deferred_names={}
+ZZ_C6_CFG function=::top block=BlockId(0) successors=[BlockId(1)] executable=true
+ZZ_C6_STMT function=::top block=BlockId(0) index=0 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::top block=BlockId(0) index=1 kind=AssignValue argv=Some(["set", "raw", "[gets stdin]"]) uses=Some([]) defs=Some([("raw", 1)])
+ZZ_C6_STMT function=::top block=BlockId(0) index=2 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::top block=BlockId(0) index=3 kind=Barrier argv=Some(["interp", "eval", "${child}", "[list $raw]"]) uses=Some([("child", 0), ("raw", 2)]) defs=Some([])
+ZZ_C6_CFG function=::top block=BlockId(1) successors=[] executable=true
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=4
+HOSTED_TAINT_SOURCE site=Some(9) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_COMPILER_TAINT ["gets", "stdin"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=0 conditional_source=true spellings=true origins=2 uses=0
+HOSTED_TAINT_SINK site=0 code=None args=1 uses=0
+HOSTED_TAINT_SOURCE site=Some(21) stage=lowering-context-unavailable words=4 binding=true context=false
+ZZ_COMPILER_TAINT ["interp", "eval", "${child}", "[list $raw]"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=21 conditional_source=true spellings=true origins=4 uses=2
+HOSTED_TAINT_SINK site=21 code=None args=3 uses=2
+HOSTED_TAINT_READ site=33 read=true version=false lattice=false tainted=true
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+ZZ_PIPELINE source_bytes=52 analyser_ms=3723 cu_ms=5079 checks_ms=323
+ZZ_C6 name=interp_tainted_original matched=true code=T105 expected=true actual=["T105"] source="set raw [gets stdin]\ninterp eval $child [list $raw]\n"
+HOSTED_TAINT_SOURCE site=Some(32) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(32) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(32) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(32) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(32) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(32) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_C6_BUILD deferred_any=false deferred_names={}
+ZZ_C6_CFG function=::top block=BlockId(1) successors=[] executable=true
+ZZ_C6_CFG function=::top block=BlockId(0) successors=[BlockId(1)] executable=true
+ZZ_C6_STMT function=::top block=BlockId(0) index=0 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::top block=BlockId(0) index=1 kind=AssignValue argv=Some(["set", "raw", "[gets stdin]"]) uses=Some([]) defs=Some([("raw", 1)])
+ZZ_C6_STMT function=::top block=BlockId(0) index=2 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::top block=BlockId(0) index=3 kind=AssignValue argv=Some(["set", "child", "[interp create]"]) uses=Some([]) defs=Some([("child", 1)])
+ZZ_C6_STMT function=::top block=BlockId(0) index=4 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::top block=BlockId(0) index=5 kind=Barrier argv=Some(["interp", "eval", "${child}", "[list $raw]"]) uses=Some([("raw", 3), ("child", 2)]) defs=Some([])
+HOSTED_TAINT_SOURCE site=Some(32) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(32) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=6
+HOSTED_TAINT_SOURCE site=Some(9) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_COMPILER_TAINT ["gets", "stdin"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=0 conditional_source=true spellings=true origins=2 uses=0
+HOSTED_TAINT_SINK site=0 code=None args=1 uses=0
+HOSTED_TAINT_SOURCE site=Some(32) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_COMPILER_TAINT ["interp", "create"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=21 conditional_source=true spellings=true origins=2 uses=0
+HOSTED_TAINT_SINK site=21 code=None args=1 uses=0
+HOSTED_TAINT_SOURCE site=Some(47) stage=lowering-context-unavailable words=4 binding=true context=false
+ZZ_COMPILER_TAINT ["interp", "eval", "${child}", "[list $raw]"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=47 conditional_source=true spellings=true origins=4 uses=2
+HOSTED_TAINT_SINK site=47 code=None args=3 uses=2
+HOSTED_TAINT_READ site=59 read=true version=true lattice=true tainted=false
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+ZZ_PIPELINE source_bytes=78 analyser_ms=5138 cu_ms=1798 checks_ms=357
+ZZ_C6 name=interp_tainted_created_after_raw matched=false code=T105 expected=true actual=[] source="set raw [gets stdin]\nset child [interp create]\ninterp eval $child [list $raw]\n"
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_C6_BUILD deferred_any=false deferred_names={}
+ZZ_C6_CFG function=::top block=BlockId(0) successors=[BlockId(1)] executable=true
+ZZ_C6_STMT function=::top block=BlockId(0) index=0 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::top block=BlockId(0) index=1 kind=AssignValue argv=Some(["set", "child", "[interp create]"]) uses=Some([]) defs=Some([("child", 1)])
+ZZ_C6_STMT function=::top block=BlockId(0) index=2 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::top block=BlockId(0) index=3 kind=AssignValue argv=Some(["set", "raw", "[gets stdin]"]) uses=Some([]) defs=Some([("raw", 1)])
+ZZ_C6_STMT function=::top block=BlockId(0) index=4 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::top block=BlockId(0) index=5 kind=Barrier argv=Some(["interp", "eval", "${child}", "[list $raw]"]) uses=Some([("child", 3), ("raw", 2)]) defs=Some([])
+ZZ_C6_CFG function=::top block=BlockId(1) successors=[] executable=true
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=6
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_COMPILER_TAINT ["interp", "create"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=0 conditional_source=true spellings=true origins=2 uses=0
+HOSTED_TAINT_SINK site=0 code=None args=1 uses=0
+HOSTED_TAINT_SOURCE site=Some(35) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_COMPILER_TAINT ["gets", "stdin"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=26 conditional_source=true spellings=true origins=2 uses=0
+HOSTED_TAINT_SINK site=26 code=None args=1 uses=0
+HOSTED_TAINT_SOURCE site=Some(47) stage=lowering-context-unavailable words=4 binding=true context=false
+ZZ_COMPILER_TAINT ["interp", "eval", "${child}", "[list $raw]"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=47 conditional_source=true spellings=true origins=4 uses=2
+HOSTED_TAINT_SINK site=47 code=None args=3 uses=2
+HOSTED_TAINT_READ site=59 read=true version=true lattice=true tainted=false
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+ZZ_PIPELINE source_bytes=78 analyser_ms=7037 cu_ms=2626 checks_ms=356
+ZZ_C6 name=interp_tainted_created_before_raw matched=false code=T105 expected=true actual=[] source="set child [interp create]\nset raw [gets stdin]\ninterp eval $child [list $raw]\n"
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_C6_BUILD deferred_any=false deferred_names={}
+ZZ_C6_CFG function=::top block=BlockId(0) successors=[BlockId(1)] executable=true
+ZZ_C6_STMT function=::top block=BlockId(0) index=0 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::top block=BlockId(0) index=1 kind=AssignValue argv=Some(["set", "child", "[interp create]"]) uses=Some([]) defs=Some([("child", 1)])
+ZZ_C6_STMT function=::top block=BlockId(0) index=2 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::top block=BlockId(0) index=3 kind=AssignValue argv=Some(["set", "raw", "[gets stdin]"]) uses=Some([]) defs=Some([("raw", 1)])
+ZZ_C6_STMT function=::top block=BlockId(0) index=4 kind=Call argv=Some([]) uses=Some([]) defs=Some([])
+ZZ_C6_STMT function=::top block=BlockId(0) index=5 kind=Barrier argv=Some(["interp", "eval", "${child}", "[list puts $raw]"]) uses=Some([("raw", 2), ("child", 3)]) defs=Some([])
+ZZ_C6_CFG function=::top block=BlockId(1) successors=[] executable=true
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+HOSTED_TAINT_BLOCK block=BlockId(0) executable=true statements=6
+HOSTED_TAINT_SOURCE site=Some(11) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_COMPILER_TAINT ["interp", "create"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=0 conditional_source=true spellings=true origins=2 uses=0
+HOSTED_TAINT_SINK site=0 code=None args=1 uses=0
+HOSTED_TAINT_SOURCE site=Some(35) stage=lowering-context-unavailable words=2 binding=true context=false
+ZZ_COMPILER_TAINT ["gets", "stdin"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=26 conditional_source=true spellings=true origins=2 uses=0
+HOSTED_TAINT_SINK site=26 code=None args=1 uses=0
+HOSTED_TAINT_SOURCE site=Some(47) stage=lowering-context-unavailable words=4 binding=true context=false
+ZZ_COMPILER_TAINT ["interp", "eval", "${child}", "[list puts $raw]"] native=false candidates=1
+HOSTED_TAINT_CANDIDATE site=47 conditional_source=true spellings=true origins=4 uses=2
+HOSTED_TAINT_SINK site=47 code=None args=3 uses=2
+HOSTED_TAINT_READ site=59 read=true version=true lattice=true tainted=false
+HOSTED_TAINT_BLOCK block=BlockId(1) executable=true statements=0
+ZZ_PIPELINE source_bytes=83 analyser_ms=3568 cu_ms=1131 checks_ms=254
+ZZ_C6 name=interp_literal_created_before_raw matched=true code=T105 expected=false actual=[] source="set child [interp create]\nset raw [gets stdin]\ninterp eval $child [list puts $raw]\n"
+thread 'original_c6_inputs' (77849) panicked at rust/tcl-compiler/tests/zz_compiler_resume_probe.rs:150:5:
+C6 probe mismatches: ["fp_rbs_15_while1", "fp_sh_21_dict_for", "fp_tnt_03_interp_literal", "interp_tainted_created_after_raw", "interp_tainted_created_before_raw"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    original_c6_inputs
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1 filtered out; finished in 82.12s
+error: test failed, to rerun pass `-p tcl-compiler --test zz_compiler_resume_probe`

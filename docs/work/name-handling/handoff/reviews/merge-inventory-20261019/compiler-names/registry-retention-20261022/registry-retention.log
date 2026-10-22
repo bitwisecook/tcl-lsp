@@ -1,0 +1,7 @@
+   Compiling tcl-registry v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry)
+    Finished `test` profile [unoptimized] target(s) in 4m 56s
+     Running unittests src/lib.rs (target/debug/deps/tcl_registry-e1791ac08a41f14e)
+test resolved_invocation::tests::frozen_source_retention_does_not_drop_body_valued_callback_options ... ok
+test resolved_invocation::tests::frozen_source_retention_preserves_unknown_selection_and_prefix_layout ... ok
+test resolved_invocation::tests::frozen_source_retention_separates_ordinary_values_and_deferred_hooks ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 1895 filtered out; finished in 0.50s

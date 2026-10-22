@@ -1,0 +1,25 @@
+{
+  "observed_utc": "2026-10-22T17:27:13.355666+00:00",
+  "status": "Finite original Jim semantics only; no analyser/test pass-count or descriptor-fix acceptance.",
+  "argv": [
+    "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh",
+    "/tmp/vm-runtime-jim-document-oracle-20261022T172713Z/jim-controls.tcl"
+  ],
+  "cwd": "/workspace/naming-migration-active/tcl-lsp",
+  "script_sha256": "05feb947e041c78fbba92135c679d8477a1185c6b46cb77ca489471ff0300fed",
+  "provider_executable_sha256": "0f634c82506c87484326b8f8ad33ab284a1806ef6b6f1e43f012a2314166942e",
+  "provider_executable_sha256_after": "0f634c82506c87484326b8f8ad33ab284a1806ef6b6f1e43f012a2314166942e",
+  "provider_sources_sha256": {
+    "/workspace/naming-toolchains/tmp/jimtcl-oracle/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/naming-toolchains/tmp/jimtcl-oracle/oo.tcl": "42f6b0150881a8d286c1ee9a9b30bdf1b06cf39850c576d9dfc104ef3c0eeef5",
+    "/workspace/naming-toolchains/tmp/jimtcl-oracle/stdlib.tcl": "3597b76b785f697242a5354816792ad5fa538dd0a41b3973bdcbcb5edbb8893a",
+    "/workspace/naming-toolchains/tmp/jimtcl-oracle/tclcompat.tcl": "38b692f0b36959df1e4f5ffeca482fb573d3664c294f80e4739d0624a98c0694"
+  },
+  "exit": 0,
+  "stdout_file": "/tmp/vm-runtime-jim-document-oracle-20261022T172713Z/stdout.txt",
+  "stderr_file": "/tmp/vm-runtime-jim-document-oracle-20261022T172713Z/stderr.txt",
+  "stdout": "version 0.84\nPASS plain-definition-result vm_plain\nPASS plain-arguments {a b}\nPASS plain-call xy\nPASS statics-definition-result vm_counter\nPASS statics-first 1\nPASS statics-second 2\nPASS statics-not-formals {}\nPASS static-copy-literal-reference {9 5 1 2}\nPASS static-next-call {10 5 2 2}\nPASS static-no-extra-arity 1\nPASS static-malformed-three-fields 1\nPASS proc-too-few 1\nPASS proc-too-many 1\nPASS two-word-command 7\nPASS other-two-word-unknown 1\nPASS class-dictionary 3\nPASS inherited-variable 0\nPASS own-derived-variable 0\nPASS method-instance-variables 7\nPASS raw-two-word-method 9\nPASS raw-method-lacks-instance-binding 1\nPASS odd-variable-dictionary 1\nPASS missing-variable-dictionary 1\nPASS loop-present 1\nPASS sleep-present 1\ncompleted controls 25\n",
+  "stderr": "",
+  "semantic_pass_rows": 25,
+  "output_cap_exceeded": false
+}

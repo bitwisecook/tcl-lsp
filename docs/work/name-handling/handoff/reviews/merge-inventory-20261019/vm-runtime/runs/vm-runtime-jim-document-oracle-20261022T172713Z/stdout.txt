@@ -1,0 +1,27 @@
+version 0.84
+PASS plain-definition-result vm_plain
+PASS plain-arguments {a b}
+PASS plain-call xy
+PASS statics-definition-result vm_counter
+PASS statics-first 1
+PASS statics-second 2
+PASS statics-not-formals {}
+PASS static-copy-literal-reference {9 5 1 2}
+PASS static-next-call {10 5 2 2}
+PASS static-no-extra-arity 1
+PASS static-malformed-three-fields 1
+PASS proc-too-few 1
+PASS proc-too-many 1
+PASS two-word-command 7
+PASS other-two-word-unknown 1
+PASS class-dictionary 3
+PASS inherited-variable 0
+PASS own-derived-variable 0
+PASS method-instance-variables 7
+PASS raw-two-word-method 9
+PASS raw-method-lacks-instance-binding 1
+PASS odd-variable-dictionary 1
+PASS missing-variable-dictionary 1
+PASS loop-present 1
+PASS sleep-present 1
+completed controls 25

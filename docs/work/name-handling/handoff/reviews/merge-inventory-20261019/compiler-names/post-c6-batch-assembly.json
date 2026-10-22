@@ -1,0 +1,93 @@
+{
+  "utc": "2026-10-22T17:29:54.865911+00:00",
+  "draft_root": "/tmp/compiler-names-post-c6-batch-draft",
+  "canonical_head": "d7ff1142a478fcdb8231457723033865e4f818ee",
+  "scope": "off-tree copied-file assembly only; no canonical source mutation, Cargo, typecheck or acceptance",
+  "complete": true,
+  "steps": [
+    {
+      "order": 1,
+      "patch": "/tmp/compiler-invocation-metadata-selection.patch",
+      "sha256": "20c92791fa04ff250bed837829a5105a7409af6e9c52f609ed37e364c5c9edf2",
+      "exit": 0,
+      "stderr": []
+    },
+    {
+      "order": 2,
+      "patch": "/tmp/compiler-metadata-selection-consumers/compatibility.patch",
+      "sha256": "bde39e475b4dfeb70f0fc74860c565436c5db250dc70cfa9dda74d81e9ed66a6",
+      "exit": 0,
+      "stderr": []
+    },
+    {
+      "order": 3,
+      "patch": "/tmp/compiler-names-metadata-selection.patch",
+      "sha256": "55991206318540dd41ab463483000c9e1322c24b08d6586c2a1ae54314a49f4b",
+      "exit": 0,
+      "stderr": []
+    },
+    {
+      "order": 4,
+      "patch": "/tmp/compiler-names-mechanical-lints.patch",
+      "sha256": "569938aa34615e8676a198501083af31ea17396467f2b5bcca90ddc2472dab3b",
+      "exit": 0,
+      "stderr": []
+    },
+    {
+      "order": 5,
+      "patch": "/tmp/compiler-names-class-relation-tristate.patch",
+      "sha256": "46e9ec58b3400ab64203dcf2e1a3042ce244e4ae0c7ae2d9f5e2da78f5b938e3",
+      "exit": 0,
+      "stderr": []
+    },
+    {
+      "order": 6,
+      "patch": "/tmp/compiler-names-layout-visits.patch",
+      "sha256": "3871e6cc4f7ce60a986e7d42387d713704356ceb94aa9b01170ecc9a342a2ed1",
+      "exit": 0,
+      "stderr": []
+    },
+    {
+      "order": 7,
+      "patch": "/tmp/compiler-names-scope-source-boundary.patch",
+      "sha256": "5e8fc5d669c6aacb9709ef555c1dbf7b768847daca19cbe4028afa74827162e5",
+      "exit": 0,
+      "stderr": []
+    },
+    {
+      "order": 8,
+      "patch": "/tmp/compiler-names-analysis-report-eq.patch",
+      "sha256": "027a9fa9b99e9c34e432ea7545016834fae6c075d425482bc698cd61f5e4bd00",
+      "exit": 0,
+      "stderr": []
+    },
+    {
+      "order": 9,
+      "patch": "/tmp/compiler-names-small-extractions.patch",
+      "sha256": "a8b28d3d47769760d6b39bf377db124f9aab29186bc21dcba7b0b28b8b1af56e",
+      "exit": 0,
+      "stderr": []
+    },
+    {
+      "order": 10,
+      "patch": "/tmp/compiler-names-extra-mechanical.patch",
+      "sha256": "f09c994670fe8cf42b4dc91560e109015c721ae0080bd2263410ae16bb4164c2",
+      "exit": 0,
+      "stderr": []
+    },
+    {
+      "order": 11,
+      "patch": "/tmp/compiler-names-object-publication.patch",
+      "sha256": "92bfb8b72a9aae39f7e3290badee059a74161b2ab780bd361fbf3a65403ed737",
+      "exit": 0,
+      "stderr": []
+    },
+    {
+      "order": 12,
+      "patch": "/tmp/compiler-names-n01-regression.patch",
+      "sha256": "8ff25605228105856ea145c214a2da1fc0733a4144f30e8b64716d1131d05500",
+      "exit": 0,
+      "stderr": []
+    }
+  ]
+}

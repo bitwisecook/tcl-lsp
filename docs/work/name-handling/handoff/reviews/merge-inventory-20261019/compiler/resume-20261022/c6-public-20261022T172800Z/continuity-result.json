@@ -1,0 +1,27 @@
+{
+  "observed_utc": "2026-10-22T17:29:54.010283+00:00",
+  "head_before": "a1ddcd570f1ff505ff69bc4d8eb4d97c3da1dbd4",
+  "head_after": "d7ff1142a478fcdb8231457723033865e4f818ee",
+  "head_advanced": true,
+  "coordinator_notification": "Root announced a docs-only publication of R1 receipts during C6; no Rust/Cargo/C-source writes or rebase.",
+  "source_count": 5396,
+  "changed_source_count": 0,
+  "changed_sources": [],
+  "temporary_probe_removed": true,
+  "test_result": "0 passed;1 failed;1 filtered out",
+  "test_seconds": 82.12,
+  "cargo_exit": 101,
+  "logger_exit": 0,
+  "runner_exit": 0,
+  "matched_rows": 3,
+  "mismatched_rows": 5,
+  "artifact": [
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/zz_compiler_resume_probe-48e10932545341e8",
+      "sha256": "0e09040aa4dc74d82ce3635f0e7a00675d0835ffcfb0ea16ba1e839ef369c5cb",
+      "mtime_utc": "2026-10-22T17:28:16.889476+00:00",
+      "age_seconds": 83.80348563194275,
+      "retained": true
+    }
+  ]
+}
