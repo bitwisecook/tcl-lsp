@@ -973,4 +973,3 @@ fn scaling_latest_small_rows() {
         println!("SCALE code-lens P={n} analyse_ms={analyse_ms:.1} ms={best:.3} lenses={count}");
     }
 }
-
