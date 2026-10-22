@@ -2,7 +2,7 @@
 
 Area: command_binding.rs (except the C6 hunks), source name lookup, analyser scope/commands, nested lookups.
 
-Last updated: 2026-10-22T10:50Z
+Last updated: 2026-10-22T11:45Z
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -40,8 +40,10 @@ Maintained by the compiler-names agent. It lists what this agent considers it mu
    - `factory::tests` ×2: `::generated` is not published from `factory generated {} {}`.
    - `original_import_publication_tests`: no import pattern or declaration, from `namespace import` inside `namespace eval`. Likely the same root cause as the import alias item.
    - `ctx::…nested_bom_purpose`: hosted F5 `namespace eval nλ` procedures are missing.
-6. (c) Class `variable n` rename (R3). Low priority.
-7. Before hand-back:
+6. N05 regression: `namespace eval a {namespace export *; proc foo {} {return A}}; namespace eval b {proc foo {} {return B}; namespace import -force ::a::*; puts [foo]}`. Renaming `b::foo` must not edit the final `foo`, which resolves to `::a::foo`. The compiler facts are being probed; the rename side belongs to the lsp agent.
+7. Relative object name in `create` inside `namespace eval ::a` must publish as `::a::rex`, not `::rex` (name_resolution `tn_object_command_dispatch_is_scoped_to_its_creation_namespace`). After the import alias item.
+8. (c) Class `variable n` rename (R3). Low priority.
+9. Before hand-back:
    - remove the ZZ probes (`command_binding.rs` ZZ_COMMAND/ZZ_UNCLOSED, `cfg_builder` ZZ_EMBEDDED/ZZ_CALL_BARRIER, `ensemble_compilation.rs` ZZ_ENSEMBLE, test `zz_probe_import_and_crlf`);
    - run rustfmt and clippy on changed lines;
    - rerun the filters (command_binding / registry_invocation / signature_scan / source_graph);
@@ -58,6 +60,7 @@ Constraint until routed: build nothing that re-parses display strings into ident
 
 ## Blocked (on whom, and what is needed)
 
+- (Resolved 11:20Z) **Coordinator ruling on `puts`**: keep the current cut. It rests on the fresh-interpreter premise. A program that installs a hook must withhold the world. Negative tests have been added for `chan push`, `chan create`, `trace add variable`, `trace add execution`, `namespace unknown` and `proc unknown`; if the existing opacity does not already cover them, a global installer guard is next. The previous text follows for the record.
 - **Coordinator ruling on `puts`.** The registry gives `puts` no declared transitions and no declared world effects. Its footprint is the conservative wildcard (`CallbackKinds::UNKNOWN`, `Reentrancy::AnyInterpreter`), which the registry docs call "missing metadata never means a command is pure". A strict reading of "anything the registry marks as having unmodelled effects" would withhold the world after `puts hi`, and so after `puts [greet]` (item (a)).
 
   Current cut: accept the undeclared wildcard only for a complete registry Builtin whose traits claim no evaluation, barrier or trace. Declared callbacks (`lsort -command`, `eval`) and extension-default commands are rejected.
