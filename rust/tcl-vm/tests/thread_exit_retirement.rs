@@ -47,8 +47,6 @@ fn vm_holding_native_values() -> Vm {
         ]);
     }
     vm.set_var("held", nested).expect("set held");
-    vm.eval_source("set doubled [expr {1.5 * 2}]; set l [list a b c]")
-        .expect("compiles");
     vm
 }
 

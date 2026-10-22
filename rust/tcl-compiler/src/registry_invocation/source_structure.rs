@@ -4485,8 +4485,6 @@ mod tests {
     // TEMPORARY Sol-49 probe: remove before hand-back.
     #[test]
     fn zz_sol49_hover_schema_probe() {
-        // SAFETY: test-only tracing switch read by trace_original_child_guard.
-        unsafe { std::env::set_var("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS", "1") };
         for source in [
             "regexp {plainword} $line\n",
             "set line x\nregexp {plainword} $line\n",

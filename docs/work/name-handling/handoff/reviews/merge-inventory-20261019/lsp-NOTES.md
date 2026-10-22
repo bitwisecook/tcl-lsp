@@ -24,7 +24,25 @@ origin/rust passes all of these (validation row 20: 239/239 incl. name_resolutio
 | call_hierarchy | (7/7 row 20a) | — | **7/7** | — |
 | inlay_hints | (9/9 row 20) | — | **9/9** | — |
 
-(Draft — sections 2–6 follow at hand-back.)
+## 2. Library targets and server
+
+| target | origin/rust | here (latest) | notes |
+|---|---|---|---|
+| tcl-lsp-server lib (840 tests, one process per test, 400 s cap) | all pass (row 20) | **694 ok / 140 FAILED / 6 TIMEOUT** (srv4, tree of ~11:05Z, before the N05/N15 edits) | whole-binary run aborts after ~221 tests (vm-runtime TLS destructor, §3e) so it was run per test. Failure table: `lsp/server-lib-srv4-failures.txt` (first panic line per test); status: `lsp/server-lib-srv4-status.txt`. 10 are `Elapsed` waits in the publication/worker tests and 4 of the 6 timeouts are analysis-cost bound (§3f); most of the rest are cross-document/source-rehoming expectations that the fresh-interpreter contract no longer reports (`[]` references/definitions for sourced or imported declarations, missing workspace subtype rows, lens counts). Not classified per owner in this session. `workspace_trust_comes_from_the_client_and_never_from_a_setting` was not measured (runner artifact: binary already deleted). |
+| tcl-lsp-core lib | all pass | PENDING (see §6) | |
+| tcl-lsp-db lib | all pass | PENDING | |
+| tcl-lsp-server e2e | | not run (disk) | |
+| clippy (my crates, `--all-targets`) | | 152 (Luna-41 baseline 1,059 → 152); not re-measured | |
+
+## 3. Root causes routed to other owners (evidence: `lsp/probe-results.txt`)
+
+- **a. compiler-names** — an object created by a relative name inside `namespace eval ::a` is published at root (`::a`'s `rex` → `::rex`; `::b`'s → none) → `tn_object_command_dispatch_is_scoped_to_its_creation_namespace`. C6 (`namespace import ::a::Factory; Factory make`), C9 (W210 in pkgIndex `[file join $dir $missing]`).
+- **b. compiler-names (R1)** — rename refuses `unknown-completed-command-world` for `proc greet {} {…}; puts [greet]` (~15 references_rename tests, force_import unshadowed rename); `incomplete-original-command-coverage` for a class split across two `namespace eval ::a` blocks; class `variable n` rename "original command unavailable". The triage report (`reviews/naming-migration-review-20261022-triage.md`) lists N04–N07 as "refused, pending R1" for the same reason.
+- **c. compiler** — the registry source schema is withdrawn when an operand reads an undefined variable (`regexp {plainword} $line`, `lsearch -exact $list $needle`) → 3 hover_residual tests. itcl classes declared inside `namespace eval ::app` do not join contract D; class-proc calls inside class-member bodies → 4 itcl name_resolution + 2 references_rename.
+- **d. compiler (iRules realm)** — a top-level `proc hit` in f5-irules: the invocation lacks a resolved reference / original lookup → `irules_switch_glob_body_is_followed`.
+- **e. vm-runtime** — tokio worker thread exit drops a thread-local PackHookHost → tcl_vm `Value` drop → `value::native_retirement::release` touches already-destroyed TLS → panic in destructor → SIGABRT of the whole tcl-lsp-server lib binary. Needs `try_with` in the retirement path.
+- **f. perf agent / compiler** — Analyser cost quadratic in command count (§4 numbers) and `tcl_spectcl::bundled::load_embedded` 65–84 s. Causes both 180 s server tests (`workspace_symbol_caps_its_answer`, `startup_index_and_factory_reindex_keep_checked_document_roles`), all WASI row-17 failures and the folder-add "hang" (host `/usr/share/tcltk/tk8.6/tclIndex`, 253 lines, analysed per scan; gdb samples in `lsp/folder-add-hang-bt.txt`). Timeouts were not tuned (coordinator instruction).
+
 
 ## 4. WASI host failures (validation row 17) — diagnosis
 
@@ -72,3 +90,68 @@ therefore block the driver for their whole duration; nothing is lost, it is just
 3. After the perf fix: rerun step 1; expect all 26 checks. If only the cache check still
    fails, wait for the cache directory with `until(...)` instead of checking once (test-side
    race, needs a decision since it changes the harness).
+
+## 5. Fixes landed (all uncommitted by me; carried by the WIP snapshots up to `ddb21ae4db`)
+
+**Server108 — cached per-document analysis.** `rust/tcl-lsp-server/src/fresh_analysis_cache.rs`
+(new): bounded LRU (512 entries, 64 MiB of source) keyed on uri, exact text, dialect, path
+admission, analyser-inputs epoch, class-factory generation and the configured analyser inputs
+(disabled checks, non-ASCII mode, extra commands, pack key, resource). `fresh_analysis_seed`
+reuses a hit only after the same currency checks as a fresh seed; sidecar invalidation clears it.
+Unit test `fresh_analysis_is_reused_only_for_an_unchanged_input_revision`. It removes repeated
+analyses of an unchanged revision; it does not address the first analysis (§3f).
+
+**Forced-import ABSTAIN (user decision 2026-10-22T07:18Z).** `definition::program_forced_import_abstains`
+(program oracle says a forced import shadows the call, the document alone does not) is consulted
+by definition, hover, references, signature help, inlay hints, call-hierarchy prepare, inline
+proc, rename and prepare-rename. 8 force_import_shadow_consumers assertions changed from the
+shadowed direction to abstention, each citing the decision. Sibling tests place their cursor on
+the call head word (decision 2026-10-18T16:00Z, helper `last_call_head`).
+
+**Review N05 — rename edits ⊆ references.** `rename_in_program` refuses with
+`unreferenced-edit` any edit that find-references from the same cursor (same program oracle,
+declarations included) does not report, and with `force-import-shadow-conditional` any edit on
+an abstained call. Regressions: `references_rename::n05_rename_never_edits_an_occurrence_references_does_not_report`
+(before/after `-force`, `forget`, re-import, redefinition) and
+`n05_an_accepted_rename_keeps_the_program_output` (tclsh 9.0 outputs `A`, `B\nA`, `B`, `C`
+before and after); cross-file: `force_import_shadow_consumers::rename_and_references_from_the_local_declaration_agree_on_the_unproven_call`.
+
+**Review N15 — minifier name compaction refused.** `minify/original.rs`:
+`const LEXICAL_NAMING_PASSES: bool = false`; the lexical ("tcl") path now refuses Compact /
+Aggressive renaming exactly like the native path (`MissingAlphaRenameContract`, plus alias /
+semantic / keyword refusals for Aggressive) and runs syntax compaction only. Every public entry
+(`minify_tcl_compact`, `minify_tcl_aggressive[_with]`, `minify_with_profile`,
+`minify_with_analysis`, the server's minifyDocument) goes through this gate. `compact_names`,
+`lexical_compact` and `lexical_aggressive` stay compiled but unreachable — **delete them when
+the transactional naming planner lands.** Regression `minify_residual::n15_compact_and_aggressive_refuse_unsafe_renaming_and_keep_the_output`
+(tcl / tcl8.6 / tcl9.0 × Compact / Aggressive, isolated). **Release notes must state the
+temporary restriction** (compact/aggressive minify no longer shorten names). The list of lib
+tests whose expectation changed is in §6.
+
+**Host-install decision 2026-10-19T11:00Z.** `test_backend_over` presets an empty discovered
+installation survey (comment cites the decision); new pinned-fixture test
+`scan_workspace_folders_surveys_a_pinned_discovered_installation`; per-thread plain-data memo
+of tclIndex surveys (`package_resolver/original_names.rs::original_index_entries`, ≤64 rows,
+≤4 MiB, existence rechecked per call) + unit test. (A first static `Mutex<Arc<AnalysisResult>>`
+memo overflowed the `Sync` proof — E0275 — for other agents' builds and was reverted within
+minutes.)
+
+**Provider fixes (hover / completion / references / name resolution).** Contract D itcl
+`Class::proc` dispatch (`method_symbol.rs` `Target::SourceClassProcCall`); class
+superclass/mixin operand references; declaration-name end-of-word cursor tolerance;
+constructor/destructor keyword hover; built-in vs package command hover labels and scoped
+operation cards; built-in completion and intrep hover lines only when the caller supplies a
+registry; scoped-body operation completion; 8.x namespace→global variable completion
+(`namespace_var_global_fallback`); `$` completion at a past-end-of-line cursor; highlights of an
+undeclared variable are empty.
+
+**Narrow documented test corrections (coordinator rulings).**
+- (A) `references_residual::document_highlights_dedup_keeps_write_over_read_on_collision`: the
+  synthetic `AnalysisResult::default()` + injected reporting map is refused by the
+  original-context contract; replaced by a real source collision `set x 1\nincr x\n` (cursor
+  1:5, one Write highlight).
+- (B) `references_external_obj_method_inside_proc_body_subst`: tclsh shows `$d` unset inside
+  `proc run`; fixture gains `global d` and a new negative test
+  `…without_global_is_not_a_site` asserts no reference without it.
+- classmethod fixtures in hover_residual / references_residual run under tcl9.0 (decision
+  2026-10-17T20:30Z: `classmethod` is 9.0+).

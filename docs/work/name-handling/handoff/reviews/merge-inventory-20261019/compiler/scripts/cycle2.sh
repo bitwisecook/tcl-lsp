@@ -10,7 +10,7 @@ for i in $(seq 1 6); do
 done
 [ -n "$exe" ] || { echo BUILD-GAVE-UP; exit 1; }
 echo "BUILT $exe"
-(cd rust/tcl-compiler && ZZ_SOL49_ANY=1 TCL_LSP_REQUIRE_TCLSH=9.0,8.6 TCL_LSP_JIMSH=/home/user/tcl-lsp/tmp/jimtcl-oracle/jimsh timeout 600 $exe zz_sol49 --nocapture --test-threads 1 > $S/$tag-probe.log 2>&1)
+(cd rust/tcl-compiler && ZZ_SOL49_ANY=1 TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS=1 TCL_LSP_REQUIRE_TCLSH=9.0,8.6 TCL_LSP_JIMSH=/home/user/tcl-lsp/tmp/jimtcl-oracle/jimsh timeout 600 $exe zz_sol49 --nocapture --test-threads 1 > $S/$tag-probe.log 2>&1)
 echo "PROBE done: $(wc -l < $S/$tag-probe.log) lines"
 THREADS=${THREADS:-3} $S/batch.sh $exe $tag "$@"
 rm -f "$exe"

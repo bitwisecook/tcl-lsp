@@ -1,0 +1,46 @@
+registry_string base: test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 1891 filtered out; finished in 0.20s
+registry_string after: test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 1891 filtered out; finished in 0.01s
+pass->fail:
+fail->pass count: 1
+== registry_string finished 09:40
+cmd_string base: test result: FAILED. 13 passed; 38 failed; 0 ignored; 0 measured; 0 filtered out; finished in 61.13s
+cmd_string after: test result: FAILED. 13 passed; 38 failed; 0 ignored; 0 measured; 0 filtered out; finished in 57.51s
+pass->fail:
+fail->pass count: 0
+== cmd_string finished 10:00
+mathfunc base: test result: FAILED. 7 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 32.61s
+mathfunc after: test result: FAILED. 7 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 57.28s
+pass->fail:
+fail->pass count: 0
+== mathfunc finished 10:09
+word_value base: test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 62.23s
+word_value after: test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 93.97s
+pass->fail:
+fail->pass count: 0
+== word_value finished 10:24
+debugger base: test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 4.76s
+debugger after: test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 5.57s
+pass->fail:
+fail->pass count: 0
+== debugger finished 10:34
+engine base: test result: FAILED. 35 passed; 16 failed; 0 ignored; 0 measured; 0 filtered out; finished in 25.95s
+engine after: test result: FAILED. 35 passed; 16 failed; 0 ignored; 0 measured; 0 filtered out; finished in 32.23s
+pass->fail:
+fail->pass count: 0
+== engine finished 10:51
+spectcl_lib base: test result: FAILED. 302 passed; 8 failed; 0 ignored; 0 measured; 0 filtered out; finished in 439.73s
+spectcl_lib after: test result: FAILED. 304 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 568.63s
+pass->fail:
+fail->pass count: 2
+== spectcl_lib finished 11:27
+== stamps finished 11:27
+pack_source base: test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 18.12s
+pack_source after: test result: FAILED. 3 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 21.85s
+pass->fail:
+fail->pass count: 0
+== pack_source finished 11:39
+spec_corpus base: test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 600.03s
+spec_corpus after: test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 600.05s
+pass->fail:
+fail->pass count: 0
+== spec_corpus finished 12:27

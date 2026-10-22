@@ -1,0 +1,146 @@
+current_diagnostics__tests__actual_direct_and_push_rewrites_retain_their_captured_document_source | rust/tcl-lsp-server/src/current_diagnostics.rs:1870:9: actual worker must retain an applicable rewrite 
+original_document_metadata_tests__closed_disk_index_keeps_workspace_roles_and_withdraws_changed_pack | rust/tcl-lsp-server/src/original_document_metadata_tests.rs:593:5: assertion `left == right` failed 
+original_document_metadata_tests__configured_factory_rounds_refuse_stale_publication_and_withdraw_unavailable_library_hints | rust/tcl-lsp-server/src/original_document_metadata_tests.rs:1318:5: assertion failed: !sync.moved.is_empty() 
+original_document_metadata_tests__fresh_index_driver_keeps_keyed_availability_on_the_same_store | rust/tcl-lsp-server/src/original_document_metadata_tests.rs:760:5: assertion failed: older.analysis.diagnostics.iter().any(|row| row.code == DiagCode::W150) 
+original_document_metadata_tests__optimise_document_keeps_workspace_roles_and_refuses_unavailable_input | rust/tcl-lsp-server/src/original_document_metadata_tests.rs:814:5: assertion failed: analysis.qualified_var_refs.iter().any(|row| 
+original_document_metadata_tests__original_formatter_requests_keep_checked_availability_raw_coordinates_and_withdrawn_input | rust/tcl-lsp-server/src/original_document_metadata_tests.rs:1603:5: assertion failed: older.diagnostics.iter().any(|row| row.code == DiagCode::W150) 
+original_document_metadata_tests__project_evidence_publication_withdraws_incomplete_checked_contributors | rust/tcl-lsp-server/src/original_document_metadata_tests.rs:1396:5: assertion failed: !first.changed.is_empty() 
+original_document_metadata_tests__pull_compiler_and_code_actions_keep_supplied_diagnostic_context | rust/tcl-lsp-server/src/original_document_metadata_tests.rs:259:10: conditional Logical source branch advice reaches the pull adapter 
+original_document_metadata_tests__source_rehoming_keeps_workspace_roles_in_the_actual_seed_namespace | rust/tcl-lsp-server/src/original_document_metadata_tests.rs:657:5: assertion failed: backend.rehomed_source_seeds.lock().await.get(sourced.as_str()).is_some_and(|seeds| 
+original_document_metadata_tests__startup_index_and_factory_reindex_keep_checked_document_roles | rust/tcl-lsp-server/src/original_document_metadata_tests.rs:618:5: assertion `left == right` failed 
+original_document_metadata_tests__unindexed_deep_compiler_checks_borrow_the_shared_base_input | rust/tcl-lsp-server/src/original_document_metadata_tests.rs:344:10: the conditional source branch reaches the deep worker 
+original_workspace_diagnostics_tests__original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store | rust/tcl-lsp-server/src/original_workspace_diagnostics_tests.rs:328:13: assertion failed: calls.resolved.contains(&(invocation.range.start(), invocation.range.end())) 
+policy_truth_table__every_rewrite_row_applies_through_optimise_document | rust/tcl-lsp-server/src/policy_truth_table.rs:234:5: row `a_rewrite_shows_under_its_profile` on LspRewrite: O101: expected [Expect { code: O101, line: Some(1), want: Applied(true) }] not observed; observed [Observed { code: O101, 
+policy_truth_table__every_row_offers_fixes_for_shown_findings_only | rust/tcl-lsp-server/src/policy_truth_table.rs:194:5: row `an_unrelated_noqa_leaves_a_check` on LspActions: S100: expected [Expect { code: S100, line: Some(3), want: Offered(true) }] not observed; observed [Observed { code: S100, l
+policy_truth_table__every_row_publishes_its_shown_set | rust/tcl-lsp-server/src/policy_truth_table.rs:135:5: row `default_off_turned_on_at_global` on Lsp: W242: expected [Expect { code: W242, line: Some(1), want: Shown }] not observed; observed [] not expected 
+provider_source__tests__configured_package_refinement_keeps_version_preference_and_unknown_providers | rust/tcl-lsp-server/src/provider_source/tests.rs:286:5: assertion `left == right` failed 
+provider_source__tests__indexed_package_providers_keep_their_own_pack_and_unavailable_status | rust/tcl-lsp-server/src/provider_source/tests.rs:45:5: [ 
+readonly_reference_reports__code_action_source_version_tests__actual_code_action_endpoint_publishes_the_original_document_version | rust/tcl-lsp-server/src/readonly_reference_reports.rs:3826:14: actual source action 
+readonly_reference_reports__conditional_navigation_publication_tests__implementation_possible_locations_keep_typed_debt_until_final_source_lease | rust/tcl-lsp-server/src/readonly_reference_reports.rs:2721:9: assertion `left == right` failed 
+readonly_reference_reports__conditional_navigation_publication_tests__typed_hierarchy_debt_survives_wire_publication_and_parent_currentness | rust/tcl-lsp-server/src/readonly_reference_reports.rs:2665:9: assertion `left == right` failed 
+readonly_reference_reports__logical_call_wire_tests__typed_call_debt_and_parent_target_stamps_survive_until_final_source_lease | rust/tcl-lsp-server/src/readonly_reference_reports.rs:2924:9: assertion `left == right` failed 
+readonly_reference_reports__logical_hierarchy_tests__logical_hierarchy_final_snapshot_rejects_changed_relation_parent_with_current_target | rust/tcl-lsp-server/src/readonly_reference_reports.rs:2618:18: called `Option::unwrap()` on a `None` value 
+readonly_reference_reports__logical_hierarchy_tests__logical_hierarchy_wire_uses_issued_class_and_real_cross_document_owners | rust/tcl-lsp-server/src/readonly_reference_reports.rs:2515:9: assertion `left == right` failed 
+recovery_source__tests__malformed_recovery_keeps_exact_preference_and_unknown_provider_barriers | rust/tcl-lsp-server/src/recovery_source/tests.rs:299:5: assertion failed: dynamic.has_dynamic_providers 
+recovery_source__tests__malformed_recovery_keeps_provider_input_source_and_unavailable_status | rust/tcl-lsp-server/src/recovery_source/tests.rs:130:5: [ 
+rewrite_wire__tests__issued_whole_worker_group_has_explicit_proposal_source_on_every_member | rust/tcl-lsp-server/src/rewrite_wire.rs:160:9: assertion `left == right` failed 
+rewrite_wire__tests__manually_constructed_rewrite_cannot_acquire_source_association | rust/tcl-lsp-server/src/rewrite_wire.rs:160:9: assertion `left == right` failed 
+rewrite_wire__tests__missing_owner_foreign_analysis_changed_bytes_and_partial_group_have_no_payload | rust/tcl-lsp-server/src/rewrite_wire.rs:160:9: assertion `left == right` failed 
+rewrite_wire__tests__mixed_workers_and_mismatched_normalised_source_withhold_payloads | rust/tcl-lsp-server/src/rewrite_wire.rs:160:9: assertion `left == right` failed 
+studio_source__retirement_publication_tests__retire_and_shutdown_cannot_acknowledge_failed_withdrawal_and_can_retry | (no panic line: running 1 test test studio_source::retirement_publication_tests::retire_and_shutdown_cannot_acknowledge_failed_withdrawa)
+studio_source__tests__original_provider_mapping_cannot_rebind_across_equal_byte_aba | (no panic line: running 1 test test studio_source::tests::original_provider_mapping_cannot_rebind_across_equal_byte_aba has been running)
+studio_source__tests__saved_image_changed_after_load_before_publication_is_unavailable | rust/tcl-lsp-server/src/studio_source.rs:750:10: the actual loaded source reaches final publication: Elapsed(()) 
+tests__a_constants_only_edit_reschedules_both_children | rust/tcl-lsp-server/src/lib.rs:41994:9: assertion `left == right` failed: precondition: the source row text is untouched by this edit 
+tests__a_cross_file_metaclass_resolves_after_the_workspace_scan | rust/tcl-lsp-server/src/lib.rs:52666:32: ::IconList: [] 
+tests__a_dynamic_metaclass_head_abstains_even_with_the_scan_index | rust/tcl-lsp-server/src/lib.rs:52796:9: assertion failed: resolved.all_classes.contains_key("::IconList") 
+tests__a_grouped_optimisation_is_never_independently_applicable_issue_2149 | rust/tcl-lsp-server/src/lib.rs:44975:9: assertion `left == right` failed: fixture must produce the O127 pair to assert about: [] 
+tests__a_three_level_factory_scan_withdraws_descendants_when_the_source_root_disappears | rust/tcl-lsp-server/src/lib.rs:52726:17: assertion `left == right` failed: initial source card ::MetaB 
+tests__a_versioned_require_indexes_the_release_it_asks_for | rust/tcl-lsp-server/src/lib.rs:46597:9: assertion `left == right` failed: expected one definition, got: [] 
+tests__a_wish_document_reads_the_workspace_packs_like_any_other | rust/tcl-lsp-server/src/lib.rs:54951:9: control: before the packs install, the command is unknown 
+tests__an_invocation_profile_overrules_the_project_file | rust/tcl-lsp-server/src/lib.rs:43537:9: assertion `left == right` failed: the argument's `full` folds over the project's `readability`: Object {"source": String("set x [expr {1 + 2}]\n"), "optimisations": Array []} 
+tests__auto_source_graph_inherits_entry_requires | rust/tcl-lsp-server/src/lib.rs:41401:9: assertion `left == right` failed 
+tests__autoload_merge_makes_references_reach_the_library_m8 | rust/tcl-lsp-server/src/lib.rs:58317:9: declaration in the library file: [] 
+tests__autoload_merge_makes_rename_reach_the_library_m8 | rust/tcl-lsp-server/src/lib.rs:58806:9: assertion `left == right` failed: library declaration + internal call: [] 
+tests__classmethod_rename_reaches_subclass_only_document | rust/tcl-lsp-server/src/lib.rs:64076:62: some 
+tests__closed_file_republish_does_not_memoise_the_deep_compiler_tier | rust/tcl-lsp-server/src/lib.rs:47887:9: a closed file's republish must not build memoised deep-tier queries: ["file_analysis_incremental(Id(280))", "compilation_unit_for_config(Id(400))"] 
+tests__code_lens_resolve_disambiguates_method_and_classmethod_of_the_same_name | rust/tcl-lsp-server/src/lib.rs:63500:32: no lens anchored at line 2: src="oo::class create Factory {\n    method make {} { return 1 }\n    classmethod make {} { return [Factory new] }\n}\nset f [Factory new]\n$f make\nFactory make
+tests__code_lens_resolve_disambiguates_same_named_methods_on_different_classes | rust/tcl-lsp-server/src/lib.rs:63628:9: assertion `left == right` failed: Command { title: "at least 1 reference", command: "tcl-lsp.showReferences", arguments: Some([String("file:///two_classes.tcl"), Object {"line": Number(1), "
+tests__code_lens_resolve_for_inherited_method_counts_subclass_dispatch | rust/tcl-lsp-server/src/lib.rs:63649:9: assertion `left == right` failed: `$s get x` dispatches to the inherited Base::get: Command { title: "at least 1 reference", command: "tcl-lsp.showReferences", arguments: Some([String("file:
+tests__code_lens_resolve_for_unused_method_is_clickable_with_zero_locations | rust/tcl-lsp-server/src/lib.rs:63609:9: assertion `left == right` failed: Command { title: "0 references", command: "", arguments: None } 
+tests__code_lens_resolve_wires_show_references_command | rust/tcl-lsp-server/src/lib.rs:63458:14: a lens for ::helper 
+tests__code_lens_resolve_wires_show_references_command_for_classmethod | rust/tcl-lsp-server/src/lib.rs:63500:32: no lens anchored at line 1: src="oo::class create Factory {\n    classmethod make {} {\n        return [Factory new]\n    }\n}\nset f [Factory make]\n" 
+tests__code_lens_resolve_wires_show_references_command_for_method | rust/tcl-lsp-server/src/lib.rs:63527:9: assertion `left == right` failed: Command { title: "at least 1 reference", command: "tcl-lsp.showReferences", arguments: Some([String("file:///bar956.tcl"), Object {"line": Number(6), "chara
+tests__computed_source_paths_fold_statically_m9 | rust/tcl-lsp-server/src/lib.rs:63226:9: the folded path re-homes the sourced file: [] 
+tests__concurrent_snapshots_share_one_text_and_index_allocation | (no panic line: running 1 test test tests::concurrent_snapshots_share_one_text_and_index_allocation has been running for over 60 seconds)
+tests__cross_document_definition_follows_namespace_path_not_collision | rust/tcl-lsp-server/src/lib.rs:63425:9: assertion `left == right` failed: [] 
+tests__cross_document_definition_prefers_class_creation_over_define_stub | rust/tcl-lsp-server/src/lib.rs:55754:9: assertion `left == right` failed: [] 
+tests__cross_document_definition_resolves_wildcard_imported_proc | rust/tcl-lsp-server/src/lib.rs:55591:9: assertion `left == right` failed: [] 
+tests__cross_document_references_finds_sibling_call_sites | rust/tcl-lsp-server/src/lib.rs:57969:9: assertion `left == right` failed: [] 
+tests__cross_document_references_follow_namespace_import | rust/tcl-lsp-server/src/lib.rs:63381:9: assertion `left == right` failed: imported call + import pattern: [] 
+tests__cross_document_references_from_imported_call_reach_source | rust/tcl-lsp-server/src/lib.rs:63402:9: imported call should reach the source declaration: [] 
+tests__cross_document_references_reach_caller_from_nested_self_redefinition | rust/tcl-lsp-server/src/lib.rs:58197:13: assertion `left == right` failed: both cross-file callers must be reached from the outer declaration: [] 
+tests__cross_document_references_reach_caller_from_shadowed_duplicate_decl | rust/tcl-lsp-server/src/lib.rs:58091:9: assertion `left == right` failed: cross-file call site in consumer.tcl must not be silently dropped when querying from the shadowed declaration: [] 
+tests__cross_document_references_resolve_namespace_path_collision | rust/tcl-lsp-server/src/lib.rs:63322:9: assertion `left == right` failed: [] 
+tests__cross_document_rename_reaches_caller_from_nested_self_redefinition | rust/tcl-lsp-server/src/lib.rs:58248:13: assertion `left == right` failed: both cross-file callers must be rewritten from the outer declaration: {} 
+tests__cross_document_rename_reaches_caller_from_shadowed_duplicate_decl | rust/tcl-lsp-server/src/lib.rs:58135:9: assertion `left == right` failed: the cross-file caller must be rewritten, or it stays bound to the old name while the dead shadowed definition (also renamed away) silently resurrects for it
+tests__cross_file_arity_survives_w123_disabled_on_pull_path | rust/tcl-lsp-server/src/lib.rs:54517:9: cross-file E003 must survive W123 disabled on the pull path, got: [] 
+tests__cross_file_consumer_bare_dispatch_is_namespace_scoped | rust/tcl-lsp-server/src/lib.rs:64411:9: and it must count for `::b::Factory`: [] 
+tests__cross_file_consumer_excludes_subclass_dispatch_of_a_self_method | rust/tcl-lsp-server/src/lib.rs:64475:9: `Parent make` (the declaring class's own dispatch) missing: [] 
+tests__cross_file_consumer_finds_classmethod_bare_dispatch | rust/tcl-lsp-server/src/lib.rs:64353:9: `Factory make` in the pure-consumer document missing: [] 
+tests__cross_file_consumer_finds_inheriting_subclass_classmethod_dispatch | rust/tcl-lsp-server/src/lib.rs:64441:9: `SubFactory make` (inherited classmethod) in the pure-consumer document missing: [] 
+tests__cross_file_definition_selects_the_dispatch_entry_945 | rust/tcl-lsp-server/src/lib.rs:64708:9: assertion `left == right` failed: go-to-definition must select Dog::speak only: [] 
+tests__cross_file_drops_disk_backed_file_when_gone | rust/tcl-lsp-server/src/lib.rs:54464:9: precondition: resolves while the file is present, got: ["W123"] 
+tests__cross_file_evidence_sync_settles_after_one_pass | rust/tcl-lsp-server/src/lib.rs:48856:9: assertion `left == right` failed: main.tcl's call reaches lib.tcl's proc 
+tests__cross_file_method_definition_jumps_to_inherited_declaration | rust/tcl-lsp-server/src/lib.rs:64643:9: assertion `left == right` failed: [] 
+tests__cross_file_method_references_exclude_declaration | rust/tcl-lsp-server/src/lib.rs:64215:9: call site (l5) missing: [] 
+tests__cross_file_method_references_reach_inheritor_document | rust/tcl-lsp-server/src/lib.rs:64255:9: `my speak` (l2) missing: [] 
+tests__cross_file_method_references_reach_inheritor_document_for_classmethod | rust/tcl-lsp-server/src/lib.rs:64298:9: `SubFactory make` (l3) in the inheritor-only document missing: [] 
+tests__cross_file_method_references_span_override_family | rust/tcl-lsp-server/src/lib.rs:64180:9: override decl (l2) missing: [] 
+tests__cross_file_rename_of_a_self_method_leaves_subclass_dispatch_alone | rust/tcl-lsp-server/src/lib.rs:64519:9: assertion `left == right` failed: [] 
+tests__cross_file_resolves_against_disk_backed_file | rust/tcl-lsp-server/src/lib.rs:54413:9: W123 must be suppressed against a disk-backed (unopened) file, got: ["W123"] 
+tests__default_dialect_change_retries_after_concurrent_edit_1854 | (no panic line: running 1 test test tests::default_dialect_change_retries_after_concurrent_edit_1854 has been running for over 60 second)
+tests__default_off_w242_hidden_by_default_enableable_via_config | rust/tcl-lsp-server/src/lib.rs:42463:9: W242 should appear once enabled: [Diagnostic { range: Range { start: Position { line: 0, character: 7 }, end: Position { line: 0, character: 9 } }, severity: Some(Warning), code: Some(String
+tests__definition_lands_in_the_package_release_tcl_would_load | rust/tcl-lsp-server/src/lib.rs:46477:13: assertion `left == right` failed: `package require widget` must pull in exactly one release's implementation, got: [] 
+tests__definition_resolves_through_a_document_auto_path_package | rust/tcl-lsp-server/src/lib.rs:46220:9: assertion `left == right` failed: the package's proc must resolve through the auto_path-seeded package tier, got: [] 
+tests__diagnostics_publish_waits_for_rehomed_navigation_snapshot | rust/tcl-lsp-server/src/lib.rs:63178:13: the guarded snapshot must retain the source-site call view 
+tests__diagram_data_command_extracts_structured_flow | rust/tcl-lsp-server/src/lib.rs:42981:9: [] 
+tests__did_change_configuration_applies_inline_settings | rust/tcl-lsp-server/src/lib.rs:49775:10: did_change_configuration should not hang: Elapsed(()) 
+tests__did_open_waiting_for_db_leaves_requests_serviceable_1849 | rust/tcl-lsp-server/src/lib.rs:53331:10: a request for another document must remain serviceable (#1849): Elapsed(()) 
+tests__did_rename_forgets_the_autoloaded_library_record_1298 | rust/tcl-lsp-server/src/lib.rs:66707:9: precondition: the autoload tier merged the library: [] 
+tests__dropping_one_factory_reindexes_its_consumers_while_retaining_others | rust/tcl-lsp-server/src/lib.rs:52895:13: assertion `left == right` failed 
+tests__enabled_semantic_tokens_toggle_yields_some | rust/tcl-lsp-server/src/lib.rs:64888:18: ok: Error { code: ContentModified, message: "Coarse semantic token source or configured input changed", data: None } 
+tests__fix_all_safe_issues_analyses_under_the_documents_layers | rust/tcl-lsp-server/src/lib.rs:50633:13: assertion `left == right` failed: file:///fixall-folder/a.irul: {"source":"when HTTP_REQUEST {\n    log local0. [http_host]\n}\n","applied":[]} 
+tests__fix_all_safe_issues_applies_only_shown_fixes | rust/tcl-lsp-server/src/lib.rs:50530:9: assertion `left == right` failed: the control is fixed 
+tests__fresh_open_index_seed_carries_workspace_class_factories_1854 | rust/tcl-lsp-server/src/lib.rs:61964:9: the test oracle must contain the cross-file metaclass 
+tests__goto_definition_follows_inherited_method_cross_file | rust/tcl-lsp-server/src/lib.rs:64675:9: assertion `left == right` failed: [] 
+tests__goto_definition_from_consumer_cursor_finds_cross_file_method | rust/tcl-lsp-server/src/lib.rs:64828:9: assertion `left == right` failed: [] 
+tests__logical_namespace_rename_collision_uses_constructed_colon_holder | rust/tcl-lsp-server/src/lib.rs:67126:9: assertion failed: Backend::original_namespace_symbol(source, &analysis, position).is_none() 
+tests__method_rename_reaches_subclass_only_document | rust/tcl-lsp-server/src/lib.rs:64022:49: ok: Error { code: InvalidParams, message: "the typed override family, configurations or receiver side are not closed for this edit", data: Some(Object {"code": String("unclosed-original-mem
+tests__method_rename_spans_override_family_across_documents | rust/tcl-lsp-server/src/lib.rs:63969:49: ok: Error { code: InvalidParams, message: "the typed override family, configurations or receiver side are not closed for this edit", data: Some(Object {"code": String("unclosed-original-mem
+tests__multi_seeded_declaration_unions_every_runtime_identity_945 | rust/tcl-lsp-server/src/lib.rs:59204:9: assertion `left == right` failed: both seeded views' callers must surface: [] 
+tests__no_code_lens_ever_carries_an_inert_empty_command | rust/tcl-lsp-server/src/lib.rs:63689:13: lens at Range { start: Position { line: 5, character: 11 }, end: Position { line: 5, character: 14 } } resolved to an inert empty command id: Command { title: "References unavailable", comm
+tests__open_index_publish_does_not_wedge_an_index_reader_needing_documents_1849 | rust/tcl-lsp-server/src/lib.rs:60250:10: the publisher must first join the document-map queue: Elapsed(()) 
+tests__open_index_publish_releases_documents_while_an_index_reader_drains_1854 | rust/tcl-lsp-server/src/lib.rs:60185:18: the queued writer must commit before the later reader: Elapsed(()) 
+tests__open_index_seed_retries_after_factory_oracle_change_1854 | rust/tcl-lsp-server/src/lib.rs:61465:9: the revalidated seed must carry the newly published factory oracle 
+tests__original_callback_code_action_demands_current_source_header_projection | rust/tcl-lsp-server/src/lib.rs:45428:9: code actions must demand authentic held-target headers, not nominal arities 
+tests__original_declaration_inventory_excludes_foreign_buffers_and_keeps_unknown_tcl_terminal | rust/tcl-lsp-server/src/lib.rs:39344:13: foreign buffers must not disable exact Tcl implementation advice 
+tests__original_implementation_queries_keep_workspace_method_and_class_owners | rust/tcl-lsp-server/src/lib.rs:39406:13: the exact class declaration should have a workspace subtype 
+tests__original_indexed_variable_and_namespace_queries_withdraw_stale_foreign_owners | rust/tcl-lsp-server/src/lib.rs:40085:9: assertion failed: backend.resolve_original_indexed_locations(vec![retained]).await.unwrap().is_empty() 
+tests__original_library_publication_refuses_contended_caller_and_provider_edits | rust/tcl-lsp-server/src/lib.rs:58714:17: assertion failed: index.workspace_command_exists("::current_library_target") 
+tests__original_method_queries_keep_opaque_routes_owners_and_terminal_ambiguity | rust/tcl-lsp-server/src/lib.rs:40195:13: current original source candidate: Break(None) 
+tests__original_package_consumers_keep_constraints_and_dependency_preference | rust/tcl-lsp-server/src/lib.rs:40652:9: assertion `left == right` failed 
+tests__original_type_hierarchy_wire_preserves_owner_and_rejects_labels_and_stale_source | rust/tcl-lsp-server/src/lib.rs:39645:9: assertion `left == right` failed 
+tests__pending_new_workspace_symbols_use_project_factory_oracle_1854 | rust/tcl-lsp-server/src/lib.rs:62153:13: expected the manufactured pending class, got None 
+tests__pull_path_honours_folder_generic_variable_patterns | rust/tcl-lsp-server/src/lib.rs:45630:9: IRULE4002 should fire with the default generic patterns, got: [] 
+tests__range_tokens_read_the_unit_under_the_workspace_pack_overlay | rust/tcl-lsp-server/src/lib.rs:65062:9: under the overlay `set pat`'s literal is the pattern's source: [0, 0, 3, 1, 8, 0, 4, 3, 2, 1, 0, 4, 6, 3, 0, 1, 0, 7, 6, 8, 0, 7, 4, 1, 8, 0, 5, 3, 2, 0, 1, 0, 6, 1, 8, 0, 7, 4, 2, 0, 0, 5, 
+tests__references_handler_from_consumer_cursor_finds_family | rust/tcl-lsp-server/src/lib.rs:64806:14: some references 
+tests__references_handler_includes_cross_file_method_sites | rust/tcl-lsp-server/src/lib.rs:64609:9: cross-file `$d speak` (dog.tcl l5) missing: [Location { uri: Uri(Uri { scheme: "file", authority: Some(Authority { userinfo: None, host: "", host_parsed: RegName(""), port: None }), path: "/
+tests__references_handler_reaches_own_calls_in_a_pure_consumer_document | rust/tcl-lsp-server/src/lib.rs:58044:14: some references 
+tests__references_reach_pure_consumer_document | rust/tcl-lsp-server/src/lib.rs:64778:9: `$a speak` in the consumer document missing: [] 
+tests__rehomed_symbol_snapshot_does_not_hold_its_gate_while_waiting_for_scan | rust/tcl-lsp-server/src/lib.rs:58873:9: autoload preflight must wait for the in-flight workspace scan 
+tests__rehoming_gate_dedups_concurrent_reconciliation_passes | rust/tcl-lsp-server/src/lib.rs:59301:9: the sourcing document's qualified call must still resolve: [] 
+tests__rehoming_snapshot_releases_documents_and_rechecks_open_1854 | rust/tcl-lsp-server/src/lib.rs:61872:9: assertion failed: matches!(snapshot.await.expect("snapshot task panicked").unwrap(), 
+tests__removing_the_last_factory_reindexes_unopened_consumers_with_an_empty_oracle | rust/tcl-lsp-server/src/lib.rs:52843:9: assertion `left == right` failed 
+tests__rename_disambiguates_method_and_classmethod_of_the_same_name | rust/tcl-lsp-server/src/lib.rs:64111:49: ok: Error { code: InvalidParams, message: "the current class has no complete source member roster including builtin names", data: Some(Object {"code": String("unknown-current-source-member-
+tests__rename_edits_span_multiple_documents | rust/tcl-lsp-server/src/lib.rs:63861:49: ok: Error { code: InvalidParams, message: "a completed original command world is unavailable for collision coverage", data: Some(Object {"code": String("unknown-completed-command-world"), "
+tests__rename_from_a_consumer_document_rewrites_the_defining_sibling | rust/tcl-lsp-server/src/lib.rs:63896:62: some 
+tests__rename_to_builtin_blocked_cross_document | rust/tcl-lsp-server/src/lib.rs:66214:51: ok: Error { code: InvalidParams, message: "a completed original command world is unavailable for collision coverage", data: Some(Object {"code": String("unknown-completed-command-world"), "
+tests__scan_workspace_folders_does_not_build_deep_tier_for_unopened_files | rust/tcl-lsp-server/src/lib.rs:53082:9: the scan must still index the unopened file's call sites 
+tests__scan_workspace_folders_indexes_unopened_files | rust/tcl-lsp-server/src/lib.rs:52582:9: expected the unopened main.tcl call site to be indexed 
+tests__semantic_tokens_full_serves_a_well_defined_tier_when_indexed | rust/tcl-lsp-server/src/lib.rs:64927:14: ok: Error { code: ContentModified, message: "Coarse semantic token source or configured input changed", data: None } 
+tests__source_fact_changes_select_ancestors_and_descendants_not_siblings | rust/tcl-lsp-server/src/lib.rs:42039:9: assertion `left == right` failed 
+tests__sourced_file_declaration_finds_qualified_callers_m9 | rust/tcl-lsp-server/src/lib.rs:59009:9: the qualified call in the sourcing document is a reference: [] 
+tests__sourced_file_defs_rehome_through_a_same_file_constant_variable_idx_46 | rust/tcl-lsp-server/src/lib.rs:58974:9: the sourced declaration must be a reference target: [] 
+tests__sourced_file_defs_rehome_under_the_source_site_namespace_m9 | rust/tcl-lsp-server/src/lib.rs:58944:9: the sourced declaration must be a reference target: [] 
+tests__superseded_open_index_replacement_is_rolled_back_1907 | rust/tcl-lsp-server/src/lib.rs:60348:10: the obsolete replacement must reach the index before its final check: Elapsed(()) 
+tests__superseding_edit_carries_dialect_hint_dirtiness_1854 | rust/tcl-lsp-server/src/lib.rs:62786:14: the authoritative edit must finish: Elapsed(()) 
+tests__the_last_generation_of_a_burst_still_runs_to_completion | (no panic line: test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 839 filtered out; finished in 294.07s  )
+tests__the_pass_count_follows_the_profile_in_force | rust/tcl-lsp-server/src/lib.rs:43597:9: the project's `aggressive` runs a second pass: Object {"source": String("proc p {} {\n    set a [expr {1 + 2}]\n    set b [expr {$a * 2}]\n    return $b\n}\n"), "optimisations": Array []} 
+tests__the_report_surfaces_compiler_check_codes | rust/tcl-lsp-server/src/lib.rs:42529:9: expected an O100 constant-branch diagnostic, got: [Some(String("O112"))] 
+tests__watched_delete_cancels_queued_live_source_publications_1854 | rust/tcl-lsp-server/src/lib.rs:60633:14: the source publisher must wait behind the held database: Elapsed(()) 
+tests__watched_delete_keeps_pending_buffer_below_salsa_readiness_1854 | rust/tcl-lsp-server/src/lib.rs:60520:10: the watched delete must mark the buffer orphaned: Elapsed(()) 
+tests__workspace_class_cache_key_covers_bare_word_and_factory_oracles | rust/tcl-lsp-server/src/lib.rs:52962:9: assertion `left != right` failed 
+tests__workspace_resolved_references_reaches_the_current_documents_own_calls | rust/tcl-lsp-server/src/lib.rs:58002:9: assertion `left == right` failed: both of a.tcl's own calls must be reached, not just the sourced-in decl: [] 
+tests__workspace_symbol_caps_its_answer | (no panic line: running 1 test test tests::workspace_symbol_caps_its_answer has been running for over 60 seconds )
+tests__workspace_symbols_map_indexed_hits_through_captured_sources_1854 | rust/tcl-lsp-server/src/lib.rs:62325:14: workspace/symbol must finish: Elapsed(()) 
+tests__workspace_trust_comes_from_the_client_and_never_from_a_setting | (no panic line: timeout: failed to run command '/home/user/tcl-lsp/target/debug/deps/tcl_lsp_server-f8826932e569f8a0': No such file or d)

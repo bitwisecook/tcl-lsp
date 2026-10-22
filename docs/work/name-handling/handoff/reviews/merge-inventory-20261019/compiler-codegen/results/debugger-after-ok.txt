@@ -1,0 +1,17 @@
+test backend::tests::continue_stops_at_breakpoint
+test backend::tests::evaluate_does_not_promote_array_roots_to_element_values
+test backend::tests::evaluate_refuses_ambiguous_captured_labels
+test backend::tests::evaluate_uses_whole_original_variable_references
+test backend::tests::launch_stops_at_entry_with_first_line
+test backend::tests::run_to_completion_reports_finished
+test backend::tests::step_in_walks_lines_and_sees_variables
+test backend::tests::step_over_does_not_descend_into_a_proc
+test controller::tests::breakpoint_set_roundtrips_sorted
+test controller::tests::breakpoint_stops_regardless_of_mode
+test controller::tests::continue_only_stops_on_breakpoints
+test controller::tests::entry_stops_at_first_line
+test controller::tests::step_out_stops_only_when_shallower
+test controller::tests::step_over_skips_deeper_frames
+test dap::tests::breakpoint_then_continue_stops_there_with_variables
+test dap::tests::continue_to_end_terminates
+test dap::tests::initialize_then_launch_stops_at_entry

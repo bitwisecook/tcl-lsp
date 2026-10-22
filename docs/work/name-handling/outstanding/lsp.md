@@ -2,9 +2,23 @@
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-22T12:12Z
+Last updated: 2026-10-22T12:31Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
+
+## Resume
+
+Where to pick up: re-run the lsp-core integration batch `p7` (it was SIGKILLed twice by memory pressure while other agents compiled tcl-compiler; run it when no other large rustc is running), then the lsp-core lib per test, then tcl-lsp-db lib, then clippy.
+
+Commands (from the repo root; scripts in `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/`, copy them to a scratch dir and set `S` inside them to that dir first):
+
+- integration batch (build + run + delete in one command):
+  `runmulti.sh tcl-lsp-core p7 hover_completion force_import_shadow_consumers references_residual references_rename minify_residual name_resolution lsp_edit_workspace stub_arg_roles`
+- a lib crate, one process per test, 400 s cap, 3 parallel (survives the thread-exit TLS abort and hangs):
+  `PAR=3 TESTTIMEOUT=400 runmods.sh tcl-lsp-server srv5` (same for `tcl-lsp-core`, `tcl-lsp-db`)
+- environment used by all: `CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0 TCL_LSP_REQUIRE_TCLSH=9.0,8.6 TCL_LSP_JIMSH=$PWD/tmp/jimtcl-oracle/jimsh`; check `df -h /` ≥ 2.3 GB first.
+
+Evidence in the repo (`merge-inventory-20261019/lsp/`): `server-lib-srv4-status.txt` (tcl-lsp-server lib per test on the ~11:05Z tree: 694 ok / 140 FAILED / 6 TIMEOUT of 840; binary predates the N05/N15 edits), `status-nr0.txt`, `status-p4-*.txt`, `status-p5-*.txt` (integration targets), `probe-results.txt` (timings, object-dispatch, itcl, completion and relation probes), `folder-add-hang-bt.txt` (gdb samples), `zz_lsp_agent_probe.rs.txt` (probe source, not a test). Hand-back draft: `merge-inventory-20261019/lsp-NOTES.md`.
 
 ## In progress
 

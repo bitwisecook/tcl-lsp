@@ -2,9 +2,33 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 12:23 UTC
+Last updated: 2026-10-22 12:36 UTC
 
 Maintained by the perf agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
+
+## Resume
+
+Evidence and tooling live in the repo at `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/`:
+
+- `perf.patch`: the clean batch, diffed against the tree as of the last update.
+- `batch/apply_batch.py ROOT [--zz]`: re-applies the batch by exact anchors to any tree. `--zz` adds the in-process old/new toggles. The `.rs.txt` blocks beside it hold the bodies it splices in.
+- `tools/`: probe sources (`perfprobe_example.rs.txt`, `spectclprobe_example.rs.txt`), the gdb sampler `pmp.sh`, and `stacks.py`/`inc.py`/`cat.py` to aggregate samples.
+- `evidence/`: `timings.md`, corpus lists and outputs, sampled stacks.
+
+To rebuild the experiment (RAM-backed; keep /dev/shm under 3 GB and build with `-j2`):
+
+1. Copy the tracked and untracked files of `rust/` into `/dev/shm/exp`: `(git ls-files rust; git ls-files --others --exclude-standard rust) | grep -v zz_ | tar -cf - -T - | tar -xf - -C /dev/shm/exp`.
+2. Copy the root `Cargo.toml` and `Cargo.lock`, and symlink the other top-level dirs (specs, editors, runtime, ...).
+3. Replace `/dev/shm/exp/rust/tcl-registry/tests/data` (839 MB) with a symlink to the tree's copy.
+4. Run `python3 .../perf/batch/apply_batch.py /dev/shm/exp --zz`.
+5. Copy the probe `.rs.txt` files to `/dev/shm/exp/rust/tcl-compiler/examples/zz_perfprobe.rs` and `zz_spectclprobe.rs`.
+6. Build: `cd /dev/shm/exp && CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=/dev/shm/perf-target CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_PROFILE_DEV_DEBUG=line-tables-only cargo build -j2 -p tcl-compiler --example zz_perfprobe --example zz_spectclprobe`.
+
+The runs:
+
+- `ZZ_COMPARE=1 zz_perfprobe files <paths>` reports old1/new/old2 equality and timings per file. `ZZ_DIALECT=f5-irules` switches dialect. `zz_perfprobe calls|procs|upvar 10,20,40` runs the synthetic shapes. `TCL_LSP_TRACE_SOURCE_PHASES=1` prints analyser phases.
+- `ZZ_COMPARE=1 zz_spectclprobe` compares load_embedded old vs new.
+- `tools/pmp.sh out 40 0.2 -- <cmd>`, then `stacks.py out > out.stacks; inc.py out.stacks 50`, profiles.
 
 ## In progress
 

@@ -1,0 +1,7 @@
+ok incoming_calls_find_callers
+ok outgoing_calls_find_callees
+ok prepare_on_builtin_is_empty
+ok prepare_on_empty_file_is_empty
+ok prepare_on_proc_call
+ok prepare_on_proc_definition
+ok recursive_proc_calls_itself

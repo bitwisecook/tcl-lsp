@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T12:40Z
+Last updated: 2026-10-22T13:40Z
 
 Maintained by the bigip-lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -10,36 +10,34 @@ Full unit table and evidence: `docs/work/name-handling/handoff/reviews/merge-inv
 
 ## In progress
 
-- Clippy on tcl-bigip, tcl-bigip-query, tcl-registry, tcl-lsp-core,
-  tcl-lsp-server, xtask (lib/bins/tests) — running.
+1. BIG-IP/APL pull diagnostics (coordinator-assigned; `current_diagnostics.rs`
+   is mine until handed back): implemented — `DiagnosticPass.f5_model`,
+   `DeliveryCtx::complete_f5_model_pass`, one shared `f5_model_document_report`
+   for push and the direct pull, F5 reports exempt from the analysis-input and
+   abstention-Context checks (the F5 report applies W109 abstention itself).
+   New test `current_diagnostics::tests::f5_model_documents_answer_pull_with_their_model_report`
+   — build+run in progress.
+2. XC "Condition commands have no current original source owner" (f5-xc):
+   diagnosing with a temporary probe test `zz_bigip_probe_condition_owner_gates`
+   in `rust/f5-xc/src/translator.rs` (REMOVE before hand-back).
 
 ## Outstanding (in priority order)
 
-1. Fix any clippy finding on lines this work changed.
-2. Re-run the 3 `xtask gen_editor_configs` tests after the emacs README
-   regeneration (`gen-editor-configs --check` already OK).
-3. Hand the final report back with the notes file current.
+1. Finish (1) and (2) above with tests; then the ILX handle diagnosis
+   (`set handle [ILX::init …]; ILX::call $handle …` → `IlxMethodCall.target`
+   None): fix if in tcl-irules, else repro + contract to the coordinator; check
+   origin/rust.
+2. Re-run e2e `issue1326_encoding::w109_disabled_still_abstains_for_bigip_and_apl_documents`,
+   `commands::xc_translate_*`, `issue1707_ilx_methods`.
+3. Clippy on tcl-bigip, tcl-bigip-query, tcl-registry, tcl-lsp-core,
+   tcl-lsp-server, f5-xc, xtask (lib/bins/tests); fix findings on changed lines.
+4. Re-run the 3 `xtask gen_editor_configs` tests (emacs README regenerated).
+5. Hand back with the notes file current.
 
 ## Blocked (on whom, and what is needed)
 
-- A passing ILX e2e run (`issue1707_ilx_methods`, incl. the new closed-sibling
-  test): blocked on upstream — `ILX::call $handle` no longer resolves the
-  `set handle [ILX::init …]` handle (`IlxMethodCall.target` is None; definition
-  and hover, untouched here, fail the same way), and first diagnostics take >30 s.
-  Owner: compiler / tcl-irules value tracking.
-- XC e2e `xc_translate_*` (3): standalone translator finds no source owner for
-  `if` conditions (f5-xc CI-5201 failures). Owner: compiler/irules source context.
-- BIG-IP/APL pull diagnostics refused as `Unsupported` in `current_diagnostics.rs`
-  (e2e `w109_disabled_still_abstains_for_bigip_and_apl_documents`). Owner: lsp
-  agent's current-diagnostics pipeline; needs an F5-dialect current report.
-- Not in this agent's scope, recorded for owners: `tests::workspace_folder_add_reschedules_non_xc_document_too`
-  hangs (plain-Tcl folder-add rescheduling; lsp agent); 7 core `semantic_tokens`
-  integration failures in sslictcl/spectcl/TclOO bodies and
-  `tcl-bigip links::irule_links_follow_reached_helpers_but_not_dormant_procedures`
-  (helper-reach in tcl-irules/compiler) — not caused by BIG-IP changes.
-- Follow-ups that need a different change: Zed `bigip.conf` basename (the Zed
-  generator writes extensions only); `tree-sitter-bigip` grammar's own module
-  list (needs `tree-sitter generate` + rev bump).
+- First publishDiagnostics >30 s in e2e: likely the quadratic analysis the perf
+  agent is fixing — re-measure after its batch lands.
 
 ## Done since the last update (with evidence: test counts, commit or snapshot)
 
@@ -63,3 +61,19 @@ snapshots up to 56893780b9 and later.
   in `fresh_analysis_driver`.
 - `tcl-bigip` `conf_tokens` 22/22, `tcl-bigip-query` projection 3/3.
 - `editors/emacs/README.md` regenerated (669c8e2277 renderer change was intended).
+
+## Resume
+
+- Pick up at "In progress". Tree state: all edits in the working tree / WIP
+  snapshots; `git status --short rust/f5-xc rust/tcl-lsp-server` shows the
+  current unit's files.
+- Commands (one build at a time; build+run+delete the test executable in ONE
+  command; check `df -h /` first, need >2.3 GB):
+  - Server pull test: `CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0 cargo test -p tcl-lsp-server --lib -- current_diagnostics f5_ bigip`, then delete the `target/debug/deps/tcl_lsp_server-<hash>` the run printed.
+  - XC probe: `cargo test -p f5-xc --lib -- zz_bigip_probe --nocapture 2>&1 | grep PROBE`, then delete `target/debug/deps/f5_xc-<hash>`.
+  - e2e: `cargo test -p tcl-lsp-server --test e2e -- issue1707 xc_translate w109_disabled_still_abstains_for_bigip`, delete `target/debug/deps/e2e-<hash>`.
+  - xtask drift: `cargo build -p xtask && target/debug/xtask gen-bigip-grammars --check` (also gen-zed-queries, gen-editor-extensions, gen-editor-configs).
+- Evidence in the repo: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/bigip-lsp-NOTES.md`
+  (unit table, verification), `bigip-lsp-semantic-baseline.tsv` (semantic-token
+  baseline), and `bigip-lsp/` (e2e results 2026-10-22, core lib failure list,
+  registry failure list, `emulate_gen.py`).

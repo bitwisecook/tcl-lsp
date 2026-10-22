@@ -1,0 +1,48 @@
+PROBE embedded packs cold 84.203492285s errors=0
+PROBE embedded packs warm 64.810422752s
+PROBE hover "regexp {plainword} $line\n" -> None
+PROBE hover "regexp {plainword} abc\n" -> Some("**Regex pattern**\n\nLiteral string (no metacharacters).")
+PROBE hover "lsearch -exact $list $needle\n" -> None
+PROBE hover "lsearch -exact {a b} b\n" -> Some("**`-exact`** — option of `lsearch`\n\nExact equality match.\n")
+PROBE hover "oo::class create M {}\n# A widget mixed with M.\noo::class create C {\n    mixin M\n    method draw {} {}\n}\n" -> None
+PROBE hover "oo::class create M {}\noo::class create C {\n    mixin M\n    method draw {} {}\n}\n" -> None
+PROBE hover "oo::class create C {\n    method draw {} {}\n}\n" -> None
+PROBE hover "oo::class create P {\n    constructor {a b} {}\n    method touch {} { constructor }\n}\n" -> None
+PROBE itcl member "make" side=Instance
+PROBE itcl member "inst" side=Instance
+PROBE rex@121 target=Some("::rex") reach=Reached named=true entry=Some(("::a::Factory", 0))
+PROBE rex@251 target=None reach=Reached named=false entry=None
+PROBE var tally tcl8.6 frame=true ns=Some(C(ByteNamespacePath([]))) symbols=3 slots=["Local { frame: SourceOriginalVariableFrame { source: ExecutedScriptSource { text: SourceImage { bytes: [10, 32, 32, 32, 32, 115, 101, 116, 32, 116, 111, 116, 97, 108, 32, 48, 10, 32, 32, 32, 32, 115, 101, 116, 32, 120, 32, 36, 10], channel: NativeValue, geometry: SourceImageGeometry { byte_hash: 57353699228020172
+PROBE var tally-called tcl8.6 frame=true ns=Some(C(ByteNamespacePath([]))) symbols=3 slots=["Local { frame: SourceOriginalVariableFrame { source: ExecutedScriptSource { text: SourceImage { bytes: [10, 32, 32, 32, 32, 115, 101, 116, 32, 116, 111, 116, 97, 108, 32, 48, 10, 32, 32, 32, 32, 115, 101, 116, 32, 120, 32, 36, 10], channel: NativeValue, geometry: SourceImageGeometry { byte_hash: 5735369922
+PROBE var m11 tcl8.6 frame=true ns=Some(C(ByteNamespacePath([NameBytes([102, 111, 111])]))) symbols=2 slots=["C { namespace: ByteNamespacePath([]), simple: NameBytes([102, 108, 97, 103]) }", "C { namespace: ByteNamespacePath([NameBytes([102, 111, 111])]), simple: NameBytes([120]) }"]
+PROBE irules decls=["\"::hit\""] lexical=false refs=[] select="BreakNone"
+PROBE irules decls=["\"::hit\""] lexical=false refs=[] select="BreakNone"
+PROBE itcl member "make" side=Instance kind=proc
+PROBE itcl member "inst" side=Instance kind=method
+PROBE busy n=10 3.107000675s
+PROBE var tally tcl8.6 frame=true ns=Some(C(ByteNamespacePath([]))) symbols=3
+PROBE   sym "count" span=Span { start: 12, end: 17 } same_frame=Some(true) root_in_doc=None kind=value
+PROBE   sym "total" span=Span { start: 29, end: 34 } same_frame=Some(true) root_in_doc=None kind=word
+PROBE   sym "x" span=Span { start: 45, end: 46 } same_frame=Some(true) root_in_doc=None kind=word
+PROBE var tally-called tcl8.6 frame=true ns=Some(C(ByteNamespacePath([]))) symbols=3
+PROBE   sym "count" span=Span { start: 12, end: 17 } same_frame=Some(true) root_in_doc=None kind=value
+PROBE   sym "total" span=Span { start: 29, end: 34 } same_frame=Some(true) root_in_doc=None kind=word
+PROBE   sym "x" span=Span { start: 45, end: 46 } same_frame=Some(true) root_in_doc=None kind=word
+PROBE var m11 tcl8.6 frame=true ns=Some(C(ByteNamespacePath([NameBytes([102, 111, 111])]))) symbols=2
+PROBE   sym "flag" span=Span { start: 4, end: 8 } same_frame=None root_in_doc=None kind=word
+PROBE   sym "x" span=Span { start: 40, end: 41 } same_frame=None root_in_doc=None kind=word
+PROBE busy n=20 5.936810574s
+PROBE busy n=40 17.707974182s
+PROBE busy n=80 65.961742734s
+PROBE capped41 8.49604441s
+PROBE completion toplevel: ["$total", "$x"]
+PROBE rename Some("proc greet {} { return hi }") -> Err(RenameRefusal { reason: "unknown-completed-command-world: a completed original command world is unavailable for collision coverage", range: Some(LspRange { start_line: 0, start_character: 5, end_line: 0, end_character: 10 }) })
+PROBE completion tally: []
+PROBE rename Some("proc greet {} { return hi }") -> Ok([0, 1, 2])
+PROBE completion tally-called: []
+PROBE rename Some("namespace eval ::a {") -> Err(RenameRefusal { reason: "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage", range: Some(LspRange { start_line: 1, start_character: 21, end_line: 1, end_character: 27 }) })
+PROBE rename Some("oo::class create C {") -> Err(RenameRefusal { reason: "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits", range: None })
+PROBE completion tally-tcl: []
+PROBE irules decl image_eq=true config_eq=true span=Span { start: 5, end: 8 }
+PROBE irules declarations()=Some(1)
+PROBE relation class=::Puppy side=Instance kind=Superclass op=Some(Set) values=Some([("Dog", Some((true, Span { start: 87, end: 90 })))])

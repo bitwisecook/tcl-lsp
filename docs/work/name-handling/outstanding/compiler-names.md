@@ -91,3 +91,27 @@ Constraint until routed: build nothing that re-parses display strings into ident
   - `walker::multiple_handlers` fixture;
   - café expectation.
 - `signature_scan::formal_parameters::tests::original_readonly_lambda_formal_value_preserves_ancestry_and_source_fields` now passes (build of 10:07, before the guardrail edit).
+
+## Resume
+
+- **Pick up at:** the result of batch g2. It covers:
+  - guardrail plus hook guard;
+  - the `ZZ_REGISTERED` / `ZZ_SELECT_TARGET` import probes;
+  - the `ZZ_W210` presence probe;
+  - the 8 regressions run singly;
+  - the full `command_binding::` filter.
+- **Batch command:** one build, then run, then delete the executable, all in a single invocation (the test executable is shared by every agent):
+  `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/buildrun.sh <TAG>`.
+  It sets `CARGO_INCREMENTAL=0`, `CARGO_PROFILE_TEST_DEBUG=0`, `CARGO_PROFILE_DEV_DEBUG=0`, `TCL_LSP_REQUIRE_TCLSH=9.0,8.6` and `TCL_LSP_JIMSH`. Logs go to the scratch directory `compiler-names/<TAG>-*.log`. Edit the `D=` line to redirect them.
+- **Evidence in the repo** (`docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/`):
+  - `baseline-command_binding-ok.txt`: the ok list from my 00:12 run;
+  - `g1-command_binding-pass2fail.txt`: the 8 pass→fail from g1, 864 ok / 316 FAILED.
+
+  In sol49 `z2` (00:00) all 8 were ok. Their assertions (uncalled `proc f {x} {expr…}` body commands now carry a proved execution target; Reached vs Conditional; `executed_script_namespace_context`) point at C6's `uncalled_body_after_load` / conditional in-frame hunks, not at the guard. g2 confirms or refutes this.
+- **Temporary probes to remove before hand-back:**
+  - `command_binding.rs`: ZZ_COMMAND, ZZ_UNCLOSED(_EARLY);
+  - `command_binding/ensemble_compilation.rs`: ZZ_ENSEMBLE;
+  - `command_binding/compiled_invocation.rs`: ZZ_REGISTERED, ZZ_SELECT_TARGET;
+  - `cfg_builder/mod.rs`: ZZ_EMBEDDED, ZZ_CALL_BARRIER;
+  - `analyser/diagnostics/dataflow.rs`: ZZ_W210;
+  - test `analyser::types::…::zz_probe_import_and_crlf`.

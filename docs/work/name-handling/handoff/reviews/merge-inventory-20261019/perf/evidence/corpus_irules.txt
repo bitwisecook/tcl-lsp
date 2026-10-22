@@ -1,0 +1,15 @@
+samples/for_screenshots/32-extract-datagroup-mapping-after.irul
+samples/for_screenshots/31-extract-datagroup-ip-before.irul
+samples/for_screenshots/31-extract-datagroup-ip-after.irul
+samples/for_screenshots/24-template-fallback.irul
+samples/for_screenshots/32-extract-datagroup-mapping-before.irul
+samples/for_screenshots/05-security-taint-before.irul
+samples/for_screenshots/30-extract-datagroup-before.irul
+samples/for_screenshots/05-security-taint-after.irul
+samples/for_screenshots/30-extract-datagroup-after.irul
+samples/for_screenshots/ai-scene.irul
+samples/irules/cookbook_http_collect.irul
+samples/irules/diagnostics_event_flow.irul
+samples/irules/cookbook_tcp_collect.irul
+samples/irules/diagnostics_security.irul
+samples/irules/diagnostics_style_perf.irul

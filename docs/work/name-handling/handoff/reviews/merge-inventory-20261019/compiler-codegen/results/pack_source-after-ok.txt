@@ -1,0 +1,3 @@
+test a_pack_timing_hook_controls_a_live_command_prefix_position
+test the_loader_carries_the_declared_inputs
+test without_a_host_the_installed_pack_simply_does_not_fold
