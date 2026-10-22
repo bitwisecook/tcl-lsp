@@ -1,153 +1,129 @@
 # perf agent notes: Analyser and SpecTcl
 
-Status at 2026-10-22 19:53 UTC: full batch applied with a temporary switch in
-`/workspace/tcl-lsp-work`, production base e4a01bbe. No production change is
-committed. The required complete AnalysisResult proof is blocked by all-old
-report/diagnostic comparison failures. A default-profile SpecTcl pass-to-fail
-is also under targeted controlled investigation; no code may be called proven.
-Exact continuation instructions are in `docs/work/name-handling/outstanding/perf.md`.
+Last updated: 2026-10-22 21:00 UTC
 
-## Changes and ownership
+**Blocked: no production code landed.** Fresh latest-work controls at 39b39296
+still fail complete AnalysisResult equality with every optimization disabled.
+The compiler/source-report owner must resolve the comparison boundary before
+the six-file commit or compiler patch can be called proven. No comparator,
+assertion, budget, currentness guard or source authority was weakened.
 
-`perf/perf.patch` is the complete clean batch. `perf/perf-owned.patch` contains
-only six files: lexer parse_cut.rs/source_map.rs; compiler original_word.rs,
-original_name_value.rs, formal_call_advice.rs, incomplete_body_metadata.rs.
-`perf/perf-realm-interprocedural.patch` contains the two compiler-owned callers.
-Both patches exclude the switch. Main artifacts are refreshed against
-origin/work 6df7bbea; clean application is byte-exact, but semantic proof on
-that revision is pending. Exact e4a01bbe proof patches are retained in
-perf/evidence/latest-e4a01bbe/proof-patches/. The six-file snapshot compiles independently
-of the routed caller; zero owned Clippy diagnostics were observed, with 783
-foreign diagnostics. Global warning/fmt gates are not claimed green.
+## Current-source confirmation
 
-- Build a SourceImage once per script rather than once per command. SourceImage
-  equality first checks shared allocation, retaining full channel/byte fallback.
-- Bound SpecTcl words check the immediate parent link; constructors establish
-  the full chain inductively. Fixed tests cover a chain of at least three links,
-  CRLF, bare CR, EOF, opaque bytes and both source channels.
-- Cache original realm query geometry per immutable realm, retaining allocation,
-  registry and metadata identities. Caller-alias surveys are cached per callee;
-  argument-to-formal mapping still runs per invocation.
-- Cache incomplete-body headers by retained image, lexer configuration and region.
-- Compiler-owned callers reuse the realm invocation memo and pass the query memo.
+A separate shallow checkout rebuilt all 28 local artifacts at 39b39296 with
+zero warnings; only third-party caches were retained. Exact source, binary,
+cache-invalidation and Cargo receipts: `perf/evidence/current-39b39296/`.
+The full batch and temporary switch are applied only in private proof trees.
 
-These target measured repeated binding construction (~50% of samples),
-caller-alias declaration surveys (~35%), repeated invocation joins, document-tail
-header parsing, whole-script image construction and full ancestor-chain checks.
+| Current control | Equal | Unequal | Panics |
+| --- | ---: | ---: | ---: |
+| tcl/old-only | 0 | 2 | 0 |
+| tcl/mixed | 0 | 2 | 0 |
+| irules/old-only | 0 | 15 | 0 |
+| irules/mixed | 0 | 15 | 0 |
 
-## Equality blocker
+E003 and aliases fail all-old as well as mixed runs. E003 diagnostics PartialEq
+is false despite identical Debug text; aliases diagnostics PartialEq is true.
+The earlier e4a01bbe machine trace locates aliases' first false helper in
+ObjectHandleFacts::analysis_report_eq: neither report source is admitted, then
+raw fact equality fails. That helper was not privately traced on 39b39296.
+See `perf/analysis-equality-routing.md`; report correspondence must preserve
+actual owners, input, registry, source and body coordinates. Audit memo/Salsa
+cutoffs before changing global equality. Debug equality is not the verdict.
 
-`perf/analysis-equality-routing.md` records the owner handoff and exact traces.
-The aliases fixture fails complete PartialEq with all optimizations disabled,
-including when the same independently prepared ResolvedAnalysisInput is reused.
-The first false helper is ObjectHandleFacts::analysis_report_eq. Both admitted
-report-source options are absent; raw facts then compare unequal across runtime
-owners. A hosted iRule also fails the all-old control; its helper has not been
-privately traced. Diagnostics/public-field equality does not replace the whole
-result verdict. No assertion, owner guard or comparator was weakened.
+## Completed broad proof at e4a01bbe
 
-The text roster is now exactly 102 UTF-8 Tcl inputs plus 15 iRules. The original
-roster had 101 text files and an intentional non-UTF-8 native fixture; the latter
-remains a separate actual native codegen control (passes in both modes), and a
-class fixture supplies the additional text case. No positive input was dropped.
-Latest calls 10/20/40/80, procs 41 and upvar 10/30 all passed complete
-old/new/old equality with deterministic old endpoints. Latest full ordered PackSet Debug comparison also PASSED (484,936 lines,
-deterministic old endpoints). Full 102-file text corpus completed 100 equal / 2 unequal (E003 and aliases),
-zero panics; both mismatches fail isolated all-old controls. All 100 successful
-rows have deterministic old endpoints. All 15 iRules failed strict equality.
-Earlier base-8a01a718 ordered full PackSet Debug comparison passed deterministically
-(484,936 lines); this is not a latest-source verdict. Never sort Debug output or
-strip fields to manufacture equality.
+The text corpus completed **102 inputs: 100 equal, 2 unequal, zero panics**.
+Every equal row has deterministic old endpoints. The two failures are E003
+and aliases, both also failing isolated forced-old controls. All 15 iRules
+fail mixed and forced-old comparisons. Calls 10/20/40/80, procs 41 and upvar
+10/30 pass full old/new/old equality with deterministic endpoints. Complete
+ordered PackSet Debug passes (484,936 lines), with deterministic old endpoints.
 
-## Measurements
+The original roster contained 101 UTF-8 Tcl files and one intentional byte
+fixture. The corrected text roster adds classes.tcl; the original 0xff fixture
+remains a separate actual native-codegen control, passing both modes. No
+original positive input was dropped or decoded lossily. The origin/rust
+baseline fcb7927f covers the same 102 text cases and 15 iRules plus synthetics.
 
-Full raw results and provenance are in `perf/evidence/timings.md` and
-`perf/evidence/latest-e4a01bbe/`. Wall times are contended opt-level-1 observations,
-with debug assertions enabled, rather than release latency claims. origin/rust
-is fcb7927f02b5395753247b322fdd7be87ae5c731, built in its own checkout/target.
+| Suite | New | Old | Comparison |
+| --- | --- | --- | --- |
+| Lexer lib | 583 pass / 3 fail | same | zero pass-to-fail |
+| Compiler selected filters, all 226 | 151 pass / 75 fail | same | zero pass-to-fail |
+| SpecTcl opt1 eval_loader | 28 pass | 28 pass | zero pass-to-fail |
+| SpecTcl opt1 golden_packs | 3 pass | 3 pass | zero pass-to-fail |
+| Default eval_loader, original run | 26 pass / 2 fail | 27 pass / 1 fail | **one observed pass-to-fail** |
+| Same default failing case, quiet-host repeat | pass | pass | same assertions/budgets |
+| Server startup metadata | first assertion 0 vs 1 | same | later reindex assertions unreached |
+| Server workspace-symbol cap | timeout180 | timeout180 | gate fails in both modes |
 
-Latest new-only tclIndex timings (milliseconds):
+The default-profile pass-to-fail is every_shipped_pack's interpreted eda_xilinx
+wall budget. The targeted quiet-host repeat passed new/old in 1150.068 /
+1429.759 s wall, 1141.846 / 1409.186 s CPU. The original full-suite failure is
+retained; neither optimized green results nor this repeat overwrite it. The
+separate five-second budget-axis assertion fails in both default modes.
+Historical base-8a default golden_packs has 2 pass / the same 1 wall-budget
+failure in both modes; its provenance is separate from latest tests.
 
-| Lines | origin/rust | work + full batch |
-| --- | ---: | ---: |
-| 10 | 163 | 1,319 |
-| 40 | 492 | 11,962 |
-| 100 | 1,021 | 53,223 |
-| 253 | 1,596 | 255,893 |
+## Before/after measurements
 
-The new-only probe prints an equality placeholder; these rows prove timing only.
-The older base three-way run established equality at 10/40/100; the old 100-line
-latency was perturbed by debugger sampling and must not support a speedup ratio.
-The full base-8a old/new/old 253-line check PASSED exactly/deterministically:
-new 189,404 ms / old2 5,108,792 ms. It was not debugger-sampled at 253 lines;
-the host was contended. These older-base timings do not replace the latest
-new-only 255,893-ms row above.
+Wall times are contended opt-level-1 observations with debug assertions on,
+not release latency. Process-CPU samples below exclude equality/reporting.
+All exact inputs, source/artifact receipts and tables are in
+`perf/evidence/timings.md`; units below are milliseconds.
 
-Ordinary LSP positive-reference controls passed at n=10/20/40/80, and scope-chain
-controls at 250/500/1000/2000. The work harness uses retained editing inputs as
-the server document driver does. Every lens has one actual reference.
+| Full-analysis CPU, e4a01bbe | Old1 | New | Old2 |
+| --- | ---: | ---: | ---: |
+| Calls 10 | 1470 | 810 | 1260 |
+| Calls 20 | 3280 | 3600 | 4340 |
+| Calls 40 | 10350 | 2460 | 8480 |
+| Calls 80 | 35450 | 3760 | 21660 |
+| Upvar 10 | 12810 | 3880 | 6070 |
+| Upvar 30 | 71930 | 18670 | 58020 |
 
-| Procedures | origin index ms | work index ms | origin lenses ms | work lenses ms |
-| --- | ---: | ---: | ---: | ---: |
-| 10 | 0.041 | 64.244 | 1.180 | 83.642 |
-| 20 | 0.082 | 445.391 | 2.172 | 1,380.511 |
-| 40 | 0.381 | 675.448 | 27.844 | 8,034.283 |
-| 80 | 0.497 | 1,557.801 | 106.465 | 25,542.691 |
+| Input | origin/rust wall | Work old wall | Work new wall |
+| --- | ---: | ---: | ---: |
+| load_embedded, e4a01bbe | 4665 | 44471 / 82646 | 10673 |
+| tclIndex 253, historical 8a01a718 | 1596 | 5108792 | 189404 |
+| tclIndex 253, e4a01bbe timing only | 1596 | not measured on this base | 255893 |
 
-These are medians of three queries. Ordinary Logical lenses repeatedly rebuild
-call inventory/index, including inside currentness checks. Request-scoped admitted
-inventory reuse is routed to the LSP owner; no identity check may be bypassed.
+The full historical tclIndex 10/40/100/253 comparisons are equal/deterministic.
+Only the 100-line old timing was debugger sampled. Latest new-only timings
+10/40/100/253 are 1319/11962/53223/255893 ms; their equality field is a timing
+placeholder. Do not treat that row as latest-source equality proof.
 
-Latest load_embedded: origin 4,665 ms, work old1 44,471 ms / old2 82,646 ms,
-new 10,673 ms. Full ordered PackSet Debug is equal and old runs deterministic;
-the endpoint timing difference prevents a stable speedup-factor claim.
+Ordinary LSP positive controls pass at 10/20/40/80 procedures, including one
+actual reference per lens. At 80 procedures, origin/work index medians are
+0.497/1557.801 ms; lens medians 106.465/25542.691 ms. The work harness uses
+the actual retained editing-input path. Source-chain controls pass at
+250/500/1000/2000. These show remaining ordinary-path cost, not a fix for it.
 
-Supplemental paired process CPU: calls 80 old1/new/old2 =
-35,450 / 3,760 / 21,660 ms; calls 40 = 10,350 / 2,460 / 8,480 ms.
-Calls 20 new falls between the old endpoints. All results are exactly equal
-with deterministic endpoints; see synthetic-cpu-summary.json. This measures
-analysis, excluding report comparison/formatting, rather than LSP or WASI exit.
+## Patches and next owner actions
 
-## Test status
+Main artifacts are refreshed against 39b39296 and apply byte for byte;
+`patch-inputs.json` / `patch-refresh-validation.json` record that limited check.
+`perf-owned.patch` contains exactly six files, with no switch: lexer parse_cut.rs
+and source_map.rs; compiler original_word.rs, original_name_value.rs,
+formal_call_advice.rs and incomplete_body_metadata.rs. `perf-realm-interprocedural.patch`
+contains the two compiler-owned callers. Neither patch is declared proven.
+Exact older proof patches are retained under evidence/latest-e4a01bbe/proof-patches/.
 
-Latest lexer lib: 583 pass and the same three fail in each mode, zero pass-to-fail.
-The isolated formal-advice test has the same [] versus [notacommand] assertion
-failure in both modes. Selected compiler BOTH modes completed all 226: identical 151 pass /
-75 fail, zero pass-to-fail and identical complete inventories. Startup metadata fails the same first 0-versus-1 assertion in both
-modes (24.451 / 23.893 s), so later reindex assertions are not reached.
-Workspace-symbol times out at 180 s in BOTH modes (180.085 / 180.224 s).
-No pass-to-fail was observed; neither server gate passes.
-These are failed gates, not evidence that the two server cases are repaired.
+The batch hoists script images, adds an immutable-allocation equality shortcut,
+checks bound-word ancestry inductively, reuses native LF line indexes, and
+memoizes immutable realm geometry, caller-alias surveys and incomplete headers.
+Fixed geometry/config/channel/native-byte controls remain intact. The clean
+snapshots pass owned-file rustfmt. An older six-file-only Clippy snapshot had
+zero owned and 783 foreign diagnostics; this is not a current workspace-green
+claim. Clean no-switch validation remains required before landing.
 
-Earlier base SpecTcl opt-level-1 eval_loader: all 28 pass in both modes
-(new 1,482.833 s, old 2,614.057 s). Default-profile golden_packs: two pass and the
-same interpreter 30-minute budget failure in both modes (new 3,537.662 s,
-old 5,717.749 s). The earlier default eval_loader run lacked one sparse fixture;
-complete-input default new mode finished 26 pass / 2 fail (4418.488 s),
-new budget-axis and eda_xilinx interpreted wall-budget assertions. Old
-completed 27 pass / 1 fail (2712.566 s): ONE observed pass-to-fail on the
-every_shipped_pack comparison. Its unchanged single-case controlled repeat
-is active in both modes on an otherwise idle host. Original evidence is kept
-in latest-e4a01bbe/tests-spectcl-default-summary.json; the repeat cannot erase it.
-Controlled BOTH cases PASSED: new 1150.068 s wall / 1141.846 s CPU;
-old 1429.759 s wall / 1409.186 s CPU. No assertion or budget changed.
-The cgroup has four CPU cores of quota, no new memory-limit events or OOM;
-this is a quiet-host repeat, not an assertion/budget change. Latest optimized eval_loader completed all 28 PASS in BOTH modes
-(new 1,488.967 s / old 1,568.082 s), zero pass-to-fail. Latest optimized
-golden_packs completed all 3 PASS in BOTH modes
-(new 651.764 s / old 864.494 s), zero pass-to-fail. Profile
-or fixture differences are recorded separately, never presented as green retries.
+`perf-analyser-images.patch` then `perf-analyser-segments.patch` are unproven,
+unapplied compiler-names drafts. Image reuse still scans full bytes per command;
+eliminating that scan needs an admitted immutable operation context. Ordinary
+Logical lenses repeatedly rebuild inventory/index, including inside currentness
+checks. A sampled compiler body walk also recursively revisits regions/clones
+AdviceGraph. See `residual-routing.md` for exact limits, controls and owner routes.
 
-## Routed residual work
-
-`perf/perf-analyser-images.patch` then `perf/perf-analyser-segments.patch` are
-UNPROVEN drafts, not applied, for compiler-names-owned paths. Their controls and
-limits are in `perf/residual-routing.md`. Image reuse retains full byte/channel
-checks, still O(N) per command; eliminating those checks requires an admitted
-immutable operation context. Segmentation reuse retains the authentic origin,
-configuration and complete token vector. Review section 4.1 still needs owner
-fixes after this batch; the LSP timings above demonstrate the remaining cost.
-
-Do not commit the six production files or mark the compiler patch proven until
-the complete required equality proof is valid. Finish pending comparisons, update
-this file with final before/after values, and stop without opening a PR.
+Next: resolve the current all-old/report blocker with its owner, then rerun the
+complete proof on latest work, preserve zero pass-to-fail and clean-switch
+gates, and commit only the six owned production files as one commit. Only after
+full proof may the routed compiler patch be marked ready. Never open a PR.

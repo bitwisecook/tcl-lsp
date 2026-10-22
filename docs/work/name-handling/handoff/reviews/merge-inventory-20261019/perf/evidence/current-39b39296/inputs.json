@@ -1,0 +1,7 @@
+{
+  "head": "39b392963c652b3bc0d8ca95e387b2b00a225b25",
+  "profile": "dev opt-level=0 debug=0 incremental=0; assertions on",
+  "binary_sha256": "f5b252ff7738b3931ec8f59400c70aa73a5e2d86c7905d41c421ac6ad98a6918",
+  "probe_source_sha256": "27ed4901808e11eb38018f72eed26d5dc97458126c90f5ce503c724ea530d5fd",
+  "rust_diff_sha256": "5ec7e15182f50c364881f4bc76d80385992e58a0d7741db5ec05ee2b2bcbc1d1"
+}

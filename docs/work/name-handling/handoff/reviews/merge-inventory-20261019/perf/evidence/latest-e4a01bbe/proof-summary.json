@@ -207,8 +207,39 @@
     "raw": "../work-tclIndex-threeway.out"
   },
   "latest_work": {
-    "main_patch_base": "6df7bbeaac6090d7c62b15fa2cc8a3c9bb9c4c7d",
-    "validation": "clean application only; fresh latest-work equality controls planned after quiet-host repeat"
+    "head": "39b392963c652b3bc0d8ca95e387b2b00a225b25",
+    "controls": {
+      "tcl/old-only": {
+        "returncode": 101,
+        "equal": 0,
+        "unequal": 2,
+        "panics": 0,
+        "log": "tcl-old-only.out"
+      },
+      "tcl/mixed": {
+        "returncode": 101,
+        "equal": 0,
+        "unequal": 2,
+        "panics": 0,
+        "log": "tcl-mixed.out"
+      },
+      "irules/old-only": {
+        "returncode": 101,
+        "equal": 0,
+        "unequal": 15,
+        "panics": 0,
+        "log": "irules-old-only.out"
+      },
+      "irules/mixed": {
+        "returncode": 101,
+        "equal": 0,
+        "unequal": 15,
+        "panics": 0,
+        "log": "irules-mixed.out"
+      }
+    },
+    "artifact_source_audit": "../current-39b39296/artifact-source-audit.json",
+    "status": "fresh all-old failures persist; latest broad proof blocked, no production commit"
   },
   "limits": [
     "Equality failures are not waived by diagnostic Debug equality.",

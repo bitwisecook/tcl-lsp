@@ -1213,35 +1213,3 @@
                          .unwrap_or_default(),
                  );
              }
-@@ -1969,10 +1961,8 @@
- /// observes but through those links, and calls only procedures of the same
- /// kind with places of its own, its links' among them.
- fn fixpoint_pure(local: &HashMap<ProcedureId, LocalFacts>) -> HashMap<ProcedureId, bool> {
--    let mut pure: HashMap<ProcedureId, bool> = local
--        .iter()
--        .map(|(q, f)| (*q, f.local_pure))
--        .collect();
-+    let mut pure: HashMap<ProcedureId, bool> =
-+        local.iter().map(|(q, f)| (*q, f.local_pure)).collect();
-     let mut bounded: HashMap<ProcedureId, bool> = local
-         .iter()
-         .map(|(q, f)| (*q, !f.impure_beyond_links))
-@@ -2043,14 +2033,10 @@
-     HashMap<ProcedureId, EffectRegion>,
-     HashMap<ProcedureId, EffectRegion>,
- ) {
--    let mut reads: HashMap<ProcedureId, EffectRegion> = local
--        .iter()
--        .map(|(q, f)| (*q, f.effect_reads))
--        .collect();
--    let mut writes: HashMap<ProcedureId, EffectRegion> = local
--        .iter()
--        .map(|(q, f)| (*q, f.effect_writes))
--        .collect();
-+    let mut reads: HashMap<ProcedureId, EffectRegion> =
-+        local.iter().map(|(q, f)| (*q, f.effect_reads)).collect();
-+    let mut writes: HashMap<ProcedureId, EffectRegion> =
-+        local.iter().map(|(q, f)| (*q, f.effect_writes)).collect();
-     let mut changed = true;
-     while changed {
-         changed = false;

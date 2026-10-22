@@ -1,0 +1,67 @@
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=2256 plain_ms=2595 eq=false samples/for_screenshots/32-extract-datagroup-mapping-after.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=5585 plain_ms=6210 eq=false samples/for_screenshots/31-extract-datagroup-ip-before.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=2251 plain_ms=1794 eq=false samples/for_screenshots/31-extract-datagroup-ip-after.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=645 plain_ms=679 eq=false samples/for_screenshots/24-template-fallback.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=1225 plain_ms=1473 eq=false samples/for_screenshots/32-extract-datagroup-mapping-before.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=1178 plain_ms=1211 eq=false samples/for_screenshots/05-security-taint-before.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=2227 plain_ms=2631 eq=false samples/for_screenshots/30-extract-datagroup-before.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=4564 plain_ms=3586 eq=false samples/for_screenshots/05-security-taint-after.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=1669 plain_ms=1892 eq=false samples/for_screenshots/30-extract-datagroup-after.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=1543 plain_ms=1660 eq=false samples/for_screenshots/ai-scene.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=10033 plain_ms=19558 eq=false samples/irules/cookbook_http_collect.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=15312 plain_ms=17470 eq=false samples/irules/diagnostics_event_flow.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=52388 plain_ms=41968 eq=false samples/irules/cookbook_tcp_collect.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=14344 plain_ms=13447 eq=false samples/irules/diagnostics_security.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=17275 plain_ms=18556 eq=false samples/irules/diagnostics_style_perf.irul
+files=15 mismatches=15
+
+thread 'main' (37498) panicked at rust/tcl-compiler/examples/zz_current_perfprobe.rs:204:9:
+assertion `left == right` failed: corpus results must be identical without panics
+  left: 15
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

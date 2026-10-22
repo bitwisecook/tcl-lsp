@@ -78,7 +78,8 @@ Exactly the same first 10/40/100/253 lines are used in both trees.
 | load_embedded | 4665 ms | old1 62828 / old2 120495 ms | 25493 ms |
 
 Raw timing-only runs: `origin-calls.out`, `origin-upvar.out`, `origin-procs.out`,
-`origin-tclIndex.out`, `origin-corpus.out` (102), `origin-irules.out` (15),
+`origin-tclIndex.out`, `origin-corpus.out` (101 original text rows) plus
+`origin-added-classes-timing-only.out` (one added class), `origin-irules.out` (15),
 `origin-spectcl.out`, `origin-lsp-document.out`, `origin-lsp-chain.out`.
 The baseline probe's `eq=true` field is a placeholder in timing-only mode,
 not an equality proof between baseline and migrated results.

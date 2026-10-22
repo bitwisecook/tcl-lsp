@@ -92,3 +92,18 @@ old result's owners with a fresh module/host publication lease. If these equalit
 scopes differ, an explicit report-comparison operation for the harness is safer
 than changing global equality. This remains an owner design question; perf
 changed no comparator, currentness check or source authority.
+
+## Fresh current-work confirmation: 39b39296
+
+A separate shallow checkout at 39b39296 rebuilt all local crates, retaining
+only third-party caches. The full switched batch built with zero warnings
+(default dev opt=0/debug=0, 6m56s). BOTH E003 and aliases still fail complete
+AnalysisResult equality in all-old AND mixed controls. E003 diagnostics
+PartialEq is false while Debug text agrees; aliases diagnostics PartialEq
+is true. Current outputs: evidence/current-39b39296/{tcl-old-only,tcl-mixed}.out;
+source/binary/cache receipts are adjacent. No private helper was traced on
+this newer base; the detailed machine trace above remains scoped to e4a01bbe.
+Hosted all-old/mixed controls completed: ALL 15 fail in BOTH modes, zero
+panics. Both Tcl fixtures also fail in both modes. Current source failure
+is confirmed independently of the older broad proof; no production code
+was committed and neither patch is declared proven.

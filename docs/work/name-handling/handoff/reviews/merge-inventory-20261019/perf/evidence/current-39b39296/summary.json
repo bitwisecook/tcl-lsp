@@ -1,0 +1,30 @@
+{
+  "tcl/old-only": {
+    "returncode": 101,
+    "equal": 0,
+    "unequal": 2,
+    "panics": 0,
+    "log": "tcl-old-only.out"
+  },
+  "tcl/mixed": {
+    "returncode": 101,
+    "equal": 0,
+    "unequal": 2,
+    "panics": 0,
+    "log": "tcl-mixed.out"
+  },
+  "irules/old-only": {
+    "returncode": 101,
+    "equal": 0,
+    "unequal": 15,
+    "panics": 0,
+    "log": "irules-old-only.out"
+  },
+  "irules/mixed": {
+    "returncode": 101,
+    "equal": 0,
+    "unequal": 15,
+    "panics": 0,
+    "log": "irules-mixed.out"
+  }
+}
