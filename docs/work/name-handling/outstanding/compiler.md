@@ -2,7 +2,7 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-22T12:29Z (Sol-49)
+Last updated: 2026-10-22T13:12Z (Sol-49, paused on the user's instruction)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -10,36 +10,79 @@ Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-2026
 
 ## Resume
 
+**Paused at 13:10Z on the user's instruction.** Nothing of mine is running. The e1 test executable is deleted.
+
 Evidence directory (in the repo): `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/`.
-- `scripts/` holds the batch scripts. Set `SOL49_SCRATCH` to a scratch directory first; results go to `$SOL49_SCRATCH/res/<tag>-<filter>.txt`.
-  - `cycle2.sh <tag> <filters…>`: one command that builds the `tcl-compiler` lib tests, runs the `zz_sol49` probes with `--nocapture` (written to `<tag>-probe.log`), runs each filter, then deletes the executable.
+- `scripts/`: the batch scripts. Set `SOL49_SCRATCH` to a scratch directory first; results go to `$SOL49_SCRATCH/res/<tag>-<filter>.txt`.
+  - `cycle2.sh <tag> <filters…>`: one command that builds the `tcl-compiler` lib tests, runs the `zz_sol49` probes with `--nocapture` (with `ZZ_SOL49_ANY=1 TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS=1`, written to `<tag>-probe.log`), runs each filter, then deletes the executable.
   - `cycle.sh`: the same, without the probes.
   - `cmp.sh <base.txt> <after.txt>`: prints pass-to-fail tests and the gain count.
-- `sol49-results-z2-y3-d1.tar.gz`: per-test ok/FAILED lists. `z2`/`y3` are the pre-C6 baselines; `c1`/`d1` are with C6.
+- `sol49-results-z2-y3-d1.tar.gz`: per-test ok/FAILED lists. `z2`/`y3` are the pre-C6 baselines; `c1`/`d1`/`e1` are with C6.
+- `e1-probe-summary.txt`: the probe findings. `e1-probe.log.gz` is the full log.
+- `zz_sol49_probes.rs.txt`: copies of the two inline probe tests.
 
-Where to pick up:
-1. Running now: cycle `e1`. Command:
-   `THREADS=3 cycle2.sh e1 fp_rbs_15 fp_sh_21 fp_tnt_03 irules_checks:: analyser::diagnostics::tests registry_invocation signature_scan:: taint:: lowering:: source_class::tests depth_guard::tests::cap_deep depth_guard::tests::deep_namespace_eval_lowering cfg_builder:: deferred_writes command_binding::`
-   Compare each filter with `cmp.sh res/z2-<filter>.txt res/e1-<filter>.txt`; use `y3` where `z2` has no list for that filter.
-2. Use the `e1-probe.log` output:
-   - `ZZ_SOL49_ANY supplied.rs:<line>` lines show which site turns `deferred_writes.any` on for `fp_sh_21`.
-   - The `FU` block dump shows the CFG for the W210-after-switch cases (the `fp_rbs_15` trio).
-   - `zz_sol49_hover_schema_probe` shows which `source_registry_words` stage withdraws the schema for `regexp {plainword} $line`.
-3. Remove the temporary probes before hand-back:
-   - `zz_sol49_dict_for_probe` in `analyser/diagnostics/fp/sh.rs`
-   - `zz_sol49_hover_schema_probe` in `registry_invocation/source_structure.rs`
-   - `zz_sol49_any` in `deferred_writes/supplied.rs` and `deferred_writes.rs`: restore every `zz_sol49_any(line!())` to `true` and delete the function.
-4. Then the integration binaries, as one build-run-delete command each: `cargo test -p tcl-compiler --test optimiser_coverage`, and `cargo test -p tcl-spectcl --test spec_corpus shared_unit_matches_legacy_for_representative_profiles`.
+Partial C6 batch results, against z2:
+- d1:
+  - `diagnostics::fp` 484 ok / 97 failed: 3 pass-to-fail, 40 gains.
+  - `interprocedural` 76 ok: 0 pass-to-fail.
+  - `diagnostics::helpers` 13 ok.
+  - `compilation_unit` 36 ok: 0 pass-to-fail.
+  - `irules_event_checks` 77 ok: 0 pass-to-fail.
+  - `bounds_checks` 56 ok.
+- The coordinator pruned the d1 executable after `irules_event_checks`, so the later d1 filters ran no tests.
+- e1 completed the build, the probes and `fp_rbs_15` (6 ok / 3 failed, unchanged), then stopped for the pause.
+- Not yet measured with C6: `command_binding::`, `irules_checks::`, `diagnostics::tests`, `registry_invocation`, `signature_scan`, `taint`, `lowering`, `source_class`, `depth_guard`, `cfg_builder`, `deferred_writes`, and the integration tests `optimiser_coverage` and `spec_corpus` I230.
 
-## In progress
+Probe findings (e1), to act on next:
+- **`fp_rbs_15_while1`.** In the procedure CFG, the loop body block `B2` (holding the switch) only goes back to the header `B1`; nothing wires it to the exit block `B3`. So the switch's `break` never reaches `lower_opaque_switch`'s escape wiring: either the switch is not lowered as an opaque switch inside the `while 1` body, or `switch_escaping_jumps_with_classes` returns false. Check `cfg_lower.rs` along the path from the `while` body to the switch statement.
+- **`fp_sh_21`.** `deferred_writes.any` is set in `deferred_writes/supplied.rs::original_registration` at three points:
+  - `with_metadata_schema` / `selected_values` returns None (the instrumented line 148, most frequent);
+  - no `original_materialized_footprint_for_module` (line 118);
+  - `deferred_namespace(value.scope)` is None (line 154).
 
-- **C6 zero-regression pass.** The full tcl-compiler batch (build, run and delete in one command) is running with these fixes:
-  - **`fp_rbs_15`** (two parts):
-    - `bounds_checks::script_words` reads switch clause-list and inline action bodies.
-    - `cfg_builder/cfg_lower.rs::lower_opaque_switch` wires an opaque switch's `break`/`continue` to the enclosing loop before treating an all-exiting switch as a procedure exit. This also targets the earlier-failing `fp_rbs_15_all_break_switch_not_a_proc_terminator`.
-  - **`fp_sh_21`.** `deferred_writes/supplied.rs` no longer turns `any` on for a nested receipt that is already a lowered statement of the command's own body script. The probe showed that `puts` inside a `dict for`/`foreach` body set `deferred_writes.any`, so SCCP went all Overdefined.
-  - The `fp_inj` and `compilation_unit` corrections, and the CRLF lowering fix.
-  - Partial results of that batch (d1, against the pre-C6 baseline z2): `diagnostics::fp` 484 ok / 97 failed, with 3 pass-to-fail left (`fp_rbs_15_while1_break_in_opaque_switch_exits_loop`, `fp_sh_21_dict_literal_in_dict_for_silent`, `fp_tnt_03_interp_eval_list_literal_head_no_t105`) and 40 gains. `interprocedural` 76/51 with 0 regressions. `bounds_checks` 56/13. `diagnostics::helpers` 13/9. The `supplied.rs` change did not clear `fp_sh_21`; a probe build follows the batch.
+  Next step: log the command name at each of these points.
+- **`fp_tnt_03`.** With an unset `$child`, the TN `interp eval $child [list puts $raw]` still emits T105. The nested `[list]` invocation is unreachable, so `taint.rs::list_wrapped_arg_command_is_literal` gets no proved wrapper invocation. With a created child (`set child [interp create]`), the TP `interp eval $child [list $raw]` emits nothing at all, which is a real FN.
+- **hover_residual.** At compiler level the schema is NOT withdrawn. For `regexp {plainword} $line` (with `$line` undefined), `source_registry_words` gives words and `with_source_schema(...).authored_source_pattern_arguments()` gives 1 pattern; `lsearch -exact $list $needle` also gives words. The withdrawal must be on the LSP side (`tcl-lsp-core` `hover.rs` / `original_invocation.rs` walk, or the registry snapshot-key check). That is outside my files.
+
+Exact next command, once resumed and the disk is above 2.3 GB (it reruns the measurement; add `interprocedural:: analyser::diagnostics::fp` after any code change):
+`SOL49_SCRATCH=<scratch> THREADS=3 docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/scripts/cycle2.sh e2 fp_rbs_15 fp_sh_21 fp_tnt_03 command_binding:: irules_checks:: analyser::diagnostics::tests registry_invocation signature_scan:: taint:: lowering:: source_class::tests depth_guard::tests::cap_deep depth_guard::tests::deep_namespace_eval_lowering cfg_builder:: deferred_writes`
+
+Temporary code to remove before hand-back (all of it compiles):
+- `zz_sol49_dict_for_probe` in `rust/tcl-compiler/src/analyser/diagnostics/fp/sh.rs`
+- `zz_sol49_hover_schema_probe` in `rust/tcl-compiler/src/registry_invocation/source_structure.rs`
+- `zz_sol49_any` in `rust/tcl-compiler/src/deferred_writes/supplied.rs` and `rust/tcl-compiler/src/deferred_writes.rs`: restore every `zz_sol49_any(line!())` to `true` (and the two `&& zz_sol49_any(line!())` operands), then delete the function.
+
+Files I have touched since e34d8a427e (details in `sol-49-NOTES.md`):
+- `ir.rs`
+- `lowering/mod.rs`
+- `depth_guard.rs`
+- `source_transition_advice/source_class.rs`, `source_transition_advice.rs`, `source_procedure.rs`
+- `command_binding.rs`: re-export and C6 hunks
+- `realm.rs`, `realm/source_transition_advice.rs`
+- `registry_invocation/source_structure.rs`
+- `analyser/original_members.rs`, `analyser/handlers.rs`, `analyser/irules_event_checks.rs`, `analyser/bounds_checks.rs`
+- `cfg_builder/cfg_lower.rs`
+- `deferred_writes/supplied.rs`, `deferred_writes.rs`
+- `compilation_unit.rs`
+- the C6 companion files
+- `fp/inj.rs`, `fp/sh.rs`
+- `docs/design/contracts/naming-consumer-matrix.md`
+
+## In progress (paused)
+
+- **C6 zero-regression pass.** Landed in the tree: the companion and the WIP hunks, plus:
+  - the `bounds_checks` W241 switch-clause fix;
+  - the `cfg_lower` opaque-switch loop-escape ordering;
+  - the `supplied.rs` lowered-child skip;
+  - the `fp_inj` and `compilation_unit` corrections;
+  - the CRLF lowering fix.
+
+  Three `diagnostics::fp` pass-to-fail remain (see the probe findings above).
+- **Classifying compiler-names' 8 `command_binding::` pass-to-fail** (`compiler-names/g1-command_binding-pass2fail.txt`). Started by reading the tests; not run yet. First reading:
+  - `expression_preparation` ×2, `lifecycle_advice`, `normal_result`, `declaration_layout`: they assert that an UNCALLED `proc` body has no proved execution target. The user decision of 2026-10-21T08:20Z ("world after load") makes those commands resolve, so these are likely (a), each needing a per-assertion correction that cites the decision.
+  - `conditional_expression` "Reached": comes from `walk_deferred_entry_with`, which sets `declaration_preview_depth` to 0 for an after-load entry, so `runtime_reachability` becomes Reached (`command_binding.rs` around line 3052). With preview depth 0, the uncalled body also records actual compiler visits and failures and marks called implementations. That needs a decision: keep Reached as the modelled after-load call, or add a separate reachability. Not settled.
+  - `original_body_namespace`: comes from the C6 `record_conditional_in_frame_script` hunk. A conditional in-frame `if` body now reports the namespace it would run in (`::`); likely (a), with the correction `Some(expected)`.
+  - `source_command_world` import: `original_completed_command_world()` is None. That is compiler-names' R1 area, but it may be C6's fresh entry (`rename auto_import`); needs a run.
 
 ## Outstanding (in priority order)
 

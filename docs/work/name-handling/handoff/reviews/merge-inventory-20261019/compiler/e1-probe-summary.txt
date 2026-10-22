@@ -1,0 +1,112 @@
+test analyser::diagnostics::fp::sh::zz_sol49_dict_for_probe ... ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=1
+ZZ_SOL49_ANY supplied.rs:148
+ZZ_SOL49_ANY supplied.rs:148
+ZZ_SOL49_ANY supplied.rs:148
+SRC "set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n" deferred_any=true codes=["S100"]
+  IR AssignConst { span: Span { start: 0, end: 15 }, name: "d", name_braced: false, value: "a 1 b 2", value_span: Some(Span { start: 7, end: 14 }
+  IR Foreach { span: Span { start: 16, end: 50 }, iterators: [ForeachIterator { vars: ["k", "v"], list_arg: "${d}", list_braced: false }], body: 
+    NESTED @36 recorded=true
+  IR Call { span: Span { start: 36, end: 48 }, command: "puts", canonical_command: None, args: ["${k}=${v}"], defs: [], reads: [], reads_own_defs
+ZZ_SOL49_ANY supplied.rs:148
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:154
+ZZ_SOL49_ANY supplied.rs:148
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:148
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:154
+ZZ_SOL49_ANY supplied.rs:148
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:148
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:154
+ZZ_SOL49_ANY supplied.rs:148
+ZZ_SOL49_ANY supplied.rs:118
+SRC "proc f {x} { switch -glob $x { a* { return 1 } }\n puts $y }\n" deferred_any=true codes=["W210"]
+  IR Call { span: Span { start: 13, end: 48 }, command: "switch", canonical_command: None, args: ["-glob", "${x}", " a* { return 1 } "], defs: []
+    NESTED @36 recorded=true
+  IR Call { span: Span { start: 50, end: 57 }, command: "puts", canonical_command: None, args: ["${y}"], defs: [], reads: [], reads_own_defs: fal
+  IR Call { span: Span { start: 0, end: 59 }, command: "proc", canonical_command: None, args: ["f", "x", " switch -glob $x { a* { return 1 } }\n 
+    NESTED @13 recorded=true
+    NESTED @36 recorded=true
+    NESTED @50 recorded=true
+  FU ProcedureId { scope: 4, ordinal: 0 } dynamic_writes=true
+  FU ProcedureId { scope: 4, ordinal: 0 } BBlockId(0) stmts=3 term=Some(Goto { target: BlockId(1), span: Some(Span { start: 13, end: 48 }) })
+  FU ProcedureId { scope: 4, ordinal: 0 } BBlockId(1) stmts=6 term=Some(Goto { target: BlockId(3), span: None })
+  FU ProcedureId { scope: 4, ordinal: 0 } BBlockId(2) stmts=0 term=Some(Goto { target: BlockId(1), span: None })
+  FU ProcedureId { scope: 4, ordinal: 0 } BBlockId(3) stmts=0 term=None
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:154
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:154
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:154
+ZZ_SOL49_ANY supplied.rs:118
+ZZ_SOL49_ANY supplied.rs:118
+SRC "proc f {x} { while 1 { switch -glob $x {a* {break} default {break}} }; puts $y }\n" deferred_any=true codes=[]
+  IR While { span: Span { start: 13, end: 69 }, condition: Literal { text: "1", start: 0, end: 0 }, condition_span: Span { start: 19, end: 20 }, 
+    NESTED @23 recorded=true
+    NESTED @44 recorded=true
+    NESTED @60 recorded=true
+  IR Call { span: Span { start: 71, end: 78 }, command: "puts", canonical_command: None, args: ["${y}"], defs: [], reads: [], reads_own_defs: fal
+  IR Call { span: Span { start: 23, end: 67 }, command: "switch", canonical_command: None, args: ["-glob", "${x}", "a* {break} default {break}"],
+    NESTED @44 recorded=true
+    NESTED @60 recorded=true
+  IR Call { span: Span { start: 0, end: 80 }, command: "proc", canonical_command: None, args: ["f", "x", " while 1 { switch -glob $x {a* {break} 
+    NESTED @13 recorded=true
+    NESTED @23 recorded=true
+    NESTED @44 recorded=true
+    NESTED @60 recorded=true
+    NESTED @71 recorded=true
+  FU ProcedureId { scope: 7, ordinal: 0 } dynamic_writes=true
+  FU ProcedureId { scope: 7, ordinal: 0 } BBlockId(0) stmts=0 term=Some(Goto { target: BlockId(1), span: Some(Span { start: 19, end: 20 }) })
+  FU ProcedureId { scope: 7, ordinal: 0 } BBlockId(1) stmts=0 term=Some(Branch { condition: Literal { text: "1", start: 0, end: 0 }, true_target: BlockId(2), false_target: BlockId(3), spa
+  FU ProcedureId { scope: 7, ordinal: 0 } BBlockId(2) stmts=3 term=Some(Goto { target: BlockId(1), span: Some(Span { start: 21, end: 69 }) })
+  FU ProcedureId { scope: 7, ordinal: 0 } BBlockId(3) stmts=3 term=Some(Goto { target: BlockId(4), span: None })
+  FU ProcedureId { scope: 7, ordinal: 0 } BBlockId(4) stmts=0 term=None
+SRC "set raw [gets stdin]\ninterp eval $child [list puts $raw]\n" deferred_any=false codes=["T105"]
+  IR AssignValue { span: Span { start: 0, end: 20 }, name: "raw", name_braced: false, value: "[gets stdin]", value_needs_backsubst: false, tokens
+    NESTED @9 recorded=true
+  IR Barrier { span: Span { start: 21, end: 56 }, reason: "unsupported body command", command: "interp", canonical_command: None, args: ["eval", 
+    NESTED @41 recorded=true
+SRC "set raw [gets stdin]\nset child [interp create]\ninterp eval $child [list $raw]\n" deferred_any=false codes=[]
+  IR AssignValue { span: Span { start: 0, end: 20 }, name: "raw", name_braced: false, value: "[gets stdin]", value_needs_backsubst: false, tokens
+    NESTED @9 recorded=true
+  IR AssignValue { span: Span { start: 21, end: 46 }, name: "child", name_braced: false, value: "[interp create]", value_needs_backsubst: false, 
+    NESTED @32 recorded=true
+  IR Barrier { span: Span { start: 47, end: 77 }, reason: "unsupported body command", command: "interp", canonical_command: None, args: ["eval", 
+    NESTED @67 recorded=true
+test registry_invocation::source_structure::tests::zz_sol49_hover_schema_probe ... ORIGINAL_SOURCE_JOIN stage=projection.complete offset=0 passed=true count=1
+ZZ_SOL49_ANY supplied.rs:118
+PROBE "regexp {plainword} $line\n" offset=0
+  recorded=true
+  conditional_metadata=true
+  vendor_names=false logical=false
+  selected=false
+  native_metadata=true
+  words=true
+  patterns=Some(1)
+PROBE "set line x\nregexp {plainword} $line\n" offset=11
+  recorded=true
+  conditional_metadata=true
+  vendor_names=false logical=false
+  selected=true
+  native_metadata=true
+  words=true
+  patterns=Some(1)
+ZZ_SOL49_ANY supplied.rs:118
+PROBE "lsearch -exact $list $needle\n" offset=0
+  recorded=true
+  conditional_metadata=true
+  vendor_names=false logical=false
+  selected=false
+  native_metadata=true
+  words=true
+  patterns=Some(0)

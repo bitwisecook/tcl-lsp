@@ -1,0 +1,1 @@
+stamps|-p tcl-spectcl --test codegen_stamps|--test-threads=4 --skip every_shape_of_inlined_body
