@@ -1,0 +1,62 @@
+{
+  "utc": "2026-10-22T21:22:34.481470+00:00",
+  "status": "BOUNDED STATIC DIAGNOSIS, no source patch/Cargo/probe/runtime validation",
+  "trigger": "8 exact heavy baseline namedPASS\u2192currentFAIL tcl-fuzz::bin/tcl-fuzz wasm_diff::*; actual instantiation error missing tcl::tcl_codegen_host_refusal_pending",
+  "source_hashes": {
+    "rust/tcl-fuzz/src/wasm_diff.rs": "8f2d53e5ad014631b734336379e9fbad801302e155786aedebf4db8511103a0e",
+    "rust/tcl-runtime-api/src/codegen_abi.rs": "4829a10a8d911249b64b6c20710d725282274fd2605d3395a4766258e1982e76",
+    "rust/tcl-compiler/src/codegen/wasm/backend.rs": "fc6402287441059f9e90c3637bd6af34ecd13e0acf982b667dd27148a4c7c8d5",
+    "runtime/rust/src/codegen_native.rs": "e83aca55c3cae508f4c73ddf1cbdd87b537d2633f147b1c92cb58a1d6a91a128",
+    "runtime/rust/src/codegen_abi.rs": "1ad55fe3dad90e3540117b060982bb3738402e7b98e1059ffbf648392a475e46",
+    "rust/tcl-vm/src/interp.rs": "b4c5764ae083d0c40b2ef3cd6f4763ee0eced6a4002a5255e3bf7914fb465fb5",
+    "rust/tcl-vm/src/value_ops.rs": "3fc3b375a158948f858cdd1c4c8a4be9cd062f1eee08df397d48eb67b4113032"
+  },
+  "actual_producer": {
+    "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+    "function": "add_general_imports",
+    "selected_mode": "WasmCompileOptions::hosted().for_eval_only_test_host(), General packaging; disables specialisations but still owns source-condition completion protocol",
+    "required_typed_ids": [
+      "HostRefusalPending",
+      "ObjectNewString",
+      "EvalCode",
+      "CallFrameAlloc",
+      "CallFrameFree",
+      "NewOwnedString",
+      "ExprBoolEval",
+      "CompletionRelease",
+      "ObjectRelease"
+    ],
+    "authority": "CodegenAbiImportId::descriptor is sole spelling/module/ordered-signature definition; requires_host_refusal_check makes EvalCode and ExprBoolEval observable before guest completion transitions. No missing-import handler may return fabricated zero to clear this guard."
+  },
+  "actual_consumer": {
+    "path": "rust/tcl-fuzz/src/wasm_diff.rs",
+    "registration": "three hardcoded legacy func_wrap names ObjectNewString,EvalCode,ExprBool; ExprBool no longer selected by this general-condition producer",
+    "missing_typed_ids": [
+      "HostRefusalPending",
+      "CallFrameAlloc",
+      "CallFrameFree",
+      "NewOwnedString",
+      "ExprBoolEval",
+      "CompletionRelease",
+      "ObjectRelease"
+    ],
+    "state": "HostState only Vm,String handles,memory,errored latch; no owned frame ledger,Value result/options completion objects or separate first-host-refusal latch",
+    "existing_loss": "host_eval_code maps host failure to ordinary errored/1, and host_expr_bool discards eval_expr/Value getter errors via ok/and_then; not adequate for current ABI channel contract"
+  },
+  "nontrivial_dependency": {
+    "current_public_vm": "try_eval_expr/try_eval_expr_bytes return genuine completion but finish host boundary before returning Value. ValueOps::as_bool requires OriginalNumericOps::entered_value in Native mode; calling it outside the original operation is not proof of an admitted getter. Legacy Value::as_bool likewise cannot donate authority.",
+    "authoritative_runtime": "runtime codegen_native::tcl_codegen_expr_bool enters real CodegenOperation, uses existing eval_bool_expr once with its original producer/getter owner, writes full owned completion after checks and truth only on success; first Host failure leaves both outputs untouched.",
+    "needed_seam": "Narrow VM-owned public conditional-expression evaluation retaining its existing genuine entered scope through result producer+Boolean getter and original error state; return separate actual guest completion/truth versus retained native host failure. Coordinate VM owner; no fake Native entry exported.",
+    "transport_after_seam": "Descriptor-based Wasmtime registrations for all9 imports, tracked reentrant actual-memory frames, actual owned source/result/options refs and release-before-free, pending query that does not consume first refusal, and Unrunnable host result rather than guest-match. Existing8assertions remain unchanged."
+  },
+  "refused_shortcuts": [
+    "No zero-return HostRefusalPending stub",
+    "No suppression of required imports or requires_host_refusal_check",
+    "No revival of legacy raw Boolean condition fallback",
+    "No text/printed-symbol-only import guessing or donated Native authority",
+    "No fixture/assertion expectation weakening or pass claim after merely successful instantiation"
+  ],
+  "next": "VM owner confirms existing public seam or prepares narrow authentic scope helper. Then implement bounded host ABI protocol and targeted guest abrupt/host-refusal/cleanup controls off-tree, peer-review, guarded original8 execution after root slot.",
+  "root_notified": true,
+  "vm_owner_consulted": true
+}

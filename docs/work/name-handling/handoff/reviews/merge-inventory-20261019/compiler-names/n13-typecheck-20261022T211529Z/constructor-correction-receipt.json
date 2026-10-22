@@ -1,0 +1,14 @@
+{
+  "utc": "2026-10-22T21:20:20.932679+00:00",
+  "status": "OFF-TREE exact2constructor None additions; rustfmt --check0 and current canonical git apply --check0; no type/test claim",
+  "diagnostics": [
+    "E0063 command_binding.rs1684 Default",
+    "E0063 command_binding.rs13446 source_binding_projection_in"
+  ],
+  "path": "rust/tcl-compiler/src/command_binding.rs",
+  "before_sha256": "f2768a135cb448e7eb41947c29df4093d89c00aff8be3da320af47aa576ef367",
+  "after_sha256": "4668b6f5e4c3c8cabb5fac2273e3039c83074cec35af8620b0f5aaa9abf0043a",
+  "patch_sha256": "a1dbe5458591b267a125a2d9ff7d649bdfcbc44ba22fc5fbe8f56df63fbd9239",
+  "review": "compiler static-consented missing receipt must be explicit None",
+  "typecheck_receipt": "/tmp/compiler-names-n13-typecheck-20261022T211529Z"
+}

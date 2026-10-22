@@ -1,0 +1,15 @@
+    Checking tcl-lexer v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lexer)
+    Checking parking_lot_core v0.9.12
+    Checking parking_lot v0.12.5
+    Checking temp-env v0.3.6
+    Checking tcl-syntax v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-syntax)
+    Checking tcl-runtime-api v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-runtime-api)
+    Checking tcl-pkg-model v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-pkg-model)
+    Checking tcl-cmd-core v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-cmd-core)
+    Checking tcl-bytecode v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bytecode)
+    Checking tcl-engine-api v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-engine-api)
+    Checking tcl-regex v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-regex)
+    Checking tcl-registry v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry)
+    Checking tcl-compiler v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler)
+    Checking tcl-vm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm)
+error: could not compile `tcl-compiler` (lib) due to 2 previous errors

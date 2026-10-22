@@ -1,0 +1,59 @@
+{
+  "utc": "2026-10-22T21:09:19.605598+00:00",
+  "status": "OFF-TREE composed four-path candidate; exact current base hashes +fuzz0 copied application only. No Cargo/type/Clippy/runtime validation. Canonical Rust/tests untouched.",
+  "patches": [
+    {
+      "path": "/tmp/ccg-ci5205-cmd-subst-lint/proposal.patch",
+      "sha256": "3445112f4e04efa20761d894d8ddd5ee083147ba107814262a9d5c66344db5f4",
+      "purpose": "Equivalent Set-guard lint extraction; static approved"
+    },
+    {
+      "path": "/tmp/ccg-wasm-import-intern/proposal.patch",
+      "sha256": "b1ae7f0e0cbf0547b995d3d5bf8fe97503d70edf7d5de6cb5322447827b50b92",
+      "purpose": "Exact full-identity import product repair +two new unit controls; static approved"
+    },
+    {
+      "path": "/tmp/ccg-wasm-native-diagnostic/proposal.patch",
+      "sha256": "519f724e15034aa4f7930b8dde8c74e733f365ce04fcc74d587cc16592fb12b5",
+      "purpose": "Observation only before unchanged original assertions; static approved"
+    }
+  ],
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/codegen/cmd_subst.rs",
+      "before_sha256": "d873669293af76e3a4ab6eeb8bedf3c2aee7d215c1dcfd26fc7a2abcb9b0c89a",
+      "proposed_sha256": "25254e3b825601cb4e4e11314a9d31a2e17a173e5a043b8186d0877fce68070b"
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/wasm/ir.rs",
+      "before_sha256": "5c3b243f732f930ef2f48cbb719c0fa18eaf8c91eef5106b8a8754e6e1b74d3e",
+      "proposed_sha256": "3de0e8bfd595875511d7d4afb31e4e310b86895905f03c080879e3258fe5d6c6"
+    },
+    {
+      "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+      "before_sha256": "d24e447ea5eb82b986f1ba47b2e829cf72175d643ff059c80e211064af4d4c11",
+      "proposed_sha256": "fc6402287441059f9e90c3637bd6af34ecd13e0acf982b667dd27148a4c7c8d5"
+    },
+    {
+      "path": "rust/tcl-compiler/tests/wasm_real_link.rs",
+      "before_sha256": "aa487bfc86ece593e1ad8a3acc3121c158ed66dc98a780fa12ef4338e7955892",
+      "proposed_sha256": "ff2d3a6cf4925491ee916591c30234a7c7b0f60ab21f9b2db0ee9cf088433645"
+    }
+  ],
+  "shadow": "/tmp/ccg-wasm-next-batch-shadow",
+  "final_wasm_plan": {
+    "path": "/tmp/ccg-wasm-five-v3-plan.json",
+    "sha256": "b8f07d8e555d741e7f961e56f621acaf8080862eb4a1827b60bdfa39ca2fb327",
+    "status": "unqueued; needs root source integration and build-slot GO"
+  },
+  "separate_unqueued_unit_controls": [
+    "codegen::wasm::ir::tests::import_interning_keeps_full_identity_and_existing_function_indices",
+    "codegen::wasm::backend::tests::condition_argv_and_native_emitters_share_actual_abi_import_indices"
+  ],
+  "limits": [
+    "No proposed native-provider/trace/handler bypass or fixture authority donation",
+    "Original wasm and SpecTcl assertion conditions/fixtures unchanged",
+    "Derived SpecTcl two baseline regressions stay compiler-owned and unfixed by this batch",
+    "Native shared-table/i64 first decline remains unmeasured until diagnostics execute"
+  ]
+}

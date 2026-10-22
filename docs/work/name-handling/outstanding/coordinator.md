@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T20:55:47.733702+00:00
+Last updated: 2026-10-22T21:25:54.204893+00:00
 
 ## In progress
 
@@ -245,3 +245,19 @@ Last updated: 2026-10-22T20:55:47.733702+00:00
 - Fresh publisher depth1fetch/FF remote27c2d003 includes perf20:37. Controlled quiet-host EDA repeat passes both modes1150/1430s, original default-profile failure retained; latest-work all-old equality checks still pending and no production perf patch proven.
 - Cloud executor restarting notification resolved with same workspace/live runtime Cargo preserved. Supported policy reports current/enforced unrestricted HTTP; proxy/CA preserved. No source/executable cleanup or build interruption.
 - Runtime6 first attempt produced zero artifacts/tests because standalone-lock cc1.9.0 download failed under restricted command networking; exact failed source/provider guard closed unchanged. Sameplan/driver network-enabled retry is live, intentional no-tommath flavor notice recorded separately. No runtime result inferred yet.
+
+### Current cycle and routing (21:25 UTC)
+
+- Primary goal remains clean LSP merge/release readiness from rust before deferred parity. Only work developed/pushed; no PR, merge, tag, release, audit admission or checklist closure.
+- 20:55 WIP sourceab1 normal-pushedf5d78f954 afterfresh depth1fetch27c/rebase. Active/published product equality zero.21:16 fresh depth1fetch/fastforward publisher50c50133 incorporates external perf finaldocs, allhistory remains shallow.
+- Integrated exact reviewed8patch functionalbatch across40productpaths; checkpointafde9bfdb. Includes authentic N13 region/return-outcome/fullsettings receipts, C6 Direct-list syntax geometry, independent minify inversion proof, exactWASM import interning, OO callbackphase correction backed all5Cwitnesses, assertion-only runtime diagnostics, meaningfulfolder regression. No authority/guard/assertion weakening; type/functional acceptance pending.
+- First guarded compileralltargets typecheck CLOSED101at21:21:27: exactly2E0063 missingoriginal_argument_syntax constructors,0warnings. Sources6531/providers exactbeforeafter, no disk/logabort. Consumers not reached. Rootappliedreviewed2None wiring a1dbe afterlockrelease, checkpoint88ae4788e. Exactsametwo-phase runner retryactive21:22:08, no test/admission verdict.
+- Unchanged runtime6 completed3PASS/3nonpass, no timeouts, fullsource/sharedRust/provider/experiments exact: alias+2TLS pass; catch8.4 genuinebaseline regression and Jimfirstsetupfail CodeError; originalOO externassert abort. Rustartifactb37 retained. Two earlier environment failures separately archived, no fabricatedtestcounts. CorrectedOO+failuremessage successor unrun.
+- HeavyCI exactnamed join: current349=298PASS/51FAIL; actualrustbaseline312PASS.27confirmedPASS→FAIL,24failingabsentbaseline,0unknown within these currentfailures;51duplicatesummaryrows excluded. Owners compiler2,CCG8,VM31(11P2F),externalCLI10(6P2F). Separateledger frommain24312; onebaseline-only selector remainsabsentcurrent/unknown.
+- CI5205 actual2b934 full30jobmetadata:7success16failure4running3skip at21:17. Mainshard4 failed andstepcancelled, authoritativeannotation says operationcanceled. Logs repeatedlytransportclosed/fallbackForbidden, no namedoutcomesinferred. Other4shardsrunning. Editor2 closes137PASS/79FAIL, exactfullbaselinejoinpending.
+- Partialminify12 baseline join confirms4originaloldPASS→FAIL: Core inversion, two residual inversion selectors and factorial minify. Two failed newcontrols absentbaseline stayseparate. Results source d666 attribution retained; inversion integrated but nestedbodygap stillunfixed/unrun.
+- Externalperf final50c confirms actual39b allold/mixed blockers (E003typedDiagnosticSubject/aliasesobjectfacts/15iRules), rebuilt28localartifactszero warnings. Compiler/source-report investigation routed; no Eqmasking/Debugfallback/droppedsubjects allowed. BothcontrolledEDA modesPASSdoesnoterase original fullsuite observation.
+- Full strict Clippy stillblocked by666located dependency findings compiler485+VM181 on earlier exactguarded source; original4registry findingsdidnotrecur. Reviewedofftreemechanical/typedAPI/retainedkey/guardextraction drafts remain untyped/unmeasured, no allowanceorassertionweakening.
+- All sectionF boxes remainopen, validated/auditcounts unchanged. Native/editor/browser/WASI/SpecTclC1C2 acceptance, generated/strict gates, shippinglatency/cancel/memory andcompleteactualrustP2F comparison remain mandatory. GeneralVMparityparked; actualrelease regressionsremainin scope.
+- Cycle publishes full activeWIP excludingtemporaryzzprobes fromisolatedpublisher afterfreshfetch/rebase. Builds useonewholelock/jobs2/debug0/incremental0,20MiB logs,2GiB diskfloor; no target/executablecleanup. Next21:55:37 reminder rearmed.
+- Nestedbodyminify candidate d132 remains off-tree/unapproved after compiler found a concrete missing actualanalysis-attachment ownership guard; LSP corrects it before any integration. Guarded typecheck source remains frozen, no new productchange.

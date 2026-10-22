@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-22T21:19:15.397996+00:00",
+  "status": "OFFTREE exact shared-API consumer adapter; rustfmt only, untyped/unrun. Do not apply without shared API/root source window.",
+  "path": "rust/tcl-compiler/src/optimiser/propagation.rs",
+  "before_sha256": "186b5fab282a14f65d04f6ecd8804c125d081b11e4651964a242ca32b82978c9",
+  "proposed_sha256": "afd36937e3a0f6fc4accf98d60ef9d7b1cf8ade84024061fb2c108df34d42b91",
+  "patch_sha256": "cfbd7d0b428c5f21f17da955796360629f13a903636969c95ac39d333940b00d",
+  "dependency": {
+    "path": "/tmp/compiler-lint-analysis-body-v1/proposal.patch",
+    "sha256": "fe780aca942bf64db7685056363432a543b83cd4f388dbb3ec16d0256a95f8cc"
+  },
+  "invariant": "Only ModuleRun analysis_body exact existing ProcedureId enum wrapper changes. OuterNone unavailable, unit_scope and all function pointers/arguments/assertions unchanged."
+}

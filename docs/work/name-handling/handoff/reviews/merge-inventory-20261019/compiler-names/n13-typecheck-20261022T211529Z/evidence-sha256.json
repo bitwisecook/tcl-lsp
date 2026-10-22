@@ -1,0 +1,18 @@
+{
+  "after-providers.json": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+  "after-source.json": "1d636fbe81293c56039e6c4e55ef6ece57e15eb28780de84297b6fc9965d54b4",
+  "before-providers.json": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246",
+  "before-source.json": "0c492aa0d95741f2ef0d6669561885b922b8a3dbe77b336e7854dfb5327dd86d",
+  "compiler-artifacts.json": "b901fe9d2030f1d1c5dd69fc543ca0004ead6b33cad4ec339080121fd4d70d3a",
+  "compiler-result.json": "2bf16a0447b3104f51c886338d00b8da3abac4dec773152e94e144181e967596",
+  "compiler-started.json": "c43201ec33e41fbe392b5e8d0a9fa103be12598d2b4f0bcfdb9fae7accb71501",
+  "compiler.stderr.log": "56696898269177f53764b2bb0ec88f2efa22031487c8e879e917694032fe4f9f",
+  "compiler.stdout.jsonl": "97fd6a7f5c78f4fd8c0baa38d4201b0b34f71b8167e2fbb9b55763b52311b033",
+  "constructor-correction-receipt.json": "d4ead9b89e32ece269e51064f1ed65c952c849c09761096ec40e3cddfbfd9646",
+  "constructor-correction.patch.txt": "a1dbe5458591b267a125a2d9ff7d649bdfcbc44ba22fc5fbe8f56df63fbd9239",
+  "focused-control-inventory.json": "f77bef8ca7422b075d79a29373401b03879db9c20c10bb24a31ef62b78058a96",
+  "lock-claimed.json": "3b37eb21b7e1701ea3724e182186987befeb2a1d84acc4880af241d292e67c44",
+  "lock-released.json": "1ae782407402c8efae8333cd73d364f95a1a8f7632ac32e2af02a1148945fd77",
+  "runner.py.txt": "b1dd6c89f4faaa7a07ada87952a05f2db072c868faccb2f8eb2ed16ea32b9999",
+  "summary.json": "c9a75364932476422b32dfa8e73a635f9ff53b68ba83f55caeb763ee4dfc5f57"
+}

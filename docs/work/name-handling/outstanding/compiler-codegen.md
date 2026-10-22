@@ -2,11 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-22T21:18:22.535645+00:00 (ACTIVE; agent-reported, not validation)
+Last updated: 2026-10-22T21:22:58+00:00 (ACTIVE; agent-reported, not validation)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+**Applied bytes and bounded new WASM8 dependency, 2026-10-22T21:22:58+00:00:** read-only current-source verification after root afde9 integration matches all4 exact proposed CCG hashes from8fcb127f (Set lint3445, import-intern2paths b1ae, observational wasm helper519f). This is source application only, no type/Clippy/runtime acceptance;5baseline+2new v3planb8f07d8e remains unrun/unqueueed. Root-assigned WASM8heavy diagnosis identifies actual General/eval-only producer9typedABI imports versus consumer3legacy imports with only2overlap, so7imports/protocols are missing, not just the first printed pending name. Frozen `/tmp/ccg-wasm-diff-abi-diagnosis/receipt.json` SHA `0229222c...` pins source/authority/required operations. Actual VM public expression methods finish the host operation before returning Value; Native Boolean getter requires entered original scope. A faithful port needs a VM-owned condition seam retaining existing actual producer/getter scope, plus tracked owned frame/source/result/options cleanup and first-host-refusal latch. VM consulted; no guessed zero pending, legacy Boolean fallback, provider bypass, fixture/assertion change or source patch proposed as fix. Existing8assertions remain.
+
+**Shared AnalysisBody adapter ready off-tree:** `/tmp/ccg-analysis-body-adapter/proposal.patch`, SHA `cfbd7d0b428c5f21f17da955796360629f13a903636969c95ac39d333940b00d`, pins compiler's frozen APIfe780aca. Exact single ModuleRun constructor wrapper only; unit_scope untouched. Copied rustfmt syntax only, no apply/type/runtime. Owner notified for coordinated next lint/API batch.
 
 **Actual heavy CI comparison, 2026-10-22T21:18:22.535645+00:00:** authoritative current349 ordinal rows (298PASS/51FAIL) joined to actual Rust baseline119956195910312namedPASS by exact binary+test including suite. Exactly27 matchedPASS→FAIL,24 failing absent-baseline,0unknown;51 repeated final failure rows excluded. Current284matchedPASS→PASS+14newPASS;one baseline-only test omitted current supplies no result. Receipt `/tmp/ccg-heavy-ci-comparison/receipt.json` SHA `0808da8c3c6edf688405c667acc057ade3fc1853fc490813ae6d6212c30f1d5c` and full ledger/snippets/parser saved under resumed results/heavy-ci5205. This HEAVY ledger is separate from main24312 and wasm/SpecTcl baselines. Routed BPF2P2F compiler; runtime31 (11P2F/20absent) VM; external CLI10 (6P2F/4absent) root for external owning files; WASM8P2F actual missing host_refusal_pending import remains codegen/backend-host acceptance work, distinct from dedup/shared-table/i64 diagnostics. F5simulate2 share profile mismatch observation but are counted only in CLI primary10. No cause inferred from aggregate, no assertion/manifest/provider weakening or new Cargo.
 

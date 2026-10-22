@@ -1,0 +1,18 @@
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -1701,6 +1701,7 @@
+             original_logical_source_advice: None,
+             original_analysis_owner: None,
+             original_source_operand_attachment: None,
++            original_argument_syntax: None,
+             original_authored_source_body_scope: None,
+             original_native_source_command: None,
+             declaration_layout_observations: None,
+@@ -13465,6 +13466,7 @@
+         original_authored_source_body_scope: None,
+         original_analysis_owner: None,
+         original_source_operand_attachment: None,
++        original_argument_syntax: None,
+         original_native_source_command: None,
+         declaration_layout_observations: None,
+         declaration_flow_inventory: None,

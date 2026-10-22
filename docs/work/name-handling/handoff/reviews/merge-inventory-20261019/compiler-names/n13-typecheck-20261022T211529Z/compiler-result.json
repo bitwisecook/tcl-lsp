@@ -1,0 +1,88 @@
+{
+  "argv": [
+    "cargo",
+    "check",
+    "--locked",
+    "--keep-going",
+    "-p",
+    "tcl-compiler",
+    "--all-targets",
+    "--message-format=json"
+  ],
+  "cargo_exit": 101,
+  "disk_abort": false,
+  "error_count": 2,
+  "errors": [
+    {
+      "code": "E0063",
+      "message": "missing field `original_argument_syntax` in initializer of `SourceInvocationBinding`",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 69903,
+          "byte_start": 69899,
+          "column_end": 13,
+          "column_start": 9,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/command_binding.rs",
+          "is_primary": true,
+          "label": "missing `original_argument_syntax`",
+          "line_end": 1684,
+          "line_start": 1684,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 13,
+              "highlight_start": 9,
+              "text": "        Self {"
+            }
+          ]
+        }
+      ],
+      "rendered": "error[E0063]: missing field `original_argument_syntax` in initializer of `SourceInvocationBinding`\n    --> rust/tcl-compiler/src/command_binding.rs:1684:9\n     |\n1684 |         Self {\n     |         ^^^^ missing `original_argument_syntax`\n\n"
+    },
+    {
+      "code": "E0063",
+      "message": "missing field `original_argument_syntax` in initializer of `SourceInvocationBinding`",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 540790,
+          "byte_start": 540767,
+          "column_end": 28,
+          "column_start": 5,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/command_binding.rs",
+          "is_primary": true,
+          "label": "missing `original_argument_syntax`",
+          "line_end": 13446,
+          "line_start": 13446,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 28,
+              "highlight_start": 5,
+              "text": "    SourceInvocationBinding {"
+            }
+          ]
+        }
+      ],
+      "rendered": "error[E0063]: missing field `original_argument_syntax` in initializer of `SourceInvocationBinding`\n     --> rust/tcl-compiler/src/command_binding.rs:13446:5\n      |\n13446 |     SourceInvocationBinding {\n      |     ^^^^^^^^^^^^^^^^^^^^^^^ missing `original_argument_syntax`\n\n"
+    }
+  ],
+  "logs_truncated": false,
+  "minimum_free_bytes": 12709150720,
+  "overlong_json_lines": 0,
+  "parse_errors": 0,
+  "passed": false,
+  "retained_bytes": 132784,
+  "retention_budget": 20971520,
+  "stderr_bytes": 1211,
+  "stdout_bytes": 131573,
+  "termination_scope": "Only this Popen-created Cargo session/process group; no cleanup/deletion",
+  "utc": "2026-10-22T21:21:15.148456+00:00",
+  "warning_count": 0,
+  "warnings": []
+}

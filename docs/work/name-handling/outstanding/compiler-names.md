@@ -2,7 +2,7 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-22T21:16:23Z (agent-reported work only)
+Last updated: 2026-10-22T21:22:02Z (agent-reported work only)
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -118,6 +118,8 @@ Perf aliases evidence reviewed read-only after staged GO: all-old control proves
 - g3: `crlf_class…` and `substituted_heads…` ok. `completed_world…` failed on positive cases, caused by the strict `::unknown` kind check, which is now relaxed.
 
 ## Resume
+
+- **Actual integrated N13/C6 typecheck CLOSED at21:21:27Z:** compiler --all-targets cargo101 with exactly2E0063 constructor omissions (`original_argument_syntax` absent from SourceInvocationBinding Default at1684 and source_binding_projection_in at13446), zero warnings; Core/server/DB phase was not reached. Source before/after6531/6531 and actual provider/library hashes unchanged, HEADafde9bfdb unchanged, no disk abort,132784retained bytes/no truncation. Whole lock released and own runner reaped. Complete source/provider/artifact/log/exit receipts are in compiler-names/n13-typecheck-20261022T211529Z. Compiler peer-consented exact two-None correction `/tmp/compiler-names-n13-typecheck-fix-v1/proposal.patch` SHAa1dbe5458591b267a125a2d9ff7d649bdfcbc44ba22fc5fbe8f56df63fbd9239 passes rustfmt/current canonical apply-check, remains off-tree pending coordinator window. This is a failed typecheck, zero tests, no N13 functional admission.
 
 - **Actual integrated N13/C6 typecheck started:** root applied exact d52c functional composition plus coordinated LSP/minify/codegen/VM supplements at afde9bfdb. Exact guarded runner b1dd6c89f4faaa7a07ada87952a05f2db072c868faccb2f8eb2ed16ea32b9999 claimed whole lock at21:15:42.419Z and compiler Cargo started21:15:55.931Z. Output `/tmp/compiler-names-n13-typecheck-20261022T211529Z` retains actual UTC receipts;6531 present Rust/C-family/Cargo/build inputs and actual provider/library hashes captured before build. Compiler --all-targets phase runs first, then Core/server/DB --all-targets only on compiler build success; combined log cap20MiB, disk floor2GiB, no tests or cleanup. Verdict/source-after/provider-after pending; canonical product hold remains.
 

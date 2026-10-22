@@ -1,0 +1,52 @@
+{
+  "status": "Inventory only, tests unrun; do not run until coordinator grants a separate window",
+  "actual_typecheck_receipt": "/tmp/compiler-names-n13-typecheck-20261022T211529Z",
+  "groups": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "test_count": 9,
+      "names": [
+        "source_point_identity_exhaustion_refuses_only_new_receipts",
+        "source_point_hash_collision_keeps_complete_parent_payloads_distinct",
+        "inherited_source_options_refuse_each_changed_entry_axis",
+        "inherited_source_entry_never_becomes_a_runtime_lowering_target",
+        "inherited_child_unit_retains_the_actual_point_after_external_handles_drop",
+        "source_entry_reborrow_keeps_the_same_inherited_request_without_a_unit_build",
+        "inherited_ingress_reapplies_and_revalidates_actual_parent_source_settings",
+        "source_point_token_lifetime_and_equality_keep_the_full_live_receipt",
+        "source_point_allocator_compares_same_owner_actual_point_snapshots"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_source.rs",
+      "test_count": 5,
+      "names": [
+        "original_finite_plan_keeps_the_real_script_suffix_and_prior_outcome",
+        "namespace_plan_retains_inner_then_outer_suffix_and_actual_restore_owner",
+        "refused_same_site_observation_withdraws_and_cannot_renew_a_prior_plan",
+        "unsupported_control_descent_and_unknown_prefix_cannot_issue_finite_plans",
+        "finite_continuation_joins_same_parent_child_and_reuses_only_live_actual_owners"
+      ]
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+      "test_count": 5,
+      "names": [
+        "suffix_view_reuses_the_same_kernel_and_refuses_whole_document_or_foreign_parent",
+        "ordered_namespace_suffixes_restore_the_actual_inner_frame_before_outer_walk",
+        "deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix",
+        "sequential_tail_returns_to_the_same_original_prefix_without_reanalysis",
+        "twelve_literal_source_hops_return_only_through_the_original_live_chain"
+      ]
+    }
+  ],
+  "remaining_required_negative_controls": [
+    "non-region ConditionalRegion query refuses",
+    "region CompleteProgram query refuses",
+    "return_outcome rejects foreign completed-region owner"
+  ],
+  "functional_limits": [
+    "No host publication retirement/convergence claim from compiler-only controls",
+    "Namespace preflight/completion may conservatively block some written positives; attribute actual refusal without assertion weakening"
+  ]
+}
