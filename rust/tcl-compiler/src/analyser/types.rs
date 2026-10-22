@@ -5773,12 +5773,28 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                 "tcl8.6",
                 "oo::class create Widget {\r\n    method render {} {\r\n        puts \"widget $label\"\r\n    }\r\n}",
             ),
+            (
+                "tcl8.6",
+                "namespace eval ::a { oo::class create Widget {} }\nnamespace eval ::a { Widget new }\n",
+            ),
+            (
+                "tcl8.6",
+                "oo::class create C { variable n; method get {} {return $n} }\n",
+            ),
+            ("tcl8.6", "proc greet {} { return hi }\nputs [greet]\nputs [greet]\n"),
         ] {
             let result = std::panic::catch_unwind(|| {
                 crate::analyser::Analyser::new().analyse(source, dialect)
             });
             eprintln!("ZZ_RESULT {source:?} ok={}", result.is_ok());
             if let Ok(result) = result {
+                eprintln!(
+                    "ZZ_WORLD {}",
+                    result
+                        .retained_command_realm()
+                        .and_then(crate::realm::CommandBindingRealm::original_completed_command_world)
+                        .is_some()
+                );
                 for row in &result.command_invocations {
                     eprintln!(
                         "ZZ_ROW {} at={} input={} lookup={} reference={}",

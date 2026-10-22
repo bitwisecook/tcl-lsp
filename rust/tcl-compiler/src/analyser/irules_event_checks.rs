@@ -827,6 +827,7 @@ impl Analyser {
                     );
                     if crate::connection_scope::cell_from_place(&place)
                         .is_some_and(|cell| flags.contains(&cell))
+                        || names_static_variable(&access.original_spelling)
                         || (!place.dynamic
                             && place.is_global()
                             && tcl_registry::f5::namespace_storage_domain(
@@ -858,6 +859,7 @@ impl Analyser {
                 );
                 crate::connection_scope::cell_from_place(&place)
                     .is_some_and(|cell| flags.contains(&cell))
+                    || names_static_variable(name)
                     || (!place.dynamic
                         && place.is_global()
                         && tcl_registry::f5::namespace_storage_domain(
@@ -974,6 +976,16 @@ fn collect_event_bodies(
 /// is required. Exact setup-event definitions below use the shared Tcl cells.
 fn mentions_static_variable(word: &str) -> bool {
     word.contains("static::")
+}
+
+/// Whether a written variable name selects BIG-IP's `static::` namespace.
+/// Suppress-only advisory evidence, like [`mentions_static_variable`]: under
+/// the fresh rule-load realm an entered event body's frame leaves a relative
+/// name's current namespace unproved, but a decision on a `static::` flag is
+/// still the gate IRULE5001 prescribes, and over-suppressing a hint is the
+/// safe direction.
+fn names_static_variable(name: &str) -> bool {
+    name.trim_start_matches(':').starts_with("static::")
 }
 
 /// Possible debug flags from infrequently invoked handlers. Reuse the source
@@ -1235,26 +1247,21 @@ mod tests {
         );
     }
 
+    /// The fresh rule load's own `proc` is the loader builtin, so its
+    /// invocation keeps the original lookup editor selection needs at the
+    /// declaration (`proc hit` in a document supplied without an entry).
     #[test]
-    fn zz_sol49_irules_capture() {
+    fn rule_loader_proc_invocation_keeps_its_original_lookup() {
         let source = "proc hit {} { return hit }\nswitch -glob $value {\n    default {\n        hit\n    }\n}\n";
         let analysis = crate::analyser::Analyser::new().analyse(source, "f5-irules");
-        let input = analysis.resolved_input.as_ref().expect("input");
-        let config = analysis.body_lexer_config.expect("config");
-        let realm = analysis.retained_command_realm().expect("realm");
-        let image = realm.original_source_image();
-        eprintln!(
-            "CAPTURE image={} channel_doc={:?} bytes={} cfg={} matches={} realm_input={} profile={} registry={} decls={}",
-            image.is_some(),
-            image.map(|image| image.channel() == tcl_lexer::SourceChannel::Document),
-            image.is_some_and(|image| image.bytes() == source.as_bytes()),
-            input.lexer_config() == config,
-            image.is_some_and(|image| analysis.matches_original_source_image(image, config)),
-            realm.matches_resolved_analysis_input(input),
-            analysis.resolved_profile().is_some(),
-            analysis.resolved_registry().is_some(),
-            analysis.original_procedure_declarations().count(),
-        );
+        let invocation = analysis
+            .command_invocations
+            .iter()
+            .find(|invocation| invocation.range.start() == 0)
+            .expect("the proc invocation");
+        assert!(invocation.original_name_input.is_some());
+        assert!(invocation.original_lookup.is_some());
+        assert_eq!(analysis.original_procedure_declarations().count(), 1);
     }
 
     #[test]
