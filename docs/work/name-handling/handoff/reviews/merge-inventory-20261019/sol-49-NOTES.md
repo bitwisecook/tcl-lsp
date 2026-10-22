@@ -24,18 +24,21 @@ Owned paths: `rust/tcl-compiler` (except the files handed to compiler-codegen an
 - **Registry**:
   - `commands/irules/proc.rs`: `procedure_definition: Core`.
   - `registry.rs`: the native return-state effect for F5 Tcl 8.4.
-- **iRules `proc` as an original declaration** (`analyser/handlers.rs::declaration_name_policy`). For a hosted document analysed without a supplied entry, the declaration name policy is now the fresh rule-load `NativeRecipe` policy. So `proc hit` appears in `original_procedure_declarations` (`::hit`, name span 5..8), which the LSP's `original_declaration::declarations` reads.
-  - Test: `irules_event_checks::rule_procedure_is_an_original_declaration_of_the_fresh_rule_load`.
-  - Two wider attempts were reverted:
-    - Fresh entry for the analyser's document realm only (`realm.rs`): no declarations, and 6 IRULE5001 `$static::` gate regressions.
-    - Fresh entry for the whole analyser walk: hit the same missing-original-variable-operand cause as IRULE4001/6001, below.
+- **iRules `proc` as an original declaration, with its original lookup.**
+  - `analyser/handlers.rs::declaration_name_policy`: for a hosted document analysed without a supplied entry, the declaration name policy is the fresh rule-load `NativeRecipe` policy. So `proc hit` appears in `original_procedure_declarations` (`::hit`, name span 5..8).
+  - `realm.rs::document_vendor_realm_with_resolved_input`: the analyser's hosted document realm takes the same fresh rule-loader entry (realm, naming policy, `Direct`). So the loader's `proc` invocation keeps an `original_lookup`, which LSP selection at the declaration needs.
+  - Result: tcl-lsp-core `name_resolution` `my_method_dispatch::irules_switch_glob_body_is_followed` gives `[0]`. The whole binary is 70/77; the LSP agent's last report was 65/77.
+  - `analyser/irules_event_checks.rs`: `irules_debug_gate_opens` also accepts a written `static::` variable spelling (`names_static_variable`). It is suppress-only, like the existing `mentions_static_variable`. Under the entered event frame the relative name's namespace is not proved, and without this the realm change regressed 6 IRULE5001 `$static::` gate tests.
+  - Tests:
+    - `irules_event_checks::rule_procedure_is_an_original_declaration_of_the_fresh_rule_load`
+    - `irules_event_checks::rule_loader_proc_invocation_keeps_its_original_lookup`
   - The three `irule5001_quiet_for_flag_set_in_*` failures were already failing in my pre-iRules baseline (r0).
 - **Documented test corrections**, each supplying the explicit unknown-history entry the test is about:
   - `registry_invocation::hosted_original_source_assistance_keeps_metadata_and_execution_uncertainty_separate`
   - `irules_checks` (`supplied_with_history`)
   - `hosted_procedure_body` (`fixture_with_history`)
 - **Design doc.** The `naming-consumer-matrix.md` row "Supplied source entry correspondence" documents the fresh rule load.
-- **`irules_switch_glob_body_is_followed`** (LSP test; the call site is not a reference). BIG-IP evidence `scripts/dev/bigip-probes/resolution-2286`, case `ordinary_literal`: a direct literal call `same` to a rule-local `proc same` is rejected by the 21.1.0.1 loader with `undefined procedure: same` (also KCS IRULE5005). So `hit` is not a reference: the documented correction is `[0]`, which I passed to the LSP agent. The declaration answer comes from the analyser default entry above.
+- **`irules_switch_glob_body_is_followed`** (LSP test; the call site is not a reference). BIG-IP evidence `scripts/dev/bigip-probes/resolution-2286`, case `ordinary_literal`: a direct literal call `same` to a rule-local `proc same` is rejected by the 21.1.0.1 loader with `undefined procedure: same` (also KCS IRULE5005). So `hit` is not a reference: the documented correction is `[0]`, which the LSP agent applied.
 
 ## 3. Lowering and IR stack depth (queue item 2): fixed
 
@@ -72,25 +75,28 @@ Owned paths: `rust/tcl-compiler` (except the files handed to compiler-codegen an
 - **LSP follow-up (not mine).** `method_symbol::command_query` needs a branch for `source_class_proc_call_at`: select the class record by `class_declaration().matches_source_declaration`, then the member by name. Then `fn_to_tp_itcl_class_proc_colon_dispatch_is_a_reference` and `itcl_class_proc_dispatch::*` can pass. Inside-class-body and in-namespace spellings need the advice walk of those bodies; I have not verified them.
 - **Design doc.** New `naming-consumer-matrix.md` row: "Registry-dispatched definer class commands (contract D)".
 
-## 5. C6 (in progress)
+## 5. C6 (landed; remaining blockers listed)
 
 - **Coordinator trace.** The I230 shared-unit versus legacy gap in `tcl-spectcl` `spec_corpus` is C6: a dialect-bearing `build_for_profile` must be a fresh interpreter. When I parked C6 I reverse-applied the companion, which removed `compilation_unit.rs::fresh_document_input`.
-- **Re-applied now:**
+- **Applied, as the coordinator instructed:**
   - `sol-47-c6-companion.patch`
-  - the condition-slot hunk of `sol-49-c6-wip.patch` (`registry_invocation/original_word_data.rs`)
-- **Not yet applied:** the remaining `sol-49-c6-wip.patch` hunks, which touch `command_binding.rs`, now owned by compiler-names:
-  - after-load (`uncalled_body_after_load`, `walk_deferred_entry_with`)
-  - conditional in-frame body namespace (`origin_inventory.rs` plus `walk_body_operand`)
-- **Not yet measured:** blocked on shared disk (1.2 GB).
-- **Contents of `sol-49-c6-wip.patch`, for reference:
-  - after-load selected entry
-  - structured condition slot
-  - conditional in-frame body namespace
-
-  It fixed 3 of 4 interprocedural blockers and `used_in_condition_detected`. Still open:
-  - `fp_sh_21`: top-level SCCP stays Overdefined when the loop body has `puts "$k=$v"`.
-  - `fp_tnt_03`: the `[list puts $raw]` operand never reaches `retained_wrapper_tokens`.
-- **Cluster C compilers and lowering cost.** Parked by the scope decision of 2026-10-21T13:10Z.
+  - `sol-49-c6-wip.patch`, whole:
+    - condition slot in `registry_invocation/original_word_data.rs`
+    - conditional in-frame body namespace in `command_binding/origin_inventory.rs` and `command_binding.rs::walk_body_operand`
+    - "world after load" for uncalled bodies (decision 2026-10-21T08:20Z) in `command_binding.rs`: `uncalled_body_after_load` and `walk_deferred_entry_with`, a Selected entry with no preview depth
+  - The `command_binding.rs` lines are mine inside compiler-names' file, as coordinated.
+- **Measured on a C6 tree without the realm change, against the pre-C6 runs:**
+  - `interprocedural::` 55 → 76, 0 regressions (the four 1d blockers are resolved)
+  - `analyser::diagnostics::helpers` 5 → 13, 0 regressions
+  - `compilation_unit::` 35/63: 3 gains, 1 regression (corrected below)
+  - `analyser::irules_event_checks` 0 regressions
+  - `analyser::diagnostics::fp` 447 → 479 (+40) with 8 pass-to-fail:
+    - 5 `fp_inj_*`: iRules fixtures with executable code at top level. Under the fresh rule load HTTP:: commands only exist in event bodies, and KCS IRULE5007 says the top level is declaration-only. I moved the negative fixtures into `when HTTP_REQUEST {…}` with assertions unchanged; this is documented in `fp/inj.rs` and accepted by the coordinator.
+    - `fp_rbs_15_while1_break_in_opaque_switch_exits_loop`. With after-load, SCCP decides `while 1` as Always, and the lexical exit scan never looked inside a switch clause list. Fixed in `analyser/bounds_checks.rs::script_words`, which now recurses into case-list clause action bodies via `CaseListSpec` and `split_case_list`. Test: `bounds_checks::tests::w241_is_silent_when_a_switch_clause_breaks_the_loop` (tclsh 8.6/9.0: the loop ends).
+    - `fp_sh_21_dict_literal_in_dict_for_silent`: still open.
+    - `fp_tnt_03_interp_eval_list_literal_head_no_t105`: still open.
+  - `compilation_unit::supplied_hosted_source_entry_retains_advice_without_activation` comes from the iRules fresh entry, not C6. I corrected it to the 2026-10-21T00:10Z decision: f5-irules is a RuleLoader entry with the NativeRecipe policy; a profile without the simulation keeps unknown history.
+- **CRLF (coordinator's low-priority item).** `lowering/mod.rs::guarded_body_text` now maps a braced body through `segmenter::braced_body_source_region` before the `{body}x` clamp. Test: `lowering::tests::crlf_namespace_eval_body_unit_spans_its_written_region`.
 
 ## 6. Attribution answers (compiler-names' failures)
 

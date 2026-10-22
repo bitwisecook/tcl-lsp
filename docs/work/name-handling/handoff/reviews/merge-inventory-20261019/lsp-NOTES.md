@@ -25,3 +25,50 @@ origin/rust passes all of these (validation row 20: 239/239 incl. name_resolutio
 | inlay_hints | (9/9 row 20) | — | **9/9** | — |
 
 (Draft — sections 2–6 follow at hand-back.)
+
+## 4. WASI host failures (validation row 17) — diagnosis
+
+No wasip1 build was made (a release LTO wasip1 build of the whole stack needs well over the
+shared ~2 GB). Diagnosis from code plus native measurements:
+
+**Mechanism (confirmed in code).** `tcl_lsp_server::rt::spawn_blocking` on wasip1 runs the
+closure *inline* on the only thread (`rt.rs`, `mod wasi`), and `rust/tcl-lsp-server-wasi/src/driver.rs`
+only reads stdin / routes `exit` between task polls. Every analysis and the spec-pack load
+therefore block the driver for their whole duration; nothing is lost, it is just late.
+
+**Measured cost on this tree (native, debug test profile, `scratchpad/lsp/out-p4-zz_lsp_agent_probe.log`).**
+- `Analyser::analyse("proc p {a} {return $a}\n" + "p 1\n"×n)`: n=10 3.1 s, 20 5.9 s, 40 17.7 s,
+  80 66.0 s — quadratic; n=500 did not finish in 15 min. The e2e `exit`+stdin-close scenario
+  opens exactly this shape with n=4000.
+- 41 empty procs: 8.5 s per analysis.
+- `tcl_spectcl::bundled::load_embedded()`: 84 s cold, 65 s warm (second call, cache redirected).
+
+**Each failed check explained.**
+- `exit` + stdin close ×12 timeouts: `didOpen busy.tcl` → inline analysis of 4000 calls; the
+  driver never gets back to `route()` within 30 s.
+- idle session, exit without shutdown → timeout: after the 10 s configuration deadline the
+  server loads spec packs inline (`reload_spec_packs` → `spawn_blocking` →
+  `load_discovered_configuration_with_studio_sources_and_inputs_in`), longer than the 30 s
+  exit budget.
+- main session, APP `publishDiagnostics` missing within 60 s, then BROKEN arrives 6 s later:
+  APP's didOpen queues behind the post-`initialized` pack load + workspace scan; BROKEN is
+  opened after they finish.
+- go-to-definition / hover into `lib.tcl` empty: issued while the workspace scan / source
+  rehoming is still pending behind the same work (no index row for `lib.tcl` yet).
+- cache scenario: the cache directory is checked right after the `initialised` log line, i.e.
+  before the (inline, slow) pack load wrote it; "analysis still answers" then fails exactly
+  like the APP publish above.
+
+**Owner.** Compiler (analysis cost superlinear in command count) and vm-runtime/tcl-spectcl
+(pack load), routed to the coordinator; a dedicated perf agent was started. Server108
+(below) only removes *repeated* analyses of an unchanged revision.
+
+**Exact verification steps once disk allows (~2.5 GB free for the wasip1 target dir):**
+1. `bash rust/tcl-lsp-server-wasi/build-wasi.sh` (or `CARGO_PROFILE_RELEASE_LTO=false` to save
+   time/disk), then `node rust/tcl-lsp-server-wasi/test/e2e.mjs`.
+2. Natively first, cheaper: time `Analyser::analyse` on the busy fixture for n=100/200 and
+   `bundled::load_embedded()` in `--release`; if analysis is not ~linear the WASI checks
+   cannot pass whatever the host does.
+3. After the perf fix: rerun step 1; expect all 26 checks. If only the cache check still
+   fails, wait for the cache directory with `until(...)` instead of checking once (test-side
+   race, needs a decision since it changes the harness).
