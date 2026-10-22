@@ -4583,18 +4583,32 @@ impl CapturedNativeCompletionReceipts {
     }
 }
 
-/// Whether an invocation installs a hook through which a builtin can later
-/// re-enter Tcl: a channel transform or reflected channel (`chan push`,
-/// `chan create`), a trace, or another command-prefix or host callback. The
-/// closed-builtin shortcut rests on the fresh-interpreter premise that no
-/// such hook exists, so a program that installs one withholds the shortcut
-/// for the whole document.
-fn installs_reentry_hook(facts: &InvocationFacts) -> bool {
-    use tcl_registry::CallbackKinds;
+/// An actual registration or selected executable prefix prevents the fresh
+/// builtin shortcut. A possible callback is not a registration receipt:
+/// `UNKNOWN` includes every kind, and ordinary variable accesses carry `TRACE`.
+/// Their independent unresolved effects remain with the generic handler guards.
+fn requires_reentry_guard(facts: &InvocationFacts) -> bool {
+    use tcl_registry::{CallbackKinds, NamespaceTransition, StateTransition, TraceTransition};
     let kinds = facts.effects.callback().kinds;
-    kinds.contains(CallbackKinds::COMMAND_PREFIX)
-        || kinds.contains(CallbackKinds::TRACE)
-        || kinds.contains(CallbackKinds::HOST)
+    let precise_callback = !kinds.is_unknown()
+        && (kinds.contains(CallbackKinds::COMMAND_PREFIX) || kinds.contains(CallbackKinds::HOST));
+    let source_retention = facts.source_callback_retention()
+        != tcl_registry::resolved_invocation::SourceCallbackRetention::Absent;
+    let registration = facts
+        .state_transitions
+        .declared()
+        .is_some_and(|transitions| {
+            transitions.facts().iter().any(|fact| {
+                matches!(
+                    fact.transition,
+                    StateTransition::Trace(TraceTransition::Add { .. })
+                        | StateTransition::Namespace(NamespaceTransition::SetUnknown { .. })
+                )
+            })
+        });
+    precise_callback
+        || source_retention
+        || registration
         || facts
             .traits
             .intersects(tcl_registry::extension_default::TRACES)
@@ -4630,12 +4644,13 @@ impl ModuleCommandBindings {
         }
         // The stock handler is the interpreter's own; any source-allocated
         // or redefined implementation is a hook.
-        binding.targets.iter().all(|target| {
-            target.registry_backed
-                && target.prepended.is_empty()
-                && target.implementation_generation == 0
-                && target.implementation_allocation.is_none()
-        })
+        !binding.unknown
+            && binding.targets.iter().all(|target| {
+                target.registry_backed
+                    && target.prepended.is_empty()
+                    && target.implementation_generation == 0
+                    && target.implementation_allocation.is_none()
+            })
     }
 }
 
@@ -6564,6 +6579,23 @@ impl SourceOutcomes {
                 && !normal.source_step_observed()
                 && !normal.source_execution_observed(None)
                 && normal.unknown_handler_is_original());
+        #[cfg(test)]
+        if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+            eprintln!(
+                "ZZ_COMPLETED_WORLD complete={} closed={} unclosed={} opaque={} unknown_handler={} step={} observed={} routes={:?}",
+                self.normal_completion.is_some(),
+                closed,
+                normal.unclosed_command_world,
+                normal.has_opaque_domain(),
+                normal.unknown_handler_is_original(),
+                normal.source_step_observed(),
+                normal.source_execution_observed(None),
+                self.abrupt
+                    .iter()
+                    .map(|(route, _)| route)
+                    .collect::<Vec<_>>()
+            );
+        }
         #[cfg(debug_assertions)]
         if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
             eprintln!(
@@ -10492,7 +10524,7 @@ impl SourceCommandBindings {
         if let Some(mut outcomes) =
             Self::prepare_non_body_source_result(native, facts, state, context)
         {
-            if (installs_reentry_hook(facts)
+            if (requires_reentry_guard(facts)
                 || (outcomes.normal_completion.is_none()
                     && !command_world_closed_on_normal_return(native.target, facts)))
                 && let Some(normal) = outcomes.normal.as_mut()
@@ -10578,7 +10610,7 @@ impl SourceCommandBindings {
             context,
             receipts.normal_write.as_ref().filter(|_| write_complete),
         );
-        if (installs_reentry_hook(facts)
+        if (requires_reentry_guard(facts)
             || (outcomes.normal_completion.is_none()
                     && !command_world_closed_on_normal_return(native.target, facts)))
             && let Some(normal) = outcomes.normal.as_mut()

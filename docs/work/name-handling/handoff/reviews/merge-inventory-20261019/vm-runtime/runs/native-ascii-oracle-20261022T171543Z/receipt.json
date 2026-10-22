@@ -1,0 +1,231 @@
+{
+  "started_utc": "2026-10-22T17:15:43.152780+00:00",
+  "authorization": "Root explicitly authorized oracle-only execution concurrent with R1 Cargo; no Rust build/formatter/source writes, no provider/wrapper writes.",
+  "scope": "20 fixed semantic assertions per pinned interpreter; modern disassembly observations. No global compiler recipe or VM acceptance claim.",
+  "script": "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl",
+  "script_sha256": "0e38d4a4224756ff4b56bab31da2539fe7dcc2766717c09abed13458b405cd69",
+  "cwd": "/workspace/naming-migration-active/tcl-lsp",
+  "per_run_log_cap_bytes": 20971520,
+  "runs": [
+    {
+      "release": "8.4.20",
+      "argv": [
+        "/workspace/naming-toolchains/bin/tclsh8.4",
+        "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl"
+      ],
+      "wrapper": "/workspace/naming-toolchains/bin/tclsh8.4",
+      "wrapper_sha256": "d47422869429a960bccf50aee8a56ce7a6a4250e7d54235b4fe5628eef3420d1",
+      "actual_executable": "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh",
+      "executable_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "source_hashes": {
+        "/workspace/naming-toolchains/tmp/tcl8.4.20/generic/tclCompCmds.c": "38626005d02a7445a951f22b55dac182a3ccba76c01834f210fbca94c2dc6214",
+        "/workspace/naming-toolchains/tmp/tcl8.4.20/generic/tclCmdMZ.c": "b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc",
+        "/workspace/naming-toolchains/tmp/tcl8.4.20/generic/tclExecute.c": "970975c51cf8b78a291b92289cfeac8f023bd126c5d227ae5fa3c7d426a60c77"
+      },
+      "started_utc": "2026-10-22T17:15:43.188521+00:00",
+      "dynamic_linkage": {
+        "argv": [
+          "ldd",
+          "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh"
+        ],
+        "exit": 0,
+        "stdout": "\tlinux-vdso.so.1 (0x00007f94caf0d000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f94cad29000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f94cab35000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007f94caf0f000)\n",
+        "stderr": ""
+      },
+      "tcl_library_hashes": {},
+      "exit": 1,
+      "elapsed_seconds": 0.009172336000119685,
+      "total_output_bytes": 1273,
+      "cap_exceeded": false,
+      "timeout": false,
+      "stdout": "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/tcl8.4.20.stdout",
+      "stderr": "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/tcl8.4.20.stderr",
+      "stdout_sha256": "9b89b568eb371302f172a959f83e84fd0cc2f32ea1b429c933e33b273bd75900",
+      "stderr_sha256": "32b1a6e2e1853e1a4da6abb108a5d59b08c2ac952ecf05c2e8d08a3a007b2d26",
+      "executable_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "wrapper_sha256_after": "d47422869429a960bccf50aee8a56ce7a6a4250e7d54235b4fe5628eef3420d1",
+      "ended_utc": "2026-10-22T17:15:43.239143+00:00",
+      "stdout_text": "version 8.4.20\noperand empty utf8hex {}\nPASS {plain empty} 1\nPASS {strict-unmodeled empty} 0\nPASS {dynamic-class-unmodeled empty} 1\nPASS {failindex-unmodeled empty} {1 untouched}\noperand ascii utf8hex 6162636465\nPASS {plain ascii} 1\nPASS {strict-unmodeled ascii} 1\nPASS {dynamic-class-unmodeled ascii} 1\nPASS {failindex-unmodeled ascii} {1 untouched}\noperand nonascii utf8hex c3a9\nPASS {plain nonascii} 0\nPASS {strict-unmodeled nonascii} 0\nPASS {dynamic-class-unmodeled nonascii} 0\nPASS {failindex-unmodeled nonascii} {0 0}\noperand mixed utf8hex 61c3a9\nPASS {plain mixed} 0\nPASS {strict-unmodeled mixed} 0\nPASS {dynamic-class-unmodeled mixed} 0\nPASS {failindex-unmodeled mixed} {0 1}\noperand embeddednul utf8hex 610062\n",
+      "stderr_text": "mismatch {plain embeddednul} actual 0 expected 1\n    while executing\n\"error [list mismatch $label actual $actual expected $expected]\"\n    (procedure \"::expect\" line 3)\n    invoked from within\n\"::expect [list plain $label] [::ascii_plain $value] $plain\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach {label value plain strict failindex} [list \\\n    empty {} 1 0 {1 untouched} \\\n    ascii abcde 1 1 {1 untouched} \\\n    nonascii \\u00e9 0 0 {0 0...\"\n    (file \"/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl\" line 19)\n",
+      "semantic_pass_rows": 16,
+      "completed_20": false
+    },
+    {
+      "release": "8.5.19",
+      "argv": [
+        "/workspace/naming-toolchains/bin/tclsh8.5",
+        "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl"
+      ],
+      "wrapper": "/workspace/naming-toolchains/bin/tclsh8.5",
+      "wrapper_sha256": "9a9d095dbb73cad65fb94e0ba5535f4ac2eacc7ad724221c2a7a10cfba293c72",
+      "actual_executable": "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh",
+      "executable_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "source_hashes": {
+        "/workspace/naming-toolchains/tmp/tcl8.5.19/generic/tclCompCmds.c": "117274255882a35828318ccbfab476c180622310187c5e3a4796867b48ba7414",
+        "/workspace/naming-toolchains/tmp/tcl8.5.19/generic/tclCmdMZ.c": "fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348",
+        "/workspace/naming-toolchains/tmp/tcl8.5.19/generic/tclExecute.c": "de5706aa9022663636927515066d4630cbfe8ded754dceaca7ae61ee8612b47d"
+      },
+      "started_utc": "2026-10-22T17:15:43.259063+00:00",
+      "dynamic_linkage": {
+        "argv": [
+          "ldd",
+          "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh"
+        ],
+        "exit": 0,
+        "stdout": "\tlinux-vdso.so.1 (0x00007fc0185f3000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007fc0183b7000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007fc0181c3000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007fc0185f5000)\n",
+        "stderr": ""
+      },
+      "tcl_library_hashes": {},
+      "exit": 0,
+      "elapsed_seconds": 0.011509617999763577,
+      "total_output_bytes": 951,
+      "cap_exceeded": false,
+      "timeout": false,
+      "stdout": "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/tcl8.5.19.stdout",
+      "stderr": "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/tcl8.5.19.stderr",
+      "stdout_sha256": "5b27fbe25f51f1ae82ec320e46a19d9b1465d5f10ea80e5cabe8d82d33850dba",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "executable_sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "wrapper_sha256_after": "9a9d095dbb73cad65fb94e0ba5535f4ac2eacc7ad724221c2a7a10cfba293c72",
+      "ended_utc": "2026-10-22T17:15:43.298835+00:00",
+      "stdout_text": "version 8.5.19\noperand empty utf8hex {}\nPASS {plain empty} 1\nPASS {strict-unmodeled empty} 0\nPASS {dynamic-class-unmodeled empty} 1\nPASS {failindex-unmodeled empty} {1 untouched}\noperand ascii utf8hex 6162636465\nPASS {plain ascii} 1\nPASS {strict-unmodeled ascii} 1\nPASS {dynamic-class-unmodeled ascii} 1\nPASS {failindex-unmodeled ascii} {1 untouched}\noperand nonascii utf8hex c3a9\nPASS {plain nonascii} 0\nPASS {strict-unmodeled nonascii} 0\nPASS {dynamic-class-unmodeled nonascii} 0\nPASS {failindex-unmodeled nonascii} {0 0}\noperand mixed utf8hex 61c3a9\nPASS {plain mixed} 0\nPASS {strict-unmodeled mixed} 0\nPASS {dynamic-class-unmodeled mixed} 0\nPASS {failindex-unmodeled mixed} {0 1}\noperand embeddednul utf8hex 610062\nPASS {plain embeddednul} 1\nPASS {strict-unmodeled embeddednul} 1\nPASS {dynamic-class-unmodeled embeddednul} 1\nPASS {failindex-unmodeled embeddednul} {1 untouched}\ndisassembly semantic-only-old-release\ncompleted semantic-controls 20\n",
+      "stderr_text": "",
+      "semantic_pass_rows": 20,
+      "completed_20": true
+    },
+    {
+      "release": "8.6.18",
+      "argv": [
+        "/workspace/naming-toolchains/bin/tclsh8.6",
+        "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl"
+      ],
+      "wrapper": "/workspace/naming-toolchains/bin/tclsh8.6",
+      "wrapper_sha256": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+      "actual_executable": "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh",
+      "executable_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "source_hashes": {
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/generic/tclCompCmdsSZ.c": "b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942",
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/generic/tclCompCmds.c": "c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e",
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/generic/tclCmdMZ.c": "c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e",
+        "/workspace/naming-toolchains/tmp/tcl8.6.18/generic/tclExecute.c": "2a29cf5e54d1b2ac4ddf56a6f38556bbfb9c8e8913800377c84a6f0bb8caa491"
+      },
+      "started_utc": "2026-10-22T17:15:43.334179+00:00",
+      "dynamic_linkage": {
+        "argv": [
+          "ldd",
+          "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh"
+        ],
+        "exit": 0,
+        "stdout": "\tlinux-vdso.so.1 (0x00007f78ff4bf000)\n\tlibz.so.1 => /lib/x86_64-linux-gnu/libz.so.1 (0x00007f78ff2c1000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f78ff1d1000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f78fefdd000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007f78ff4c1000)\n",
+        "stderr": ""
+      },
+      "tcl_library_hashes": {},
+      "exit": 0,
+      "elapsed_seconds": 0.05521316800150089,
+      "total_output_bytes": 4473,
+      "cap_exceeded": false,
+      "timeout": false,
+      "stdout": "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/tcl8.6.18.stdout",
+      "stderr": "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/tcl8.6.18.stderr",
+      "stdout_sha256": "a585b1a312122e089258c2cee95325cd24397738f46597fd482b79d90cf7f702",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "executable_sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "wrapper_sha256_after": "510e4222983400330693f2db9095ab69e05a1e2cc0e8c21efb8107e1d7b3b447",
+      "ended_utc": "2026-10-22T17:15:43.421938+00:00",
+      "stdout_text": "version 8.6.18\noperand empty utf8hex {}\nPASS {plain empty} 1\nPASS {strict-unmodeled empty} 0\nPASS {dynamic-class-unmodeled empty} 1\nPASS {failindex-unmodeled empty} {1 untouched}\noperand ascii utf8hex 6162636465\nPASS {plain ascii} 1\nPASS {strict-unmodeled ascii} 1\nPASS {dynamic-class-unmodeled ascii} 1\nPASS {failindex-unmodeled ascii} {1 untouched}\noperand nonascii utf8hex c3a9\nPASS {plain nonascii} 0\nPASS {strict-unmodeled nonascii} 0\nPASS {dynamic-class-unmodeled nonascii} 0\nPASS {failindex-unmodeled nonascii} {0 0}\noperand mixed utf8hex 61c3a9\nPASS {plain mixed} 0\nPASS {strict-unmodeled mixed} 0\nPASS {dynamic-class-unmodeled mixed} 0\nPASS {failindex-unmodeled mixed} {0 1}\noperand embeddednul utf8hex 610062\nPASS {plain embeddednul} 1\nPASS {strict-unmodeled embeddednul} 1\nPASS {dynamic-class-unmodeled embeddednul} 1\nPASS {failindex-unmodeled embeddednul} {1 untouched}\ndisassembly ::ascii_plain\nByteCode 0x0x558e6cf201b0, refCt 1, epoch 17, interp 0x0x558e6cef8130 (epoch 17)\n  Source \"string is ascii $subject\"\n  File \"/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl\" Line 3\n  Cmds 1, src 24, inst 5, litObjs 0, aux 0, stkDepth 1, code/src 0.00\n  Proc 0x0x558e6cf49fd0, refCt 1, args 1, compiled locals 1\n      slot 0, scalar, arg, \"subject\"\n  Commands 1:\n      1: pc 0-3, src 0-23\n  Command 1: \"string is ascii $subject\"\n    (0) loadScalar1 %v0 \t# var \"subject\"\n    (2) strclass ascii \n    (4) done \n\ndisassembly ::ascii_strict\nByteCode 0x0x558e6cf206b0, refCt 1, epoch 17, interp 0x0x558e6cef8130 (epoch 17)\n  Source \"string is ascii -strict $subject\"\n  File \"/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl\" Line 4\n  Cmds 1, src 32, inst 16, litObjs 2, aux 0, stkDepth 2, code/src 0.00\n  Proc 0x0x558e6cf4dae0, refCt 1, args 1, compiled locals 1\n      slot 0, scalar, arg, \"subject\"\n  Commands 1:\n      1: pc 0-14, src 0-31\n  Command 1: \"string is ascii -strict $subject\"\n    (0) loadScalar1 %v0 \t# var \"subject\"\n    (2) dup \n    (3) strclass ascii \n    (5) jumpTrue1 +7 \t# pc 12\n    (7) pop \n    (8) push1 0 \t# \"0\"\n    (10) jump1 +5 \t# pc 15\n    (12) push1 1 \t# \"\"\n    (14) strneq \n    (15) done \n\ndisassembly ::ascii_dynamic\nByteCode 0x0x558e6cf208b0, refCt 1, epoch 17, interp 0x0x558e6cef8130 (epoch 17)\n  Source \"string is $class $subject\"\n  File \"/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl\" Line 5\n  Cmds 1, src 25, inst 17, litObjs 3, aux 0, stkDepth 5, code/src 0.00\n  Proc 0x0x558e6cf4d860, refCt 1, args 2, compiled locals 2\n      slot 0, scalar, arg, \"class\"\n      slot 1, scalar, arg, \"subject\"\n  Commands 1:\n      1: pc 0-15, src 0-24\n  Command 1: \"string is $class $subject\"\n    (0) push1 0 \t# \"string\"\n    (2) push1 1 \t# \"is\"\n    (4) loadScalar1 %v0 \t# var \"class\"\n    (6) loadScalar1 %v1 \t# var \"subject\"\n    (8) push1 2 \t# \"::tcl::string::is\"\n    (10) invokeReplace 4 2 \n    (16) done \n\ndisassembly ::ascii_failindex\nByteCode 0x0x558e6cf43e30, refCt 1, epoch 17, interp 0x0x558e6cef8130 (epoch 17)\n  Source \"\\n    set fi untouched\\n    set answer [string is ascii...\"\n  File \"/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl\" Line 6\n  Cmds 5, src 108, inst 57, litObjs 7, aux 0, stkDepth 7, code/src 0.00\n  Proc 0x0x558e6cf4ce60, refCt 1, args 1, compiled locals 3\n      slot 0, scalar, arg, \"subject\"\n      slot 1, scalar, \"fi\"\n      slot 2, scalar, \"answer\"\n  Commands 5:\n      1: pc 0-4, src 5-20        2: pc 5-36, src 26-76\n      3: pc 14-33, src 38-75        4: pc 37-55, src 82-106\n      5: pc 46-54, src 90-105\n  Command 1: \"set fi untouched...\"\n    (0) push1 0 \t# \"untouched\"\n    (2) storeScalar1 %v1 \t# var \"fi\"\n    (4) pop \n  Command 2: \"set answer [string is ascii -failindex fi $subject]...\"\n    (5) startCommand +31 2 \t# next cmd at pc 36, 2 cmds start here\n  Command 3: \"string is ascii -failindex fi $subject...\"\n    (14) push1 1 \t# \"string\"\n    (16) push1 2 \t# \"is\"\n    (18) push1 3 \t# \"ascii\"\n    (20) push1 4 \t# \"-failindex\"\n    (22) push1 5 \t# \"fi\"\n    (24) loadScalar1 %v0 \t# var \"subject\"\n    (26) push1 6 \t# \"::tcl::string::is\"\n    (28) invokeReplace 6 2 \n    (34) storeScalar1 %v2 \t# var \"answer\"\n    (36) pop \n  Command 4: \"return [list $answer $fi]...\"\n    (37) startCommand +19 2 \t# next cmd at pc 56, 2 cmds start here\n  Command 5: \"list $answer $fi...\"\n    (46) loadScalar1 %v2 \t# var \"answer\"\n    (48) loadScalar1 %v1 \t# var \"fi\"\n    (50) list 2 \n    (55) done \n    (56) done \n\ncompleted semantic-controls 20\n",
+      "stderr_text": "",
+      "semantic_pass_rows": 20,
+      "completed_20": true
+    },
+    {
+      "release": "9.0.4",
+      "argv": [
+        "/workspace/naming-toolchains/bin/tclsh9.0",
+        "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl"
+      ],
+      "wrapper": "/workspace/naming-toolchains/bin/tclsh9.0",
+      "wrapper_sha256": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+      "actual_executable": "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh",
+      "executable_sha256": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b",
+      "source_hashes": {
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/generic/tclCompCmdsSZ.c": "55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/generic/tclCompCmds.c": "9170e5ff4f14aceb78d1627d4e8ab0b101500dc522e545b60dab855144c0a77a",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/generic/tclCmdMZ.c": "080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc",
+        "/workspace/naming-toolchains/tmp/tcl9.0.4/generic/tclExecute.c": "0c42699cdcf610813ce77e2a6fec505f12d82a87b110950c92824fdf30d3c42a"
+      },
+      "started_utc": "2026-10-22T17:15:43.464771+00:00",
+      "dynamic_linkage": {
+        "argv": [
+          "ldd",
+          "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh"
+        ],
+        "exit": 0,
+        "stdout": "\tlinux-vdso.so.1 (0x00007f0a1094c000)\n\tlibz.so.1 => /lib/x86_64-linux-gnu/libz.so.1 (0x00007f0a106f3000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007f0a10603000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007f0a1040f000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007f0a1094e000)\n",
+        "stderr": ""
+      },
+      "tcl_library_hashes": {},
+      "exit": 0,
+      "elapsed_seconds": 0.02972245499950077,
+      "total_output_bytes": 4448,
+      "cap_exceeded": false,
+      "timeout": false,
+      "stdout": "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/tcl9.0.4.stdout",
+      "stderr": "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/tcl9.0.4.stderr",
+      "stdout_sha256": "4b3f7e548eb4f9b1f70b1cb4772b1a9a323efd4e5a13f19ac745c43e1c3aa323",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "executable_sha256_after": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b",
+      "wrapper_sha256_after": "deb0648e6dad85c119e39aa0c28147b1839b35fc0ebb6f0e2669e504afa5aa5c",
+      "ended_utc": "2026-10-22T17:15:43.526065+00:00",
+      "stdout_text": "version 9.0.4\noperand empty utf8hex {}\nPASS {plain empty} 1\nPASS {strict-unmodeled empty} 0\nPASS {dynamic-class-unmodeled empty} 1\nPASS {failindex-unmodeled empty} {1 untouched}\noperand ascii utf8hex 6162636465\nPASS {plain ascii} 1\nPASS {strict-unmodeled ascii} 1\nPASS {dynamic-class-unmodeled ascii} 1\nPASS {failindex-unmodeled ascii} {1 untouched}\noperand nonascii utf8hex c3a9\nPASS {plain nonascii} 0\nPASS {strict-unmodeled nonascii} 0\nPASS {dynamic-class-unmodeled nonascii} 0\nPASS {failindex-unmodeled nonascii} {0 0}\noperand mixed utf8hex 61c3a9\nPASS {plain mixed} 0\nPASS {strict-unmodeled mixed} 0\nPASS {dynamic-class-unmodeled mixed} 0\nPASS {failindex-unmodeled mixed} {0 1}\noperand embeddednul utf8hex 610062\nPASS {plain embeddednul} 1\nPASS {strict-unmodeled embeddednul} 1\nPASS {dynamic-class-unmodeled embeddednul} 1\nPASS {failindex-unmodeled embeddednul} {1 untouched}\ndisassembly ::ascii_plain\nByteCode 0x55a8d6d21b00, refCt 1, epoch 21, interp 0x55a8d6c9ca10 (epoch 21)\n  Source \"string is ascii $subject\"\n  File \"/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl\" Line 3\n  Cmds 1, src 24, inst 5, litObjs 0, aux 0, stkDepth 1, code/src 0.00\n  Proc 0x55a8d6d18ae0, refCt 1, args 1, compiled locals 1\n      slot 0, scalar, arg, \"subject\"\n  Commands 1:\n      1: pc 0-3, src 0-23\n  Command 1: \"string is ascii $subject\"\n    (0) loadScalar1 %v0 \t# var \"subject\"\n    (2) strclass ascii \n    (4) done \n\ndisassembly ::ascii_strict\nByteCode 0x55a8d6d20400, refCt 1, epoch 21, interp 0x55a8d6c9ca10 (epoch 21)\n  Source \"string is ascii -strict $subject\"\n  File \"/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl\" Line 4\n  Cmds 1, src 32, inst 16, litObjs 2, aux 0, stkDepth 2, code/src 0.00\n  Proc 0x55a8d6d188e0, refCt 1, args 1, compiled locals 1\n      slot 0, scalar, arg, \"subject\"\n  Commands 1:\n      1: pc 0-14, src 0-31\n  Command 1: \"string is ascii -strict $subject\"\n    (0) loadScalar1 %v0 \t# var \"subject\"\n    (2) dup \n    (3) strclass ascii \n    (5) jumpTrue1 +7 \t# pc 12\n    (7) pop \n    (8) push1 0 \t# \"0\"\n    (10) jump1 +5 \t# pc 15\n    (12) push1 1 \t# \"\"\n    (14) strneq \n    (15) done \n\ndisassembly ::ascii_dynamic\nByteCode 0x55a8d6d20600, refCt 1, epoch 21, interp 0x55a8d6c9ca10 (epoch 21)\n  Source \"string is $class $subject\"\n  File \"/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl\" Line 5\n  Cmds 1, src 25, inst 17, litObjs 3, aux 0, stkDepth 5, code/src 0.00\n  Proc 0x55a8d6d18460, refCt 1, args 2, compiled locals 2\n      slot 0, scalar, arg, \"class\"\n      slot 1, scalar, arg, \"subject\"\n  Commands 1:\n      1: pc 0-15, src 0-24\n  Command 1: \"string is $class $subject\"\n    (0) push1 0 \t# \"string\"\n    (2) push1 1 \t# \"is\"\n    (4) loadScalar1 %v0 \t# var \"class\"\n    (6) loadScalar1 %v1 \t# var \"subject\"\n    (8) push1 2 \t# \"::tcl::string::is\"\n    (10) invokeReplace 4 2 \n    (16) done \n\ndisassembly ::ascii_failindex\nByteCode 0x55a8d6d20a00, refCt 1, epoch 21, interp 0x55a8d6c9ca10 (epoch 21)\n  Source \"\\n    set fi untouched\\n    set answer [string is ascii...\"\n  File \"/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl\" Line 6\n  Cmds 5, src 108, inst 57, litObjs 7, aux 0, stkDepth 7, code/src 0.00\n  Proc 0x55a8d6d05510, refCt 1, args 1, compiled locals 3\n      slot 0, scalar, arg, \"subject\"\n      slot 1, scalar, \"fi\"\n      slot 2, scalar, \"answer\"\n  Commands 5:\n      1: pc 0-4, src 5-20        2: pc 5-36, src 26-76\n      3: pc 14-33, src 38-75        4: pc 37-55, src 82-106\n      5: pc 46-54, src 90-105\n  Command 1: \"set fi untouched...\"\n    (0) push1 0 \t# \"untouched\"\n    (2) storeScalar1 %v1 \t# var \"fi\"\n    (4) pop \n  Command 2: \"set answer [string is ascii -failindex fi $subject]...\"\n    (5) startCommand +31 2 \t# next cmd at pc 36, 2 cmds start here\n  Command 3: \"string is ascii -failindex fi $subject...\"\n    (14) push1 1 \t# \"string\"\n    (16) push1 2 \t# \"is\"\n    (18) push1 3 \t# \"ascii\"\n    (20) push1 4 \t# \"-failindex\"\n    (22) push1 5 \t# \"fi\"\n    (24) loadScalar1 %v0 \t# var \"subject\"\n    (26) push1 6 \t# \"::tcl::string::is\"\n    (28) invokeReplace 6 2 \n    (34) storeScalar1 %v2 \t# var \"answer\"\n    (36) pop \n  Command 4: \"return [list $answer $fi]...\"\n    (37) startCommand +19 2 \t# next cmd at pc 56, 2 cmds start here\n  Command 5: \"list $answer $fi...\"\n    (46) loadScalar1 %v2 \t# var \"answer\"\n    (48) loadScalar1 %v1 \t# var \"fi\"\n    (50) list 2 \n    (55) done \n    (56) done \n\ncompleted semantic-controls 20\n",
+      "stderr_text": "",
+      "semantic_pass_rows": 20,
+      "completed_20": true
+    },
+    {
+      "release": "9.1.0",
+      "argv": [
+        "/workspace/naming-toolchains/bin/tclsh9.1",
+        "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl"
+      ],
+      "wrapper": "/workspace/naming-toolchains/bin/tclsh9.1",
+      "wrapper_sha256": "8cbf4f56b0831bc96f057e37cf762d12e981f44d3fd42f1c5ae130880c79ad06",
+      "actual_executable": "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh",
+      "executable_sha256": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60",
+      "source_hashes": {
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/generic/tclCompCmdsSZ.c": "931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/generic/tclCompCmds.c": "66b5f1d2dfab1acb5e9e60634b4d3eb7f01d3deecfb4dc1b95ba077925f0e15e",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/generic/tclCmdMZ.c": "62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f",
+        "/workspace/naming-toolchains/tmp/tcl9.1.0/generic/tclExecute.c": "9dd4e9a080136f2ce36ee8f9acf4a30e770cc5fc417519468c785d76013151f4"
+      },
+      "started_utc": "2026-10-22T17:15:43.561408+00:00",
+      "dynamic_linkage": {
+        "argv": [
+          "ldd",
+          "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh"
+        ],
+        "exit": 0,
+        "stdout": "\tlinux-vdso.so.1 (0x00007ff713c14000)\n\tlibz.so.1 => /lib/x86_64-linux-gnu/libz.so.1 (0x00007ff713982000)\n\tlibm.so.6 => /lib/x86_64-linux-gnu/libm.so.6 (0x00007ff713892000)\n\tlibc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007ff71369e000)\n\t/lib64/ld-linux-x86-64.so.2 (0x00007ff713c16000)\n",
+        "stderr": ""
+      },
+      "tcl_library_hashes": {},
+      "exit": 0,
+      "elapsed_seconds": 0.02819093700054509,
+      "total_output_bytes": 4428,
+      "cap_exceeded": false,
+      "timeout": false,
+      "stdout": "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/tcl9.1.0.stdout",
+      "stderr": "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/tcl9.1.0.stderr",
+      "stdout_sha256": "97b5945309629af576de4c26360ec1bcfaaa88ae5ab67084a1840969eef6bc77",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "executable_sha256_after": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60",
+      "wrapper_sha256_after": "8cbf4f56b0831bc96f057e37cf762d12e981f44d3fd42f1c5ae130880c79ad06",
+      "ended_utc": "2026-10-22T17:15:43.629518+00:00",
+      "stdout_text": "version 9.1.0\noperand empty utf8hex {}\nPASS {plain empty} 1\nPASS {strict-unmodeled empty} 0\nPASS {dynamic-class-unmodeled empty} 1\nPASS {failindex-unmodeled empty} {1 untouched}\noperand ascii utf8hex 6162636465\nPASS {plain ascii} 1\nPASS {strict-unmodeled ascii} 1\nPASS {dynamic-class-unmodeled ascii} 1\nPASS {failindex-unmodeled ascii} {1 untouched}\noperand nonascii utf8hex c3a9\nPASS {plain nonascii} 0\nPASS {strict-unmodeled nonascii} 0\nPASS {dynamic-class-unmodeled nonascii} 0\nPASS {failindex-unmodeled nonascii} {0 0}\noperand mixed utf8hex 61c3a9\nPASS {plain mixed} 0\nPASS {strict-unmodeled mixed} 0\nPASS {dynamic-class-unmodeled mixed} 0\nPASS {failindex-unmodeled mixed} {0 1}\noperand embeddednul utf8hex 610062\nPASS {plain embeddednul} 1\nPASS {strict-unmodeled embeddednul} 1\nPASS {dynamic-class-unmodeled embeddednul} 1\nPASS {failindex-unmodeled embeddednul} {1 untouched}\ndisassembly ::ascii_plain\nByteCode 0x55df0b1fd1f0, refCt 1, epoch 24, interp 0x55df0b171a10 (epoch 24)\n  Source \"string is ascii $subject\"\n  File \"/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl\" Line 3\n  Cmds 1, src 24, inst 8, litObjs 0, aux 0, stkDepth 1, code/src 0.00\n  Proc 0x55df0b1fade0, refCt 1, args 1, compiled locals 1\n      slot 0, scalar, arg, \"subject\"\n  Commands 1:\n      1: pc 0-6, src 0-23\n  Command 1: \"string is ascii $subject\"\n    (0) loadScalar %v0 \t# var \"subject\"\n    (5) strclass ascii \n    (7) done \n\ndisassembly ::ascii_strict\nByteCode 0x55df0b1e29b0, refCt 1, epoch 24, interp 0x55df0b171a10 (epoch 24)\n  Source \"string is ascii -strict $subject\"\n  File \"/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl\" Line 4\n  Cmds 1, src 32, inst 27, litObjs 1, aux 0, stkDepth 2, code/src 0.00\n  Proc 0x55df0b1faee0, refCt 1, args 1, compiled locals 1\n      slot 0, scalar, arg, \"subject\"\n  Commands 1:\n      1: pc 0-25, src 0-31\n  Command 1: \"string is ascii -strict $subject\"\n    (0) loadScalar %v0 \t# var \"subject\"\n    (5) dup \n    (6) strclass ascii \n    (8) jumpTrue +16 \t# pc 24\n    (13) pop \n    (14) push 0 \t# \"0\"\n    (19) jump +7 \t# pc 26\n    (24) isEmpty \n    (25) not \n    (26) done \n\ndisassembly ::ascii_dynamic\nByteCode 0x55df0b1e2bb0, refCt 1, epoch 24, interp 0x55df0b171a10 (epoch 24)\n  Source \"string is $class $subject\"\n  File \"/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl\" Line 5\n  Cmds 1, src 25, inst 32, litObjs 3, aux 0, stkDepth 5, code/src 0.00\n  Proc 0x55df0b1fb060, refCt 1, args 2, compiled locals 2\n      slot 0, scalar, arg, \"class\"\n      slot 1, scalar, arg, \"subject\"\n  Commands 1:\n      1: pc 0-30, src 0-24\n  Command 1: \"string is $class $subject\"\n    (0) push 0 \t# \"string\"\n    (5) push 1 \t# \"is\"\n    (10) loadScalar %v0 \t# var \"class\"\n    (15) loadScalar %v1 \t# var \"subject\"\n    (20) push 2 \t# \"::tcl::string::is\"\n    (25) invokeReplace 4 2 \n    (31) done \n\ndisassembly ::ascii_failindex\nByteCode 0x55df0b1e2fb0, refCt 1, epoch 24, interp 0x55df0b171a10 (epoch 24)\n  Source \"\\n    set fi untouched\\n    set answer [string is ascii...\"\n  File \"/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl\" Line 6\n  Cmds 5, src 108, inst 93, litObjs 7, aux 0, stkDepth 7, code/src 0.00\n  Proc 0x55df0b1fb2e0, refCt 1, args 1, compiled locals 3\n      slot 0, scalar, arg, \"subject\"\n      slot 1, scalar, \"fi\"\n      slot 2, scalar, \"answer\"\n  Commands 5:\n      1: pc 0-10, src 5-20        2: pc 11-66, src 26-76\n      3: pc 20-60, src 38-75        4: pc 67-91, src 82-106\n      5: pc 76-90, src 90-105\n  Command 1: \"set fi untouched...\"\n    (0) push 0 \t# \"untouched\"\n    (5) storeScalar %v1 \t# var \"fi\"\n    (10) pop \n  Command 2: \"set answer [string is ascii -failindex fi $subject]...\"\n    (11) startCommand +55 2 \t# next cmd at pc 66, 2 cmds start here\n  Command 3: \"string is ascii -failindex fi $subject...\"\n    (20) push 1 \t# \"string\"\n    (25) push 2 \t# \"is\"\n    (30) push 3 \t# \"ascii\"\n    (35) push 4 \t# \"-failindex\"\n    (40) push 5 \t# \"fi\"\n    (45) loadScalar %v0 \t# var \"subject\"\n    (50) push 6 \t# \"::tcl::string::is\"\n    (55) invokeReplace 6 2 \n    (61) storeScalar %v2 \t# var \"answer\"\n    (66) pop \n  Command 4: \"return [list $answer $fi]...\"\n    (67) startCommand +25 2 \t# next cmd at pc 92, 2 cmds start here\n  Command 5: \"list $answer $fi...\"\n    (76) loadScalar %v2 \t# var \"answer\"\n    (81) loadScalar %v1 \t# var \"fi\"\n    (86) list 2 \n    (91) done \n    (92) done \n\ncompleted semantic-controls 20\n",
+      "stderr_text": "",
+      "semantic_pass_rows": 20,
+      "completed_20": true
+    }
+  ],
+  "ended_utc": "2026-10-22T17:15:43.629930+00:00",
+  "all_semantic_controls_pass": false
+}

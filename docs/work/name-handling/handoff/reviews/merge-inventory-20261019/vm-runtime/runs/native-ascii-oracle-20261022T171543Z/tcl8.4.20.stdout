@@ -1,0 +1,22 @@
+version 8.4.20
+operand empty utf8hex {}
+PASS {plain empty} 1
+PASS {strict-unmodeled empty} 0
+PASS {dynamic-class-unmodeled empty} 1
+PASS {failindex-unmodeled empty} {1 untouched}
+operand ascii utf8hex 6162636465
+PASS {plain ascii} 1
+PASS {strict-unmodeled ascii} 1
+PASS {dynamic-class-unmodeled ascii} 1
+PASS {failindex-unmodeled ascii} {1 untouched}
+operand nonascii utf8hex c3a9
+PASS {plain nonascii} 0
+PASS {strict-unmodeled nonascii} 0
+PASS {dynamic-class-unmodeled nonascii} 0
+PASS {failindex-unmodeled nonascii} {0 0}
+operand mixed utf8hex 61c3a9
+PASS {plain mixed} 0
+PASS {strict-unmodeled mixed} 0
+PASS {dynamic-class-unmodeled mixed} 0
+PASS {failindex-unmodeled mixed} {0 1}
+operand embeddednul utf8hex 610062

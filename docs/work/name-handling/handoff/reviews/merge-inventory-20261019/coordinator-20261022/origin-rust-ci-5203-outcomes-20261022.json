@@ -1,0 +1,200 @@
+{
+  "recorded_at_utc": "2026-10-22T17:12:33Z",
+  "run": {
+    "id": 39816429638,
+    "number": 5203,
+    "url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39816429638",
+    "event": "workflow_dispatch",
+    "ref": "rust",
+    "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+  },
+  "observed_suite_summaries": [
+    {
+      "job": "rust-tests-shard (1/5)",
+      "run_log_summary": {
+        "passed": 6760,
+        "failed": 0,
+        "skipped": 2
+      }
+    },
+    {
+      "job": "rust-tests-shard (3/5)",
+      "run_log_summary": {
+        "passed": 3331,
+        "failed": 0,
+        "skipped": 1
+      }
+    },
+    {
+      "job": "lsp-e2e-partition (1/3)",
+      "run_log_summary": {
+        "passed": 800,
+        "skipped": 1500
+      }
+    },
+    {
+      "job": "lsp-e2e-partition (2/3)",
+      "run_log_summary": {
+        "passed": 753,
+        "skipped": 1547
+      }
+    },
+    {
+      "job": "lsp-e2e-partition (3/3)",
+      "run_log_summary": {
+        "passed": 742,
+        "skipped": 1558
+      }
+    },
+    {
+      "job": "VS Code extension hosts",
+      "run_log_summary": {
+        "single_root_test_files": 107,
+        "single_root_passed": 972,
+        "single_root_pending_identities": 1,
+        "multi_folder_tests": 14,
+        "partitions": 3
+      },
+      "note": "Job succeeded; pending identity was reported as pending, not a failure."
+    }
+  ],
+  "baseline_failure": {
+    "job": "cargo-deny",
+    "step": "cargo deny check (all locked workspaces)",
+    "advisories": [
+      "RUSTSEC-2026-0382",
+      "RUSTSEC-2026-0378",
+      "RUSTSEC-2026-0379",
+      "RUSTSEC-2026-0381"
+    ],
+    "classification": "Observed on baseline SHA; not attributable to unmerged work."
+  },
+  "small_artifact_metadata": [
+    {
+      "name": "rust-tests-listing-1-5",
+      "artifact_id": 12443671581,
+      "bytes": 983446,
+      "sha256": "6258e36312b762b7875c45b99651e3d6ea3f27caf98dfe7101be4166b2671a89"
+    },
+    {
+      "name": "rust-tests-listing-2-5",
+      "artifact_id": 12443796846,
+      "bytes": 729855,
+      "sha256": "c788b4db4983c1eec145c5a5bbe154d8c622cf7c01a049890a0e4f6c99954153"
+    },
+    {
+      "name": "rust-tests-listing-3-5",
+      "artifact_id": 12443151823,
+      "bytes": 456740,
+      "sha256": "12a5727d9c452c45df51d0573324d90a13a7d5a051937c48f9e1b3ca44ebf06e"
+    },
+    {
+      "name": "rust-tests-listing-4-5",
+      "artifact_id": 12443791591,
+      "bytes": 397455,
+      "sha256": "fa85c1ddee433b5d522331ab4365ab0e39e1bac9fb1c19a4f7d3c724be75d88b"
+    },
+    {
+      "name": "rust-tests-listing-5-5",
+      "artifact_id": 12444315266,
+      "bytes": 571387,
+      "sha256": "1f5a40fa5408b89e4037bed703fad2d25564296dd5f07a65a020f4f0cac12333"
+    },
+    {
+      "name": "rust-tests-metadata",
+      "artifact_id": 12442364284,
+      "bytes": 243114,
+      "sha256": "ef67a60fcdb38073d5b5c0b18e73fc63a8ca98ff5e654d21c25a286bc5b538e1"
+    },
+    {
+      "name": "lsp-e2e-result-1-3",
+      "artifact_id": 12443410816,
+      "bytes": 337708,
+      "sha256": "9b1c88bc03f9f2b5a5cfc21b26e3121a1e51162ac0eeb9e3366ee47026f37649"
+    },
+    {
+      "name": "lsp-e2e-result-2-3",
+      "artifact_id": 12443166615,
+      "bytes": 338742,
+      "sha256": "bc5e5a64df864da4907f288e936bd92dc23aff4c82a8fe92eb12e3d8651e2aaf"
+    },
+    {
+      "name": "lsp-e2e-result-3-3",
+      "artifact_id": 12441674789,
+      "bytes": 338984,
+      "sha256": "50d73f31198e4d858c133859653183f872a71069a94df1b4dcddd6ef3f260ddb"
+    },
+    {
+      "name": "lsp-e2e-proof",
+      "artifact_id": 12441683916,
+      "bytes": 1318560,
+      "sha256": "7f5fb6f31a9f196a76d926a535f1e205db45b28b481f534d9cce80d8e2533fb4"
+    },
+    {
+      "name": "vscode-test-partition-one",
+      "artifact_id": 12443610076,
+      "bytes": 63597,
+      "sha256": "4556a8301bf9c3b6e1305d3988994a5a759d9fa6995ed3f870d7db55b0f2c097"
+    },
+    {
+      "name": "vscode-test-partition-two",
+      "artifact_id": 12443326005,
+      "bytes": 51995,
+      "sha256": "9f1cd05e43b9592f5699c0934b367fc676f657b410f41853f421bedbc1227651"
+    },
+    {
+      "name": "vscode-test-partition-three",
+      "artifact_id": 12442588342,
+      "bytes": 105018,
+      "sha256": "243f1340c4616e8f13779543feaffd86ea2d63a33227fbf166f9ebe8a87c3b4f"
+    },
+    {
+      "name": "vscode-test-multi-folder",
+      "artifact_id": 12442099106,
+      "bytes": 4276,
+      "sha256": "a2fe79568c4266ef61ccc89c6974e5b63ee386c324b0d086c2b1fef3e4e6070e"
+    }
+  ],
+  "artifact_retrieval": {
+    "metadata_api": "Succeeded; GitHub artifact IDs, sizes, and SHA-256 digests preserved above.",
+    "attempts": [
+      {
+        "method": "gh api artifact ZIP",
+        "result": "Forbidden from redirected Azure blob host"
+      },
+      {
+        "method": "gh run download --name rust-tests-listing-1-5",
+        "result": "Forbidden from redirected Azure blob host"
+      },
+      {
+        "method": "one fresh GitHub ZIP request with Cache-Control: no-cache",
+        "result": "gh returned exit 1 with zero response bytes"
+      }
+    ],
+    "azure_redirect_host": "productionresultssa4.blob.core.windows.net",
+    "sanitized_error_evidence": {
+      "cli_error_class": "Forbidden",
+      "http_status": "not captured",
+      "azure_error_code": "not captured",
+      "response_body": "not captured",
+      "response_date": "not captured",
+      "reason": "The CLI did not expose redirect response metadata in the captured output; no body or headers are available to distinguish destination policy denial from expired/invalid SAS."
+    },
+    "unsafe_material_excluded": true,
+    "invalid_zero_byte_zip_removed": true,
+    "no_signed_url_query_or_authorization_headers_recorded": true
+  },
+  "coverage_limits": {
+    "selector_level_manifest_content": "unavailable; artifact bytes could not be read safely through the available CLI/connectors",
+    "complete_per_selector_outcomes": "not established from the suite-level summaries above",
+    "pass_to_fail_verdict": "not asserted",
+    "remaining_rust_shards_at_last_status_snapshot": [
+      "rust-tests-shard (2/5)",
+      "rust-tests-shard (4/5)",
+      "rust-tests-shard (5/5)",
+      "rust-check"
+    ],
+    "release_publish": "tag-only jobs were condition-blocked; macOS wasm and native release matrix explicitly skipped per prior snapshot",
+    "next_action": "Use an authorized artifact reader or bounded job logs with complete declared outcome counts; preserve exact selector identities and do not infer missing selectors passed."
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "observed_utc": "2026-10-22T17:12:56.713896+00:00",
+  "status": "Pinned C-source review; oracle script prepared, not executed. No Cargo or canonical Rust/test edits.",
+  "sources": [
+    {
+      "release": "8.6.18",
+      "source": "/workspace/naming-migration-active/tcl-lsp/tmp/tcl8.6.18/generic/tclCompCmdsSZ.c",
+      "sha256": "b41bd49a6d4e4d550dda90b4788d4d3928b30479f1d2a84a02f09be7ce4dd942",
+      "start_line": 447,
+      "ascii_branch_sha256": "17eb24f08b9337d8595a6dc8f0aec79aa256a7cc01338dc571390102b56d20ce"
+    },
+    {
+      "release": "9.0.4",
+      "source": "/workspace/naming-migration-active/tcl-lsp/tmp/tcl9.0.4/generic/tclCompCmdsSZ.c",
+      "sha256": "55f4cd62b44a84d795804041a5a19ebe9e8ab49095bdb063f6e139df1cc6b4ac",
+      "start_line": 495,
+      "ascii_branch_sha256": "bb217d63396dc61d7a9480f2c6e9a8239bd39a263b36c6de7db87ea4c9f6bb3f"
+    },
+    {
+      "release": "9.1.0",
+      "source": "/workspace/naming-migration-active/tcl-lsp/tmp/tcl9.1.0/generic/tclCompCmdsSZ.c",
+      "sha256": "931ca711522e331cc9f34aff756e770824a86ec97567197f5aa894ab90fc585a",
+      "start_line": 503,
+      "ascii_branch_sha256": "80a1b9d26973a8187d5de762beab16a400564fef58644bcb997bd6403d1c4ab4"
+    }
+  ],
+  "exact_nonstrict_ascii_sequence": [
+    "Private TclCompileStringIsCmd numWords=3: command,class,value (public string is selector is removed before delegation).",
+    "Reject initial argc outside3..6. Allocate temporary class object; class must be known at compile time; resolve class via Tcl_GetIndexFromObj; release temporary class object.",
+    "Reject argc other than3/4; exact argc3 sets allowEmpty=true. No option parsing or failindex storage occurs in this supported shape.",
+    "Compile value token exactly once (8.6/9.0 CompileWord;9.1 PUSH_TOKEN) before STR_CLASS_ASCII.",
+    "Emit STR_CLASS with ASCII class comparator and return TCL_OK. No compiled-local lookup/allocation or extra empty literal on this path. Empty input matches."
+  ],
+  "known_boundaries": [
+    "Bad known class compiles a syntax error; cannot be assumed generic.",
+    "Dynamic class returns TCL_ERROR for generic fallback in C, but an unmodeled registry form must retain Unknown.",
+    "Strict and failindex forms are outside this narrow proposed repair;strict has different extra bytecode and9.1 instruction changes.",
+    "C core tables explicitly attach StringIsCmd/TclCompileStringIsCmd to is in all3 releases."
+  ],
+  "vm_runtime_review": "Existing STR_CLASS dispatch remains present. No missing provider installer or VM capture repair indicated. Host HookCall operands are Unicode strings; no broad VM bytearray or numeric parity work authorized.",
+  "prepared_oracle": "/tmp/vm-runtime-string-is-ascii-oracle.tcl",
+  "oracle_execution": "Not run; coordinate flock/build slot if execution is required."
+}

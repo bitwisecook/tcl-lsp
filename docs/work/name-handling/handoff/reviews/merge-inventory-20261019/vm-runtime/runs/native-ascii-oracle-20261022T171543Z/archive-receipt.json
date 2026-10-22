@@ -1,0 +1,20 @@
+{
+  "archived_utc": "2026-10-22T17:21:31Z",
+  "source_directory": "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z",
+  "files_sha256": {
+    "ascii-controls.tcl": "0e38d4a4224756ff4b56bab31da2539fe7dcc2766717c09abed13458b405cd69",
+    "receipt.json": "b854eebd8f5823abc96bf07849d086905faf0211a84726c5f2a69b959c93b88c",
+    "summary.json": "8a1efda164bc7082fa354de1909d68df0adfd07bf14f739f2913b13dde55da59",
+    "tcl8.4.20.stderr": "32b1a6e2e1853e1a4da6abb108a5d59b08c2ac952ecf05c2e8d08a3a007b2d26",
+    "tcl8.4.20.stdout": "9b89b568eb371302f172a959f83e84fd0cc2f32ea1b429c933e33b273bd75900",
+    "tcl8.5.19.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tcl8.5.19.stdout": "5b27fbe25f51f1ae82ec320e46a19d9b1465d5f10ea80e5cabe8d82d33850dba",
+    "tcl8.6.18.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tcl8.6.18.stdout": "a585b1a312122e089258c2cee95325cd24397738f46597fd482b79d90cf7f702",
+    "tcl9.0.4.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tcl9.0.4.stdout": "4b3f7e548eb4f9b1f70b1cb4772b1a9a323efd4e5a13f19ac745c43e1c3aa323",
+    "tcl9.1.0.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tcl9.1.0.stdout": "97b5945309629af576de4c26360ec1bcfaaa88ae5ab67084a1840969eef6bc77"
+  },
+  "scope": "Completed finite native C oracle evidence, not VM/SpecTcl recipe or release admission. C8.4 extra embedded-NUL assertion remains failed; no expectation changed."
+}

@@ -1,0 +1,104 @@
+{
+  "scope": "Finite original pinned C semantic and disassembly observations only; no global recipe/VM admission claim.",
+  "receipt_sha256": "b854eebd8f5823abc96bf07849d086905faf0211a84726c5f2a69b959c93b88c",
+  "runs": [
+    {
+      "release": "8.4.20",
+      "exit": 1,
+      "semantic_passes": 16,
+      "disassembly": {},
+      "stderr": "mismatch {plain embeddednul} actual 0 expected 1\n    while executing\n\"error [list mismatch $label actual $actual expected $expected]\"\n    (procedure \"::expect\" line 3)\n    invoked from within\n\"::expect [list plain $label] [::ascii_plain $value] $plain\"\n    (\"foreach\" body line 4)\n    invoked from within\n\"foreach {label value plain strict failindex} [list \\\n    empty {} 1 0 {1 untouched} \\\n    ascii abcde 1 1 {1 untouched} \\\n    nonascii \\u00e9 0 0 {0 0...\"\n    (file \"/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl\" line 19)\n"
+    },
+    {
+      "release": "8.5.19",
+      "exit": 0,
+      "semantic_passes": 20,
+      "disassembly": {},
+      "stderr": ""
+    },
+    {
+      "release": "8.6.18",
+      "exit": 0,
+      "semantic_passes": 20,
+      "disassembly": {
+        "::ascii_plain": {
+          "strclass_ascii": 1,
+          "invokeReplace": 0,
+          "invokeStk": 0
+        },
+        "::ascii_strict": {
+          "strclass_ascii": 1,
+          "invokeReplace": 0,
+          "invokeStk": 0
+        },
+        "::ascii_dynamic": {
+          "strclass_ascii": 0,
+          "invokeReplace": 1,
+          "invokeStk": 0
+        },
+        "::ascii_failindex": {
+          "strclass_ascii": 0,
+          "invokeReplace": 1,
+          "invokeStk": 0
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "release": "9.0.4",
+      "exit": 0,
+      "semantic_passes": 20,
+      "disassembly": {
+        "::ascii_plain": {
+          "strclass_ascii": 1,
+          "invokeReplace": 0,
+          "invokeStk": 0
+        },
+        "::ascii_strict": {
+          "strclass_ascii": 1,
+          "invokeReplace": 0,
+          "invokeStk": 0
+        },
+        "::ascii_dynamic": {
+          "strclass_ascii": 0,
+          "invokeReplace": 1,
+          "invokeStk": 0
+        },
+        "::ascii_failindex": {
+          "strclass_ascii": 0,
+          "invokeReplace": 1,
+          "invokeStk": 0
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "release": "9.1.0",
+      "exit": 0,
+      "semantic_passes": 20,
+      "disassembly": {
+        "::ascii_plain": {
+          "strclass_ascii": 1,
+          "invokeReplace": 0,
+          "invokeStk": 0
+        },
+        "::ascii_strict": {
+          "strclass_ascii": 1,
+          "invokeReplace": 0,
+          "invokeStk": 0
+        },
+        "::ascii_dynamic": {
+          "strclass_ascii": 0,
+          "invokeReplace": 1,
+          "invokeStk": 0
+        },
+        "::ascii_failindex": {
+          "strclass_ascii": 0,
+          "invokeReplace": 1,
+          "invokeStk": 0
+        }
+      },
+      "stderr": ""
+    }
+  ]
+}

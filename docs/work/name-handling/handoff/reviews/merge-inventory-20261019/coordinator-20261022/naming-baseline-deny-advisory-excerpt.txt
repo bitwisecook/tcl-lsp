@@ -1,0 +1,99 @@
+2026-10-22T16:44:28.3094083Z       │           │   └── tcl-mcp v0.1.0 (*)
+2026-10-22T16:44:28.3094447Z       │           └── tcl-lsp-core v0.1.0 (*)
+2026-10-22T16:44:28.3094705Z       └── rustls-webpki v0.103.15 (*)
+2026-10-22T16:44:28.3094724Z 
+2026-10-22T16:44:28.4321706Z error[vulnerability]: Certificate verification may accept distrusted intermediates
+2026-10-22T16:44:28.4323168Z     ┌─ /home/runner/work/tcl-lsp/tcl-lsp/Cargo.lock:285:1
+2026-10-22T16:44:28.4323794Z     │
+2026-10-22T16:44:28.4324742Z 285 │ rustls-webpki 0.103.15 registry+https://github.com/rust-lang/crates.io-index
+2026-10-22T16:44:28.4326031Z     │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ security vulnerability detected
+2026-10-22T16:44:28.4326873Z     │
+2026-10-22T16:44:28.4327329Z     ├ ID: RUSTSEC-2026-0382
+2026-10-22T16:44:28.4328065Z     ├ Advisory: https://rustsec.org/advisories/RUSTSEC-2026-0382
+2026-10-22T16:44:28.4329122Z     ├ Affected versions may accept certificate paths containing distrusted emSign
+2026-10-22T16:44:28.4330168Z       intermediate public keys when the configured trust anchors allow such paths.
+2026-10-22T16:44:28.4343886Z       The private keys corresponding to these intermediates are now well known.
+2026-10-22T16:44:28.4345083Z       
+2026-10-22T16:44:28.4345730Z       Versions 0.103.16 and 0.104.0-alpha.8 reject paths containing these public keys.
+2026-10-22T16:44:28.4346887Z     ├ Announcement: https://github.com/rustls/webpki/pull/546
+2026-10-22T16:44:28.4348160Z     ├ Solution: Upgrade to >=0.103.16, <0.104.0-alpha.1 OR >=0.104.0-alpha.8 (try `cargo update -p rustls-webpki`)
+2026-10-22T16:44:28.4349209Z     ├ rustls-webpki v0.103.15
+2026-10-22T16:44:28.4349753Z       └── rustls v0.23.46
+2026-10-22T16:44:28.4350278Z           ├── tcl-bigip-query v0.1.0
+2026-10-22T16:44:28.4350932Z           │   ├── bigip-report-gen-rust v0.1.0
+2026-10-22T16:44:28.4351537Z           │   ├── f5-cli v0.1.0
+2026-10-22T16:44:28.4352081Z           │   │   └── tcl-mcp v0.1.0
+2026-10-22T16:44:28.4352666Z           │   ├── tcl-lsp-server v0.1.0
+2026-10-22T16:44:28.4353245Z           │   └── xtask v0.1.0
+2026-10-22T16:44:28.4353751Z           └── ureq v3.4.2
+2026-10-22T16:44:28.4358846Z                       ├── tcl-cli v0.1.0 (*)
+2026-10-22T16:44:28.4359440Z                       ├── tcl-mcp v0.1.0 (*)
+2026-10-22T16:44:28.4360035Z                       └── xtask v0.1.0 (*)
+2026-10-22T16:44:28.4360406Z 
+2026-10-22T16:44:28.4361179Z error[vulnerability]: Panic lowering a host-created component model stream into a guest that expects a different payload type
+2026-10-22T16:44:28.4362502Z     ┌─ /home/runner/work/tcl-lsp/tcl-lsp/Cargo.lock:442:1
+2026-10-22T16:44:28.4363088Z     │
+2026-10-22T16:44:28.4363864Z 442 │ wasmtime 49.0.3 registry+https://github.com/rust-lang/crates.io-index
+2026-10-22T16:44:28.4365282Z     │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ security vulnerability detected
+2026-10-22T16:44:28.4366070Z     │
+2026-10-22T16:44:28.4366518Z     ├ ID: RUSTSEC-2026-0378
+2026-10-22T16:44:28.4367247Z     ├ Advisory: https://rustsec.org/advisories/RUSTSEC-2026-0378
+2026-10-22T16:44:28.4368247Z     ├ This is an entry in the RustSec database for the Wasmtime security advisory
+2026-10-22T16:44:28.4369314Z       located at
+2026-10-22T16:44:28.4370085Z       https://github.com/bytecodealliance/wasmtime/security/advisories/GHSA-9pvw-hwfg-92h5
+2026-10-22T16:44:28.4371124Z       For more information see the GitHub-hosted security advisory.
+2026-10-22T16:44:28.4372141Z     ├ Announcement: https://github.com/bytecodealliance/wasmtime/pull/14827
+2026-10-22T16:44:28.4373286Z     ├ Solution: Upgrade to >=48.0.7, <49.0.0 OR >=49.0.4 (try `cargo update -p wasmtime`)
+2026-10-22T16:44:28.4374109Z     ├ wasmtime v49.0.3
+2026-10-22T16:44:28.4374789Z       ├── tcl-engine-wasm v0.1.0
+2026-10-22T16:44:28.4375350Z       └── tcl-fuzz v0.1.0
+2026-10-22T16:44:28.4375602Z 
+2026-10-22T16:44:28.4376304Z error[vulnerability]: Cranelift backend on aarch64 can jump to incorrect target on large Wasm `br_table` instruction
+2026-10-22T16:44:28.4377507Z     ┌─ /home/runner/work/tcl-lsp/tcl-lsp/Cargo.lock:442:1
+2026-10-22T16:44:28.4378109Z     │
+2026-10-22T16:44:28.4379028Z 442 │ wasmtime 49.0.3 registry+https://github.com/rust-lang/crates.io-index
+2026-10-22T16:44:28.4380243Z     │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ security vulnerability detected
+2026-10-22T16:44:28.4381072Z     │
+2026-10-22T16:44:28.4381565Z     ├ ID: RUSTSEC-2026-0379
+2026-10-22T16:44:28.4382076Z     ├ Advisory: https://rustsec.org/advisories/RUSTSEC-2026-0379
+2026-10-22T16:44:28.4382719Z     ├ This is an entry in the RustSec database for the Wasmtime security advisory
+2026-10-22T16:44:28.4383203Z       located at
+2026-10-22T16:44:28.4383947Z       https://github.com/bytecodealliance/wasmtime/security/advisories/GHSA-mghf-wjfp-p5xm
+2026-10-22T16:44:28.4384826Z       For more information see the GitHub-hosted security advisory.
+2026-10-22T16:44:28.4385486Z     ├ Announcement: https://github.com/bytecodealliance/wasmtime/pull/14826
+2026-10-22T16:44:28.4386276Z     ├ Solution: Upgrade to >=36.0.19, <37.0.0 OR >=48.0.7, <49.0.0 OR >=49.0.4 (try `cargo update -p wasmtime`)
+2026-10-22T16:44:28.4386865Z     ├ wasmtime v49.0.3
+2026-10-22T16:44:28.4387215Z       ├── tcl-engine-wasm v0.1.0
+2026-10-22T16:44:28.4387576Z       └── tcl-fuzz v0.1.0
+2026-10-22T16:44:28.4387757Z 
+2026-10-22T16:44:28.4388115Z error[vulnerability]: Bundled root certificates allow trust in distrusted emSign intermediates
+2026-10-22T16:44:28.4388792Z     ┌─ /home/runner/work/tcl-lsp/tcl-lsp/Cargo.lock:450:1
+2026-10-22T16:44:28.4389192Z     │
+2026-10-22T16:44:28.4389688Z 450 │ webpki-roots 1.0.9 registry+https://github.com/rust-lang/crates.io-index
+2026-10-22T16:44:28.4390451Z     │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ security vulnerability detected
+2026-10-22T16:44:28.4390918Z     │
+2026-10-22T16:44:28.4391201Z     ├ ID: RUSTSEC-2026-0381
+2026-10-22T16:44:28.4391659Z     ├ Advisory: https://rustsec.org/advisories/RUSTSEC-2026-0381
+2026-10-22T16:44:28.4392353Z     ├ Affected versions include `emSign ECC Root CA - G3`, which can allow certificate
+2026-10-22T16:44:28.4392903Z       paths through distrusted emSign intermediates.
+2026-10-22T16:44:28.4393601Z       
+2026-10-22T16:44:28.4393996Z       Affected versions may accept certificate paths containing distrusted emSign
+2026-10-22T16:44:28.4395000Z       intermediate public keys. The private keys corresponding to these intermediates
+2026-10-22T16:44:28.4395501Z       are now well known.
+2026-10-22T16:44:28.4395781Z       
+2026-10-22T16:44:28.4396036Z       Version 1.0.10+ removes this root.
+2026-10-22T16:44:28.4396345Z       
+2026-10-22T16:44:28.4397353Z       store and re-exports the roots from its separately resolved 1.x dependency.
+2026-10-22T16:44:28.4397998Z       That parent dependency must resolve to 1.0.10 or newer; an older parent remains
+2026-10-22T16:44:28.4398490Z       affected by this advisory.
+2026-10-22T16:44:28.4399005Z     ├ Announcement: https://github.com/rustls/webpki-roots/pull/133
+2026-10-22T16:44:28.4399664Z     ├ Solution: Upgrade to >=1.0.10 (try `cargo update -p webpki-roots`)
+2026-10-22T16:44:28.4400169Z     ├ webpki-roots v1.0.9
+2026-10-22T16:44:28.4400498Z       └── ureq v3.4.2
+2026-10-22T16:44:28.4400808Z           ├── f5-cli v0.1.0
+2026-10-22T16:44:28.4401157Z           │   └── tcl-mcp v0.1.0
+2026-10-22T16:44:28.4401521Z           ├── tcl-bigip-query v0.1.0
+2026-10-22T16:44:28.4401940Z           │   ├── bigip-report-gen-rust v0.1.0
+2026-10-22T16:44:28.4402365Z           │   ├── f5-cli v0.1.0 (*)
+2026-10-22T16:44:28.4402723Z           │   ├── tcl-lsp-server v0.1.0
+2026-10-22T16:44:28.4403311Z           │   └── xtask v0.1.0

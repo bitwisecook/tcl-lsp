@@ -1,0 +1,194 @@
+diff --git a/rust/tcl-registry/src/resolved_invocation.rs b/rust/tcl-registry/src/resolved_invocation.rs
+index 4215bd92c..9218f3f4c 100644
+--- a/rust/tcl-registry/src/resolved_invocation.rs
++++ b/rust/tcl-registry/src/resolved_invocation.rs
+@@ -1645,6 +1645,18 @@ impl SelectedArgumentTypeHints {
+     }
+ }
+ 
++/// Conditional source capability to retain a callback under selected metadata.
++/// This proves no native handler, completed registration or callback entry.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum SourceCallbackRetention {
++    /// This selected descriptor and source layout cannot retain a callback.
++    Absent,
++    /// A script or command-prefix callback may be retained.
++    MayRetain,
++    /// Callback-bearing options, selection or prefix layout remain unproved.
++    Unproven,
++}
++
+ /// An owned, target-neutral projection of a resolved registry invocation.
+ ///
+ /// This is the hand-off shape for executable IR and shared optimisation
+@@ -1654,6 +1666,7 @@ impl SelectedArgumentTypeHints {
+ /// and lowering hook.
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ pub struct InvocationFacts {
++    source_callback_retention: SourceCallbackRetention,
+     deferred_script_arguments: Option<Vec<usize>>,
+     script_lookup_arguments: Option<Vec<(usize, crate::ScriptLookupScope)>>,
+     command_prefix_arguments: Option<Vec<(usize, crate::AppendedArity)>>,
+@@ -1864,6 +1877,14 @@ fn selected_variable_receiver_operand_form(
+ }
+ 
+ impl InvocationFacts {
++    /// Selected source retention capability, frozen with these same facts.
++    /// Absence concerns this invocation only, never existing hooks or native
++    /// implementation identity. Unproven remains a callback guard obligation.
++    #[must_use]
++    pub const fn source_callback_retention(&self) -> SourceCallbackRetention {
++        self.source_callback_retention
++    }
++
+     /// Pure key of the exact descriptor that produced these owned facts.
+     /// This supplies no command-table or source naming authority.
+     #[must_use]
+@@ -3955,6 +3976,33 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+         )
+     }
+ 
++    /// Conservative registration capability independent of execution coverage.
++    /// Body-valued options are outside the older prefix-retention projection;
++    /// their absence therefore needs its own complete selected-layout proof.
++    fn selected_source_callback_retention(&self) -> SourceCallbackRetention {
++        if matches!(
++            self.subcommand,
++            SubcommandResolution::Indeterminate { .. }
++                | SubcommandResolution::Unknown { .. }
++                | SubcommandResolution::Ambiguous { .. }
++        ) {
++            return SourceCallbackRetention::Unproven;
++        }
++        if self
++            .semantics
++            .options
++            .available()
++            .any(|option| option.value_role() == Some(ArgRole::Body))
++        {
++            return SourceCallbackRetention::Unproven;
++        }
++        match self.authored_source_retains_callback() {
++            Some(false) => SourceCallbackRetention::Absent,
++            Some(true) => SourceCallbackRetention::MayRetain,
++            None => SourceCallbackRetention::Unproven,
++        }
++    }
++
+     /// Whether this selected call may keep a script or command prefix for
+     /// later evaluation: a wrapped prefix, a stored script that does not
+     /// become a definition body of its own
+@@ -6016,6 +6064,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+         };
+         let (arg_roles, arg_roles_complete) = self.argument_roles_on_edge(successful);
+         let mut facts = InvocationFacts {
++            source_callback_retention: self.selected_source_callback_retention(),
+             deferred_script_arguments: self.semantics.script_metadata.deferred_arguments(
+                 self,
+                 &arg_roles,
+@@ -6123,6 +6172,105 @@ fn sole_world_effect_descriptor(
+ 
+ #[cfg(test)]
+ mod tests {
++    #[test]
++    fn frozen_source_retention_separates_ordinary_values_and_deferred_hooks() {
++        use super::SourceCallbackRetention::{Absent, MayRetain};
++        let registry = crate::CommandRegistry::build_default();
++        let cases: &[(&str, &[&str], super::SourceCallbackRetention)] = &[
++            ("puts", &["hi"], Absent),
++            ("set", &["x", "1"], Absent),
++            ("proc", &["p", "", "puts hi"], Absent),
++            ("after", &["0", "puts hi"], MayRetain),
++            // An empty timer script still registers; concatenated scripts
++            // deliberately have no positive single-script source ordinal.
++            ("after", &["0", ""], MayRetain),
++            ("after", &["0", "set", "::mark", "1"], MayRetain),
++            ("after", &["idle", "set", "::mark", "1"], MayRetain),
++            ("fileevent", &["stdout", "writable", "puts hi"], MayRetain),
++            (
++                "chan",
++                &["event", "stdout", "writable", "puts hi"],
++                MayRetain,
++            ),
++            // Until selected registration metadata distinguishes these forms,
++            // getter/removal calls keep the conservative deferred obligation.
++            ("after", &["0"], MayRetain),
++            ("after", &["info"], MayRetain),
++            ("after", &["cancel", "unknown-id"], MayRetain),
++            ("fileevent", &["stdout", "writable"], MayRetain),
++            ("fileevent", &["stdout", "writable", ""], MayRetain),
++            ("chan", &["event", "stdout", "writable"], MayRetain),
++            ("chan", &["event", "stdout", "writable", ""], MayRetain),
++        ];
++        for &(head, arguments, expected) in cases {
++            let selected = registry.resolve_invocation(head, arguments, None).unwrap();
++            for facts in [selected.facts(), selected.facts_after_success()] {
++                assert_eq!(
++                    facts.source_callback_retention(),
++                    expected,
++                    "{head} {arguments:?}"
++                );
++            }
++        }
++    }
++
++    #[test]
++    fn frozen_source_retention_preserves_unknown_selection_and_prefix_layout() {
++        use super::SourceCallbackRetention::{MayRetain, Unproven};
++        use crate::InvocationWord::{Dynamic, Expanded, Literal};
++        let registry = crate::CommandRegistry::build_default();
++        let cases: &[(
++            &str,
++            &[crate::InvocationWord<'_>],
++            super::SourceCallbackRetention,
++        )] = &[
++            ("namespace", &[Dynamic, Literal("value")], Unproven),
++            ("after", &[Dynamic, Literal("puts hi")], Unproven),
++            ("lsort", &[Literal("-command"), Dynamic, Expanded], Unproven),
++            (
++                "fileevent",
++                &[Literal("stdout"), Literal("writable"), Dynamic],
++                MayRetain,
++            ),
++        ];
++        for &(head, arguments, expected) in cases {
++            let selected = registry
++                .resolve_structured_invocation(
++                    crate::InvocationWords::structured(Literal(head), arguments),
++                    None,
++                )
++                .resolved()
++                .unwrap();
++            for facts in [selected.facts(), selected.facts_after_success()] {
++                assert_eq!(
++                    facts.source_callback_retention(),
++                    expected,
++                    "{head} {arguments:?}"
++                );
++            }
++        }
++    }
++
++    #[test]
++    fn frozen_source_retention_does_not_drop_body_valued_callback_options() {
++        use super::SourceCallbackRetention::Unproven;
++        let registry = crate::CommandRegistry::build_default();
++        let selected = registry
++            .resolve_invocation("button", &[".b", "-command", "puts hi"], None)
++            .expect("real Tk deferred-script option descriptor");
++        assert!(
++            selected
++                .semantics
++                .options
++                .available()
++                .any(|option| option.name == "-command"
++                    && option.value_role() == Some(crate::ArgRole::Body))
++        );
++        for facts in [selected.facts(), selected.facts_after_success()] {
++            assert_eq!(facts.source_callback_retention(), Unproven);
++        }
++    }
++
+     #[test]
+     fn conditional_list_argument_layout_keeps_values_expansion_and_other_descriptors_distinct() {
+         let registry = crate::CommandRegistry::build_default();

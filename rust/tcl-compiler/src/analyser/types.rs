@@ -5727,6 +5727,17 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                 ("proc cb args {}\ntrace add variable x write ::cb\nset x 1\n", false),
                 ("proc cb args {}\ntrace add execution puts enter ::cb\nputs hi\n", false),
                 ("proc cb args {}\nnamespace unknown ::cb\nputs hi\n", false),
+                // Retained scripts include empty timer scripts and concatenated
+                // multiword forms. Their single-body ordinals are not complete
+                // registration inventories. Getter/removal precision belongs to
+                // the selected registry contract, not this conservative guard.
+                ("after 0 {greet}\nputs hi\n", false),
+                ("after 0 {}\nputs hi\n", false),
+                ("after 0 greet extra\nputs hi\n", false),
+                ("after idle greet extra\nputs hi\n", false),
+                ("fileevent stdin readable {greet}\nputs hi\n", false),
+                ("chan event stdout writable {greet}\nputs hi\n", false),
+                ("set callback greet\nafter 0 $callback\nputs hi\n", false),
                 ("proc unknown args {}\nputs hi\n", false),
             ] {
                 let source = format!("{declaration}{use_site}");
@@ -5741,16 +5752,22 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                 }
                 // Every command of the body keeps its own original lookup
                 // however often, and from wherever, the body is entered.
-                if !result
+                let body_returns = result
                     .command_invocations
                     .iter()
                     .filter(|invocation| {
                         invocation.name == "return"
                             && invocation.range.start() < declaration.len() as u32
                     })
-                    .all(|invocation| invocation.original_lookup.is_some())
+                    .collect::<Vec<_>>();
+                if body_returns.is_empty()
+                    || !body_returns
+                        .iter()
+                        .all(|invocation| invocation.original_lookup.is_some())
                 {
-                    mismatches.push(format!("{dialect}: {use_site:?}: body lookup lost"));
+                    mismatches.push(format!(
+                        "{dialect}: {use_site:?}: body lookup missing or lost"
+                    ));
                 }
             }
         }

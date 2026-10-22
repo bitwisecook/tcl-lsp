@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "3ecafa993d997c4f27382153ce3b8886148ee390",
-  "last_published_snapshot": "185b7cb76cab0ed03199a1ac63f9ba79f9a10415",
+  "last_source_snapshot": "de4455665fedeae9eba3c011585871c0121498d7",
+  "last_published_snapshot": "41e25f0047d538fffccb5542750515eb805f21e5",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,32 +16,8 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-22T17:02:34.680805+00:00",
-  "product_tree_diff": [
-    "rust/bigip-report-gen/rust/src/apm.rs",
-    "rust/bigip-report-gen/rust/tests/certs.rs",
-    "rust/tcl-bigip-query/tests/integration/eval.rs",
-    "rust/tcl-bigip-query/tests/integration/graph.rs",
-    "rust/tcl-bigip-query/tests/integration/math.rs",
-    "rust/tcl-bigip-query/tests/integration/net.rs",
-    "rust/tcl-bigip-query/tests/integration/projection.rs",
-    "rust/tcl-bigip-query/tests/integration/regex_str.rs",
-    "rust/tcl-bigip-query/tests/integration/time.rs",
-    "rust/tcl-bigip-query/tests/integration/value2.rs",
-    "rust/tcl-bigip/src/apl/iapp_diagnostics.rs",
-    "rust/tcl-bigip/src/apl/iapp_vars.rs",
-    "rust/tcl-bigip/src/links.rs",
-    "rust/tcl-bigip/src/model/mod.rs",
-    "rust/tcl-bigip/src/object_names.rs",
-    "rust/tcl-bigip/src/refs.rs",
-    "rust/tcl-bigip/src/tls.rs",
-    "rust/tcl-irules/src/event_handlers.rs",
-    "rust/tcl-irules/src/ilx.rs",
-    "rust/tcl-irules/src/source_context.rs",
-    "rust/tcl-irules/src/walker.rs",
-    "rust/tcl-irules/src/when_block.rs",
-    "rust/tcl-irules/tests/resolve_args.rs",
-    "rust/tcl-lsp-core/src/ilx_navigation.rs",
-    "rust/tcl-lsp-core/src/refactor/datagroup.rs"
-  ]
+  "last_published_utc": "2026-10-22T17:18:25.638956+00:00",
+  "product_tree_diff": [],
+  "source_lineage_rebased_utc": "2026-10-22T17:06:20.233674+00:00",
+  "source_lineage_note": "Source de445 cleanup+mapping commits mapped onto fetched b3c8ea5b by ordinary publisher rebase; product trees are identical at committed snapshots. Live uncommitted R1 is excluded from this comparison."
 }

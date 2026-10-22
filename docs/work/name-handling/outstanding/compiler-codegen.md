@@ -2,7 +2,7 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-22T16:57Z (RESUMED; agent-reported, not validation)
+Last updated: 2026-10-22T17:23Z (RESUMED; agent-reported, not validation)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -28,16 +28,18 @@ All completed receipts/logs/manifests are under `docs/work/name-handling/handoff
 
 **Release blockers, now separated:**
 
-- Explicit ascii-guarded strlen hook: DIRECT abcde/empty with/without 8.6 refuses with `execution refused: native compiler preflight provider required`, no crash. Both caller formal variants retain `::f`, accepted metadata, RuleLoader realm, registry-backed execution/handler and normal arguments. Undeclared/EMPTY both reach host and refuse; declared WRITE blocks before the host (errors empty). Existing simpler hook/boundary controls succeed. Preserve the provider guard; no bypass/toggle fix. Trace authentic native compiler-provider installation through compile_service/engine seam with VM role off-tree; a positive same-body provider-installed control is still unmeasured. No particular native-string compiler is proved necessary yet.
+- Explicit ascii-guarded strlen hook: DIRECT abcde/empty with/without 8.6 refuses with `execution refused: native compiler preflight provider required`, no crash. Both caller formal variants retain `::f`, accepted metadata, RuleLoader realm, registry-backed execution/handler and normal arguments. Undeclared/EMPTY both reach host and refuse; declared WRITE blocks before the host (errors empty). Existing simpler hook/boundary controls succeed. Preserve the provider guard; no bypass/toggle fix. Authentic provider trace is now resolved statically: Engine already uses Vm::with_native_core C9.0 plus BytecodeCompileService; procedure activation passes an authentic captured NativeCompilationEntry. No missing installer or synthetic setter is indicated. The real private ::tcl::string::is worker exists, but its missing registry native_compilation descriptor/implementation lookup produces Hook::Unknown and the fail-closed ensemble preflight. The hook's exact non-strict ASCII branch needs that typed C8.6+ descriptor/plan, not broad string parity. A same-body post-descriptor positive control is still unmeasured.
 - Derived expr42/tcl9 and catxy/tcl8.6: fresh direct Evaluate succeeds (42/xy) with and without EMPTY, slots stay available, no host errors/crashes. All eight analysis rows retain `::p`, trusted heads, only known version 1 Overdefined, empty SCCP route explanations. Missing original publication, caller-formals mismatch, SSA-version mismatch and VM transport do not explain these fixtures. Compiler role is informed; SCCP/ConstOps pre-route admission remains to trace after root's R1/C6 priority.
 
 **Exact cleanup completed:** root-authorised dry-copy maintenance removed a redundant literal comment prefix in untoggle.py's exact expected pattern; every assertion/output was preserved. The documented extra TEMP comment in require_provider was removed immediately before the script. Actual cleanup's seven output hashes exactly match dry-copy expectations, 7/7 Rust syntax parses pass with stdout-only emission (no formatter writes), and full per-file delta is exactly seven owned toggle removals plus our own probe deletion. `const_subst.rs` stays `c710e35b...`; boundary regression stays `d67c8bad...`. No executables or peer probes were removed. `n17_cleanup.json` and `n17_cleanup-source-after.json.gz` record the distinct unbuilt post-cleanup state; the one missing tracked path is the intentional probe deletion awaiting root staging, not an admission claim. Backups: `/tmp/ccg-cleanup-backup-20261022T165625Z`.
+
+**Off-tree ASCII fix draft (not applied):** `/tmp/ccg-string-is-ascii.patch` and `/tmp/ccg-string-is-ascii-draft.json`; copied source under `/tmp/ccg-string-is-{base,work}`. The minimal class-specific grammar retains public/private operand offsets and genuine private registration identity, admits only compile-known full `ascii` + one non-strict subject, and keeps other classes/options/expansions Unknown. It reuses Scalar instruction preparation, emits marked STR_CLASS ASCII, and includes VM/runtime helpers using checked original Unicode getters and the real C Boolean constant. Existing unmarked generic opcodes stay unchanged. Rustfmt syntax only; NO Cargo/typecheck/lint/semantic acceptance. Root's R1/C6 source/Cargo freeze remains in force. VM role reviewed C8.6.18/9.0.4/9.1.0 exact compiler sequence (one subject evaluation, no locals/emptyliteral) and collected 20 fixed semantic controls per modern C shell. Its C8.4 extra embedded-NUL control failed and is retained; no old-release recipe or oracle correction is claimed.
 
 **Off-tree lint preparation:** external old-source inventory `/tmp/naming-clippy-compiler-codegen.json` assigns 54 diagnostics / 17 owned paths. `/tmp/ccg-lint-post-cleanup.patch` covers 18 paths including emitter's shared-API consumer, has no toggle/probe hunks, parses via rustfmt and dry-applies fuzz 0 to copied current source plus exact cleanup. NO compile/Clippy verdict. Compiler owns shared `InvocationMetadataSelection { Standalone, Retained(context) }` API plus SSA/static_loops consumers; this role owns method_barrier/emitter consumers. Outer absence remains refusal; no duplicate local alias. Apply only after root GO and reconcile current source; never overwrite with pre-cleanup shadows.
 
 ## Outstanding (in priority order)
 
-1. Off-tree authentic provider seam diagnosis with VM; keep exact host refusal and positive/negative controls. Root's R1/C6 work proceeds independently.
+1. Finish/review off-tree exact ASCII compiler descriptor/plan with VM; no canonical apply/Cargo before root GO. Keep authentic Native authority and refusal gates. Root's R1/C6 work proceeds independently.
 2. Compiler-owned derived SCCP/ConstOps pre-route refusal; coordinate ownership with root/compiler, preserve assertions.
 3. Coordinated 54-diagnostic lint/API batch after functional attribution, then fmt/check/strict Clippy with no new allowances. Current canonical source is unbuilt after cleanup.
 4. Required focused compiler lib filters compile_service/native_failure/control_flow (never whole lib); install lib filter; codegen_stamps skipping the massive matrix; golden_packs; required check/fmt/clippy/xtask gates. These remain unexecuted for final source, not passed.
@@ -46,7 +48,7 @@ All completed receipts/logs/manifests are under `docs/work/name-handling/handoff
 ## Blocked
 
 - Canonical changes/builds wait for root's stable Git integration/R1/C6 schedule. Off-tree preparation is authorised.
-- The explicit hook needs authentic compiler-provider closure; derived supported SpecTcl analysis remains Overdefined despite successful direct execution. Neither issue is waived.
+- The explicit hook needs its missing typed native StringIs ASCII compiler descriptor/plan; derived supported SpecTcl analysis remains Overdefined despite successful direct execution. Neither issue is waived.
 
 ## Parked unless needed by SpecTcl
 

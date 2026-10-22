@@ -1,0 +1,32 @@
+{
+  "snapshot": "de4455665 with staged R1 changes",
+  "analysis_result_eq_fields": 89,
+  "perf_probe_reported_fields": 65,
+  "missing_field_diagnostics": [
+    "optimiser_source_origin",
+    "lexical_declaration_advice",
+    "original_vendor_source_names",
+    "original_vendor_variable_advice",
+    "original_vendor_variable_bodies",
+    "original_vendor_procedure_metadata",
+    "original_vendor_class_metadata",
+    "original_symbol_metadata",
+    "original_vendor_symbol_metadata",
+    "logical_procedure_declarations",
+    "logical_class_declarations",
+    "original_namespace_patterns",
+    "original_namespace_exports",
+    "original_namespace_export_unknowns",
+    "original_variable_roots",
+    "original_variable_alias_sites",
+    "original_variable_name_unknowns",
+    "original_variable_alias_obligations",
+    "original_variable_alias_operands",
+    "original_variable_alias_source_operands",
+    "original_variable_alias_receipts",
+    "object_handle_facts",
+    "original_scoped_bodies",
+    "original_conditional_registry_metadata"
+  ],
+  "scope": "read-only diagnostic coverage audit; no cause assigned, no equality change"
+}

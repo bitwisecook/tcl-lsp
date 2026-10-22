@@ -1,0 +1,120 @@
+version 8.6.18
+operand empty utf8hex {}
+PASS {plain empty} 1
+PASS {strict-unmodeled empty} 0
+PASS {dynamic-class-unmodeled empty} 1
+PASS {failindex-unmodeled empty} {1 untouched}
+operand ascii utf8hex 6162636465
+PASS {plain ascii} 1
+PASS {strict-unmodeled ascii} 1
+PASS {dynamic-class-unmodeled ascii} 1
+PASS {failindex-unmodeled ascii} {1 untouched}
+operand nonascii utf8hex c3a9
+PASS {plain nonascii} 0
+PASS {strict-unmodeled nonascii} 0
+PASS {dynamic-class-unmodeled nonascii} 0
+PASS {failindex-unmodeled nonascii} {0 0}
+operand mixed utf8hex 61c3a9
+PASS {plain mixed} 0
+PASS {strict-unmodeled mixed} 0
+PASS {dynamic-class-unmodeled mixed} 0
+PASS {failindex-unmodeled mixed} {0 1}
+operand embeddednul utf8hex 610062
+PASS {plain embeddednul} 1
+PASS {strict-unmodeled embeddednul} 1
+PASS {dynamic-class-unmodeled embeddednul} 1
+PASS {failindex-unmodeled embeddednul} {1 untouched}
+disassembly ::ascii_plain
+ByteCode 0x0x558e6cf201b0, refCt 1, epoch 17, interp 0x0x558e6cef8130 (epoch 17)
+  Source "string is ascii $subject"
+  File "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl" Line 3
+  Cmds 1, src 24, inst 5, litObjs 0, aux 0, stkDepth 1, code/src 0.00
+  Proc 0x0x558e6cf49fd0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "subject"
+  Commands 1:
+      1: pc 0-3, src 0-23
+  Command 1: "string is ascii $subject"
+    (0) loadScalar1 %v0 	# var "subject"
+    (2) strclass ascii 
+    (4) done 
+
+disassembly ::ascii_strict
+ByteCode 0x0x558e6cf206b0, refCt 1, epoch 17, interp 0x0x558e6cef8130 (epoch 17)
+  Source "string is ascii -strict $subject"
+  File "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl" Line 4
+  Cmds 1, src 32, inst 16, litObjs 2, aux 0, stkDepth 2, code/src 0.00
+  Proc 0x0x558e6cf4dae0, refCt 1, args 1, compiled locals 1
+      slot 0, scalar, arg, "subject"
+  Commands 1:
+      1: pc 0-14, src 0-31
+  Command 1: "string is ascii -strict $subject"
+    (0) loadScalar1 %v0 	# var "subject"
+    (2) dup 
+    (3) strclass ascii 
+    (5) jumpTrue1 +7 	# pc 12
+    (7) pop 
+    (8) push1 0 	# "0"
+    (10) jump1 +5 	# pc 15
+    (12) push1 1 	# ""
+    (14) strneq 
+    (15) done 
+
+disassembly ::ascii_dynamic
+ByteCode 0x0x558e6cf208b0, refCt 1, epoch 17, interp 0x0x558e6cef8130 (epoch 17)
+  Source "string is $class $subject"
+  File "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl" Line 5
+  Cmds 1, src 25, inst 17, litObjs 3, aux 0, stkDepth 5, code/src 0.00
+  Proc 0x0x558e6cf4d860, refCt 1, args 2, compiled locals 2
+      slot 0, scalar, arg, "class"
+      slot 1, scalar, arg, "subject"
+  Commands 1:
+      1: pc 0-15, src 0-24
+  Command 1: "string is $class $subject"
+    (0) push1 0 	# "string"
+    (2) push1 1 	# "is"
+    (4) loadScalar1 %v0 	# var "class"
+    (6) loadScalar1 %v1 	# var "subject"
+    (8) push1 2 	# "::tcl::string::is"
+    (10) invokeReplace 4 2 
+    (16) done 
+
+disassembly ::ascii_failindex
+ByteCode 0x0x558e6cf43e30, refCt 1, epoch 17, interp 0x0x558e6cef8130 (epoch 17)
+  Source "\n    set fi untouched\n    set answer [string is ascii..."
+  File "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl" Line 6
+  Cmds 5, src 108, inst 57, litObjs 7, aux 0, stkDepth 7, code/src 0.00
+  Proc 0x0x558e6cf4ce60, refCt 1, args 1, compiled locals 3
+      slot 0, scalar, arg, "subject"
+      slot 1, scalar, "fi"
+      slot 2, scalar, "answer"
+  Commands 5:
+      1: pc 0-4, src 5-20        2: pc 5-36, src 26-76
+      3: pc 14-33, src 38-75        4: pc 37-55, src 82-106
+      5: pc 46-54, src 90-105
+  Command 1: "set fi untouched..."
+    (0) push1 0 	# "untouched"
+    (2) storeScalar1 %v1 	# var "fi"
+    (4) pop 
+  Command 2: "set answer [string is ascii -failindex fi $subject]..."
+    (5) startCommand +31 2 	# next cmd at pc 36, 2 cmds start here
+  Command 3: "string is ascii -failindex fi $subject..."
+    (14) push1 1 	# "string"
+    (16) push1 2 	# "is"
+    (18) push1 3 	# "ascii"
+    (20) push1 4 	# "-failindex"
+    (22) push1 5 	# "fi"
+    (24) loadScalar1 %v0 	# var "subject"
+    (26) push1 6 	# "::tcl::string::is"
+    (28) invokeReplace 6 2 
+    (34) storeScalar1 %v2 	# var "answer"
+    (36) pop 
+  Command 4: "return [list $answer $fi]..."
+    (37) startCommand +19 2 	# next cmd at pc 56, 2 cmds start here
+  Command 5: "list $answer $fi..."
+    (46) loadScalar1 %v2 	# var "answer"
+    (48) loadScalar1 %v1 	# var "fi"
+    (50) list 2 
+    (55) done 
+    (56) done 
+
+completed semantic-controls 20

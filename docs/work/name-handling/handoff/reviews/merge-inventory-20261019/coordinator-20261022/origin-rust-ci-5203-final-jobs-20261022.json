@@ -1,0 +1,293 @@
+{
+  "jobs": [
+    {
+      "conclusion": "failure",
+      "id": 119956055945,
+      "name": "cargo-deny",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956056422,
+      "name": "channel",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956195578,
+      "name": "build-tcl-lsp-server",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956195622,
+      "name": "lsp-server-wasm",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956195635,
+      "name": "rust-check",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956195668,
+      "name": "rust-tests-doctest",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956195764,
+      "name": "wasm-real-link",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956195809,
+      "name": "python",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956195823,
+      "name": "web-frontends",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956195861,
+      "name": "spectcl-compat",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956195887,
+      "name": "test-ext-web",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956195897,
+      "name": "lsp-server-wasi",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956195910,
+      "name": "rust-tests-heavy",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956195933,
+      "name": "lsp-e2e archive",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956196088,
+      "name": "runtime-rust-tests",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956196243,
+      "name": "rust-tests-shard (2/5)",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956196267,
+      "name": "rust-tests-shard (5/5)",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956196312,
+      "name": "rust-tests-shard (3/5)",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956196344,
+      "name": "rust-tests-shard (4/5)",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119956196367,
+      "name": "rust-tests-shard (1/5)",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119956198805,
+      "name": "macos-wasm-check",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119956199010,
+      "name": "native ${{ matrix.platform.id }} / ${{ matrix.program.id }}",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119957901373,
+      "name": "lsp-e2e-partition (2/3)",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119957901457,
+      "name": "lsp-e2e-partition (3/3)",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119957901640,
+      "name": "lsp-e2e-partition (1/3)",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119959077909,
+      "name": "test-ext-partition (1, one)",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119959077970,
+      "name": "test-ext-multi-folder",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119959077979,
+      "name": "test-ext-partition (2, two)",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119959078028,
+      "name": "test-ext-partition (3, three)",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119960737402,
+      "name": "test-ext",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119960958593,
+      "name": "lsp-e2e",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119964411033,
+      "name": "pr-gate",
+      "status": "completed"
+    },
+    {
+      "conclusion": "success",
+      "id": 119966737469,
+      "name": "rust-tests",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119966850037,
+      "name": "create-release",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119966851139,
+      "name": "build-zed",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119966851319,
+      "name": "linux-release-portability",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119966851455,
+      "name": "build-vsix",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119966851865,
+      "name": "build-sublime",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119966852129,
+      "name": "build-claude-skills",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119966852192,
+      "name": "publish-native-binaries",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119966852672,
+      "name": "publish-checksums",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119966853237,
+      "name": "build-jetbrains",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119966853238,
+      "name": "cleanup-untagged-artifacts",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119966853614,
+      "name": "publish-vsix-marketplace",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119966853630,
+      "name": "publish-vsix-openvsx",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119966854239,
+      "name": "cleanup-old-artifacts",
+      "status": "completed"
+    },
+    {
+      "conclusion": "skipped",
+      "id": 119966854656,
+      "name": "publish-jetbrains-marketplace",
+      "status": "completed"
+    }
+  ],
+  "total_count": 47,
+  "recorded_at_utc": "2026-10-22T17:22:19.945234+00:00",
+  "run_id": 39816429638,
+  "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "status": "completed",
+  "conclusion": "failure",
+  "interpretation": "30 successful jobs,16 condition-skipped,one cargo-deny failure on exact baseline; no current-work gate admission. All five Rust shards and all three native LSP partitions succeeded; named log roster retained separately."
+}

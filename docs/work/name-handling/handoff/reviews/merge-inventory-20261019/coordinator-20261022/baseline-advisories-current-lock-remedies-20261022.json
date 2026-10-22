@@ -1,0 +1,46 @@
+{
+  "utc": "2026-10-22T17:23:13.475025+00:00",
+  "baseline_job": 119956055945,
+  "baseline_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "baseline_failure_packages": {
+    "RUSTSEC-2026-0382": "rustls-webpki0.103.15;fixed>=0.103.16",
+    "RUSTSEC-2026-0378": "wasmtime49.0.3;fixed>=49.0.4",
+    "RUSTSEC-2026-0379": "wasmtime49.0.3;fixed>=49.0.4",
+    "RUSTSEC-2026-0381": "webpki-roots1.0.9;fixed>=1.0.10"
+  },
+  "current_lockfiles": [
+    {
+      "path": "Cargo.lock",
+      "sha256": "5dd915823937b8a61b2d1701381396ae2f1b6d8cdbbdd2bd80a62d0a024765ae",
+      "versions": [
+        {
+          "name": "rustls-webpki",
+          "version": "0.103.16"
+        },
+        {
+          "name": "wasmtime",
+          "version": "49.0.4"
+        },
+        {
+          "name": "webpki-roots",
+          "version": "1.0.10"
+        }
+      ]
+    },
+    {
+      "path": "rust/bigip-report-gen/python/Cargo.lock",
+      "sha256": "a2346c1b9b0cf8fee4603088a0e1339cd3b299e61e5bc8e23ae2e22a44323766",
+      "versions": [
+        {
+          "name": "rustls-webpki",
+          "version": "0.103.16"
+        },
+        {
+          "name": "webpki-roots",
+          "version": "1.0.10"
+        }
+      ]
+    }
+  ],
+  "current_status": "Current lock versions meet all four advisory remedies already. Static inspection only; fresh shipping cargo-deny remains mandatory. No dependency mutations or Cargo run by coordinator."
+}

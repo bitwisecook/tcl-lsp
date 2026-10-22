@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T16:55:39.331038+00:00
+Last updated: 2026-10-22T17:25:44.599561+00:00
 
 ## In progress
 
@@ -105,3 +105,13 @@ Last updated: 2026-10-22T16:55:39.331038+00:00
 - Started full nonpublishing baseline CI39816429638 on exact origin/rustfcb at16:44:07Z; complete test outcomes are pending, cargo-deny already failed separately. No source push/tag/PR.
 - Bounded active work prefetch completed without changing HEAD/index/source; old20 shallow boundaries retained. Combined-tree source integration follows CCG stable handback.
 - External role files remain under60minutes. Perf equality is incomplete and routed compiler patch remains withheld. No audit admissions, validated product row or sectionF checkbox changed.
+
+### Current cycle and routing (17:25 UTC)
+
+- Mapped source integration atde445 includes25external product/testpaths and exact CCG toggle/probe cleanup; publisher normal-pushed41e25f0047 after depth1 fetch/rebase. Committed product trees match; no active-source rebase during R1.
+- R1 fact/consumer build completed without warnings; public54-subcase diagnosis is running with original expectations and stronger nonempty body checks. Early8.6positive rows match; no final verdict yet. C6 original3-case public diagnosis owns next slot.
+- N17 missing StringIs compiler descriptor isolated without bypassing require_provider;11file typedASCII draft stays off-tree. Modern3C oracles each20semantics pass;8.4 extraNUL failure remains recorded outside admitted8.6+ model.
+- Full exactorigin/rust baselineCI5203 completed47jobs:30success,16condition-skipped,1cargo-denyfailure. Five Rust shards22,017passes and3nativeLSPpartitions2,295passes reconciled by named reporter identities; unitbinaryIDs and unnamedSKIPs limits explicit. No currentwork zero-P2F claim.
+- All4baseline advisories are already remedied by current lock versions (static inspection only); fresh shipping cargo-deny required. Historical work5202 failures yield49unique rendered package/selector baselinePASS matches and22unknowns; roster is retest prioritisation, not latestwork verdict.
+- New53xtask and40registry lint findings routed; xtask exactassertion-spelling draft prepared on copies and registrydraft underway. All prior shared compiler/Core/VM lint/API candidates remain off-tree and uncompiled.
+- Externalfiles are fresh:BIGIP17:14,perf16:52,triage17:15. Optional exhaustive89-field perf diagnostic is preserved, not applied; full equality and routedcompiler patch remain unproven. No audit admissions, validatedproduct-row changes or sectionF closures.

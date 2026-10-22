@@ -62,28 +62,91 @@
   "artifact_inventory_at_snapshot": {
     "metadata_source": "GitHub Actions artifact API; artifact sizes are compressed ZIP bytes",
     "small_metadata_artifacts_downloaded_as_file_service_references": [
-      {"name":"rust-tests-listing-1-5","artifact_id":12443671581,"bytes":983446},
-      {"name":"rust-tests-listing-3-5","artifact_id":12443151823,"bytes":456740},
-      {"name":"rust-tests-metadata","artifact_id":12442364284,"bytes":243114},
-      {"name":"lsp-e2e-result-1-3","artifact_id":12443410816,"bytes":337708},
-      {"name":"lsp-e2e-result-2-3","artifact_id":12443166615,"bytes":338742},
-      {"name":"lsp-e2e-result-3-3","artifact_id":12441674789,"bytes":338984}
+      {
+        "name": "rust-tests-listing-1-5",
+        "artifact_id": 12443671581,
+        "bytes": 983446
+      },
+      {
+        "name": "rust-tests-listing-3-5",
+        "artifact_id": 12443151823,
+        "bytes": 456740
+      },
+      {
+        "name": "rust-tests-metadata",
+        "artifact_id": 12442364284,
+        "bytes": 243114
+      },
+      {
+        "name": "lsp-e2e-result-1-3",
+        "artifact_id": 12443410816,
+        "bytes": 337708
+      },
+      {
+        "name": "lsp-e2e-result-2-3",
+        "artifact_id": 12443166615,
+        "bytes": 338742
+      },
+      {
+        "name": "lsp-e2e-result-3-3",
+        "artifact_id": 12441674789,
+        "bytes": 338984
+      }
     ],
     "small_test_host_result_artifacts_available": [
-      {"name":"vscode-test-partition-one","artifact_id":12443610076,"bytes":63597},
-      {"name":"vscode-test-partition-two","artifact_id":12443326005,"bytes":51995},
-      {"name":"vscode-test-partition-three","artifact_id":12442588342,"bytes":105018},
-      {"name":"vscode-test-multi-folder","artifact_id":12442099106,"bytes":4276}
+      {
+        "name": "vscode-test-partition-one",
+        "artifact_id": 12443610076,
+        "bytes": 63597
+      },
+      {
+        "name": "vscode-test-partition-two",
+        "artifact_id": 12443326005,
+        "bytes": 51995
+      },
+      {
+        "name": "vscode-test-partition-three",
+        "artifact_id": 12442588342,
+        "bytes": 105018
+      },
+      {
+        "name": "vscode-test-multi-folder",
+        "artifact_id": 12442099106,
+        "bytes": 4276
+      }
     ],
-    "small_proof_artifact_available": {"name":"lsp-e2e-proof","artifact_id":12441683916,"bytes":1318560},
+    "small_proof_artifact_available": {
+      "name": "lsp-e2e-proof",
+      "artifact_id": 12441683916,
+      "bytes": 1318560
+    },
     "not_downloaded_large_artifacts": [
-      {"name":"lsp-e2e-archive","artifact_id":12441349583,"bytes":274329941,"reason":"large archive; deliberately not downloaded"},
-      {"name":"tcl-lsp-server-release","artifact_id":12441329895,"bytes":21046824,"reason":"server binary; deliberately not downloaded"}
+      {
+        "name": "lsp-e2e-archive",
+        "artifact_id": 12441349583,
+        "bytes": 274329941,
+        "reason": "large archive; deliberately not downloaded"
+      },
+      {
+        "name": "tcl-lsp-server-release",
+        "artifact_id": 12441329895,
+        "bytes": 21046824,
+        "reason": "server binary; deliberately not downloaded"
+      }
     ],
-    "not_yet_uploaded_listings": ["rust-tests-listing-2-5","rust-tests-listing-4-5","rust-tests-listing-5-5"],
-    "retention_expires_approximately": "2026-10-23T16:47Z–16:55Z (check each artifact's own expires_at before retrieval)",
+    "not_yet_uploaded_listings": [
+      "rust-tests-listing-2-5",
+      "rust-tests-listing-4-5",
+      "rust-tests-listing-5-5"
+    ],
+    "retention_expires_approximately": "2026-10-23T16:47Z\u201316:55Z (check each artifact's own expires_at before retrieval)",
     "materialization_limit": "Artifact downloads were returned by the GitHub connector as File Service ZIP references. No File Service extraction/read tool is available in this environment; do not pass these IDs to the Sediment-only download_file tool. Their GitHub artifact IDs and sizes are preserved above for retrieval through an authorized artifact reader."
   },
   "outcome_limit": "This run is still in progress and has one failed baseline cargo-deny job. Successful completed job statuses are not a selector-level zero-pass-to-fail comparison; wait for the remaining shards and inspect uploaded JSON manifests using an authorized ZIP reader.",
-  "actions_by_this_audit": "One bounded run/jobs/artifact snapshot and small artifact file-reference fetches only. No polling, dispatch, cancel, build, or source edit."
+  "actions_by_this_audit": "One bounded run/jobs/artifact snapshot and small artifact file-reference fetches only. No polling, dispatch, cancel, build, or source edit.",
+  "superseded_by_followup": {
+    "file": "origin-rust-ci-5203-named-log-outcomes-20261022.json",
+    "result": "Rust shards 2/5, 4/5, 5/5 and rust-check subsequently completed successfully. See follow-up for exact PASS-line counts and emitted identity limits.",
+    "record_is_historical_snapshot": true
+  }
 }

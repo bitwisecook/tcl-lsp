@@ -2,7 +2,7 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T16:35:09Z (canonical Rust/tests frozen; structural lint draft prepared off-tree; no VM build started)
+Last updated: 2026-10-22T17:21:31Z (canonical Rust/tests frozen; structural lint draft prepared off-tree; no VM build started)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -69,18 +69,52 @@ base drift. All remain uncompiled/unrun; these are no lint-clearance or semantic
 claims. The canonical Rust/test freeze is observed, including both D4 files;
 latest D4 source write was 15:54:30.558808839Z. No VM cargo process has started.
 
-Required `pack_source_e2e` blocker triage is read-only while CCG owns its
-single functional/diagnostic chain. CCG's current full-target receipt reports
-3/6; derived expression42 and release-specific string-cat both yield no constant.
-Static boundaries and exact source hashes are in
-`/tmp/vm-runtime-derived-triage.json`; a public diagnostic helper is prepared at
-`/tmp/vm-runtime-derived-probe.rs` for CCG's one combined temporary target.
-It compares caller formals and declared world effects, prints SCCP routes/host
-errors, and tests direct Evaluate transport on a separate fresh host. Derived
-capabilities contain no Binding dependencies, while release-pinned host setup
-is lazy; installation success alone cannot locate the abstention. Actual refusal
-and any SSA-version shift remain unproved pending that diagnostic. No VM Cargo
-process or canonical Rust/test edits were used for this triage.
+Required `pack_source_e2e` blocker triage remains read-only. CCG's full-target
+receipt reports 3/6; the three expected constants remain absent. The public
+helper `/tmp/vm-runtime-derived-probe.rs` was incorporated in CCG's single
+combined diagnostic, whose completed output is `/tmp/ccg-n17_public_axes.log`.
+No VM Cargo process or canonical Rust/test edits were used for this triage.
+
+CCG's combined public diagnostic now reports both derived Evaluate transports
+succeed (42/xy), while their eight compiler rows retain `::p` and known version1
+is Overdefined with no alternate version or route entry. Missing publication,
+SSA-version mismatch and derived host transport are ruled out by that diagnostic;
+compiler owns the remaining pre-route issue. The explicit ASCII-guarded strlen
+hook instead reports `native compiler preflight provider required`. Static trace
+at `/tmp/vm-runtime-native-hook-provider-triage.json` finds an already installed
+compiler and authentic VM entry capture, with private `::tcl::string::is` hook
+knowledge blocked by its absent native compilation descriptor. CCG owns the
+narrow typed descriptor draft off-tree; no VM installation fix is indicated.
+Pinned C8.6.18/9.0.4/9.1.0 source review confirms the exact non-strict ASCII path
+compiles one value word then STR_CLASS with no local allocation. Review and
+unexecuted oracle draft: `/tmp/vm-runtime-string-is-ascii-c-review.json` and
+`/tmp/vm-runtime-string-is-ascii-oracle.tcl`. R1/C6 source/test hold remains active.
+These are diagnostic/static findings, not section C/D/F acceptance or lint passes.
+
+Finite native C ASCII controls were executed under root's oracle-only
+concurrency authorization. Completed evidence is archived in
+`../handoff/reviews/merge-inventory-20261019/vm-runtime/runs/native-ascii-oracle-20261022T171543Z/`.
+Pinned C8.6.18/9.0.4/9.1.0 each pass 20 fixed semantic assertions; their
+non-strict/strict procedures each contain one `strclass ascii`, while dynamic
+class and failindex controls each contain one `invokeReplace` and no strclass.
+C8.5.19 semantic-only controls pass 20. C8.4.20 passes the first 16 controls,
+then the extra embedded-NUL plain assertion returns 0 versus expected1 (exit1);
+that expectation and failure are preserved, and the last three controls do not
+run. Receipts include exact argv, script/source/wrapper/executable/libtcl hashes,
+stdout/stderr/exit and stable executable/wrapper rechecks. Each log is under5KB.
+These are finite original-C observations, not a global recipe/VM proof.
+
+CCG-requested backend draft is prepared ONLY in `/tmp/vm-runtime-string-is-ascii-shadow/`:
+`combined-runtime-vm-ascii.patch`, SHA-256
+`99c4090107130e629e490ecb76b91831f2393a7442b166f31cb533c57c05e3af`.
+It covers runtime scalar artifact execution, the VM's marked ASCII STR_CLASS
+worker and explicit enum rejection by the existing length helper. It uses the
+original checked Unicode getter and actual C Boolean execution constant;
+unmarked legacy operations stay as before and unmodeled marked classes refuse.
+All three canonical before hashes remain unchanged; rustfmt parses and application
+check passes, but no typecheck/build/runtime/Clippy acceptance was run. The draft
+depends on CCG's typed ASCII-only descriptor/enum and root's later explicit release.
+No VM Cargo process has started; after8b/Jim/TLS remains first execution priority.
 
 The scratch runner is `/tmp/vm-runtime-preflight/seq-safe.sh`: one `cargo test`
 build/run per target, draining filtered logs capped at 20 MB, recording exit and

@@ -1,0 +1,13 @@
+mismatch {plain embeddednul} actual 0 expected 1
+    while executing
+"error [list mismatch $label actual $actual expected $expected]"
+    (procedure "::expect" line 3)
+    invoked from within
+"::expect [list plain $label] [::ascii_plain $value] $plain"
+    ("foreach" body line 4)
+    invoked from within
+"foreach {label value plain strict failindex} [list \
+    empty {} 1 0 {1 untouched} \
+    ascii abcde 1 1 {1 untouched} \
+    nonascii \u00e9 0 0 {0 0..."
+    (file "/tmp/vm-runtime-ascii-native-oracle-20261022T171543Z/ascii-controls.tcl" line 19)
