@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T14:58Z
+Last updated: 2026-10-22T15:25Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -10,10 +10,12 @@ push at least every 30 minutes and after each finished item. Full unit table:
 
 ## In progress
 
-Building server e2e and current-diagnostics reruns after the XC fix; local
-log `/tmp/bigip-server-selected.log`. The full Clippy `-D warnings` run failed in Compiler/VM dependencies. A
-selected-package `--no-deps -D warnings` pass is starting in independent
-`/workspace/bigip-clippy-target`;
+Server build completed successfully (59m 43s); the 22 requested e2e tests are
+running, followed by the F5 and plain-Tcl diagnostic tests in separate
+processes. Local log `/tmp/bigip-server-selected.log`. The full Clippy `-D warnings` run failed in Compiler/VM dependencies. A selected-package `--no-deps -D warnings` pass found 60 core errors,
+including six in owned data-group/ILX code (fix next); the other generic
+core findings need their owner. Standalone WASM Clippy stopped before Rust
+checking because the image lacks clang. Independent target: `/workspace/bigip-clippy-target`;
 logs `/tmp/bigip-clippy.jsonl` and `/tmp/bigip-clippy-build.log`. The ILX
 baseline/current comparison is complete; its missing compiler contract is below.
 
@@ -47,8 +49,8 @@ baseline/current comparison is complete; its missing compiler contract is below.
   Compiler and VM owners must clear these causes; no new lint allowances.
   Exact command, environment, primary file/line/message inventory and raw-log
   hash: `../handoff/reviews/merge-inventory-20261019/bigip-lsp/clippy-dependency-blockers-20261022.json`.
-  A separate selected-package `--no-deps` pass is in progress to reach the
-  owned code; it cannot replace this failed full gate.
+  The selected-package `--no-deps` pass has reached core (60 errors);
+  six owned findings will be fixed, while generic core findings need their owner; it cannot replace this failed full gate.
 
 - ILX: the compiler owner must supply an authenticated original source
   constructor/setter/later-read relation for remote handles. The current
@@ -60,8 +62,9 @@ baseline/current comparison is complete; its missing compiler contract is below.
   Baseline `origin/rust` (`fcb7927f02`) literal-handle test: 1/1 PASS; current
   tests retaining the refusal: 2/2 PASS. No assertion was weakened. BIG-IP owns
   wiring the new source relation into navigation once available.
-- Previous e2e first `publishDiagnostics` exceeded 30 s on the shared tree.
-  Re-measure here; do not raise budgets. The perf batch has not been admitted
+- Current ILX e2e first `publishDiagnostics` exceeds 30 s on this isolated tree
+  too (first six tests so far), with healthy harness scheduling probes.
+  Generic server/compiler latency owner must investigate; do not raise budgets. The perf batch has not been admitted
   by this agent.
 
 ## Done since the last update
@@ -76,6 +79,8 @@ baseline/current comparison is complete; its missing compiler contract is below.
   to those assertions). Evidence in `bigip-lsp/`: `xc-condition-owner-probe-result-20261022.txt`,
   `xc-range-before-20261022.txt`, `xc-lib-after-20261022.txt`. Probe removed;
   every test executable was built, run and deleted in one command.
+- Server e2e so far: all five `commands::xc_translate_*` PASS and BIG-IP/APL
+  W109 pull diagnostics PASS. ILX batch still running; no aggregate claim.
 - ILX comparison: `ilx-baseline-20261022.txt` (baseline 1/1) and
   `ilx-current-20261022.txt` (current 2/2). This establishes the deliberate
   contract change, not restored navigation or a passing e2e run.
@@ -97,8 +102,8 @@ baseline/current comparison is complete; its missing compiler contract is below.
   with `/tmp/bigip-test.py --locked -p tcl-lsp-server --lib --test e2e`. It
   runs only the requested e2e selectors, then the F5 and plain-Tcl diagnostic
   tests in separate processes. Do not restart it as an unfiltered full suite.
-  Active tool sessions: server 68675; selected-package clippy 85905;
-  standalone WASM clippy 9878 (target wasm32-unknown-unknown, independent
+  Active tool session: server 68675. Selected-package clippy 85905 and
+  standalone WASM clippy 9878 finished (target wasm32-unknown-unknown, independent
   `/workspace/bigip-wasm-clippy-target`, logs `/tmp/bigip-wasm-clippy*`). Full clippy session 52506 has finished
   with the dependency errors above; the selected-package pass follows it. Both use the same
   unchanged product source. The original `/workspace/tcl-lsp` setup rebase was
@@ -112,8 +117,10 @@ baseline/current comparison is complete; its missing compiler contract is below.
 - The first server build needed 76 literal oracle snapshots excluded by the
   sparse checkout. They and 141 further literal fixture inputs are now
   materialised from HEAD; no code or assertion was changed. The restarted
-  server build has reached compiler/VM dependencies. No server result yet.
+  server build has completed and execution has started. No aggregate server
+  result yet.
 - Validation above used the initial `9cd5a75b` product source plus the XC fix.
-  Fetched updates through `5bd5a503` changed coordination/evidence only. Required
+  Remote includes newer compiler/core changes in `d1a5bf95`; running checks
+  remain pinned to `aeecf397`, so they do not validate those later changes. Required
   repository/host gates remain pending under the authorised development-push
   exception; these results do not grant release sign-off.
