@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "b978c7e6e0496322578b423e244146ff07bcc347",
-  "last_published_snapshot": "fd5c12bf5cb2ad835659156c3370ab5dbe20a2b9",
+  "last_source_snapshot": "3ecafa993d997c4f27382153ce3b8886148ee390",
+  "last_published_snapshot": "185b7cb76cab0ed03199a1ac63f9ba79f9a10415",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,7 +16,7 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-22T16:27:03.362621+00:00",
+  "last_published_utc": "2026-10-22T17:02:34.680805+00:00",
   "product_tree_diff": [
     "rust/bigip-report-gen/rust/src/apm.rs",
     "rust/bigip-report-gen/rust/tests/certs.rs",
