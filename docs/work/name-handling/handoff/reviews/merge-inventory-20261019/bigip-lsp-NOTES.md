@@ -8,8 +8,8 @@ WIP snapshots carry the changes (2f69e5d60e and later).
 
 Totals now (35): DONE 32, ALREADY 3, PARTIAL 0, REMAINING 0 — with the
 verification gaps listed under "Not executed", plus three coordinator-assigned
-follow-ups below (BIG-IP/APL pull diagnostics DONE; XC `if` source owner and
-ILX variable handle OPEN). Continuation: `docs/work/name-handling/outstanding/bigip-lsp.md` (## Resume).
+follow-ups below (BIG-IP/APL pull diagnostics DONE; XC `if` source owner fixed (31/31 lib; e2e pending) and
+ILX variable handle blocked on the compiler source-relation contract). Continuation: `docs/work/name-handling/outstanding/bigip-lsp.md` (## Resume).
 
 ## Units finished here
 
@@ -28,8 +28,8 @@ ILX variable handle OPEN). Continuation: `docs/work/name-handling/outstanding/bi
 | Item | Status | Change / evidence |
 |---|---|---|
 | BIG-IP/APL pull diagnostics | DONE | `textDocument/diagnostic` refused F5 model documents (`DiagnosticUnavailable::Unsupported`). Now one report code serves push and pull: `f5_model_document_report` (lib.rs) is called by the push publisher and by the direct pull (`produce_direct_diagnostic_report`); the push completes its pass with the delivered result id (`DeliveryCtx::complete_f5_model_pass`, only for an F5 pass over exactly that source); `DiagnosticPass.f5_model` exempts F5 reports from the Tcl analysis-input reborrow check and from the abstention→`Context` refusal, since the F5 report reads no analysis input and applies the W109 abstention itself (configuration, source, version, revision and admission checks unchanged). Proposal diagnostics for F5 documents stay `Unsupported` (separate feature). Test `current_diagnostics::tests::f5_model_documents_answer_pull_with_their_model_report` PASS (`.scf` and `.apl`: direct pull == push == reborrow; current-diagnostics command `complete`); results in `bigip-lsp/server-lib-current-diagnostics-bigip-20261022.txt`. e2e `w109_disabled_still_abstains_for_bigip_and_apl_documents` not yet re-run. |
-| XC `if` condition source owner | OPEN | Diagnosis only: probe saved as `bigip-lsp/xc-condition-owner-probe.rs.txt` (removed from the source). Next session. |
-| ILX variable handle (`ILX::call $handle`) | OPEN | Not started; see the outstanding file. |
+| XC `if` condition source owner | FIXED; e2e pending | Expression AST end offsets are inclusive. Use the shared `expression_span` conversion before selecting the complete original operand. New ASCII/Unicode/nested regression fails before the fix; all 31 f5-xc lib tests pass after, with existing refusal assertions unchanged. Probe and before/after receipts: `bigip-lsp/xc-*-20261022.txt`. |
+| ILX variable handle (`ILX::call $handle`) | BLOCKED | The current producer deliberately retains no target for a variable handle. Baseline literal-handle test 1/1 PASS; current refusal tests 2/2 PASS. Needs an authenticated compiler source constructor/setter/read relation, then BIG-IP integration. Repro and contract: `bigip-lsp/ilx-handle-owner-repro.md`; raw comparison receipts alongside it. No assertions weakened. |
 
 ## Verification of Luna-42's unverified items
 

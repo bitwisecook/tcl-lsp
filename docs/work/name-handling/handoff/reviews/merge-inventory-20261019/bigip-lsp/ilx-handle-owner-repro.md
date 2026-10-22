@@ -73,3 +73,18 @@ for `ILX::init`, `ILX::call`, `ILX::notify` and `ILXServer.addMethod`.
 `commands/irules/ilx__init.rs` supplies the two-label example and the registry
 descriptor. C Tcl can adjudicate variable assignment and frame semantics; it
 cannot establish ILX execution or a running BIG-IP extension.
+
+## Executed comparison (22 October 2026)
+
+Rust 1.99.1; CARGO_INCREMENTAL=0 and test/dev debug=0; required C Tcl
+9.0.4/8.6.18 and pinned Jim configured. Each test executable was built, run
+and deleted within one command, in independent target directories.
+
+- `origin/rust` `fcb7927f02`: `ilx::tests::a_literal_handle_and_method_resolve`
+  **1/1 PASS**. Raw receipt: `ilx-baseline-20261022.txt`.
+- Current initial `9cd5a75b` ILX source: the literal-handle refusal and original
+  source-card refusal tests **2/2 PASS**. Raw receipt: `ilx-current-20261022.txt`.
+  The f5-xc package was selected to preserve dependency feature unification;
+  its zero matching tests in this invocation are not additional validation.
+
+The server e2e expectations remain unchanged and still need their rerun.

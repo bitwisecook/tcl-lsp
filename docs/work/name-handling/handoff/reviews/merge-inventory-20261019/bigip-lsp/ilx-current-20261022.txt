@@ -1,0 +1,19 @@
+   Compiling tcl-irules v0.1.0 (/workspace/bigip-lsp/rust/tcl-irules)
+   Compiling f5-xc v0.1.0 (/workspace/bigip-lsp/rust/f5-xc)
+    Finished `test` profile [unoptimized] target(s) in 1m 29s
+RUN /workspace/bigip-lsp/target/debug/deps/f5_xc-87c4aa4f17d8d7e0 ['ilx::tests::a_written_handle_does_not_issue_runtime_extension_identity', 'ilx::tests::original_ilx_source_cards_do_not_derive_handles_from_cell_or_label_guesses', '--test-threads=1', '--nocapture']
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 31 filtered out; finished in 0.00s
+
+RUN /workspace/bigip-lsp/target/debug/deps/tcl_irules-9b3403b06b732f32 ['ilx::tests::a_written_handle_does_not_issue_runtime_extension_identity', 'ilx::tests::original_ilx_source_cards_do_not_derive_handles_from_cell_or_label_guesses', '--test-threads=1', '--nocapture']
+
+running 2 tests
+test ilx::tests::a_written_handle_does_not_issue_runtime_extension_identity ... ok
+test ilx::tests::original_ilx_source_cards_do_not_derive_handles_from_cell_or_label_guesses ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 81 filtered out; finished in 56.12s
+
+DELETED /workspace/bigip-lsp/target/debug/deps/f5_xc-87c4aa4f17d8d7e0
+DELETED /workspace/bigip-lsp/target/debug/deps/tcl_irules-9b3403b06b732f32
