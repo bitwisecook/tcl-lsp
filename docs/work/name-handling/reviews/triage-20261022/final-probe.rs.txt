@@ -404,23 +404,46 @@ fn rename_with_registry() {
 
 #[test]
 fn n17_control_mylib() {
-    let src = "\nspeclib mylib 1 {\n    command mylib::strlen {\n        arity 1\n        arg 0 -role Value\n        const_fold -inputs {words} {words ctx} {\n            set subject [lindex $words 0]\n            if {![string is ascii $subject]} { return }\n            fold [string length $subject]\n        }\n    }\n}\n";
-    let dir = scratch().join("n17ctl");
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("mylib.tclspec");
-    std::fs::write(&path, src).unwrap();
-    let packs = tcl_spectcl::pack::load(&[PackFile { tier: Tier::Workspace, path, origin: Origin::DotDir, dependency_tier: None }]);
-    let plan = hooks::plan_for(&packs);
-    let host = Rc::new(tclvm_host());
-    for programs in plan.packs() { let _ = host.install_pack_hooks(programs.clone()); }
-    pack_hooks::install_host(host);
-    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
-    let opts = tcl_compiler::optimiser::manager::optimise_raw("proc ::f {} {\n    set y [mylib::strlen abcde]\n}\n", &registry, None);
-    println!("N17CTL mylib::strlen O129={:?} all_codes={:?}", opts.iter().filter(|o| o.code.as_str()=="O129").map(|o| o.replacement.clone()).collect::<Vec<_>>(), opts.iter().map(|o| o.code.as_str().to_owned()).collect::<Vec<_>>());
-    let opts = tcl_compiler::optimiser::manager::optimise_raw("proc ::f {} {\n    set y [mylib::strlen abcde]\n    return $y\n}\n", &registry, None);
-    println!("N17CTL with-return all_codes={:?}", opts.iter().map(|o| format!("{}:{}", o.code.as_str(), o.replacement)).collect::<Vec<_>>());
-    pack_hooks::clear_host();
+    // Exact shared hook body from the current existing e2e control.
+    let body = r#"
+    command mylib::strlen {
+        arity 1
+        arg 0 -role Value
+        const_fold -inputs {words} {words ctx} {
+            set subject [lindex $words 0]
+            if {![string is ascii $subject]} { return }
+            fold [string length $subject]
+        }
+    }
+"#;
+    for dsl in ["1", "2.0"] {
+        let authored = ["\nspeclib mylib ", dsl, " {\n", body, "}\n"].concat();
+        let dir = scratch().join(format!("n17-profile-{dsl}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("mylib.tclspec");
+        std::fs::write(&path, &authored).unwrap();
+        let packs = tcl_spectcl::pack::load(&[PackFile { tier: Tier::Workspace, path, origin: Origin::DotDir, dependency_tier: None }]);
+        let plan = hooks::plan_for(&packs);
+        let host = Rc::new(tclvm_host());
+        for programs in plan.packs() { let _ = host.install_pack_hooks(programs.clone()); }
+        pack_hooks::install_host(host);
+        let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+        let direct = registry.get("mylib::strlen").and_then(|s| s.run_const_fold(&["abcde"], Some(tcl_dialect::TclVersion::V8_6)));
+        for dialect in [None, Some("tcl8.6")] {
+            for with_return in [false, true] {
+                let source = if with_return {
+                    "proc ::f {} {\n    set y [mylib::strlen abcde]\n    return $y\n}\n"
+                } else { "proc ::f {} {\n    set y [mylib::strlen abcde]\n}\n" };
+                let opts = tcl_compiler::optimiser::optimise_raw(source, &registry, dialect);
+                let folds: Vec<_> = opts.iter().filter(|o| o.code.as_str()=="O129").map(|o| o.replacement.clone()).collect();
+                println!("N17_PROFILE dsl={dsl} dialect={dialect:?} return={with_return} direct={direct:?} O129={folds:?}");
+                let tag = if dialect.is_some() { "explicit" } else { "none" };
+                let edited = tcl_compiler::optimiser::apply_optimisations(source, &opts);
+                save(&format!("n17_profile_{dsl}_{tag}_{with_return}.tcl"), &format!("namespace eval mylib {{}}\nproc mylib::strlen {{subject}} {{string length $subject}}\n{edited}puts [f]\n"));
+            }
+        }
+        pack_hooks::clear_host();
+    }
 }
 
 // ---------------------------------------------------------------- N01

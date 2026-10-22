@@ -4,6 +4,8 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 
 | Item | What it is |
 | --- | --- |
+| `run11-n17*`, `run11-variable-boundaries.log`, `run11-source.rs.txt` | Post-fix explicit-context matrix passes; 4/4 existing variable-boundary regressions pass; 168 engine executions / 48 matched generated checks, no unexpected result. |
+| `run11-n17.sh` | Builds/runs/deletes fresh custom matrix and existing declared-callback regression target in one command. |
 | `run10-current.log`, `run10-current-oracles.log`, `run10-current-oracle-summary.json` | Complete interim 27-probe replay at `60ce7009`; 588 engine executions / 138 matched checks, no unexpected output. Later rebuilt existing fold control STILL FAILS on `13050f6a` with the N17 correction. |
 | `run10-progress.log`, `run10-source-audit.log`, `run10-after-fix-source-audit.log`, `run10-startup.log`, `run10-source.rs.txt` | Interim all-finding replay on `60ce7009`: closed prefix through server-shaped rename matrix and static audit; active main log/output replay not yet complete. Startup wrapper correction is separately recorded. |
 | `summarize-oracles.py` | Checks known generated outputs on matching engines and requires manual review for new fixture names; reproduces earlier 126/60 check counts. |

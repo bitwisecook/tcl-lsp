@@ -1,0 +1,27 @@
+Thu Oct 22 16:59:12 UTC 2026
+0e21cadacdcc666aee9d868d79cab13ed57ca046
+c94ea9b014a19922c787d0f8b2ab0966f39b05a1681eb38ff07378cf04eae79b  rust/tcl-spectcl/tests/zz_review_probe.rs
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          32G  3.7G   27G  13% /
+CASE n17_live_hook Thu Oct 22 16:59:29 UTC 2026
+
+running 2 tests
+test n17_live_hook ... N17H dsl=1 fold=$arr($a:b) notices=0 plan_empty=false declined=["None"] O129=["good"]
+N17H dsl=2.0 fold=$arr($a:b) notices=0 plan_empty=false declined=["None"] O129=["good"]
+N17H dsl=2.0 fold=$arr(${a}:b) notices=0 plan_empty=false declined=["None"] O129=["good"]
+N17H dsl=2.0 fold=good notices=0 plan_empty=false declined=["None"] O129=["good"]
+N17H dsl=2.0 fold=[string length [lindex $words 0]] notices=0 plan_empty=false declined=["None"] O129=["5"]
+ok
+test n17_live_hook_effect_control ... N17_EFFECT dsl=1 pure=false braced=false notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=1 pure=false braced=true notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=1 pure=true braced=false notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=1 pure=true braced=true notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=2.0 pure=false braced=false notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=2.0 pure=false braced=true notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=2.0 pure=true braced=false notices=[] declined=["None"] direct=Some("good") O129=["good"]
+N17_EFFECT dsl=2.0 pure=true braced=true notices=[] declined=["None"] direct=Some("good") O129=["good"]
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 75.36s
+
+CASE_EXIT n17_live_hook exit=0 Thu Oct 22 17:00:44 UTC 2026

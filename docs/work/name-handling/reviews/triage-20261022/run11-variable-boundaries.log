@@ -1,0 +1,18 @@
+Thu Oct 22 17:00:44 UTC 2026
+0e21cadacdcc666aee9d868d79cab13ed57ca046
+d67c8bade1adda96c788a16d303033b38920ed5f4767a575f6c2d8c72d5384ad  rust/tcl-spectcl/tests/variable_reference_boundaries.rs
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          32G  3.7G   27G  13% /
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 6.93s
+     Running tests/variable_reference_boundaries.rs (target/debug/deps/variable_reference_boundaries-3e46c097dcdbab21)
+
+running 4 tests
+test a_colon_run_in_a_template_is_a_namespace_separator ... ok
+test a_live_fold_keeps_declared_effects_and_unclosed_arguments ... ok
+test a_live_hook_folds_the_value_its_substitution_computes ... ok
+test a_template_names_its_command_where_the_reference_ends ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 251.08s
+
+exit-boundaries=0 cleaned=Thu Oct 22 17:05:03 UTC 2026

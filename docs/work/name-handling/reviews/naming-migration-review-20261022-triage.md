@@ -68,7 +68,7 @@ Cloud setup and earlier failures are preserved in `cloud-setup.log`, `run5.log` 
 | N15 minifier compaction | CHANGED (refuses `MissingAlphaRenameContract`); output behaviour-preserving | lsp | `tcl-lsp-core/src/minify.rs`, `minify/original.rs` |
 | N16 provider fallbacks | FIXED (4/4 rows) | — | — |
 | N17 SpecTcl template | FIXED | — | — |
-| N17 live hook | Correction landed in `fd5c12bf`, but rebuilt existing e2e STILL FAILS on `13050f6a`; fresh custom effect matrix pending | compiler-codegen (`const_subst.rs`, per user decision 13:17Z); vm-runtime (host) | see detail |
+| N17 live hook | Explicit-dialect hooks FIXED after `fd5c12bf`; declared barriers preserved (4/4 regressions). Existing default-context e2e still fails; exact context comparison next | compiler-codegen (`const_subst.rs`, per user decision 13:17Z); vm-runtime (host) | see detail |
 | Seam `ns_var_global_fallback` | FIXED (static) | — | — |
 | Seam `WorkspaceIndex::registry_for` | FIXED (static) | — | — |
 | Seam `analyse_with_workspace_classes` | CHANGED (static): resolved input, resource inputs and base-analysis identity retained; source-entry parity not shown | lsp | `tcl-lsp-server/src/lib.rs:20036–20120` |
@@ -240,20 +240,13 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 ### N17: SpecTcl template and live hook
 
-The declared-footprint-only barrier correction landed in `fd5c12bf`. **Rebuilt existing control on `13050f6a` STILL FAILS:** 0 passed / 1 failed, DSL 1 expected `["5"]`, actual `[]` (11.70 s), after a 13m37s fresh compiler/dependant rebuild. Log: `run10-current.log`. Thus the narrow correction is not sufficient for this supported control. The following direct/effects contrast is pre-fix; a newly built focused matrix is next to locate the remaining gap.
-
-- **Template: FIXED.** Fresh run6 again registers only `good`, with no notices/load errors, in all 16 combinations of DSL 1/2.0, direct/helper, unbraced/braced and fast-path on/off. The capture driver independently registers `good` on all six pinned engines.
-- **Live-hook substitution: FIXED in direct execution.** All eight run6 controls (two DSLs × braced/unbraced reference × declared/undeclared pure effects) install with no decline or notice and directly return `Some("good")`. The earlier wrong `bad` result is gone in these cases.
-- **Pre-fix optimiser behavior (`5bd5a503` / `60ce7009`): REGRESSED for undeclared effects.** Some live hooks do fold; the effect declaration is the distinguishing condition:
-
-| DSL / array reference forms | Effects declaration | Direct callback | `optimise_raw` O129 |
-|---|---|---|---|
-| 1 and 2.0; `$arr($a:b)` and `$arr(${a}:b)` | absent | `good` in all four cases | `[]` in all four cases |
-| 1 and 2.0; both forms | `world_effects none` | `good` in all four cases | `["good"]` in all four cases |
-
-- The ordinary `mylib::strlen` control emits no optimisation even with a returned value. The existing `a_pack_file_folds_a_call_site_in_the_optimiser` independently fails for DSL 1: expected `["5"]`, got `[]` (0 passed / 1 failed; `run5-e2e-repeat.log`). This is not a claim that the hook engine or every possible live hook is dead.
-- **Static cause supported by the controlled contrast:** `const_subst.rs::fold_retained_at_depth` rejects `requires_world_barrier()`, while undeclared world effects receive a conservative unknown/re-entrant footprint. Requiring old packs to add a pure declaration is not the selected compatibility fix; the user assigned compiler-codegen the scoped gate correction.
-- **Owner:** compiler-codegen (`const_subst.rs`), per the recorded 13:17Z user decision. No product change was made by triage. All eight run6 execution drivers printed `good` on all six engines. Run7 repeats the same effect contrast; all eight fresh drivers also print `good` on all six engines.
+- **Template and substituted value: FIXED.** Direct callbacks return `good`, and the template cases register `good` under both DSL releases, helper/direct forms and fast-path settings. Fresh product `variable_reference_boundaries` on `0e21cada` passes **4/4 tests** in 251.08s, including template parsing, live array-value folding and declared-effect/unclosed-argument barriers.
+- **Explicit-dialect optimisation: FIXED after `fd5c12bf`.** Fresh `run11-n17.log` on `0e21cada` completes two observational tests in 75.36s. All five original hook controls fold to the correct `good` or `5`. All eight DSL/reference/effects combinations directly return `good` and emit O129 `good`, including the four with no declared effects. Explicit pure effects are no longer required on this path.
+- **Declared barriers remain enforced.** The existing regression `a_live_fold_keeps_declared_effects_and_unclosed_arguments` passes; the correction does not allow a declared callback footprint to be erased.
+- **Execution oracles:** `run11-n17-oracles.log` / summary: 28 files / 168 executions, including eight fresh folded drivers / 48 matched checks, zero unexpected result. All fresh generated drivers print `good` on every engine.
+- **Residual existing control: FAILS with default optimiser context.** `pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser` rebuilt on `13050f6a` after the correction still fails: 0 passed / 1 failed, DSL 1 expected `["5"]`, actual `[]` (11.70s after 13m37s build). This control passes `None` to `optimise_raw`; the successful custom controls pass `Some("tcl8.6")`. That difference is being isolated with the exact existing control body, both DSLs, and with/without a return statement. No cause is inferred from the difference alone.
+- **Pre-fix contrast:** run6/run7/run10 main on `5bd5a503` / `0434e7e7` / `60ce7009` returned correct direct values, but only the explicit `world_effects none` controls emitted O129. `const_subst.rs` then rejected every conservative unknown footprint. The new selected-declared-footprint guard is present in `fd5c12bf` and audited in `run10-after-fix-source-audit.log`.
+- **Owner:** compiler-codegen (`const_subst.rs` and optimiser-context compatibility), per the recorded user decision. Triage made no product/test changes. Fresh default/explicit context comparison is the remaining independent N17 check before the final latest-work replay.
 
 ### Section 3.2 / 3.3 seams
 

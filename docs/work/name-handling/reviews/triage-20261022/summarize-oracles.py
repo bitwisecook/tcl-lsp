@@ -36,6 +36,8 @@ def expected_output(name):
         return "NEW|"
     if name.startswith("n17_effect_"):
         return "good|"
+    if name.startswith("n17_profile_"):
+        return "5|"
     if name.startswith(("r_noputs_", "r_setonly_", "r_n07_")):
         return ""
     if name.startswith(("n05_", "r_n05_", "r_plain_", "r_classfree_")):

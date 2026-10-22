@@ -2,7 +2,7 @@
 
 Area: Replay of the external review's findings on the current tree.
 
-Last updated: 2026-10-22T16:57:13Z
+Last updated: 2026-10-22T17:07:01Z
 
 Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. This agent commits and pushes it after each run and at least every 30 minutes.
 
@@ -14,7 +14,11 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 
 **Critical N17 after-fix result:** the later Cargo e2e rebuilt compiler/dependants on `13050f6a` (includes `fd5c12bf` narrow effect-gate fix), took 13m37s to build, then **0 passed / 1 failed** in 11.70s: DSL 1 expected `["5"]`, got `[]`. All executables/temporary source deleted. This is a fresh post-fix failure, not the old immutable main. No Git HEAD/Rust source mutation during that build. Static after-fix audit is on `6ebc499c`, same const-subst product bytes.
 
-**Next:** commit/push this completed run, then `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-focused.sh run11-n17 n17_live_hook`. It uses the prepared final-probe source (whole-module Debug count removed) and freshly links the correction, checking direct callbacks and declared/undeclared effects. Then run existing `variable_reference_boundaries` (includes declared-callback negative footprint), with df check and build/run/delete in one command. Replay fresh generated drivers on all six engines, update report and push. R1 is still blocked; after it lands run the full latest-work semantic/rename replay, source audit and oracle replay before final summary. Do not rebase during Cargo builds; keep any live log untracked.
+**Run11 finished:** fresh live-hook matrix on `0e21cada` passed 2 observational tests (75.36s): all five original controls fold good/5; all eight DSL/reference/effects combinations fold good, including undeclared effects. Existing `variable_reference_boundaries` passed 4/4 tests in 251.08s, including declared-callback/unclosed-argument negative barriers and templates. All executables/temporary source deleted. The lost tool session handle did not stop the command; process/log monitoring verified completion and the durable `exit-boundaries=0` cleanup footer.
+
+**Run11 replay:** 28 files / 168 engine executions; eight generated folded drivers / 48 matching checks; zero unexpected result. Logs/source are `run11-n17*`, `run11-variable-boundaries.log`, and exact compiled `run11-source.rs.txt` (SHA c94ea9b0…). Evidence disk use is 3.5 MB (keep below 5 MB).
+
+**Next:** commit/push run11, then run `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-focused.sh run12-n17-profile n17_control_mylib`. The prepared final-probe source now copies the exact existing e2e control hook body and varies DSL1/2, optimiser dialect None/Some(tcl8.6), return/no-return. This is motivated by the existing None-context test failure versus successful explicit-context hooks; it has not yet executed. Replay its eight generated drivers, update report and push. R1 remains blocked; after it lands run the complete latest-work semantic/rename replay, static audit and output replay before the final summary. No Cargo command is currently active.
 
 **N09 retry:** `run9-n09` on `128e1bb4` passed its one observational test (64.04s). Type/call graph correct; taint dependencies retain all three source ProcedureIds conservatively, rather than a wrong singleton. Taint lattices/warnings are unverified. Initial failed run8 used a private helper and executed zero tests; exact source/logs preserved. Run10 repeats the corrected result.
 
@@ -30,7 +34,7 @@ Before every push fetch/rebase `origin/work`, retry rejection, never force or op
 
 ## In progress
 
-- Run10 is complete; current N17 correction still fails the named existing e2e. Fresh custom post-fix matrix is next. R1 remains blocked (g4 aggregate ten positive subcase mismatches); final post-R1 replay remains outstanding.
+- Run11 verifies corrected explicit-dialect hooks and all 4 existing variable-boundary regressions. Default-context existing fold control still fails; exact context comparison is next. R1 remains blocked; final post-R1 replay remains outstanding.
 - Required release gates `make rust-check` and `make prep-pr` are not run; this is evidence-only work under the active `work` development-push exception.
 
 ## Outstanding (in priority order)
@@ -83,3 +87,7 @@ Before every push fetch/rebase `origin/work`, retry rejection, never force or op
 - 2026-10-22T16:46:28Z: all run10 main probes completed: 24 filter groups / 27 observational tests, all exit 0, compiled on `60ce7009`. Oracle replay completed: 98 files / 588 engine executions, 78 generated files / 138 matching checks, zero unexpected result. Existing-fold e2e Cargo rebuild is ACTIVE on `13050f6a` (N17 fix included); do not rebase or start another Cargo command until it finishes. Local commit `13050f6a` has not pushed yet because the build phase started; latest pushed is `13a37436`. After completion update/push full log and all replayed outputs, then run focused new N17 controls and existing variable_reference_boundaries.
 
 - 2026-10-22T16:57:13Z: completed run10 after-fix e2e still fails, 0/1 (DSL 1 [] vs ["5"]). Fresh compile source 13050f6a includes fd5c12bf. Full main + 588-engine replay preserved; all targets deleted.
+
+- 2026-10-22T17:04:56Z: run11 is active on `0e21cada`. Fresh custom live-hook filter completed 2 observational tests (75.36s): all five original controls fold (good/5), and all eight effects/reference combinations now fold good, including undeclared effects. Existing variable_reference_boundaries has three of four tests passed so far, including declared-effect negative control; last template test running. Raw logs durable; tool session handle was unavailable but verified script/test PIDs remain active. Fresh driver oracle replay is active. Prepared future control in final-probe.rs.txt compares the exact existing strlen body with None/Some(tcl8.6), both DSLs and with/without return; tested run11 source is saved separately in run11-source.rs.txt.
+
+- 2026-10-22T17:07:01Z: run11 complete: 2 observational probes, 4/4 existing regressions, 168 oracle executions / 48 matched generated checks, all correct. Explicit dialect now folds undeclared-effect hooks; default None control still needs context comparison. Targets deleted.
