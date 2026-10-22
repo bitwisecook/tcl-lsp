@@ -2,7 +2,7 @@
 
 Area: Replay of the external review's findings on the current tree.
 
-Last updated: 2026-10-22T18:02:09Z
+Last updated: 2026-10-22T18:18:26Z
 
 Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. This agent commits and pushes it after each run and at least every 30 minutes.
 
@@ -12,9 +12,13 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 
 **Run13 complete on fc5aeac1:** both DSL plans nonempty, notices empty, declined None, registry_profile tcl8.6; all eight direct answers None / O129 empty. One observational test in 29.32s after 11m21s rebuild (temporary switches removed in d33ee64c). Eight generated scripts / 48 matched checks pass; 29 files / 174 engine executions. Both targets/temporary source deleted. `owner-n17-public-axes-excerpt.log` is read-only quoted owner evidence with exact commit/blob, not another triage run. Positive same-body provider-installed behavior is unmeasured; no further independent N17 probe is required for the requested triage.
 
-**R1 landed:** fetched/rebased 79d4e834/ec80a189 includes callback-fact retention and world-completion consumer; published public diagnosis passes 54 subcases (14 positive/40 negative) with nonempty body inventory. Run13 is pushed as 49b067ce. **Run14 final replay is ACTIVE** from compiled source checkout 49b067ce: `run-final.sh run14-final`, with the all-six-profile server-shaped rename matrix FIRST, then every finding/seam and existing N17 e2e. Rename/minifier groups have 1200s caps, others 600s. Logs `run14-final-build.{json,log}` / `run14-final.log` stay untracked while active. Do not rebase during Cargo build. After build deletes temporary .rs, commit only a CLOSED progress snapshot if needed before 30min; never stage live log. After finish execute all returned edits on six engines, run source audit and final fetch/affected-case review. No final summary before that. The optional monitor is retained for any renewed blocker: `watch-r1.sh /tmp/review-triage-watch.log 4` is a prepared bounded read-only fetch monitor (about nine minutes); it never changes the checkout and stops on compiler/registry/LSP/planned-spec source changes. Use network-enabled execution. Inspect changes and compiler-names tracking before assuming R1 is complete. Copy only a CLOSED watch log into evidence; update this file and push at least every 30 minutes. Keep active logs untracked.
+**R1 landed and post-fix matrix is complete:** on 49b067ce all five C ordinary puts-call controls have completed worlds; import cases still refuse UnknownWorld, N06 same-document guards now give specific command/member collisions, all-six sibling cases refuse coverage at both origins, N07 safely refuses. No N04–N07 edit was returned. Early edit replay: 198 engine executions / 12 matching generated checks, zero unexpected result; published checkpoint b7a43ade.
 
-**After R1 lands:** first confirm ordinary `puts [foo]` has a completed world, then run `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-final.sh <fresh-tag>`. It freshly replays all findings, all-six-profile server rename matrix (N04/N05/N06/N07), refactor/lowering seams and the existing N17 e2e. Apply/execute all returned scratch edits using `replay-oracles.sh <tag>` and `summarize-oracles.py <tag>`. Run a fresh static source audit. Fetch again and recheck any relevant later product changes before final summary. Do not write the final summary while these obligations remain.
+**Run14 intentionally interrupted:** a187c859 integrated a broad metadata batch touching reviewed compiler/registry/LSP consumers while the immutable 49b067ce executable ran. It completed 19 groups through N15, every exit 0, then own runner/test tree was terminated at N16 (tool exit 143). No semantic failure inferred. Partial N16 and later groups/e2e are not counted. All temporary sources/executables are deleted. Completed outputs replay: 89 files / 534 executions / 68 generated scripts / 78 matched checks, zero unexpected result (`run14-partial-*`). All 71 generated files are in byte-verified `out/run14-final.tar.gz` with manifest; raw output directory removed only after archive verification, to keep evidence below 5 MB.
+
+**NEXT after this checkpoint is pushed:** `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-latest.sh run15-latest`. The prepared grouped serial runner executes all 27 semantic probes on the new integrated tree: server-shaped matrix first, 19 core tests sharing registry startup, isolated 4 hook tests and isolated 3 seams. A separate fresh small scaling probe repeats P25 flat/index/query, source chains 250–2000 and P25 lenses; the full original scaling test stays excluded. Existing named fold e2e runs last. Build/run/delete in one command, df checks; keep active logs untracked. After it finishes, replay all fresh edits on six engines and run a fresh static audit/fetch/affected-case check. Only then write final summary. No Cargo process is currently active.
+
+**Final completion rule:** ordinary C puts-call worlds are confirmed after R1. The new grouped runner replaces the slower per-filter runner; after it finishes, `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-final.sh <fresh-tag>`. It freshly replays all findings, all-six-profile server rename matrix (N04/N05/N06/N07), refactor/lowering seams and the existing N17 e2e. Apply/execute all returned scratch edits using `replay-oracles.sh <tag>` and `summarize-oracles.py <tag>`. Run a fresh static source audit. Fetch again and recheck any relevant later product changes before final summary. Do not write the final summary while these obligations remain.
 
 **Last complete broad replay:** run10 main compiled at 60ce7009, exact `run10-source.rs.txt`, 24 filter groups / 27 observational probes, all group exits 0. 98 files / 588 engine executions / 78 generated files / 138 matched checks, zero unexpected result. Later e2e rebuilt on 13050f6a with N17 correction and failed [] vs ["5"]. New N17 explicit-hook/negative-barrier checks are run11 (0e21cada; 2 probes + 4/4 existing regressions, 168 oracle executions), exact context comparison run12 (b3c8ea5b), installation distinction run13 (fc5aeac1).
 
@@ -24,12 +28,12 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 
 ## In progress
 
-- R1 positive public diagnosis is published; run14 final all-finding/server-shaped rename replay is now building on 49b067ce. No run14 verdict yet.
+- R1 matrix checked; run14 interrupted after N15 for the broad a187c859 integration. Next is run15-latest complete grouped replay on new source.
 - Required release gates `make rust-check` and `make prep-pr` are not run; this is evidence-only work under the active `work` development-push exception.
 
 ## Outstanding (in priority order)
 
-1. Complete active run14 final replay, oracle execution and source audit; R1 has landed.
+1. Start/complete run15-latest on the integrated metadata batch; R1 matrix is already checked on prior source.
 2. After R1 lands, re-check N04, N05, N06 and N07 on all six profiles, apply returned edits and execute them on the matching engines.
 3. Fetch latest `work` and re-check every finding and static seam before the final summary.
 
@@ -91,3 +95,5 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 - 2026-10-22T17:38:52Z: R1 landed in ec80a189/79d4e834. Run14 final replay launched on 49b067ce, rename matrix first; Cargo build active. Published world diagnosis 54/54 subcases, local final behavior still to verify.
 
 - 2026-10-22T18:02:09Z: post-R1 matrix complete on 49b067ce: all C ordinary puts worlds true (coverage still refuses), imports still refuse UnknownWorld, N06 same-document guards now give specific command/member collision reasons on 8.6/9.0/9.1, all-six sibling cases refuse at both origins, N07 safely refuses. Early returned edits replayed: 33 files / 198 engine executions / 12 generated files / 12 matched checks, zero unexpected result. Closed run14-progress.log has 12 completed groups, all exit 0. Remaining final findings still running; live log not committed.
+
+- 2026-10-22T18:18:26Z: run14 completed 19 groups through N15, then deliberately interrupted for a187c859 metadata integration. All 68 generated Tcl scripts executed, 534 engine executions / 78 matched checks / zero unexpected result. Outputs byte-verified into archive to preserve evidence under 5 MB. Grouped latest-tree replay is prepared, not yet run.

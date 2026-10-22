@@ -931,3 +931,46 @@ fn n06_sibling_profile_matrix() {
         }
     }
 }
+
+#[test]
+fn scaling_latest_small_rows() {
+    for n in [25usize] {
+        let mut src = String::new();
+        for i in 0..n { let _ = writeln!(src, "proc p{i:08} {{}} {{}}"); }
+        let t = std::time::Instant::now();
+        let a = analyse(&src, "tcl8.6");
+        let analyse_ms = t.elapsed().as_secs_f64() * 1000.0;
+        let mut idx = None;
+        let mut best_idx = f64::MAX;
+        for _ in 0..3 { best_idx = best_idx.min(cpu_ms(|| { idx = Some(tcl_lsp_core::workspace_index::WorkspaceIndex::from_documents([("file:///flat.tcl", &a)])); })); }
+        let idx = idx.unwrap();
+        let mut best_q = f64::MAX;
+        for _ in 0..3 { best_q = best_q.min(cpu_ms(|| { for _ in 0..100 { std::hint::black_box(idx.workspace_command_exists_for_call("::missing", false)); } })); }
+        println!("SCALE flat P={n} analyse_ms={analyse_ms:.1} index_ms={best_idx:.3} 100_missing_exists_ms={best_q:.3}");
+    }
+    for f in [250usize, 500, 1000, 2000] {
+        let edges: Vec<tcl_lsp_core::source_graph::RunEdge> = (1..f).map(|i| tcl_lsp_core::source_graph::RunEdge {
+            parent: format!("file:///c{:05}.tcl", i - 1),
+            child: format!("file:///c{i:05}.tcl"),
+            at: 10,
+            enclosing_body: None,
+            kind: tcl_lsp_core::source_graph::RunEdgeKind::Source,
+        }).collect();
+        let mut best = f64::MAX;
+        for _ in 0..3 { best = best.min(cpu_ms(|| { std::hint::black_box(tcl_lsp_core::source_graph::RunOrder::build(&edges)); })); }
+        println!("SCALE source-chain F={f} build_ms={best:.3}");
+    }
+    for n in [25usize] {
+        let mut src = String::new();
+        for i in 0..n { let _ = write!(src, "proc p{i:08} {{}} {{}}\np{i:08}\n"); }
+        let t = std::time::Instant::now();
+        let a = analyse(&src, "tcl8.6");
+        let analyse_ms = t.elapsed().as_secs_f64() * 1000.0;
+        let runs = 1;
+        let mut best = f64::MAX;
+        let mut count = 0;
+        for _ in 0..runs { best = best.min(cpu_ms(|| { count = tcl_lsp_core::code_lens::code_lenses(&src, profile("tcl8.6"), Some(&a), None, "file:///lens.tcl").len(); })); }
+        println!("SCALE code-lens P={n} analyse_ms={analyse_ms:.1} ms={best:.3} lenses={count}");
+    }
+}
+

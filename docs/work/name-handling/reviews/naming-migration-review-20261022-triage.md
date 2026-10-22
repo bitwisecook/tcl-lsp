@@ -8,7 +8,7 @@ This report is updated after every probe run. Remaining post-R1 and latest-work 
 
 ## Validation snapshots
 
-This is an interim report. All independent requested seam/scaling/N17 triage is settled. The post-R1 rename matrix is complete; the final all-finding replay is active on 49b067ce. No product code or permanent tests were edited. Required release gates `make rust-check` and `make prep-pr` are unrun under the active `work` development-push exception.
+This is an interim report. All independent requested seam/scaling/N17 triage is settled. The post-R1 rename matrix is complete. Run14 completed through N15 on 49b067ce, then was intentionally interrupted at N16 because a187c859 integrated a broad compiler/registry/LSP metadata batch. A complete grouped serial replay on the new tree is next; no final sign-off is claimed. No product code or permanent tests were edited. Required release gates `make rust-check` and `make prep-pr` are unrun under the active `work` development-push exception.
 
 | Evidence | Snapshot | Result |
 |---|---|---|
@@ -26,7 +26,7 @@ Harness passes mean observational probes completed, not that every product answe
 
 Earlier setup, incomplete sparse-checkout attempts and stable e2e repeats remain in `cloud-setup.log`, `run5.log`, `run5-e2e-repeat.log` and run6 evidence. Three missing embedded fixture trees were restored; no product verdict is inferred from those checkout failures. Exact probe sources/hashes and per-run provenance distinguish old executable observations from subsequent builds.
 
-**Post-R1 rename replay complete:** run14 compiled on `49b067ce`; server-shaped matrix exited 0 in 284.24s. Closed progress is `run14-progress.log`. All returned edits available at that checkpoint ran on all six engines (`run14-rename-oracles.log` / summary): 33 files / 198 executions, 12 generated files / 12 matching-profile checks, zero unexpected result. Refused N04–N07 cases returned no edit to execute. The rest of the final all-finding replay remains active; its live log stays untracked.
+**Post-R1 rename replay complete:** run14 compiled on `49b067ce`; server-shaped matrix exited 0 in 284.24s. Closed progress is `run14-progress.log`. All returned edits available at that checkpoint ran on all six engines (`run14-rename-oracles.log` / summary): 33 files / 198 executions, 12 generated files / 12 matching-profile checks, zero unexpected result. Refused N04–N07 cases returned no edit to execute. Run14 later completed 19 groups through N15, all exit 0, then was interrupted at N16 when the reviewed source changed broadly. The remaining groups/e2e did not run and are not counted. Its completed 68 Tcl outputs all passed 78 matching checks (89 files / 534 executions; run14-partial oracle evidence).
 
 ## Method
 
@@ -282,3 +282,5 @@ Fresh run7 uses a separate process/budget per lens size on `0434e7e7`, with anal
 Fresh source-chain minima (F250/500/1000/2000) are 70.989 / 252.495 / 1,085.463 / 5,692.710 ms. Run6's older P25 lens query was 6,049.759 ms after 61,798.1 ms analysis; its combined one-hour cap yielded no larger lens result, so no time is inferred from that cap.
 
 Static inspection still finds the linear live-procedure/class/link scan in `workspace_command_exists_for_call` and the root-path vectors in `RunOrder`. Full server/release latency and RSS remain unmeasured. Logs and source hashes distinguish this snapshot from later implementation fixes.
+
+Run14 output storage: `triage-20261022/out/run14-final.tar.gz` retains all 71 generated files (68 root Tcl outputs plus package fixtures); `run14-final.manifest.json` verifies every byte. The interrupted output tree is archived to keep evidence below 5 MB; the current complete replay will retain its fresh outputs directly.
