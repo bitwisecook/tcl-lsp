@@ -1,0 +1,36 @@
+{
+  "title": "Mechanical assertion-style Clippy drafts",
+  "date_utc": "2026-10-22",
+  "scope": {
+    "xtask": 53,
+    "tcl-registry": 40,
+    "total": 93
+  },
+  "status": "Off-tree proposals archived for compiler integration review; not applied to canonical source. No build, lint, or formatting run.",
+  "files": {
+    "registry-40-mapping.json": {
+      "sha256": "606302312f26fe214adac4e12d473e7ae7bbdc375ee1671572596a31544e43cb",
+      "bytes": 23417
+    },
+    "registry-40-receipt.json": {
+      "sha256": "1592f382ab53c181c870525a032cde353015033c60278d2575f3a253854e18cb",
+      "bytes": 23977
+    },
+    "registry-40.patch": {
+      "sha256": "9a7c532c7195a05608d7987dd64b60fdf36857eeaff4cd535ff41b4a95d57b9c",
+      "bytes": 12860
+    },
+    "xtask-53-mapping.json": {
+      "sha256": "88d7731c2ef6bb03ff4d0999f334c08eea9721393c975967a1d223d421c6f4b4",
+      "bytes": 29822
+    },
+    "xtask-53-receipt.json": {
+      "sha256": "58becd63cdacea63324f280363455d40022675b09dc30a686aa33a967afac58a",
+      "bytes": 5052
+    },
+    "xtask-53.patch": {
+      "sha256": "f430a4dbd861372aa43a3fe69a748f5f4e14dd206c91708c1379e489d01a61b9",
+      "bytes": 19440
+    }
+  }
+}

@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "de4455665fedeae9eba3c011585871c0121498d7",
-  "last_published_snapshot": "41e25f0047d538fffccb5542750515eb805f21e5",
+  "last_source_snapshot": "a1ddcd570f1ff505ff69bc4d8eb4d97c3da1dbd4",
+  "last_published_snapshot": "ec80a189fa85b67725f7fbd55daae1fbe560b58f",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,8 +16,16 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-22T17:18:25.638956+00:00",
-  "product_tree_diff": [],
+  "last_published_utc": "2026-10-22T17:27:16.483149+00:00",
+  "product_tree_diff": [
+    "rust/f5-cli/tests/cli.rs",
+    "rust/f5-cli/tests/remote.rs",
+    "rust/f5-xc/src/translator.rs",
+    "rust/f5-xc/tests/model.rs",
+    "rust/xtask/src/editor_extensions.rs",
+    "rust/xtask/src/gen_jetbrains.rs",
+    "rust/xtask/src/gen_tmlanguage_keywords.rs"
+  ],
   "source_lineage_rebased_utc": "2026-10-22T17:06:20.233674+00:00",
-  "source_lineage_note": "Source de445 cleanup+mapping commits mapped onto fetched b3c8ea5b by ordinary publisher rebase; product trees are identical at committed snapshots. Live uncommitted R1 is excluded from this comparison."
+  "source_lineage_note": "Active a1dd mapped to ec80 by isolated publisher cherry-pick after depth1 fetch/FF, then fresh depth1 fetch/rebase and normal push. Latest7 external lint product/test files remain published but await active source integration between R1/C6 builds."
 }

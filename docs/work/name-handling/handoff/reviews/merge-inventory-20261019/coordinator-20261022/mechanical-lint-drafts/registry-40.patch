@@ -1,0 +1,301 @@
+--- a/rust/tcl-registry/tests/analyser_hooks.rs
++++ b/rust/tcl-registry/tests/analyser_hooks.rs
+@@ -328,8 +328,8 @@
+     // contract the retired matches had. `interp aliases` is its own
+     // subcommand and mutates nothing; a bare `interp` selects no
+     // subcommand at all.
+-    assert!(bindings(&reg, "interp", &["aliases"]).is_empty());
+-    assert!(bindings(&reg, "interp", &[]).is_empty());
++    assert_eq!(bindings(&reg, "interp", &["aliases"]).len(), 0);
++    assert_eq!(bindings(&reg, "interp", &[]).len(), 0);
+     // A `::`-qualified head states the same transitions as the bare one:
+     // C Tcl resolves the explicitly global spelling to the
+     // same command, so `::rename format ::origfmt` / `::interp alias {}
+@@ -349,12 +349,12 @@
+     ));
+     // Still nothing for an unrelated qualified name or a non-mutating
+     // subcommand word.
+-    assert!(bindings(&reg, "::interp", &["aliases"]).is_empty());
+-    assert!(bindings(&reg, "::puts", &["x"]).is_empty());
++    assert_eq!(bindings(&reg, "::interp", &["aliases"]).len(), 0);
++    assert_eq!(bindings(&reg, "::puts", &["x"]).len(), 0);
+ 
+     // A `rename` at any arity but two is `wrong # args`, which moves
+     // nothing (ledger C8: the arity rule lives with the resolver now,
+     // where every consumer sees it).
+-    assert!(bindings(&reg, "rename", &["old"]).is_empty());
+-    assert!(bindings(&reg, "rename", &["a", "b", "c"]).is_empty());
+-}
++    assert_eq!(bindings(&reg, "rename", &["old"]).len(), 0);
++    assert_eq!(bindings(&reg, "rename", &["a", "b", "c"]).len(), 0);
++}
+--- a/rust/tcl-registry/tests/name_lookup_issue_witnesses.rs
++++ b/rust/tcl-registry/tests/name_lookup_issue_witnesses.rs
+@@ -90,15 +90,13 @@
+         ),
+         [3, 4]
+     );
+-    assert!(
+-        registry
++    assert_eq!(registry
+             .arg_indices_for_role(
+                 "struct::list",
+                 &["split", "values", "predicate"],
+                 ArgRole::VarWrite
+             )
+-            .is_empty()
+-    );
++            .len(), 0);
+ }
+ 
+ #[test]
+--- a/rust/tcl-registry/tests/provider_relation.rs
++++ b/rust/tcl-registry/tests/provider_relation.rs
+@@ -80,5 +80,5 @@
+     use tcl_dialect::model::Family;
+     assert_eq!(package_hosting_families("expect"), [Family::Tcl]);
+     assert!(package_hosting_families("Tk").contains(&Family::Tcl));
+-    assert!(package_hosting_families("no-such-package").is_empty());
++    assert_eq!(package_hosting_families("no-such-package").len(), 0);
+ }
+--- a/rust/tcl-registry/tests/registry_commands.rs
++++ b/rust/tcl-registry/tests/registry_commands.rs
+@@ -566,10 +566,8 @@
+         &events,
+         &profiles
+     ));
+-    assert!(
+-        reg.valid_irules_commands_for_event("TOTALLY_FAKE_EVENT", &events, &profiles, None)
+-            .is_empty()
+-    );
++    assert_eq!(reg.valid_irules_commands_for_event("TOTALLY_FAKE_EVENT", &events, &profiles, None)
++            .len(), 0);
+ }
+ 
+ /// The HTTP2 family is legal in `HTTP_REQUEST` and in the message-routing
+@@ -692,7 +690,7 @@
+     let info = reg.event_info("totally_fake_event", &events, &profiles, None);
+     assert_eq!(info.event, "TOTALLY_FAKE_EVENT");
+     assert!(!info.known);
+-    assert!(info.valid_commands.is_empty());
++    assert_eq!(info.valid_commands.len(), 0);
+     assert_eq!(info.side, "unknown");
+     assert!(info.transport.is_none());
+ }
+@@ -789,7 +787,7 @@
+ fn set_has_no_closed_value_args() {
+     let (reg, ds) = reg_and_set("tcl8.6");
+     let spec = reg.get_for_surface("set", ds).expect("set registered");
+-    assert!(spec.closed_value_args.is_empty());
++    assert_eq!(spec.closed_value_args.len(), 0);
+ }
+ 
+ // `when` argument values cover the event corpus
+@@ -3282,7 +3280,7 @@
+     assert_eq!(collected.only_in, &["MQTT_CLIENT_DATA", "MQTT_SERVER_DATA"]);
+     let dynamic = mqtt.event_requirements_for_args(&["$form"]);
+     assert!(!dynamic.matched_form);
+-    assert!(dynamic.only_in.is_empty());
++    assert_eq!(dynamic.only_in.len(), 0);
+ 
+     let diameter = reg
+         .data_collection_operation("DIAMETER::payload")
+--- a/rust/tcl-registry/tests/registry_sweep.rs
++++ b/rust/tcl-registry/tests/registry_sweep.rs
+@@ -1885,15 +1885,11 @@
+     assert!(reg.get("__not_a_real_kind__").is_none());
+     assert!(reg.get_by_header("nope", "nope").is_none());
+     assert!(reg.kind_for_header("nope", "nope").is_none());
+-    assert!(reg.candidate_registry_kinds_for_display("").is_empty());
+-    assert!(
+-        reg.candidate_kinds_for_key("k", None, None, None)
+-            .is_empty()
+-    );
+-    assert!(
+-        reg.candidate_kinds_for_section_item("s", Some("nope"), Some("nope"))
+-            .is_empty()
+-    );
++    assert_eq!(reg.candidate_registry_kinds_for_display("").len(), 0);
++    assert_eq!(reg.candidate_kinds_for_key("k", None, None, None)
++            .len(), 0);
++    assert_eq!(reg.candidate_kinds_for_section_item("s", Some("nope"), Some("nope"))
++            .len(), 0);
+ }
+ 
+ // SWEEP 3 — iRules event ⇄ command cross-product accessors over the corpus.
+@@ -1983,10 +1979,8 @@
+     }
+ 
+     // An unknown event is illegal for everything and yields an empty listing.
+-    assert!(
+-        reg.valid_irules_commands_for_event("__FAKE__", &events, &profiles, None)
+-            .is_empty()
+-    );
++    assert_eq!(reg.valid_irules_commands_for_event("__FAKE__", &events, &profiles, None)
++            .len(), 0);
+     let unknown = reg.event_info("__fake__", &events, &profiles, None);
+     assert!(!unknown.known);
+     assert_eq!(unknown.side, "unknown");
+--- a/rust/tcl-registry/tests/spec_pack_provenance.rs
++++ b/rust/tcl-registry/tests/spec_pack_provenance.rs
+@@ -121,5 +121,5 @@
+ /// A name no shipped pack declares has no provenance to report.
+ #[test]
+ fn a_pack_loaded_name_has_no_authoring_pack() {
+-    assert!(spec_packs_of("definitely::not::a::command").is_empty());
++    assert_eq!(spec_packs_of("definitely::not::a::command").len(), 0);
+ }
+--- a/rust/tcl-registry/tests/spectcl_pack.rs
++++ b/rust/tcl-registry/tests/spectcl_pack.rs
+@@ -248,10 +248,8 @@
+         );
+     }
+     // A bare reference form (`object_class NAME`) claims no block at all.
+-    assert!(
+-        reg.arg_indices_for_role("object_class", &["Resistor"], ArgRole::Body)
+-            .is_empty()
+-    );
++    assert_eq!(reg.arg_indices_for_role("object_class", &["Resistor"], ArgRole::Body)
++            .len(), 0);
+     // …and it is deliberately not a *member row* of the command grammar: a
+     // member layout cannot express two optional flags of different widths, so
+     // it would have painted `-superclass`'s braced class list as a block. The
+@@ -274,11 +272,11 @@
+ fn the_spectcl_family_manufactures_nothing() {
+     for grammar in SPECTCL_GRAMMARS {
+         assert_eq!(grammar.family, DefinerFamily::SpecTcl);
+-        assert!(grammar.manufacturers.is_empty());
+-        assert!(grammar.builtin_object_methods.is_empty());
+-        assert!(grammar.builtin_type_methods.is_empty());
+-        assert!(grammar.member_body_commands.is_empty());
+-        assert!(grammar.implicit_vars.is_empty());
++        assert_eq!(grammar.manufacturers.len(), 0);
++        assert_eq!(grammar.builtin_object_methods.len(), 0);
++        assert_eq!(grammar.builtin_type_methods.len(), 0);
++        assert_eq!(grammar.member_body_commands.len(), 0);
++        assert_eq!(grammar.implicit_vars.len(), 0);
+         assert!(!grammar.bare_word_construction);
+         assert!(!grammar.dynamic_method_dispatch);
+         assert!(grammar.unknown_dispatch_method.is_none());
+--- a/rust/tcl-registry/tests/sslictcl_pack.rs
++++ b/rust/tcl-registry/tests/sslictcl_pack.rs
+@@ -531,12 +531,12 @@
+     );
+     for grammar in SSLICTCL_GRAMMARS {
+         assert_eq!(grammar.family, DefinerFamily::SslicTcl);
+-        assert!(grammar.manufacturers.is_empty());
+-        assert!(grammar.builtin_object_methods.is_empty());
+-        assert!(grammar.builtin_type_methods.is_empty());
+-        assert!(grammar.builtin_terminating_methods.is_empty());
+-        assert!(grammar.member_body_commands.is_empty());
+-        assert!(grammar.implicit_vars.is_empty());
++        assert_eq!(grammar.manufacturers.len(), 0);
++        assert_eq!(grammar.builtin_object_methods.len(), 0);
++        assert_eq!(grammar.builtin_type_methods.len(), 0);
++        assert_eq!(grammar.builtin_terminating_methods.len(), 0);
++        assert_eq!(grammar.member_body_commands.len(), 0);
++        assert_eq!(grammar.implicit_vars.len(), 0);
+         assert!(!grammar.bare_word_construction);
+         assert!(!grammar.dynamic_method_dispatch);
+         assert!(grammar.unknown_dispatch_method.is_none());
+--- a/rust/tcl-registry/tests/value_transfers.rs
++++ b/rust/tcl-registry/tests/value_transfers.rs
+@@ -275,7 +275,7 @@
+     assert_eq!(substituted.text(), Ok("1 + 1 * 2"));
+     assert!(matches!(substituted, ExpressionSource::Substituted(_)));
+     // The substituted text is what the engine reads: its reads are its own.
+-    assert!(EXPR.variable_reads(&quoted).is_empty());
++    assert_eq!(EXPR.variable_reads(&quoted).len(), 0);
+ 
+     let bare = TestInputs::new("expr", vec![literal("7", None)]);
+     assert_eq!(
+@@ -745,7 +745,7 @@
+             );
+             let (reported, writes, stores) = caught_summary(&answer);
+             assert_eq!(reported, *observed, "{dialect:?} {completion:?}");
+-            assert!(writes.is_empty());
++            assert_eq!(writes.len(), 0);
+             let dictionary = format!("unavailable 2 Some(Dict) {}", options.unwrap_or("-"));
+             assert_eq!(stores, [format!("write 1 {stored}"), dictionary]);
+         }
+@@ -1160,7 +1160,7 @@
+     assert_eq!(chain.first_taking(Code::Error), Some(0));
+     assert!(!chain.preempted(0) && chain.preempted(1));
+     assert_eq!(chain.live_group(0), [0]);
+-    assert!(chain.live_group(1).is_empty());
++    assert_eq!(chain.live_group(1).len(), 0);
+ 
+     // try {error boom} on error {} {A} on 1 {} {B}                      ;# A
+     let chain = handler_chain(&[on_error, ("on", "1", false)], "tcl8.6");
+@@ -1170,7 +1170,7 @@
+     let chain = handler_chain(&[dash("error"), on_ok], "tcl8.6");
+     assert_eq!(chain.first_taking(Code::Error), Some(0));
+     assert_eq!((chain.owner(0), chain.owner(1)), (1, 1));
+-    assert!(chain.live_group(0).is_empty());
++    assert_eq!(chain.live_group(0).len(), 0);
+     assert_eq!(chain.live_group(1), [0, 1]);
+ 
+     // try {error boom} on error {} - on error {} {B} on ok {} {C}       ;# B
+@@ -1200,7 +1200,7 @@
+     // try {error boom} on error {} {E} trap {} {} {T}                   ;# E
+     let chain = handler_chain(&[on_error, ("trap", "", false)], "tcl8.6");
+     assert!(chain.preempted(1));
+-    assert!(chain.live_group(1).is_empty());
++    assert_eq!(chain.live_group(1).len(), 0);
+ 
+     // The loop jumps a handler takes: a trap selects errors only, and a
+     // selector the registry cannot read might select anything.
+@@ -1623,7 +1623,7 @@
+             literal("1", None),
+         ],
+     );
+-    assert!(STRING_RANGE.incoming_targets(&inputs).is_empty());
++    assert_eq!(STRING_RANGE.incoming_targets(&inputs).len(), 0);
+ }
+ 
+ /// `set name value` writes the value byte for byte and returns it; `set
+@@ -1649,7 +1649,7 @@
+             value: ExactValue::from_literal(" a "),
+         }]
+     );
+-    assert!(CELL_WRITE.incoming_targets(&write).is_empty());
++    assert_eq!(CELL_WRITE.incoming_targets(&write).len(), 0);
+ 
+     let read_inputs = |prior: FactView| {
+         let mut inputs = TestInputs::new("set", vec![literal("v", Some(ArgRole::VarRead))]);
+@@ -1661,7 +1661,7 @@
+     let seven = ExactValue::from_literal("7");
+     let outcome = evaluated(read(FactView::Exact(seven.clone(), None))).expect("a read");
+     assert_eq!(outcome.result, ExactValueOrUnavailable::Exact(seven));
+-    assert!(outcome.ordered_stores.is_empty());
++    assert_eq!(outcome.ordered_stores.len(), 0);
+     assert_eq!(read(FactView::Pending), EvalAnswer::Pending);
+     assert_eq!(
+         read(FactView::Top(DeclineReason::UnboundPlace)),
+@@ -4619,7 +4619,7 @@
+         },
+         "`lappend` over `{{` raises `unmatched open brace in list`, after no store"
+     );
+-    assert!(raises.ordered_stores.is_empty());
++    assert_eq!(raises.ordered_stores.len(), 0);
+     assert!(matches!(
+         raises.result,
+         ExactValueOrUnavailable::Unavailable(_)
+@@ -7206,7 +7206,7 @@
+         },
+         source.to_owned(),
+     )]);
+-    assert!(wide.packs[0].commands[0].hooks.is_empty());
++    assert_eq!(wide.packs[0].commands[0].hooks.len(), 0);
+     assert!(
+         wide.notices
+             .iter()
+@@ -7765,7 +7765,7 @@
+     let EvalAnswer::Evaluated(outcome) = &answer else {
+         panic!("{answer:?}");
+     };
+-    assert!(outcome.ordered_stores.is_empty());
++    assert_eq!(outcome.ordered_stores.len(), 0);
+     assert!(matches!(
+         outcome.result,
+         ExactValueOrUnavailable::Unavailable(_)

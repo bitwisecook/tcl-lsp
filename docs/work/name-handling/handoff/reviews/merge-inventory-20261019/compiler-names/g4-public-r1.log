@@ -1,0 +1,67 @@
+   Compiling tcl-registry v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 13m 29s
+     Running tests/zz_compiler_names_r1_probe.rs (target/debug/deps/zz_compiler_names_r1_probe-947c60f2466cf643)
+test completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups ... ZZ_G4_PUBLIC dialect=tcl8.6 use_site="" expected=true actual=true invocations=2
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="greet\ngreet\n" expected=true actual=true invocations=4
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="puts hi\n" expected=true actual=true invocations=3
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="puts [greet]\nputs [greet]\n" expected=true actual=true invocations=6
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="set a [list [greet]]\n" expected=true actual=true invocations=5
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="set a [string length x]\n" expected=true actual=true invocations=4
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="missing_command\n" expected=false actual=false invocations=3
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="puts [missing_command]\n" expected=false actual=false invocations=4
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="exit 0\n" expected=false actual=false invocations=3
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="proc say {} { puts hi }\nsay\n" expected=true actual=true invocations=5
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="proc bad {} { missing_command }\nbad\n" expected=false actual=false invocations=5
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="lsort -command greet {b a}\n" expected=false actual=false invocations=4
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="string $op x\n" expected=false actual=false invocations=3
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="eval $script\n" expected=false actual=false invocations=3
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="proc xf args {}\nchan push stdout ::xf\nputs hi\n" expected=false actual=false invocations=6
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="proc rc args {}\nset c [chan create write ::rc]\nputs $c hi\n" expected=false actual=false invocations=7
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="proc cb args {}\ntrace add variable x write ::cb\nset x 1\n" expected=false actual=false invocations=6
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="proc cb args {}\ntrace add execution puts enter ::cb\nputs hi\n" expected=false actual=false invocations=7
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="proc cb args {}\nnamespace unknown ::cb\nputs hi\n" expected=false actual=false invocations=6
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="after 0 {greet}\nputs hi\n" expected=false actual=false invocations=5
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="after 0 {}\nputs hi\n" expected=false actual=false invocations=4
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="after 0 greet extra\nputs hi\n" expected=false actual=false invocations=4
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="after idle greet extra\nputs hi\n" expected=false actual=false invocations=4
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="fileevent stdin readable {greet}\nputs hi\n" expected=false actual=false invocations=5
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="chan event stdout writable {greet}\nputs hi\n" expected=false actual=false invocations=5
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="set callback greet\nafter 0 $callback\nputs hi\n" expected=false actual=false invocations=5
+ZZ_G4_PUBLIC dialect=tcl8.6 use_site="proc unknown args {}\nputs hi\n" expected=false actual=false invocations=4
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="" expected=true actual=true invocations=2
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="greet\ngreet\n" expected=true actual=true invocations=4
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="puts hi\n" expected=true actual=true invocations=3
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="puts [greet]\nputs [greet]\n" expected=true actual=true invocations=6
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="set a [list [greet]]\n" expected=true actual=true invocations=5
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="set a [string length x]\n" expected=true actual=true invocations=4
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="missing_command\n" expected=false actual=false invocations=3
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="puts [missing_command]\n" expected=false actual=false invocations=4
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="exit 0\n" expected=false actual=false invocations=3
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="proc say {} { puts hi }\nsay\n" expected=true actual=true invocations=5
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="proc bad {} { missing_command }\nbad\n" expected=false actual=false invocations=5
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="lsort -command greet {b a}\n" expected=false actual=false invocations=4
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="string $op x\n" expected=false actual=false invocations=3
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="eval $script\n" expected=false actual=false invocations=3
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="proc xf args {}\nchan push stdout ::xf\nputs hi\n" expected=false actual=false invocations=6
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="proc rc args {}\nset c [chan create write ::rc]\nputs $c hi\n" expected=false actual=false invocations=7
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="proc cb args {}\ntrace add variable x write ::cb\nset x 1\n" expected=false actual=false invocations=6
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="proc cb args {}\ntrace add execution puts enter ::cb\nputs hi\n" expected=false actual=false invocations=7
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="proc cb args {}\nnamespace unknown ::cb\nputs hi\n" expected=false actual=false invocations=6
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="after 0 {greet}\nputs hi\n" expected=false actual=false invocations=5
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="after 0 {}\nputs hi\n" expected=false actual=false invocations=4
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="after 0 greet extra\nputs hi\n" expected=false actual=false invocations=4
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="after idle greet extra\nputs hi\n" expected=false actual=false invocations=4
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="fileevent stdin readable {greet}\nputs hi\n" expected=false actual=false invocations=5
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="chan event stdout writable {greet}\nputs hi\n" expected=false actual=false invocations=5
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="set callback greet\nafter 0 $callback\nputs hi\n" expected=false actual=false invocations=5
+ZZ_G4_PUBLIC dialect=tcl9.0 use_site="proc unknown args {}\nputs hi\n" expected=false actual=false invocations=4
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 254.76s

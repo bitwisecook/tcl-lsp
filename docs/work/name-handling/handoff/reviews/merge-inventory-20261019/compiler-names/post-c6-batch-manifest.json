@@ -1,0 +1,283 @@
+{
+  "utc": "2026-10-22T17:28:50.487611+00:00",
+  "base_head": "a1ddcd570f1ff505ff69bc4d8eb4d97c3da1dbd4",
+  "status": "PROPOSED OFF-TREE ONLY; no integration before root GO after C6 measured close",
+  "patches": [
+    {
+      "order": 1,
+      "owner": "compiler",
+      "scope": "shared API",
+      "patch": "/tmp/compiler-invocation-metadata-selection.patch",
+      "sha256": "20c92791fa04ff250bed837829a5105a7409af6e9c52f609ed37e364c5c9edf2",
+      "bytes": 2901,
+      "paths": [
+        "rust/tcl-compiler/src/registry_invocation/metadata_context.rs",
+        "rust/tcl-compiler/src/registry_invocation.rs"
+      ],
+      "individual_apply_check": 0,
+      "diagnostics": []
+    },
+    {
+      "order": 2,
+      "owner": "compiler",
+      "scope": "shared API consumers",
+      "patch": "/tmp/compiler-metadata-selection-consumers/compatibility.patch",
+      "sha256": "bde39e475b4dfeb70f0fc74860c565436c5db250dc70cfa9dda74d81e9ed66a6",
+      "bytes": 15363,
+      "paths": [
+        "rust/tcl-compiler/src/existence_query.rs",
+        "rust/tcl-compiler/src/cell_state_ssa.rs",
+        "rust/tcl-compiler/src/place_bridge/original_read_source.rs",
+        "rust/tcl-compiler/src/variable_bindings.rs",
+        "rust/tcl-compiler/src/ssa.rs",
+        "rust/tcl-compiler/src/static_loops/original_simulation.rs",
+        "rust/tcl-compiler/src/connection_scope.rs",
+        "rust/tcl-compiler/src/uri_split.rs",
+        "rust/tcl-compiler/src/dynamic_names.rs",
+        "rust/tcl-compiler/src/value_transfer.rs",
+        "rust/tcl-compiler/src/increment_rewrite.rs",
+        "rust/tcl-compiler/src/place_bridge.rs",
+        "rust/tcl-compiler/src/value_provenance.rs",
+        "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
+        "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+        "rust/tcl-compiler/src/table_value_provenance.rs"
+      ],
+      "individual_apply_check": 0,
+      "diagnostics": []
+    },
+    {
+      "order": 3,
+      "owner": "compiler-names",
+      "scope": "shared API consumers",
+      "patch": "/tmp/compiler-names-metadata-selection.patch",
+      "sha256": "55991206318540dd41ab463483000c9e1322c24b08d6586c2a1ae54314a49f4b",
+      "bytes": 6552,
+      "paths": [
+        "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
+        "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+        "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+        "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+        "rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs",
+        "rust/tcl-compiler/src/command_binding.rs"
+      ],
+      "individual_apply_check": 0,
+      "diagnostics": []
+    },
+    {
+      "order": 4,
+      "owner": "compiler-names",
+      "scope": "mechanical lints",
+      "patch": "/tmp/compiler-names-mechanical-lints.patch",
+      "sha256": "569938aa34615e8676a198501083af31ea17396467f2b5bcca90ddc2472dab3b",
+      "bytes": 24343,
+      "paths": [
+        "rust/tcl-compiler/src/analyser/commands.rs",
+        "rust/tcl-compiler/src/analyser/handlers.rs",
+        "rust/tcl-compiler/src/analyser/scope.rs",
+        "rust/tcl-compiler/src/command_binding/original_compiler_effects.rs",
+        "rust/tcl-compiler/src/command_binding/deferred_namespace_index.rs",
+        "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+        "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+        "rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs",
+        "rust/tcl-compiler/src/command_binding/logical_variable_scope.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/source_namespace.rs",
+        "rust/tcl-compiler/src/command_binding/pre_handler_failure.rs",
+        "rust/tcl-compiler/src/command_binding/retained_source.rs",
+        "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+        "rust/tcl-compiler/src/command_binding/source_read_scope.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/c_namespace.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/source_configured_class.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+        "rust/tcl-compiler/src/command_binding/formal_value.rs",
+        "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs",
+        "rust/tcl-compiler/src/command_binding/package_target_survey.rs"
+      ],
+      "individual_apply_check": 0,
+      "diagnostics": []
+    },
+    {
+      "order": 5,
+      "owner": "compiler-names",
+      "scope": "query tri-state lint",
+      "patch": "/tmp/compiler-names-class-relation-tristate.patch",
+      "sha256": "46e9ec58b3400ab64203dcf2e1a3042ce244e4ae0c7ae2d9f5e2da78f5b938e3",
+      "bytes": 7875,
+      "paths": [
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs",
+        "rust/tcl-compiler/src/analyser/types/logical_members.rs"
+      ],
+      "individual_apply_check": 0,
+      "diagnostics": []
+    },
+    {
+      "order": 6,
+      "owner": "compiler-names",
+      "scope": "sealed visit buckets lint",
+      "patch": "/tmp/compiler-names-layout-visits.patch",
+      "sha256": "3871e6cc4f7ce60a986e7d42387d713704356ceb94aa9b01170ecc9a342a2ed1",
+      "bytes": 3707,
+      "paths": [
+        "rust/tcl-compiler/src/command_binding/declaration_preview.rs"
+      ],
+      "individual_apply_check": 0,
+      "diagnostics": []
+    },
+    {
+      "order": 7,
+      "owner": "compiler-names",
+      "scope": "independent scope axis lint",
+      "patch": "/tmp/compiler-names-scope-source-boundary.patch",
+      "sha256": "5e8fc5d669c6aacb9709ef555c1dbf7b768847daca19cbe4028afa74827162e5",
+      "bytes": 3608,
+      "paths": [
+        "rust/tcl-compiler/src/analyser/types.rs",
+        "rust/tcl-compiler/src/analyser/handlers.rs",
+        "rust/tcl-compiler/src/analyser/scope.rs"
+      ],
+      "individual_apply_check": 0,
+      "diagnostics": []
+    },
+    {
+      "order": 8,
+      "owner": "compiler-names",
+      "scope": "exhaustive report Eq extraction lint",
+      "patch": "/tmp/compiler-names-analysis-report-eq.patch",
+      "sha256": "027a9fa9b99e9c34e432ea7545016834fae6c075d425482bc698cd61f5e4bd00",
+      "bytes": 8067,
+      "paths": [
+        "rust/tcl-compiler/src/analyser/types.rs"
+      ],
+      "individual_apply_check": 0,
+      "diagnostics": []
+    },
+    {
+      "order": 9,
+      "owner": "compiler-names",
+      "scope": "small helper extraction lints",
+      "patch": "/tmp/compiler-names-small-extractions.patch",
+      "sha256": "a8b28d3d47769760d6b39bf377db124f9aab29186bc21dcba7b0b28b8b1af56e",
+      "bytes": 7933,
+      "paths": [
+        "rust/tcl-compiler/src/analyser/commands.rs",
+        "rust/tcl-compiler/src/command_binding/logical_operation.rs"
+      ],
+      "individual_apply_check": 0,
+      "diagnostics": []
+    },
+    {
+      "order": 10,
+      "owner": "compiler-names",
+      "scope": "additional mechanical lints",
+      "patch": "/tmp/compiler-names-extra-mechanical.patch",
+      "sha256": "f09c994670fe8cf42b4dc91560e109015c721ae0080bd2263410ae16bb4164c2",
+      "bytes": 2692,
+      "paths": [
+        "rust/tcl-compiler/src/command_binding/source_arguments.rs",
+        "rust/tcl-compiler/src/command_binding/try_bodies.rs",
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/native_declared_body.rs",
+        "rust/tcl-compiler/src/command_binding/generated_procedures.rs"
+      ],
+      "individual_apply_check": 0,
+      "diagnostics": []
+    },
+    {
+      "order": 11,
+      "owner": "compiler-names",
+      "scope": "functional OO publication candidate; distinct validation required",
+      "patch": "/tmp/compiler-names-object-publication.patch",
+      "sha256": "92bfb8b72a9aae39f7e3290badee059a74161b2ab780bd361fbf3a65403ed737",
+      "bytes": 3841,
+      "paths": [
+        "rust/tcl-compiler/src/command_binding/namespace_slots.rs",
+        "rust/tcl-compiler/src/command_binding/original_command_table.rs",
+        "rust/tcl-compiler/src/command_binding/named_manufacture.rs"
+      ],
+      "individual_apply_check": 0,
+      "diagnostics": []
+    },
+    {
+      "order": 12,
+      "owner": "compiler-names",
+      "scope": "typed N01 allocation regression only; provider replay still required",
+      "patch": "/tmp/compiler-names-n01-regression.patch",
+      "sha256": "8ff25605228105856ea145c214a2da1fc0733a4144f30e8b64716d1131d05500",
+      "bytes": 2517,
+      "paths": [
+        "rust/tcl-compiler/src/analyser/types.rs"
+      ],
+      "individual_apply_check": 0,
+      "diagnostics": []
+    }
+  ],
+  "unique_path_count": 56,
+  "unique_paths": [
+    "rust/tcl-compiler/src/analyser/commands.rs",
+    "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs",
+    "rust/tcl-compiler/src/analyser/diagnostics/var_command.rs",
+    "rust/tcl-compiler/src/analyser/handlers.rs",
+    "rust/tcl-compiler/src/analyser/scope.rs",
+    "rust/tcl-compiler/src/analyser/types.rs",
+    "rust/tcl-compiler/src/analyser/types/logical_members.rs",
+    "rust/tcl-compiler/src/cell_state_ssa.rs",
+    "rust/tcl-compiler/src/command_binding.rs",
+    "rust/tcl-compiler/src/command_binding/analysis_body_correspondence.rs",
+    "rust/tcl-compiler/src/command_binding/cfg_lookup_context.rs",
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+    "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+    "rust/tcl-compiler/src/command_binding/deferred_namespace_index.rs",
+    "rust/tcl-compiler/src/command_binding/formal_value.rs",
+    "rust/tcl-compiler/src/command_binding/generated_procedures.rs",
+    "rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs",
+    "rust/tcl-compiler/src/command_binding/logical_operation.rs",
+    "rust/tcl-compiler/src/command_binding/logical_variable_scope.rs",
+    "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
+    "rust/tcl-compiler/src/command_binding/named_manufacture.rs",
+    "rust/tcl-compiler/src/command_binding/namespace_slots.rs",
+    "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+    "rust/tcl-compiler/src/command_binding/original_command_table.rs",
+    "rust/tcl-compiler/src/command_binding/original_compiler_effects.rs",
+    "rust/tcl-compiler/src/command_binding/package_target_survey.rs",
+    "rust/tcl-compiler/src/command_binding/pre_handler_failure.rs",
+    "rust/tcl-compiler/src/command_binding/retained_source.rs",
+    "rust/tcl-compiler/src/command_binding/source_arguments.rs",
+    "rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs",
+    "rust/tcl-compiler/src/command_binding/source_read_scope.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/c_namespace.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/native_declared_body.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_class.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_configured_class.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_namespace.rs",
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/source_relation_provider.rs",
+    "rust/tcl-compiler/src/command_binding/try_bodies.rs",
+    "rust/tcl-compiler/src/connection_scope.rs",
+    "rust/tcl-compiler/src/dynamic_names.rs",
+    "rust/tcl-compiler/src/existence_query.rs",
+    "rust/tcl-compiler/src/increment_rewrite.rs",
+    "rust/tcl-compiler/src/place_bridge.rs",
+    "rust/tcl-compiler/src/place_bridge/original_read_source.rs",
+    "rust/tcl-compiler/src/registry_invocation.rs",
+    "rust/tcl-compiler/src/registry_invocation/metadata_context.rs",
+    "rust/tcl-compiler/src/ssa.rs",
+    "rust/tcl-compiler/src/static_loops/original_simulation.rs",
+    "rust/tcl-compiler/src/table_value_provenance.rs",
+    "rust/tcl-compiler/src/uri_split.rs",
+    "rust/tcl-compiler/src/value_provenance.rs",
+    "rust/tcl-compiler/src/value_transfer.rs",
+    "rust/tcl-compiler/src/variable_bindings.rs"
+  ],
+  "omitted_already_applied": [
+    "/tmp/compiler-r1-retention-facts.patch",
+    "/tmp/compiler-names-r1-callback-registration.patch"
+  ],
+  "omitted_diagnostic_only": [
+    "/tmp/compiler-names-perf-field-diagnostic.patch"
+  ],
+  "omitted_other_unapplied_roles": "Compiler additional C6/ILX/lint drafts, codegen/VM/LSP drafts require their own coordinated manifests; this lists only the existing shared owner+compatibility dependencies of names candidates.",
+  "validation": "Individual apply checks only; coordinated assembly/typecheck/Clippy/functional acceptance remain unexecuted on current snapshot."
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/libtcl_compiler-e1d5cac931c54ee4.rlib",
+    "sha256": "6a5f092b8692b269f8216abd241aaccbcd370e74d35c948980d9cf27e4b76180",
+    "bytes": 359970092,
+    "mtime_ns": 1792689770021808867
+  },
+  {
+    "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/zz_compiler_names_r1_probe-947c60f2466cf643",
+    "sha256": "a3fbe9f853ec56873a8bcbf2eb78118318dfb7adbb602f737424ea952af94f76",
+    "bytes": 130200544,
+    "mtime_ns": 1792689796276891600
+  }
+]

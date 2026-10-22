@@ -1,0 +1,63 @@
+{
+  "inventory_sha256": "dbb536944ea96cbb83d8d559781be09a6e9bf2ba1d983db77c10006d215e5bf3",
+  "canonical_before_hashes": {
+    "rust/xtask/src/bigip_data_schema.rs": "26bd59ad491c853b97b5e631bb329179712bc4678c1aa703db94a45bc3307093",
+    "rust/xtask/src/command_backing.rs": "28a422e7f4c32a8c9460d54ba61aaf90a867afc8796e728ff249c33deca6dc8d",
+    "rust/xtask/src/dialect_drift.rs": "c8b5bc2ad3245d381b3ccbbcc426d73fd5bfb231300c4126023816c19cde3c29",
+    "rust/xtask/src/f5query_builtins_doc.rs": "94ab3c0e42f1ee48b9d0d4194b5dfbb5e535e2297e792b40cd43b81175b158e9",
+    "rust/xtask/src/fp_sweep.rs": "8d91f82f514160f4aa298675f959541dddc81174d01acba94e113598f4777ee6",
+    "rust/xtask/src/kcs_index_links.rs": "17a4f42223644aa2980aa831c9c614d3feac20c57ee2875a51604a504b611f64",
+    "rust/xtask/src/number_drift.rs": "c35a38ed87b27717b0e9919e71708cc0288e2d5facb70551a6618e7775b12d01",
+    "rust/xtask/src/owner_resolution.rs": "15e024d590d7556d818b7eada6e1e1fd9fb0b147f1f27579bd5adbb6d6343511",
+    "rust/xtask/src/owner_resolution/source_internal.rs": "4f0141f6f54fd427c1e082edbd26928f18e444a641508a25dbef1b9d0e2d3b97",
+    "rust/xtask/src/registry_axes.rs": "c9e6072bad8b4e0156191fe405d3e8d910d0aa290d664977430867addbe12614",
+    "rust/xtask/src/retired_api_gate.rs": "a8efa2ecf25f142410ac6881a6e06a2d9de667a5c369a777fe7a8e7bc115bae2",
+    "rust/xtask/src/segmentation_drift.rs": "23b725417064c6a56be9b6f84fdf27a9c36a6a392c51eade95de4f113e947ad2",
+    "rust/xtask/src/value_transfers.rs": "fc012f6e493afeb20521258ab0a0b256cd16f9d3acd6e176c10ead7ade838fac"
+  },
+  "base_copy_hashes": {
+    "rust/xtask/src/bigip_data_schema.rs": "26bd59ad491c853b97b5e631bb329179712bc4678c1aa703db94a45bc3307093",
+    "rust/xtask/src/command_backing.rs": "28a422e7f4c32a8c9460d54ba61aaf90a867afc8796e728ff249c33deca6dc8d",
+    "rust/xtask/src/dialect_drift.rs": "c8b5bc2ad3245d381b3ccbbcc426d73fd5bfb231300c4126023816c19cde3c29",
+    "rust/xtask/src/f5query_builtins_doc.rs": "94ab3c0e42f1ee48b9d0d4194b5dfbb5e535e2297e792b40cd43b81175b158e9",
+    "rust/xtask/src/fp_sweep.rs": "8d91f82f514160f4aa298675f959541dddc81174d01acba94e113598f4777ee6",
+    "rust/xtask/src/kcs_index_links.rs": "17a4f42223644aa2980aa831c9c614d3feac20c57ee2875a51604a504b611f64",
+    "rust/xtask/src/number_drift.rs": "c35a38ed87b27717b0e9919e71708cc0288e2d5facb70551a6618e7775b12d01",
+    "rust/xtask/src/owner_resolution.rs": "15e024d590d7556d818b7eada6e1e1fd9fb0b147f1f27579bd5adbb6d6343511",
+    "rust/xtask/src/owner_resolution/source_internal.rs": "4f0141f6f54fd427c1e082edbd26928f18e444a641508a25dbef1b9d0e2d3b97",
+    "rust/xtask/src/registry_axes.rs": "c9e6072bad8b4e0156191fe405d3e8d910d0aa290d664977430867addbe12614",
+    "rust/xtask/src/retired_api_gate.rs": "a8efa2ecf25f142410ac6881a6e06a2d9de667a5c369a777fe7a8e7bc115bae2",
+    "rust/xtask/src/segmentation_drift.rs": "23b725417064c6a56be9b6f84fdf27a9c36a6a392c51eade95de4f113e947ad2",
+    "rust/xtask/src/value_transfers.rs": "fc012f6e493afeb20521258ab0a0b256cd16f9d3acd6e176c10ead7ade838fac"
+  },
+  "work_copy_hashes_before": {
+    "rust/xtask/src/bigip_data_schema.rs": "26bd59ad491c853b97b5e631bb329179712bc4678c1aa703db94a45bc3307093",
+    "rust/xtask/src/command_backing.rs": "28a422e7f4c32a8c9460d54ba61aaf90a867afc8796e728ff249c33deca6dc8d",
+    "rust/xtask/src/dialect_drift.rs": "c8b5bc2ad3245d381b3ccbbcc426d73fd5bfb231300c4126023816c19cde3c29",
+    "rust/xtask/src/f5query_builtins_doc.rs": "94ab3c0e42f1ee48b9d0d4194b5dfbb5e535e2297e792b40cd43b81175b158e9",
+    "rust/xtask/src/fp_sweep.rs": "8d91f82f514160f4aa298675f959541dddc81174d01acba94e113598f4777ee6",
+    "rust/xtask/src/kcs_index_links.rs": "17a4f42223644aa2980aa831c9c614d3feac20c57ee2875a51604a504b611f64",
+    "rust/xtask/src/number_drift.rs": "c35a38ed87b27717b0e9919e71708cc0288e2d5facb70551a6618e7775b12d01",
+    "rust/xtask/src/owner_resolution.rs": "15e024d590d7556d818b7eada6e1e1fd9fb0b147f1f27579bd5adbb6d6343511",
+    "rust/xtask/src/owner_resolution/source_internal.rs": "4f0141f6f54fd427c1e082edbd26928f18e444a641508a25dbef1b9d0e2d3b97",
+    "rust/xtask/src/registry_axes.rs": "c9e6072bad8b4e0156191fe405d3e8d910d0aa290d664977430867addbe12614",
+    "rust/xtask/src/retired_api_gate.rs": "a8efa2ecf25f142410ac6881a6e06a2d9de667a5c369a777fe7a8e7bc115bae2",
+    "rust/xtask/src/segmentation_drift.rs": "23b725417064c6a56be9b6f84fdf27a9c36a6a392c51eade95de4f113e947ad2",
+    "rust/xtask/src/value_transfers.rs": "fc012f6e493afeb20521258ab0a0b256cd16f9d3acd6e176c10ead7ade838fac"
+  },
+  "paths": [
+    "rust/xtask/src/bigip_data_schema.rs",
+    "rust/xtask/src/command_backing.rs",
+    "rust/xtask/src/dialect_drift.rs",
+    "rust/xtask/src/f5query_builtins_doc.rs",
+    "rust/xtask/src/fp_sweep.rs",
+    "rust/xtask/src/kcs_index_links.rs",
+    "rust/xtask/src/number_drift.rs",
+    "rust/xtask/src/owner_resolution.rs",
+    "rust/xtask/src/owner_resolution/source_internal.rs",
+    "rust/xtask/src/registry_axes.rs",
+    "rust/xtask/src/retired_api_gate.rs",
+    "rust/xtask/src/segmentation_drift.rs",
+    "rust/xtask/src/value_transfers.rs"
+  ]
+}

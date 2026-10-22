@@ -1,0 +1,38 @@
+{
+  "TCL_LSP_TCLSH84": [
+    {
+      "path": "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh",
+      "sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "bytes": 887256
+    }
+  ],
+  "TCL_LSP_TCLSH85": [
+    {
+      "path": "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh",
+      "sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "bytes": 1281128
+    }
+  ],
+  "TCL_LSP_TCLSH86": [
+    {
+      "path": "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh",
+      "sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "bytes": 1915312
+    }
+  ],
+  "TCL_LSP_TCLSH90": [
+    {
+      "path": "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh",
+      "sha256": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b",
+      "bytes": 3471033
+    }
+  ],
+  "TCL_LSP_TCLSH91": [
+    {
+      "path": "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh",
+      "sha256": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60",
+      "bytes": 3717328
+    }
+  ],
+  "TCL_LSP_JIMSH": []
+}

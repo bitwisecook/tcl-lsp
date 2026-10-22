@@ -1,0 +1,468 @@
+{
+  "utc": "2026-10-22T17:27:57.009657+00:00",
+  "scope": "agent-reported public-API R1 diagnosis only; original canonical g4/ZZ/eight still required",
+  "subcases": [
+    {
+      "dialect": "tcl8.6",
+      "use_site": "",
+      "expected_completed_world": true,
+      "actual_completed_world": true,
+      "invocations": 2,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "greet\ngreet\n",
+      "expected_completed_world": true,
+      "actual_completed_world": true,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "puts hi\n",
+      "expected_completed_world": true,
+      "actual_completed_world": true,
+      "invocations": 3,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "puts [greet]\nputs [greet]\n",
+      "expected_completed_world": true,
+      "actual_completed_world": true,
+      "invocations": 6,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "set a [list [greet]]\n",
+      "expected_completed_world": true,
+      "actual_completed_world": true,
+      "invocations": 5,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "set a [string length x]\n",
+      "expected_completed_world": true,
+      "actual_completed_world": true,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "missing_command\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 3,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "puts [missing_command]\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "exit 0\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 3,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "proc say {} { puts hi }\nsay\n",
+      "expected_completed_world": true,
+      "actual_completed_world": true,
+      "invocations": 5,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "proc bad {} { missing_command }\nbad\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 5,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "lsort -command greet {b a}\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "string $op x\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 3,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "eval $script\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 3,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "proc xf args {}\nchan push stdout ::xf\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 6,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "proc rc args {}\nset c [chan create write ::rc]\nputs $c hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 7,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "proc cb args {}\ntrace add variable x write ::cb\nset x 1\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 6,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "proc cb args {}\ntrace add execution puts enter ::cb\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 7,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "proc cb args {}\nnamespace unknown ::cb\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 6,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "after 0 {greet}\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 5,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "after 0 {}\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "after 0 greet extra\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "after idle greet extra\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "fileevent stdin readable {greet}\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 5,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "chan event stdout writable {greet}\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 5,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "set callback greet\nafter 0 $callback\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 5,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl8.6",
+      "use_site": "proc unknown args {}\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "",
+      "expected_completed_world": true,
+      "actual_completed_world": true,
+      "invocations": 2,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "greet\ngreet\n",
+      "expected_completed_world": true,
+      "actual_completed_world": true,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "puts hi\n",
+      "expected_completed_world": true,
+      "actual_completed_world": true,
+      "invocations": 3,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "puts [greet]\nputs [greet]\n",
+      "expected_completed_world": true,
+      "actual_completed_world": true,
+      "invocations": 6,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "set a [list [greet]]\n",
+      "expected_completed_world": true,
+      "actual_completed_world": true,
+      "invocations": 5,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "set a [string length x]\n",
+      "expected_completed_world": true,
+      "actual_completed_world": true,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "missing_command\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 3,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "puts [missing_command]\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "exit 0\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 3,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "proc say {} { puts hi }\nsay\n",
+      "expected_completed_world": true,
+      "actual_completed_world": true,
+      "invocations": 5,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "proc bad {} { missing_command }\nbad\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 5,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "lsort -command greet {b a}\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "string $op x\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 3,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "eval $script\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 3,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "proc xf args {}\nchan push stdout ::xf\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 6,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "proc rc args {}\nset c [chan create write ::rc]\nputs $c hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 7,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "proc cb args {}\ntrace add variable x write ::cb\nset x 1\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 6,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "proc cb args {}\ntrace add execution puts enter ::cb\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 7,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "proc cb args {}\nnamespace unknown ::cb\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 6,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "after 0 {greet}\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 5,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "after 0 {}\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "after 0 greet extra\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "after idle greet extra\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 4,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "fileevent stdin readable {greet}\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 5,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "chan event stdout writable {greet}\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 5,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "set callback greet\nafter 0 $callback\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 5,
+      "world_matches": true
+    },
+    {
+      "dialect": "tcl9.0",
+      "use_site": "proc unknown args {}\nputs hi\n",
+      "expected_completed_world": false,
+      "actual_completed_world": false,
+      "invocations": 4,
+      "world_matches": true
+    }
+  ],
+  "subcase_count": 54,
+  "world_mismatches": [],
+  "test_result_lines": [
+    "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 254.76s"
+  ],
+  "exit_receipt": "cargo=0 filter=0\n",
+  "warnings": [],
+  "errors": [],
+  "build_completion": [
+    "    Finished `test` profile [unoptimized] target(s) in 13m 29s"
+  ],
+  "panic_lines": [],
+  "source_changes_during_run": [],
+  "artifacts": [
+    {
+      "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/zz_compiler_names_r1_probe-947c60f2466cf643",
+      "size": 130200544,
+      "mtime_ns": 1792689796276891600,
+      "sha256": "a3fbe9f853ec56873a8bcbf2eb78118318dfb7adbb602f737424ea952af94f76"
+    }
+  ],
+  "nonempty_body_return_inventory_and_original_lookup_assertions": "passed for all54 subcases through the aggregate assertion",
+  "temporary_probe_removed": true,
+  "lock_released_utc": "2026-10-22T17:27:36Z",
+  "commit_during_run": {
+    "before": "de4455665fedeae9eba3c011585871c0121498d7",
+    "after": "a1ddcd570f1ff505ff69bc4d8eb4d97c3da1dbd4",
+    "source_hashes_changed": 0,
+    "note": "Coordinator HEAD/index-only checkpoint; no source checkout or file rewrites."
+  }
+}

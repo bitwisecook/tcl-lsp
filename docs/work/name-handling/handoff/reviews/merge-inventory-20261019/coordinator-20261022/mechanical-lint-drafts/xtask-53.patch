@@ -1,0 +1,489 @@
+--- a/rust/xtask/src/bigip_data_schema.rs
++++ b/rust/xtask/src/bigip_data_schema.rs
+@@ -528,7 +528,7 @@
+         let scanned: BTreeSet<String> = BTreeSet::new();
+         let refs: BTreeSet<String> = ["still_a_real_gap".to_owned()].into_iter().collect();
+         let stale = find_stale_known_gaps(&["still_a_real_gap"], &scanned, &refs);
+-        assert!(stale.is_empty());
++        assert_eq!(stale.len(), 0);
+     }
+ 
+     #[test]
+@@ -561,7 +561,7 @@
+         let not_declared: Vec<&String> = directory.difference(&declared).collect();
+         assert_eq!(not_declared, vec![&"orphan".to_owned()]);
+         let missing_files: Vec<&String> = declared.difference(&directory).collect();
+-        assert!(missing_files.is_empty());
++        assert_eq!(missing_files.len(), 0);
+ 
+         let _ = std::fs::remove_dir_all(&dir);
+     }
+--- a/rust/xtask/src/command_backing.rs
++++ b/rust/xtask/src/command_backing.rs
+@@ -750,11 +750,9 @@
+         let (arms, arities) = scan_file_surface(&root).expect("scan file runtime surface");
+         assert!(arms.contains("atime"));
+         assert_eq!(arities.get("stat"), Some(&(1, 2)));
+-        assert!(
+-            file_fidelity_errors(&root)
++        assert_eq!(file_fidelity_errors(&root)
+                 .expect("compare file runtime surface")
+-                .is_empty()
+-        );
++                .len(), 0);
+     }
+ 
+     #[test]
+--- a/rust/xtask/src/dialect_drift.rs
++++ b/rust/xtask/src/dialect_drift.rs
+@@ -501,7 +501,7 @@
+     #[test]
+     fn a_same_line_waiver_is_honoured() {
+         let src = "let t = Lexer::new(s); // dialect-drift-ok: spec DSL, not document Tcl\n";
+-        assert!(scan(REL, src).is_empty());
++        assert_eq!(scan(REL, src).len(), 0);
+     }
+ 
+     #[test]
+@@ -519,7 +519,7 @@
+     #[test]
+     fn the_test_tail_is_exempt() {
+         let src = "fn f() {}\n#[cfg(test)]\nmod tests {\n    fn g() { Lexer::new(\"x\"); }\n}\n";
+-        assert!(scan(REL, src).is_empty());
++        assert_eq!(scan(REL, src).len(), 0);
+     }
+ 
+     #[test]
+@@ -532,8 +532,8 @@
+     #[test]
+     fn an_ambient_expression_parse_is_a_hit_and_a_profile_one_is_not() {
+         assert_eq!(scan(REL, "let e = parse_expr(text, None);\n").len(), 1);
+-        assert!(scan(REL, "let e = parse_expr(text, Some(profile.name));\n").is_empty());
+-        assert!(scan(REL, "let e = parse_expr_for_profile(text, profile);\n").is_empty());
++        assert_eq!(scan(REL, "let e = parse_expr(text, Some(profile.name));\n").len(), 0);
++        assert_eq!(scan(REL, "let e = parse_expr_for_profile(text, profile);\n").len(), 0);
+         assert_eq!(scan(REL, "let g = LexerGrammar::default();\n").len(), 1);
+         assert_eq!(
+             scan(REL, "let c = LexerConfig::for_profile(None);\n").len(),
+@@ -546,24 +546,20 @@
+         let src = "use crate::cfg_builder::build_cfg;\nlet m = build_cfg(&module);\n";
+         assert_eq!(scan(REL, src).len(), 1);
+         // A different `build_cfg` (a local view builder) is not the entry.
+-        assert!(
+-            scan(
++        assert_eq!(scan(
+                 REL,
+                 "fn build_cfg(v: &[Value]) {}\nlet n = build_cfg(data);\n"
+             )
+-            .is_empty()
+-        );
++            .len(), 0);
+         // The tail of a longer identifier is not the entry either.
+-        assert!(
+-            scan(
++        assert_eq!(scan(
+                 REL,
+                 "use crate::cfg_builder::build_cfg;\nlower_and_build_cfg(src, o);\n"
+             )
+-            .is_empty()
+-        );
+-        assert!(scan(REL, "let m = build_cfg(&module);\n").is_empty());
+-        assert!(scan(CFG_OWNER, "let m = build_cfg(&module);\n").is_empty());
+-        assert!(scan(REL, "let m = build_cfg_with_config(&module, cfg);\n").is_empty());
++            .len(), 0);
++        assert_eq!(scan(REL, "let m = build_cfg(&module);\n").len(), 0);
++        assert_eq!(scan(CFG_OWNER, "let m = build_cfg(&module);\n").len(), 0);
++        assert_eq!(scan(REL, "let m = build_cfg_with_config(&module, cfg);\n").len(), 0);
+     }
+ 
+     #[test]
+@@ -587,13 +583,13 @@
+     fn a_bare_split_is_only_flagged_in_document_crates() {
+         let src = "let e = tcl_syntax::list::split_list(word);\n";
+         assert_eq!(scan(REL, src).len(), 1);
+-        assert!(scan("rust/tcl-pkg/src/manifest.rs", src).is_empty());
++        assert_eq!(scan("rust/tcl-pkg/src/manifest.rs", src).len(), 0);
+     }
+ 
+     #[test]
+     fn the_owner_method_call_is_not_a_hit() {
+         let src = "let e = rules.split_list(word);\nlet f = self.word_rules().split_list(w);\n";
+-        assert!(scan(REL, src).is_empty());
++        assert_eq!(scan(REL, src).len(), 0);
+         assert_eq!(
+             scan(REL, "let e = tcl_syntax::list::split_list(word);\n").len(),
+             1
+@@ -602,13 +598,11 @@
+ 
+     #[test]
+     fn a_fixed_literal_name_is_an_ingress_but_a_name_variable_is_a_hit() {
+-        assert!(
+-            scan(
++        assert_eq!(scan(
+                 REL,
+                 "let c = LexerConfig::for_file_dialect(\"f5-irules\");\n"
+             )
+-            .is_empty()
+-        );
++            .len(), 0);
+         assert_eq!(
+             scan(REL, "let c = LexerConfig::for_dialect(profile.name);\n").len(),
+             1
+@@ -627,20 +621,18 @@
+     fn a_blind_segmenter_entry_is_a_hit_outside_the_segmenter() {
+         let src = "for c in segment_commands(source) {}\n";
+         assert_eq!(scan(REL, src).len(), 1);
+-        assert!(scan("rust/tcl-compiler/src/segmenter.rs", src).is_empty());
+-        assert!(
+-            scan(
++        assert_eq!(scan("rust/tcl-compiler/src/segmenter.rs", src).len(), 0);
++        assert_eq!(scan(
+                 REL,
+                 "for c in segment_commands_with_offset_and_config(s, 0, cfg) {}\n"
+             )
+-            .is_empty()
+-        );
++            .len(), 0);
+     }
+ 
+     #[test]
+     fn a_mention_in_a_comment_or_string_is_not_a_hit() {
+         let src = "// the old form was Lexer::new(s)\nlet m = \"Lexer::new(\";\n";
+-        assert!(scan(REL, src).is_empty());
++        assert_eq!(scan(REL, src).len(), 0);
+     }
+ 
+     #[test]
+--- a/rust/xtask/src/f5query_builtins_doc.rs
++++ b/rust/xtask/src/f5query_builtins_doc.rs
+@@ -196,7 +196,7 @@
+         let doc = "### `select`\n";
+         let (undocumented, stale) = diff(doc);
+         assert!(undocumented.contains(&"map".to_owned()), "{undocumented:?}");
+-        assert!(stale.is_empty());
++        assert_eq!(stale.len(), 0);
+     }
+ 
+     #[test]
+--- a/rust/xtask/src/fp_sweep.rs
++++ b/rust/xtask/src/fp_sweep.rs
+@@ -775,7 +775,7 @@
+    when HTTP_RESPONSE {
+    }
+ ";
+-        assert!(extract_rst_irules(rst).is_empty());
++        assert_eq!(extract_rst_irules(rst).len(), 0);
+     }
+ 
+     #[test]
+--- a/rust/xtask/src/kcs_index_links.rs
++++ b/rust/xtask/src/kcs_index_links.rs
+@@ -940,7 +940,7 @@
+     fn fragments_cover_intra_file_and_ignore_fences_and_templates() {
+         let headings = heading_slugs("# Current section\n```md\n# Hidden section\n```\n");
+         let (path, fragment) = split_link_fragment("#current-section");
+-        assert!(path.is_empty());
++        assert_eq!(path.len(), 0);
+         assert!(headings.contains(fragment.unwrap()));
+         assert!(!headings.contains("hidden-section"));
+         assert!(is_template_placeholder("<pass-anchor>"));
+--- a/rust/xtask/src/number_drift.rs
++++ b/rust/xtask/src/number_drift.rs
+@@ -543,12 +543,12 @@
+     #[test]
+     fn closure_params_after_a_prefix_literal_do_not_match() {
+         let src = "let n = pick(\"0x\") | mask(y);\n";
+-        assert!(scan(src).is_empty());
++        assert_eq!(scan(src).len(), 0);
+     }
+ 
+     #[test]
+     fn expression_boundary_owner_is_unique_and_consumed() {
+-        assert!(expr_boundary_owner_problems(&crate::util::repo_root()).is_empty());
++        assert_eq!(expr_boundary_owner_problems(&crate::util::repo_root()).len(), 0);
+     }
+ 
+     #[test]
+--- a/rust/xtask/src/owner_resolution.rs
++++ b/rust/xtask/src/owner_resolution.rs
+@@ -2565,7 +2565,7 @@
+                         && row.entry == "Namespaces::guard_lookup_environment_revision"
+                 })
+         );
+-        assert!(validate_internal_manifest(&root, &contract).is_empty());
++        assert_eq!(validate_internal_manifest(&root, &contract).len(), 0);
+         assert!(
+             read_internal_module(&root, "runtime/rust/src/namespace.rs", "crate::other").is_err()
+         );
+@@ -2842,7 +2842,7 @@
+             "`split_list`",
+             "`check-name-resolution-proofs`",
+         );
+-        assert!(validate_manifest(&root, &contract, &makefile, &main).is_empty());
++        assert_eq!(validate_manifest(&root, &contract, &makefile, &main).len(), 0);
+         assert!(!naming_proof_gate_is_current(
+             &root.join(MAKEFILE_PATH),
+             &makefile
+@@ -2947,16 +2947,14 @@
+             #[cfg(test)] mod tests { fn fixture(){ s.split("::"); } }
+             fn production(){ original.matches_source(&image, config); }
+         "##;
+-        assert!(counted_name_local_recipes(source).is_empty());
++        assert_eq!(counted_name_local_recipes(source).len(), 0);
+     }
+ 
+     #[test]
+     fn counted_name_facade_inventory_uses_shared_purpose_owners() {
+         let root = crate::util::repo_root();
+-        assert!(
+-            validate_counted_name_facade_consumers(&root)
++        assert_eq!(validate_counted_name_facade_consumers(&root)
+                 .unwrap()
+-                .is_empty()
+-        );
+-    }
+-}
++                .len(), 0);
++    }
++}
+--- a/rust/xtask/src/owner_resolution/source_internal.rs
++++ b/rust/xtask/src/owner_resolution/source_internal.rs
+@@ -3501,7 +3501,7 @@
+         ] {
+             let (coverage, problems) = validate(&fixture.0, &changed);
+             assert!(coverage.is_empty());
+-            assert!(!problems.is_empty());
++            assert_ne!(problems.len(), 0);
+         }
+     }
+ 
+@@ -3600,11 +3600,11 @@
+             std::fs::write(fixture.0.join("rust/a/Cargo.toml"), changed).unwrap();
+             let (coverage, failures) = validate(&fixture.0, &manifest());
+             assert!(coverage.is_empty());
+-            assert!(!failures.is_empty());
++            assert_ne!(failures.len(), 0);
+         }
+         std::fs::write(fixture.0.join("rust/a/Cargo.toml"), cargo).unwrap();
+         std::fs::create_dir(fixture.0.join("rust/a/src/bin")).unwrap();
+-        assert!(!validate(&fixture.0, &manifest()).1.is_empty());
++        assert_ne!(validate(&fixture.0, &manifest()).1.len(), 0);
+     }
+ 
+     #[test]
+@@ -3665,7 +3665,7 @@
+         ] {
+             let (coverage, failures) = validate(&fixture.0, &format!("{START}\n{changed}\n{END}"));
+             assert!(coverage.is_empty());
+-            assert!(!failures.is_empty());
++            assert_ne!(failures.len(), 0);
+         }
+     }
+ }
+--- a/rust/xtask/src/registry_axes.rs
++++ b/rust/xtask/src/registry_axes.rs
+@@ -1280,11 +1280,11 @@
+         assert!(hits.iter().all(|h| h.anchor == Some(1)));
+         // A table nothing reads is not compared later.
+         let unused = "const MODES: &[&str] = &[\"-exact\", \"-nocase\"];\n";
+-        assert!(lines(unused).is_empty());
++        assert_eq!(lines(unused).len(), 0);
+         // A table of another type is not a string table.
+         let other =
+             "const PAIRS: &[(&str, u8)] = &[(\"-exact\", 1)];\nfn f() -> usize { PAIRS.len() }\n";
+-        assert!(lines(other).is_empty());
++        assert_eq!(lines(other).len(), 0);
+     }
+ 
+     #[test]
+@@ -1403,14 +1403,12 @@
+                 .any(|v| v.contains("gone.rs` has 0") && v.contains("lower the pin"))
+         );
+         assert!(verdicts.iter().any(|v| v.contains("held clean")));
+-        assert!(
+-            ratchet_verdicts(
++        assert_eq!(ratchet_verdicts(
+                 &lint_with(&[("rust/x/a.rs", 2)]),
+                 &[("rust/x/a.rs", 2)],
+                 &[]
+             )
+-            .is_empty()
+-        );
++            .len(), 0);
+     }
+ 
+     #[test]
+--- a/rust/xtask/src/retired_api_gate.rs
++++ b/rust/xtask/src/retired_api_gate.rs
+@@ -794,7 +794,7 @@
+     #[test]
+     fn comment_citations_are_exempt() {
+         let history = "/// The environment-model form of `DialectProfile::by_name(name)`.\n";
+-        assert!(scan(history, false).is_empty());
++        assert_eq!(scan(history, false).len(), 0);
+         let code = "let p = DialectProfile::by_name(name);\n";
+         assert_eq!(scan(code, false).len(), 1);
+     }
+@@ -804,7 +804,7 @@
+     #[test]
+     fn registry_internal_survivors_are_scoped() {
+         let line = "use crate::profile_queries::ProfileQueries;\n";
+-        assert!(scan(line, true).is_empty());
++        assert_eq!(scan(line, true).len(), 0);
+         assert_eq!(scan(line, false).len(), 1);
+     }
+ 
+@@ -842,13 +842,11 @@
+     #[test]
+     fn owned_answers_are_free_in_their_owner() {
+         let line = "let names = self.builtin_command_names();\n";
+-        assert!(
+-            scan_owned(
++        assert_eq!(scan_owned(
+                 line,
+                 Path::new("rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs")
+             )
+-            .is_empty()
+-        );
++            .len(), 0);
+         assert_eq!(
+             scan_owned(line, Path::new("rust/tcl-lsp-core/src/completion.rs")).len(),
+             1
+@@ -867,8 +865,8 @@
+         // One answer may have several owners — the constant folder asks the
+         // registry's availability question legitimately.
+         let fold = "if registry.has_command_in_this_dialect(head) { }\n";
+-        assert!(scan_owned(fold, Path::new("rust/tcl-compiler/src/codegen/values.rs")).is_empty());
+-        assert!(scan_owned(fold, Path::new("rust/tcl-registry/src/registry.rs")).is_empty());
++        assert_eq!(scan_owned(fold, Path::new("rust/tcl-compiler/src/codegen/values.rs")).len(), 0);
++        assert_eq!(scan_owned(fold, Path::new("rust/tcl-registry/src/registry.rs")).len(), 0);
+         assert_eq!(
+             scan_owned(fold, Path::new("rust/tcl-vm/src/interp.rs")).len(),
+             1
+@@ -878,13 +876,11 @@
+     #[test]
+     fn declared_transport_owner_does_not_license_binding_consumers() {
+         let field = "pub declared_commands: Option<tcl_registry::model::DeclaredSurface>;";
+-        assert!(
+-            scan_owned(
++        assert_eq!(scan_owned(
+                 field,
+                 Path::new("rust/tcl-compiler/src/command_binding/source_analysis_entry.rs")
+             )
+-            .is_empty()
+-        );
++            .len(), 0);
+         for consumer in [
+             "rust/tcl-compiler/src/command_binding.rs",
+             "rust/tcl-compiler/src/command_binding/conditional_body.rs",
+@@ -904,7 +900,7 @@
+     #[test]
+     fn owned_answer_citations_are_exempt() {
+         let prose = "/// Answered by `builtin_command_names`, the one oracle.\n";
+-        assert!(scan_owned(prose, Path::new("rust/tcl-lsp-core/src/completion.rs")).is_empty());
++        assert_eq!(scan_owned(prose, Path::new("rust/tcl-lsp-core/src/completion.rs")).len(), 0);
+         let code = "let names = self.builtin_command_names();\n";
+         assert_eq!(
+             scan_owned(code, Path::new("rust/tcl-lsp-core/src/completion.rs")).len(),
+--- a/rust/xtask/src/segmentation_drift.rs
++++ b/rust/xtask/src/segmentation_drift.rs
+@@ -570,10 +570,10 @@
+     #[test]
+     fn a_terminator_that_is_not_a_pair_is_not_flagged() {
+         // A newline alone, or a semicolon alone, is not the terminator set.
+-        assert!(scan("match c { b'\\n' => {} }\n").is_empty());
+-        assert!(scan("match c { b';' => {} }\n").is_empty());
++        assert_eq!(scan("match c { b'\\n' => {} }\n").len(), 0);
++        assert_eq!(scan("match c { b';' => {} }\n").len(), 0);
+         // A `\n` and a `;` in different patterns is not an alternation.
+-        assert!(scan("match c { b'\\n' => a(), b'x' | b';' => b() }\n").is_empty());
++        assert_eq!(scan("match c { b'\\n' => a(), b'x' | b';' => b() }\n").len(), 0);
+     }
+ 
+     #[test]
+@@ -599,31 +599,25 @@
+     #[test]
+     fn trivia_skipping_is_not_a_word_start_machine() {
+         // No `prev` binding: a filter, not a state machine.
+-        assert!(
+-            scan(
++        assert_eq!(scan(
+                 "let words = toks.iter().filter(|t| !matches!(t.kind, TokenType::Sep | \
+                   TokenType::Eol));\n"
+             )
+-            .is_empty()
+-        );
++            .len(), 0);
+         // A wider trivia set is not the two-variant word rule either.
+-        assert!(
+-            scan(
++        assert_eq!(scan(
+                 "fn f() {\n let prev = x;\n if matches!(t.kind, TokenType::Sep | \
+                   TokenType::Eol | TokenType::Eof) {}\n}\n"
+             )
+-            .is_empty()
+-        );
++            .len(), 0);
+     }
+ 
+     #[test]
+     fn a_waiver_is_honoured_on_the_line_and_in_the_block_above() {
+-        assert!(
+-            scan(
++        assert_eq!(scan(
+                 "match c { b'\\n' | b';' => {} } // segmentation-drift-ok: BIG-IP config, not Tcl\n"
+             )
+-            .is_empty()
+-        );
++            .len(), 0);
+         let src = "// segmentation-drift-ok: trims a terminator inside an already\n\
+                    // segmented command span; the boundary came from the segmenter\n\
+                    let a = matches!(b[i], b'\\n' | b';');\n\
+@@ -639,15 +633,15 @@
+ 
+     #[test]
+     fn a_mention_in_a_comment_or_string_is_not_a_hit() {
+-        assert!(scan("// the old shape was b'\\n' | b';'\n").is_empty());
+-        assert!(scan("let m = \"b'\\\\n' | b';'\";\n").is_empty());
++        assert_eq!(scan("// the old shape was b'\\n' | b';'\n").len(), 0);
++        assert_eq!(scan("let m = \"b'\\\\n' | b';'\";\n").len(), 0);
+     }
+ 
+     #[test]
+     fn the_test_tail_is_exempt() {
+         let src = "fn f() {}\n#[cfg(test)]\nmod tests {\n    fn g(c: u8) { \
+                    let _ = matches!(c, b'\\n' | b';'); }\n}\n";
+-        assert!(scan(src).is_empty());
++        assert_eq!(scan(src).len(), 0);
+     }
+ 
+     /// The exemption follows the module's own extent, not "everything after
+@@ -688,7 +682,7 @@
+                     \"extra characters after close-quote\",\n];\n";
+         assert_eq!(scan(list).len(), 1, "{:?}", scan(list));
+         // One message, raised rather than classified.
+-        assert!(scan("return Err(\"missing close-bracket\");\n").is_empty());
++        assert_eq!(scan("return Err(\"missing close-bracket\");\n").len(), 0);
+         // Two messages that are not collected into a list.
+         let prose = "fn a() { raise(\"missing close-bracket\"); }\n\
+                      fn b() { raise(\"missing )\"); }\n";
+--- a/rust/xtask/src/value_transfers.rs
++++ b/rust/xtask/src/value_transfers.rs
+@@ -1297,7 +1297,7 @@
+         let verdicts = ratchet_verdicts(&lint, &pins, &[]);
+         assert_eq!(verdicts.len(), 2, "{verdicts:?}");
+         assert!(verdicts.iter().all(|v| v.contains("lower the pin")));
+-        assert!(ratchet_verdicts(&lint, &[("rust/x/a.rs", 1)], &[]).is_empty());
++        assert_eq!(ratchet_verdicts(&lint, &[("rust/x/a.rs", 1)], &[]).len(), 0);
+     }
+ 
+     #[test]
+@@ -1336,7 +1336,7 @@
+                 .any(|v| v.contains("`rust/x/c.rs`, which RATCHET does not pin"))
+         );
+         let agreed = [("rust/x/a.rs", 2), ("rust/x/b.rs", 5), ("rust/x/c.rs", 1)];
+-        assert!(ledger_verdicts(doc, &agreed).is_empty());
++        assert_eq!(ledger_verdicts(doc, &agreed).len(), 0);
+     }
+ 
+     #[test]
