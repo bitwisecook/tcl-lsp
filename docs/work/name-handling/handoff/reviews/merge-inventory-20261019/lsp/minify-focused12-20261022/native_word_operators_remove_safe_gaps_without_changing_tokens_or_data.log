@@ -1,0 +1,6 @@
+running 1 test
+test native_word_operators_remove_safe_gaps_without_changing_tokens_or_data ... 
+thread 'native_word_operators_remove_safe_gaps_without_changing_tokens_or_data' (122740) panicked at rust/tcl-lsp-core/tests/minify_residual.rs:892:26:
+pinned Jim oracle: InvalidInterpreter("/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh reports Jim 0.84 0.84, expected 0.84 0.84-9-g5bac7c9 from 5bac7c99ad65864c87da513e22e2f01703fa4e03")
+FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 41 filtered out; finished in 82.86s

@@ -2,13 +2,15 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-22T19:25Z (RESUMED; agent-reported, not validation)
+Last updated: 2026-10-22T20:28Z (RESUMED; agent-reported, not validation)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
 Active checkout: `/workspace/naming-migration-active/tcl-lsp`. Do not use the old or transfer clones. Source `/tmp/tcl-lsp-naming-env.sh`; Rust 1.99.1/jobs 2/no incremental/debug info/all five Tcl wrappers + Jim. Global `/tmp/tcl-lsp-naming-build.lock` covers each full build/run/receipt. Stop below 2 GB free; no executable cleanup younger than 60 minutes, no Cargo/rustc target deletion. No commits, pushes or Git staging by this role.
+
+**Active resume, 2026-10-22T20:28Z:** queued coordination messages did not restart this role after its completed static review. Actual CI5205 passed fmt and reported four registry Clippy failures: native_compilation.rs functions at published lines 1886 (103 lines) and 4062 (108 lines), native_string_is_compilation.rs doc markdown, and native_procedure.rs explicit auto-deref. Next action is a small honest refactor/doc/deref patch OFF-TREE against published39b392/2b934 exact source, with no allows or assertion changes, followed by peer review. No fix/Clippy acceptance yet. Actual wasm_real_link is 18 PASS / 7 FAIL; missing compiled shared table, argv balance and fastpath admission require read-only triage after the lint draft is ready; raw log `/tmp/work-ci5205/wasm-real-link.log`. No Cargo queued. After this authorised brief write, ALL canonical writes are held for root integration of published71-path CI unblock plus API adaptation; work continues only under /tmp.
 
 **Current source, 18:52Z:** the mutually reviewed Server test loan `2ef1a225...` and production patch `65636592...`, external five F5 hunks, Jim11 and three R3 test type fixes are applied in commit `d666c9b2a7142a0f1e5940e81681efef769d7fe2`. Parent's complete 23-path integration receipts are in `coordinator-20261022/source-batch-20261022T1850Z/`. Independent reviews are static only: the production patch preserves all 15 original future expressions, and removing only the pin wrappers restores complete original tokens for all 11 affected function bodies; bundles and boxed receipt variants retain all source/provider/currentness checks and full typed contents. LSP independently approved the 75-assertion/64-test-future loan. These applications do not establish successful final typing, Clippy or functional acceptance. Rust remains FROZEN. Compiler18 original filters now own the Cargo slot, followed by LSP3 and VM/N17 groups; this role queues no Cargo.
 

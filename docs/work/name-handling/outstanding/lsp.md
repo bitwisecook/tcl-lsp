@@ -1,5 +1,7 @@
 # Outstanding work: lsp agent
 
+Latest validated update 2026-10-22T20:26Z: focused12 minify completed6PASS/6FAIL, zero timeouts. Exact40917 captured source inputs and full pinned providers are byte-equal; all three test artifacts retained identical hashes. Three comparison-inversion failures, two nested-gap output failures, and one pinned-Jim version-metadata refusal remain distinct blockers. No semantic assertions or expected outputs weakened. Lock released20:26:06Z, independently free; no live Cargo/rustc or target cleanup. Evidence `lsp/minify-focused12-20261022/` pins every selector/log and source-scope hashes. Zero-warning and six-engine acceptance are not closed. Current canonical product hold remains; tiny CI5205 metadata-test API adaptation is off-tree patch438631f5 against byte-exact published2b934 source. N13 first-edge/settings/consumer wiring remains off-tree/incomplete.
+
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
 Last updated: 2026-10-22T20:16:33Z

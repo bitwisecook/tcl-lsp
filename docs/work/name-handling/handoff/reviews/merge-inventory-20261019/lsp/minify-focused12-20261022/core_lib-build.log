@@ -1,0 +1,12 @@
+warning: method `native_argument_input` is never used
+  --> rust/tcl-compiler/src/analyser/original_definer.rs:79:19
+   |
+19 | impl OriginalClassDefinerSource {
+   | ------------------------------- method in this implementation
+...
+79 |     pub(super) fn native_argument_input(
+   |                   ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+    Finished `test` profile [unoptimized] target(s) in 1.29s

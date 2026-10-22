@@ -2,13 +2,6 @@
   "utc": "2026-10-22T20:26:14.528395+00:00",
   "rows": [
     {
-      "role": "README",
-      "source": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/outstanding/README.md",
-      "reported_stamp": "",
-      "age_minutes": null,
-      "stale": true
-    },
-    {
       "role": "bigip-lsp",
       "source": "/workspace/naming-migration-publish/tcl-lsp/docs/work/name-handling/outstanding/bigip-lsp.md",
       "reported_stamp": "2026-10-22T18:08Z",
@@ -73,5 +66,6 @@
     }
   ],
   "disk_free_bytes": 8790388736,
-  "stale_notification": "BIG-IP final18:08 stale; user notified again this cycle; no takeover"
+  "stale_notification": "BIG-IP final18:08 stale; user notified again this cycle; no takeover",
+  "note": "README is the role index, not an outstanding role brief; omitted from role freshness. Compiler-codegen resumed and refreshed its own stale19:25 header at20:28 after completed peer-review turn."
 }

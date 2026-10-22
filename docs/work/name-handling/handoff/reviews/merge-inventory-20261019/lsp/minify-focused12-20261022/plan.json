@@ -1,0 +1,141 @@
+{
+  "status": "prepared only; no queue/build/run",
+  "scope": "12 exact tests in three Cargo targets, no whole target; native compiler issuer guard is original18 row8 and not repeated here",
+  "oracle_policy": "require and hash all five pinned C toolchains and Jim before/after; tests retain original configuration and assertions; no optional missing-provider admission",
+  "selectors": [
+    {
+      "target": "--lib",
+      "selector": "minify::tests::expr_string_and_membership_inversion_still_applies",
+      "expected_tests": 1,
+      "features": [
+        "four corrected eq/ne/in/ni inversion spacing expectations; no inversion removal"
+      ],
+      "source_path": "rust/tcl-lsp-core/src/minify.rs"
+    },
+    {
+      "target": "--lib",
+      "selector": "minify::tests::keeps_word_operator_spacing",
+      "expected_tests": 1,
+      "features": [
+        "corrected required before-eq gap and removable eq-to-variable gap"
+      ],
+      "source_path": "rust/tcl-lsp-core/src/minify.rs"
+    },
+    {
+      "target": "--lib",
+      "selector": "minify::original::tests::native_syntax_compaction_uses_selected_original_expression_gaps",
+      "expected_tests": 1,
+      "features": [
+        "safe arithmetic/read/function gaps",
+        "runtime-error expression retained semantically",
+        "malformed expression unchanged",
+        "execution observer blocks expression compaction"
+      ],
+      "source_path": "rust/tcl-lsp-core/src/minify/original.rs"
+    },
+    {
+      "target": "--lib",
+      "selector": "minify::original::tests::original_syntax_compaction_keeps_opaque_words_nested_scripts_and_expansion",
+      "expected_tests": 1,
+      "features": [
+        "six profiles",
+        "opaque literal units and data spaces",
+        "nested scripts",
+        "exact expansion boundaries",
+        "idempotence"
+      ],
+      "source_path": "rust/tcl-lsp-core/src/minify/original.rs"
+    },
+    {
+      "target": "--lib",
+      "selector": "minify::original::tests::original_minifier_declines_stale_images_full_configuration_changes_and_malformed_tail",
+      "expected_tests": 1,
+      "features": [
+        "stale complete source refusal",
+        "full lexer-config change refusal",
+        "malformed tail unchanged/incomplete"
+      ],
+      "source_path": "rust/tcl-lsp-core/src/minify/original.rs"
+    },
+    {
+      "target": "--lib",
+      "selector": "minify::original::tests::original_minifier_holds_custom_profile_and_registry_instead_of_resolving_its_label",
+      "expected_tests": 1,
+      "features": [
+        "actual custom profile and exact registry",
+        "no dialect-label re-resolution",
+        "unchanged naming refusal"
+      ],
+      "source_path": "rust/tcl-lsp-core/src/minify/original.rs"
+    },
+    {
+      "target": "lsp_edit_workspace",
+      "selector": "minify_strips_comments_and_collapses_whitespace_factorial",
+      "expected_tests": 1,
+      "features": [
+        "original unchanged exact Default output assertion"
+      ],
+      "source_path": "rust/tcl-lsp-core/tests/lsp_edit_workspace.rs"
+    },
+    {
+      "target": "lsp_edit_workspace",
+      "selector": "minify_preserves_string_and_expr_results",
+      "expected_tests": 1,
+      "features": [
+        "original unchanged exact Default output assertion"
+      ],
+      "source_path": "rust/tcl-lsp-core/tests/lsp_edit_workspace.rs"
+    },
+    {
+      "target": "minify_residual",
+      "selector": "expr_comparison_inversion_string_equal",
+      "expected_tests": 1,
+      "features": [
+        "corrected safe-gap ne expectation, original inversion retained"
+      ],
+      "source_path": "rust/tcl-lsp-core/tests/minify_residual.rs"
+    },
+    {
+      "target": "minify_residual",
+      "selector": "expr_comparison_inversion_membership",
+      "expected_tests": 1,
+      "features": [
+        "corrected safe-gap ni expectation, braced list data retained"
+      ],
+      "source_path": "rust/tcl-lsp-core/tests/minify_residual.rs"
+    },
+    {
+      "target": "minify_residual",
+      "selector": "default_minify_compacts_expression_gaps_and_preserves_oracle_results",
+      "expected_tests": 1,
+      "features": [
+        "five pinned C profiles plus Jim",
+        "outer expression plus nested expr/script gaps together",
+        "actual minifier output",
+        "before/after interpreter stdout+stderr",
+        "idempotence"
+      ],
+      "source_path": "rust/tcl-lsp-core/tests/minify_residual.rs"
+    },
+    {
+      "target": "minify_residual",
+      "selector": "native_word_operators_remove_safe_gaps_without_changing_tokens_or_data",
+      "expected_tests": 1,
+      "features": [
+        "five pinned C profiles plus Jim",
+        "operator to variable and closing-paren to operator",
+        "eq/ne/in/ni and supported lt profiles",
+        "literal internal spaces retained",
+        "actual output before/after interpreters",
+        "idempotence"
+      ],
+      "source_path": "rust/tcl-lsp-core/tests/minify_residual.rs"
+    }
+  ],
+  "optional_n15_followup_not_in_base": [
+    "minify_compact_isolated_refuses_proc_renaming_and_preserves_result",
+    "minify_compact_isolated_refuses_local_and_proc_names_together"
+  ],
+  "limits": "full source/provider manifests, actual Cargo JSON executable per current target, executable hashes before/after, inherited stack,180s per selector, draining20MB logs, global flock over entire build/run; >=2.3GB before each build; no cleanup",
+  "plan_source_confirmation": "all12 selector function names uniquely found in assigned current target sources; runtime exact one-test count remains enforced"
+}

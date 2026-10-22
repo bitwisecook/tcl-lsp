@@ -1,0 +1,8 @@
+running 1 test
+test expr_comparison_inversion_membership ... 
+thread 'expr_comparison_inversion_membership' (122565) panicked at rust/tcl-lsp-core/tests/minify_residual.rs:565:5:
+assertion `left == right` failed
+  left: "if {!($x in{a b})} {puts y}"
+ right: "if {$x ni{a b}} {puts y}"
+FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 41 filtered out; finished in 2.37s

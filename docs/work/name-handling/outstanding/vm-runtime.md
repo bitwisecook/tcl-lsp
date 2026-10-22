@@ -2,7 +2,7 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T19:59:32Z (four auxiliary evidence source extensions renamed .txt byteidentically; transient guard-input change recorded, no stability inference; no Rust/Cargo)
+Last updated: 2026-10-22T20:28:53Z (CI5205 alias PASS/catch8.4 FAIL/new callback abort; docs archives excluded from actual40917 guard, exact source/providers verified; all canonical writes held, no Cargo queued)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -556,7 +556,18 @@ The state is in WIP snapshot `56893780b9`, plus the working tree since.
 Auxiliary archive correction at 2026-10-22T19:59:32Z: newly copied baseline-cmd_alias.rs,
 baseline-cmd_error.rs and finite-c-oracles/{aliases,catch84}.tcl under the CI5204
 run archive were renamed to .rs.txt/.tcl.txt with identical bytes/SHA-256. The
-receipt retains exact old/new path provenance. Their transient source extensions
-may have entered broad live source guards even under docs; no source-stability
-pass is inferred. No product/test source or executable changed. Future evidence
+receipt retains exact old/new path provenance. The LSP CURRENT3 guard explicitly excluded docs/work/name-handling/; none of
+these four files entered its40917 captured keys, and final captured-source plus
+provider hashes matched. This was a transient documentation-extension event,
+not actual guard-input drift. No whole-repository unchanged inference follows. No product/test source or executable changed. Future evidence
 inside the active tree uses .json/.txt/.patch during source hold.
+
+CI5205 update 2026-10-22T20:28:53Z: root reports runtime job120061100185 closedFAIL on
+2b934 including publisher TLS/alias fixes. Exact alias test nowPASS; catch8.4
+stillFAIL.71FAILED emitted before a later namespace-copy extern callback abort
+at original_namespace_copy_tests.rs41. PriorSCRIPT_LOCATIONS abort did not
+recur through that point, but obj/TLS controls were not reached or proven.
+Off-tree exact baseline/cause triage and Jim provider0.84 fixture mismatch
+analysis are active. VM71 and runtime5 plans remain unqueued pending integrated
+active source and explicit GO. This is the final brief authorized doc write;
+all canonical writes now held for root integration.

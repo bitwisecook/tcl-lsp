@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "30926fc32bdd7cb70589852a5d03654e787b091e",
-  "last_published_snapshot": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+  "last_source_snapshot": "6974803cdaf83b60cf9e2cd054bef0d220480ae0",
+  "last_published_snapshot": "39b392963c652b3bc0d8ca95e387b2b00a225b25",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,7 +16,7 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-22T20:05:25.674865+00:00",
+  "last_published_utc": "2026-10-22T20:29:00.143192+00:00",
   "product_tree_diff": [
     "runtime/rust/src/cmd_alias.rs",
     "runtime/rust/src/native_source.rs",
@@ -91,5 +91,5 @@
     "scripts/dev/cargo-deny-all.sh"
   ],
   "source_lineage_rebased_utc": "2026-10-22T18:49:22.058432+00:00",
-  "source_lineage_note": "Published71-path CI unblock/oracle correction plus all activeWIPdocs through30926, rebasedontoexternal368126c andnormal-pushed2b934. Active product remains frozenoldsource duringLSPtests; integrate onlybetweenruns."
+  "source_lineage_note": "20:25 cycle published full6974803 WIP and narrow server metadata API fixture repair438631 ontoexternal646ac4e. Active source integration now pending between guarded runs."
 }

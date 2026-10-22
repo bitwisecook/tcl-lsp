@@ -1,0 +1,35 @@
+{
+  "utc": "2026-10-22T20:26:53.153713+00:00",
+  "scope": "capture-inputs.py existing 40917-source scope excludes docs/work/name-handling; not whole repository",
+  "source_files": 40917,
+  "source_equal": true,
+  "providers_equal": true,
+  "sha256": {
+    "source-before.json": "0771728a2d86f99d0591aabef20204649d9d90148c9cdcd3a9adcf018a548575",
+    "source-after.json": "0771728a2d86f99d0591aabef20204649d9d90148c9cdcd3a9adcf018a548575",
+    "providers-before.json": "154210b16253ba6a40e2f333b221e869a2904d9551e35c9279b058eb5d6458a8",
+    "providers-after.json": "154210b16253ba6a40e2f333b221e869a2904d9551e35c9279b058eb5d6458a8"
+  },
+  "exact_results": {
+    "passed": 6,
+    "failed": 6,
+    "timeout": 0
+  },
+  "failure_classes": {
+    "inversion": [
+      "expr_string_and_membership_inversion_still_applies",
+      "expr_comparison_inversion_string_equal",
+      "expr_comparison_inversion_membership"
+    ],
+    "nested_gap_output": [
+      "minify_strips_comments_and_collapses_whitespace_factorial",
+      "default_minify_compacts_expression_gaps_and_preserves_oracle_results"
+    ],
+    "provider_metadata": [
+      "native_word_operators_remove_safe_gaps_without_changing_tokens_or_data"
+    ]
+  },
+  "provider_failure": "Jim reports 0.84 0.84; pinned contract expects 0.84 0.84-9-g5bac7c9. No oracle assertions weakened.",
+  "final_lock": "flock -n succeeded; no live cargo/rustc, four preexisting init-owned zombies only; no target cleanup",
+  "warning": "Existing native_argument_input dead_code warning; zero-warning gate not passed."
+}

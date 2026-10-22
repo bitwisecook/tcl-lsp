@@ -1,0 +1,9 @@
+running 1 test
+test minify::tests::expr_string_and_membership_inversion_still_applies ... 
+thread 'minify::tests::expr_string_and_membership_inversion_still_applies' (122093) panicked at rust/tcl-lsp-core/src/minify.rs:4119:9:
+assertion `left == right` failed: 
+expected: "if {$a ne\"x\"} {puts x}"
+  left: "if {!($a eq\"x\")} {puts x}"
+ right: "if {$a ne\"x\"} {puts x}"
+FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3494 filtered out; finished in 1.47s

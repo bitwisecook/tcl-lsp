@@ -1,0 +1,5 @@
+running 1 test
+test default_minify_compacts_expression_gaps_and_preserves_oracle_results ... 
+thread 'default_minify_compacts_expression_gaps_and_preserves_oracle_results' (122601) panicked at rust/tcl-lsp-core/tests/minify_residual.rs:808:9:
+FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 41 filtered out; finished in 32.17s

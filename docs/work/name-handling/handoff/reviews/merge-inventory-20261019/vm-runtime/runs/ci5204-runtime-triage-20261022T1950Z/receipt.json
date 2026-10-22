@@ -82,6 +82,11 @@
         "sha256": "467dde88232b702441a8e8784efd2c835b8c2ea4882ae3fb183945f729117981",
         "bytes": 135
       }
-    ]
+    ],
+    "resolved_actual_lsp_capture": {
+      "recorded_utc": "2026-10-22T20:28:53Z",
+      "scope": "CURRENT3 explicitly excludes docs/work/name-handling/; four archives absent40917 initialkeys; final40917 capturedsource/providerhashesmatched. Transientdocs extensions only, notactual guardinputdrift. No wholerepositoryunchanged inference.",
+      "lsp_evidence": "/tmp/lsp-native-p2f/transient-doc-archive-event.json"
+    }
   }
 }
