@@ -804,7 +804,7 @@ mod tests {
             tcl_dialect::BracedVarStyle::Tcl9Nesting,
         )
         .unwrap();
-        assert!(modern_rest.is_empty());
+        assert_eq!(modern_rest, "");
         assert!(pattern.find(nested).unwrap().end() < nested.len());
     }
 

@@ -2209,7 +2209,7 @@ mod original_call_owner_tests {
                 .any(|pool| pool.name == "fake_pool")
         );
         let dynamic = translate_irule("when HTTP_REQUEST {pool $selected_pool}");
-        assert!(dynamic.origin_pools.is_empty());
+        assert_eq!(dynamic.origin_pools, [] as [crate::model::XCOriginPool; 0]);
         let quoted = translate_irule("when HTTP_REQUEST {{pool} {literal pool}}");
         assert!(
             quoted
@@ -2359,7 +2359,7 @@ mod original_expression_owner_tests {
         let replaced = translate_irule(
             r#"proc HTTP::path {} {return /fake}; when HTTP_REQUEST {if {[HTTP::path] eq "/a"} {pool route}}"#,
         );
-        assert!(replaced.routes.is_empty());
+        assert_eq!(replaced.routes, [] as [crate::model::XCRoute; 0]);
         let literal =
             translate_irule(r#"when HTTP_REQUEST {switch {[HTTP::path]} {"/a" {pool route}}}"#);
         assert!(
@@ -2440,9 +2440,9 @@ mod supplied_source_registry_tests {
         );
         assert_selected_override(source, &registry, 19, "pool", Some(false));
         let result = translate_irule_with_registry(source, &registry);
-        assert!(result.origin_pools.is_empty());
-        assert!(result.routes.is_empty());
-        assert!(!result.items.is_empty());
+        assert_eq!(result.origin_pools, [] as [crate::model::XCOriginPool; 0]);
+        assert_eq!(result.routes, [] as [crate::model::XCRoute; 0]);
+        assert_ne!(result.items, [] as [crate::model::TranslationItem; 0]);
         for override_flag in [None, Some(true)] {
             let mut custom =
                 irules_registry().project_for_profile(tcl_dialect::DialectProfile::irules());
@@ -2453,8 +2453,8 @@ mod supplied_source_registry_tests {
             });
             assert_selected_override(source, &custom, 19, "pool", override_flag);
             let result = translate_irule_with_registry(source, &custom);
-            assert!(result.origin_pools.is_empty());
-            assert!(result.routes.is_empty());
+            assert_eq!(result.origin_pools, [] as [crate::model::XCOriginPool; 0]);
+            assert_eq!(result.routes, [] as [crate::model::XCRoute; 0]);
         }
         let getter_source = r#"when HTTP_REQUEST {if {[HTTP::path] eq "/a"} {pool p}}"#;
         let shipped = irules_registry().project_for_profile(tcl_dialect::DialectProfile::irules());
@@ -2475,7 +2475,7 @@ mod supplied_source_registry_tests {
                 result.routes.is_empty(),
                 "custom getter flag {override_flag:?}"
             );
-            assert!(!result.items.is_empty());
+            assert_ne!(result.items, [] as [crate::model::TranslationItem; 0]);
         }
     }
 

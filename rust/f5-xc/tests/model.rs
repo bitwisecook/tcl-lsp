@@ -189,7 +189,7 @@ fn untranslatable_event_is_flagged() {
 #[test]
 fn empty_rule_is_full_coverage() {
     let result = translate_irule("when HTTP_REQUEST {\n}");
-    assert!(result.items.is_empty());
+    assert_eq!(result.items, [] as [f5_xc::model::TranslationItem; 0]);
     assert!((result.coverage_pct - 100.0).abs() < 1e-9);
 }
 

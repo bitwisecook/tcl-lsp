@@ -1628,7 +1628,7 @@ mod tests {
     fn the_selecting_spellings_join_the_identities_in_the_language_id_table() {
         let rows = language_id_dialects(&languages().unwrap());
         let selecting = selecting_language_ids();
-        assert!(!selecting.is_empty());
+        assert_ne!(selecting, [] as [(String, String); 0]);
         for row in &selecting {
             assert!(rows.contains(row), "{row:?}");
         }

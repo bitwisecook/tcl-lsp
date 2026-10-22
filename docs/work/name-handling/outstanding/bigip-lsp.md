@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T16:45Z
+Last updated: 2026-10-22T17:14Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -10,19 +10,19 @@ push at least every 30 minutes and after each finished item. Full unit table:
 
 ## In progress
 
-WASM Clippy PASS (zero warnings); the first native keep-going pass has finished.
-Fresh core lint finished: 54 generic findings, zero in owned F5 modules.
-Owned roots are now checked with core as a dependency. That pass found 50 test-only `assert_is_empty` lints in BIG-IP,
-iRules, query fixtures and report generator tests. Their equivalent
-assert_eq!/assert_ne! comparisons preserve every empty/non-empty condition
-and show actual values on failure; verification is pending.
-The F5-reversed rewrite comparison and three editor-generator tests are
-building in one command (`/tmp/bigip-without-f5.log`). The comparison
-build has cleared Compiler, VM and core and is compiling the remaining
-engine/transport/CLI dependencies; no new Rust warning or error. Its finally block
-restores both loaned server files byte for byte. The with-F5 rewrite case
-failed at the existing "actual worker must retain an applicable rewrite"
-assertion; attribution awaits the reversed result.
+The broad owned-root lint pass reached every selected crate and found 16
+further owned assertion-style findings (editor generators, XC, CLI), all
+changed to equivalent typed equality/inequality assertions. Total test-only
+conditions preserved: 66. Cached verification is running; 53 non-editor
+xtask and 40 registry integration findings are indexed below. The missing
+registry include! fixture was restored unchanged from HEAD.
+
+Comparison/generator build has cleared Compiler, VM, core and dependencies
+and reached the xtask test target. It then runs the three generated-region
+tests and the unchanged plain-Tcl rewrite test WITHOUT only the F5 pull
+change. `/tmp/bigip-without-f5.py` restores both server files in its finally
+block. No comparison result yet; with-F5 failed at the applicable-rewrite
+assertion (55.84s). Server scoped lint must wait for restoration.
 
 ## Outstanding (in priority order)
 
@@ -42,6 +42,14 @@ assertion; attribution awaits the reversed result.
    was previously regenerated and `gen-editor-configs --check` passed.
 
 ## Blocked (on whom, and what is needed)
+
+- Non-editor xtask/registry owners: **53 + 40** assertion-style Clippy
+  findings from the broad scoped pass, outside this agent's explicit editor
+  generator/previous-registry-line scope. This includes the BIG-IP schema and
+  F5-query documentation gates (not editor generators). Exact primary
+  locations/command: `../handoff/reviews/merge-inventory-20261019/bigip-lsp/clippy-consumer-blockers-20261022.json`.
+  No allowance or assertion changes in those files. Library-test registry
+  checking initially hit a missing sparse fixture; restored, rerun pending.
 
 - Generic LSP owner: fresh normal-library core Clippy has **54 errors**,
   zero in owned BIG-IP/F5 modules. The six owned production lint findings
@@ -85,7 +93,7 @@ assertion; attribution awaits the reversed result.
   retained bindings, then `operand false`. The new ASCII/Unicode/nested-getter
   regression fails before the fix and passes after. Full f5-xc lib: **31/31
   PASS**, including all previous source/registry refusal assertions (no edits
-  to those assertions). Evidence in `bigip-lsp/`: `xc-condition-owner-probe-result-20261022.txt`,
+  to their conditions; later Clippy-only spelling changes retain them). Evidence in `bigip-lsp/`: `xc-condition-owner-probe-result-20261022.txt`,
   `xc-range-before-20261022.txt`, `xc-lib-after-20261022.txt`. Probe removed;
   every test executable was built, run and deleted in one command.
 - Server: XC e2e **5/5 PASS**, BIG-IP/APL W109 e2e **1/1 PASS**, focused F5
@@ -112,7 +120,8 @@ assertion; attribution awaits the reversed result.
 
 - Validation checkout: `/workspace/bigip-lsp`, source `aeecf397` plus the two
   owned production lint-only files pushed in `f26f6a06` and the 50 test-only
-  assertion-style changes pushed in `e4a01bbe`. Main branch HEAD stays
+  assertion-style changes pushed in `e4a01bbe`, plus 16 further test-only
+  assertion spelling changes in the latest owned commit. Main branch HEAD stays
   frozen during builds. A separate coordination-only worktree at
   `/workspace/bigip-coordination` fetches/rebases and pushes tracking snapshots.
   Its latest pushed HEAD includes newer compiler/core changes; these builds
@@ -135,9 +144,11 @@ assertion; attribution awaits the reversed result.
 - Native scoped lint **46036** finished exit 101 (50 owned assertion-style
   findings, now changed equivalently, plus the old core check). The core
   check had encountered an intermediate adapter lifetime error; that owned
-  error is fixed and compilation confirmed by WASM. Active **23728** has finished fresh core lint (54 generic errors)
-  and is now checking owned roots with core as a dependency (all `-D
+  error is fixed and compilation confirmed by WASM. Finished **23728** has finished fresh core lint (54 generic errors)
+  and completed owned roots (16 additional owned fixes now applied) with core as a dependency (all `-D
   warnings --no-deps`). Logs `/tmp/bigip-clippy-{owned-after,core-final,roots-final}*`.
+  Active cached verification **25657**; comparison/generators **24095**.
+  Fresh cached root verification logs: `/tmp/bigip-clippy-roots-after*`.
   Standalone WASM **30313** finished PASS with zero warnings.
 - Next: finish the above; fix owned lint findings, route generic ones;
   after the comparison restores intact F5 source, run server scoped lint.
@@ -146,7 +157,7 @@ assertion; attribution awaits the reversed result.
   `current_diagnostics.rs handed back`; no further production change planned.
 - Original `/workspace/tcl-lsp` setup rebase was aborted, tracked files clean;
   its ignored oracle trees remain reachable via the active `tmp` symlink.
-  Sparse checkout materialised 217 literal fixture inputs from HEAD without
+  Sparse checkout materialised 218 literal fixture inputs from HEAD without
   changing assertions. No temporary source probe remains.
 - Required repository/host gates remain pending under the authorised
   development-push exception. Never open a PR; the PR to `rust` remains gated

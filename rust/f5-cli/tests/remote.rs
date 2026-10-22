@@ -168,7 +168,7 @@ fn missing_payload_file_errno_message() {
         &[("F5_PASSWORD", "x")],
     );
     assert_eq!(code, 2);
-    assert!(out.is_empty());
+    assert_eq!(out, "");
     assert_eq!(
         err,
         format!("error: [Errno 2] No such file or directory: '{missing}'\n")

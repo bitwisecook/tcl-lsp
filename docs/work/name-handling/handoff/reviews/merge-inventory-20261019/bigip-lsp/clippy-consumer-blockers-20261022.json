@@ -1,0 +1,1130 @@
+{
+  "date_utc": "2026-10-22T17:14:01Z",
+  "command": "cargo clippy --locked --keep-going -p tcl-bigip -p tcl-bigip-io -p tcl-bigip-query -p tcl-irules -p f5-xc -p f5-cli -p tcl-f5mku -p bigip-report-gen-rust -p tcl-registry -p xtask --lib --bins --tests --no-deps --message-format=json -- -D warnings",
+  "source": "aeecf397 plus owned lint-only changes; 16 further owned assertion findings were fixed after this indexed pass, verification pending",
+  "rust": "1.99.1 stable",
+  "unowned_error_counts": {
+    "xtask": 53,
+    "tcl-registry": 40
+  },
+  "scope": "53 xtask findings outside the editor-generator loan (includes the BIG-IP schema/F5-query doc gates), 40 generic registry integration-test findings. No edits to those files. Generic registry library-test checking initially stopped at a missing sparse input; native_introspection_compilation/cases.rs has now been materialised unchanged from HEAD. Fresh verification pending, including any further generic library-test findings.",
+  "errors": [
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/bigip_data_schema.rs",
+          "line": 531,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/bigip_data_schema.rs",
+          "line": 564,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/command_backing.rs",
+          "line": 753,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 504,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 522,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 535,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 536,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 549,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 557,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 564,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 565,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 566,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 590,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 596,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 605,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 630,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 631,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/dialect_drift.rs",
+          "line": 643,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/f5query_builtins_doc.rs",
+          "line": 199,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/fp_sweep.rs",
+          "line": 778,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/kcs_index_links.rs",
+          "line": 943,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/number_drift.rs",
+          "line": 546,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/number_drift.rs",
+          "line": 551,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/owner_resolution/source_internal.rs",
+          "line": 3504,
+          "column": 13
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/owner_resolution/source_internal.rs",
+          "line": 3603,
+          "column": 13
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/owner_resolution/source_internal.rs",
+          "line": 3607,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is not empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/owner_resolution/source_internal.rs",
+          "line": 3668,
+          "column": 13
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/owner_resolution.rs",
+          "line": 2568,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/owner_resolution.rs",
+          "line": 2845,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/owner_resolution.rs",
+          "line": 2950,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/owner_resolution.rs",
+          "line": 2956,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/registry_axes.rs",
+          "line": 1283,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/registry_axes.rs",
+          "line": 1287,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/registry_axes.rs",
+          "line": 1406,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/retired_api_gate.rs",
+          "line": 797,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/retired_api_gate.rs",
+          "line": 807,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/retired_api_gate.rs",
+          "line": 845,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/retired_api_gate.rs",
+          "line": 870,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/retired_api_gate.rs",
+          "line": 871,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/retired_api_gate.rs",
+          "line": 881,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/retired_api_gate.rs",
+          "line": 907,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/segmentation_drift.rs",
+          "line": 573,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/segmentation_drift.rs",
+          "line": 574,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/segmentation_drift.rs",
+          "line": 576,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/segmentation_drift.rs",
+          "line": 602,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/segmentation_drift.rs",
+          "line": 610,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/segmentation_drift.rs",
+          "line": 621,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/segmentation_drift.rs",
+          "line": 642,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/segmentation_drift.rs",
+          "line": 643,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/segmentation_drift.rs",
+          "line": 650,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/segmentation_drift.rs",
+          "line": 691,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/value_transfers.rs",
+          "line": 1300,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "xtask",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/xtask/src/value_transfers.rs",
+          "line": 1339,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/registry_sweep.rs",
+          "line": 1888,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/registry_sweep.rs",
+          "line": 1889,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/registry_sweep.rs",
+          "line": 1893,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/registry_sweep.rs",
+          "line": 1986,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/value_transfers.rs",
+          "line": 278,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/value_transfers.rs",
+          "line": 748,
+          "column": 13
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/value_transfers.rs",
+          "line": 1163,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/value_transfers.rs",
+          "line": 1173,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/value_transfers.rs",
+          "line": 1203,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/value_transfers.rs",
+          "line": 1626,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/value_transfers.rs",
+          "line": 1652,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/value_transfers.rs",
+          "line": 1664,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/value_transfers.rs",
+          "line": 4622,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/value_transfers.rs",
+          "line": 7209,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/value_transfers.rs",
+          "line": 7768,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/provider_relation.rs",
+          "line": 83,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/sslictcl_pack.rs",
+          "line": 534,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/sslictcl_pack.rs",
+          "line": 535,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/sslictcl_pack.rs",
+          "line": 536,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/sslictcl_pack.rs",
+          "line": 537,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/sslictcl_pack.rs",
+          "line": 538,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/sslictcl_pack.rs",
+          "line": 539,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/name_lookup_issue_witnesses.rs",
+          "line": 93,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/spec_pack_provenance.rs",
+          "line": 124,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/registry_commands.rs",
+          "line": 569,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/registry_commands.rs",
+          "line": 695,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/registry_commands.rs",
+          "line": 792,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/registry_commands.rs",
+          "line": 3285,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/analyser_hooks.rs",
+          "line": 331,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/analyser_hooks.rs",
+          "line": 332,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/analyser_hooks.rs",
+          "line": 352,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/analyser_hooks.rs",
+          "line": 353,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/analyser_hooks.rs",
+          "line": 358,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/analyser_hooks.rs",
+          "line": 359,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/spectcl_pack.rs",
+          "line": 251,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/spectcl_pack.rs",
+          "line": 277,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/spectcl_pack.rs",
+          "line": 278,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/spectcl_pack.rs",
+          "line": 279,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/spectcl_pack.rs",
+          "line": 280,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "package": "tcl-registry",
+      "code": "clippy::assert_is_empty",
+      "message": "used `assert!` to check that a value is empty",
+      "primary": [
+        {
+          "path": "rust/tcl-registry/tests/spectcl_pack.rs",
+          "line": 281,
+          "column": 9
+        }
+      ]
+    }
+  ],
+  "raw_sha256": "4db4f1a0efd207da4144be77b07b3c09edde0c8aa492906aeed6f482c6858edc"
+}

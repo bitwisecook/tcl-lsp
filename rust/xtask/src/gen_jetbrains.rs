@@ -695,7 +695,10 @@ old
     fn quoted_keys_reads_only_the_block_it_is_given() {
         let source = "internal val A = mapOf(\n  \"x\" to 1,\n  \"y\" to 2,\n)\nval B = \"z\"\n";
         assert_eq!(quoted_keys(source, "internal val A", "\n)"), ["x", "y"]);
-        assert!(quoted_keys(source, "no such marker", "\n)").is_empty());
+        assert_eq!(
+            quoted_keys(source, "no such marker", "\n)"),
+            [] as [String; 0]
+        );
     }
 
     #[test]

@@ -120,7 +120,7 @@ fn merge_refuses_opaque_path_without_opening_replacement_sibling() {
         .expect("run merge with Unicode replacement sibling");
     assert_eq!(accepted.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&accepted.stdout).contains(marker));
-    assert!(accepted.stderr.is_empty());
+    assert_eq!(accepted.stderr, [] as [u8; 0]);
 
     std::fs::remove_dir_all(&dir).expect("remove temp dir");
 }
@@ -409,7 +409,7 @@ fn mutating_queries_require_faithful_named_and_structured_donors() {
         }
         let output = command.output().unwrap();
         assert!(!output.status.success());
-        assert!(output.stdout.is_empty());
+        assert_eq!(output.stdout, [] as [u8; 0]);
         assert!(
             String::from_utf8_lossy(&output.stderr).contains("invalid UTF-8"),
             "{:?}",
@@ -473,7 +473,7 @@ fn query_archive_file_donors_keep_original_bytes_before_mutation() {
                     .contains('\u{fffd}')
             );
         } else {
-            assert!(result.stdout.is_empty());
+            assert_eq!(result.stdout, [] as [u8; 0]);
             assert!(String::from_utf8_lossy(&result.stderr).contains("invalid UTF-8"));
         }
     }
