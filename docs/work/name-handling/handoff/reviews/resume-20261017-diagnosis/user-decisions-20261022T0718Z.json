@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-22T07:18Z",
+  "source": "AskUserQuestion answer in chat",
+  "decisions": {
+    "force_import_shadow_direction": {
+      "choice": "Abstain",
+      "meaning": "When a document force-imports a name (`namespace import -force ns::*`) and the workspace export index says a sibling document exports that name, LSP providers (definition, signature, call hierarchy, rename and the other original-name providers) give no answer for that name in the shadowed direction. Neither the local definition nor the sibling's export is proven, because cross-document execution order stays conditional (decision 2026-10-17T20:30Z export_order) and the document is otherwise analysed as a fresh interpreter (decision 2026-10-19T14:20Z).",
+      "tests": "rust/tcl-lsp-core force_import_shadow_consumers: the 8 shadowed-direction tests change to expect abstention, each citing this decision; the tests that pass today keep their assertions."
+    }
+  }
+}
