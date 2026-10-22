@@ -82,6 +82,19 @@ mod tests {
         crate::ir::Module,
         std::sync::Arc<tcl_registry::CommandRegistry>,
     ) {
+        module_for_entry_history(source, native_entry, false)
+    }
+
+    /// [`module_for_entry`], whose entry may state that the interpreter's
+    /// prior history is unknown.
+    fn module_for_entry_history(
+        source: &str,
+        native_entry: Option<&std::sync::Arc<tcl_runtime_api::NativeCompilationEntry>>,
+        unknown_entry: bool,
+    ) -> (
+        crate::ir::Module,
+        std::sync::Arc<tcl_registry::CommandRegistry>,
+    ) {
         let profile = tcl_dialect::DialectProfile::find("tcl8.4").unwrap();
         let registry = tcl_registry::model::ingress::static_context_for_profile(profile)
             .commands()
@@ -95,6 +108,7 @@ mod tests {
             false,
             Some(SourceAnalysisOptions {
                 native_entry: native_entry.map(std::sync::Arc::as_ref),
+                unknown_entry,
                 invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
                 native_compilation: NativeCompilationContext {
                     mode: NativeCompilationMode::BytecodeObject,
@@ -165,8 +179,8 @@ mod tests {
     }
 
     #[test]
-    fn missing_original_entry_keeps_compiler_rejection_as_an_admission_obligation() {
-        let (module, registry) = module_for_entry("set x extra bad", None);
+    fn unknown_entry_keeps_compiler_rejection_as_an_admission_obligation() {
+        let (module, registry) = module_for_entry_history("set x extra bad", None, true);
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
         let function = super::super::codegen_module(&execution, &module, &registry)
@@ -178,9 +192,39 @@ mod tests {
         );
     }
 
+    /// With no entry and no unknown history the compile is a fresh
+    /// interpreter of the profile (user decision 2026-10-19T14:20Z): its own
+    /// compiler rejects the command exactly as a captured fresh 8.4 entry's
+    /// does, so the rejection is presented, not left to a provider.
     #[test]
-    fn missing_original_entry_does_not_invent_a_guest_compiler_error() {
-        let (module, registry) = module_for_entry("", None);
+    fn an_entry_less_fresh_compile_presents_its_own_compiler_rejection() {
+        let present = |module: &crate::ir::Module, registry: &tcl_registry::CommandRegistry| {
+            let execution = crate::cfg_builder::build_cfg_codegen_with_registry(module, false, registry);
+            super::super::codegen_module(&execution, module, registry)
+                .expect("original source namespace")
+                .top_level
+        };
+        let (fresh, registry) = module_for_entry("set x extra bad", None);
+        let fresh = present(&fresh, &registry);
+        let (captured, registry) = module_for("set x extra bad");
+        let captured = present(&captured, &registry);
+        let message = |function: &tcl_bytecode::FunctionAsm| {
+            function
+                .native_compilation_failure
+                .as_ref()
+                .map(|failure| failure.message.clone())
+        };
+        assert_eq!(
+            message(&fresh).as_deref(),
+            Some("wrong # args: should be \"set varName ?newValue?\"")
+        );
+        assert_eq!(message(&fresh), message(&captured));
+        assert!(fresh.validate_native_compilation_entry().is_ok());
+    }
+
+    #[test]
+    fn unknown_entry_does_not_invent_a_guest_compiler_error() {
+        let (module, registry) = module_for_entry_history("", None, true);
         let execution =
             crate::cfg_builder::build_cfg_codegen_with_registry(&module, false, &registry);
         let function = super::super::codegen_module(&execution, &module, &registry)
