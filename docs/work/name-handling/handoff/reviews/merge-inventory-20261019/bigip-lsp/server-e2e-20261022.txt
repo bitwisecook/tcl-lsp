@@ -1,0 +1,184 @@
+Source: aeecf397 (compiled before the later lint-only edits).
+Environment: CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0; required C Tcl 9.0.4, 8.6.18 and pinned Jim 0.84.
+Command: cargo test --no-run --locked -p tcl-lsp-server --lib --test e2e; selected executable invocations below.
+Every executable is run and deleted within the same wrapping command.
+
+   Compiling tcl-compiler v0.1.0 (/workspace/bigip-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/bigip-lsp/rust/tcl-vm)
+   Compiling tcl-version v0.1.0 (/workspace/bigip-lsp/rust/tcl-version)
+   Compiling tower-lsp-server v0.23.0
+   Compiling tcl-test-support v0.1.0 (/workspace/bigip-lsp/rust/tcl-test-support)
+   Compiling tcl-irules v0.1.0 (/workspace/bigip-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/bigip-lsp/rust/tcl-sslictcl)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/bigip-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/bigip-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-diagram v0.1.0 (/workspace/bigip-lsp/rust/tcl-diagram)
+   Compiling tcl-bigip v0.1.0 (/workspace/bigip-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/bigip-lsp/rust/tcl-lsp-core)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/bigip-lsp/rust/tcl-bigip-query)
+   Compiling tcl-spectcl v0.1.0 (/workspace/bigip-lsp/rust/tcl-spectcl)
+   Compiling tcl-explorer v0.1.0 (/workspace/bigip-lsp/rust/tcl-explorer)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/bigip-lsp/rust/tcl-lsp-db)
+   Compiling f5-xc v0.1.0 (/workspace/bigip-lsp/rust/f5-xc)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/bigip-lsp/rust/tcl-lsp-server)
+    Finished `test` profile [unoptimized] target(s) in 59m 43s
+RUN /workspace/bigip-lsp/target/debug/deps/e2e-b3fb3570cd4bdf0e ['issue1707_ilx_methods', 'commands::xc_translate_', 'w109_disabled_still_abstains_for_bigip_and_apl_documents', '--test-threads=1', '--nocapture']
+
+running 22 tests
+test commands::xc_translate_console_format_returns_pasteable_documents ... ok
+test commands::xc_translate_honours_the_output_format_argument ... ok
+test commands::xc_translate_is_null_for_blank_source ... ok
+test commands::xc_translate_items_are_status_tagged ... ok
+test commands::xc_translate_returns_terraform_and_json_documents ... ok
+test issue1326_encoding::w109_disabled_still_abstains_for_bigip_and_apl_documents ... ok
+test issue1707_ilx_methods::a_closed_sibling_rule_is_scanned_under_its_own_input ...
+thread 'issue1707_ilx_methods::a_closed_sibling_rule_is_scanned_under_its_own_input' (20569) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_closedsib_20385/ilx_closedsib_20385/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.0x late with the run queue 0.8x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test issue1707_ilx_methods::a_declaration_outside_its_folder_reaches_both_ends ...
+thread 'issue1707_ilx_methods::a_declaration_outside_its_folder_reaches_both_ends' (20582) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707o-prod_outsidefolder_20385/app/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.0x late with the run queue 0.8x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+test issue1707_ilx_methods::a_declared_plugin_resolves_where_the_directory_name_cannot ...
+thread 'issue1707_ilx_methods::a_declared_plugin_resolves_where_the_directory_name_cannot' (20607) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707d-prod_decl_20385/ws_alpha/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.0x late with the run queue 0.8x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+test issue1707_ilx_methods::a_duplicate_registration_is_reported_not_guessed ...
+thread 'issue1707_ilx_methods::a_duplicate_registration_is_reported_not_guessed' (20621) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_dup_20385/ilx_dup_20385/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.3x late with the run queue 1.2x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+test issue1707_ilx_methods::a_dynamic_handle_abstains_instead_of_guessing ...
+thread 'issue1707_ilx_methods::a_dynamic_handle_abstains_instead_of_guessing' (20648) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_dynamic_20385/ilx_dynamic_20385/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.0x late with the run queue 1.0x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+test issue1707_ilx_methods::a_handle_only_reaches_bodies_that_share_its_frame ...
+thread 'issue1707_ilx_methods::a_handle_only_reaches_bodies_that_share_its_frame' (20662) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_procscope_20385/ilx_procscope_20385/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.2x late with the run queue 0.8x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+test issue1707_ilx_methods::a_removed_method_resolves_to_nothing ...
+thread 'issue1707_ilx_methods::a_removed_method_resolves_to_nothing' (20676) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_removed_20385/ilx_removed_20385/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.0x late with the run queue 1.5x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+test issue1707_ilx_methods::an_unregistered_method_resolves_to_nothing_and_no_diagnostic ...
+thread 'issue1707_ilx_methods::an_unregistered_method_resolves_to_nothing_and_no_diagnostic' (20767) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_missing_20385/ilx_missing_20385/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.1x late with the run queue 1.8x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+test issue1707_ilx_methods::an_unsaved_edit_to_the_extension_is_what_navigation_reads ...
+thread 'issue1707_ilx_methods::an_unsaved_edit_to_the_extension_is_what_navigation_reads' (20959) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_unsaved_20385/ilx_unsaved_20385/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.0x late with the run queue 1.0x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+test issue1707_ilx_methods::declared_rule_directories_reach_a_caller_outside_the_workspace ...
+thread 'issue1707_ilx_methods::declared_rule_directories_reach_a_caller_outside_the_workspace' (21120) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707d-prod_outside_20385/ws_alpha/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.0x late with the run queue 1.0x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+test issue1707_ilx_methods::go_to_definition_crosses_into_the_extension_javascript ...
+thread 'issue1707_ilx_methods::go_to_definition_crosses_into_the_extension_javascript' (21254) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_def_20385/ilx_def_20385/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.0x late with the run queue 1.8x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+test issue1707_ilx_methods::hover_names_the_extension_the_file_and_the_dispatch ...
+thread 'issue1707_ilx_methods::hover_names_the_extension_the_file_and_the_dispatch' (21379) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_hover_20385/ilx_hover_20385/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 2.0x late with the run queue 2.0x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+test issue1707_ilx_methods::ordinary_tcl_named_ilx_call_is_untouched ...
+thread 'issue1707_ilx_methods::ordinary_tcl_named_ilx_call_is_untouched' (21498) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_plaintcl_20385/ilx_plaintcl_20385/rules/plain.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.0x late with the run queue 1.5x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+test issue1707_ilx_methods::references_span_both_languages_from_either_end ...
+thread 'issue1707_ilx_methods::references_span_both_languages_from_either_end' (21540) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707-ilx_refs_20385/ilx_refs_20385/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.0x late with the run queue 1.2x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+test issue1707_ilx_methods::the_ilx_references_command_ignores_an_ordinary_javascript_file ...
+thread 'issue1707_ilx_methods::the_ilx_references_command_ignores_an_ordinary_javascript_file' (21772) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707d-prod_plainjs_20385/ws_alpha/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.2x late with the run queue 1.8x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+test issue1707_ilx_methods::the_javascript_end_answers_through_the_ilx_references_command ...
+thread 'issue1707_ilx_methods::the_javascript_end_answers_through_the_ilx_references_command' (21889) panicked at rust/tcl-lsp-server/tests/e2e/common/mod.rs:1327:17:
+no publishDiagnostics for "file:///tmp/tcl-lsp-e2e-1707d-prod_jscmd_20385/ws_alpha/rules/rule1.tcl" version Some(1) within 30s
+
+LATENCY-BARRIER-TIMEOUT — this is a TIMEOUT (the server did not respond in time), NOT an oracle/content divergence (those fail with "diverged" / "alignment broke").
+PROBE: could not confirm starvation — a 20ms sleep woke 1.2x late with the run queue 1.8x oversubscribed, both within normal noise. The runner looks healthy *now*, and the barrier was already load-scaled, so suspect a real server-latency regression (a hang/deadlock or a genuinely slow analysis).
+CONTEXT: every barrier deadline in this harness is multiplied by the measured capacity factor (`load_factor`), so a merely-busy machine should not reach this message; the latency-sensitive stress tests are additionally isolated into the single-slot `heavy-lsp-e2e` nextest group (.config/nextest.toml) so they never starve each other.
+FAILED
+
+failures:
+
+failures:
+    issue1707_ilx_methods::a_closed_sibling_rule_is_scanned_under_its_own_input
+    issue1707_ilx_methods::a_declaration_outside_its_folder_reaches_both_ends
+    issue1707_ilx_methods::a_declared_plugin_resolves_where_the_directory_name_cannot
+    issue1707_ilx_methods::a_duplicate_registration_is_reported_not_guessed
+    issue1707_ilx_methods::a_dynamic_handle_abstains_instead_of_guessing
+    issue1707_ilx_methods::a_handle_only_reaches_bodies_that_share_its_frame
+    issue1707_ilx_methods::a_removed_method_resolves_to_nothing
+    issue1707_ilx_methods::an_unregistered_method_resolves_to_nothing_and_no_diagnostic
+    issue1707_ilx_methods::an_unsaved_edit_to_the_extension_is_what_navigation_reads
+    issue1707_ilx_methods::declared_rule_directories_reach_a_caller_outside_the_workspace
+    issue1707_ilx_methods::go_to_definition_crosses_into_the_extension_javascript
+    issue1707_ilx_methods::hover_names_the_extension_the_file_and_the_dispatch
+    issue1707_ilx_methods::ordinary_tcl_named_ilx_call_is_untouched
+    issue1707_ilx_methods::references_span_both_languages_from_either_end
+    issue1707_ilx_methods::the_ilx_references_command_ignores_an_ordinary_javascript_file
+    issue1707_ilx_methods::the_javascript_end_answers_through_the_ilx_references_command
+
+test result: FAILED. 6 passed; 16 failed; 0 ignored; 0 measured; 1615 filtered out; finished in 1294.48s

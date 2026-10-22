@@ -1,0 +1,11 @@
+Source: aeecf397 (compiled before the later lint-only edits).
+Environment: CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0; required C Tcl 9.0.4, 8.6.18 and pinned Jim 0.84.
+Command: cargo test --no-run --locked -p tcl-lsp-server --lib --test e2e; selected executable invocations below.
+Every executable is run and deleted within the same wrapping command.
+
+RUN /workspace/bigip-lsp/target/debug/deps/tcl_lsp_server-f8826932e569f8a0 ['current_diagnostics::tests::f5_model_documents_answer_pull_with_their_model_report', '--exact', '--nocapture']
+
+running 1 test
+test current_diagnostics::tests::f5_model_documents_answer_pull_with_their_model_report ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 840 filtered out; finished in 3.35s

@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T15:25Z
+Last updated: 2026-10-22T15:36Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -10,24 +10,17 @@ push at least every 30 minutes and after each finished item. Full unit table:
 
 ## In progress
 
-Server build completed successfully (59m 43s); the 22 requested e2e tests are
-running, followed by the F5 and plain-Tcl diagnostic tests in separate
-processes. Local log `/tmp/bigip-server-selected.log`. The full Clippy `-D warnings` run failed in Compiler/VM dependencies. A selected-package `--no-deps -D warnings` pass found 60 core errors,
-including six in owned data-group/ILX code (fix next); the other generic
-core findings need their owner. Standalone WASM Clippy stopped before Rust
-checking because the image lacks clang. Independent target: `/workspace/bigip-clippy-target`;
-logs `/tmp/bigip-clippy.jsonl` and `/tmp/bigip-clippy-build.log`. The ILX
-baseline/current comparison is complete; its missing compiler contract is below.
+Server e2e finished: XC 5/5 and W109 1/1 PASS; ILX 0/16, all first-diagnostic
+timeouts. Focused F5 model pull unit 1/1 PASS. The plain-Tcl rewrite test
+with the F5 change is running next. Scoped lint is checking the six owned
+fixes; strict dependency lint remains blocked. WASM Clippy is running with
+workspace-local Clang 19 after repairing the missing-tool setup.
 
 ## Outstanding (in priority order)
 
 1. Restore ILX variable-handle source navigation after the compiler supplies
    the constructor/setter/read relation described under Blocked. Keep the
    current negative assertions and separate source candidates from live handles.
-2. Re-run server e2e `commands::xc_translate_*`, `issue1707_ilx_methods`
-   (including `a_closed_sibling_rule_is_scanned_under_its_own_input`) and
-   `issue1326_encoding::w109_disabled_still_abstains_for_bigip_and_apl_documents`.
-   Also re-run `current_diagnostics::tests::f5_model_documents_answer_pull_with_their_model_report`.
 3. Confirm `current_diagnostics::tests::actual_direct_and_push_rewrites_retain_their_captured_document_source`
    fails without the F5 pull change, or fix an attributable regression. The
    exact F5 change is in `c9dc3c2892` (current_diagnostics.rs and only its F5
@@ -39,8 +32,6 @@ baseline/current comparison is complete; its missing compiler contract is below.
    owners' blockers without editing their files.
 5. Re-run the three `xtask gen_editor_configs` tests. Its generated Emacs README
    was previously regenerated and `gen-editor-configs --check` passed.
-6. After the F5 pull e2e is confirmed, record `current_diagnostics.rs handed back`
-   here for the coordinator/LSP agent. It remains on loan until then.
 
 ## Blocked (on whom, and what is needed)
 
@@ -62,10 +53,13 @@ baseline/current comparison is complete; its missing compiler contract is below.
   Baseline `origin/rust` (`fcb7927f02`) literal-handle test: 1/1 PASS; current
   tests retaining the refusal: 2/2 PASS. No assertion was weakened. BIG-IP owns
   wiring the new source relation into navigation once available.
-- Current ILX e2e first `publishDiagnostics` exceeds 30 s on this isolated tree
-  too (first six tests so far), with healthy harness scheduling probes.
-  Generic server/compiler latency owner must investigate; do not raise budgets. The perf batch has not been admitted
-  by this agent.
+- Current ILX e2e: **0/16**, all first `publishDiagnostics` barriers exceed
+  30 s on this isolated tree, with healthy harness scheduling probes. The
+  plain-Tcl control also fails before any navigation assertion. Exact existing
+  test repro, source shape and diagnostic/performance contract:
+  `../handoff/reviews/merge-inventory-20261019/bigip-lsp/diagnostics-latency-repro.md`.
+  The hot function is not yet attributed; route to generic diagnostic/compiler
+  and performance owners. Do not raise budgets. Perf batch not admitted.
 
 ## Done since the last update
 
@@ -79,14 +73,18 @@ baseline/current comparison is complete; its missing compiler contract is below.
   to those assertions). Evidence in `bigip-lsp/`: `xc-condition-owner-probe-result-20261022.txt`,
   `xc-range-before-20261022.txt`, `xc-lib-after-20261022.txt`. Probe removed;
   every test executable was built, run and deleted in one command.
-- Server e2e so far: all five `commands::xc_translate_*` PASS and BIG-IP/APL
-  W109 pull diagnostics PASS. ILX batch still running; no aggregate claim.
+- Server: XC e2e **5/5 PASS**, BIG-IP/APL W109 e2e **1/1 PASS**, focused F5
+  pull-report unit **1/1 PASS**. Receipts `server-e2e-20261022.txt` and
+  `server-f5-pull-20261022.txt`. ILX failures are the separate blocker above.
+- `current_diagnostics.rs handed back`: F5 pull behavior is confirmed by both
+  e2e and focused unit. Only the authorised temporary reverse-and-restore
+  comparison remains; no further production edit to this loaned file planned.
 - ILX comparison: `ilx-baseline-20261022.txt` (baseline 1/1) and
   `ilx-current-20261022.txt` (current 2/2). This establishes the deliberate
   contract change, not restored navigation or a passing e2e run.
 - Earlier F5 pull implementation and all 35 BIG-IP units are in the notes.
   Historical F5 unit filter was 32/33; its plain-Tcl rewrite failure still
-  needs the attribution above. New server runs and clippy are not yet green.
+  needs the attribution above. ILX and strict clippy remain blocked; F5 pull and XC are green.
 
 ## Resume
 
@@ -99,9 +97,8 @@ baseline/current comparison is complete; its missing compiler contract is below.
   `/tmp/bigip-test.py` builds, runs and deletes each test executable within one
   command. Build targets are independent between checkouts.
 - Active server run uses `BIGIP_TEST_PLAN` from `/tmp/bigip-server-plan.json`
-  with `/tmp/bigip-test.py --locked -p tcl-lsp-server --lib --test e2e`. It
-  runs only the requested e2e selectors, then the F5 and plain-Tcl diagnostic
-  tests in separate processes. Do not restart it as an unfiltered full suite.
+  with `/tmp/bigip-test.py --locked -p tcl-lsp-server --lib --test e2e`. The
+  e2e/F5 runs above are done; only the plain-Tcl rewrite process remains. Do not restart it as an unfiltered full suite.
   Active tool session: server 68675. Selected-package clippy 85905 and
   standalone WASM clippy 9878 finished (target wasm32-unknown-unknown, independent
   `/workspace/bigip-wasm-clippy-target`, logs `/tmp/bigip-wasm-clippy*`). Full clippy session 52506 has finished
@@ -117,8 +114,7 @@ baseline/current comparison is complete; its missing compiler contract is below.
 - The first server build needed 76 literal oracle snapshots excluded by the
   sparse checkout. They and 141 further literal fixture inputs are now
   materialised from HEAD; no code or assertion was changed. The restarted
-  server build has completed and execution has started. No aggregate server
-  result yet.
+  server build has completed and execution has started. The selected e2e aggregate is 6 pass / 16 diagnostic-timeout failures.
 - Validation above used the initial `9cd5a75b` product source plus the XC fix.
   Remote includes newer compiler/core changes in `d1a5bf95`; running checks
   remain pinned to `aeecf397`, so they do not validate those later changes. Required

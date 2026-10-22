@@ -3,13 +3,29 @@
 Branch `work`. User decision `user-decisions-20261021T1500Z.json`
 (`bigip_lsp_units`: finish the 35 BIG-IP/F5 units now). Starting point: Luna-42
 (`luna-42-NOTES.md`, f3aed2a40e) — 22 DONE, 3 ALREADY, 3 PARTIAL, 7 REMAINING.
-This agent did not commit, push, stash, reset or check out; the coordinator's
+In the original shared session this agent did not commit, push, stash, reset or check out; the coordinator's
 WIP snapshots carry the changes (2f69e5d60e and later).
 
 Totals now (35): DONE 32, ALREADY 3, PARTIAL 0, REMAINING 0 — with the
 verification gaps listed under "Not executed", plus three coordinator-assigned
-follow-ups below (BIG-IP/APL pull diagnostics DONE; XC `if` source owner fixed (31/31 lib; e2e pending) and
+follow-ups below (BIG-IP/APL pull diagnostics DONE; XC `if` source owner fixed (31/31 lib; 5/5 e2e) and
 ILX variable handle blocked on the compiler source-relation contract). Continuation: `docs/work/name-handling/outstanding/bigip-lsp.md` (## Resume).
+
+## Isolated continuation — 2026-10-22
+
+Source `aeecf397`: XC full library 31/31 PASS (new range regression fails
+before the fix), XC command e2e 5/5 PASS, BIG-IP/APL W109 e2e 1/1 PASS,
+F5 model pull-report unit 1/1 PASS. `current_diagnostics.rs handed back`.
+ILX e2e 0/16: every test times out on first diagnostics, including its
+plain-Tcl control. Its source handle-resolution contract is separately
+blocked on the compiler owner; baseline `rust` literal-handle test passes,
+and current refusal tests 2/2 pass. Repros and receipts are indexed in the
+outstanding file. No assertions or latency budgets were weakened.
+
+Full strict Clippy failed with 789 compiler and 379 VM dependency errors.
+Scoped checks and six owned lint fixes are in progress, along with the
+three editor-generator tests and the F5-reversed rewrite comparison.
+These development pushes do not satisfy the external-review section F gate.
 
 ## Units finished here
 
