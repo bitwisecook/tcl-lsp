@@ -2,24 +2,24 @@
 
 Area: Replay of the external review's findings on current `work`.
 
-Last updated: 2026-10-22T19:33:51Z
+Last updated: 2026-10-22T19:57:30Z
 
 ## Resume
 
-Run16 is COMPLETE on product source `2d1b85ad` / source-identical `0412d5e4`. All 27 semantic observational probes plus one small scaling probe complete, every group exit 0. The named existing pack-fold e2e passes 1/1 (both DSLs); fresh declared-effects/unclosed-argument regression passes 1/1. Full six-engine execution: 107 files / 642 executions / 86 generated files / 186 matching-profile checks, zero unexpected result. All requested independent items and post-R1 N04–N07 checks are settled; see the report for remaining product limitations/refusals.
+**COMPLETE. Stop; no active commands or remaining triage obligations.** Final summary is at the top of `reviews/naming-migration-review-20261022-triage.md`. Every N01–N17 finding and section 3.2/3.3 seam was rechecked on `45766fc3`; final fetched `2831c535` has identical non-documentation content. Exact source tree IDs and cleanup evidence: `reviews/triage-20261022/final-verification.json`.
 
-Final fetch brought `b572c36d` (Jim class ownership and server metadata/lint changes), tip `5d054dc7`. Run17 is ACTIVE on `45766fc3` (same product source as `5d054dc7`), using `run-latest.sh run17-latest`. Fresh static audit is `run17-source-audit.log` (all patterns matched); compilation succeeded in 9m14s; rename group completed (401.89s, exit 0); 19-test core group is active. Fresh rename edit replay passed 10 matching-profile checks (31 files / 186 engine executions); exact covered files are in run17-rename-oracles.log. Closed progress is run17-progress.log. Next complete core/scaling/hooks/seams/e2e and final full six-engine replay, then finalize. This complete replay is needed before final sign-off. Read/update the durable run17 logs, not assumptions about tool session handles.
+## Final results
 
-Run17 executable is active; temporary source is deleted. Its trap deletes the executable at completion. Run16 temporary source and executables were deleted. Preserve the same build/run/delete command discipline and check df before builds. Publish after the next run and within 30 minutes. Final report summary is pending run17 and last source-difference check.
+- Run17: 27 semantic observational probes + 1 small scaling probe, all five groups exit 0. Named pack-fold e2e passes 1/1 (both DSLs), 76.90s; fresh declared-effects/unclosed-argument regression passes 1/1, 82.20s, on source-identical `ff57cbcd`.
+- Full replay: 107 files / 642 executions on C Tcl 8.4–9.1 and pinned Jim; 86 generated files / 186 matching-profile checks, zero unexpected result. Every returned edit was applied to scratch source. Refused N04–N07 cases provide no edit to execute.
+- R1's broad ordinary C-world blocker is repaired. Import/workspace cases still refuse safely; same-document N06 collision guards are specifically exercised. Jim navigation/diagnostic and other provider/context gaps remain product limitations in the report, not unfinished triage.
+- Nested iRules lowering retains generic calls; Tcl control inlines. Extract/inline repros explicitly disable with zero edits. Requested small scaling ranges completed, with fresh run17 small points confirming substantial unoptimised costs.
+- Static N11 correction: `merge_library_files` and `ensure_autoload_indexed` are test-only. Their shortcut is not proof of a current server bug. Full server provider isolation and source inheritance remain unmeasured.
 
-## Remaining
+## Evidence and boundaries
 
-- Complete run17 latest-source recheck of every finding; replay returned edits on C 8.4–9.1 and pinned Jim.
-- Recheck latest static server seams (JSON-RPC integration remains unrun).
-- Fetch/rebase before final push; assess any additional source changes. Write final summary at report top, close this list, stop.
+Latest: `reviews/triage-20261022/run17-latest.log`, full oracle log/summary, `run17-declared-effects.log`, `run17-source-audit.log`, `final-verification.json`, and raw `out/run17-latest/`. Canonical probe copy: `final-probe.rs.txt`, SHA256 75328d1f2477c2986332ca2b5fcb4952caf9bc64db7b5343a307d8520f272eed. Historical run6/run14/run16 output trees are losslessly archived with per-file hash manifests; older audits use `.log.gz`.
 
-## Validation and boundaries
+Temporary `rust/tcl-spectcl/tests/zz_review_probe.rs` and all probe/pack/negative-regression executables are deleted. No product code or permanent tests changed. Only this file, the report and evidence directory were committed. No PR. `make rust-check`, `make prep-pr` and full server JSON-RPC integration remain UNRUN under AGENTS.md's explicit active-work development-push exception; one compiler dead-code warning remains recorded. This is completed triage, not release approval.
 
-Evidence: `reviews/triage-20261022/run16-latest.log`, `run16-latest-oracles.log`, `run16-latest-oracle-summary.json`, `run16-declared-effects.log`, `run16-source-audit.log.gz`. Canonical probe copy: `final-probe.rs.txt` (SHA256 75328d1f2477c2986332ca2b5fcb4952caf9bc64db7b5343a307d8520f272eed). Run15 compile errors are historical and fixed by e75345a7; do not repeat them as current blockers.
-
-Only the triage report, evidence directory and this file are owned. Static N11 correction: merge_library_files and ensure_autoload_indexed are test-only; do not treat their shortcut as a production failure. Full server provider isolation remains unmeasured. No product/test changes, no PR. `make rust-check` and `make prep-pr` remain UNRUN under AGENTS.md's explicit active-work development-push exception. Use `Co-Authored-By: Codex <noreply@openai.com>`.
+Commit trailer: `Co-Authored-By: Codex <noreply@openai.com>`.

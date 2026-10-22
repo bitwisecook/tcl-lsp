@@ -1,0 +1,55 @@
+{
+  "last_updated_utc": "2026-10-22T19:57:30Z",
+  "tested_main_commit": "45766fc341446388e383d6de5bb3ed6274443237",
+  "named_fold_and_negative_regression_commit": "ff57cbcd72f815640d1be657715a81bc7fc2b58d",
+  "latest_fetched_work": "2831c535198987cfe01cda9e9f83e04344e6c899",
+  "non_docs_changes_since_tested_main": [],
+  "source_trees": {
+    "rust": {
+      "tested": "30baf1f5c0891fb84b28b05499286c87107e12f6",
+      "latest": "30baf1f5c0891fb84b28b05499286c87107e12f6"
+    },
+    "runtime": {
+      "tested": "5a313e10b881d05027f3cc066f65270bfcca4a75",
+      "latest": "5a313e10b881d05027f3cc066f65270bfcca4a75"
+    },
+    "specs": {
+      "tested": "3b73d13b3108906c6208534380eb1653d4914ab0",
+      "latest": "3b73d13b3108906c6208534380eb1653d4914ab0"
+    }
+  },
+  "probe_sha256": "75328d1f2477c2986332ca2b5fcb4952caf9bc64db7b5343a307d8520f272eed",
+  "groups": {
+    "rename": 1,
+    "core": 19,
+    "scaling": 1,
+    "hooks": 4,
+    "seams": 3
+  },
+  "named_fold_e2e": {
+    "passed": 1,
+    "failed": 0,
+    "seconds": 76.9
+  },
+  "declared_effects_negative_regression": {
+    "passed": 1,
+    "failed": 0,
+    "seconds": 82.2
+  },
+  "oracle_summary": {
+    "files": 107,
+    "engine_executions": 642,
+    "generated_output_files": 86,
+    "matched_profile_checks": 186,
+    "unexpected_matched_results": [],
+    "note": "Every file ran on all six engines; profile-specific edits are judged on their matching engine. Unknown generated fixtures require manual review. This output comparison does not by itself prove edit coverage or collision safety."
+  },
+  "temporary_probe_absent": true,
+  "test_executables_remaining": [],
+  "unrun": [
+    "make rust-check",
+    "make prep-pr",
+    "server JSON-RPC integration"
+  ],
+  "build_warning": "native_argument_input dead_code warning retained in logs; no product changes by triage"
+}

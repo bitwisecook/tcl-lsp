@@ -1,12 +1,16 @@
 # Review triage evidence (22 Oct)
 
+**Complete — 2026-10-22T19:57:30Z.** Final latest replay on `45766fc3`; product source is identical through final fetch `2831c535`. See `final-verification.json`. All 27 semantic + 1 scaling probes complete; named pack-fold e2e and declared-barrier regression pass. Full replay: 107 files / 642 executions / 186 matching-profile checks, zero unexpected result. No active commands or pending triage. Older rows below describe historical snapshots, including superseded failures.
+
 Evidence for the replay of the external review ([../naming-migration-review-20261022.md](../naming-migration-review-20261022.md)) on the current tree. Status per finding: [../naming-migration-review-20261022-triage.md](../naming-migration-review-20261022-triage.md); live progress: [../../outstanding/review-triage.md](../../outstanding/review-triage.md).
 
 | Item | What it is |
 | --- | --- |
-| `run17-progress.log`, `run17-rename-oracles.log`, summary | Closed latest rename group: exit 0; 31 files / 186 executions / 10 matching-profile edit checks pass. Core and remaining groups active. |
-| `run17-latest-build.json`, `run17-latest-build.log`, `run17-source-audit.log` | Fresh post-b572 integration compiles on 45766fc3 in 9m14s; grouped replay active. Static audit corrects N11 shortcut to test-only and captures the production admission path. |
-| `run16-latest.log`, `run16-latest-oracles.log`, summary, `out/run16-latest/`, `run16-declared-effects.log` | Complete on 2d1b85ad: 27 semantic + 1 scaling probes; named fold e2e and declared-barrier regression pass. 642 engine executions / 186 matching checks, zero unexpected result. |
+| `run17-latest.log`, `run17-latest-oracles.log`, summary, `run17-declared-effects.log`, `out/run17-latest/` | Complete current replay; all five groups and both existing regressions pass; 642 executions / 186 matching checks. |
+| `final-verification.json`, `run-declared-effects.sh` | Final source equality/cleanup receipt; reproducible build/run/delete of the negative regression. |
+| `run17-progress.log`, `run17-rename-oracles.log`, summary | Closed latest rename group: exit 0; 31 files / 186 executions / 10 matching-profile edit checks pass. Closed earlier prefix, superseded by the complete log. |
+| `run17-latest-build.json`, `run17-latest-build.log`, `run17-source-audit.log` | Fresh post-b572 integration compiles on 45766fc3 in 9m14s; grouped replay complete. Static audit corrects N11 shortcut to test-only and captures the production admission path. |
+| `run16-latest.log`, `run16-latest-oracles.log`, summary, `out/run16-latest.tar.gz` + manifest, `run16-declared-effects.log` | Complete on 2d1b85ad: 27 semantic + 1 scaling probes; named fold e2e and declared-barrier regression pass. 642 engine executions / 186 matching checks, zero unexpected result. |
 | `run16-progress.log`, `run16-source-audit.log.gz`, `run16-rename-*` | Closed earlier prefix, static audit and early rename replay; full completed run16 supersedes the prefix. |
 | `compressed-audits.json`, historical `.log.gz` | Lossless audit compression with original content hashes; read using gzip -dc. |
 | `run15-latest*`, `run15-build-error-summary.json`, `run15-build-errors.log` | Historical be53f58c integration failed before probes: 18 compiler + 4 VM errors, Rust1.99.1, exit101. Full structured/rendered diagnostics; zero tests. |
@@ -23,13 +27,13 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 | `summarize-oracles.py` | Checks known generated outputs on matching engines and requires manual review for new fixture names; reproduces earlier 126/60 check counts. |
 | `run7-pending.log`, `run7-progress.log`, `run7-pending-oracles.log`, `run7-pending-oracle-summary.json`, `run7-source-audit.log.gz` | Complete bounded follow-up on `0434e7e7`, including P25/50/100 lenses; 180 engine executions / 60 matched generated checks, no unexpected result; static seam audit. |
 | `run-focused.sh`, `run8-n09*` | Focused current-tree runner; initial N09 attempt failed before execution for a private helper. `run9-n09*` is the successful public-ID retry on `128e1bb4`: precise type/call facts, conservatively widened taint dependencies. |
-| `run-final.sh`, `final-probe.rs.txt` | Prepared latest-work replay of every finding and seam, including a direct N09 taint-dependency projection and the existing fold e2e control. |
+| `run-final.sh`, `final-probe.rs.txt` | Older per-filter replay runner and current canonical probe source for every finding and seam, including a direct N09 taint-dependency projection and the existing fold e2e control. |
 | `run-pending.sh`, `pending-probe.rs.txt` | Fresh build, seams first, then bounded R1/parser/source-chain/lens cases; deletes source after build and executable at exit. |
 | `run6.log`, `run6-oracles.log`, `run6-oracle-summary.json`, `run6-source-audit.log.gz` | Completed main snapshot (cap reached during scaling), full 576-execution replay, 126 matched checks with no unexpected result, and later static audit. |
-| `run-r1-transport.sh`, `r1-transport-probe.rs.txt` | Prepared focused R1 transport/bootstrap and N03 parser-debt diagnostic; run after the active full replay. |
+| `run-r1-transport.sh`, `r1-transport-probe.rs.txt` | Historical focused R1 transport/bootstrap and N03 parser-debt diagnostic; no pending run. |
 | `run6.sh`, `replay-oracles.sh`, `source-audit.py` | Prepared full replay, six-engine execution, and static seam evidence runners. |
 | `cloud-baseline-oracles.log` | Fresh 19-file / 114-execution baseline replay; full output and exit codes. |
-| `cloud-source-audit.log.gz` | Current static excerpts; no server protocol claim. |
+| `cloud-source-audit.log.gz` | Historical static excerpts; no server protocol claim. |
 | `run5-e2e-repeat.log` | Existing live-fold e2e failure: DSL 1 expected ["5"], got []; stable repeat after the first active log lost diagnostics. |
 | `run5-source.rs.txt` | Exact source launched by the initial cloud run5 (before the expanded follow-up). |
 | `cloud-setup.log` | Cloud checkout, compiler and pinned engine versions; no new probe results. |
@@ -38,7 +42,7 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 | `run5.sh` | **Original handoff resume batch**: restores the probe, builds+runs+deletes, logs to `run5.log` here (run from repo root). |
 | `build.sh`, `buildrun.sh`, `run4.sh`, `oracle.sh` | Build/run scripts (build, run and delete in one command) and the tclsh/Jim oracle runner. |
 | `run1.log` … `run4.log` | Filtered probe output per run. |
-| `out/` | Edited sources and pack files produced by the probes (each run on tclsh 8.4–9.1 and Jim). |
+| `out/` | Generated scratch sources and pack fixtures; driver executions and exact covered files are recorded in the six-engine logs. |
 | `tcl/` | Tcl repro scripts from the review. |
 
 Historical audit `.log.gz` files are lossless; `compressed-audits.json` records their original hashes. Read with `gzip -dc <file>`.
@@ -46,3 +50,7 @@ Historical audit `.log.gz` files are lossless; `compressed-audits.json` records 
 Evidence stays on `work` (decision 2026-10-21T12:05Z); it is not carried into the PR to `rust`.
 
 Historical run6 outputs are byte-verified in `out/run6.tar.gz` with `run6.manifest.json`; interrupted run14 outputs are similarly archived. Extract archives under a scratch directory to inspect the original paths.
+
+Run16 outputs are also byte-verified in `out/run16-latest.tar.gz` with its per-file manifest. Run17 retains the latest raw outputs. To restore a historical tree, extract its archive under a scratch directory; the archived root directory matches the original run tag.
+
+Historical `run8-n09-build.json` and `run15-latest-build.json` are losslessly stored as `.json.gz`; `compressed-builds.json` records original byte hashes. Use `gzip -dc` to read the exact original Cargo JSON stream. Current run17 JSON remains raw.

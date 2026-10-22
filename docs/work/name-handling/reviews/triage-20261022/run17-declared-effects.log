@@ -1,0 +1,28 @@
+Thu Oct 22 19:53:59 UTC 2026
+ff57cbcd72f815640d1be657715a81bc7fc2b58d
+d67c8bade1adda96c788a16d303033b38920ed5f4767a575f6c2d8c72d5384ad  rust/tcl-spectcl/tests/variable_reference_boundaries.rs
+c710e35b4eb63642a7050bc7cec6535b98cbe5a265d035a92cc27acdb96b2278  rust/tcl-compiler/src/const_subst.rs
+Filesystem      Size  Used Avail Use% Mounted on
+overlay          32G  3.9G   26G  13% /
+warning: method `native_argument_input` is never used
+  --> rust/tcl-compiler/src/analyser/original_definer.rs:79:19
+   |
+19 | impl OriginalClassDefinerSource {
+   | ------------------------------- method in this implementation
+...
+79 |     pub(super) fn native_argument_input(
+   |                   ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-compiler` (lib) generated 1 warning
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp-triage/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 12.01s
+     Running tests/variable_reference_boundaries.rs (target/debug/deps/variable_reference_boundaries-3e46c097dcdbab21)
+
+running 1 test
+test a_live_fold_keeps_declared_effects_and_unclosed_arguments ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 82.20s
+
+exit=0 cleaned=Thu Oct 22 19:55:33 UTC 2026

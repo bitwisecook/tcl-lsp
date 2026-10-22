@@ -1,0 +1,8 @@
+{
+  "files": 107,
+  "engine_executions": 642,
+  "generated_output_files": 86,
+  "matched_profile_checks": 186,
+  "unexpected_matched_results": [],
+  "note": "Every file ran on all six engines; profile-specific edits are judged on their matching engine. Unknown generated fixtures require manual review. This output comparison does not by itself prove edit coverage or collision safety."
+}

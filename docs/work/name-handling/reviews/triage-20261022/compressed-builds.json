@@ -1,0 +1,17 @@
+{
+  "note": "Historical closed Cargo JSON is preserved losslessly; gzip -dc restores the exact original diagnostic stream. Latest build JSON remains raw.",
+  "files": [
+    {
+      "original": "run15-latest-build.json",
+      "archive": "run15-latest-build.json.gz",
+      "uncompressed_sha256": "22033529468323e568932cb8be986cfc7d89da210998ec7f2d52434cb147b82b",
+      "uncompressed_bytes": 182734
+    },
+    {
+      "original": "run8-n09-build.json",
+      "archive": "run8-n09-build.json.gz",
+      "uncompressed_sha256": "6bdda2a9107628383ecbb7082bd2a80bff44a498653402200eed9703c6405061",
+      "uncompressed_bytes": 129677
+    }
+  ]
+}
