@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "cargo",
+    "check",
+    "--locked",
+    "--keep-going",
+    "-p",
+    "tcl-compiler",
+    "-p",
+    "tcl-lsp-core",
+    "-p",
+    "tcl-lsp-db",
+    "-p",
+    "tcl-lsp-server",
+    "-p",
+    "tcl-vm",
+    "-p",
+    "tcl-fuzz",
+    "--all-targets",
+    "--message-format=json"
+  ],
+  "cargo_pid": 149257,
+  "process_group": 149257,
+  "utc": "2026-10-22T21:49:40.462576+00:00"
+}

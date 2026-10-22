@@ -2,11 +2,36 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T21:38:37Z (off-tree4-path release followups ready: entered Boolean seam6, genuine F5 host manifest8, compiled fuzz fixture; static peers/dryapply only; heavy31=11baselineP2F+20absentbaseline unrerun; next6/VM71 unqueued)
+Last updated: 2026-10-22T21:51:12Z (root integrating frozen release batch; immutable plans14VM/11heavyP2F/20absent prepared, provider-readonly preflight3470 hashes; no Cargo queue; correctedruntime6/VM71 separate;181lint draft composition ongoing)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Finite acceptance plans are immutable under `/tmp/vm-runtime-finite-acceptance/`:
+`controls-plan.json` (14, SHA-256 `82430187f0c8bab34d5f8560320ea974c7f1051139251553dfa50660e33eb124`),
+`baseline_regressions-plan.json` (11, `4adde2fbc93d7a64638f367904ae75e2425db7ed9be8cd85b00fdb074f2517f4`),
+and `absent_baseline-plan.json` (20, `066e5d7f4ac465f38766d996334e480513a1d15be9957bb92647558c42143d84`).
+Driver `run.py` is SHA-256
+`e1fc042c760ed8989f1eb7dcacf84609f4540ee34f013e2ebe3a20194facea39`;
+it was AST-parsed only and has not acquired the build lock or queued Cargo.
+Each separately authorized phase holds the whole global lock, captures full
+shared source/fixtures and pinned provider hashes, obtains actual exact Cargo
+artifacts and rosters, runs isolated exact selectors with180s deadlines, and
+closes source/provider/artifact guards. Main heavy feature flavour follows
+CI's `--all-features`; standalone no-tommath runtime6 remains a separate plan.
+Aggregate child stdout/stderr retention is20MiB; the disk floor is2GiB and no
+artifact cleanup occurs. Active and publisher Git identities are recorded
+independently, with no inferred publisher/CI artifact equivalence. Read-only
+provider preparation at actual21:50:18Z checked3470 hashes including the repaired
+Jim and pinned Rust executables; it ran no interpreter, build or test.
+Root is integrating frozen `ffc765` without waiting for optional new-control
+fixture refinement `7651cdfa`. That separate delta has compiler bounded static
+review: genuine live-entry module producer retained through metadata-only
+queries, no foreign Native execution, production and all assertions unchanged.
+It remains off-tree/unrun and must not be confused with current integrated tests.
+The additional181-lint seven-let-else draft `bbb1a745` is off-tree syntax only;
+no measured lint reduction or guard/drop-scope acceptance is claimed.
 
 Release-followup composition is frozen off-tree at
 `/tmp/vm-runtime-release-followups/proposal.patch`, SHA-256

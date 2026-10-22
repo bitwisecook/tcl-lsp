@@ -1,0 +1,79 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-22T21:55:37.498397+00:00",
+  "scheduled_report_utc": "2026-10-22T21:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-22T22:25:37+00:00",
+  "change_since_previous_report": [
+    "Primary goal clean LSP merge/release readiness from rust beforedeferredparity. Workonly, noPR/merge/tag/release, noauditadmissions orFchecklistclosures.",
+    "21:25cycle normal-pushedfe05d8e3c fromsource76ba afterfreshdepth1fetch50c/rebase; producttreeequal0. Initial HTTPSusernamefailure recovered via standard command-local ghcredentialhelper withoutprinting/storingcredentials. Nextcycle reminder armed21:55; noforcepush/fullfetch/activebuildrebase.",
+    "Three sequential guarded compilerchecks closedwith exactsources/providers andno disk/logabort: first2missingC6receiptconstructors; second5missingpublicAPIcomments; third1obsoleteOptions.regiontestfield+2unusedglobimports. ExactNone/docs/onefield/importfixes preserveallassertions andguards. Consumerswere notreached underoldsequentialstop; no typepass inferred.",
+    "At21:48 rootintegrated reviewed23path composedbatch ad49908b, checkpoint80193fbc6. Parts09e9regionpurpose/actualdependency declarationAPI+4controls; obsoletefield453935; bodyminify94ccactualretainedrequest/CUownership; entryunavailable54e; temporaryobservational1eb3; VMffc765; CCGhost198512. Everyoriginalbeforehash,atomiccomposedapply,finalhash/diffcheck passed. Rootformat-onlyVMtestmoduleorder recorded. Alltypes/executionacceptancepending.",
+    "Combined one-command keepgoing metadata check now selectscompiler/Core/DB/server/VM/fuzz alltargets so independentconsumererrorsarenothidden bycompilerLIBTESTfailure. Firstattempt214931 failedlockedcranelift-bforest download underrestrictednetwork,0compilerdiagnostics/tests, unchanged6535sources/providers. Exactnetwork-enabled retry215045activeon80193, samewholelock/caps/disk/settings; no gatepass. Retry passeddownloadsandownedcompiler/VMchecks; at21:53 provisional0typeerrors/3temporary diagnostic unused-parentheses warnings, exactofftree fix48b123 ready. Finalguards/verdictpending.",
+    "New minifynestedbody inventory borrower authenticates exactretainedrequestallocation separatelyfromrebuiltCUtokenowner, plusfullsource/input/registry/contextguards. Earlier d132/905findingsrefinedbeforeapply; originalfactorial/defaultassertsunchanged. Currentminify13/folderprobe andC6finite50 tests remainunrun.",
+    "N13genuine regioncalls/declarationdependency positiveAPI nowusesdistinctConditionalRegionquery, actualparent/point/child/predecessor/outcome owners; same-pointequalbytes foreignchildrefuses. Ordinarywhole/ancestorgetters unchanged. Hostfullv4consumesitofftree, butunknownrequirededgesmustbelocaltoactualroot/view withoutinventingactivecutfromReached; coherentfrontierquerystillpending, nohostapply/acceptance.",
+    "VMF5fix retainsfullhostcontext ONLYfrom actualsuccessfulcoreinstallation; setterscanpreserve/withdraw, neverrenewfromlabels. Manifestcomparisonchecks actualselectedhostsource/engine/fullcorepin plusoriginalpin/currentness, no coercion. BooleanAPIkeepsactualscope throughrealgetter/fullcompletion/firstHost. Fuzznegativefixtureusesactuallivecompiledhandle, neverhosterrorasguestError.14newcontrols/31oldheavyfailuresunrun.",
+    "WASMtypedhostscaffoldregisters9actualABI descriptors, linear-memoryframe/source/value/completeoptions ownership andfirstHostlatch. VMreviewcaughtEvalCodecouldmutateafterpending; v3/v4refusebeforelookup/dispatch/allocation, cleanupstillpreservesfirstcause. DirectarmusesgenuineC9VMsourceentry; topadmissionguardrefuseswhole-scriptinterpreterfallback, finiteactualdeclinediagnosticsretained.8originalassertionsandfixturesbyteidentical,5newcontrolsunrun.",
+    "TEMP3reportdiagnostics preserveallcapture/Eq/currentnessconditions andfullfinalassertions. Theywillmeasurealiases capture/currentness,E003typedsubjectowner,andonehostedfirstdifferencebefore anynewreport-comparisonpolicy. Exactmergedc46b inversepreservesbc9; oldb551inversestaleandmustnotapply. No comparatorpolicy/equalitymaskingchange.",
+    "CI5205 actual2b934 stillsourceattributed. At21:31 full30jobs7success17failure3running3skip. Mainshard2losthostcommunication (authoritativeannotation); log404BlobNotFound, namedoutcomesunknown. Shard4canceled/transportunavailable also namedunknown. No source/CPU/memory/networkrootcause inferred. Heavy27exactbaselineP2F/failing24absent remain separateledger, other3mainshardsawaited.",
+    "Externalfreshness usespublished50cperf21:00,notstaleactivecopy: fullcurrent39b allold/mixedEqblockersroutedcompiler,patcheswithheld. BIGIP18:08andcompletedtriage19:57remainstale,usernotified,no takeover; BIGIP6confirmedCLIregressions recordedinownfile. No externalroleduplicates.",
+    "StrictClippy666locatedoldsourcefindings remainunclosed. Compilerownercomposed68pathv3explicitlyincomplete; helpermechanical/APImetadata/keymapdrafts andVM181draftsareuntyped/unmeasured. Drafttouchedfilesare notresolvedcount. No newallows/assertionweakening. AllsectionF host/SpecTcl/generated/strict/shippingperformance/fullactualrustcomparison gates remain.",
+    "CyclefullWIP excludeszztemporaryprobeRustfiles,publishfromisolatedworkafterfreshfetch/rebase/normalpush; sourceguardHOLDpreserved. Disk checked,no target/executablecleanup,2GiB floor/logs20MiB/jobs2/debug0/incremental0. Next22:25:37 reminderrearmed."
+  ],
+  "committed": [
+    "80193fbc6ab4622057088714d03114b14cdfce30"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Finishcombined6pkgtypecheckwithfullsource/providerclosure;fixactualerrorsandzerowarningsbeforefunctionalacceptance.",
+    "Execute preparedfinitecompiler50+TEMP3(actualfullEqfailuresretained),minify/folder13,WASM5+2+host8+5,VM14+11+20andcorrectedruntime6insingleexclusiveguards,notbroadcompilerlib.",
+    "FinishN13per-viewrequiredfrontier/hostpublicationcoupling,SpecTclfold/nativeadmissionandBPFselectionrepairs;resolvefullreportownerfirst-refusalsbeforegenuinelynewpolicydesign.",
+    "Convergestrictlintownerbatches,runrequiredprep-pr/rust-check/generated/native/browser/WASI/editor/SpecTclC1C2/shippingperfchecksandcompleteactualrustexactP2Fcomparison."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No admissions/greenrelease. All3closedtypechecksfailedwithactualdiagnostics; networkfailedcombinedattempthas0Rustdiagnosticsbutnotpass. New23pathfunctionalbatchstatic-reviewed/untyped/unrun; latestcombinedretryactive. HistoricalCI/localcountskeepactualsource/provider/binaryattribution,unknownmainshardsremainunknown,allFchecklistboxesopen. Provisional3temporary-parentheses warnings explicitlyblockzero-warningclaim.",
+  "disk_free_bytes": 12330332160,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

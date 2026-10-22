@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""One finite keep-going all-targets Cargo check; no source edits or artifact cleanup."""
+import datetime, fcntl, hashlib, json, os, pathlib, selectors, shutil, signal, subprocess, sys, time
+ROOT = pathlib.Path('/workspace/naming-migration-active/tcl-lsp')
+CAP = 20 * 1024**2
+MIN_FREE = 2 * 1024**3
+SUFFIXES = {'.rs','.c','.h','.cc','.cpp','.cxx','.hh','.hpp','.hxx','.m','.mm','.s','.S'}
+SPECIAL = {'Cargo.toml','Cargo.lock','build.rs'}
+PHASES = [
+ ('combined', ['cargo','check','--locked','--keep-going','-p','tcl-compiler','-p','tcl-lsp-core','-p','tcl-lsp-db','-p','tcl-lsp-server','-p','tcl-vm','-p','tcl-fuzz','--all-targets','--message-format=json']),
+]
+
+def utc(): return datetime.datetime.now(datetime.timezone.utc).isoformat()
+def digest(path):
+ with path.open('rb') as stream: return hashlib.file_digest(stream,'sha256').hexdigest()
+def write(path, value): path.write_text(json.dumps(value,indent=2,sort_keys=True)+'\n')
+def snapshot(out,label):
+ paths=[]
+ for base,dirs,files in os.walk(ROOT):
+  dirs[:] = [d for d in dirs if d not in {'.git','target','node_modules','.worktrees'}]
+  for name in files:
+   p=pathlib.Path(base)/name
+   if p.suffix in SUFFIXES or name in SPECIAL: paths.append(p)
+ inputs={str(p.relative_to(ROOT)):digest(p) for p in sorted(paths)}
+ head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()
+ source={'utc':utc(),'root':str(ROOT),'head':head,'scope':'All present Rust/C-family sources and Cargo/build manifests under active root; excludes .git,target,node_modules,.worktrees. Includes tracked and untracked inputs. Documentation checkpoint changes are separate.','inputs':inputs,'count':len(inputs)}
+ write(out/(label+'-source.json'),source)
+ subprocess.run([sys.executable,'/tmp/compiler-c6-provider-manifest.py',str(out/(label+'-providers.json'))],check=True)
+ return source,json.loads((out/(label+'-providers.json')).read_text())
+def run_phase(out,name,argv,budget):
+ env=os.environ.copy(); env['CARGO_TERM_COLOR']='never'
+ proc=subprocess.Popen(argv,cwd=ROOT,env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,bufsize=0,start_new_session=True)
+ write(out/(name+'-started.json'),{'utc':utc(),'argv':argv,'cargo_pid':proc.pid,'process_group':proc.pid})
+ sel=selectors.DefaultSelector();sel.register(proc.stdout,selectors.EVENT_READ,'stdout');sel.register(proc.stderr,selectors.EVENT_READ,'stderr')
+ handles={k:(out/(name+'.'+('stdout.jsonl' if k=='stdout' else 'stderr.log'))).open('wb') for k in ['stdout','stderr']}
+ total={'stdout':0,'stderr':0};stored=0;pending=b'';errors=[];warnings=[];artifact_rows=[];parse_errors=0;long_lines=0;disk_abort=False;minimum=shutil.disk_usage(ROOT).free;next_disk=0;abort_at=None;term_sent=False;kill_sent=False
+ try:
+  while sel.get_map():
+   now=time.monotonic()
+   if now>=next_disk:
+    free=shutil.disk_usage(ROOT).free;minimum=min(minimum,free);next_disk=now+5
+    if free<MIN_FREE and not disk_abort:
+     disk_abort=True;abort_at=now
+     if proc.poll() is None: os.killpg(proc.pid,signal.SIGINT)
+   if abort_at and proc.poll() is None:
+    if now-abort_at>=15 and not term_sent: os.killpg(proc.pid,signal.SIGTERM);term_sent=True
+    if now-abort_at>=30 and not kill_sent: os.killpg(proc.pid,signal.SIGKILL);kill_sent=True
+   for key,_ in sel.select(1):
+    label=key.data;b=os.read(key.fileobj.fileno(),65536)
+    if not b: sel.unregister(key.fileobj);continue
+    total[label]+=len(b);room=max(0,budget-stored)
+    if room: chunk=b[:room];handles[label].write(chunk);handles[label].flush();stored+=len(chunk)
+    if label!='stdout':continue
+    lines=(pending+b).split(b'\n');pending=lines.pop()
+    if len(pending)>2*1024**2:long_lines+=1;pending=b''
+    for line in lines:
+     if not line:continue
+     try: msg=json.loads(line)
+     except (ValueError,UnicodeDecodeError):parse_errors+=1;continue
+     if msg.get('reason')=='compiler-message':
+      cm=msg.get('message',{});level=cm.get('level')
+      if level in {'error','warning'}:
+       row={'package_id':msg.get('package_id'),'code':(cm.get('code') or {}).get('code'),'message':cm.get('message'),'primary_spans':[s for s in cm.get('spans',[]) if s.get('is_primary')],'rendered':(cm.get('rendered') or '')[:16384]}
+       (errors if level=='error' else warnings).append(row)
+     elif msg.get('reason')=='compiler-artifact':artifact_rows.append({'package_id':msg.get('package_id'),'target':msg.get('target'),'fresh':msg.get('fresh'),'filenames':msg.get('filenames',[]),'executable':msg.get('executable')})
+ finally:
+  for handle in handles.values():handle.close()
+ exit_code=proc.wait();artifacts=[]
+ for row in artifact_rows:
+  row['file_hashes']=[{'path':f,'exists':pathlib.Path(f).is_file(),'sha256':digest(pathlib.Path(f)) if pathlib.Path(f).is_file() else None} for f in row['filenames']]
+  artifacts.append(row)
+ write(out/(name+'-artifacts.json'),artifacts)
+ result={'utc':utc(),'argv':argv,'cargo_exit':exit_code,'errors':errors,'warnings':warnings,'error_count':len(errors),'warning_count':len(warnings),'stdout_bytes':total['stdout'],'stderr_bytes':total['stderr'],'retained_bytes':stored,'retention_budget':budget,'logs_truncated':sum(total.values())>stored,'parse_errors':parse_errors,'overlong_json_lines':long_lines,'disk_abort':disk_abort,'minimum_free_bytes':minimum,'termination_scope':'Only this Popen-created Cargo session/process group; no cleanup/deletion','passed':exit_code==0 and not errors and not warnings and not disk_abort and not parse_errors and not long_lines}
+ write(out/(name+'-result.json'),result);print(json.dumps({'phase':name,'cargo_exit':exit_code,'errors':len(errors),'warnings':len(warnings),'disk_abort':disk_abort}),flush=True)
+ return result
+
+def main():
+ if len(sys.argv)!=2:raise SystemExit('usage: compiler-names-n13-typecheck.py NEW_OUTPUT_DIRECTORY')
+ out=pathlib.Path(sys.argv[1]);out.mkdir(parents=True,exist_ok=False)
+ lock=open('/tmp/tcl-lsp-naming-build.lock','a')
+ try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+ except BlockingIOError:write(out/'not-started.json',{'utc':utc(),'reason':'global build lock held; did not queue/start Cargo'});return 73
+ free=shutil.disk_usage(ROOT).free
+ if free<MIN_FREE:write(out/'not-started.json',{'utc':utc(),'reason':'disk below 2GiB','free_bytes':free});return 74
+ expected={'CARGO_BUILD_JOBS':'2','CARGO_INCREMENTAL':'0','CARGO_PROFILE_TEST_DEBUG':'0','CARGO_PROFILE_DEV_DEBUG':'0','RUSTUP_TOOLCHAIN':'1.99.1','TCL_LSP_REQUIRE_TCLSH':'9.0,8.6'}
+ mismatch={k:{'expected':v,'actual':os.environ.get(k)} for k,v in expected.items() if os.environ.get(k)!=v}
+ if mismatch:write(out/'not-started.json',{'utc':utc(),'reason':'source /tmp/tcl-lsp-naming-env.sh first','environment_mismatches':mismatch});return 75
+ write(out/'lock-claimed.json',{'utc':utc(),'pid':os.getpid(),'free_bytes':free,'phases':PHASES,'env':{k:os.environ.get(k) for k in [*expected,'CARGO_TARGET_DIR','TCL_LSP_JIMSH']},'cleanup':'none; retain all artifacts'})
+ before,providers_before=snapshot(out,'before');results=[];remaining=CAP
+ try:
+  for name,argv in PHASES:
+   result=run_phase(out,name,argv,remaining);results.append(result);remaining-=result['retained_bytes']
+   if result['cargo_exit']!=0 or result['disk_abort'] or result['error_count'] or result['parse_errors'] or result['overlong_json_lines']:break
+ finally:
+  after,providers_after=snapshot(out,'after')
+  changed=[{'path':p,'before':before['inputs'].get(p),'after':after['inputs'].get(p)} for p in sorted(set(before['inputs'])|set(after['inputs'])) if before['inputs'].get(p)!=after['inputs'].get(p)]
+  provider_changes=[p for p in sorted(set(providers_before)|set(providers_after)) if providers_before.get(p)!=providers_after.get(p)]
+  summary={'utc':utc(),'head_before':before['head'],'head_after':after['head'],'source_count_before':before['count'],'source_count_after':after['count'],'source_changes':changed,'provider_changes':provider_changes,'phases_completed':len(results),'compiler_errors':sum(r['error_count'] for r in results),'compiler_warnings':sum(r['warning_count'] for r in results),'cargo_exits':[r['cargo_exit'] for r in results],'retained_log_bytes':CAP-remaining,'retention_cap_bytes':CAP,'source_and_providers_unchanged':not changed and not provider_changes,'passed':len(results)==len(PHASES) and all(r['passed'] for r in results) and not changed and not provider_changes,'scope':'Typecheck only, no tests or N13 functional admission. All six packages share one keep-going all-targets invocation; Cargo controls dependency failures. HEAD/index-only coordinator changes are recorded independently.'}
+  write(out/'summary.json',summary);write(out/'lock-released.json',{'utc':utc(),'pid':os.getpid()});print(json.dumps(summary),flush=True)
+  fcntl.flock(lock,fcntl.LOCK_UN);lock.close()
+ return 0 if summary['passed'] else 1
+if __name__=='__main__':sys.exit(main())

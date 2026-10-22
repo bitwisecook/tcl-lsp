@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-22T21:55:32.977587+00:00",
+  "reviewer_role": "compiler-names",
+  "scope": "Bounded static API/ownership fit of exact v3-to-v4 consumer delta only; no whole-host/type/runtime/closure admission",
+  "delta_path": "/tmp/lsp-n13-coupled-stage6-host-v4/v3-to-v4.patch",
+  "delta_sha256": "e58ad0bd3eab2f0b193e6a990492f5ced7cecb5a1bd9dbacbe67e33e3ed3f08b",
+  "full_candidate_sha256": "7f820d983e65f60211171c0e2afbe251c65e78f6c56d1e3e327eed37f056c80d",
+  "findings": [],
+  "examined": [
+    "Exact current region analysis uses region.original_procedure_calls; ordinary whole-source query unchanged",
+    "Actual publication dependency DAG eligibility precedes typed ancestor or distinct region-dependency declaration join",
+    "Positive references preserve actual publication and typed target identity; file-root calls do not require a procedure caller",
+    "D2 exact reference rosters include UTF16 geometry and removed-edge withdrawal without weakening earlier assertions"
+  ],
+  "remaining": [
+    "All targets typecheck of consumer host not executed",
+    "Full host publication/convergence and potential-vs-current frontier classification remain independently open",
+    "Actual twelve-hop/two-parent/retired-publication end-to-end controls unrun"
+  ]
+}
