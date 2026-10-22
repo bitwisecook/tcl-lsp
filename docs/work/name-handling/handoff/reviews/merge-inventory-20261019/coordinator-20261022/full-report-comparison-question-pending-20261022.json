@@ -1,0 +1,25 @@
+{
+  "utc": "2026-10-22T22:38:09.551874+00:00",
+  "status": "User question pending; no answer or implementation authorization assumed",
+  "proposed_contract": "Distinct authenticated complete-report comparison only for perf/report harness, replacing the current AnalysisResult== perf equivalence gate. Global/runtime Eq, Salsa/cache cutoff and host eligibility remain strict.",
+  "requirements": [
+    "Every report field and typed diagnostic subject compared via complete unique current actual input/registry/source/body-owner correspondence",
+    "Missing/unsupported/stale/foreign/ambiguous carrier or field purpose yields Unavailable and fails gate",
+    "Genuine hosted report carrier required; never remove exclusion to manufacture currentness",
+    "Alias count!=1 requires further actual count/owner diagnosis before any existing-policy repair",
+    "Full old/mixed corpora rerun before accepting or forwarding any perf patch; preserve strict/global/runtime identity outcomes separately"
+  ],
+  "alternative": "Keep current full == gate and withhold perf patches",
+  "actual_evidence": {
+    "scope": "TEMP3 diagnostic controls on actual artifact542120d6; not full corpus or semantic acceptance",
+    "closed_utc": "2026-10-22T22:35:33.825662Z",
+    "exact_selected": 3,
+    "original_full_Eq_assertion_failures": 3,
+    "warnings": 0,
+    "source_and_providers_stable": true,
+    "aliases": "Both firstcapture refusal declaration-site-count; count zero/multiple unmeasured",
+    "E003": "Both reports present/current; diagnostic0 sourcearity only analysis_owner identity differs among emitted subject fields, all emitted ordinary fields equal; no complete correspondence proof",
+    "hosted": "Both firstcapture refusal unsupported-source-domain"
+  },
+  "proposal_sha256": "069dcc1b1ff40299d28959eb50130ede2fdecba94dcab04574827f7ed1f20900"
+}

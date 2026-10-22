@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-22T22:32:05.722246+00:00",
+  "implementation_status": "OFF-TREE; not applied, typed or run",
+  "agent_reported_static_reviews": {
+    "compiler_v1_v2": "Clear in bounded authentic finite/body/schema/region-owner/debt paths; no concrete authority/currentness blocker.",
+    "compiler_v3_replay": "Exact ba4c4ff0 delta clear: immediate actual prefix; actual region owner/input/config/marker; full conflict-checked NativeWord vector; freshly captured selected SourceLoad reauthenticates same vector/current region. Unknown retains new load/debt; absent reissue None. Meaningful ancestor/foreign/unavailable/stripped controls. No concrete new blocker in examined paths.",
+    "lsp_v1_v2": "Public producer API/consumer fit clear. v3 tuple replay API requested by host owner; its bounded implementation fit review pending."
+  },
+  "locally_validated": [
+    "All seven isolated Rust sources rustfmt edition2024 skip_children --check",
+    "Current canonical git apply --check",
+    "Immutable before/after/patch/delta SHA256 manifest"
+  ],
+  "remaining": [
+    "Coupled host actual-current root/bootstrap and per-independent-scope settlement/debt transfer implementation and review",
+    "Typecheck and eight new frontier controls; existing region/naming assertions unchanged",
+    "Actual completed two-parent/12-hop and physical publication retirement protocols"
+  ]
+}

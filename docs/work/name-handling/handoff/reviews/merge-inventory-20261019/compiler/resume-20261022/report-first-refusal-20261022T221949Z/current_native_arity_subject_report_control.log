@@ -1,0 +1,20 @@
+    Finished `test` profile [unoptimized] target(s) in 1.15s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test object_types::report_comparison::tests::current_native_arity_subject_report_control ... REPORT_CONTROL label=E003 dialect=tcl8.6 bytes=2311 full_equal=false diagnostics_equal=false reports_present=true/true
+REPORT_COMPARISON present_left=true present_right=true current_left=true current_right=true
+REPORT_FIELDS   diagnostics:
+REPORT_DIAGNOSTIC ordinal=0 code_left=E003 code_right=E003 subject_equal=false code_equal=true span_equal=true message_equal=true severity_equal=true fixes_equal=true
+REPORT_SUBJECT variant=UserSourceArity arity_equal=true obligations_equal=true original_equal=false
+REPORT_SUBJECT_USER issuer=NativeSource original_equal=true procedure_equal=true prefix_equal=true caller_equal=true uncertainty_equal=true future_equal=true input_equal=true analysis_owner_equal=false inherited_entry_equal=true
+thread 'object_types::report_comparison::tests::current_native_arity_subject_report_control' (162671) panicked at rust/tcl-compiler/src/object_types/report_comparison.rs:502:9:
+unchanged complete AnalysisResult equality: E003
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    object_types::report_comparison::tests::current_native_arity_subject_report_control
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10535 filtered out; finished in 10.11s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

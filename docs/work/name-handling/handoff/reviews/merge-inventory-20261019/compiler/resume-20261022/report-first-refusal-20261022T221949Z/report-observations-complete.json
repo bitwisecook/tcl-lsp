@@ -1,0 +1,433 @@
+{
+  "prepared_utc": "2026-10-22T22:35:58.664748+00:00",
+  "scope": "Pure supplementary postprocessing of immutable raw log; original runner/plan/assertions unchanged",
+  "suite_final": {
+    "all_artifacts_retained": true,
+    "finished_utc": "2026-10-22T22:35:33.825507+00:00",
+    "overall_exit": 1,
+    "providers_stable": true,
+    "results": 3,
+    "source_count": 100394,
+    "source_stable": true
+  },
+  "runtime_watchdog": {
+    "started_utc": "2026-10-22T22:29:58.439921+00:00",
+    "finished_utc": "2026-10-22T22:35:34.009907+00:00",
+    "suite_pid": 159269,
+    "records": [
+      {
+        "log": "/tmp/compiler-focused/20261022T221949.432413Z/current_native_alias_report_capture_control.log",
+        "test_pid": 162427,
+        "cargo_pid": 159501,
+        "observed_utc": "2026-10-22T22:34:00.946470+00:00",
+        "start_uptime_seconds": 33100.67,
+        "exe_path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "exe_device": 27,
+        "exe_inode": 296224,
+        "cargo_start_uptime_seconds": 32272.7,
+        "guard_pid": 159500,
+        "suite_start_uptime_seconds": 32249.08,
+        "budget_seconds": 180.0,
+        "budget_scope": "entire selected test process; compilation excluded",
+        "signals": [],
+        "runtime_timer_attached_before_test_start": true,
+        "finished_observed_utc": "2026-10-22T22:34:23.782786+00:00",
+        "runtime_observed_seconds": 22.889999999999418
+      },
+      {
+        "log": "/tmp/compiler-focused/20261022T221949.432413Z/current_native_arity_subject_report_control.log",
+        "test_pid": 162670,
+        "cargo_pid": 162663,
+        "observed_utc": "2026-10-22T22:34:45.334609+00:00",
+        "start_uptime_seconds": 33144.89,
+        "exe_path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "exe_device": 27,
+        "exe_inode": 296224,
+        "cargo_start_uptime_seconds": 33143.67,
+        "guard_pid": 162662,
+        "suite_start_uptime_seconds": 32249.08,
+        "budget_seconds": 180.0,
+        "budget_scope": "entire selected test process; compilation excluded",
+        "signals": [],
+        "runtime_timer_attached_before_test_start": true,
+        "finished_observed_utc": "2026-10-22T22:34:55.384472+00:00",
+        "runtime_observed_seconds": 10.270000000004075
+      },
+      {
+        "log": "/tmp/compiler-focused/20261022T221949.432413Z/current_hosted_report_capture_control.log",
+        "test_pid": 162868,
+        "cargo_pid": 162861,
+        "observed_utc": "2026-10-22T22:35:03.898305+00:00",
+        "start_uptime_seconds": 33163.53,
+        "exe_path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+        "exe_device": 27,
+        "exe_inode": 296224,
+        "cargo_start_uptime_seconds": 33162.98,
+        "guard_pid": 162860,
+        "suite_start_uptime_seconds": 32249.08,
+        "budget_seconds": 180.0,
+        "budget_scope": "entire selected test process; compilation excluded",
+        "signals": [],
+        "runtime_timer_attached_before_test_start": true,
+        "finished_observed_utc": "2026-10-22T22:35:27.539468+00:00",
+        "runtime_observed_seconds": 23.790000000000873
+      }
+    ]
+  },
+  "results": [
+    {
+      "label": "current_hosted_report_capture_control",
+      "raw_log": "/tmp/compiler-focused/20261022T221949.432413Z/current_hosted_report_capture_control.log",
+      "raw_sha256": "b1893a382a53eac11dad587334f7f2945085fd707da50981f388b79aeaa36f0c",
+      "observations": [
+        {
+          "raw_line_number": 4,
+          "report": "REPORT_CAPTURE refusal=unsupported-source-domain",
+          "raw_line": "test object_types::report_comparison::tests::current_hosted_report_capture_control ... REPORT_CAPTURE refusal=unsupported-source-domain"
+        },
+        {
+          "raw_line_number": 5,
+          "report": "REPORT_CAPTURE refusal=unsupported-source-domain",
+          "raw_line": "REPORT_CAPTURE refusal=unsupported-source-domain"
+        },
+        {
+          "raw_line_number": 6,
+          "report": "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false",
+          "raw_line": "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false"
+        },
+        {
+          "raw_line_number": 7,
+          "report": "REPORT_CONTROL label=hosted-http-collect dialect=f5-irules bytes=1995 full_equal=false diagnostics_equal=true reports_present=false/false",
+          "raw_line": "REPORT_CONTROL label=hosted-http-collect dialect=f5-irules bytes=1995 full_equal=false diagnostics_equal=true reports_present=false/false"
+        },
+        {
+          "raw_line_number": 8,
+          "report": "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false",
+          "raw_line": "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false"
+        },
+        {
+          "raw_line_number": 9,
+          "report": "REPORT_FIELDS   object_handle_facts:",
+          "raw_line": "REPORT_FIELDS   object_handle_facts:"
+        },
+        {
+          "raw_line_number": 10,
+          "report": "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false",
+          "raw_line": "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false"
+        }
+      ],
+      "process": {
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "tcl-compiler",
+          "--lib",
+          "object_types::report_comparison::tests::current_hosted_report_capture_control",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "started_utc": "2026-10-22T22:35:03.200522+00:00",
+        "finished_utc": "2026-10-22T22:35:27.401862+00:00",
+        "cargo_exit": 101,
+        "minimum_free_bytes": 12077871104,
+        "disk_abort": false,
+        "log_cap_bytes": 20971520,
+        "retained_log_bytes": 1393,
+        "log_at_cap": false,
+        "disk_poll_seconds": 5,
+        "termination_scope": "This invocation own Cargo session/process group only"
+      },
+      "result": {
+        "actual_selected": 1,
+        "artifact_stable": true,
+        "artifacts": [
+          {
+            "age_seconds": 89.54550909996033,
+            "mtime_utc": "2026-10-22T22:33:58.186338+00:00",
+            "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+            "retained": true,
+            "sha256": "542120d61494bcb1cfb331c5fa8278b6eb68a97f2ed3a21368f6dce2e2c64348"
+          }
+        ],
+        "cargo_wrapper_exit": 101,
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "tcl-compiler",
+          "--lib",
+          "object_types::report_comparison::tests::current_hosted_report_capture_control",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "diagnostic_only": true,
+        "expected_selected": 1,
+        "label": "current_hosted_report_capture_control",
+        "log_at_cap": false,
+        "providers_stable": true,
+        "report_observations": [
+          "REPORT_CAPTURE refusal=unsupported-source-domain",
+          "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false",
+          "REPORT_CONTROL label=hosted-http-collect dialect=f5-irules bytes=1995 full_equal=false diagnostics_equal=true reports_present=false/false",
+          "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false",
+          "REPORT_FIELDS   object_handle_facts:",
+          "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false"
+        ],
+        "requires_separate_fact_review": true,
+        "selector": "object_types::report_comparison::tests::current_hosted_report_capture_control",
+        "source_stable": true,
+        "summaries": [
+          [
+            "FAILED",
+            "0",
+            "1",
+            "0"
+          ]
+        ],
+        "warnings": false,
+        "zz_result_rows": []
+      }
+    },
+    {
+      "label": "current_native_alias_report_capture_control",
+      "raw_log": "/tmp/compiler-focused/20261022T221949.432413Z/current_native_alias_report_capture_control.log",
+      "raw_sha256": "65350b085527d44e998d303f1a6d371bf549a81cacea856320635016c59b7af4",
+      "observations": [
+        {
+          "raw_line_number": 14,
+          "report": "REPORT_CAPTURE refusal=declaration-site-count",
+          "raw_line": "test object_types::report_comparison::tests::current_native_alias_report_capture_control ... REPORT_CAPTURE refusal=declaration-site-count"
+        },
+        {
+          "raw_line_number": 15,
+          "report": "REPORT_CAPTURE refusal=declaration-site-count",
+          "raw_line": "REPORT_CAPTURE refusal=declaration-site-count"
+        },
+        {
+          "raw_line_number": 16,
+          "report": "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false",
+          "raw_line": "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false"
+        },
+        {
+          "raw_line_number": 17,
+          "report": "REPORT_CONTROL label=aliases dialect=tcl8.6 bytes=661 full_equal=false diagnostics_equal=true reports_present=false/false",
+          "raw_line": "REPORT_CONTROL label=aliases dialect=tcl8.6 bytes=661 full_equal=false diagnostics_equal=true reports_present=false/false"
+        },
+        {
+          "raw_line_number": 18,
+          "report": "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false",
+          "raw_line": "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false"
+        },
+        {
+          "raw_line_number": 19,
+          "report": "REPORT_FIELDS   object_handle_facts:",
+          "raw_line": "REPORT_FIELDS   object_handle_facts:"
+        },
+        {
+          "raw_line_number": 20,
+          "report": "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false",
+          "raw_line": "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false"
+        }
+      ],
+      "process": {
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "tcl-compiler",
+          "--lib",
+          "object_types::report_comparison::tests::current_native_alias_report_capture_control",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "started_utc": "2026-10-22T22:20:12.922183+00:00",
+        "finished_utc": "2026-10-22T22:34:23.747112+00:00",
+        "cargo_exit": 101,
+        "minimum_free_bytes": 11665051648,
+        "disk_abort": false,
+        "log_cap_bytes": 20971520,
+        "retained_log_bytes": 2327,
+        "log_at_cap": false,
+        "disk_poll_seconds": 5,
+        "termination_scope": "This invocation own Cargo session/process group only"
+      },
+      "result": {
+        "actual_selected": 1,
+        "artifact_stable": true,
+        "artifacts": [
+          {
+            "age_seconds": 26.103318214416504,
+            "mtime_utc": "2026-10-22T22:33:58.186338+00:00",
+            "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+            "retained": true,
+            "sha256": "542120d61494bcb1cfb331c5fa8278b6eb68a97f2ed3a21368f6dce2e2c64348"
+          }
+        ],
+        "cargo_wrapper_exit": 101,
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "tcl-compiler",
+          "--lib",
+          "object_types::report_comparison::tests::current_native_alias_report_capture_control",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "diagnostic_only": true,
+        "expected_selected": 1,
+        "label": "current_native_alias_report_capture_control",
+        "log_at_cap": false,
+        "providers_stable": true,
+        "report_observations": [
+          "REPORT_CAPTURE refusal=declaration-site-count",
+          "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false",
+          "REPORT_CONTROL label=aliases dialect=tcl8.6 bytes=661 full_equal=false diagnostics_equal=true reports_present=false/false",
+          "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false",
+          "REPORT_FIELDS   object_handle_facts:",
+          "REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false"
+        ],
+        "requires_separate_fact_review": true,
+        "selector": "object_types::report_comparison::tests::current_native_alias_report_capture_control",
+        "source_stable": true,
+        "summaries": [
+          [
+            "FAILED",
+            "0",
+            "1",
+            "0"
+          ]
+        ],
+        "warnings": false,
+        "zz_result_rows": []
+      }
+    },
+    {
+      "label": "current_native_arity_subject_report_control",
+      "raw_log": "/tmp/compiler-focused/20261022T221949.432413Z/current_native_arity_subject_report_control.log",
+      "raw_sha256": "6ab76828dbb452ee359ac4b564884e44505c479e98d3d981af88cb47aadac34c",
+      "observations": [
+        {
+          "raw_line_number": 4,
+          "report": "REPORT_CONTROL label=E003 dialect=tcl8.6 bytes=2311 full_equal=false diagnostics_equal=false reports_present=true/true",
+          "raw_line": "test object_types::report_comparison::tests::current_native_arity_subject_report_control ... REPORT_CONTROL label=E003 dialect=tcl8.6 bytes=2311 full_equal=false diagnostics_equal=false reports_present=true/true"
+        },
+        {
+          "raw_line_number": 5,
+          "report": "REPORT_COMPARISON present_left=true present_right=true current_left=true current_right=true",
+          "raw_line": "REPORT_COMPARISON present_left=true present_right=true current_left=true current_right=true"
+        },
+        {
+          "raw_line_number": 6,
+          "report": "REPORT_FIELDS   diagnostics:",
+          "raw_line": "REPORT_FIELDS   diagnostics:"
+        },
+        {
+          "raw_line_number": 7,
+          "report": "REPORT_DIAGNOSTIC ordinal=0 code_left=E003 code_right=E003 subject_equal=false code_equal=true span_equal=true message_equal=true severity_equal=true fixes_equal=true",
+          "raw_line": "REPORT_DIAGNOSTIC ordinal=0 code_left=E003 code_right=E003 subject_equal=false code_equal=true span_equal=true message_equal=true severity_equal=true fixes_equal=true"
+        },
+        {
+          "raw_line_number": 8,
+          "report": "REPORT_SUBJECT variant=UserSourceArity arity_equal=true obligations_equal=true original_equal=false",
+          "raw_line": "REPORT_SUBJECT variant=UserSourceArity arity_equal=true obligations_equal=true original_equal=false"
+        },
+        {
+          "raw_line_number": 9,
+          "report": "REPORT_SUBJECT_USER issuer=NativeSource original_equal=true procedure_equal=true prefix_equal=true caller_equal=true uncertainty_equal=true future_equal=true input_equal=true analysis_owner_equal=false inherited_entry_equal=true",
+          "raw_line": "REPORT_SUBJECT_USER issuer=NativeSource original_equal=true procedure_equal=true prefix_equal=true caller_equal=true uncertainty_equal=true future_equal=true input_equal=true analysis_owner_equal=false inherited_entry_equal=true"
+        }
+      ],
+      "process": {
+        "argv": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "tcl-compiler",
+          "--lib",
+          "object_types::report_comparison::tests::current_native_arity_subject_report_control",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "started_utc": "2026-10-22T22:34:43.897390+00:00",
+        "finished_utc": "2026-10-22T22:34:55.275054+00:00",
+        "cargo_exit": 101,
+        "minimum_free_bytes": 12077871104,
+        "disk_abort": false,
+        "log_cap_bytes": 20971520,
+        "retained_log_bytes": 1571,
+        "log_at_cap": false,
+        "disk_poll_seconds": 5,
+        "termination_scope": "This invocation own Cargo session/process group only"
+      },
+      "result": {
+        "actual_selected": 1,
+        "artifact_stable": true,
+        "artifacts": [
+          {
+            "age_seconds": 57.40936040878296,
+            "mtime_utc": "2026-10-22T22:33:58.186338+00:00",
+            "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+            "retained": true,
+            "sha256": "542120d61494bcb1cfb331c5fa8278b6eb68a97f2ed3a21368f6dce2e2c64348"
+          }
+        ],
+        "cargo_wrapper_exit": 101,
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "tcl-compiler",
+          "--lib",
+          "object_types::report_comparison::tests::current_native_arity_subject_report_control",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "diagnostic_only": true,
+        "expected_selected": 1,
+        "label": "current_native_arity_subject_report_control",
+        "log_at_cap": false,
+        "providers_stable": true,
+        "report_observations": [
+          "REPORT_COMPARISON present_left=true present_right=true current_left=true current_right=true",
+          "REPORT_FIELDS   diagnostics:",
+          "REPORT_DIAGNOSTIC ordinal=0 code_left=E003 code_right=E003 subject_equal=false code_equal=true span_equal=true message_equal=true severity_equal=true fixes_equal=true",
+          "REPORT_SUBJECT variant=UserSourceArity arity_equal=true obligations_equal=true original_equal=false",
+          "REPORT_SUBJECT_USER issuer=NativeSource original_equal=true procedure_equal=true prefix_equal=true caller_equal=true uncertainty_equal=true future_equal=true input_equal=true analysis_owner_equal=false inherited_entry_equal=true"
+        ],
+        "requires_separate_fact_review": true,
+        "selector": "object_types::report_comparison::tests::current_native_arity_subject_report_control",
+        "source_stable": true,
+        "summaries": [
+          [
+            "FAILED",
+            "0",
+            "1",
+            "0"
+          ]
+        ],
+        "warnings": false,
+        "zz_result_rows": []
+      }
+    }
+  ]
+}

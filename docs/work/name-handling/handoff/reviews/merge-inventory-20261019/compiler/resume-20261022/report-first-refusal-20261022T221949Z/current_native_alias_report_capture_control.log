@@ -1,0 +1,31 @@
+   Compiling tcl-registry v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/naming-migration-active/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 13m 47s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test object_types::report_comparison::tests::current_native_alias_report_capture_control ... REPORT_CAPTURE refusal=declaration-site-count
+REPORT_CAPTURE refusal=declaration-site-count
+REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false
+REPORT_CONTROL label=aliases dialect=tcl8.6 bytes=661 full_equal=false diagnostics_equal=true reports_present=false/false
+REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false
+REPORT_FIELDS   object_handle_facts:
+REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false
+thread 'object_types::report_comparison::tests::current_native_alias_report_capture_control' (162428) panicked at rust/tcl-compiler/src/object_types/report_comparison.rs:502:9:
+unchanged complete AnalysisResult equality: aliases
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    object_types::report_comparison::tests::current_native_alias_report_capture_control
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10535 filtered out; finished in 22.78s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

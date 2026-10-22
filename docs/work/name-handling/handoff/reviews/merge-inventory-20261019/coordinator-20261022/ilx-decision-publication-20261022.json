@@ -1,0 +1,11 @@
+{
+  "utc": "2026-10-22T22:32:17.916245+00:00",
+  "source_snapshot": "bc55fd3c7d2b38c2962e36c099642258d970564e",
+  "published_snapshot": "7feacad1bbe9471e484575f7cde7c0d56aa9bae6",
+  "remote_confirmed": "7feacad1bbe9471e484575f7cde7c0d56aa9bae6",
+  "product_tree_diff": [],
+  "decision": "Stop navigation after opaque calls",
+  "normal_push": true,
+  "fresh_fetch_before_push": true,
+  "next_cycle_unchanged": "2026-10-22T22:55:37+00:00"
+}

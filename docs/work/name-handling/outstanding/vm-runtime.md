@@ -2,11 +2,20 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T22:20:45Z (root-reported Core check PASS on54daa; compiler TEMP3/55 owns slot; stack3 pre/post plans ready, all finite VM runs pending; lint drafts frozen, docs CLEAR/product HOLD)
+Last updated: 2026-10-22T22:37:47Z (correctedruntime6 actual refresh complete22:36:43Z; frozen guarded Cargo active, no tests/results yet; compiler55 held, product HOLD/docs CLEAR)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Corrected runtime6 has explicit coordinator GO after TEMP3 closed at22:35:33Z.
+Mirror refresh completed at22:36:43Z, copying exactly the three current diagnostic/
+OO-phase test deltas and retaining the old `b37b2b51` executable plus all prior
+changed bytes. Frozen network-enabled driver `c1dd9389` is active under the whole
+global lock on its unique no-tommath target. Initial source/provider seal is
+captured and Cargo is active; no selector has run and final guards are pending.
+Compiler55 remains held until this command closes. Existing14/11/20 and VM71
+remain separate and unrun. No canonical product/provider/target cleanup occurs.
 
 Root reports checkpoint `54daa7bc6` includes the authentic new-control fixture
 refinement `7651cdfa` and three small compile/guard fixes. Root's Core type check

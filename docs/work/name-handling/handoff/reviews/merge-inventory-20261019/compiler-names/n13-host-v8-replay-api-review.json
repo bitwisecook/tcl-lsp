@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-22T22:37:37.475732+00:00",
+  "status": "Bounded STATIC replay ledger/API sequence review; no whole-host/type/runtime approval",
+  "full_patch_sha256": "9250e376fbbc1b3a150735257e3cdc33b880a874497b007f7843aad615b88096",
+  "delta_sha256": "2bcb33d2f4536f315097d1c844a2f917248bf4a53e3a6c8d2ce7ac690d2ab2dc",
+  "examined": [
+    "Entire one-path v7-to-v8 delta",
+    "Actual edge worker/current-view return join and region work completion helpers"
+  ],
+  "findings": [],
+  "static_conclusions": [
+    "Old debt retains actual published view owner and complete source edge.",
+    "Transfer requires exact region immediate-parent ID and same actual producer, compiler reissued_source_frontier tuple and actual successor edge/load/frontier equality.",
+    "Successful Unknown is reclassified and recorded under successor owner; absent replay leaves old debt in ledger.",
+    "Complete and nonfinal issued region frontiers are inventoried before accepting kernel conditional normal completion; hidden cut/Unknown remains Pending.",
+    "Final nonempty ledger refuses; no source offset, URI or arbitrary ancestor matching can discharge it.",
+    "Existing worker result rejoin checks actual view ID and same live producer after blocking work."
+  ],
+  "remaining": [
+    "Actual-current root/bootstrap physical publication join",
+    "Independent per-view/required-scope settlement; global failure must not poison unrelated scopes",
+    "Coupled typecheck/eight frontier controls/deep12/two-parent/retirement protocols"
+  ]
+}

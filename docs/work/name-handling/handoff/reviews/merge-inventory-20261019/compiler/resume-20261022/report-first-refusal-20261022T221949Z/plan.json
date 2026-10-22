@@ -1,0 +1,45 @@
+{
+  "prepared_utc": "2026-10-22T21:38:14.212929+00:00",
+  "status": "Frozen diagnostic plan only, source patch1eb3 required; root GO needed",
+  "required_filters": [
+    {
+      "label": "current_native_alias_report_capture_control",
+      "selector": "object_types::report_comparison::tests::current_native_alias_report_capture_control",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_REPORT_CAPTURE": "1"
+      },
+      "diagnostic_only": true,
+      "purpose": "Expected unchanged actual full AnalysisResult equality failure until attributed; never counted semantic acceptance"
+    },
+    {
+      "label": "current_native_arity_subject_report_control",
+      "selector": "object_types::report_comparison::tests::current_native_arity_subject_report_control",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_REPORT_CAPTURE": "1"
+      },
+      "diagnostic_only": true,
+      "purpose": "Expected unchanged actual full AnalysisResult equality failure until attributed; never counted semantic acceptance"
+    },
+    {
+      "label": "current_hosted_report_capture_control",
+      "selector": "object_types::report_comparison::tests::current_hosted_report_capture_control",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {
+        "TCL_LSP_TRACE_REPORT_CAPTURE": "1"
+      },
+      "diagnostic_only": true,
+      "purpose": "Expected unchanged actual full AnalysisResult equality failure until attributed; never counted semantic acceptance"
+    }
+  ],
+  "expected_filters": 3,
+  "expected_selected": 3,
+  "required_temporary_source_patch": "1eb3dcfb2790c8595911169b2d9748bb851f57b1cff57440a71635169ae43bcf",
+  "scope": "Current canonical all-old native8.6 aliases/E003 and one genuine f5 hosted original fixture; no perf patch/equality policy changes",
+  "guards": "Same immutable compiler focused48 build/source/provider/artifact guards, whole build/run lock, disk>=2GiB, capped20MiB logs, no target cleanup; print REPORT_ observations, preserve final full Eq assertions",
+  "retirement_receipt": "/tmp/compiler-report-first-refusal-v1/retire-receipt.json"
+}

@@ -1,0 +1,21 @@
+    Finished `test` profile [unoptimized] target(s) in 0.51s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test object_types::report_comparison::tests::current_hosted_report_capture_control ... REPORT_CAPTURE refusal=unsupported-source-domain
+REPORT_CAPTURE refusal=unsupported-source-domain
+REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false
+REPORT_CONTROL label=hosted-http-collect dialect=f5-irules bytes=1995 full_equal=false diagnostics_equal=true reports_present=false/false
+REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false
+REPORT_FIELDS   object_handle_facts:
+REPORT_COMPARISON present_left=false present_right=false current_left=false current_right=false
+thread 'object_types::report_comparison::tests::current_hosted_report_capture_control' (162869) panicked at rust/tcl-compiler/src/object_types/report_comparison.rs:502:9:
+unchanged complete AnalysisResult equality: hosted-http-collect
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    object_types::report_comparison::tests::current_hosted_report_capture_control
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10535 filtered out; finished in 23.58s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

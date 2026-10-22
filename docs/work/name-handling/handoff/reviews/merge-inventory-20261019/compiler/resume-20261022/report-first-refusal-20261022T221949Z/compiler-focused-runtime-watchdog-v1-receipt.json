@@ -1,0 +1,15 @@
+{
+  "prepared_utc": "2026-10-22T22:30:36.999260+00:00",
+  "attachment": "/tmp/compiler-focused-runtime-watchdog-v1.py",
+  "sha256": "b37bb1fd52f2e03062933d7e15fa012db4870eb329dba45327fd401a54151b51",
+  "active_suite_pid": 159269,
+  "active_receipt": "/tmp/compiler-focused/20261022T221949.432413Z",
+  "attached_utc": "2026-10-22T22:29:58.439921+00:00",
+  "runtime_bound_seconds": 180,
+  "scope": "entire selected test executable process; compilation excluded",
+  "runner_inputs_mutated": false,
+  "actual_executable_identity": "Cargo immediate child argv path and file device/inode; after filter existing runner records artifact SHA; cross-sandbox /proc/exe access denied",
+  "status": "attached before first test process, static peer review requested, no runtime observation yet",
+  "future55": "HOLD for root explicit GO after VM corrected6 and watchdog review",
+  "compile_check": "python3 -m py_compile only; no behavioral test claim"
+}
