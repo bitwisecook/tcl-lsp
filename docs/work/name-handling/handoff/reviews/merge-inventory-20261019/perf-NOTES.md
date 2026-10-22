@@ -51,8 +51,9 @@ remains a separate actual native codegen control (passes in both modes), and a
 class fixture supplies the additional text case. No positive input was dropped.
 Latest calls 10/20/40/80, procs 41 and upvar 10/30 all passed complete
 old/new/old equality with deterministic old endpoints. Latest full ordered PackSet Debug comparison also PASSED (484,936 lines,
-deterministic old endpoints). Main text corpus is still running; all 15
-iRules failed strict equality.
+deterministic old endpoints). Full 102-file text corpus completed 100 equal / 2 unequal (E003 and aliases),
+zero panics; both mismatches fail isolated all-old controls. All 100 successful
+rows have deterministic old endpoints. All 15 iRules failed strict equality.
 Earlier base-8a01a718 ordered full PackSet Debug comparison passed deterministically
 (484,936 lines); this is not a latest-source verdict. Never sort Debug output or
 strip fields to manufacture equality.
@@ -97,12 +98,18 @@ Latest load_embedded: origin 4,665 ms, work old1 44,471 ms / old2 82,646 ms,
 new 10,673 ms. Full ordered PackSet Debug is equal and old runs deterministic;
 the endpoint timing difference prevents a stable speedup-factor claim.
 
+Supplemental paired process CPU: calls 80 old1/new/old2 =
+35,450 / 3,760 / 21,660 ms; calls 40 = 10,350 / 2,460 / 8,480 ms.
+Calls 20 new falls between the old endpoints. All results are exactly equal
+with deterministic endpoints; see synthetic-cpu-summary.json. This measures
+analysis, excluding report comparison/formatting, rather than LSP or WASI exit.
+
 ## Test status
 
 Latest lexer lib: 583 pass and the same three fail in each mode, zero pass-to-fail.
 The isolated formal-advice test has the same [] versus [notacommand] assertion
-failure in both modes. Selected compiler new mode completed all 226 (151 pass / 75 fail); old is
-active. Startup metadata fails the same first 0-versus-1 assertion in both
+failure in both modes. Selected compiler BOTH modes completed all 226: identical 151 pass /
+75 fail, zero pass-to-fail and identical complete inventories. Startup metadata fails the same first 0-versus-1 assertion in both
 modes (24.451 / 23.893 s), so later reindex assertions are not reached.
 Workspace-symbol times out at 180 s in BOTH modes (180.085 / 180.224 s).
 No pass-to-fail was observed; neither server gate passes.
@@ -115,7 +122,8 @@ old 5,717.749 s). The earlier default eval_loader run lacked one sparse fixture;
 complete-input default new mode finished 26 pass / 2 fail (4418.488 s),
 now budget-axis and eda_xilinx interpreted wall-budget assertions; old is active. Latest optimized eval_loader completed all 28 PASS in BOTH modes
 (new 1,488.967 s / old 1,568.082 s), zero pass-to-fail. Latest optimized
-golden_packs follows, with unchanged assertions in both modes. Profile
+golden_packs completed all 3 PASS in BOTH modes
+(new 651.764 s / old 864.494 s), zero pass-to-fail. Profile
 or fixture differences are recorded separately, never presented as green retries.
 
 ## Routed residual work

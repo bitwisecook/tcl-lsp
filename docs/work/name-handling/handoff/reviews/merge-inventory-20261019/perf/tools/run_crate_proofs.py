@@ -64,6 +64,10 @@ for stage, (package, targets, suites) in stages.items():
         "profile": "test opt-level=0 debug=0 incremental=0", "target_dir": env["CARGO_TARGET_DIR"],
         "server_timeout_seconds_both_modes": 180,
     }, indent=2) + "\n")
+    for suite, _ in suites:
+        for mode in ("new", "old"):
+            summary[f"{stage}/{suite}/{mode}"] = {"status": "pending"}
+    (evidence / f"tests-{stage}-summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(f"BUILD {stage}", flush=True)
     with build_json.open("w") as out, build_log.open("w") as err:
         built = subprocess.run(["cargo", "test", "--locked", "-j2", "-p", package, *targets,
@@ -98,6 +102,8 @@ for stage, (package, targets, suites) in stages.items():
                 mode_env = env | {"CARGO_MANIFEST_DIR": str(package_root)} | ({"ZZ_OLD_ENV": "1"} if mode == "old" else {})
                 started = time.monotonic()
                 print(f"RUN {stage}/{suite}/{mode}", flush=True)
+                summary[f"{stage}/{suite}/{mode}"] = {"status": "running", "log": log.name}
+                (evidence / f"tests-{stage}-summary.json").write_text(json.dumps(summary, indent=2) + "\n")
                 with log.open("w") as out:
                     try:
                         result = subprocess.run([str(exe), *selected, "--test-threads=2"],

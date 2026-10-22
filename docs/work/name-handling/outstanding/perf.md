@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 19:21 UTC
+Last updated: 2026-10-22 19:47 UTC
 
 ## Resume
 
@@ -71,13 +71,17 @@ proof is genuinely satisfied or the coordinator resolves this blocker.
 - `/tmp/perf-run-latest.sh`: optimized complete corpus/irules/synthetic/PackSet
   command, target-latest, source zz_latest_perfprobe.rs and zz_latest_spectclprobe.rs.
   Build log /tmp/perf-latest-probe-build.log; run log /tmp/perf-latest-run.log.
-  Optimized build completed (122m48s); strict text corpus is now running.
-  Do not mutate its source/library artifacts while copied proof workers use them.
+  Optimized build completed (122m48s); full 102-file text corpus FINISHED
+  100 equal / 2 unequal (E003 and aliases), zero panics. Both mismatches also
+  fail isolated all-old controls. Main command exits 1 at the unchanged full
+  equality assertion and deleted its executables; independent shapes/PackSet
+  already completed in continued-proof/. All 100 successful rows have det=true.
 - `/tmp/perf-latest-crate-lexer-compiler.log`: default test-profile lexer then
   compiler. Lexer completed 583 pass / the same 3 fail in both modes, zero
   pass-to-fail. Compiler build completed and its 226 selected tests are now
-  new mode completed all 226 (151 pass / 75 fail, 4885.43 s); old mode
-  is now running. No regression inventory verdict yet. Outputs/summary in latest-e4a01bbe.
+  BOTH modes completed all 226: identical 151 pass / 75 fail, zero
+  pass-to-fail and identical complete test inventories. The executable was
+  deleted by its build/run command. Outputs/summary in latest-e4a01bbe.
 - Native byte control copies that completed compiler executable privately and
   runs native_array_indices_emit_iteratively_from_the_full_original_arena in
   both modes; existing assertions require 2000 array instructions and x-ff.
@@ -113,7 +117,8 @@ proof is genuinely satisfied or the coordinator resolves this blocker.
 - `/tmp/perf-run-spec-latest-opt1.py`, log /tmp/perf-latest-spectcl-opt1.log:
   latest optimized eval_loader completed all 28 PASS in BOTH modes
   (new 1488.967 s / old 1568.082 s), zero pass-to-fail. Latest optimized
-  golden_packs is next, with unchanged assertions in both modes. Harness debug=0, optimization=1, debug/overflow
+  golden_packs completed all 3 PASS in BOTH modes
+  (new 651.764 s / old 864.494 s), zero pass-to-fail. Harness debug=0, optimization=1, debug/overflow
   assertions ON; exact library artifacts are recorded. The default-profile
   budget comparisons above remain separately recorded and are not called green.
 - Latest ordinary LSP positive controls completed on the new libraries.
@@ -128,6 +133,17 @@ proof is genuinely satisfied or the coordinator resolves this blocker.
   new-only base-8a 253 timing completed at 326554 ms. Latest e4 new-only
   10/40/100/253 timings completed at 1319/11962/53223/255893 ms; their eq=true
   fields are timing-only placeholders, NOT equality results.
+
+- Supplemental process-CPU calls 1/10/20/40/80 completed, all exact and
+  deterministic. 80 calls CPU old1/new/old2 = 35450/3760/21660 ms; n=1 warmup.
+  synthetic-cpu-summary.json records every sample, including the mixed n=20
+  result. CPU upvar 1/10/30 also completed exact/deterministic; n30 CPU
+  old1/new/old2 = 71930/18670/58020 ms. These
+  probes link frozen libraries directly and delete their private executables.
+- All-old control for ALL 15 irules FINISHED: all 15 fail full equality,
+  all old endpoints differ (irules-all-old-control.out),
+  copied from the CPU probe's identical frozen libraries; its middle old=false
+  argument is overridden by ZZ_OLD_ENV=1. No assertion or subject is stripped.
 
 ## Corpus and completed evidence
 

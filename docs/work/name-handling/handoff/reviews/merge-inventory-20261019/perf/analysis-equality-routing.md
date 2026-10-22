@@ -79,3 +79,9 @@ proposal for the owner to assess, not a proven implementation. Hosted source
 needs its own authentic hosted-policy/container/configuration correspondence;
 the existing Native/versioned eligibility must not be extended by erasing
 that distinction.
+
+The isolated forced-old control now covers ALL 15 hosted iRules: all 15 fail
+full equality and all old endpoints are non-repeatable. Exact inputs/source/
+binary digest: evidence/latest-e4a01bbe/irules-all-old-inputs.json; raw output:
+irules-all-old-control.out. Only the earlier aliases helper was privately
+traced; do not attribute every iRule to that helper without tracing it.

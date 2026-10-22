@@ -4,3 +4,6 @@ det=true
 OK memo_ms=16086 plain_ms=34482 eq=true /tmp/perf-inputs/tclIndex-40.tcl
 det=true
 OK memo_ms=37237 plain_ms=459444 eq=true /tmp/perf-inputs/tclIndex-100.tcl
+det=true
+OK memo_ms=189404 plain_ms=5108792 eq=true /tmp/perf-inputs/tclIndex-253.tcl
+files=4 mismatches=0

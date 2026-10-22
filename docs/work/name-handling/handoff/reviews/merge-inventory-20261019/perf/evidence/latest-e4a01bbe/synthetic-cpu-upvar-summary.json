@@ -1,0 +1,38 @@
+{
+  "unit": "milliseconds",
+  "production_base": "e4a01bbe",
+  "clock_ticks_per_second": 100,
+  "rows": [
+    {
+      "upvar": 1,
+      "cpu_ms_old1": 1160.0,
+      "cpu_ms_new": 880.0,
+      "cpu_ms_old2": 640.0,
+      "wall_ms_new": 1118,
+      "wall_ms_old2": 791,
+      "equal": true,
+      "warmup": true
+    },
+    {
+      "upvar": 10,
+      "cpu_ms_old1": 12810.0,
+      "cpu_ms_new": 3880.0,
+      "cpu_ms_old2": 6070.0,
+      "wall_ms_new": 4672,
+      "wall_ms_old2": 7618,
+      "equal": true,
+      "warmup": false
+    },
+    {
+      "upvar": 30,
+      "cpu_ms_old1": 71930.0,
+      "cpu_ms_new": 18670.0,
+      "cpu_ms_old2": 58020.0,
+      "wall_ms_new": 19336,
+      "wall_ms_old2": 58600,
+      "equal": true,
+      "warmup": false
+    }
+  ],
+  "method": "same process CPU measurement as synthetic-cpu-summary.json; n1 warmup"
+}

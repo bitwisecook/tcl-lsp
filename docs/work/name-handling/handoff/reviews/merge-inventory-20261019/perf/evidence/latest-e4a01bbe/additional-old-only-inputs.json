@@ -1,0 +1,6 @@
+{
+  "production_base": "e4a01bbe",
+  "binary_sha256": "45d6e13338f7422e8d044fa2cd9f76f9714fa097b9232f87a261317adfcec679",
+  "all_old_additional_cases": [],
+  "assertions": "complete AnalysisResult PartialEq unchanged"
+}

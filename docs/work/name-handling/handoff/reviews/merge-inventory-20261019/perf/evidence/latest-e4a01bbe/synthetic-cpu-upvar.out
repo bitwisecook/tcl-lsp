@@ -1,0 +1,15 @@
+CPU old=true ticks=116 bytes=87
+CPU old=false ticks=88 bytes=87
+CPU old=true ticks=64 bytes=87
+det=true
+upvar n=1 memo_ms=1118 plain_ms=791 eq=true
+CPU old=true ticks=1281 bytes=492
+CPU old=false ticks=388 bytes=492
+CPU old=true ticks=607 bytes=492
+det=true
+upvar n=10 memo_ms=4672 plain_ms=7618 eq=true
+CPU old=true ticks=7193 bytes=1492
+CPU old=false ticks=1867 bytes=1492
+CPU old=true ticks=5802 bytes=1492
+det=true
+upvar n=30 memo_ms=19336 plain_ms=58600 eq=true

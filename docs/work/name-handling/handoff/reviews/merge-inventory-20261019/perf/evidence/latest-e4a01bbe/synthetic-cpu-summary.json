@@ -1,0 +1,59 @@
+{
+  "unit": "milliseconds",
+  "production_base": "e4a01bbe",
+  "method": "process user+system CPU /proc/self/stat",
+  "clock_ticks_per_second": 100,
+  "rows": [
+    {
+      "calls": 1,
+      "cpu_ms_old1": 550.0,
+      "cpu_ms_new": 330.0,
+      "cpu_ms_old2": 330.0,
+      "wall_ms_new": 838,
+      "wall_ms_old2": 801,
+      "equal": true,
+      "warmup": true
+    },
+    {
+      "calls": 10,
+      "cpu_ms_old1": 1470.0,
+      "cpu_ms_new": 810.0,
+      "cpu_ms_old2": 1260.0,
+      "wall_ms_new": 2005,
+      "wall_ms_old2": 3106,
+      "equal": true,
+      "warmup": false
+    },
+    {
+      "calls": 20,
+      "cpu_ms_old1": 3280.0,
+      "cpu_ms_new": 3600.0,
+      "cpu_ms_old2": 4340.0,
+      "wall_ms_new": 7228,
+      "wall_ms_old2": 5432,
+      "equal": true,
+      "warmup": false
+    },
+    {
+      "calls": 40,
+      "cpu_ms_old1": 10350.0,
+      "cpu_ms_new": 2460.0,
+      "cpu_ms_old2": 8480.0,
+      "wall_ms_new": 3040,
+      "wall_ms_old2": 16864,
+      "equal": true,
+      "warmup": false
+    },
+    {
+      "calls": 80,
+      "cpu_ms_old1": 35450.0,
+      "cpu_ms_new": 3760.0,
+      "cpu_ms_old2": 21660.0,
+      "wall_ms_new": 4871,
+      "wall_ms_old2": 27539,
+      "equal": true,
+      "warmup": false
+    }
+  ],
+  "scope": "full analysis call, equality/reporting excluded; n1 is warmup"
+}

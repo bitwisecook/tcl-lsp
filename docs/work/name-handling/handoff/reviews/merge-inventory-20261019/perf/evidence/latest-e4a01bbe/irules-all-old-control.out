@@ -1,0 +1,112 @@
+CPU old=true ticks=73 bytes=506
+CPU old=false ticks=53 bytes=506
+CPU old=true ticks=57 bytes=506
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=533 plain_ms=569 eq=false samples/for_screenshots/32-extract-datagroup-mapping-after.irul
+CPU old=true ticks=104 bytes=350
+CPU old=false ticks=91 bytes=350
+CPU old=true ticks=96 bytes=350
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=905 plain_ms=977 eq=false samples/for_screenshots/31-extract-datagroup-ip-before.irul
+CPU old=true ticks=98 bytes=449
+CPU old=false ticks=36 bytes=449
+CPU old=true ticks=38 bytes=449
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=359 plain_ms=381 eq=false samples/for_screenshots/31-extract-datagroup-ip-after.irul
+CPU old=true ticks=18 bytes=113
+CPU old=false ticks=21 bytes=113
+CPU old=true ticks=18 bytes=113
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=211 plain_ms=174 eq=false samples/for_screenshots/24-template-fallback.irul
+CPU old=true ticks=106 bytes=296
+CPU old=false ticks=33 bytes=296
+CPU old=true ticks=27 bytes=296
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=330 plain_ms=271 eq=false samples/for_screenshots/32-extract-datagroup-mapping-before.irul
+CPU old=true ticks=26 bytes=86
+CPU old=false ticks=24 bytes=86
+CPU old=true ticks=25 bytes=86
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=238 plain_ms=251 eq=false samples/for_screenshots/05-security-taint-before.irul
+CPU old=true ticks=72 bytes=338
+CPU old=false ticks=145 bytes=338
+CPU old=true ticks=89 bytes=338
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=1445 plain_ms=901 eq=false samples/for_screenshots/30-extract-datagroup-before.irul
+CPU old=true ticks=147 bytes=209
+CPU old=false ticks=75 bytes=209
+CPU old=true ticks=67 bytes=209
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=750 plain_ms=669 eq=false samples/for_screenshots/05-security-taint-after.irul
+CPU old=true ticks=60 bytes=424
+CPU old=false ticks=46 bytes=424
+CPU old=true ticks=52 bytes=424
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=449 plain_ms=519 eq=false samples/for_screenshots/30-extract-datagroup-after.irul
+CPU old=true ticks=47 bytes=181
+CPU old=false ticks=57 bytes=181
+CPU old=true ticks=33 bytes=181
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=562 plain_ms=333 eq=false samples/for_screenshots/ai-scene.irul
+CPU old=true ticks=338 bytes=1995
+CPU old=false ticks=266 bytes=1995
+CPU old=true ticks=242 bytes=1995
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=2667 plain_ms=2419 eq=false samples/irules/cookbook_http_collect.irul
+CPU old=true ticks=353 bytes=3361
+CPU old=false ticks=297 bytes=3361
+CPU old=true ticks=234 bytes=3361
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=2971 plain_ms=2335 eq=false samples/irules/diagnostics_event_flow.irul
+CPU old=true ticks=1032 bytes=3233
+CPU old=false ticks=1725 bytes=3233
+CPU old=true ticks=790 bytes=3233
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=17857 plain_ms=7908 eq=false samples/irules/cookbook_tcp_collect.irul
+CPU old=true ticks=276 bytes=3850
+CPU old=false ticks=421 bytes=3850
+CPU old=true ticks=355 bytes=3850
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=4286 plain_ms=3713 eq=false samples/irules/diagnostics_security.irul
+CPU old=true ticks=511 bytes=4017
+CPU old=false ticks=343 bytes=4017
+CPU old=true ticks=325 bytes=4017
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_debug_equal=true diagnostics_equal=true
+det=false
+BAD memo_ms=3441 plain_ms=3253 eq=false samples/irules/diagnostics_style_perf.irul
+files=15 mismatches=15
+
+thread 'main' (35479) panicked at /tmp/zz_cpu_perf_probe_ndmog8by/zz_cpu_perfprobe.rs:216:9:
+assertion `left == right` failed: corpus results must be identical without panics
+  left: 15
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

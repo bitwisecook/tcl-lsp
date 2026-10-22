@@ -198,3 +198,18 @@ det=true
 OK memo_ms=2274 plain_ms=2071 eq=true tests/fixtures/tcl9/completion-options-control.tcl
 det=true
 OK memo_ms=9479 plain_ms=5731 eq=true tests/fixtures/tcl9/completion-options-alias.tcl
+det=true
+OK memo_ms=66727 plain_ms=563017 eq=true tests/fixtures/tcl9/array-get-read-traces.tcl
+det=true
+OK memo_ms=4048 plain_ms=3987 eq=true tests/fixtures/tcl9/expanded-command-head.tcl
+det=true
+OK memo_ms=4764 plain_ms=10864 eq=true tests/external/backend_constraints.tcl
+det=true
+OK memo_ms=3034 plain_ms=3356 eq=true rust/tcl-compiler/tests/data/name-consumers/classes.tcl
+files=102 mismatches=2
+
+thread 'main' (32139) panicked at rust/tcl-compiler/examples/zz_latest_perfprobe.rs:200:9:
+assertion `left == right` failed: corpus results must be identical without panics
+  left: 2
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

@@ -10,5 +10,17 @@
     "seconds": 1568.082,
     "passed": 28,
     "failed": 0
+  },
+  "golden_packs/new": {
+    "returncode": 0,
+    "seconds": 651.764,
+    "passed": 3,
+    "failed": 0
+  },
+  "golden_packs/old": {
+    "returncode": 0,
+    "seconds": 864.494,
+    "passed": 3,
+    "failed": 0
   }
 }

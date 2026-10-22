@@ -1,0 +1,25 @@
+CPU old=true ticks=55 bytes=27
+CPU old=false ticks=33 bytes=27
+CPU old=true ticks=33 bytes=27
+det=true
+calls n=1 memo_ms=838 plain_ms=801 eq=true
+CPU old=true ticks=147 bytes=63
+CPU old=false ticks=81 bytes=63
+CPU old=true ticks=126 bytes=63
+det=true
+calls n=10 memo_ms=2005 plain_ms=3106 eq=true
+CPU old=true ticks=328 bytes=103
+CPU old=false ticks=360 bytes=103
+CPU old=true ticks=434 bytes=103
+det=true
+calls n=20 memo_ms=7228 plain_ms=5432 eq=true
+CPU old=true ticks=1035 bytes=183
+CPU old=false ticks=246 bytes=183
+CPU old=true ticks=848 bytes=183
+det=true
+calls n=40 memo_ms=3040 plain_ms=16864 eq=true
+CPU old=true ticks=3545 bytes=343
+CPU old=false ticks=376 bytes=343
+CPU old=true ticks=2166 bytes=343
+det=true
+calls n=80 memo_ms=4871 plain_ms=27539 eq=true

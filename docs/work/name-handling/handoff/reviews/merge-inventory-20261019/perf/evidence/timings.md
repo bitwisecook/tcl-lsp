@@ -179,3 +179,31 @@ old endpoints are deterministic. load_embedded: origin 4,665 ms, work old1
 44,471 ms / old2 82,646 ms, work new 10,673 ms. The different old endpoint
 latencies show host noise; this is not a stable speedup-factor estimate.
 Raw: latest-e4a01bbe/continued-proof/packset.out.
+
+## Paired process CPU controls, latest e4a01bbe
+
+Linux process user+system CPU is read before/after each full analysis call;
+equality/output formatting are excluded. Tick frequency is 100 Hz.
+All five old/new/old shapes (including n=1 warmup) have deterministic endpoints
+and complete AnalysisResult equality. The unchanged frozen libraries are used.
+One paired sample per size; cache/memory effects and scheduling still vary.
+
+| Calls | old1 CPU ms | new CPU ms | old2 CPU ms |
+| --- | ---: | ---: | ---: |
+| 10 | 1470 | 810 | 1260 |
+| 20 | 3280 | 3600 | 4340 |
+| 40 | 10350 | 2460 | 8480 |
+| 80 | 35450 | 3760 | 21660 |
+
+Raw: latest-e4a01bbe/synthetic-cpu-{calls.out,inputs.json,summary.json}.
+These are analyser timings, not end-to-end LSP or WASI exit measurements.
+
+The same paired CPU control for upvar also passed full old/new/old equality
+with deterministic endpoints (n=1 warmup excluded):
+
+| Upvar callers | old1 CPU ms | new CPU ms | old2 CPU ms |
+| --- | ---: | ---: | ---: |
+| 10 | 12810 | 3880 | 6070 |
+| 30 | 71930 | 18670 | 58020 |
+
+Raw: latest-e4a01bbe/synthetic-cpu-upvar{.out,-inputs.json,-summary.json}.

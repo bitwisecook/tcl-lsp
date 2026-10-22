@@ -1,0 +1,13 @@
+{
+  "production_base": "e4a01bbe",
+  "clock_ticks_per_second": 100,
+  "source_sha256": "f64b333d565c125dbba3fd2cf48e73f683d76813ae3bfb6fa61ec9e0f22db50f",
+  "binary_sha256": "e107c32bae5e4078626406fa8956685816d233ae7978c2f7fcef4f2bcf2600ea",
+  "externs": {
+    "tcl_compiler": "/workspace/tcl-lsp-work/target-latest/debug/deps/libtcl_compiler-65e8711831218a9d.rlib",
+    "tcl_lexer": "/workspace/tcl-lsp-work/target-latest/debug/deps/libtcl_lexer-fa8c05e19a049ac8.rlib"
+  },
+  "method": "/proc/self/stat process user+system ticks, before/after each full analysis; equality and output formatting excluded",
+  "flags": "opt-level=1 debug=0 debug/overflow assertions on incremental=0",
+  "assertions": "unchanged complete AnalysisResult old/new/old equality"
+}

@@ -1,0 +1,25 @@
+{
+  "production_base": "e4a01bbe",
+  "binary_sha256": "e107c32bae5e4078626406fa8956685816d233ae7978c2f7fcef4f2bcf2600ea",
+  "compiled_probe": "tools/cpu_perfprobe.rs.txt",
+  "all_optimizations_disabled": "ZZ_OLD_ENV=1 overrides the middle old=false argument too",
+  "dialect": "f5-irules",
+  "paths": [
+    "samples/for_screenshots/32-extract-datagroup-mapping-after.irul",
+    "samples/for_screenshots/31-extract-datagroup-ip-before.irul",
+    "samples/for_screenshots/31-extract-datagroup-ip-after.irul",
+    "samples/for_screenshots/24-template-fallback.irul",
+    "samples/for_screenshots/32-extract-datagroup-mapping-before.irul",
+    "samples/for_screenshots/05-security-taint-before.irul",
+    "samples/for_screenshots/30-extract-datagroup-before.irul",
+    "samples/for_screenshots/05-security-taint-after.irul",
+    "samples/for_screenshots/30-extract-datagroup-after.irul",
+    "samples/for_screenshots/ai-scene.irul",
+    "samples/irules/cookbook_http_collect.irul",
+    "samples/irules/diagnostics_event_flow.irul",
+    "samples/irules/cookbook_tcp_collect.irul",
+    "samples/irules/diagnostics_security.irul",
+    "samples/irules/diagnostics_style_perf.irul"
+  ],
+  "assertions": "complete AnalysisResult old/old/old; no normalization"
+}
