@@ -1,5 +1,5 @@
 import re
-R='/home/user/tcl-lsp/'
+R='/workspace/naming-migration-active/tcl-lsp/'
 def edit(p, pairs):
     s=open(R+p).read()
     for a,b in pairs:

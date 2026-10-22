@@ -2,7 +2,7 @@
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-22T14:21Z
+Last updated: 2026-10-22T14:24Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -17,11 +17,11 @@ Partial results of integration batch `p8` (current tree, built 13:01Z; evidence 
 - stub_arg_roles 15/35 and lsp_edit_workspace 31/37: first measurement in this session, failures not yet classified. lsp_edit_workspace: 2 minify **compact** tests are N15 (now refused → change expectation per N15 rule, cite review N15 + decision 2026-10-22T11:00Z); 2 Default-tier minify tests (`minify_preserves_string_and_expr_results`, `minify_strips_comments_and_collapses_whitespace_factorial`) expect expression-internal whitespace removal (`{3+4*2}`) that the native "whole original words" path no longer does — NOT caused by N15; needs an origin/rust check and a decision; `linked_editing_links_namespace_relative_self_call`, `workspace_symbols_classmethod_surfaces_as_method` unclassified.
 - references_rename: stopped after 14 tests (both N05 regressions pass; 3 failures so far), `status-p8-references_rename-partial.txt`. minify_residual: not run.
 
-Exact next commands (from the repo root; scripts in `merge-inventory-20261019/lsp/`, copy to a scratch dir and set `S` inside them first; check `df -h /` ≥ 2.3 GB and no other big rustc):
-1. `runmulti.sh tcl-lsp-core p9 references_rename minify_residual` (build + run + delete in one command).
-2. tcl-lsp-server lib as ONE process again (vm-runtime fixed the thread-exit SIGABRT): `cargo test -p tcl-lsp-server --lib --no-run` then in the same command `timeout 5400 <exe> --test-threads=2`, `rm <exe>`; confirm no abort; compare with srv4 (694/140/6, `server-lib-srv4-failures.txt`).
-3. tcl-lsp-core lib, minify module first (`minify::` filter) to produce the N15 changed-expectation list (each with origin/rust status), then the whole lib; tcl-lsp-db lib; clippy.
-Environment for all: `CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0 TCL_LSP_REQUIRE_TCLSH=9.0,8.6 TCL_LSP_JIMSH=$PWD/tmp/jimtcl-oracle/jimsh`.
+Current next checks (agent-reported work, not admission): after compiler-names → compiler-codegen → compiler → vm-runtime hand off the build lock, run Core `lsp_edit_workspace` Default minify selectors and the new `minify_residual::default_minify_compacts_expression_gaps_and_preserves_oracle_results`, then the full target and provider regressions. Core minify module, core/db/server library targets and clippy remain outstanding.
+
+Source `/tmp/tcl-lsp-naming-env.sh`; keep the complete build/run/cleanup command under `flock /tmp/tcl-lsp-naming-build.lock`. Check free disk at least 2 GB (prefer 2.3) before every build. Logs drain after a 20 MB cap. Do not use old runners' unconditional `rm`: no executable younger than 60 minutes may be deleted, and no target cleanup may run while `pgrep -x cargo` or `pgrep -x rustc` finds a build. Fresh artifacts remain retained until eligible. No build/test has yet run in this environment.
+
+Minify source edit is written and rustfmt completed (Compiler syntax-gap issuer + Core integration and six-profile regression), uncompiled. Manual original/minified-control fixture executions pass 12/12 across all five pinned C Tcl and pinned Jim; `/tmp/lsp-minify-manual-oracle-20261022.json`. This proves only that manual control's semantics, not the production minifier.
 
 Files touched by me (all already in snapshots up to `ddb21ae4db` except docs): tcl-lsp-core `definition.rs`, `hover.rs`, `hover/original_registry.rs`, `completion.rs`, `completion/original_variables.rs`, `references.rs`, `rename.rs`, `method_symbol.rs`, `original_declaration.rs`, `call_hierarchy.rs`, `inlay_hints.rs`, `signature_help.rs`, `refactor/inline_proc.rs`, `package_resolver/original_names.rs`, `minify/original.rs`; tests `force_import_shadow_consumers.rs`, `hover_residual.rs`, `references_residual.rs`, `references_rename.rs`, `minify_residual.rs`; tcl-lsp-server `fresh_analysis_cache.rs` (new), `lib.rs`. Docs: this file, `merge-inventory-20261019/lsp-NOTES.md` (sections 1–5 written; §1/§2 numbers need the p8/p9 update), evidence dir `merge-inventory-20261019/lsp/`.
 
@@ -46,7 +46,7 @@ Files touched by me (all already in snapshots up to `ddb21ae4db` except docs): t
 - compiler-names: rename refuses `unknown-completed-command-world` for `proc greet {} {…}; puts [greet]` (R1 not effective on this tree) — ~15 references_rename tests and force_import unshadowed rename; `incomplete-original-command-coverage` for class rename across two `namespace eval ::a` blocks; class `variable n` rename "original command unavailable".
 - compiler: itcl classes declared inside `namespace eval ::app` do not join contract D, and class-proc calls inside class-member bodies → 4 itcl name_resolution tests + 2 references_rename.
 - compiler (iRules realm): top-level `proc hit` in f5-irules — invocation lacks resolved reference / original lookup, so declaration selection breaks → `irules_switch_glob_body_is_followed`.
-- compiler: registry source schema withdrawn when an operand reads an undefined variable (`regexp {plainword} $line`, `lsearch -exact $list $needle`) → 3 hover_residual tests.
+- compiler: registry source schema withdrawn when an operand reads an undefined variable (`regexp {plainword} $line`, `lsearch -exact $list $needle`) → 3 hover_residual tests; compiler e1 probe now shows source schema survives, so ownership is routed back to LSP hover/registry selection for diagnosis.
 - compiler-names: C6 (`namespace import ::a::Factory; Factory make`), C9 (W210 in pkgIndex `[file join $dir $missing]`).
 
 ## Done since the last update (with evidence: test counts, commit or snapshot)

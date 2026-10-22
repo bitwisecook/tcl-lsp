@@ -920,6 +920,51 @@ fn a_pack_reload_after_an_edit_yields_the_new_answer_on_the_memoised_path() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+const EDA_COMMAND_CASES: &[(&str, &str, &str, &str, &str)] = &[
+    (
+        "xilinx-eda-tcl",
+        "synth_design -top top",
+        "synth_design",
+        "vsim -c top",
+        "vsim",
+    ),
+    (
+        "synopsys-eda-tcl",
+        "compile_ultra",
+        "compile_ultra",
+        "vsim -c top",
+        "vsim",
+    ),
+    (
+        "cadence-eda-tcl",
+        "ccopt_design",
+        "ccopt_design",
+        "synth_design -top top",
+        "synth_design",
+    ),
+    (
+        "intel-quartus-eda-tcl",
+        "execute_flow -compile",
+        "execute_flow",
+        "synth_design -top top",
+        "synth_design",
+    ),
+    (
+        "mentor-eda-tcl",
+        "vsim -c top",
+        "vsim",
+        "synth_design -top top",
+        "synth_design",
+    ),
+    (
+        "microchip-libero-eda-tcl",
+        "run_designer",
+        "run_designer",
+        "synth_design -top top",
+        "synth_design",
+    ),
+];
+
 /// The **bundled** tier, end to end: the EDA vendor libraries are `.tclspec`
 /// loadables now, not compiled-in Rust (`docs/design/registry/spec-packs.md`), so this
 /// is the proof that a shipped pack reaches the analyser in the real server
@@ -959,50 +1004,7 @@ fn the_bundled_eda_loadables_make_their_vendor_commands_known() {
             .map(ToOwned::to_owned)
             .collect()
     };
-    for (dialect, own_call, own, rival_call, rival) in [
-        (
-            "xilinx-eda-tcl",
-            "synth_design -top top",
-            "synth_design",
-            "vsim -c top",
-            "vsim",
-        ),
-        (
-            "synopsys-eda-tcl",
-            "compile_ultra",
-            "compile_ultra",
-            "vsim -c top",
-            "vsim",
-        ),
-        (
-            "cadence-eda-tcl",
-            "ccopt_design",
-            "ccopt_design",
-            "synth_design -top top",
-            "synth_design",
-        ),
-        (
-            "intel-quartus-eda-tcl",
-            "execute_flow -compile",
-            "execute_flow",
-            "synth_design -top top",
-            "synth_design",
-        ),
-        (
-            "mentor-eda-tcl",
-            "vsim -c top",
-            "vsim",
-            "synth_design -top top",
-            "synth_design",
-        ),
-        (
-            "microchip-libero-eda-tcl",
-            "run_designer",
-            "run_designer",
-            "synth_design -top top",
-            "synth_design",
-        ),
-    ] {
+    for &(dialect, own_call, own, rival_call, rival) in EDA_COMMAND_CASES {
         let source = format!(
             "# tcl-dialect: {dialect}\n{own_call}\nget_cells *\ncreate_power_domain PD\n{rival_call}\n"
         );

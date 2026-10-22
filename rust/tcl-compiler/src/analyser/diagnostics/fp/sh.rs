@@ -1720,3 +1720,32 @@ fn zz_sol49_dict_for_probe() {
         }
     }
 }
+
+#[test]
+fn zz_compiler_namespace_path_summary_probe() {
+    let src = "proc p {} {return GLOBAL}\nnamespace eval lib {proc p {} {return LIB}}\nnamespace eval n { namespace path ::lib; proc c {} {return [p]} }\nputs [n::c]\n";
+    let context = tcl_registry::model::ingress::static_context_for("tcl8.6");
+    let registry = context.commands();
+    let profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+    let unit =
+        crate::compilation_unit::CompilationUnit::build_for_profile(src, registry, false, profile)
+            .with_interprocedural(registry, Some(profile));
+    eprintln!(
+        "ZZ_N09 installed={:?} authored={:?} prepared={:?} summaries={:?}",
+        unit.ir_module
+            .procedures
+            .values()
+            .map(|p| &p.qualified_name)
+            .collect::<Vec<_>>(),
+        unit.ir_module
+            .original_source_procedure_bodies()
+            .map(|(_, p)| &p.qualified_name)
+            .collect::<Vec<_>>(),
+        unit.procedures.keys().collect::<Vec<_>>(),
+        unit.interproc.as_ref().map(|analysis| analysis
+            .procedures
+            .values()
+            .map(|summary| (&summary.qualified_name, &summary.direct_calls))
+            .collect::<Vec<_>>())
+    );
+}

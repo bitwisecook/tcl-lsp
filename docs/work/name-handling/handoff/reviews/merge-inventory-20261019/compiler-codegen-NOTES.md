@@ -17,6 +17,7 @@ entry runs as a FRESH INTERPRETER OF ITS PROFILE (`tclsh file.tcl`).
 | `rust/tcl-compiler/src/codegen/native_failure.rs` | mine | two contract tests restated for the user decision (§1.4) |
 | `rust/tcl-compiler/src/command_binding/compiled_preflight.rs` | granted by coordinator | entry-less provider rule (§1); `command` split into plan + descent frames (§7) |
 | `rust/tcl-compiler/src/command_binding/compiled_preflight/original_preparation.rs` | granted | fresh-world expression emission (§1) |
+| `rust/tcl-compiler/src/const_subst.rs` | granted by decision 2026-10-22T13:17Z | declared-world-footprint-only barrier; implementation pending unchanged-probe measurement |
 | `rust/tcl-compiler/src/optimiser/manager.rs` | was git-clean | `optimise_raw(.., None)` over a profile-projected registry analyses for that profile (§6) |
 | `rust/tcl-spectcl/src/install.rs` | granted | derived native compilers for pack rows (§3) + 2 tests |
 | `rust/tcl-spectcl/tests/variable_reference_boundaries.rs` | new | N17 regressions (§8) |
@@ -149,7 +150,7 @@ in all 16 combinations. Regressions added:
 Method: one binary per target; "base" runs with the TEMP env toggle `ZZ_CCG_BASELINE=1`, which restored every
 behaviour I changed (e34d8a427e fresh path, old provider rule, no fresh expression emission, no dict release units,
 `string cat` Unknown, no pack-row compilers, dialect-blind `optimise_raw`); "after" without it. The toggle and the two
-`zz_ccg_*` probe tests were removed after measuring (see §Gates). `TCL_LSP_REQUIRE_TCLSH=9.0,8.6`, `TCL_LSP_JIMSH`.
+`zz_ccg_*` probe tests are deliberately retained until the unchanged live-fold probe is measured; removal is pending. `TCL_LSP_REQUIRE_TCLSH=9.0,8.6`, `TCL_LSP_JIMSH`.
 
 | Target | Base ok/total | After ok/total | pass→fail |
 |---|---|---|---|
@@ -175,9 +176,17 @@ Notes on the rows:
   build, so it is skipped in both modes.
 - tcl-engine-tclvm `a_whitelisted_ensembles_subcommands_run_wherever_they_are_called` also needs `string map`.
 
+## Resumed execution (2026-10-22)
+
+Active checkout `/workspace/naming-migration-active/tcl-lsp`, GO from `d7224c706`. Results in this section are agent-reported, not guarded validation or admission. The original first-run fold probe is still pending the compiler-names build slot. The canonical owner file is `rust/tcl-compiler/src/const_subst.rs` (the outstanding brief's `optimiser/const_subst.rs` spelling was wrong). Decision `user-decisions-20261022T1317Z.json` authorises applying the world barrier only to the selected schema's declared world-effect chain; fallback invocation effects remain conservative for all other analyses and calls. No implementation change to that gate has yet been made.
+
+A new sibling N17 control test is written but unrun: undeclared pure hook folds `good`; abstaining/no-hook/dynamic/unknown-child calls do not fold; the same successful hook with an explicit callback footprint does not erase the call; explicit EMPTY permits it; removing the host withholds it. The existing N17 test still requires `good` for both variable-reference spellings and both DSL releases. Temporary toggle removal uses the exact-text script with only its checkout root adapted. The resumed runner holds the global build lock, drains capped logs and retains executables younger than 60 minutes.
+
+Native `string is/map/range/replace/insert/format` compilers and remaining frame-size work are parked unless a supported SpecTcl execution failure proves they are necessary. Their textual occurrence in a pack or hook is not such proof: a runtime handler can execute a call without a native compiler. The existing `STRLEN_BODY` uses `string is ascii`; the live-fold probe and full const-fold target will determine whether it actually fails there. Earlier `codegen_stamps` failures predominantly cannot find the original emitted procedure, so they do not establish a missing-string-compiler dependency.
+
 ## Remaining
 
-1. `string is` (and `map`, `range`, `replace`, `insert`, `format`) native compilers — §5.
+1. Parked: `string is` (and `map`, `range`, `replace`, `insert`, `format`) native compilers — §5; unpark only for a demonstrated SpecTcl execution need.
 2. Uncalled procedure bodies (Sol-47 §1d) are unchanged.
 3. compile_service:: still fails 18 tests that failed at baseline: procedure targets and entered-source compiles
    without an entry (`compile_procedure_for_profile`, `compile_script_for_profile`). They are not whole-module

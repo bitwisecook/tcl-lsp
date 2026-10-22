@@ -846,6 +846,46 @@ mod tests {
     }
 
     #[test]
+    fn syntax_expression_gaps_keep_token_data_and_dispatch_guards() {
+        let receipt = |source: &str, candidate: &str| {
+            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+            let config = analysis.body_lexer_config?;
+            let commands =
+                crate::segmenter::segment_commands_with_offset_and_config(source, 0, config);
+            crate::registry_invocation::source_structure::original_expression_syntax_gap_compaction(
+                source,
+                &analysis,
+                commands.last()?,
+                0,
+                candidate,
+            )
+        };
+        let source = "set a 2; expr {$a + 1}";
+        let proof = receipt(source, "$a+1").expect("selected syntax gaps without erasing reads");
+        assert!(!proof.removed_gaps().is_empty());
+        assert!(proof.matches_source(
+            &SourceImage::document(source),
+            proof.original_operand().config()
+        ));
+        for (source, candidate) in [
+            ("expr {{a  b} eq {a  b}}", "{a b} eq {a b}"),
+            ("expr {1 + 2}", "1+3"),
+            ("expr {1 +}", "1+"),
+            ("proc expr args {}; expr {1 + 2}", "1+2"),
+            ("unknown_mutation; expr {1 + 2}", "1+2"),
+            (
+                "trace add execution expr enter callback; expr {1 + 2}",
+                "1+2",
+            ),
+        ] {
+            assert!(
+                receipt(source, candidate).is_none(),
+                "{source} -> {candidate}"
+            );
+        }
+    }
+
+    #[test]
     fn original_expression_gap_tree_checks_issued_leaf_positions() {
         let parser =
             ExprParseContext::for_profile(tcl_dialect::DialectProfile::find("tcl8.6").unwrap());

@@ -6,10 +6,10 @@
 ## Summary
 
 Minification removes comments and unnecessary spacing. For Tcl and Jim, basic
-mode preserves every complete word exactly, including quoted values, variable
-references, expansion prefixes, and nested bodies. Compact and aggressive modes
-also request name changes or inserted aliases; the tool reports a reason when
-it cannot establish permission for those changes.
+mode also removes safe spacing inside selected script bodies and braced
+expressions. Quoted values, variable spellings, expression string data and
+expansion prefixes retain their meaning. Compact and aggressive modes report
+when a requested naming or semantic pass is unavailable.
 
 ## Applies to
 
@@ -33,9 +33,9 @@ changes and optimiser counts have separate result fields.
 
 | Mode | Tcl/Jim source with a retained native naming recipe | Explicit lexical authoring simulation |
 |---|---|---|
-| Basic | Removes top-level comments and compacts separators; keeps each complete word unchanged | Also applies the supported recursive body and expression formatting passes |
-| Compact | Basic compaction; can shorten one private scalar formal in a closed, single-procedure source whose body only returns that same object | May shorten selected local names; isolated mode also requests global and procedure changes |
-| Aggressive | Includes the bounded scalar-formal compaction; other name changes, inserted aliases, semantic rewrites, and keyword shortening report their independent missing checks | Applies the supported optimiser, compaction, alias, and keyword passes |
+| Basic | Removes comments and compacts separators in selected scripts and braced expressions; preserves expression tokens and literal data | Applies the supported recursive body and expression formatting passes |
+| Compact | Basic compaction plus supported closed local scalar compaction; isolated procedure/global renaming is refused | Naming passes are refused; supported syntax compaction still runs |
+| Aggressive | Includes supported local scalar compaction; other name changes, inserted aliases, semantic rewrites, and keyword shortening report their independent missing checks | Naming and semantic passes are refused; supported syntax compaction still runs |
 
 The selected analysis determines which column applies. Changing a dialect label
 or passing `--isolated` does not turn a Tcl/Jim refusal into permission.
@@ -55,14 +55,12 @@ or passing `--isolated` does not turn a Tcl/Jim refusal into permission.
 **Basic Tcl output:**
 
 ```tcl
-proc greet {name} {
-    puts "hello $name"
-  };greet world
+proc greet {name} {puts "hello $name"};greet world
 ```
 
-The body word keeps its original contents. The tool compares the original and
-emitted word sequences under the same source configuration before returning
-this output.
+The tool checks each selected script under the same source configuration.
+A braced expression such as `{3 + 4 * 2}` becomes `{3+4*2}` only when its
+selected expression tokens remain unchanged. Spaces inside string data remain.
 
 ## Limits
 
@@ -80,9 +78,11 @@ this output.
 - Global and procedure renaming, inserted aliases, general semantic rewrites,
   and keyword shortening still require their own checks. Isolation alone does
   not supply them; supported syntax or scalar-formal compaction can still run.
-- The lexical authoring alias passes add real variables and can affect traces,
-  `info vars`, and existing variables in the hosting interpreter. Their name
-  checks describe the source model, not a proof about that interpreter.
+- Isolated procedure and global renaming is unavailable in compact and
+  aggressive modes. Both modes return a refusal and retain supported syntax
+  compaction; isolation does not override that restriction.
+- An execution observer or an unresolved command selection prevents expression
+  gap changes. Dynamic or malformed expression syntax remains unchanged.
 - Array indices and package names are not compacted symbols.
 
 ## Operational context

@@ -665,17 +665,18 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
 #[cfg(test)]
 mod tests {
     #[test]
-    fn native_syntax_compaction_uses_pure_original_expression_gap_receipt() {
+    fn native_syntax_compaction_uses_selected_original_expression_gaps() {
+        // Decision 2026-10-22T13:17Z: syntax gaps need no pure-value rewrite.
         let registry = tcl_registry::CommandRegistry::build_default();
         let profile =
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         for (source, expected) in [
             ("expr { 1 + 2 * 3 }\n", "expr {1+2*3}"),
             ("expr {(1 + 2) * 3}\n", "expr {(1+2)*3}"),
-            ("expr {1 / 0}\n", "expr {1 / 0}"),
+            ("expr {1 / 0}\n", "expr {1/0}"),
             ("expr {1 +}\n", "expr {1 +}"),
-            ("expr {$a + 1}\n", "expr {$a + 1}"),
-            ("expr {abs( 1 )}\n", "expr {abs( 1 )}"),
+            ("expr {$a + 1}\n", "expr {$a+1}"),
+            ("expr {abs( 1 )}\n", "expr {abs(1)}"),
             (
                 "trace add execution expr enter callback; expr {1 + 2}\n",
                 "trace add execution expr enter callback;expr {1 + 2}",
