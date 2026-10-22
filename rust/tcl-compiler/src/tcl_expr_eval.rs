@@ -1803,8 +1803,7 @@ impl tcl_syntax::expr::ExprOps for FoldOps<'_> {
             if model == StringCharacterModel::Jim084Utf8 {
                 return None;
             }
-            let left =
-                tcl_syntax::raw_string::RawString::from_unicode(self.text_of(left, format)?);
+            let left = tcl_syntax::raw_string::RawString::from_unicode(self.text_of(left, format)?);
             let right =
                 tcl_syntax::raw_string::RawString::from_unicode(self.text_of(right, format)?);
             left.compare_character_units(model, &right, (0, 0)).ok()

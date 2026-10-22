@@ -5049,8 +5049,9 @@ mod original_event_source_config_tests {
                 SourceSegmentationPurpose::NestedScript,
                 &WrittenHeadResolver,
             )
-            .len()
-        , 0);
+            .len(),
+            0
+        );
         assert_eq!(
             top_level_when_handlers_with_source_config_and_head_resolver(
                 source,
@@ -5059,8 +5060,9 @@ mod original_event_source_config_tests {
                 SourceSegmentationPurpose::WholeInput,
                 &WrittenHeadResolver,
             )
-            .len()
-        , 0);
+            .len(),
+            0
+        );
         assert_eq!(parent.leading_bom, tcl_lexer::LeadingBom::Skip);
 
         let source = "\u{feff}priority 730\nwhen HTTP_REQUEST {}";

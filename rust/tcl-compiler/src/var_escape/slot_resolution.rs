@@ -447,10 +447,7 @@ where
     S: std::hash::BuildHasher,
 {
     let Some(module) = ir_module else {
-        return summaries
-            .iter()
-            .map(|(k, v)| (*k, v.clone()))
-            .collect();
+        return summaries.iter().map(|(k, v)| (*k, v.clone())).collect();
     };
     let mut out: std::collections::HashMap<tcl_core_types::BodyFrameId, ProcEscapeSummary> =
         std::collections::HashMap::with_capacity(summaries.len());

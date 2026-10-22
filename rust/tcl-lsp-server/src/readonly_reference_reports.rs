@@ -2256,8 +2256,9 @@ mod tests {
                 .original_declaration_reference_locations(&identity, &uri, false)
                 .await
                 .unwrap()
-                .len()
-        , 0);
+                .len(),
+            0
+        );
         let lenses = backend
             .code_lens(CodeLensParams {
                 text_document: TextDocumentIdentifier { uri: uri.clone() },
@@ -2541,8 +2542,9 @@ mod logical_hierarchy_tests {
                 .await
                 .unwrap()
                 .unwrap()
-                .len()
-        , 0);
+                .len(),
+            0
+        );
         let mut foreign = item.clone();
         foreign.uri = base.clone();
         assert_eq!(
@@ -2551,8 +2553,9 @@ mod logical_hierarchy_tests {
                 .await
                 .unwrap()
                 .unwrap()
-                .len()
-        , 0);
+                .len(),
+            0
+        );
         register(&backend, &child, &format!("{child_source}\n# changed")).await;
         assert_eq!(
             backend
@@ -2560,8 +2563,9 @@ mod logical_hierarchy_tests {
                 .await
                 .unwrap()
                 .unwrap()
-                .len()
-        , 0);
+                .len(),
+            0
+        );
     }
 
     #[tokio::test]
@@ -2624,8 +2628,9 @@ mod logical_hierarchy_tests {
                 .finish_logical_hierarchy_items(&documents, &items, epoch, generation)
                 .await
                 .unwrap()
-                .len()
-        , 0);
+                .len(),
+            0
+        );
     }
 }
 
@@ -2700,8 +2705,9 @@ mod conditional_navigation_publication_tests {
                 .finish_logical_hierarchy_advice(&[document], &advice, epoch, generation)
                 .await
                 .unwrap()
-                .len()
-        , 0);
+                .len(),
+            0
+        );
     }
 
     #[tokio::test]
@@ -2821,12 +2827,18 @@ mod logical_call_wire_tests {
         item.range = Range::default();
         item.selection_range = Range::default();
         let params = serde_json::from_value(serde_json::json!({"item":item})).unwrap();
-        let incoming = Box::pin(backend.incoming_calls(params)).await.unwrap().unwrap();
+        let incoming = Box::pin(backend.incoming_calls(params))
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(incoming.len(), 1);
         assert_eq!(incoming[0].from.uri, caller);
         assert_eq!(incoming[0].from.name, "::caller");
         let params = serde_json::from_value(serde_json::json!({"item":incoming[0].from})).unwrap();
-        let outgoing = Box::pin(backend.outgoing_calls(params)).await.unwrap().unwrap();
+        let outgoing = Box::pin(backend.outgoing_calls(params))
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(outgoing.len(), 1);
         assert_eq!(outgoing[0].to.uri, target);
         assert!(outgoing[0].to.data.is_some());
@@ -3282,19 +3294,37 @@ mod logical_call_backend_session_tests {
         for (backend, item) in [(&first, &old), (&second, &current)] {
             let params = serde_json::from_value(serde_json::json!({"item":item})).unwrap();
             assert_eq!(
-                Box::pin(backend.incoming_calls(params)).await.unwrap().unwrap().len(),
+                Box::pin(backend.incoming_calls(params))
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .len(),
                 1
             );
             let params = serde_json::from_value(serde_json::json!({"item":item})).unwrap();
             assert_eq!(
-                Box::pin(backend.outgoing_calls(params)).await.unwrap().unwrap().len(),
+                Box::pin(backend.outgoing_calls(params))
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .len(),
                 1
             );
         }
         let params = serde_json::from_value(serde_json::json!({"item":old})).unwrap();
-        assert!(Box::pin(second.incoming_calls(params)).await.unwrap().is_none());
+        assert!(
+            Box::pin(second.incoming_calls(params))
+                .await
+                .unwrap()
+                .is_none()
+        );
         let params = serde_json::from_value(serde_json::json!({"item":old})).unwrap();
-        assert!(Box::pin(second.outgoing_calls(params)).await.unwrap().is_none());
+        assert!(
+            Box::pin(second.outgoing_calls(params))
+                .await
+                .unwrap()
+                .is_none()
+        );
     }
 }
 

@@ -2724,9 +2724,8 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let compiled = |release: &str, is_proc: bool, args: &[(&str, bool)]| {
             let mut ctx = CodegenCtx::new(is_proc, &[], &registry);
-            ctx.dialect = Some(
-                tcl_registry::model::ingress::resolve_environment(release).analyser_profile(),
-            );
+            ctx.dialect =
+                Some(tcl_registry::model::ingress::resolve_environment(release).analyser_profile());
             ctx.release_compiled("dict", args)
         };
         let update = [
@@ -2760,7 +2759,17 @@ mod tests {
                 assert_eq!(compiled(release, true, &args), None, "{release} {args:?}");
             }
             assert_eq!(
-                compiled(release, true, &[("update", false), ("d", false), ("k", false), ("v", false), ("$body", false)]),
+                compiled(
+                    release,
+                    true,
+                    &[
+                        ("update", false),
+                        ("d", false),
+                        ("k", false),
+                        ("v", false),
+                        ("$body", false)
+                    ]
+                ),
                 None,
                 "{release}: a substituted body is left to the command"
             );

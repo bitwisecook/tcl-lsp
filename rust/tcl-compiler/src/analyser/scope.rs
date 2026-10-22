@@ -598,10 +598,9 @@ impl super::types::AnalysisResult {
                     {
                         None
                     } else {
-                        scope
-                            .naming_scope
-                            .as_ref()
-                            .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
+                        scope.naming_scope.as_ref().and_then(
+                            crate::signature_scan::scope::SignatureNamespaceScope::display,
+                        )
                     };
                     if namespace.is_none() {
                         kind = LogicalVariableScopeKind::UnknownNamespace;
@@ -623,10 +622,9 @@ impl super::types::AnalysisResult {
                     {
                         None
                     } else {
-                        scope
-                            .naming_scope
-                            .as_ref()
-                            .and_then(crate::signature_scan::scope::SignatureNamespaceScope::display)
+                        scope.naming_scope.as_ref().and_then(
+                            crate::signature_scan::scope::SignatureNamespaceScope::display,
+                        )
                     };
                 }
                 ScopeKind::Uplevel => {
@@ -2214,7 +2212,9 @@ impl Analyser {
             }
         }
         let declarations = elements
-            .as_chunks::<2>().0.iter()
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| {
                 let name = pair[0].to_string();
                 let declaration = self

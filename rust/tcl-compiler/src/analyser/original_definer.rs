@@ -76,6 +76,7 @@ impl OriginalClassDefinerSource {
             .then_some(descriptor)
     }
 
+    #[cfg(test)]
     pub(super) fn native_argument_input(
         &self,
         ordinal: usize,

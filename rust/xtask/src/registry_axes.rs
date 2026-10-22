@@ -1403,12 +1403,15 @@ mod tests {
                 .any(|v| v.contains("gone.rs` has 0") && v.contains("lower the pin"))
         );
         assert!(verdicts.iter().any(|v| v.contains("held clean")));
-        assert_eq!(ratchet_verdicts(
+        assert_eq!(
+            ratchet_verdicts(
                 &lint_with(&[("rust/x/a.rs", 2)]),
                 &[("rust/x/a.rs", 2)],
                 &[]
             )
-            .len(), 0);
+            .len(),
+            0
+        );
     }
 
     #[test]

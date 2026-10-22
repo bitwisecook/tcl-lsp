@@ -771,12 +771,10 @@ fn authored_logical_alias_prefix_inputs(
                     .checked_sub(original.target.prepended.len())?
                     .checked_add(1)?;
                 let word = original.words.get(written)?;
-                crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(
-                    purpose.key(
-                        word,
-                        tcl_syntax::word_rules::WordValueRules::from_config(&config),
-                    )?,
-                )
+                crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord(purpose.key(
+                    word,
+                    tcl_syntax::word_rules::WordValueRules::from_config(&config),
+                )?)
             };
             (input.bytes() == value.as_bytes() && input.policy() == policy).then_some(input)
         })
@@ -831,7 +829,8 @@ fn retain_logical_alias_prefix(
         .collect::<Option<Vec<_>>>()?;
     // The stronger authored-key projection remains independently unavailable
     // when this Logical source purpose has no naming recipe.
-    let captured = authored_logical_alias_prefix_inputs(original, arguments, &input, context.config);
+    let captured =
+        authored_logical_alias_prefix_inputs(original, arguments, &input, context.config);
     let key = state.publication_key_at(
         &SourceNamespaceKey::authored("::"),
         alias.literal()?,

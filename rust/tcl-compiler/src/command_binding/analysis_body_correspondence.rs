@@ -531,7 +531,8 @@ fn collect_registry_dependencies(
         bindings
             .baseline
             .metadata_context
-            .metadata_context(registry)?.context()?,
+            .metadata_context(registry)?
+            .context()?,
     )?;
     for child in children {
         calls.push(child.tokens?);
@@ -766,7 +767,8 @@ fn collect_readonly_source_registry_dependencies(
             bindings
                 .baseline
                 .metadata_context
-                .metadata_context(registry)?.context()?,
+                .metadata_context(registry)?
+                .context()?,
         )?
     };
     for child in children {

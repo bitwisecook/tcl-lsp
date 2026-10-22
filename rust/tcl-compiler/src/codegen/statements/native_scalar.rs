@@ -105,7 +105,9 @@ impl CodegenCtx<'_> {
         let concat = |count: usize| {
             NativeEmissionTask::SwitchOperation(
                 Op::STR_CONCAT1,
-                vec![Operand::Imm(i32::try_from(count).expect("at most 254 operands"))],
+                vec![Operand::Imm(
+                    i32::try_from(count).expect("at most 254 operands"),
+                )],
                 version,
             )
         };
@@ -117,7 +119,9 @@ impl CodegenCtx<'_> {
         let mut folded: Option<Vec<u8>> = None;
         for (operand, literal) in recipe.operands.into_iter().zip(recipe.literals) {
             if let Some(value) = literal {
-                folded.get_or_insert_with(Vec::new).extend_from_slice(&value);
+                folded
+                    .get_or_insert_with(Vec::new)
+                    .extend_from_slice(&value);
                 continue;
             }
             if let Some(value) = folded.take() {

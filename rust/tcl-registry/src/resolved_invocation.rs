@@ -9330,13 +9330,9 @@ mod tests {
                 .all(|access| access.domain == WorldStateDomain::InterpreterResult)
         );
         assert_eq!(
-            normal
-                .state_transitions
-                .declared()
-                .unwrap()
-                .facts()
-                .len()
-        , 0);
+            normal.state_transitions.declared().unwrap().facts().len(),
+            0
+        );
         let dynamic = [
             crate::InvocationWord::Literal("format"),
             crate::InvocationWord::Literal("a*"),
@@ -10447,8 +10443,9 @@ mod tests {
                 .declared()
                 .expect("interp alias declares transitions")
                 .facts()
-                .len()
-        , 0);
+                .len(),
+            0
+        );
 
         let delete = registry
             .resolve_invocation(
@@ -12737,8 +12734,9 @@ mod logical_source_alias_projection_tests {
                 .authored_logical_source_state_transitions()
                 .unwrap()
                 .facts()
-                .len()
-        , 0);
+                .len(),
+            0
+        );
         assert_eq!(schema.state_transitions().facts().len(), 0);
     }
     #[test]

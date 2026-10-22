@@ -333,8 +333,9 @@ mod tests {
                 SOURCE_TRANSITIONS
                     .resolve(InvocationArguments::structured(words))
                     .facts()
-                    .len()
-            , 0);
+                    .len(),
+                0
+            );
         }
     }
 

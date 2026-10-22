@@ -3194,8 +3194,9 @@ mod tests {
             replaced
                 .resolve_logical_source_frame_aliases(arguments)
                 .facts()
-                .len()
-        , 0);
+                .len(),
+            0
+        );
     }
 
     /// The alias facts a `from-frame-effect` resolver derives, and its two
@@ -3314,8 +3315,9 @@ mod tests {
                 &[InvocationWord::Expanded, InvocationWord::Literal("b")]
             )
             .facts()
-            .len()
-        , 0);
+            .len(),
+            0
+        );
     }
 
     /// Counted operands remain byte values in the shared alias projection.

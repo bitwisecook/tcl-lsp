@@ -263,16 +263,10 @@ fn propagate_transitive_sources<S: BuildHasher>(
 
     // Reverse edges: qname → set of qnames that call it.
     let mut callers_of: HashMap<tcl_core_types::BodyFrameId, HashSet<tcl_core_types::BodyFrameId>> =
-        summaries
-            .keys()
-            .map(|k| (*k, HashSet::new()))
-            .collect();
+        summaries.keys().map(|k| (*k, HashSet::new())).collect();
     for (qname, callees) in resolved_callees {
         for callee in callees {
-            callers_of
-                .entry(*callee)
-                .or_default()
-                .insert(*qname);
+            callers_of.entry(*callee).or_default().insert(*qname);
         }
     }
 

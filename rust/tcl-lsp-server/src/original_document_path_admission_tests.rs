@@ -104,9 +104,7 @@ async fn refused_open_and_unknown_change_publish_no_document_source_or_index() {
         "file:///open%2Fsplit.tcl",
     ] {
         let target = uri(raw);
-        Box::pin(backend
-            .did_open(opened(&target, "proc rejected {} {}")))
-            .await;
+        Box::pin(backend.did_open(opened(&target, "proc rejected {} {}"))).await;
         backend
             .did_change(changed(&target, "proc changed_rejected {} {}"))
             .await;
@@ -731,9 +729,7 @@ async fn opening_waiting_for_index_cannot_retire_after_mapping_withdrawal() {
     let worker_backend = Arc::clone(&backend);
     let worker_target = target.clone();
     let opening = tokio::spawn(async move {
-        Box::pin(worker_backend
-            .did_open(opened(&worker_target, "set new_open 1")))
-            .await;
+        Box::pin(worker_backend.did_open(opened(&worker_target, "set new_open 1"))).await;
     });
     tokio::time::timeout(std::time::Duration::from_secs(180), async {
         loop {

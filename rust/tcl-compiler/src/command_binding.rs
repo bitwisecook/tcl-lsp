@@ -146,7 +146,6 @@ pub use source_catalogue_advice::{
     OriginalCatalogueSourceCandidate, OriginalCatalogueSourceObligation,
 };
 pub(crate) use source_transition_advice::LogicalSourceClassRelationProvider;
-pub use source_transition_advice::{OriginalAuthoredJimClass, OriginalConditionalLambdaFormattingBody};
 pub use source_transition_advice::{
     LogicalExternalClassMemberSelector, OriginalLogicalAbsoluteCommandCandidate,
     OriginalLogicalCallbackCandidates, OriginalLogicalCommandCandidates,
@@ -156,22 +155,25 @@ pub use source_transition_advice::{
     OriginalSourceCallbackProcedureRefusal, OriginalSourceCallbackProcedureTarget,
     OriginalSourceCallbackProcedureTargetKind, OriginalSourceCallbackRegistration,
     OriginalSourceClassCandidate, OriginalSourceClassDeclaration, OriginalSourceClassHandleBinding,
-    OriginalSourceClassInstance, OriginalSourceClassInstanceWords, OriginalSourceClassPublication,
-    OriginalSourceClassProcCall, OriginalSourceClassPublications, OriginalSourceClassReference,
-    OriginalSourceCommandTransition,
-    OriginalSourceCommandTransitionAdvice, OriginalSourceConfiguredClassReference,
-    OriginalSourceConstructorBodyAttempt, OriginalSourceConstructorBodyCoverage,
-    OriginalSourceConstructorBodyDisposition, OriginalSourceConstructorCall,
-    OriginalSourceConstructorShape, OriginalSourceInterpreterHandleBody,
-    OriginalSourceInterpreterPathBinding, OriginalSourceProcedureCandidate,
-    OriginalSourceProcedurePublication, OriginalSourceProcedurePublications,
-    OriginalSourceProducedCommandPrefix, OriginalSourceRegisteredHandleBinding,
-    OriginalSourceRegisteredInstance, OriginalSourceRegisteredInstanceWords, SourceAdviceNameInput,
+    OriginalSourceClassInstance, OriginalSourceClassInstanceWords, OriginalSourceClassProcCall,
+    OriginalSourceClassPublication, OriginalSourceClassPublications, OriginalSourceClassReference,
+    OriginalSourceCommandTransition, OriginalSourceCommandTransitionAdvice,
+    OriginalSourceConfiguredClassReference, OriginalSourceConstructorBodyAttempt,
+    OriginalSourceConstructorBodyCoverage, OriginalSourceConstructorBodyDisposition,
+    OriginalSourceConstructorCall, OriginalSourceConstructorShape,
+    OriginalSourceInterpreterHandleBody, OriginalSourceInterpreterPathBinding,
+    OriginalSourceProcedureCandidate, OriginalSourceProcedurePublication,
+    OriginalSourceProcedurePublications, OriginalSourceProducedCommandPrefix,
+    OriginalSourceRegisteredHandleBinding, OriginalSourceRegisteredInstance,
+    OriginalSourceRegisteredInstanceWords, SourceAdviceNameInput,
     SourceCommandTransitionObligation,
 };
 pub use source_transition_advice::{
     LogicalSourceClassRelationCandidates, LogicalSourceClassRelationTarget,
     OriginalSourceClassRelationProvider, OriginalSourcePublicationProposal,
+};
+pub use source_transition_advice::{
+    OriginalAuthoredJimClass, OriginalConditionalLambdaFormattingBody,
 };
 pub use source_transition_advice::{
     OriginalNativeProcedureBodyCommand, OriginalSourceProcedureCall,
@@ -8939,8 +8941,15 @@ impl SourceCommandBindings {
                     "ZZ_COMMAND {:?} ns={:?} opaque_before={zz_before} opaque_after={} abrupt={:?}",
                     segment.texts,
                     context.namespace_identity(),
-                    command.normal.as_ref().is_some_and(|normal| normal.opaque_domain),
-                    command.abrupt.iter().map(|(route, _)| route).collect::<Vec<_>>(),
+                    command
+                        .normal
+                        .as_ref()
+                        .is_some_and(|normal| normal.opaque_domain),
+                    command
+                        .abrupt
+                        .iter()
+                        .map(|(route, _)| route)
+                        .collect::<Vec<_>>(),
                 );
             }
             #[cfg(debug_assertions)]
@@ -10533,7 +10542,15 @@ impl SourceCommandBindings {
                 if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
                     eprintln!(
                         "ZZ_UNCLOSED_EARLY {:?} transitions={:?} kind={:?} reg={} roles={} sub={:?} cb={:?} ctm={} traits={:?}",
-                        native.segment.texts, facts.state_transitions, native.target.kind, native.target.registry_backed, facts.arg_roles_complete, facts.subcommand, facts.effects.callback(), facts.effects.legacy().command_table_mutation, facts.traits
+                        native.segment.texts,
+                        facts.state_transitions,
+                        native.target.kind,
+                        native.target.registry_backed,
+                        facts.arg_roles_complete,
+                        facts.subcommand,
+                        facts.effects.callback(),
+                        facts.effects.legacy().command_table_mutation,
+                        facts.traits
                     );
                 }
                 normal.unclosed_command_world = true;
@@ -10612,14 +10629,22 @@ impl SourceCommandBindings {
         );
         if (requires_reentry_guard(facts)
             || (outcomes.normal_completion.is_none()
-                    && !command_world_closed_on_normal_return(native.target, facts)))
+                && !command_world_closed_on_normal_return(native.target, facts)))
             && let Some(normal) = outcomes.normal.as_mut()
         {
             #[cfg(test)]
             if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
                 eprintln!(
                     "ZZ_UNCLOSED {:?} transitions={:?} kind={:?} reg={} roles={} sub={:?} cb={:?} ctm={} traits={:?}",
-                    native.segment.texts, facts.state_transitions, native.target.kind, native.target.registry_backed, facts.arg_roles_complete, facts.subcommand, facts.effects.callback(), facts.effects.legacy().command_table_mutation, facts.traits
+                    native.segment.texts,
+                    facts.state_transitions,
+                    native.target.kind,
+                    native.target.registry_backed,
+                    facts.arg_roles_complete,
+                    facts.subcommand,
+                    facts.effects.callback(),
+                    facts.effects.legacy().command_table_mutation,
+                    facts.traits
                 );
             }
             normal.unclosed_command_world = true;
@@ -13671,7 +13696,9 @@ impl ModuleCommandBindings {
             registry,
             namespace,
             tcl_registry::Traits::empty(),
-            owner.metadata_context(registry).and_then(crate::registry_invocation::InvocationMetadataSelection::context),
+            owner
+                .metadata_context(registry)
+                .and_then(crate::registry_invocation::InvocationMetadataSelection::context),
         );
     }
     /// Advance conditional source effects using the independently retained

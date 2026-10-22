@@ -2588,7 +2588,8 @@ mod tests {
 
     #[test]
     fn the_editor_catalog_gate_resolves_to_its_dispatch_arm() {
-        let main = "        Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),\n";
+        let main =
+            "        Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),\n";
         assert!(xtask_dispatches(main, "gen-editor-catalogs"));
         assert!(!xtask_dispatches(main, "gen-editor-extensions"));
     }
@@ -2842,7 +2843,10 @@ mod tests {
             "`split_list`",
             "`check-name-resolution-proofs`",
         );
-        assert_eq!(validate_manifest(&root, &contract, &makefile, &main).len(), 0);
+        assert_eq!(
+            validate_manifest(&root, &contract, &makefile, &main).len(),
+            0
+        );
         assert!(!naming_proof_gate_is_current(
             &root.join(MAKEFILE_PATH),
             &makefile
@@ -2953,8 +2957,9 @@ mod tests {
     #[test]
     fn counted_name_facade_inventory_uses_shared_purpose_owners() {
         let root = crate::util::repo_root();
-        assert_eq!(validate_counted_name_facade_consumers(&root)
-                .unwrap()
-                .len(), 0);
+        assert_eq!(
+            validate_counted_name_facade_consumers(&root).unwrap().len(),
+            0
+        );
     }
 }

@@ -2256,7 +2256,10 @@ pub struct Scope {
 
 impl Scope {
     pub(super) const fn is_independent_interpreter_source_body(&self) -> bool {
-        matches!(self.interpreter_source_body, InterpreterSourceBody::Independent)
+        matches!(
+            self.interpreter_source_body,
+            InterpreterSourceBody::Independent
+        )
     }
 
     /// Construct a fresh empty scope.
@@ -5522,24 +5525,42 @@ namespace eval a {:p}";
             result.superseded_procs.clear();
             let declarations = result.original_procedure_declarations().collect::<Vec<_>>();
             assert_eq!(declarations.len(), 2, "{dialect}");
-            let slots = [(b"a:".as_slice(), b"p".as_slice()), (b"a", b":p")]
-                .map(|(namespace, simple)| tcl_core_types::ByteCommandSlot {
-                    namespace: tcl_core_types::ByteNamespacePath::from_segments([namespace]),
-                    simple: tcl_core_types::NameBytes::from(simple),
+            let slots =
+                [(b"a:".as_slice(), b"p".as_slice()), (b"a", b":p")].map(|(namespace, simple)| {
+                    tcl_core_types::ByteCommandSlot {
+                        namespace: tcl_core_types::ByteNamespacePath::from_segments([namespace]),
+                        simple: tcl_core_types::NameBytes::from(simple),
+                    }
                 });
-            let offsets = [source.rfind("{p}").unwrap() + 1, source.rfind("{:p}").unwrap() + 1];
+            let offsets = [
+                source.rfind("{p}").unwrap() + 1,
+                source.rfind("{:p}").unwrap() + 1,
+            ];
             for (index, offset) in offsets.into_iter().enumerate() {
-                let call = result.command_invocations.iter().find(|call| {
-                    call.range.start() == u32::try_from(offset).unwrap()
-                }).expect("original authored call");
+                let call = result
+                    .command_invocations
+                    .iter()
+                    .find(|call| call.range.start() == u32::try_from(offset).unwrap())
+                    .expect("original authored call");
                 assert!(call.original_lookup.is_some(), "{dialect}: {offset}");
                 for (target, slot) in slots.iter().enumerate() {
-                    let declaration = declarations.iter().find(|declaration| {
-                        declaration.name().slot() == slot
-                    }).expect("independently retained typed slot");
-                    assert_eq!(crate::source_graph::invocation_targets_declaration_in(
-                        source, &result, source, &result, call, declaration, false
-                    ), index == target, "{dialect}: call {index}, target {target}");
+                    let declaration = declarations
+                        .iter()
+                        .find(|declaration| declaration.name().slot() == slot)
+                        .expect("independently retained typed slot");
+                    assert_eq!(
+                        crate::source_graph::invocation_targets_declaration_in(
+                            source,
+                            &result,
+                            source,
+                            &result,
+                            call,
+                            declaration,
+                            false
+                        ),
+                        index == target,
+                        "{dialect}: call {index}, target {target}"
+                    );
                 }
             }
         }
@@ -5692,9 +5713,18 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                 // premise: nothing lets a builtin re-enter Tcl. A program
                 // that installs such a hook withholds the completed world.
                 ("proc xf args {}\nchan push stdout ::xf\nputs hi\n", false),
-                ("proc rc args {}\nset c [chan create write ::rc]\nputs $c hi\n", false),
-                ("proc cb args {}\ntrace add variable x write ::cb\nset x 1\n", false),
-                ("proc cb args {}\ntrace add execution puts enter ::cb\nputs hi\n", false),
+                (
+                    "proc rc args {}\nset c [chan create write ::rc]\nputs $c hi\n",
+                    false,
+                ),
+                (
+                    "proc cb args {}\ntrace add variable x write ::cb\nset x 1\n",
+                    false,
+                ),
+                (
+                    "proc cb args {}\ntrace add execution puts enter ::cb\nputs hi\n",
+                    false,
+                ),
                 ("proc cb args {}\nnamespace unknown ::cb\nputs hi\n", false),
                 // Retained scripts include empty timer scripts and concatenated
                 // multiword forms. Their single-body ordinals are not complete
@@ -5717,7 +5747,9 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                     .is_some()
                     != completed
                 {
-                    mismatches.push(format!("{dialect}: {use_site:?}: world expected {completed}"));
+                    mismatches.push(format!(
+                        "{dialect}: {use_site:?}: world expected {completed}"
+                    ));
                 }
                 // Every command of the body keeps its own original lookup
                 // however often, and from wherever, the body is entered.
@@ -5791,7 +5823,10 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                 "tcl8.6",
                 "oo::class create C { variable n; method get {} {return $n} }\n",
             ),
-            ("tcl8.6", "proc greet {} { return hi }\nputs [greet]\nputs [greet]\n"),
+            (
+                "tcl8.6",
+                "proc greet {} { return hi }\nputs [greet]\nputs [greet]\n",
+            ),
             (
                 "tcl8.6",
                 "namespace eval a {namespace export *; proc foo {} {return A}}; namespace eval b {proc foo {} {return B}; namespace import -force ::a::*; puts [foo]}\n",
@@ -5814,7 +5849,9 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                     "ZZ_WORLD {}",
                     result
                         .retained_command_realm()
-                        .and_then(crate::realm::CommandBindingRealm::original_completed_command_world)
+                        .and_then(
+                            crate::realm::CommandBindingRealm::original_completed_command_world
+                        )
                         .is_some()
                 );
                 for row in &result.command_invocations {

@@ -82,7 +82,9 @@ fn fresh_document_input(
 /// whose fresh command world the module is compiled for.
 fn profile_less_engine() -> &'static DialectProfile {
     tcl_registry::model::ingress::resolve_environment(
-        DialectProfile::plain_tcl().vm_runtime_version.dialect_name(),
+        DialectProfile::plain_tcl()
+            .vm_runtime_version
+            .dialect_name(),
     )
     .unit_profile()
 }
@@ -3533,7 +3535,9 @@ mod tests {
                 assert!(std::ptr::eq(module.profile, DialectProfile::plain_tcl()));
             }
         }
-        let module = BytecodeCompileService::default().compile("set x 1").unwrap();
+        let module = BytecodeCompileService::default()
+            .compile("set x 1")
+            .unwrap();
         assert!(
             module
                 .top_level
@@ -3579,11 +3583,18 @@ mod tests {
                 );
             }
             assert!(
-                !module.top_level.instructions.iter().any(|instruction| matches!(
-                    instruction.op,
-                    tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
-                ) && (instruction.source_cmd_text.bytes().starts_with(b"set ")
-                    || instruction.source_cmd_text.bytes().starts_with(b"lassign "))),
+                !module
+                    .top_level
+                    .instructions
+                    .iter()
+                    .any(|instruction| matches!(
+                        instruction.op,
+                        tcl_bytecode::Op::INVOKE_STK1 | tcl_bytecode::Op::INVOKE_STK4
+                    ) && (instruction
+                        .source_cmd_text
+                        .bytes()
+                        .starts_with(b"set ")
+                        || instruction.source_cmd_text.bytes().starts_with(b"lassign "))),
                 "{dialect}: {:?}",
                 module.top_level.instructions
             );
@@ -3642,9 +3653,7 @@ mod tests {
         const EXPECTED: &str = "good|good|lone-good|ns-good|ns-good|x:b|x:|x.b|x:b";
         let scripts = [
             format!("{SETUP}{RESULT}\n"),
-            format!(
-                "proc p {{}} {{\n    global a a:b a: arr\n    {RESULT}\n}}\n{SETUP}p\n"
-            ),
+            format!("proc p {{}} {{\n    global a a:b a: arr\n    {RESULT}\n}}\n{SETUP}p\n"),
         ];
         for release in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let profile = tcl_registry::model::ingress::resolve_environment(release).unit_profile();
@@ -3732,5 +3741,4 @@ mod tests {
             "an unknown entry's compiler table is not the profile's"
         );
     }
-
 }

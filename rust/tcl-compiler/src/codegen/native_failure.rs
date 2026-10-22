@@ -199,7 +199,8 @@ mod tests {
     #[test]
     fn an_entry_less_fresh_compile_presents_its_own_compiler_rejection() {
         let present = |module: &crate::ir::Module, registry: &tcl_registry::CommandRegistry| {
-            let execution = crate::cfg_builder::build_cfg_codegen_with_registry(module, false, registry);
+            let execution =
+                crate::cfg_builder::build_cfg_codegen_with_registry(module, false, registry);
             super::super::codegen_module(&execution, module, registry)
                 .expect("original source namespace")
                 .top_level

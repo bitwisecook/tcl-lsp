@@ -957,8 +957,9 @@ mod tests {
                     .declared()
                     .expect("declared package transitions")
                     .facts()
-                    .len()
-            , 0);
+                    .len(),
+                0
+            );
         }
         let facts = registry
             .resolve_invocation("package", &["ifneeded", "p", "1", "set ::loaded 1"], None)
@@ -1082,8 +1083,9 @@ mod tests {
                     .declared()
                     .expect("declared package transitions")
                     .facts()
-                    .len()
-            , 0);
+                    .len(),
+                0
+            );
         }
     }
 

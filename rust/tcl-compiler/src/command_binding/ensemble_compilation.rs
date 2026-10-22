@@ -305,7 +305,11 @@ impl ModuleCommandBindings {
         if !self.original_compiler_worker_node_holds(&worker) {
             #[cfg(test)]
             if std::env::var_os("ZZ_PROBE_ENSEMBLE").is_some() {
-                eprintln!("ZZ_ENSEMBLE head={head} worker node does not hold {:?} opaque={}", worker.slot, self.has_opaque_domain());
+                eprintln!(
+                    "ZZ_ENSEMBLE head={head} worker node does not hold {:?} opaque={}",
+                    worker.slot,
+                    self.has_opaque_domain()
+                );
             }
             return Some(ActualEnsemblePlan::Unknown);
         }

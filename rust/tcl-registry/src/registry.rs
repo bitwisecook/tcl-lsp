@@ -10914,8 +10914,9 @@ mod tests {
         // Fully supplied leaves none.
         assert_eq!(
             reg.unfilled_trailing_roles("catch", &["{body}", "res", "opts"])
-                .len()
-        , 0);
+                .len(),
+            0
+        );
     }
 
     #[test]
@@ -10971,10 +10972,7 @@ mod tests {
     #[test]
     fn unfilled_trailing_roles_is_empty_for_an_unknown_command() {
         let reg = CommandRegistry::build_default();
-        assert_eq!(
-            reg.unfilled_trailing_roles("no_such_command", &[])
-                .len()
-        , 0);
+        assert_eq!(reg.unfilled_trailing_roles("no_such_command", &[]).len(), 0);
     }
 
     #[test]
@@ -12251,8 +12249,9 @@ mod tests {
         // literal level must not be mis-tagged as a script.
         assert_eq!(
             reg.arg_indices_for_role("uplevel", &["1"], ArgRole::Body)
-                .len()
-        , 0);
+                .len(),
+            0
+        );
     }
 
     #[test]
@@ -12713,16 +12712,18 @@ mod tests {
                     "mutated-pattern-format-owner",
                     InvocationArguments::structured(&dynamic),
                 )
-                .len()
-        , 0);
+                .len(),
+            0
+        );
         assert_eq!(
             registry
                 .format_string_args_words(
                     "mutated-pattern-format-owner",
                     InvocationArguments::structured(&dynamic),
                 )
-                .len()
-        , 0);
+                .len(),
+            0
+        );
 
         let fixed = [
             InvocationWord::Literal("-skip"),
@@ -12790,8 +12791,9 @@ mod tests {
         );
         assert_eq!(
             reg.pattern_args("lsearch", &["-exact", "{a b}", "a+"])
-                .len()
-        , 0);
+                .len(),
+            0
+        );
     }
 
     #[test]
@@ -15400,12 +15402,14 @@ mod tests {
         );
         assert_eq!(
             reg.arg_indices_evaluated_in_frame("lindex", &["$x", "0"])
-                .len()
-        , 0);
+                .len(),
+            0
+        );
         assert_eq!(
             reg.arg_indices_evaluated_in_frame("apply", &["{{} {puts $x}}"])
-                .len()
-        , 0);
+                .len(),
+            0
+        );
     }
 
     /// `unset -nocomplain -- a b` skips the leading options and names only the
@@ -19117,7 +19121,8 @@ mod tests {
         assert_eq!(
             switch
                 .arg_indices_for_role("switch", &["$subject", "$cases"], ArgRole::Body)
-                .len(), 0,
+                .len(),
+            0,
         );
     }
 

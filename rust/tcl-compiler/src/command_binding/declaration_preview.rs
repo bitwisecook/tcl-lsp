@@ -601,9 +601,10 @@ impl OriginalDeclarationSourceOperandLayout {
                 .metadata_context_for_source(registry, self.config, Some(input.unit_profile()))
                 .map(Some)
                 .ok_or(refusal),
-            OwnedInvocationMetadataContext::Standalone => {
-                owner.metadata_context(registry).map(crate::registry_invocation::InvocationMetadataSelection::context).ok_or(refusal)
-            }
+            OwnedInvocationMetadataContext::Standalone => owner
+                .metadata_context(registry)
+                .map(crate::registry_invocation::InvocationMetadataSelection::context)
+                .ok_or(refusal),
             OwnedInvocationMetadataContext::Supplied(_)
             | OwnedInvocationMetadataContext::Unavailable => Err(refusal),
         }
@@ -2394,7 +2395,11 @@ fn standalone_procedure_body_recipe(
     if advice.has_unclosed_source_coverage()
         || !advice
             .original_declaration_metadata_context(registry, tokens)
-            .is_ok_and(|metadata| metadata.is_none_or(crate::registry_invocation::InvocationMetadataContext::is_standalone))
+            .is_ok_and(|metadata| {
+                metadata.is_none_or(
+                    crate::registry_invocation::InvocationMetadataContext::is_standalone,
+                )
+            })
         || observation.config.list_parse != tcl_dialect::ListParse::Strict
         || !matches!(&observation.namespace, super::SourceNamespaceKey::Authored(current) if current == "::")
         || !observation.entry.owns_source(&site.source, site.offset)

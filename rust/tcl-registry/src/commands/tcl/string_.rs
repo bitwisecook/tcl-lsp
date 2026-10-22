@@ -1072,7 +1072,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         native_compilation: Some(crate::native_compilation::NativeCompilationSpec {
             grammar: crate::native_compilation::NativeCompilationGrammar::StringOperand {
                 scope: crate::native_scalar_compilation::NativeScalarScope::PublicMember,
-                operation: crate::native_string_operand_compilation::NativeStringOperandOperation::Cat,
+                operation:
+                    crate::native_string_operand_compilation::NativeStringOperandOperation::Cat,
             },
             operation: SemanticOperationId::Invoke,
             body: crate::native_compilation::NativeBodyCompilation::Inherit,

@@ -1017,7 +1017,8 @@ mod tests {
         );
         assert_eq!(
             reg.arg_indices_for_role("control::do", &one, ArgRole::Keyword)
-                .len(), 0,
+                .len(),
+            0,
         );
         // malformed two-word form (`body` + lone option): no keyword role.
         let two = ["{body}", "while"];
@@ -1028,7 +1029,8 @@ mod tests {
         );
         assert_eq!(
             reg.arg_indices_for_role("control::do", &two, ArgRole::Expr)
-                .len(), 0,
+                .len(),
+            0,
         );
     }
 

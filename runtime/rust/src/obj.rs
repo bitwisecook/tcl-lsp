@@ -582,7 +582,8 @@ pub(crate) fn script_location(obj: *mut TclObj) -> Option<(Option<std::rc::Rc<[u
 }
 
 fn revoke_script_location(obj: *mut TclObj) {
-    SCRIPT_LOCATIONS.with(|locations| locations.borrow_mut().remove(&(obj as usize)));
+    // The object is already retired; an unavailable TLS map owns no live metadata.
+    let _ = SCRIPT_LOCATIONS.try_with(|locations| locations.borrow_mut().remove(&(obj as usize)));
 }
 
 /// Install the native lazy double conversion of the executing engine.
@@ -3403,3 +3404,7 @@ mod native_scalar_adoption_tests;
 #[cfg(test)]
 #[path = "obj/native_duplicate_controls.rs"]
 mod native_duplicate_controls;
+
+#[cfg(test)]
+#[path = "obj/tls_retirement_tests.rs"]
+mod tls_retirement_tests;

@@ -1921,10 +1921,12 @@ impl DeclarationSourceOperandLayoutAdvice {
         match &self.kind {
             DeclarationSourceOperandLayoutKind::Original(advice) => advice
                 .original_declaration_metadata_context(registry, tokens)
-                .ok().map(crate::registry_invocation::InvocationMetadataSelection::from),
-            DeclarationSourceOperandLayoutKind::Configured { layout, .. } => {
-                layout.source_metadata_context(registry, tokens).ok().map(crate::registry_invocation::InvocationMetadataSelection::from)
-            }
+                .ok()
+                .map(crate::registry_invocation::InvocationMetadataSelection::from),
+            DeclarationSourceOperandLayoutKind::Configured { layout, .. } => layout
+                .source_metadata_context(registry, tokens)
+                .ok()
+                .map(crate::registry_invocation::InvocationMetadataSelection::from),
         }
     }
 
@@ -3143,9 +3145,10 @@ impl<'a> OriginalDeclarationWordSource<'a> {
                 .metadata_context_for_source(registry, self.config, Some(input.unit_profile()))
                 .map(Some)
                 .ok_or(refusal),
-            OwnedInvocationMetadataContext::Standalone => {
-                owner.metadata_context(registry).map(crate::registry_invocation::InvocationMetadataSelection::context).ok_or(refusal)
-            }
+            OwnedInvocationMetadataContext::Standalone => owner
+                .metadata_context(registry)
+                .map(crate::registry_invocation::InvocationMetadataSelection::context)
+                .ok_or(refusal),
             OwnedInvocationMetadataContext::Supplied(_)
             | OwnedInvocationMetadataContext::Unavailable => Err(refusal),
         }

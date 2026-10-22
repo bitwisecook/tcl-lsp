@@ -77,9 +77,8 @@ impl AdviceGraph {
     ) -> Option<Arc<OriginalSourceClassDeclaration>> {
         match (&self.policy, input) {
             (AdviceNamingPolicy::Native(policy), SourceAdviceNameInput::Native(name))
-                if *policy == name.policy() =>
-            {}
-            (AdviceNamingPolicy::Logical(_), SourceAdviceNameInput::Logical(_)) => {},
+                if *policy == name.policy() => {}
+            (AdviceNamingPolicy::Logical(_), SourceAdviceNameInput::Logical(_)) => {}
             _ => return None,
         }
         let key = self.selected_head_key(input.bytes())?;

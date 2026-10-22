@@ -6136,8 +6136,9 @@ mod tests {
         assert_eq!(
             grammar
                 .member_arg_indices_for_role_in("property", &args, query, ArgRole::ParamList)
-                .len()
-        , 0);
+                .len(),
+            0
+        );
     }
 
     #[test]

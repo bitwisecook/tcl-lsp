@@ -368,8 +368,7 @@ mod tests {
         );
         let registry = input.borrowed_context_registry().commands();
         let entry = if unknown_history {
-            super::super::SourceAnalysisEntry::for_hosted_source(&input)
-                .expect("hosted F5 input")
+            super::super::SourceAnalysisEntry::for_hosted_source(&input).expect("hosted F5 input")
         } else {
             super::super::SourceAnalysisEntry::for_supplied_source(
                 registry,

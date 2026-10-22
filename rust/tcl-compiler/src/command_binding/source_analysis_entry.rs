@@ -450,8 +450,9 @@ impl SourceAnalysisEntry {
         if let Some(policy) = policy {
             entry.unknown_entry = false;
             entry.invocation_realm = tcl_dialect::model::InvocationRealm::RuleLoader;
-            entry.execution_name_policy =
-                Some(tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(policy));
+            entry.execution_name_policy = Some(
+                tcl_syntax::naming::ExecutionNamePolicy::NativeRecipe(policy),
+            );
             entry.native_compilation = crate::environment_ingress::authoring_native_compilation();
         }
         Some(entry)

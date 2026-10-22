@@ -90,13 +90,16 @@ fn tcllib_join_and_split_outputs_share_variable_name_roles() {
         ),
         [3, 4]
     );
-    assert_eq!(registry
+    assert_eq!(
+        registry
             .arg_indices_for_role(
                 "struct::list",
                 &["split", "values", "predicate"],
                 ArgRole::VarWrite
             )
-            .len(), 0);
+            .len(),
+        0
+    );
 }
 
 #[test]

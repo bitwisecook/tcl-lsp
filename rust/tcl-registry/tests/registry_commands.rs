@@ -566,8 +566,11 @@ fn unknown_event_is_illegal_for_all() {
         &events,
         &profiles
     ));
-    assert_eq!(reg.valid_irules_commands_for_event("TOTALLY_FAKE_EVENT", &events, &profiles, None)
-            .len(), 0);
+    assert_eq!(
+        reg.valid_irules_commands_for_event("TOTALLY_FAKE_EVENT", &events, &profiles, None)
+            .len(),
+        0
+    );
 }
 
 /// The HTTP2 family is legal in `HTTP_REQUEST` and in the message-routing

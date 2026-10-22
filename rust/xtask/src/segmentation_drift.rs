@@ -573,7 +573,10 @@ mod tests {
         assert_eq!(scan("match c { b'\\n' => {} }\n").len(), 0);
         assert_eq!(scan("match c { b';' => {} }\n").len(), 0);
         // A `\n` and a `;` in different patterns is not an alternation.
-        assert_eq!(scan("match c { b'\\n' => a(), b'x' | b';' => b() }\n").len(), 0);
+        assert_eq!(
+            scan("match c { b'\\n' => a(), b'x' | b';' => b() }\n").len(),
+            0
+        );
     }
 
     #[test]
@@ -599,25 +602,34 @@ mod tests {
     #[test]
     fn trivia_skipping_is_not_a_word_start_machine() {
         // No `prev` binding: a filter, not a state machine.
-        assert_eq!(scan(
+        assert_eq!(
+            scan(
                 "let words = toks.iter().filter(|t| !matches!(t.kind, TokenType::Sep | \
                   TokenType::Eol));\n"
             )
-            .len(), 0);
+            .len(),
+            0
+        );
         // A wider trivia set is not the two-variant word rule either.
-        assert_eq!(scan(
+        assert_eq!(
+            scan(
                 "fn f() {\n let prev = x;\n if matches!(t.kind, TokenType::Sep | \
                   TokenType::Eol | TokenType::Eof) {}\n}\n"
             )
-            .len(), 0);
+            .len(),
+            0
+        );
     }
 
     #[test]
     fn a_waiver_is_honoured_on_the_line_and_in_the_block_above() {
-        assert_eq!(scan(
+        assert_eq!(
+            scan(
                 "match c { b'\\n' | b';' => {} } // segmentation-drift-ok: BIG-IP config, not Tcl\n"
             )
-            .len(), 0);
+            .len(),
+            0
+        );
         let src = "// segmentation-drift-ok: trims a terminator inside an already\n\
                    // segmented command span; the boundary came from the segmenter\n\
                    let a = matches!(b[i], b'\\n' | b';');\n\

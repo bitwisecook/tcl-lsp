@@ -548,7 +548,10 @@ mod tests {
 
     #[test]
     fn expression_boundary_owner_is_unique_and_consumed() {
-        assert_eq!(expr_boundary_owner_problems(&crate::util::repo_root()).len(), 0);
+        assert_eq!(
+            expr_boundary_owner_problems(&crate::util::repo_root()).len(),
+            0
+        );
     }
 
     #[test]

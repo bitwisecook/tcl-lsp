@@ -80,8 +80,8 @@ pub(crate) use execution_trace::{
     original_execution_trace_keys, original_invocation_has_execution_trace,
     original_procedure_has_execution_trace, trace_set_requires_original_owner,
 };
-pub(crate) use metadata_context::retained_module_metadata_context;
 pub(crate) use metadata_context::InvocationMetadataSelection;
+pub(crate) use metadata_context::retained_module_metadata_context;
 pub use metadata_context::{
     InvocationMetadataContext, InvocationMetadataInput, OwnedInvocationMetadataContext,
 };
@@ -1080,7 +1080,9 @@ fn resolve_original_source_layout(
             return None;
         }
         if !target.prepended.is_empty()
-            && context.is_some_and(crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names)
+            && context.is_some_and(
+                crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names,
+            )
         {
             let context = context?;
             let purpose = tokens

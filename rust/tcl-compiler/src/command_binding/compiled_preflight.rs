@@ -802,7 +802,12 @@ impl CompilerTraversal<'_> {
             (visit.selection, visit.spec),
         )?;
         if matches!(visit.selection, NativeCompilationSelection::Inline { .. }) {
-            return self.with_command_dependency(Some(failure), &visit.target, &visit.head, context);
+            return self.with_command_dependency(
+                Some(failure),
+                &visit.target,
+                &visit.head,
+                context,
+            );
         }
         Some(failure)
     }

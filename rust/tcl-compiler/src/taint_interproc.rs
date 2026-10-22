@@ -1860,8 +1860,7 @@ fn solve_interprocedural_taints_with_context(
         proc_taints.insert(**qname, HashMap::new());
     }
 
-    let mut queue: VecDeque<crate::ir::ProcedureId> =
-        proc_names.iter().map(|q| **q).collect();
+    let mut queue: VecDeque<crate::ir::ProcedureId> = proc_names.iter().map(|q| **q).collect();
     let mut queued: HashSet<crate::ir::ProcedureId> = queue.iter().copied().collect();
 
     // Initial flows from the top level.
@@ -1876,9 +1875,7 @@ fn solve_interprocedural_taints_with_context(
         &summaries,
     );
     for (callee, args) in initial_flows {
-        if update_entry(&summaries, &mut entry_taints, &callee, &args)
-            && queued.insert(callee)
-        {
+        if update_entry(&summaries, &mut entry_taints, &callee, &args) && queued.insert(callee) {
             queue.push_back(callee);
         }
     }
@@ -1907,17 +1904,15 @@ fn solve_interprocedural_taints_with_context(
         let graph = graphs
             .entry(qname)
             .or_insert_with(|| TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp));
-        let instance_classes = instance_classes_by_proc
-            .entry(qname)
-            .or_insert_with(|| {
-                instance_classes_for_function(
-                    &fu.cfg,
-                    registry,
-                    interproc,
-                    true,
-                    TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
-                )
-            });
+        let instance_classes = instance_classes_by_proc.entry(qname).or_insert_with(|| {
+            instance_classes_for_function(
+                &fu.cfg,
+                registry,
+                interproc,
+                true,
+                TaintSourceContext::for_module_function(registry, &cu.ir_module, fu),
+            )
+        });
         let taints = run_propagation(
             graph,
             fu,
@@ -1942,8 +1937,7 @@ fn solve_interprocedural_taints_with_context(
         proc_taints.insert(qname, taints);
 
         for (callee, args) in flows {
-            if update_entry(&summaries, &mut entry_taints, &callee, &args)
-                && queued.insert(callee)
+            if update_entry(&summaries, &mut entry_taints, &callee, &args) && queued.insert(callee)
             {
                 queue.push_back(callee);
             }

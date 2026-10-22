@@ -247,7 +247,9 @@ fn added_command_compiler(
     if let Some(target) = added.alias_of
         && crate::stamps::carries_stamp(added)
     {
-        return registry.get(target).and_then(|target| target.native_compilation);
+        return registry
+            .get(target)
+            .and_then(|target| target.native_compilation);
     }
     Some(tcl_registry::native_compilation::NativeCompilationSpec {
         grammar: tcl_registry::native_compilation::NativeCompilationGrammar::NoHook,
@@ -461,7 +463,10 @@ mod tests {
         let set = crate::bundled::load_from(&specs);
         let registry = crate::bundled::registry_for_dialect_from("tcl9.0", &set);
         let unpack = registry.get("vendor::unpack").expect("installed");
-        assert!(unpack.codegen_hook.is_some(), "the bundled stamp is admitted");
+        assert!(
+            unpack.codegen_hook.is_some(),
+            "the bundled stamp is admitted"
+        );
         assert_eq!(
             unpack.native_compilation,
             registry.get("lassign").unwrap().native_compilation

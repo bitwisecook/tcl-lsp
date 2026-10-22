@@ -5650,8 +5650,9 @@ mod tests {
                 Some(SurfaceQuery::core(Family::Tcl, "9.0")),
                 Some("3.0")
             )
-            .len()
-        , 0);
+            .len(),
+            0
+        );
         // Retirement is exclusive, so 2.9 still documents it.
         assert_eq!(
             spec.primary_synopsis(Some("2.9")),

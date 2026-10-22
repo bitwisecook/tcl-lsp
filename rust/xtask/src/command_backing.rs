@@ -750,9 +750,12 @@ mod tests {
         let (arms, arities) = scan_file_surface(&root).expect("scan file runtime surface");
         assert!(arms.contains("atime"));
         assert_eq!(arities.get("stat"), Some(&(1, 2)));
-        assert_eq!(file_fidelity_errors(&root)
+        assert_eq!(
+            file_fidelity_errors(&root)
                 .expect("compare file runtime surface")
-                .len(), 0);
+                .len(),
+            0
+        );
     }
 
     #[test]

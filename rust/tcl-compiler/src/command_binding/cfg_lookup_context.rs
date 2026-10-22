@@ -104,7 +104,9 @@ impl CfgLookupContexts {
             BindingInvocationMetadata::Standalone
         } else {
             BindingInvocationMetadata::Supplied(
-                cfg.metadata_context.metadata_context(registry).and_then(crate::registry_invocation::InvocationMetadataSelection::context),
+                cfg.metadata_context
+                    .metadata_context(registry)
+                    .and_then(crate::registry_invocation::InvocationMetadataSelection::context),
             )
         }
     }

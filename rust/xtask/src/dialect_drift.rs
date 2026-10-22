@@ -532,8 +532,14 @@ mod tests {
     #[test]
     fn an_ambient_expression_parse_is_a_hit_and_a_profile_one_is_not() {
         assert_eq!(scan(REL, "let e = parse_expr(text, None);\n").len(), 1);
-        assert_eq!(scan(REL, "let e = parse_expr(text, Some(profile.name));\n").len(), 0);
-        assert_eq!(scan(REL, "let e = parse_expr_for_profile(text, profile);\n").len(), 0);
+        assert_eq!(
+            scan(REL, "let e = parse_expr(text, Some(profile.name));\n").len(),
+            0
+        );
+        assert_eq!(
+            scan(REL, "let e = parse_expr_for_profile(text, profile);\n").len(),
+            0
+        );
         assert_eq!(scan(REL, "let g = LexerGrammar::default();\n").len(), 1);
         assert_eq!(
             scan(REL, "let c = LexerConfig::for_profile(None);\n").len(),
@@ -546,20 +552,29 @@ mod tests {
         let src = "use crate::cfg_builder::build_cfg;\nlet m = build_cfg(&module);\n";
         assert_eq!(scan(REL, src).len(), 1);
         // A different `build_cfg` (a local view builder) is not the entry.
-        assert_eq!(scan(
+        assert_eq!(
+            scan(
                 REL,
                 "fn build_cfg(v: &[Value]) {}\nlet n = build_cfg(data);\n"
             )
-            .len(), 0);
+            .len(),
+            0
+        );
         // The tail of a longer identifier is not the entry either.
-        assert_eq!(scan(
+        assert_eq!(
+            scan(
                 REL,
                 "use crate::cfg_builder::build_cfg;\nlower_and_build_cfg(src, o);\n"
             )
-            .len(), 0);
+            .len(),
+            0
+        );
         assert_eq!(scan(REL, "let m = build_cfg(&module);\n").len(), 0);
         assert_eq!(scan(CFG_OWNER, "let m = build_cfg(&module);\n").len(), 0);
-        assert_eq!(scan(REL, "let m = build_cfg_with_config(&module, cfg);\n").len(), 0);
+        assert_eq!(
+            scan(REL, "let m = build_cfg_with_config(&module, cfg);\n").len(),
+            0
+        );
     }
 
     #[test]
@@ -598,11 +613,14 @@ mod tests {
 
     #[test]
     fn a_fixed_literal_name_is_an_ingress_but_a_name_variable_is_a_hit() {
-        assert_eq!(scan(
+        assert_eq!(
+            scan(
                 REL,
                 "let c = LexerConfig::for_file_dialect(\"f5-irules\");\n"
             )
-            .len(), 0);
+            .len(),
+            0
+        );
         assert_eq!(
             scan(REL, "let c = LexerConfig::for_dialect(profile.name);\n").len(),
             1
@@ -622,11 +640,14 @@ mod tests {
         let src = "for c in segment_commands(source) {}\n";
         assert_eq!(scan(REL, src).len(), 1);
         assert_eq!(scan("rust/tcl-compiler/src/segmenter.rs", src).len(), 0);
-        assert_eq!(scan(
+        assert_eq!(
+            scan(
                 REL,
                 "for c in segment_commands_with_offset_and_config(s, 0, cfg) {}\n"
             )
-            .len(), 0);
+            .len(),
+            0
+        );
     }
 
     #[test]

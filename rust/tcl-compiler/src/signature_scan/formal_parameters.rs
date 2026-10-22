@@ -470,21 +470,24 @@ fn original_formal_field(
         let whole = (!element.source.literal && input.bytes() == child.bytes())
             .then(|| element.source.value.clone());
         let range = whole.or_else(|| {
-            element.source.literal.then(|| {
-                Some(
-                    element
-                        .source
-                        .value
-                        .start
-                        .checked_add(inner.source.value.start)?
-                        ..element
+            element
+                .source
+                .literal
+                .then(|| {
+                    Some(
+                        element
                             .source
                             .value
                             .start
-                            .checked_add(inner.source.value.end)?,
-                )
-            })
-            .flatten()
+                            .checked_add(inner.source.value.start)?
+                            ..element
+                                .source
+                                .value
+                                .start
+                                .checked_add(inner.source.value.end)?,
+                    )
+                })
+                .flatten()
         });
         (input, range)
     };

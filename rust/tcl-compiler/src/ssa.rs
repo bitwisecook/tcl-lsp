@@ -91,7 +91,8 @@ impl<'a> SsaInvocationContext<'a> {
         Self {
             registry,
             metadata,
-            standalone: metadata.is_some_and(crate::registry_invocation::InvocationMetadataContext::is_standalone)
+            standalone: metadata
+                .is_some_and(crate::registry_invocation::InvocationMetadataContext::is_standalone)
                 || (standalone_owner && metadata.is_none()),
         }
     }
@@ -8109,9 +8110,9 @@ impl<'a> RenameWalk<'a> {
             && let Some(tokens) = self.points.source_tokens_at(point.0, point.1)
         {
             let original_name = if let Some(metadata) = self.metadata
-                && metadata
-                    .source_analysis_input()
-                    .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context)
+                && metadata.source_analysis_input().is_some_and(
+                    crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+                )
                 && tokens.source_binding.as_ref().is_some_and(|binding| {
                     !binding.has_original_logical_source_advice()
                         && !binding.has_original_native_source_command()

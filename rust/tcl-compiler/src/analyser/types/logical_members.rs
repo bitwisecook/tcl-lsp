@@ -992,8 +992,11 @@ impl AnalysisResult {
                 for relation in relations {
                     if contains(relation.operand())
                         && relation.matches_receiver(self, class)
-                        && let Some(crate::command_binding::LogicalSourceClassRelationTarget::Source(target)) =
-                            relation.source_target(self)
+                        && let Some(
+                            crate::command_binding::LogicalSourceClassRelationTarget::Source(
+                                target,
+                            ),
+                        ) = relation.source_target(self)
                     {
                         selected.push(target);
                     }
@@ -1043,12 +1046,17 @@ impl AnalysisResult {
             match provider.source_target(self)? {
                 crate::command_binding::LogicalSourceClassRelationTarget::Source(target) => {
                     self.logical_source_class_declaration(target)?;
-                    if !selected.iter().any(|selected| std::ptr::eq(*selected, target)) {
+                    if !selected
+                        .iter()
+                        .any(|selected| std::ptr::eq(*selected, target))
+                    {
                         selected.push(target);
                     }
                 }
                 crate::command_binding::LogicalSourceClassRelationTarget::Registry => {}
-                crate::command_binding::LogicalSourceClassRelationTarget::External(_) => return None,
+                crate::command_binding::LogicalSourceClassRelationTarget::External(_) => {
+                    return None;
+                }
             }
         }
         Some(selected)

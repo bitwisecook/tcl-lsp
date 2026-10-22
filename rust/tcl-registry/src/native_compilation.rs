@@ -8300,8 +8300,9 @@ mod tests {
         assert_eq!(
             crate::CommandRegistry::build_default()
                 .native_compiler_implementation_slots(jim)
-                .len()
-        , 0);
+                .len(),
+            0
+        );
     }
 
     #[test]

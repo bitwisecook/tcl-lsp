@@ -549,8 +549,9 @@ fn build_facts_gated(
     // Original source bodies supply factory candidates independently of
     // callable publication and SSA proof.
     for (name, procedure) in cu.ir_module.original_source_procedure_bodies() {
-        if context.is_some_and(crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names)
-            || !cu.procedures.contains_key(name)
+        if context.is_some_and(
+            crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names,
+        ) || !cu.procedures.contains_key(name)
         {
             harvest_script_factories(
                 &procedure.body,
@@ -1333,8 +1334,9 @@ fn scan_flow_edges(
         .ir_module
         .original_source_procedure_bodies()
         .filter(|(name, _)| {
-            metadata_context.is_some_and(crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names)
-                || !cu.procedures.contains_key(*name)
+            metadata_context.is_some_and(
+                crate::registry_invocation::InvocationMetadataContext::permits_logical_source_names,
+            ) || !cu.procedures.contains_key(*name)
         })
         .map(|(id, procedure)| (BodyFrameId::Body(*id), &procedure.body))
         .chain(

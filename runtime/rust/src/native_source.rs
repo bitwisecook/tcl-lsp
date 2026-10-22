@@ -381,7 +381,8 @@ pub(crate) fn copy_context(original: *mut TclObj, duplicate: *mut TclObj) {
 }
 
 pub(crate) fn forget_context(value: *mut TclObj) {
-    OBJECT_CONTEXTS.with(|contexts| contexts.borrow_mut().remove(&(value as usize)));
+    // Retirement cannot recreate a destroyed weak-context map.
+    let _ = OBJECT_CONTEXTS.try_with(|contexts| contexts.borrow_mut().remove(&(value as usize)));
 }
 
 pub(crate) fn context(value: *mut TclObj) -> Result<Rc<NativeJimObjectContext>, ValueError> {
@@ -531,3 +532,8 @@ extern "C" fn source_dup(original: *mut TclObj, duplicate: *mut TclObj) {
 #[cfg(test)]
 #[path = "native_source_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+pub(crate) fn context_map_available_for_retirement_test() -> bool {
+    OBJECT_CONTEXTS.try_with(|_| ()).is_ok()
+}

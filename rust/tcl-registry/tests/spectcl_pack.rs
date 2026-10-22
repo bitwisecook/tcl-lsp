@@ -248,8 +248,11 @@ fn object_class_finds_its_block_past_any_flags() {
         );
     }
     // A bare reference form (`object_class NAME`) claims no block at all.
-    assert_eq!(reg.arg_indices_for_role("object_class", &["Resistor"], ArgRole::Body)
-            .len(), 0);
+    assert_eq!(
+        reg.arg_indices_for_role("object_class", &["Resistor"], ArgRole::Body)
+            .len(),
+        0
+    );
     // …and it is deliberately not a *member row* of the command grammar: a
     // member layout cannot express two optional flags of different widths, so
     // it would have painted `-superclass`'s braced class list as a block. The

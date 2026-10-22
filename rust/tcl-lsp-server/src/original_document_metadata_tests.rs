@@ -229,14 +229,16 @@ fn unindexed_tokens_refuse_withdrawn_source_metadata_and_availability() {
         assert_eq!(
             unindexed_semantic_tokens_for_range(source, &refused, Some(whole_source_range(source)))
                 .data
-                .len()
-        , 0);
+                .len(),
+            0
+        );
     }
     assert_eq!(
         unindexed_semantic_tokens("metadata_read changed", &analysis)
             .data
-            .len()
-    , 0);
+            .len(),
+        0
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -981,12 +983,9 @@ async fn document_symbols_keep_the_resource_input_and_withdraw_unavailable_overl
                 && symbol.kind == CoreSymbolKind::Function)
     );
     assert_eq!(
-        backend
-            .db_document_symbols(&sibling)
-            .await
-            .unwrap()
-            .len()
-    , 0);
+        backend.db_document_symbols(&sibling).await.unwrap().len(),
+        0
+    );
 
     backend
         .db_set_source(&uri, "proc edited_outline {} {}", "tcl".to_owned())

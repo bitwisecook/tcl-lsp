@@ -1386,8 +1386,9 @@ y"}"#,
                 v91,
                 &["-matchvar", "-integer", "-regexp", "--", "$x", "1 a"]
             )
-            .len()
-        , 0);
+            .len(),
+            0
+        );
         // C rejects these before reading any operand.
         for args in [
             &["-integer", "-regexp", "$x", "1 a"][..],

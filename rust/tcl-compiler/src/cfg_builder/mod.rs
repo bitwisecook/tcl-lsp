@@ -1012,7 +1012,9 @@ impl<'a> CfgBuilder<'a> {
                 .command_classes
                 .metadata
                 .source_analysis_input()
-                .is_some_and(crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context);
+                .is_some_and(
+                    crate::analyser::ResolvedAnalysisInput::has_logical_source_name_context,
+                );
         let span = stmt.span();
         let mut produced = self.upvar_invalidated(stmt);
         let mut unknown_locations = logical_call;
@@ -4368,7 +4370,8 @@ impl CfgCommandClasses {
     fn metadata_context(
         &self,
     ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>> {
-        self.metadata.metadata_context(self.registry.registry())
+        self.metadata
+            .metadata_context(self.registry.registry())
             .map(crate::registry_invocation::InvocationMetadataSelection::context)
     }
 

@@ -478,7 +478,10 @@ impl SourceInvocationBinding {
                 if !point.is_standalone() {
                     return Err(refusal);
                 }
-                point.metadata_context(registry).map(crate::registry_invocation::InvocationMetadataSelection::context).ok_or(refusal)
+                point
+                    .metadata_context(registry)
+                    .map(crate::registry_invocation::InvocationMetadataSelection::context)
+                    .ok_or(refusal)
             }
             OwnedInvocationMetadataContext::Supplied(_)
             | OwnedInvocationMetadataContext::Unavailable => Err(refusal),

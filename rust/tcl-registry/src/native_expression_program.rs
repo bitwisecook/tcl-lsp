@@ -1254,7 +1254,8 @@ mod tests {
         assert_eq!(
             modern
                 .compiler_steps(|_| panic!("modern compiler has no fixed table lookup"))
-                .len()
-        , 0);
+                .len(),
+            0
+        );
     }
 }
