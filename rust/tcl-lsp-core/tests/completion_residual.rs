@@ -56,6 +56,13 @@ fn analyse(source: &str) -> AnalysisResult {
     a.analyse(source, "tcl8.6").clone()
 }
 
+/// Analyse `source` as the iRules document it is: the completion pipeline
+/// reads the document's own analysis (its registry and input), so an iRule
+/// analysed under `tcl8.6` has no `when` to complete the clauses of.
+fn analyse_irules(source: &str) -> AnalysisResult {
+    Analyser::new().analyse(source, "f5-irules")
+}
+
 /// A default (plain-Tcl) command registry, built fresh per call.
 fn registry() -> CommandRegistry {
     CommandRegistry::build_default()
@@ -564,7 +571,7 @@ fn when_keyword_tail_offers_priority_and_timing() {
     // `when` spec, F5 TMM command). At arg-index 1 (word-index 2) the values
     // surface.
     let src = "when HTTP_REQUEST t\n";
-    let analysis = analyse(src);
+    let analysis = analyse_irules(src);
     let reg = irules_registry();
     // Cursor after `t` (col 19).
     let items = completions(
@@ -594,7 +601,7 @@ fn when_timing_value_slot_gated_on_preceding_timing_keyword() {
     // `when EVENT timing e` → the preceding word is `timing`, so `enable`
     // surfaces (registry `when` spec gates even-index value slots on `timing`).
     let src = "when HTTP_REQUEST timing e\n";
-    let analysis = analyse(src);
+    let analysis = analyse_irules(src);
     let reg = irules_registry();
     // Cursor after `e` (col 26).
     let items = completions(
@@ -621,7 +628,7 @@ fn when_value_slot_suppressed_after_priority_keyword() {
     // the preceding literal is not `timing`. So `when EVENT priority e` offers
     // no enable/disable enum values at that slot.
     let src = "when HTTP_REQUEST priority e\n";
-    let analysis = analyse(src);
+    let analysis = analyse_irules(src);
     let reg = irules_registry();
     // Cursor after `e` (col 28), arg-index 3 with preceding word `priority`.
     let items = completions(
@@ -648,7 +655,7 @@ fn when_clause_keywords_follow_the_registry_declaration_layout() {
     // follow; after `timing V` only the body, so nothing is offered.
     let reg = irules_registry();
     let offered = |src: &str| {
-        let analysis = analyse(src);
+        let analysis = analyse_irules(src);
         let col = u32::try_from(src.trim_end().len()).unwrap();
         let items = completions(
             src,
@@ -659,9 +666,12 @@ fn when_clause_keywords_follow_the_registry_declaration_layout() {
             None,
             tcl_dialect::DialectProfile::irules(),
         );
-        labels(&items)
+        // The declaration's clause vocabulary arrives as enum values;
+        // ordinary command-name completion at a script position is separate.
+        items
             .into_iter()
-            .map(str::to_owned)
+            .filter(|item| item.kind == CompletionKind::EnumValue)
+            .map(|item| item.label)
             .collect::<Vec<_>>()
     };
     let after_priority = offered("when HTTP_REQUEST priority 10 t\n");

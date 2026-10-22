@@ -11556,43 +11556,4 @@ mod irules_overlay_tests {
         );
         assert!(events(&full(source, tcl, &plain)).is_empty(), "plain Tcl");
     }
-
-    /// Baseline capture for the overlay migration: with
-    /// `BIGIP_TOKEN_DUMP=<file>` set, write every fixture's full token stream
-    /// (document analysis with and without a unit, and the standalone source
-    /// API) so two builds can be diffed. Does nothing otherwise.
-    #[test]
-    fn zz_irules_overlay_token_dump() {
-        use std::fmt::Write as _;
-        let Ok(path) = std::env::var("BIGIP_TOKEN_DUMP") else {
-            return;
-        };
-        let mut out = String::new();
-        for (name, source) in fixtures() {
-            let (analysis, unit, profile) = irules_document(source);
-            let registry = analysis.resolved_registry().expect("registry");
-            for (mode, tokens) in [
-                (
-                    "document+unit",
-                    full_with_cu_and_analysis(
-                        source,
-                        profile,
-                        registry,
-                        Some(&unit),
-                        Some(&analysis),
-                    ),
-                ),
-                (
-                    "document",
-                    full_with_cu_and_analysis(source, profile, registry, None, Some(&analysis)),
-                ),
-                ("standalone", full(source, profile, registry)),
-            ] {
-                for token in decode_semantic(&tokens) {
-                    let _ = writeln!(out, "{name}\t{mode}\t{token:?}");
-                }
-            }
-        }
-        std::fs::write(path, out).expect("write dump");
-    }
 }

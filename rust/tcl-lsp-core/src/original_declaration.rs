@@ -680,6 +680,70 @@ impl OriginalDeclarationIdentity {
     }
 }
 
+/// `superclass` / `mixin` operands in this document's original class bodies
+/// that select `identity`'s class, through the same first-publication relation
+/// rule the type hierarchy walks (`original_direct_metadata_relations_for_records`).
+/// Reporting only: these operands are class-name references, not invocations.
+fn class_relation_reference_spans(
+    identity: &OriginalDeclarationIdentity,
+    source: &str,
+    analysis: &AnalysisResult,
+) -> Vec<Span> {
+    use tcl_compiler::analyser::types::OriginalSourceClassRelationKind;
+    let Some(target) = identity.class_metadata(analysis) else {
+        return Vec::new();
+    };
+    let records = analysis.original_class_declarations().collect::<Vec<_>>();
+    let Some(root) = records
+        .iter()
+        .position(|record| std::ptr::eq(*record, target))
+    else {
+        return Vec::new();
+    };
+    let occupied = analysis
+        .original_procedure_declarations()
+        .map(SourceDeclarationMetadata::name)
+        .collect::<Vec<_>>();
+    let mut spans = Vec::new();
+    for record in &records {
+        for effect in record.metadata().original_relations.effects() {
+            if effect.side() != MemberSide::Instance
+                || !matches!(
+                    effect.kind(),
+                    OriginalSourceClassRelationKind::Superclass
+                        | OriginalSourceClassRelationKind::Mixin
+                )
+            {
+                continue;
+            }
+            for relation in effect.values().unwrap_or_default() {
+                let selected = relation.lookup().first_matching_publications(
+                    records
+                        .iter()
+                        .enumerate()
+                        .map(|(index, record)| (record.name(), Some(index)))
+                        .chain(occupied.iter().map(|name| (*name, None))),
+                );
+                if selected.as_slice() != [Some(root)] {
+                    continue;
+                }
+                let input = relation.name_input();
+                if let Some(key) = input.original_word_key()
+                    && crate::original_name_edit::original_input_matches_source(
+                        source,
+                        analysis,
+                        input,
+                        key.span(),
+                    )
+                {
+                    spans.push(key.span());
+                }
+            }
+        }
+    }
+    spans
+}
+
 /// Byte-offset adapter for the same current readonly cursor selection.
 /// Offsets are source geometry and supply no naming or dispatch authority.
 pub fn select_at_offset(
@@ -746,6 +810,15 @@ pub fn select(
         .filter(|row| row.span.start() <= offset && offset < row.span.end());
     if let Some(first) = names.next() {
         return ControlFlow::Break(names.next().is_none().then(|| first.clone()));
+    }
+    // A cursor resting just past a declaration name (the editor position
+    // after its last character) still names that declaration, as the
+    // lexical word lookup always allowed.
+    let mut ends = rows
+        .iter()
+        .filter(|row| !row.span.is_empty() && row.span.end() == offset);
+    if let Some(first) = ends.next() {
+        return ControlFlow::Break(ends.next().is_none().then(|| first.clone()));
     }
     let Some(invocation) = analysis
         .command_invocations
@@ -1416,6 +1489,9 @@ pub fn readonly_reference_report(
             None => report.coverage = ReadonlyReferenceCoverage::Unavailable,
         }
         return Some(report);
+    }
+    if identity.role() == OriginalDeclarationRole::Class {
+        report.extend(class_relation_reference_spans(identity, source, analysis));
     }
     if identity.role() != OriginalDeclarationRole::Method(MemberSide::Instance)
         || identity.object_owner.is_some()

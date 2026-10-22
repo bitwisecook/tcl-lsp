@@ -420,8 +420,20 @@ mod tests {
         let profile = environment.unit_profile();
         assert!(registry.profile().is_some());
         let source = "proc subject {} {set value 1; return OK}";
-        let unit = crate::compilation_unit::CompilationUnit::build_for_profile(
+        // A profiled default build is a fresh-interpreter document (user
+        // decision 2026-10-19T14:20Z) and publishes `::subject` as tclsh8.6
+        // does; the dialect-blind build keeps explicit Standalone authoring,
+        // still profiled through its Registry.
+        let fresh = crate::compilation_unit::CompilationUnit::build_for_profile(
             source, registry, false, profile,
+        );
+        assert!(fresh.ir_module.source_metadata_input.is_some());
+        assert!(fresh.function("::subject").is_some());
+        let unit = crate::compilation_unit::CompilationUnit::build_for_with_config(
+            source,
+            registry,
+            false,
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar),
         );
         assert!(unit.ir_module.source_metadata_input.is_none());
         assert!(unit.ir_module.source_entry.metadata_context.is_standalone());

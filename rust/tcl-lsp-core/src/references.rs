@@ -4670,12 +4670,15 @@ pub fn document_highlights_in_program(
         crate::variable_symbol::select(source, analysis, line, character)
     {
         return selected.map_or_else(Vec::new, |occurrence| {
-            variable_occurrence_highlights(
-                source,
-                &line_index,
-                crate::variable_symbol::occurrences(analysis, occurrence.symbol())
-                    .map(|site| (site.span(), site.is_declaration())),
-            )
+            let sites = crate::variable_symbol::occurrences(analysis, occurrence.symbol())
+                .map(|site| (site.span(), site.is_declaration()))
+                .collect::<Vec<_>>();
+            // A read the document never declares anywhere resolves to no
+            // definition, so there is nothing to highlight it against.
+            if !sites.iter().any(|(_, is_declaration)| *is_declaration) {
+                return Vec::new();
+            }
+            variable_occurrence_highlights(source, &line_index, sites)
         });
     }
 

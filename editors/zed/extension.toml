@@ -31,7 +31,7 @@ rev = "850a72ab6436e06645b33b11cfa60cbdb04b1f01"
 [language_servers.tcl-lsp]
 name = "tcl-lsp"
 # <generated: zed-languages> the `name` of each `languages/*/config.toml`
-languages = ["Tcl", "Expect", "iApps", "iRules", "TMSH", "APL"]
+languages = ["Tcl", "Expect", "iApps", "iRules", "TMSH", "BIG-IP", "APL"]
 # </generated>
 
 # Bridge Zed's language *names* to the `languageId` strings the server
@@ -53,7 +53,8 @@ languages = ["Tcl", "Expect", "iApps", "iRules", "TMSH", "APL"]
 "Expect" = "tcl-expect"
 "iApps" = "tcl-iapp"
 "iRules" = "tcl-irule"
-"TMSH" = "tcl-bigip"
+"TMSH" = "tcl-tmsh"
+"BIG-IP" = "tcl-bigip"
 "APL" = "tcl-apl"
 # </generated>
 

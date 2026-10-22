@@ -4583,6 +4583,19 @@ impl CapturedNativeCompletionReceipts {
     }
 }
 
+/// Whether a handler's normal return leaves the command world exactly as the
+/// walk models it: a declared descriptor whose transitions cannot change which
+/// command a name reaches (no binding, namespace-resolution, package-load or
+/// unknown transition). Variable and channel effects do not change it.
+fn command_world_closed_on_normal_return(facts: &InvocationFacts) -> bool {
+    facts
+        .state_transitions
+        .declared()
+        .is_some_and(|transitions| {
+            transitions.command_resolution_impact() == tcl_registry::CommandResolutionImpact::None
+        })
+}
+
 fn source_frame_namespace(frame: &crate::var_resolve::VariableExecutionFrame) -> &str {
     use crate::var_resolve::VariableExecutionFrame;
     match frame.layout() {
@@ -6458,6 +6471,7 @@ impl SourceOutcomes {
         // command world and unknown entry.
         let closed = (self.normal_completion.is_some() && self.abrupt.is_empty())
             || (errors_only
+                && !normal.unclosed_command_world
                 && !normal.has_opaque_domain()
                 && !normal.source_step_observed()
                 && !normal.source_execution_observed(None));
@@ -10334,8 +10348,15 @@ impl SourceCommandBindings {
         incoming: &ModuleCommandBindings,
     ) -> SourceOutcomes {
         let facts = prepared.facts.as_ref();
-        if let Some(outcomes) = Self::prepare_non_body_source_result(native, facts, state, context)
+        if let Some(mut outcomes) =
+            Self::prepare_non_body_source_result(native, facts, state, context)
         {
+            if outcomes.normal_completion.is_none()
+                && !command_world_closed_on_normal_return(facts)
+                && let Some(normal) = outcomes.normal.as_mut()
+            {
+                normal.unclosed_command_world = true;
+            }
             return *outcomes;
         }
         let completions = CapturedNativeCompletionReceipts::capture(native, facts, state, context);
@@ -10391,6 +10412,10 @@ impl SourceCommandBindings {
             || completions.completed(&outcomes, native, facts, *context)
         {
             outcomes.retain_closed_native_handler_completion(native, facts, *context);
+        } else if !command_world_closed_on_normal_return(facts)
+            && let Some(normal) = outcomes.normal.as_mut()
+        {
+            normal.unclosed_command_world = true;
         }
         finish_source_native_results(
             &mut outcomes,
@@ -13132,6 +13157,7 @@ struct NonBindingObservationStamp {
     opaque_binding_mutation: bool,
     dynamic_proc_binding: bool,
     unnameable_rebinding_subject: bool,
+    unclosed_command_world: bool,
     namespace_changed: bool,
     namespace_dynamic: bool,
     namespace_ensembles: EnsembleManagement,
@@ -13282,6 +13308,11 @@ pub struct ModuleCommandBindings {
     /// which moves a binding. Only this dimension may withdraw the claim that
     /// an untouched name still denotes its builtin (#2168).
     unnameable_rebinding_subject: bool,
+    /// A command-world transition (binding, namespace resolution, package or
+    /// interpreter effect) completed without a closed normal-return receipt.
+    /// The normal path then holds no exact completed command world, even when
+    /// every abrupt alternative is an error.
+    unclosed_command_world: bool,
     /// Namespace resolution transitions selected after alias-prefix and
     /// command-binding resolution. This is historical rather than final-state
     /// data: restoring a path/import later cannot make an earlier fold sound.
@@ -13354,6 +13385,7 @@ impl PartialEq for ModuleCommandBindings {
             && self.opaque_binding_mutation == other.opaque_binding_mutation
             && self.dynamic_proc_binding == other.dynamic_proc_binding
             && self.unnameable_rebinding_subject == other.unnameable_rebinding_subject
+            && self.unclosed_command_world == other.unclosed_command_world
             && self.namespace_resolution == other.namespace_resolution
             && self.procedure_bodies == other.procedure_bodies
             && self.rebound_names == other.rebound_names
@@ -14297,6 +14329,7 @@ impl ModuleCommandBindings {
             && self.opaque_binding_mutation == other.opaque_binding_mutation
             && self.dynamic_proc_binding == other.dynamic_proc_binding
             && self.unnameable_rebinding_subject == other.unnameable_rebinding_subject
+            && self.unclosed_command_world == other.unclosed_command_world
             && self.namespace_resolution == other.namespace_resolution
             && (Arc::ptr_eq(&self.procedure_bodies, &other.procedure_bodies)
                 || self.procedure_bodies == other.procedure_bodies)
@@ -14334,6 +14367,7 @@ impl ModuleCommandBindings {
             opaque_binding_mutation: self.opaque_binding_mutation,
             dynamic_proc_binding: self.dynamic_proc_binding,
             unnameable_rebinding_subject: self.unnameable_rebinding_subject,
+            unclosed_command_world: self.unclosed_command_world,
             namespace_changed: self.namespace_resolution.changed,
             namespace_dynamic: self.namespace_resolution.dynamic,
             namespace_ensembles: self.namespace_resolution.ensembles,
@@ -14385,6 +14419,7 @@ impl std::hash::Hash for ModuleCommandBindings {
         self.opaque_binding_mutation.hash(state);
         self.dynamic_proc_binding.hash(state);
         self.unnameable_rebinding_subject.hash(state);
+        self.unclosed_command_world.hash(state);
         self.namespace_resolution.hash(state);
         self.procedure_bodies.hash(state);
         self.rebound_names.hash(state);
@@ -16656,6 +16691,10 @@ impl ModuleCommandBindings {
         }
         if other.unnameable_rebinding_subject && !self.unnameable_rebinding_subject {
             self.unnameable_rebinding_subject = true;
+            changed = true;
+        }
+        if other.unclosed_command_world && !self.unclosed_command_world {
+            self.unclosed_command_world = true;
             changed = true;
         }
         changed |= self.namespace_resolution.join(&other.namespace_resolution);

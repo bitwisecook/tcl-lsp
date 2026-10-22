@@ -207,6 +207,10 @@ fn install_into(
 /// authors a native compiler (the loader refuses that contract); the shipped
 /// one is kept wherever the override has none.
 fn keep_shipped_compilers(merged: &mut CommandSpec, shipped: &CommandSpec) {
+    // TEMP measurement toggle (compiler-codegen), remove before hand-back.
+    if std::env::var_os("ZZ_CCG_BASELINE").is_some() {
+        return;
+    }
     merged.native_compilation = merged.native_compilation.or(shipped.native_compilation);
     let shipped_compiler = |name: &str| {
         shipped
@@ -244,6 +248,10 @@ fn added_command_compiler(
     added: &CommandSpec,
     registry: &CommandRegistry,
 ) -> Option<tcl_registry::native_compilation::NativeCompilationSpec> {
+    // TEMP measurement toggle (compiler-codegen), remove before hand-back.
+    if std::env::var_os("ZZ_CCG_BASELINE").is_some() {
+        return None;
+    }
     if let Some(target) = added.alias_of
         && crate::stamps::carries_stamp(added)
     {

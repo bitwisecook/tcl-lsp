@@ -202,6 +202,16 @@ pub(crate) fn original_lowered_expression_syntax(
     if let Some(syntax) = matches(tokens) {
         return Some(syntax);
     }
+    // A structured command's condition (`if`, `while`, `for`) is one selected
+    // expression slot among its written words; that slot owns the AST.
+    let mut slots = (1..tokens.words().len()).filter_map(|written| {
+        let operand =
+            super::original_expression_operand_advice_for_word(registry, tokens, written)?;
+        (operand.expression_base == base && &operand.expression == expression).then_some(())
+    });
+    if slots.next().is_some() && slots.next().is_none() {
+        return original_variable_reference_syntax(tokens);
+    }
     let metadata = binding
         .original_source_metadata_for_advice(tokens, registry)
         .ok()??;

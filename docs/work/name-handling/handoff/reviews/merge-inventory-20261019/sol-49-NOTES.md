@@ -24,11 +24,12 @@ Owned paths: `rust/tcl-compiler` (except the files handed to compiler-codegen an
 - **Registry**:
   - `commands/irules/proc.rs`: `procedure_definition: Core`.
   - `registry.rs`: the native return-state effect for F5 Tcl 8.4.
-- **Analyser default entry** (`analyser/state.rs`, new). `Analyser::analyse` on a hosted document without a supplied entry now runs the whole walk under that fresh rule-loader entry. That covers the realm, lowering and declaration naming. The entry is reset afterwards, so a reused analyser does not keep it.
-  - Result: an iRules `proc` is an original procedure declaration, as the LSP's `original_declaration::declarations` needs (coordinator contract).
+- **iRules `proc` as an original declaration** (`analyser/handlers.rs::declaration_name_policy`). For a hosted document analysed without a supplied entry, the declaration name policy is now the fresh rule-load `NativeRecipe` policy. So `proc hit` appears in `original_procedure_declarations` (`::hit`, name span 5..8), which the LSP's `original_declaration::declarations` reads.
   - Test: `irules_event_checks::rule_procedure_is_an_original_declaration_of_the_fresh_rule_load`.
-  - My first attempt changed only `realm::document_vendor_realm_with_resolved_input`. It gave no declarations and regressed 6 IRULE5001 gate tests, so I reverted it.
-  - Gate fix: a decision on a `$static::…` read lost its global cell under the entered event frame. `irules_debug_gate_opens` now also accepts a written `static::` spelling (`names_static_variable`), as suppress-only advice like the existing `mentions_static_variable`.
+  - Two wider attempts were reverted:
+    - Fresh entry for the analyser's document realm only (`realm.rs`): no declarations, and 6 IRULE5001 `$static::` gate regressions.
+    - Fresh entry for the whole analyser walk: hit the same missing-original-variable-operand cause as IRULE4001/6001, below.
+  - The three `irule5001_quiet_for_flag_set_in_*` failures were already failing in my pre-iRules baseline (r0).
 - **Documented test corrections**, each supplying the explicit unknown-history entry the test is about:
   - `registry_invocation::hosted_original_source_assistance_keeps_metadata_and_execution_uncertainty_separate`
   - `irules_checks` (`supplied_with_history`)
@@ -64,12 +65,24 @@ Owned paths: `rust/tcl-compiler` (except the files handed to compiler-codegen an
   - `display_constructor_shape` keeps BareWord for Itcl even when the word names a class proc.
   - Itcl class procs are not placed in the class-object two-word table, so the LSP's two-word query cannot select them. This also fixes the `fp_itcl_bare_two_word…` pass-to-fail the coordinator reported.
   - Test: `itcl_two_word_form_is_construction_even_over_a_class_proc_name`.
+- **Shadowing.** A plain occupant (or possible occupant) at the qualified name itself wins: `source_class_proc_call_at` returns None for it. Covered in `itcl_class_proc_calls_join_the_qualifying_source_class`.
+- **Not done (coordinator's 2a–2c):**
+  - (a)/(c) In-namespace class declarations do not join from later top-level code. `body_effects.rs::retain_possible_effects` treats a `namespace eval` body as a possible branch and installs none of its cells into the parent graph. TclOO constructor calls after a namespace-eval class have the same limit. Fixing it is a design change in compiler-names' `body_effects.rs`.
+  - (b) Calls inside itcl member bodies (bare `[make]`, `[Factory::make]` in a method) need the advice walk to enter itcl member bodies with the class-namespace resolver, which does not exist yet.
 - **LSP follow-up (not mine).** `method_symbol::command_query` needs a branch for `source_class_proc_call_at`: select the class record by `class_declaration().matches_source_declaration`, then the member by name. Then `fn_to_tp_itcl_class_proc_colon_dispatch_is_a_reference` and `itcl_class_proc_dispatch::*` can pass. Inside-class-body and in-namespace spellings need the advice walk of those bodies; I have not verified them.
 - **Design doc.** New `naming-consumer-matrix.md` row: "Registry-dispatched definer class commands (contract D)".
 
-## 5. Parked
+## 5. C6 (in progress)
 
-- **C6 and uncalled bodies ("world after load", decision 2026-10-21T08:20Z).** Kept as `sol-49-c6-wip.patch` in this directory; it is not applied and it applies cleanly. It contains:
+- **Coordinator trace.** The I230 shared-unit versus legacy gap in `tcl-spectcl` `spec_corpus` is C6: a dialect-bearing `build_for_profile` must be a fresh interpreter. When I parked C6 I reverse-applied the companion, which removed `compilation_unit.rs::fresh_document_input`.
+- **Re-applied now:**
+  - `sol-47-c6-companion.patch`
+  - the condition-slot hunk of `sol-49-c6-wip.patch` (`registry_invocation/original_word_data.rs`)
+- **Not yet applied:** the remaining `sol-49-c6-wip.patch` hunks, which touch `command_binding.rs`, now owned by compiler-names:
+  - after-load (`uncalled_body_after_load`, `walk_deferred_entry_with`)
+  - conditional in-frame body namespace (`origin_inventory.rs` plus `walk_body_operand`)
+- **Not yet measured:** blocked on shared disk (1.2 GB).
+- **Contents of `sol-49-c6-wip.patch`, for reference:
   - after-load selected entry
   - structured condition slot
   - conditional in-frame body namespace
@@ -85,6 +98,17 @@ Owned paths: `rust/tcl-compiler` (except the files handed to compiler-codegen an
 - **The other 8 `signature_scan` failures** were already failing in my earlier-tree run and sit on Tcl paths I did not touch.
 - **`source_graph::ordinary_rule_init_reporting_name_*`.** Probably predates me; I can't prove it without a baseline build. The hosted body's `set ::static::x` has no original variable operands, so `NormalTransferInvocation::mutation_places` returns `unknown_top`. That is the same mechanism as `irule4001_fires_for_static_write_outside_rule_init`, which was FAILED in my pre-iRules baseline. Still open.
 
-## 7. Measurements
+## 7. Measurements (`tcl-compiler` lib filters, latest tree before C6, vs my earlier run `y3`)
 
-See the table appended below.
+| Filter | ok / failed | Pass→fail | Gains |
+|---|---|---|---|
+| `analyser::irules_event_checks` | 71 / 18 | 0 | 0 (net +1 vs y3 from the new declaration test) |
+| `irules_checks::` | 59 / 57 | 0 | 4 |
+| `analyser::diagnostics::tests` | 587 / 245 | 0 | 6 |
+| `analyser::diagnostics::fp` | 447 / 134 | 0 | 2 |
+| `registry_invocation` | 208 / 79 | 0 | 2 |
+| `signature_scan::` | 191 / 7 | 0 | 2 |
+| `taint::` | 45 / 17 | 0 | 2 |
+| `source_graph::` | 1 / 2 | no baseline | both failures are §6 |
+| `source_class::tests` | 6 pre-existing failures, unchanged | 0 | the new D tests pass |
+| `depth_guard` new tests | pass (about 20 s each) | — | — |

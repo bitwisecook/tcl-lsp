@@ -18,20 +18,11 @@ use tcl_registry::{CommandSpec, ResolvedInvocation, SubCommand};
 pub(super) fn hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<Hover> {
     // naming.core.original-registry-source-hover
     // docs/design/analysis/name-resolution-proofs/original-registry-source-hover.md
-    if let ControlFlow::Break(Some(identity)) =
-        crate::original_declaration::select_at_offset("hover://document", source, analysis, cursor)
-    {
-        if let Some(declaration) = identity.procedure_metadata(analysis) {
-            return Some(Hover::markdown(super::proc_hover_text(
-                declaration.metadata(),
-            )));
-        }
-        if let Some(declaration) = identity.class_metadata(analysis) {
-            return Some(Hover::markdown(super::class_hover_text(
-                analysis,
-                declaration.metadata(),
-            )));
-        }
+    if let Some(text) = declaration_hover(source, analysis, cursor) {
+        return Some(Hover::markdown(text));
+    }
+    if let Some(text) = member_keyword_hover(source, analysis, cursor) {
+        return Some(Hover::markdown(text));
     }
     let config = analysis.body_lexer_config?;
     let structure =
@@ -57,6 +48,61 @@ pub(super) fn hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Opt
     }
     let text = schema_hover(analysis, &words, cursor)?;
     Some(Hover::markdown(text))
+}
+
+/// Procedure or class declaration card for the original declaration whose
+/// name covers `cursor`.
+fn declaration_hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<String> {
+    let ControlFlow::Break(Some(identity)) =
+        crate::original_declaration::select_at_offset("hover://document", source, analysis, cursor)
+    else {
+        return None;
+    };
+    if let Some(declaration) = identity.procedure_metadata(analysis) {
+        return Some(super::proc_hover_text(declaration.metadata()));
+    }
+    identity
+        .class_metadata(analysis)
+        .map(|declaration| super::class_hover_text(analysis, declaration.metadata()))
+}
+
+/// A `constructor` / `destructor` keyword written inside an original class
+/// body hovers as the member that keyword declares on that class. This is
+/// source documentation from the class's own retained declaration; it claims
+/// no callable command of that name.
+fn member_keyword_hover(source: &str, analysis: &AnalysisResult, cursor: u32) -> Option<String> {
+    let config = analysis.body_lexer_config?;
+    let image = SourceImage::document(source);
+    if !analysis.matches_original_source_image(&image, config) {
+        return None;
+    }
+    let word = crate::source_structure::original_complete_cursor_word(source, analysis, cursor)
+        .and_then(|word| word.static_unicode_value())?;
+    if word != "constructor" && word != "destructor" {
+        return None;
+    }
+    let class = analysis
+        .original_class_declarations()
+        .map(|record| record.metadata())
+        .filter(|class| class.body_span.start() < cursor && cursor < class.body_span.end())
+        .min_by_key(|class| class.body_span.end() - class.body_span.start())?;
+    let qname = &class.qualified_name;
+    if word == "constructor" {
+        let ctor = class
+            .constructors
+            .first()
+            .filter(|ctor| ctor.is_declared_by_keyword(&word))?;
+        return Some(format!(
+            "**{}** of `{qname}` ({} param(s))",
+            ctor.kind,
+            ctor.params.len()
+        ));
+    }
+    let dtor = class
+        .destructor
+        .as_ref()
+        .filter(|dtor| dtor.is_declared_by_keyword(&word))?;
+    Some(format!("**{}** of `{qname}`", dtor.kind))
 }
 
 fn contains(span: Span, cursor: u32) -> bool {

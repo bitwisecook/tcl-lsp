@@ -876,11 +876,10 @@ pub fn candidate(
         query.target,
         Target::SourceClassCall(_) | Target::SourceClassProcCall(_)
     ) && !index
-            .diagnostic_source_context(caller_uri)
-            .is_some_and(|context| {
-                context.image() == query.consumer_image()
-                    && context.config() == query.consumer_config()
-            })
+        .diagnostic_source_context(caller_uri)
+        .is_some_and(|context| {
+            context.image() == query.consumer_image() && context.config() == query.consumer_config()
+        })
     {
         return ControlFlow::Break(None);
     }
@@ -1073,15 +1072,16 @@ fn candidate_for_records(
             if selected.next().is_some() {
                 return ControlFlow::Break(None);
             }
-            // Itcl installs only the class body's own class-side `proc`s as
-            // `Class::name` commands; instance methods are not addressable
-            // this way and nothing is inherited into the class namespace.
+            // Itcl installs only the class body's own `proc`s (the class-method
+            // frame shape: no instance in frame) as `Class::name` commands;
+            // instance methods are not addressable this way and nothing is
+            // inherited into the class namespace.
             let mut members = record
                 .metadata()
                 .original_members
                 .declarations()
                 .filter(|method| {
-                    method.side() == MemberSide::ClassObject
+                    method.metadata().kind == "classmethod"
                         && method.original_name_input().bytes() == call.member_name()
                 });
             let Some(method) = members.next() else {

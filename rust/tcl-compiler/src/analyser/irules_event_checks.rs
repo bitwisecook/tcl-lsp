@@ -1236,33 +1236,6 @@ mod tests {
     }
 
     #[test]
-    fn zz_sol49_irules_switch_declaration() {
-        let source = "proc hit {} { return hit }\nswitch -glob $value {\n    default {\n        hit\n    }\n}\n";
-        let analysis = crate::analyser::Analyser::new().analyse(source, "f5-irules");
-        eprintln!(
-            "DECLS {:?} lexical={} body_config={} current={}",
-            analysis
-                .original_procedure_declarations()
-                .map(|d| (d.name().reported_full_name(), d.name_input().span()))
-                .collect::<Vec<_>>(),
-            analysis.allows_lexical_declaration_advice(),
-            analysis.body_lexer_config.is_some(),
-            analysis.body_lexer_config.is_some_and(|config| analysis
-                .matches_original_source_image(&tcl_lexer::SourceImage::document(source), config)),
-        );
-        for inv in &analysis.command_invocations {
-            eprintln!(
-                "INV {:?} {:?} lookup={} input={} reference={}",
-                inv.name,
-                inv.range,
-                inv.original_lookup.is_some(),
-                inv.original_name_input.is_some(),
-                inv.resolved_command_reference.is_some()
-            );
-        }
-    }
-
-    #[test]
     fn irule1004_is_quiet_for_bigip_default_priority() {
         // BIG-IP gives every `when` handler priority 500 when the clause is
         // omitted, so a bare handler is valid and must not produce a hint.

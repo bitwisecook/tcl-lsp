@@ -316,8 +316,13 @@ fn context_aware_completions(
         if let Some(command) = command_context_on_line(source, line, character, analysis)
             && command.word_index == 1
             && let Some(cmd) = command.head_text()
-            && let Some(env) =
-                scoped_env_at(analysis, source, line, character, &tcl_lexer::LineIndex::new(source))
+            && let Some(env) = scoped_env_at(
+                analysis,
+                source,
+                line,
+                character,
+                &tcl_lexer::LineIndex::new(source),
+            )
             && let Some(scoped) = env.command(&cmd)
             && !scoped.subcommands.is_empty()
         {

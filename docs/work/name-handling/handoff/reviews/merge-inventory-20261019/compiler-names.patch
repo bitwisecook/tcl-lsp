@@ -1,0 +1,735 @@
+diff --git a/rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs b/rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs
+index cfcd68dfd0..6d1c6bba65 100644
+--- a/rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs
++++ b/rust/tcl-compiler/src/analyser/class_hierarchy/original_metadata/source_method_reference.rs
+@@ -590,6 +590,46 @@ mod tests {
+         }
+     }
+ 
++    #[test]
++    fn readonly_self_selectors_follow_nested_potential_evaluation_bodies() {
++        // naming.editor.original-method-candidates
++        // tclsh 8.6.18 / 9.0.4: every body below dispatches `my ping` in the
++        // method frame (`get a` reaches `ping` once for each form).
++        let mut failures = Vec::new();
++        for dialect in ["tcl8.6", "tcl9.0"] {
++            for body in [
++                "switch -- $k a {my ping $k}",
++                "switch -- $k {a {my ping $k}}",
++                "if {1} {my ping $k}",
++                "if {0} {} elseif {1} {my ping $k}",
++                "if {0} {} else {my ping $k}",
++                "set i 0; while {$i < 1} {incr i; my ping $k}",
++                "for {set i 0} {$i < 1} {incr i} {my ping $k}",
++                "foreach i {1} {my ping $k}",
++                "catch {my ping $k}",
++                "try {my ping $k} finally {}",
++                "eval {my ping $k}",
++                "switch -glob -- $k {a* {if {1} {catch {my ping $k}}}}",
++            ] {
++                let source = format!(
++                    "oo::class create C {{\n method ping {{k}} {{ return $k }}\n method get {{k}} {{\n  {body}\n }}\n}}\n"
++                );
++                let analysis = Analyser::new().analyse(&source, dialect);
++                let references = original_source_self_method_references(&source, &analysis)
++                    .expect("current partial source catalogue");
++                let selector = source.rfind("ping $k").unwrap();
++                let actual = references
++                    .iter()
++                    .map(|reference| reference.selector_span().as_range())
++                    .collect::<Vec<_>>();
++                if actual != vec![selector..selector + 4] {
++                    failures.push(format!("{dialect}: {body}: {actual:?}"));
++                }
++            }
++        }
++        assert!(failures.is_empty(), "{failures:#?}");
++    }
++
+     #[test]
+     fn readonly_self_selectors_refuse_unowned_wrong_context_and_ambiguous_sources() {
+         // naming.editor.original-method-candidates
+diff --git a/rust/tcl-compiler/src/analyser/commands.rs b/rust/tcl-compiler/src/analyser/commands.rs
+index 8741e38dec..bf18befc47 100644
+--- a/rust/tcl-compiler/src/analyser/commands.rs
++++ b/rust/tcl-compiler/src/analyser/commands.rs
+@@ -4938,6 +4938,9 @@ impl Analyser {
+         // completion/hover/definition and read-before-set, just as the
+         // top-level `process_command` path does.
+         self.handle_var_binding_command(cmd_tok, arg_tokens, scope_path);
++        // A `CommandName` operand of a substituted command (`puts [info body
++        // greet]`) names the command exactly as the top-level form does.
++        self.record_command_name_invocations(args, arg_tokens, scope_path, cmd_tok.span.start());
+         // Record the nested command's variable-/command-substitution-as-command
+         // call site too (`puts [$obj method]`, `if {[$obj ok]} …`).  The main
+         // walk treats `[…]` as a value, so without this the W307 multi-dispatch
+diff --git a/rust/tcl-compiler/src/analyser/diagnostics/tests.rs b/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
+index d51a520cd6..22ca5d184e 100644
+--- a/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/tests.rs
+@@ -5950,6 +5950,64 @@ fn emit_cfg_ssa_diagnostics_w220_pkgindex_dir_var_suppressed() {
+     );
+ }
+ 
++/// Only ``dir`` is loader-supplied: tclsh 8.6/9.0 `can't read "missing"` for
++/// the substituted read below, so W210 still reports it in pkgIndex.tcl.
++#[test]
++fn w210_pkgindex_reports_other_reads_inside_command_substitutions() {
++    let mut failures = Vec::new();
++    for (path, source, names) in [
++        (
++            "/proj/pkgIndex.tcl",
++            "set f [file join $dir $missing]\nsource $f\n",
++            &["missing"][..],
++        ),
++        (
++            "/proj/other.tcl",
++            "set f [file join $dir $missing]\nsource $f\n",
++            &["dir", "missing"][..],
++        ),
++        (
++            "/proj/pkgIndex.tcl",
++            "set f [file join $missing]\n",
++            &["missing"][..],
++        ),
++        ("/proj/pkgIndex.tcl", "set f $missing\n", &["missing"][..]),
++        (
++            "/proj/pkgIndex.tcl",
++            "set f [file join $dir $missing]\n",
++            &["missing"][..],
++        ),
++        (
++            "/proj/pkgIndex.tcl",
++            "set f [list $missing]\nsource $f\n",
++            &["missing"][..],
++        ),
++        (
++            "/proj/pkgIndex.tcl",
++            "set f $missing\nsource $f\n",
++            &["missing"][..],
++        ),
++    ] {
++        let mut analyser = Analyser::new().with_file_path(Some(path.to_owned()));
++        let result = analyser.analyse(source, "tcl8.6");
++        let w210 = result
++            .diagnostics
++            .iter()
++            .filter(|diagnostic| diagnostic.code == DiagCode::W210)
++            .map(|diagnostic| diagnostic.message.clone())
++            .collect::<Vec<_>>();
++        for name in names {
++            if !w210
++                .iter()
++                .any(|message| message.contains(&format!("'{name}'")))
++            {
++                failures.push(format!("{path}: {source:?}: {name}: {w210:?}"));
++            }
++        }
++    }
++    assert!(failures.is_empty(), "{failures:#?}");
++}
++
+ /// W220-IR-paths.  Outside ``pkgIndex.tcl``, ``$dir`` is
+ /// just a regular variable — no special suppression.
+ /// Negative control for the pkgIndex special-case.
+diff --git a/rust/tcl-compiler/src/analyser/scope.rs b/rust/tcl-compiler/src/analyser/scope.rs
+index 139dc6bf75..068d22f185 100644
+--- a/rust/tcl-compiler/src/analyser/scope.rs
++++ b/rust/tcl-compiler/src/analyser/scope.rs
+@@ -1631,8 +1631,12 @@ impl Analyser {
+             };
+             let point = self.head_identities.invocation_at_source("", offset);
+             let reference = match invocation.lookup {
+-                crate::signature_scan::types::SignatureCommandLookup::ConsumedName { .. }
+-                | crate::signature_scan::types::SignatureCommandLookup::PossibleConsumedName {
++                // A unanimously consumed name is looked up by this consuming
++                // command's handler, so the receipt is issued at its site.
++                crate::signature_scan::types::SignatureCommandLookup::ConsumedName { .. } => {
++                    point.command_reference(&invocation.name)
++                }
++                crate::signature_scan::types::SignatureCommandLookup::PossibleConsumedName {
+                     ..
+                 } => point
+                     .lookup_command_word(&invocation.name)
+@@ -1677,14 +1681,26 @@ impl Analyser {
+                     .original_source_name_key_at_span(invocation.range, config, rules, policy)
+                     .map(crate::signature_scan::scope::SignatureSourceNameInput::OriginalWord);
+             }
+-            if invocation.original_lookup.is_none() && invocation.lookup.is_execution_site() {
+-                invocation.original_lookup = invocation
+-                    .original_name_input
+-                    .as_ref()
+-                    .and_then(
+-                        crate::signature_scan::scope::SignatureSourceNameInput::original_word_key,
+-                    )
+-                    .and_then(|key| binding.original_static_command_lookup(key));
++            if invocation.original_lookup.is_none() {
++                let key = invocation.original_name_input.as_ref().and_then(
++                    crate::signature_scan::scope::SignatureSourceNameInput::original_word_key,
++                );
++                // A head is looked up at its own invocation; a unanimously
++                // consumed name operand at its consuming command, after argv.
++                invocation.original_lookup = match invocation.lookup {
++                    crate::signature_scan::types::SignatureCommandLookup::InvocationHead => {
++                        key.and_then(|key| binding.original_static_command_lookup(key))
++                    }
++                    crate::signature_scan::types::SignatureCommandLookup::ConsumedName {
++                        ..
++                    } => key.and_then(|key| binding.original_consumed_command_lookup(key)),
++                    crate::signature_scan::types::SignatureCommandLookup::PossibleConsumedName {
++                        ..
++                    }
++                    | crate::signature_scan::types::SignatureCommandLookup::DeferredReference => {
++                        None
++                    }
++                };
+             }
+         }
+     }
+diff --git a/rust/tcl-compiler/src/analyser/types.rs b/rust/tcl-compiler/src/analyser/types.rs
+index 2a17ef4579..1a71286b4c 100644
+--- a/rust/tcl-compiler/src/analyser/types.rs
++++ b/rust/tcl-compiler/src/analyser/types.rs
+@@ -5645,6 +5645,123 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
+         assert_eq!(lookup.candidates()[0][0].simple.as_bytes(), b"p");
+     }
+ 
++    #[test]
++    fn substituted_heads_and_consumed_names_retain_original_lookup() {
++        // naming.source.original-command-lookup
++        // tclsh 8.6.18 / 9.0.4: each `greet` below runs (or, for `info body`,
++        // names) the procedure declared at offset 0.
++        let declaration = "proc greet {} { return hi }\n";
++        for dialect in ["tcl8.6", "tcl9.0"] {
++            for (use_site, count) in [
++                ("greet\ngreet\n", 2),
++                ("puts [greet]\nputs [greet]\n", 2),
++                ("set a [greet]\n", 1),
++                ("puts [list [greet] x]\n", 1),
++                ("set a \"<[greet]>\"\n", 1),
++                ("info body greet\n", 1),
++                ("puts [info body greet]\n", 1),
++            ] {
++                let source = format!("{declaration}{use_site}");
++                let result = crate::analyser::Analyser::new().analyse(&source, dialect);
++                let target = result
++                    .original_procedure_declarations()
++                    .find(|declaration| declaration.declaration_site().offset == 0)
++                    .unwrap();
++                let rows = result
++                    .command_invocations
++                    .iter()
++                    .filter(|invocation| {
++                        invocation.name == "greet"
++                            && invocation.range.start() >= declaration.len() as u32
++                    })
++                    .collect::<Vec<_>>();
++                assert_eq!(
++                    rows.iter()
++                        .filter(
++                            |row| crate::source_graph::invocation_targets_declaration_in(
++                                &source, &result, &source, &result, row, target, false
++                            )
++                        )
++                        .count(),
++                    count,
++                    "{dialect}: {use_site:?}"
++                );
++            }
++        }
++    }
++
++    #[test]
++    fn completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups() {
++        // naming.source.closed-leaf-handler-completion
++        // The completed command world is the world after the document runs
++        // to normal completion: a command that may raise (`puts`, `list`
++        // arity) only adds a path that never reaches it. `exit` or an
++        // unknown command keeps it withheld.
++        let declaration = "proc greet {} { return hi }\n";
++        for dialect in ["tcl8.6", "tcl9.0"] {
++            for (use_site, completed) in [
++                ("", true),
++                ("greet\ngreet\n", true),
++                ("puts hi\n", true),
++                ("puts [greet]\nputs [greet]\n", true),
++                ("set a [list [greet]]\n", true),
++                ("set a [string length x]\n", true),
++                ("missing_command\n", false),
++                ("puts [missing_command]\n", false),
++                ("exit 0\n", false),
++            ] {
++                let source = format!("{declaration}{use_site}");
++                let result = crate::analyser::Analyser::new().analyse(&source, dialect);
++                assert_eq!(
++                    result
++                        .retained_command_realm()
++                        .and_then(
++                            crate::realm::CommandBindingRealm::original_completed_command_world
++                        )
++                        .is_some(),
++                    completed,
++                    "{dialect}: {use_site:?}"
++                );
++                // Every command of the body keeps its own original lookup
++                // however often, and from wherever, the body is entered.
++                assert!(
++                    result
++                        .command_invocations
++                        .iter()
++                        .filter(|invocation| invocation.name == "return"
++                            && invocation.range.start() < declaration.len() as u32)
++                        .all(|invocation| invocation.original_lookup.is_some()),
++                    "{dialect}: {use_site:?}"
++                );
++            }
++        }
++    }
++
++    #[test]
++    fn crlf_class_method_bodies_analyse_without_lexer_panics() {
++        // A Windows document: every line ends in CR LF, and the method body
++        // reads `$label` inside a quoted word.
++        let source = concat!(
++            "oo::class create Widget {\n",
++            "    superclass WidgetBase\n",
++            "    variable label\n",
++            "    constructor {text} {\n",
++            "        set label $text\n",
++            "    }\n",
++            "    method render {} {\n",
++            "        puts \"widget $label\"\n",
++            "    }\n",
++            "}",
++        )
++        .replace('\n', "\r\n");
++        for dialect in ["tcl8.6", "tcl9.0"] {
++            for text in [source.clone(), format!("{source}\r\n")] {
++                let result = crate::analyser::Analyser::new().analyse(&text, dialect);
++                assert!(result.all_classes.contains_key("::Widget"), "{dialect}");
++            }
++        }
++    }
++
+     #[test]
+     fn advisory_invocation_and_unknown_body_scope_cannot_issue_source_names() {
+         let invocation =
+diff --git a/rust/tcl-compiler/src/command_binding/declaration_layout.rs b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+index bee260d4d3..dd043fae1a 100644
+--- a/rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+@@ -2487,7 +2487,17 @@ impl SourceCommandBindings {
+         {
+             (entry, context.namespace_identity())
+         } else {
+-            if context.source_purpose != tcl_lexer::SourceSegmentationPurpose::WholeInput {
++            // A nested parser issues no frame. An immediately selected nested
++            // original script (a command substitution, an `expr` operand's
++            // `[…]`) still runs in this root frame and namespace, so it keeps
++            // the root entry only for its own genuine original vector.
++            // Conditional/future bodies and materialised text never qualify.
++            if context.source_purpose != tcl_lexer::SourceSegmentationPurpose::WholeInput
++                && (context.body_entry != super::SourceBodyEntryPurpose::Selected
++                    || origin
++                        .original_lexical_command(words.words(), offset, context.config)
++                        .is_none())
++            {
+                 return;
+             }
+             let Some(namespace) = root_diagnostic_namespace(state, &context.namespace_identity())
+diff --git a/rust/tcl-compiler/src/command_binding/original_math_function.rs b/rust/tcl-compiler/src/command_binding/original_math_function.rs
+index 30f6926c79..b745f32a17 100644
+--- a/rust/tcl-compiler/src/command_binding/original_math_function.rs
++++ b/rust/tcl-compiler/src/command_binding/original_math_function.rs
+@@ -1134,4 +1134,30 @@ mod tests {
+             assert_eq!(calls[0].bytes(), b"abs");
+         }
+     }
++
++    #[test]
++    fn original_math_occurrences_cover_expressions_in_command_substitutions() {
++        // Implementation contract: naming.expression.original-function-navigation
++        // docs/design/analysis/name-resolution-proofs/original-function-navigation.md
++        // tclsh 8.5-9.1 call `tcl::mathfunc::custom` once for each nested
++        // `expr` below (`hit=4`).
++        for name in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
++            for nested in [
++                "set x [expr {custom(3)}]",
++                "puts [expr {custom(3)}]",
++                "set y \"a[expr {custom(3)}]b\"",
++                "set z [list [expr {custom(3)}]]",
++            ] {
++                let source = format!("proc ::tcl::mathfunc::custom {{x}} {{return $x}}; {nested}");
++                let (_, registry, image, config, calls) = functions(&source, name);
++                let start = u32::try_from(source.rfind("custom(").unwrap()).unwrap();
++                let [call] = calls.as_slice() else {
++                    panic!("{name}: {nested}: {calls:?}");
++                };
++                assert_eq!(call.bytes(), b"custom", "{name}: {nested}");
++                assert_eq!(call.span(), Span::new(start, start + 6), "{name}: {nested}");
++                assert!(call.matches_source(&image, config, &registry));
++            }
++        }
++    }
+ }
+diff --git a/rust/tcl-compiler/src/command_binding/source_name_lookup.rs b/rust/tcl-compiler/src/command_binding/source_name_lookup.rs
+index b251409ef1..391f7cf352 100644
+--- a/rust/tcl-compiler/src/command_binding/source_name_lookup.rs
++++ b/rust/tcl-compiler/src/command_binding/source_name_lookup.rs
+@@ -359,9 +359,20 @@ impl SourceInvocationBinding {
+         key: &SignatureSourceNameKey,
+     ) -> Option<Vec<&super::declaration_layout::DeclarationLayoutObservation>> {
+         let site = self.invocation_site()?;
+-        if site.source.source_image() != key.source_image()
+-            || site.offset != key.original_word().group().span.start()
+-        {
++        if site.offset != key.original_word().group().span.start() {
++            return None;
++        }
++        self.original_site_name_rows(key)
++    }
++
++    /// Original declaration rows of this consuming command, independently of
++    /// which of its own written words carries the name.
++    fn original_site_name_rows(
++        &self,
++        key: &SignatureSourceNameKey,
++    ) -> Option<Vec<&super::declaration_layout::DeclarationLayoutObservation>> {
++        let site = self.invocation_site()?;
++        if site.source.source_image() != key.source_image() {
+             return None;
+         }
+         let rows = super::declaration_layout::original_declaration_layouts(
+@@ -680,6 +691,41 @@ impl SourceInvocationBinding {
+         self.original_command_lookup(tokens, &SignatureSourceNameInput::OriginalWord(key))
+     }
+ 
++    /// Original command-name operand consumed by this same invocation's
++    /// handler (`info body NAME`, `rename NAME …`). The name is looked up in
++    /// the consuming command's own retained table after its argv; the operand
++    /// must be a later complete written word of exactly this original vector.
++    /// This supplies lookup geometry only, never an invocation or dispatch.
++    #[must_use]
++    pub fn original_consumed_command_lookup(
++        &self,
++        key: &SignatureSourceNameKey,
++    ) -> Option<OriginalCommandLookup> {
++        let site = self.invocation_site()?;
++        if key.original_word().group().span.start() <= site.offset {
++            return None;
++        }
++        let rows = self.original_site_name_rows(key)?;
++        // Every observation must hold this exact written operand word.
++        if rows.iter().any(|row| {
++            crate::registry_invocation::original_native_compiler_words(
++                site.source.source_image(),
++                &row.words,
++                site.offset,
++                row.config,
++            )
++            .is_none_or(|native| {
++                !native
++                    .iter()
++                    .skip(1)
++                    .any(|word| word == key.original_word())
++            })
++        }) {
++            return None;
++        }
++        self.original_lookup_from_rows(&SignatureSourceNameInput::OriginalWord(key.clone()), rows)
++    }
++
+     /// Original static head lookup without manufacturing a command vector.
+     /// The complete retained word, source instance, configuration and actual
+     /// invocation site must agree with every original observation.
+@@ -950,8 +996,11 @@ fn original_home_scope(
+         {
+             Some(SignatureNamespaceScope::C(path.clone()))
+         }
++        // A body entered from several call sites joins their contexts at the
++        // shared point; the declaration row still owns its own known context.
+         SourceNamespaceKey::Authored(namespace) if namespace == "::" => {
+-            (binding.variable_context.namespace_known
++            ((binding.variable_context.namespace_known
++                || row.snapshot.state.source_variables.namespace_known)
+                 && row.snapshot.state.baseline.native_entry.is_none())
+             .then(|| SignatureNamespaceScope::root(Some(policy)))
+         }
+diff --git a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+index ad4d9921a1..8378e545ec 100644
+--- a/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
++++ b/rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs
+@@ -1351,10 +1351,11 @@ impl BodyWalk<'_, '_> {
+         if self.expressions(graph, &advice, &schema, depth).is_none() {
+             graph.widen(&native.words);
+         }
+-        if immediate
+-            && self
+-                .regions(graph, &advice, &schema, depth.checked_add(1)?)
+-                .is_none()
++        if !immediate {
++            self.member_catalogue_possible_bodies(graph, &advice, &schema, depth.checked_add(1)?);
++        } else if self
++            .regions(graph, &advice, &schema, depth.checked_add(1)?)
++            .is_none()
+         {
+             // A `TclOO` definition script runs in a new frame in its definer's
+             // namespace (`::oo::define`, `::oo::objdefine` or a configurable
+@@ -1376,6 +1377,88 @@ impl BodyWalk<'_, '_> {
+         }
+         Some(())
+     }
++    /// A readonly member-body catalogue also follows possible same-invocation
++    /// bodies whose complete role layout is unavailable (a `switch` with a
++    /// computed subject or option). The parent operation keeps its recorded
++    /// uncertainty; every candidate runs on its own branch, so no candidate
++    /// effect reaches the parent walk. Deferred, frame-shifting, other-
++    /// interpreter and declaration bodies are never followed.
++    fn member_catalogue_possible_bodies(
++        &mut self,
++        graph: &AdviceGraph,
++        advice: &OriginalSourceCommandTransitionAdvice,
++        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
++        depth: usize,
++    ) {
++        if self.member_catalogue_body.is_none()
++            || self.inventory.is_some()
++            || self.source_body.is_some()
++            || depth > MAX_DEPTH
++            || schema.semantics.body_kind != tcl_registry::BodyKind::Plain
++            || schema.semantics.frame_effect.is_some()
++            || schema.semantics.traits.intersects(
++                tcl_registry::Traits::DEFERS_BODY | tcl_registry::Traits::DEFINES_PROCEDURE,
++            )
++            || schema.authored_source_procedure_arguments().is_some()
++            || schema.authored_source_definition_body_grammar().is_some()
++        {
++            return;
++        }
++        let Some(words) = boxed_region_words(self.context, advice) else {
++            return;
++        };
++        let interpreter = schema.semantics.body_interpreter.resolve_with(|ordinal| {
++            std::str::from_utf8(words.arguments().get(ordinal)?.literal_bytes()?).ok()
++        });
++        if interpreter != tcl_registry::world_effect::InterpreterScope::Current {
++            return;
++        }
++        let context = self.context.context;
++        let mut bodies = words
++            .conditional_source_case_bodies(context)
++            .filter(|case| {
++                case.matches_source(self.context.origin.source_image(), self.context.config)
++            })
++            .map(|case| case.bodies().to_vec())
++            .unwrap_or_default();
++        bodies.extend(words.source_script_bodies_for(
++            context,
++            crate::registry_invocation::OriginalSourceScriptPurpose::PotentialEvaluation,
++        ));
++        bodies.sort_by_key(|body| (body.content_span().start(), body.content_span().end()));
++        bodies.dedup_by_key(|body| body.content_span());
++        for body in bodies {
++            // Each candidate's own written operand must run before the
++            // invocation returns; a stored callback body never qualifies.
++            let same_invocation = words
++                .operands()
++                .iter()
++                .position(|operand| {
++                    operand.as_ref().and_then(
++                        crate::registry_invocation::source_structure::OriginalOperandSource::word,
++                    ) == Some(body.original_container())
++                })
++                .and_then(|argument| {
++                    words
++                        .with_source_schema(context, |schema| {
++                            schema.authored_source_script_timing_at(argument)
++                        })
++                        .flatten()
++                })
++                == Some(tcl_registry::ScriptTiming::SameInvocation);
++            if !same_invocation
++                || !body.matches_source(self.context.origin.source_image(), self.context.config)
++                || !body.matches_context(context)
++            {
++                continue;
++            }
++            let mut branch = graph.clone();
++            branch.record_uncertainty(advice.original_words());
++            // A malformed or over-deep candidate only withholds its own rows.
++            let _ = self.script(&mut branch, body.content_span(), depth);
++        }
++    }
++
+     fn original_body_class_handle(
+         &self,
+         graph: &AdviceGraph,
+diff --git a/rust/tcl-compiler/src/signature_scan/variable_name.rs b/rust/tcl-compiler/src/signature_scan/variable_name.rs
+index ff44257edc..03ec15065e 100644
+--- a/rust/tcl-compiler/src/signature_scan/variable_name.rs
++++ b/rust/tcl-compiler/src/signature_scan/variable_name.rs
+@@ -278,10 +278,15 @@ mod tests {
+             &arena, &image, config, part.span, rules, policy,
+         )
+         .expect("authentic Logical lexical root");
+-        assert_eq!(root.bytes(), "::ns::café".as_bytes());
++        // C Tcl's `$` scan stops at the first non-ASCII byte: tclsh 8.6.18,
++        // 9.0.4 and 9.1.0 read `$::ns::café($index)` as the scalar
++        // `::ns::caf` followed by literal `é(...)` (`can't read "::ns::caf":
++        // variable is array` when `::ns::caf` is an array). A Logical root
++        // keeps that same lexical extent; it is not an array reference.
++        assert_eq!(root.bytes(), "::ns::caf".as_bytes());
+         assert_eq!(root.source_image(), &image);
+         assert_eq!(root.lexer_config(), config);
+-        assert!(root.is_separate_array_root());
++        assert!(!root.is_separate_array_root());
+         assert!(root.static_index_input().is_none());
+         assert!(
+             SignatureSourceVariableRoot::from_original_executable(
+diff --git a/rust/tcl-compiler/src/signature_scan/walker.rs b/rust/tcl-compiler/src/signature_scan/walker.rs
+index 0727cedf3d..0d566c6f0b 100644
+--- a/rust/tcl-compiler/src/signature_scan/walker.rs
++++ b/rust/tcl-compiler/src/signature_scan/walker.rs
+@@ -1229,7 +1229,12 @@ mod tests {
+     #[test]
+     fn multiple_handlers_dispatch_correctly() {
+         let mut ctx = registry_ctx();
+-        ctx.registry = Some(tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
++        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
++        ctx.registry = Some(registry);
++        // The document's own tcl8.6 grammar, as `extract_signatures` derives
++        // it: a Tcl 9.0 escape grammar cannot spell an 8.6 command name.
++        ctx.config = tcl_lexer::LexerConfig::for_file_grammar(registry.profile().unwrap().grammar);
++        ctx.rules = tcl_syntax::word_rules::WordValueRules::from_config(&ctx.config);
+         scan(
+             "package require Tcl 8.6\nsource /abs/path.tcl\nproc bar {} {}",
+             None,
+diff --git a/rust/tcl-compiler/src/command_binding.rs b/rust/tcl-compiler/src/command_binding.rs
+index ddaa1f5c8a..fbffa05d37 100644
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -6434,6 +6435,49 @@ impl SourceOutcomes {
+         self.normal_rhs_read = None;
+     }
+ 
++    /// The completed command world is the world on the normal-completion
++    /// path of the whole document. A possible error never reaches it, so it
++    /// does not withhold that world; any other abrupt route (a top-level
++    /// `return`, `break`, exit or tail call) may also finish the document
++    /// elsewhere and keeps it withheld. Unknown normal-return
++    /// effects stay withheld by the opaque and observer premises.
++    fn completed_normal_world(&self) -> Option<Arc<ModuleCommandBindings>> {
++        use tcl_registry::completion_route::InvocationCompletionRoute as Route;
++        let normal = self.normal.as_ref()?;
++        // `Unknown` is a handler's uncatalogued residue beside a possible
++        // normal return (`puts`'s channel error). A document-finishing
++        // `return`, `exit` or tail call keeps its own route; a script whose
++        // text is unknown also marks the normal state opaque.
++        let errors_only = self.abrupt.iter().all(|(route, _)| {
++            matches!(
++                route,
++                Route::Tcl(tcl_registry::completion::CompletionCode::Error) | Route::Unknown
++            )
++        });
++        // `original_completed_command_world` separately refuses a withdrawn
++        // command world and unknown entry.
++        let closed = (self.normal_completion.is_some() && self.abrupt.is_empty())
++            || (errors_only
++                && !normal.has_opaque_domain()
++                && !normal.source_step_observed()
++                && !normal.source_execution_observed(None));
++        #[cfg(debug_assertions)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_COMMAND_TABLE").is_some() {
++            eprintln!(
++                "ORIGINAL_COMPLETED_NORMAL_WORLD complete={} routes={:?} opaque={} step={} observed={}",
++                self.normal_completion.is_some(),
++                self.abrupt
++                    .iter()
++                    .map(|(route, _)| route)
++                    .collect::<Vec<_>>(),
++                normal.has_opaque_domain(),
++                normal.source_step_observed(),
++                normal.source_execution_observed(None),
++            );
++        }
++        closed.then(|| Arc::new((**normal).clone()))
++    }
++
+     fn retain_complete_normal_evaluation(&mut self) {
+         self.normal_completion =
+             (self.normal.is_some() && self.abrupt.is_empty()).then_some(SourceNormalCompletion);
+@@ -7180,12 +7224,7 @@ impl SourceCommandBindings {
+         trace_source_original_queries(query_start, "walk", source.len());
+         #[cfg(any(test, debug_assertions))]
+         trace_source_lookup(lookup_start, "walk", source.len());
+-        if root_outcomes.normal_completion.is_some() && root_outcomes.abrupt.is_empty() {
+-            bindings.original_completed_root_state = root_outcomes
+-                .normal
+-                .as_ref()
+-                .map(|normal| Arc::new((**normal).clone()));
+-        }
++        bindings.original_completed_root_state = root_outcomes.completed_normal_world();
+         if let Some(normal) = root_outcomes.normal {
+             state = *normal;
+         }
+@@ -7383,46 +7421,12 @@ impl SourceCommandBindings {
+             .collect::<Vec<_>>()
+     }
+ 
+-    /// An uncalled procedure body is analysed as if called after the
+-    /// document finished running at top level (user decision
+-    /// 2026-10-21T08:20Z, "world after load"): its commands resolve in the
+-    /// procedure's namespace against the command world as it stands at the end
+-    /// of the script. That needs a normal completion of the whole document and
+-    /// this very end-of-script state; event handlers, receiver methods, future
+-    /// frames and bodies first installed by deferred outcomes keep their own
+-    /// conditional entries.
+-    fn uncalled_body_after_load(
+-        &self,
+-        root: &DeferredSourceBody,
+-        incoming: &ModuleCommandBindings,
+-    ) -> bool {
+-        std::env::var_os("ZZ_AFTER_LOAD").is_some()
+-            && root.event.is_none()
+-            && !root.receiver_method
+-            && root.future_frame.is_none()
+-            && self
+-                .original_completed_root_state
+-                .as_deref()
+-                .is_some_and(|completed| completed.same_state(incoming))
+-    }
+-
+     fn walk_deferred_entry(
+         &mut self,
+         root: &DeferredSourceBody,
+         incoming: &ModuleCommandBindings,
+         config: tcl_lexer::LexerConfig,
+         registry: &CommandRegistry,
+-    ) {
+-        self.walk_deferred_entry_with(root, incoming, config, registry, false);
+-    }
+-
+-    fn walk_deferred_entry_with(
+-        &mut self,
+-        root: &DeferredSourceBody,
+-        incoming: &ModuleCommandBindings,
+-        config: tcl_lexer::LexerConfig,
+-        registry: &CommandRegistry,
+-        after_load: bool,
+     ) {
+         #[cfg(any(test, debug_assertions))]
+         let _timing = root_owner_work::Timing::at(root_owner_work::Query::DeferredEntry);
+@@ -8420,12 +8419,7 @@ impl SourceCommandBindings {
+                 expression_source: None,
+             },
+         );
+-        if root_outcomes.normal_completion.is_some() && root_outcomes.abrupt.is_empty() {
+-            bindings.original_completed_root_state = root_outcomes
+-                .normal
+-                .as_ref()
+-                .map(|normal| Arc::new((**normal).clone()));
+-        }
++        bindings.original_completed_root_state = root_outcomes.completed_normal_world();
+         if let Some(normal) = root_outcomes.normal {
+             state = *normal;
+         }

@@ -1,9 +1,66 @@
 # bigip-lsp: finishing the BIG-IP portions of the LSP
 
 Branch `work`. User decision `user-decisions-20261021T1500Z.json`
-(`bigip_lsp_units`: finish the 35 BIG-IP/F5 units). Starting point: Luna-42
-(`luna-42-NOTES.md`, committed in f3aed2a40e) — 22 DONE, 3 ALREADY, 3 PARTIAL,
-7 REMAINING. This agent did not commit, push, stash, reset or check out; the
-coordinator's WIP snapshots carry the changes.
+(`bigip_lsp_units`: finish the 35 BIG-IP/F5 units now). Starting point: Luna-42
+(`luna-42-NOTES.md`, f3aed2a40e) — 22 DONE, 3 ALREADY, 3 PARTIAL, 7 REMAINING.
+This agent did not commit, push, stash, reset or check out; the coordinator's
+WIP snapshots carry the changes (2f69e5d60e and later).
 
-STATUS: in progress — this file is completed at hand-back.
+Totals now (35): DONE 32, ALREADY 3, PARTIAL 0, REMAINING 0 — with the
+verification gaps listed under "Not executed" (all of them disk-bound).
+
+## Units finished here
+
+| Unit | Change | Tests |
+|---|---|---|
+| lsp-ilx-navigation-sibling-input-transport | `ilx_navigation`: a sibling rule with no host-supplied analysis now has **no** facts on a document-analysis route (explicit, even for byte-identical text — previously identical bytes let the initiating analysis describe another file); only the explicit standalone source API (no analysis) manufactures its own input. New `sibling_rule_files(doc, ctx, call)` / `sibling_rule_files_from_registration(path, ctx)` tell a host which rule files a request reads, so it can supply each one's own input. `OpenDocuments::analysis` documented to cover closed files the host read for the request (text and analysis then describe the same bytes). | core lib `a_closed_sibling_rule_is_scanned_under_the_input_the_host_supplies` (new, PASS); `an_open_sibling_rule_is_scanned_under_its_own_analysis` (Luna-42's fixture fix, re-run, PASS); all 20 `ilx_navigation` tests PASS. |
+| lsp-server-ilx-per-document-source-and-candidate-ingress | Server `supply_sibling_rule_inputs`: after the anchor is found, every sibling rule file the relation reads that has no analysis is read through `read_document` (open buffer, or the closed file with its closed-file dialect) and analysed through `analysis_for` under its own input/config; text and analysis are recorded together. Wired into `ilx_references` (both ends) and `tcl-lsp.ilxReferences`. | e2e `a_closed_sibling_rule_is_scanned_under_its_own_input` (new: closed sibling of different bytes, both ends) — compiled-not-run, see below. |
+| lsp-code-actions-bigip-rename-command-routing | `bigip_code_actions(source, range, uri, version: Option<u32>)`: the partition rename carries the document version it was offered at as its one integer argument (`[uri, partition, version]` on the wire); the server passes `doc.version`. VS Code `renamePartition(uri, partition, offeredVersion)` uses the offered version (shared `partitionRenameVersion`), falling back to the invocation-time version only for a palette run; the server already refuses another version. | core `partition_rename_carries_the_version_it_was_offered_at` (new) + 16 `bigip_code_actions` PASS; server `code_action_handler_bigip_conf_offers_partition_rename` now asserts the exact `[uri, "Team1", 3]` arguments (strengthened; not run, see below); TS `bigipSourceActions.test.ts` +4 assertions in the existing partition test (no test-count change). |
+| lsp-completion-event-clause-template | Registry-owned partial layout (coordinator assigned the registry change to this agent): `CommandRegistry::irules_event_declaration_slot(spec, written, active, package_version) -> Option<IrulesDeclarationSlot>` beside `irules_event_declaration_shape`, reading the same layout (`IRULES_EVENT_CLAUSES` = priority then timing, each once; `IRULES_TIMING_SPELLINGS` = on/off/enable/disable, now also used by the shape and the file-level `timing` effect). Values come from the spec (row 1 clause keywords, row 2 timing values, version-gated); `None` for non-event-handler specs, across any non-literal word, or once the written words leave the layout; no body/frame entry. Dead `(3, …)`/`(4, …)` rows removed from `when.rs`. Offered timing spellings stay `enable`/`disable` — the forms `when.rs`'s hover synopsis quotes from <https://clouddocs.f5.com/api/irules/when.html> (`when EVENT timing enable\|disable { body }`); no repo KCS/probe evidence documents `on`/`off` as canonical, and the shape still accepts them. LSP `completion/original_context.rs` asks the slot instead of comparing the previous word with `timing`. | registry `declaration_slots_follow_the_declaration_layout`, `declaration_slots_agree_with_the_complete_shape` (new, PASS); `tcl-registry --lib`: 1874 pass / 20 fail — all 20 in CI-5201, 0 new. core `completion_residual`: new `when_clause_keywords_follow_the_registry_declaration_layout` PASS, and the two CI-5201 failures `when_keyword_tail_offers_priority_and_timing` / `when_timing_value_slot_gated_on_preceding_timing_keyword` now PASS after a narrow documented fixture correction: the four `when` tests analyse the source as `f5-irules` (`analyse_irules`) — the completion pipeline reads the document's own analysis, and an iRule analysed as `tcl8.6` has no `when`. Assertions unchanged except the new test, which filters to `EnumValue` items (command-name completion at a script position is a separate source). |
+| lsp-semantic-irules-original-input-overlay | Object overlay: with a supplied document analysis the spans come from `OriginalIrulesSourceContext::from_analysis(source, analysis, unit, analysis' own context)` — the caller's unit, or `analysis.original_optimiser_source_unit` — and never from a recreated default iRules input; no context, no spans. Without a supplied analysis the explicit standalone source API (`object_ref_spans`) is kept. Declaration heads: the process-wide `f5-irules` store fallback is removed and the procedure scan uses the document's lexer config. Reason it was dead weight: the heads are consulted only for a command the document's own registry marks `IS_EVENT_HANDLER` (`semantic_tokens/original.rs`), so the fallback could only ever add another registry's facts to an iRules document; a plain Tcl buffer never had an event role from it. | Baseline FIRST: `zz_irules_overlay_token_dump` (temporary, removed) dumped full token streams for 9 fixtures (5 `samples/irules`, 3 `for_screenshots` iRules, 1 inline) × {document+unit, document, standalone} before the change (recorded in `bigip-lsp-semantic-baseline.tsv`: 2505 tokens, 9 object tokens, plus per-fixture/mode before/after hashes) and after, from the build carrying the final iRules-document behaviour. 8 fixtures byte-identical in all modes; `inline` changed identically in all three modes, including the standalone path this change does not alter, from an all-`string` walk to full tokens (+6 object tokens) — a concurrent tree change (removing declaration heads can only remove `event` overrides, never turn a string walk into a script walk), and a superset. Permanent: `object_overlay_under_the_document_analysis_loses_nothing` (document with/without unit == standalone objects, non-vacuous), `event_declarations_read_the_documents_own_registry` — PASS. |
+| lsp-zed-tmsh-context-routing | Zed split: `languages/bigip/` (name `BIG-IP`, grammar `bigip`, `f5-bigip` environment, sends `tcl-bigip`, `.scf`) takes the configuration query and the `ltm rule` injection; `languages/tmsh/` is now the Tcl-grammar `TMSH` language for `f5-tmsh` sending `tcl-tmsh` (its query generated by `gen-zed-queries`, which picks Tcl-grammar environment directories automatically). `ZED_LANGUAGES` row added/changed; `extension.toml` generated blocks and comment, Zed README updated; `zed-query-check` reads each directory's grammar from its own `config.toml` instead of a hard-coded dir match. | see "Not executed" — `tmsh/highlights.scm` still needs `cargo xtask gen-zed-queries`. |
+| lsp-zed-apl-static-name-presentation, lsp-zed-tmsh-static-name-presentation, lsp-vscode-apl-static-name-projection, lsp-vscode-bigip-static-name-projection | New generator `cargo xtask gen-bigip-grammars [--check]` (`rust/xtask/src/gen_bigip_grammars.rs`) projects the `tcl-bigip` owners into Zed `apl`/`bigip` `highlights.scm` (and the grammars' own `queries/` copies) and VS Code `apl.tmLanguage.json`/`bigip.tmLanguage.json`: APL field types / validators / attributes / section keywords (`apl::tokens`, now `pub`; the parser's duplicate list removed), BIG-IP modules (`conf_tokens::MODULES`, now the 16 the generated schema dispatches — `analytics`, `api-protection`, `vcmp` added, so the semantic tokens type their headers too), keyed references (`conf_tokens::KEYED_REFERENCES`, table replacing the `match`), monitor-expression words (`monitor_expression::GRAMMAR_WORDS`, now used by its parser). TextMate typed-reference scopes are read from the `package.json` scope table (`editor_extensions::bigip_token_scope`). Behaviour changes, all toward the server: TextMate typed keys follow the server's key table (adds `last-hop-pool`/`snatpool`/`default-pool`/`defaults-from`/`vlan-group`; drops `persistence` and `interface`, which the server does not key — `interface` in `net route` names a VLAN/tunnel); Zed paints a keyed bare value `@type` and leaves the key `@property` (it was `@keyword`, which the server never emits). Drift gate `xtask-gen-bigip-grammars` in `xtask-check` (CI `rust-check`), `check-generated`, `generate`, and `test-ext`'s generated-asset step. | xtask tests `committed_grammars_match_generated`, `rendering_is_idempotent`, `typed_reference_rules_use_the_semantic_token_scopes`, `owner_words_reach_the_shipped_files`; tcl-bigip `every_schema_module_opens_a_stanza_header`, `a_keyed_bare_value_takes_its_table_kind`; tcl-bigip-query `root_modules_are_the_configuration_modules`. `zed-query-check` (RAM target): the generated `apl/` and `bigip/` queries compile against their grammars. The committed files were rendered by an emulation of the generator (xtask could not be built) — see "Not executed". |
+
+## Verification of Luna-42's unverified items
+
+| Item | Result |
+|---|---|
+| core `--lib ilx_navigation` (fixture fix) | PASS (20/20 incl. new). |
+| core integration `bigip_code_actions` | 16/16 PASS. |
+| core integration `semantic_tokens` | 76 pass / 7 fail; the 7 (sslictcl/spectcl/TclOO definition-body keywords) are not in CI-5201 and are outside every path this work touches (no non-iRules registry has an `IS_EVENT_HANDLER` command; the object overlay is iRules-gated) — concurrent tree breakage. `bigip_conf_embedded_rule_body_ends_where_the_rule_parser_ends_it` PASS. |
+| core lib `semantic_tokens ilx_navigation completion code_actions bigip datagroup hover` | 627 pass / 175 fail (Luna-42: 478/135 on a smaller filter). No baseline run is possible on this shared tree; every failure was checked against the touched paths: none involve iRules overlays, `when` declaration slots, ILX, BIG-IP code actions or datagroup rendering (`datagroup::inside_when_body` and `bigip` folding were already failing for Luna-42). The three `irules`-named completion failures fail on subcommand version gating, an event-facts build counter and Tk filtering. |
+| server `xc_*`, `dialect_for_open_reads_the_decoded_uri_basename`, BIG-IP code action, e2e `commands`/`bigip`/`issue1707` | NOT RUN — see below. |
+| clippy on changed crates | NOT RUN — see below. |
+
+## Not executed (all disk-bound; / reached 168 MB free during this run)
+
+1. `cargo xtask gen-zed-queries` (writes `editors/zed/languages/tmsh/highlights.scm`
+   for the new Tcl-grammar TMSH language — until then `zed-query-check` fails on
+   that one file, every other query compiles), `gen-editor-extensions`,
+   `gen-editor-configs`, `gen-bigip-grammars --check`, and the xtask unit tests
+   above. The `extension.toml` generated blocks and the six projected grammar
+   files were written by hand / by an emulation of the generator
+   (`scratchpad/bigip-lsp/tools/emulate_gen.py`); the drift gates are the check.
+2. tcl-lsp-server lib tests (`xc_`, `dialect_for_open_reads_the_decoded_uri_basename`,
+   `code_action_handler_bigip_conf_offers_partition_rename`) and e2e `commands`,
+   `bigip`, `issue1707_ilx_methods` (incl. the new closed-sibling test).
+3. clippy on tcl-bigip, tcl-bigip-query, tcl-registry, tcl-lsp-core,
+   tcl-lsp-server, xtask. `cargo check` / test builds of tcl-registry,
+   tcl-lsp-core (lib + 3 integration targets) were warning-free; rustfmt clean on
+   every changed Rust file; VS Code `tsc --noEmit` and prettier clean.
+4. Zed: a `bigip.conf` basename is not claimed by the Zed BIG-IP language —
+   `render_zed_language` writes extensions only (`.scf`); filenames would need a
+   generator change (Zed matches `path_suffixes` against whole names).
+5. `grammars/tree-sitter-bigip/grammar.js` keeps its own 15-module token list
+   (no `api-protection`); projecting it needs a parser regeneration
+   (`tree-sitter generate`) and a `rev` bump.
+
+## Shared files touched
+
+Makefile (gate wiring), Cargo.toml of xtask (+`tcl-bigip`; Cargo.lock gains one
+dependency line on the next build), `rust/tcl-registry/src/{registry.rs,events.rs,commands/irules/when.rs}`
+(assigned by the coordinator), `rust/tcl-lsp-core/src/semantic_tokens.rs`
+(iRules overlays + test module only), `rust/tcl-lsp-core/src/completion/original_context.rs`
+(event-handler branch only), `rust/tcl-lsp-server/src/lib.rs` (ILX routes,
+`supply_sibling_rule_inputs`, `DialectActionInputs.version`, one test),
+`rust/zed-query-check`.

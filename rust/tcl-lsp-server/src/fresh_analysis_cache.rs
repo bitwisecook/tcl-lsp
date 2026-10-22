@@ -131,10 +131,10 @@ impl FreshAnalysisCache {
     }
 
     fn touch(&mut self, uri: &Uri) {
-        if let Some(position) = self.order.iter().position(|queued| queued == uri) {
-            if let Some(queued) = self.order.remove(position) {
-                self.order.push_back(queued);
-            }
+        if let Some(position) = self.order.iter().position(|queued| queued == uri)
+            && let Some(queued) = self.order.remove(position)
+        {
+            self.order.push_back(queued);
         }
     }
 
@@ -182,7 +182,10 @@ mod tests {
             .fresh_analysis_seed(&uri, Arc::from("proc b {} {}\nb\n"), "tcl9.0".to_owned())
             .await
             .unwrap();
-        assert!(!Arc::ptr_eq(&other_dialect.analysis, &reconfigured.analysis));
+        assert!(!Arc::ptr_eq(
+            &other_dialect.analysis,
+            &reconfigured.analysis
+        ));
         assert_eq!(
             reconfigured.analyser_inputs_epoch,
             backend.diag_inputs_epoch()

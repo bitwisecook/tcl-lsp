@@ -6037,8 +6037,7 @@ c\uD800";
     /// unchanged).
     fn last_call_head(src: &str, word: &str) -> u32 {
         let line = format!("    {word}\n");
-        u32::try_from(src.rfind(&line).expect("call line present") + 4)
-            .expect("tiny test source")
+        u32::try_from(src.rfind(&line).expect("call line present") + 4).expect("tiny test source")
     }
 
     // Behaviour 1 — `namespace forget`.

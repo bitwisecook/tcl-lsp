@@ -13,6 +13,7 @@ use tcl_compiler::signature_scan::variable_name::SignatureSourceVariableRoot;
 use tcl_compiler::signature_scan::variable_symbol::{
     OriginalVariableSymbolReceiver, SignatureSourceVariableOccurrence, SignatureSourceVariableSlot,
 };
+use tcl_compiler::var_resolve::VariableExecutionFrame;
 use tcl_core_types::NameBytes;
 use tcl_lexer::{LexerConfig, SourceImage, Span};
 use tcl_syntax::naming::{NamePolicyProtocol, NativeVariableRootGeometry};
@@ -216,7 +217,12 @@ fn reference_candidates(
         ) {
             continue;
         }
-        let Some(root) = accessible_name(occurrence, namespace, frame.as_ref()) else {
+        let Some(root) = accessible_name(
+            occurrence,
+            namespace,
+            frame.as_ref(),
+            &analysis.original_variable_symbols,
+        ) else {
             continue;
         };
         let element = if arrays {
@@ -353,6 +359,7 @@ fn accessible_name(
     occurrence: &SignatureSourceVariableOccurrence,
     namespace: Option<&SignatureNamespaceScope>,
     frame: Option<&SourceOriginalVariableFrame>,
+    symbols: &[SignatureSourceVariableOccurrence],
 ) -> Option<NameBytes> {
     if let Some((owner, local)) = occurrence.original_local_alias() {
         return (Some(owner) == frame).then(|| local.clone());
@@ -369,8 +376,31 @@ fn accessible_name(
             simple,
         } => {
             let current = namespace?.context()?;
-            let bare =
-                frame.is_none() && namespace == Some(&SignatureNamespaceScope::C(home.clone()));
+            // A `namespace eval` activation (or the global frame) has no
+            // local table: an unqualified name there is a namespace variable.
+            let namespace_level = frame.is_none_or(|frame| {
+                matches!(
+                    frame.frame(),
+                    VariableExecutionFrame::Global
+                        | VariableExecutionFrame::Namespace(_)
+                        | VariableExecutionFrame::NamespaceActivation { .. }
+                )
+            });
+            let here = namespace == Some(&SignatureNamespaceScope::C(home.clone()));
+            // Tcl 8.x (before TIP 278) resolves an unqualified namespace-scope
+            // variable the current namespace does not hold in the global
+            // namespace; tclsh 8.6: `set flag 1; namespace eval foo {set flag}`
+            // answers 1, tclsh 9.0 raises `can't read "flag"`.
+            let global_fallback = namespace_level
+                && !here
+                && home.is_root()
+                && matches!(protocol, tcl_syntax::naming::NativeNameProtocol::C(version)
+                    if version.namespace_var_global_fallback())
+                && matches!(namespace, Some(SignatureNamespaceScope::C(current)) if !current.is_root()
+                    && !symbols.iter().any(|other| matches!(other.symbol().slot(),
+                        SignatureSourceVariableSlot::C { namespace: owner, simple: name }
+                            if owner == current && name == simple)));
+            let bare = namespace_level && (here || global_fallback);
             let input = if bare {
                 simple.as_bytes().to_vec()
             } else {

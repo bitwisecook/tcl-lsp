@@ -368,14 +368,17 @@ impl BytecodeCompileService {
             && policy.scope == ModuleEmissionScope::WholeModule)
             .then(|| fresh_document_input(registry, config, fresh_profile))
             .flatten();
-        let ir = match fresh_input {
+        let compiled = |ir| {
+            Self::finish_module_compile(ir, target, registry, config, profile, policy, zz_baseline)
+        };
+        match fresh_input {
             Some(input) if zz_baseline => {
                 let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
                     registry, &input, config, profile,
                 );
                 let mut options = entry.options();
                 options.compilation_scope = policy.scope;
-                lower_script_module_for_bytecode_with_options(
+                compiled(lower_script_module_for_bytecode_with_options(
                     target.source,
                     target.namespace,
                     registry,
@@ -383,17 +386,31 @@ impl BytecodeCompileService {
                     profile,
                     plain_command_dispatch,
                     Some(options),
-                )
+                ))
             }
-            Some(input) => Self::lower_fresh_document(
-                target,
-                registry,
-                config,
-                fresh_profile,
-                plain_command_dispatch,
-                input,
-            ),
-            None => lower_script_module_for_bytecode_with_options(
+            Some(input) => {
+                let fresh = |compiles: bool| {
+                    Self::lower_fresh_document(
+                        target,
+                        registry,
+                        config,
+                        fresh_profile,
+                        plain_command_dispatch,
+                        input.clone(),
+                        compiles,
+                    )
+                };
+                // Where the profile's catalogue cannot close a compiler the
+                // fresh interpreter would run (a command with no authored
+                // compiler descriptor), the document is evaluated command by
+                // command instead, as before: the same fresh world, without
+                // native compiler selection.
+                match compiled(fresh(true)) {
+                    Err(CompileError::NativeCompilationAdmission(_)) => compiled(fresh(false)),
+                    result => result,
+                }
+            }
+            None => compiled(lower_script_module_for_bytecode_with_options(
                 target.source,
                 target.namespace,
                 registry,
@@ -401,8 +418,20 @@ impl BytecodeCompileService {
                 profile,
                 plain_command_dispatch,
                 Self::source_analysis_options(policy, registry, config, profile),
-            ),
-        };
+            )),
+        }
+    }
+
+    /// Prepare, emit and admit a lowered module.
+    fn finish_module_compile(
+        ir: crate::ir::Module,
+        target: ScriptCompileTarget<'_>,
+        registry: &CommandRegistry,
+        config: LexerConfig,
+        profile: Option<&'static DialectProfile>,
+        policy: CompileSourcePolicy<'_>,
+        zz_baseline: bool,
+    ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
         let mut ir = crate::inlining::inline_reference_bodies(ir, registry, config, profile);
         ir.top_level_evaluation = target.evaluation;
         let prepared = prepare_cfg_context_bundle(&ir, registry);
@@ -439,7 +468,9 @@ impl BytecodeCompileService {
     /// Lower a whole document for a fresh interpreter of `profile`: the
     /// supplied-source entry over the complete `input`, retained as the
     /// lowering's own metadata so the procedures the document defines are
-    /// published as it runs them.
+    /// published as it runs them. `compiles` selects the script-object
+    /// compilers of `tclsh file.tcl`; without it each command is evaluated
+    /// directly.
     fn lower_fresh_document(
         target: ScriptCompileTarget<'_>,
         registry: &CommandRegistry,
@@ -447,6 +478,7 @@ impl BytecodeCompileService {
         profile: &'static DialectProfile,
         plain_command_dispatch: bool,
         input: crate::analyser::ResolvedAnalysisInput,
+        compiles: bool,
     ) -> crate::ir::Module {
         let entry = crate::command_binding::SourceAnalysisEntry::for_supplied_source(
             registry,
@@ -460,7 +492,7 @@ impl BytecodeCompileService {
         // (`Tcl_EvalObjEx` without `TCL_EVAL_DIRECT`): its commands take
         // their release's compilers rather than direct evaluation. A hosted
         // (F5) rule keeps the fresh rule loader's own unmeasured protocol.
-        if options.vendor_source_input.is_none() {
+        if compiles && options.vendor_source_input.is_none() {
             options.native_compilation.mode =
                 tcl_registry::native_compilation::NativeCompilationMode::BytecodeObject;
         }
@@ -3653,7 +3685,7 @@ mod tests {
                 let input = fresh_document_input(registry, config, profile);
                 let ir = input.map(|input| BytecodeCompileService::lower_fresh_document(
                     ScriptCompileTarget { source, namespace: "", evaluation: CommandEvaluation::Compiled },
-                    registry, config, profile, false, input));
+                    registry, config, profile, false, input, true));
                 eprintln!(
                     "RELPROBE {dialect} {source:?}: admission={:?} failure={:?} result={:?}",
                     ir.as_ref().map(|ir| ir.top_level.native_compilation_admission.as_ref().map(|a| (a.provider_required, a.failure.is_some()))),
