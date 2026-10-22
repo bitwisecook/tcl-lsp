@@ -1,0 +1,5 @@
+test a_command_that_does_not_parse_reports_where_in_the_file_it_is ... ok
+test a_long_path_is_cut_as_each_release_cuts_it ... ok
+test a_nested_error_logs_each_level_the_release_evaluates ... FAILED
+test a_sourced_script_adds_its_own_file_frame ... ok
+test an_uncaught_error_reports_its_trace_and_where_in_the_file ... FAILED

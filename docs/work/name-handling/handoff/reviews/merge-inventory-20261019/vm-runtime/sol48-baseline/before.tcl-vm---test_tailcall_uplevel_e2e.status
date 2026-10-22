@@ -1,0 +1,7 @@
+test argument_less_tailcall_cancels_a_scheduled_one ... ok
+test scheduled_tailcall_is_dropped_when_the_target_fails ... ok
+test scheduled_tailcall_survives_a_coroutine_suspension ... ok
+test tailcall_under_uplevel_2_runs_after_the_target_completes ... ok
+test tailcall_under_uplevel_global_is_rejected ... ok
+test tailcall_under_uplevel_replaces_the_target_procedure ... ok
+test tailcall_under_uplevel_resolves_in_the_target_namespace ... ok

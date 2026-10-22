@@ -6,6 +6,60 @@ Last updated: 2026-10-22T12:22Z
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
+## Resume
+
+The evidence is in the repository under
+`docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/`:
+
+- `seq.sh`: the runner. It builds, runs and deletes in one invocation, waits for ≥2 GB
+  free disk, writes `runs/<TAG>.<test>.full.log`, `.status` and `<TAG>.summary`, and
+  passes `$FILTER` to the binary.
+  Usage: `TMO=3000 seq.sh TAG crate:test …`.
+  The script hard-codes `S` (its log dir) to the old scratchpad; edit it to a writable
+  directory first.
+- `runs/*.status`, `runs/*.summary`: per-test pass/fail for every run this session.
+  `before.codegen_stamps.log` holds the codegen_stamps panics before my changes.
+- `sol48-baseline/`: the previous agent's "before" per-test statuses. Compare
+  `before.tcl-vm---lib.status` (1107/1387) with a new run to list every test that passed
+  before and fails now.
+- `zz_vmrt_probe.rs.txt`: the golden-render probe. To regenerate goldens:
+  1. Copy it to `rust/tcl-spectcl/tests/zz_vmrt_probe.rs`.
+  2. Build and run it with `ZZ_OUT=<dir>`.
+  3. Diff `<dir>/*.snap` against `rust/tcl-spectcl/tests/golden/`.
+  4. Classify the differences with `gold/reconstruct.py`, which needs the `xxhash` Python
+     module (I ran it with `/usr/bin/python3`, i.e. 3.13) and the `old.json`/`new.json`
+     files from `gold/structs.py <rev>`. Use `gold/nested_cont.py` for the fold set.
+  5. Copy only the accepted files.
+  6. Delete the probe.
+
+Current step: the thread-exit abort fix. Re-run it with:
+
+```
+cd /home/user/tcl-lsp && CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0 \
+  cargo test --locked -p tcl-vm --test thread_exit_retirement -j 2 -- --test-threads 1
+```
+
+To check that the test reproduces the bug, temporarily make `native_retirement::release`
+use `PENDING.with` again; the test binary should then die with SIGABRT.
+
+Then continue, in this order:
+
+1. The Jim/EDA targets:
+   `seq.sh after8 tcl-spectcl:jim_document tcl-spectcl:jim_own_surface tcl-spectcl:jim_surface_roster tcl-spectcl:jim_generation_zero tcl-spectcl:jim_seed_after_publish tcl-spectcl:eda_loadables tcl-spectcl:eda_environment_packs`
+2. `spec_corpus`:
+   `FILTER="--exact every_shipped_tclspec_loads_installs_and_analyses_against_corpus" THREADS=1 seq.sh after9 tcl-spectcl:spec_corpus`
+3. `codegen_stamps`:
+   `FILTER="--skip every_shape" seq.sh after9 tcl-spectcl:codegen_stamps`
+4. The runtime, with libtommath:
+   `cd runtime/rust && TCL_TOMMATH_DIR=../../tmp/tcl9.0.4/libtommath cargo test --locked --features engine`
+   Run one binary at a time where possible.
+5. The runtime without libtommath:
+   `unshare -m sh -c 'mount --bind <emptydir> tmp/tcl9.0.4/libtommath && cd runtime/rust && cargo test --locked'`
+6. tcl-vm, tcl-engine-tclvm and embed:
+   `seq.sh after10 tcl-vm:embed_api_e2e`, plus `cargo test -p tcl-vm --lib` and
+   `cargo test -p tcl-engine-tclvm --lib`, each built and run in one command.
+7. Clippy.
+
 ## In progress
 
 - **PRIORITY (from the lsp agent): process abort when a VM is dropped at thread exit.**

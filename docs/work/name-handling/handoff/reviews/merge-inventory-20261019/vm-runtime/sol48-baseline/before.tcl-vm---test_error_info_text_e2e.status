@@ -1,0 +1,5 @@
+test error_info_inline_body_command_keeps_trailing_whitespace ... ok
+test error_info_keeps_trailing_whitespace ... ok
+test error_info_names_an_apply_lambda ... ok
+test error_info_names_the_command_inside_a_substitution ... ok
+test error_info_truncates_long_lambda_and_procedure_names ... ok

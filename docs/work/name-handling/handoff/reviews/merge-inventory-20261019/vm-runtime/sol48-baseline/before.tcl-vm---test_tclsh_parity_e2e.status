@@ -1,0 +1,2 @@
+test the_expectations_match_each_tclsh ... ok
+test the_vm_reads_each_script_as_each_tclsh_does ... FAILED

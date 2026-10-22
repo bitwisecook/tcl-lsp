@@ -1,0 +1,2 @@
+test a_literal_index_reads_as_the_release_compiles_it ... FAILED
+test the_vectors_match_each_tclsh ... ok
