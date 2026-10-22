@@ -2,11 +2,48 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T21:16:46Z (runtime6 complete: alias+2TLS PASS, catch/Jim setup FAIL, unchanged OO abort; full guards exact/free lock; root functional source window; next6 prepared/no Cargo queued, VM71 pending; lint drafts separate)
+Last updated: 2026-10-22T21:38:37Z (off-tree4-path release followups ready: entered Boolean seam6, genuine F5 host manifest8, compiled fuzz fixture; static peers/dryapply only; heavy31=11baselineP2F+20absentbaseline unrerun; next6/VM71 unqueued)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Release-followup composition is frozen off-tree at
+`/tmp/vm-runtime-release-followups/proposal.patch`, SHA-256
+`ffc765698b3d2fee9c34b50247f525e6b13b83fc5484c6519ff96681062932cc`.
+Its manifest pins four paths and the original component hashes: condition API
+with6 controls `1c5701ba`, F5 core-context manifest with8 controls `9d861cda`,
+and the compiled malformed-expression fixture `4d5a474a`. Zero-fuzz read-only
+application checks pass. No canonical product file was written and no Cargo job
+queued. The F5 cause is an authentic selected C9 framework module compared with
+the user F5 pin. The candidate keeps the genuinely bootstrapped core's full pin
+separate, requires exact active-source/engine/core ownership and withdraws it
+on engine change; returned labels cannot renew it. Strict module and per-rung
+manifest checks remain. The fuzz fixture requires a real live-entry compiler,
+retained bytecode handle and compiled invocation; host or compile refusal fails
+the test and cannot satisfy its unchanged guest-error assertion. Compiler
+bounded static reviews found no remaining concrete blocker in these two
+candidates, and CCG's condition-production review was clean. These are not
+typing or execution results. Exact heavy acceptance remains31 original failures
+(11 baseline PASS-to-FAIL,20 absent-baseline) plus14 new controls. CCG's WASM
+consumer is separate; VM review requested an immediate pending-first-refusal
+guard before EvalCode guest dispatch and a nonexecution control.
+
+The narrow WASM8 release regression repair now has a VM-owned off-tree public
+condition seam at `/tmp/vm-runtime-condition-seam/condition-seam-with-controls.patch`
+(SHA-256 `93d66e2d9955a355cd974975b62387f1ecc72e5ec4d6fc65c362981f06133dd2`).
+`Vm::try_eval_expr_bool_bytes` returns full original `Completion<Value>` plus
+`Option<bool>` under one actual entered operation. The existing original
+Boolean-expression-result worker supplies truth only for `Code::Ok`; guest
+non-OK completions retain their result/options, and the first host refusal is
+separate. It installs no source compiler, Native frame, source-body or entry
+receipt. Six focused controls cover actual six-profile success, full completion
+preservation, Boolean guest failure, first-host separation, enclosing-operation
+retirement and missing compiler refusal. CCG owns the WASM ABI/frame/object
+consumer and reviews the operation/drop/error path. This draft was only syntax
+formatted off-tree: no typing, test, WASM8 repair or release-closure claim.
+Canonical product source remains held; no VM Cargo job has queued. Existing
+runtime6 successor and VM71 acceptance remain staged separately.
 
 Active tree is `/workspace/naming-migration-active/tcl-lsp`. Root reports the
 257-path coordinated batch applied, including VM47 lint and ASCII3 backend.

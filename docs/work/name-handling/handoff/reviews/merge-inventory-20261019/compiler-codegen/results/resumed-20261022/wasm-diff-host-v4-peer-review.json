@@ -1,0 +1,20 @@
+{
+  "utc": "2026-10-22T21:47:17+00:00",
+  "patch_sha256": "198512f9822988e79500407cfd0037013b1d888b829aa549d09e327643d54560",
+  "status": "Both bounded STATIC approvals complete; no type/Clippy/runtime/gate claim",
+  "vm-runtime": [
+    "Production actual Boolean-scope API f084 approved boundedly",
+    "All4completionfields/countedbytes/originalValues/firstErr protocol inspected",
+    "Concrete pendingEvalCode gap corrected in v3 and fixed actual-state control reviewed",
+    "v4SPDX+finiteactualadmission diagnostics tiny delta reviewed clean"
+  ],
+  "coordination-checks": [
+    "All9handler registrations use actual CodegenAbiImportId descriptors",
+    "OriginalVMtuple/all4fields/result/options Values retained; no second getter",
+    "Aligned disjoint actual-frame ranges and ownership validated before output writes",
+    "Pending guards precede EvalCode lookup/VM dispatch and constructor allocation; Host expression leaves outputs untouched",
+    "Cleanup retains first cause and releases object/completion/frame state; ABI field drops before VM",
+    "No concrete static blocker found"
+  ],
+  "remaining": "Original8heavy regressions and new5 host controls must execute after root coordinated typecheck; further authentic producer/admission declines may surface, never interpreter-fallback success."
+}

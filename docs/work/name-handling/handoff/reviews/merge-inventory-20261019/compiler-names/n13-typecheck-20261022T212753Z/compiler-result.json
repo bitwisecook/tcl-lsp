@@ -1,0 +1,118 @@
+{
+  "argv": [
+    "cargo",
+    "check",
+    "--locked",
+    "--keep-going",
+    "-p",
+    "tcl-compiler",
+    "--all-targets",
+    "--message-format=json"
+  ],
+  "cargo_exit": 101,
+  "disk_abort": false,
+  "error_count": 1,
+  "errors": [
+    {
+      "code": "E0560",
+      "message": "struct `source_analysis_entry::SourceAnalysisOptions<'_>` has no field named `region`",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 29052,
+          "byte_start": 29046,
+          "column_end": 23,
+          "column_start": 17,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+          "is_primary": true,
+          "label": "`source_analysis_entry::SourceAnalysisOptions<'_>` does not have this field",
+          "line_end": 765,
+          "line_start": 765,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 23,
+              "highlight_start": 17,
+              "text": "                region: None,"
+            }
+          ]
+        }
+      ],
+      "rendered": "error[E0560]: struct `source_analysis_entry::SourceAnalysisOptions<'_>` has no field named `region`\n   --> rust/tcl-compiler/src/command_binding/source_point_entry.rs:765:17\n    |\n765 |                 region: None,\n    |                 ^^^^^^ `source_analysis_entry::SourceAnalysisOptions<'_>` does not have this field\n    |\n    = note: available fields are: `source_point_entry`, `metadata_context`, `hosted_execution_context`, `execution_name_policy`, `logical_source_input` ... and 11 others\n\n"
+    }
+  ],
+  "logs_truncated": false,
+  "minimum_free_bytes": 12647419904,
+  "overlong_json_lines": 0,
+  "parse_errors": 0,
+  "passed": false,
+  "retained_bytes": 199967,
+  "retention_budget": 20971520,
+  "stderr_bytes": 863,
+  "stdout_bytes": 199104,
+  "termination_scope": "Only this Popen-created Cargo session/process group; no cleanup/deletion",
+  "utc": "2026-10-22T21:39:28.399465+00:00",
+  "warning_count": 2,
+  "warnings": [
+    {
+      "code": "unused_imports",
+      "message": "unused import: `super::*`",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 41342,
+          "byte_start": 41334,
+          "column_end": 17,
+          "column_start": 9,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 1048,
+          "line_start": 1048,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 17,
+              "highlight_start": 9,
+              "text": "    use super::*;"
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: unused import: `super::*`\n    --> rust/tcl-compiler/src/command_binding/conditional_source/region.rs:1048:9\n     |\n1048 |     use super::*;\n     |         ^^^^^^^^\n     |\n     = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default\n\n"
+    },
+    {
+      "code": "unused_imports",
+      "message": "unused import: `super::*`",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "primary_spans": [
+        {
+          "byte_end": 19493,
+          "byte_start": 19485,
+          "column_end": 17,
+          "column_start": 9,
+          "expansion": null,
+          "file_name": "rust/tcl-compiler/src/command_binding/conditional_source.rs",
+          "is_primary": true,
+          "label": null,
+          "line_end": 490,
+          "line_start": 490,
+          "suggested_replacement": null,
+          "suggestion_applicability": null,
+          "text": [
+            {
+              "highlight_end": 17,
+              "highlight_start": 9,
+              "text": "    use super::*;"
+            }
+          ]
+        }
+      ],
+      "rendered": "warning: unused import: `super::*`\n   --> rust/tcl-compiler/src/command_binding/conditional_source.rs:490:9\n    |\n490 |     use super::*;\n    |         ^^^^^^^^\n\n"
+    }
+  ]
+}

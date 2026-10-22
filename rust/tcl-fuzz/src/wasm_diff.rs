@@ -34,7 +34,8 @@
 //! interns a command/condition string read from the module's linear memory,
 //! `tcl_eval_code` runs it via `Vm::eval_source` (side effects — `puts` — flow to
 //! the captured sink) and returns the command's **completion code**, and
-//! `tcl_expr_bool` evaluates a condition via `Vm::eval_expr`. State (variables,
+//! condition evaluation uses the typed owned-completion ABI and the VM
+//! original Boolean-expression scope. State (variables,
 //! procs) persists across calls in the one `Vm`. Returning the real code lets the
 //! emitted control flow honour an `error`/`return`/`break`/`continue` a leaf
 //! command completes with — the same code the direct `tcl-vm` run acts on — so
@@ -49,14 +50,15 @@ use std::cell::RefCell;
 use std::io::Write;
 use std::rc::Rc;
 
-use tcl_compiler::cfg_builder::build_cfg_codegen_with_registry;
-use tcl_compiler::codegen::codegen_module;
 use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::compile_service::BytecodeCompileService;
-use tcl_compiler::lowering::lower_to_ir;
-use tcl_registry::CommandRegistry;
+use tcl_compiler::native_compilation_admission::{
+    NativeCompilationAdmissionPlan, NativeCompilationAdmissionScope, script_admission_plan,
+};
 use tcl_vm::{Code, Vm};
+
+mod host_abi;
 use wasmtime::{Caller, Config, Engine, Linker, Memory, MemoryType, Module, Store, Trap};
 
 /// Instruction budget for a single WASM-driven run. Generated programs have
@@ -101,6 +103,8 @@ impl Write for Capture {
 /// The wasmtime store's host data: the live interpreter, the string-handle
 /// table, the imported memory, and an error latch.
 struct HostState {
+    // Rust drops fields in declaration order: retained ABI values before their VM.
+    abi: host_abi::AbiState,
     vm: Vm,
     handles: Vec<String>,
     memory: Option<Memory>,
@@ -110,31 +114,62 @@ struct HostState {
 /// Build a fresh `Vm` wired with a compiler and an output capture.
 fn fresh_vm() -> (Vm, Rc<RefCell<Vec<u8>>>) {
     let buf = Rc::new(RefCell::new(Vec::new()));
+    let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
     let mut vm = Vm::with_native_core(
         Box::new(Capture(Rc::clone(&buf))),
         tcl_vm::standard_host(),
-        tcl_registry::model::resolve_environment("tcl9.0").unit_profile(),
+        profile,
         tcl_registry::special_vars::NativeBootstrapInputs::default(),
     )
     .expect("the Tcl 9.0 native core");
-    // The direct arm's modules are lowered against the default registry, the
-    // fallback profile's compile target.
-    vm.set_dialect_profile(tcl_dialect::DialectProfile::plain_tcl());
-    vm.set_compiler(Box::new(BytecodeCompileService::default()));
+    // Source compilation captures this actual interpreter's entry/profile.
+    vm.set_compiler(Box::new(BytecodeCompileService::for_profile(profile)));
     (vm, buf)
 }
 
 /// Run `src` directly on `tcl-vm`; return `(errored, stdout)`.
 fn run_direct(src: &str) -> Result<(bool, String), String> {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg_codegen_with_registry(&ir, false, &registry);
-    let asm = codegen_module(&cfg, &ir, &registry)
-        .map_err(|error| format!("direct bytecode artifact unavailable: {error}"))?;
     let (mut vm, buf) = fresh_vm();
-    let comp = vm.run_module(&asm);
+    let comp = vm
+        .try_eval_source(src)
+        .map_err(|error| format!("direct original source entry refused: {error:?}"))?;
     let out = String::from_utf8_lossy(&buf.borrow()).into_owned();
     Ok((comp.code == Code::Error, out))
+}
+
+/// Finite actual admission facts; never dump source images or authority graphs.
+fn native_admission_reason(
+    unit: &CompilationUnit,
+    admission: NativeCompilationAdmissionPlan<'_>,
+) -> String {
+    let kind = match admission {
+        NativeCompilationAdmissionPlan::NoRetainedObligation => "NoRetainedObligation",
+        NativeCompilationAdmissionPlan::HostScript(_) => "HostScript",
+        NativeCompilationAdmissionPlan::HostProcedure(_) => "HostProcedure",
+        NativeCompilationAdmissionPlan::RefuseMissingSource => "RefuseMissingSource",
+    };
+    let retained = unit
+        .ir_module
+        .top_level
+        .native_compilation_admission
+        .as_ref();
+    let provider = retained.is_some_and(|entry| entry.provider_required);
+    let source = retained.is_some_and(|entry| entry.source.is_some());
+    let failure = retained.is_some_and(|entry| entry.failure.is_some())
+        || unit
+            .ir_module
+            .top_level
+            .native_compilation_failure
+            .is_some();
+    let entry = &unit.ir_module.source_entry;
+    format!(
+        "WASM structured-control subject requires native admission: {kind}; provider_required={provider}; source={source}; failure={failure}; native_entry={}; retained_source={}; source_metadata={}; mode={:?}; frame={:?}",
+        entry.native_entry.is_some(),
+        unit.ir_module.retained_source_bindings.is_some(),
+        unit.ir_module.source_metadata_input.is_some(),
+        entry.native_compilation.mode,
+        entry.native_compilation.frame,
+    )
 }
 
 /// Outcome of a WASM-driven run.
@@ -153,23 +188,27 @@ fn run_wasm(engine: &Engine, src: &str) -> Result<WasmRun, String> {
     let wasm_bytes = {
         let src = src.to_owned();
         std::panic::catch_unwind(move || {
-            let registry = CommandRegistry::build_default();
-            let unit = CompilationUnit::build_for_with_config(
-                &src,
-                &registry,
-                false,
-                tcl_lexer::LexerConfig::for_profile(registry.profile()),
+            let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
+            let context = tcl_registry::model::ingress::context_for_profile(profile);
+            let registry = context.commands();
+            let unit = CompilationUnit::build_for_profile(&src, registry, false, profile);
+            let admission = script_admission_plan(
+                &unit.ir_module.top_level,
+                NativeCompilationAdmissionScope::Script,
             );
-            compile_wasm(
+            if admission != NativeCompilationAdmissionPlan::NoRetainedObligation {
+                return Err(native_admission_reason(&unit, admission));
+            }
+            Ok(compile_wasm(
                 &unit,
-                &registry,
+                registry,
                 WasmCompileOptions::hosted()
                     .for_eval_only_test_host()
                     .with_data_base(0),
             )
-            .to_bytes()
+            .to_bytes())
         })
-        .map_err(|_| "wasm codegen panicked".to_owned())?
+        .map_err(|_| "wasm codegen panicked".to_owned())??
     };
     let module = Module::new(engine, &wasm_bytes).map_err(|e| format!("module: {e}"))?;
 
@@ -181,6 +220,7 @@ fn run_wasm(engine: &Engine, src: &str) -> Result<WasmRun, String> {
             handles: Vec::new(),
             memory: None,
             errored: false,
+            abi: host_abi::AbiState::default(),
         },
     );
     // A generous 32-page (2 MiB) memory covers the data segments whether they
@@ -196,11 +236,7 @@ fn run_wasm(engine: &Engine, src: &str) -> Result<WasmRun, String> {
     linker
         .define(&store, "tcl", "memory", memory)
         .map_err(|e| format!("link mem: {e}"))?;
-    linker
-        .func_wrap("tcl", "tcl_obj_new_string", host_obj_new_string)
-        .and_then(|l| l.func_wrap("tcl", "tcl_eval_code", host_eval_code))
-        .and_then(|l| l.func_wrap("tcl", "tcl_expr_bool", host_expr_bool))
-        .map_err(|e| format!("link funcs: {e}"))?;
+    host_abi::register(&mut linker)?;
 
     let instance = linker
         .instantiate(&mut store, &module)
@@ -216,6 +252,9 @@ fn run_wasm(engine: &Engine, src: &str) -> Result<WasmRun, String> {
         }
     };
 
+    if let Some(cause) = store.data().abi.refusal_message() {
+        return Err(format!("original host refusal: {cause}"));
+    }
     let errored = trapped || store.data().errored;
     let out = String::from_utf8_lossy(&buf.borrow()).into_owned();
     Ok(WasmRun { errored, out, hung })
@@ -224,6 +263,9 @@ fn run_wasm(engine: &Engine, src: &str) -> Result<WasmRun, String> {
 /// `tcl_obj_new_string(ptr, len)` — intern a string read from linear memory.
 fn host_obj_new_string(caller: Caller<'_, HostState>, ptr: i32, len: i32) -> i32 {
     let mut caller = caller;
+    if caller.data().abi.has_refusal() {
+        return 0;
+    }
     let Some(mem) = caller.data().memory else {
         return -1;
     };
@@ -258,6 +300,9 @@ fn handle_str(st: &HostState, h: i32) -> String {
 /// `break`/`continue`/`return` escaping a command substitution is not an error.
 fn host_eval_code(caller: Caller<'_, HostState>, h: i32) -> i32 {
     let mut caller = caller;
+    if caller.data().abi.has_refusal() {
+        return host_abi::HOST_REFUSED;
+    }
     let cmd = handle_str(caller.data(), h);
     let st = caller.data_mut();
     match st.vm.eval_source(&cmd) {
@@ -267,6 +312,10 @@ fn host_eval_code(caller: Caller<'_, HostState>, h: i32) -> i32 {
             }
             i32::try_from(comp.code.as_int()).unwrap_or(1)
         }
+        Err(error) if error.is_host() => {
+            st.abi.retain_host_error(error);
+            host_abi::HOST_REFUSED // Before any guest completion dispatch.
+        }
         Err(e) => match e.guest_completion().map(|completion| completion.code) {
             // A non-`Error` code carried out of a substitution propagates as-is.
             Some(c) if c != Code::Error => i32::try_from(c.as_int()).unwrap_or(1),
@@ -275,23 +324,6 @@ fn host_eval_code(caller: Caller<'_, HostState>, h: i32) -> i32 {
                 1
             }
         },
-    }
-}
-
-/// `tcl_expr_bool(handle)` — evaluate the condition; `1` true, `0` false.
-fn host_expr_bool(caller: Caller<'_, HostState>, h: i32) -> i32 {
-    let mut caller = caller;
-    let expr = handle_str(caller.data(), h);
-    let st = caller.data_mut();
-    // A non-numeric / unparseable condition is an error, latched and reported
-    // as false (the run will mismatch on error status, not silently continue).
-    match st.vm.eval_expr(&expr).ok().and_then(|v| v.as_bool().ok()) {
-        Some(true) => 1,
-        Some(false) => 0,
-        None => {
-            st.errored = true;
-            0
-        }
     }
 }
 

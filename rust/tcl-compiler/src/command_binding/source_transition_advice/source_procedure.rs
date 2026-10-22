@@ -85,6 +85,32 @@ impl OriginalSourceProcedureCall {
         self.procedure.source_procedure(parent)
     }
 
+    /// Header in an actual dependency of this exact conditional region.
+    /// Physical publication eligibility remains a separate host obligation.
+    #[must_use]
+    pub fn declaration_in_region_dependency<'a>(
+        &self,
+        caller: &crate::analyser::AnalysisResult,
+        declaring: &'a crate::analyser::AnalysisResult,
+    ) -> Option<
+        &'a crate::signature_scan::original_name::SourceDeclarationMetadata<
+            crate::analyser::ProcDef,
+        >,
+    > {
+        self.matches_analysis(caller).then_some(())?;
+        let region = caller.original_source_region()?;
+        let point = region.bindings().original_inherited_source_entry()?;
+        (self.inherited_entry.as_ref() == Some(point)).then_some(())?;
+        point
+            .conditional_region()?
+            .owns_procedure_declaration(&self.procedure.declaration)
+            .then_some(())?;
+        region
+            .matches_declaration_dependency(declaring)
+            .then_some(())?;
+        self.procedure.source_procedure(declaring)
+    }
+
     fn matches_analysis(&self, analysis: &crate::analyser::AnalysisResult) -> bool {
         let (Some(input), Some(owner), Some(realm)) = (
             &self.input,
@@ -183,7 +209,11 @@ impl OriginalSourceProcedureCall {
             || self.inherited_entry.as_ref().is_some_and(|point| {
                 self.input.as_ref() == Some(point.input())
                     && point.input().lexer_config() == config
-                    && point.owns_ancestor_origin(self.procedure.declaration.site().source.as_ref())
+                    && (point
+                        .owns_ancestor_origin(self.procedure.declaration.site().source.as_ref())
+                        || point.conditional_region().is_some_and(|region| {
+                            region.owns_procedure_declaration(&self.procedure.declaration)
+                        }))
             }))
             && self.procedure.declaration.matches_context(context)
             && self
@@ -835,5 +865,23 @@ mod original_captured_call_controls {
         let analysis = Analyser::new().analyse(source, "tcl8.6");
         let offset = u32::try_from(source.rfind("two Z").unwrap()).unwrap();
         assert!(source_original_procedure_call_at(source, &analysis, offset).is_none());
+    }
+}
+
+#[cfg(test)]
+impl OriginalSourceProcedureCall {
+    pub(crate) fn trace_report_owner_pair(&self, other: &Self) {
+        eprintln!(
+            "REPORT_SUBJECT_USER issuer=NativeSource original_equal={} procedure_equal={} prefix_equal={} caller_equal={} uncertainty_equal={} future_equal={} input_equal={} analysis_owner_equal={} inherited_entry_equal={}",
+            self.original == other.original,
+            self.procedure == other.procedure,
+            self.prefix == other.prefix,
+            self.caller == other.caller,
+            self.uncertain_operations == other.uncertain_operations,
+            self.future_body == other.future_body,
+            self.input == other.input,
+            self.analysis_owner == other.analysis_owner,
+            self.inherited_entry == other.inherited_entry
+        );
     }
 }

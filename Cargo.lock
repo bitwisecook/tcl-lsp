@@ -4487,6 +4487,7 @@ dependencies = [
  "tcl-dialect",
  "tcl-lexer",
  "tcl-registry",
+ "tcl-runtime-api",
  "tcl-vm",
  "wasmtime",
 ]

@@ -487,7 +487,6 @@ impl super::SourceCommandBindings {
 
 #[cfg(test)]
 mod continuation_controls {
-    use super::*;
 
     #[test]
     fn finite_continuation_joins_same_parent_child_and_reuses_only_live_actual_owners() {

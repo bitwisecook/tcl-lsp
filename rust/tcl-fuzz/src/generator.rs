@@ -1744,24 +1744,27 @@ mod tests {
     /// fixing the engine must not break this test.
     const MALFORMED_MODES_WITH_OPEN_DIVERGENCE: &[Malformed] = &[Malformed::BadNumber];
 
-    /// Run `src` on `tcl-vm` in-process; `true` if it reported an error.
-    /// Mirrors `wasm_diff`'s direct arm. Output is discarded — only the
-    /// completion status matters here.
+    /// Compile `src` through the live native entry, then execute its bytecode.
+    /// Output is discarded; only a returned guest error satisfies the oracle.
     fn errors_on_our_engine(src: &str) -> bool {
-        let registry = tcl_registry::CommandRegistry::build_default();
-        let ir = tcl_compiler::lowering::lower_to_ir(src, &registry);
-        let cfg = tcl_compiler::cfg_builder::build_cfg_codegen_with_registry(&ir, false, &registry);
-        let asm = tcl_compiler::codegen::codegen_module(&cfg, &ir, &registry)
-            .expect("original source namespace");
+        let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
         let mut vm = tcl_vm::Vm::with_native_core(
             Box::new(std::io::sink()),
             tcl_vm::standard_host(),
-            tcl_registry::model::resolve_environment("tcl9.0").unit_profile(),
+            profile,
             tcl_registry::special_vars::NativeBootstrapInputs::default(),
         )
         .expect("the Tcl 9.0 native core");
-        vm.set_dialect_profile(tcl_dialect::DialectProfile::plain_tcl());
-        vm.run_module(&asm).code == tcl_vm::Code::Error
+        vm.set_compiler(Box::new(
+            tcl_compiler::compile_service::BytecodeCompileService::for_profile(profile),
+        ));
+        let handle = vm
+            .try_compile_function(src)
+            .expect("the actual Tcl 9.0 entry compiles the original script to bytecode");
+        vm.try_invoke_function(&handle)
+            .expect("compiled execution must not substitute a host refusal for a guest error")
+            .code
+            == tcl_vm::Code::Error
     }
 
     /// Whether `out` is one of the three statement forms

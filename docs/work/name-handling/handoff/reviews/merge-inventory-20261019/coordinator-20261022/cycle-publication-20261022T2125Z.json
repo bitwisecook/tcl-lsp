@@ -1,0 +1,13 @@
+{
+  "utc": "2026-10-22T21:27:31.763896+00:00",
+  "scheduled": "2026-10-22T21:25:37+00:00",
+  "source_snapshot": "76ba762303bfc0590f2633d5236561ffb74de6f4",
+  "published_snapshot": "fe05d8e3c8800cc2ad245c79ad4ce3a202399b2b",
+  "fresh_fetched_remote": "50c50133dac6700af11ff847abbeedffaaefcff2",
+  "product_tree_diff": [],
+  "normal_push": true,
+  "credential_recovery": "command-local standard gh credential helper; no credentials printed/stored",
+  "prior_push_failure": "Git had no credential helper and could not read HTTPS username",
+  "shallow": "true",
+  "next_due": "2026-10-22T21:55:37+00:00"
+}

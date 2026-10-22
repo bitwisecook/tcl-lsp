@@ -1,0 +1,72 @@
+{
+  "utc": "2026-10-22T21:37:59.613746+00:00",
+  "active_head": "148da10e6727f1e255d8cfff2998e5f9f4f7e8ad",
+  "live_guarded_run": "/tmp/compiler-names-n13-typecheck-20261022T212753Z",
+  "product_HOLD": true,
+  "no_mutations_until_final_guards_and_lock_release": true,
+  "queue": [
+    {
+      "owner": "compiler-names",
+      "patch": "/tmp/compiler-names-n13-purpose-controls-v2/proposal.patch",
+      "sha256": "ff976bc09450331239a9a390e86701c07a99d1520bb938d4e929844b7d73a7ae",
+      "status": "bounded staticreview3meaningfulcontrols +2unusedimports removed; untyped/unrun"
+    },
+    {
+      "owner": "compiler-names",
+      "patch": "/tmp/compiler-names-n13-source-options-test-fix.patch",
+      "sha256": "4539359b64e0f9677a0cfc81509d98e9e109bf47bef793efaab086fc4f096bc3",
+      "status": "oneobsoletefield removal; EnteredSource axis/allassertions retained; untyped/unrun"
+    },
+    {
+      "owner": "lsp",
+      "patch": "/tmp/lsp-minify-body-syntax-v3/proposal.patch",
+      "sha256": "94cced3f9a04067caf2ee2115976d9a0c00290f093694dc3a648a7d510ee2242",
+      "status": "8paths501diff, compilerboundedstaticreview examinedactualowner/currentnessseams; untyped/unrun"
+    },
+    {
+      "owner": "compiler",
+      "patch": "/tmp/compiler-report-first-refusal-v1/proposal.patch",
+      "sha256": "1eb3dcfb2790c8595911169b2d9748bb851f57b1cff57440a71635169ae43bcf",
+      "status": "TEMP diagnostic threefullEqassertions retained, helperstaticreviewclean; requireinverse/untoggle andno releaseacceptance"
+    },
+    {
+      "owner": "compiler-names",
+      "patch": "entry-unavailable54e83dd",
+      "status": "exactpath/fullSHA pending; LSP staticreviewclean; ordinaryentryearlyguard +actualnegativecontrols, not Native grant"
+    },
+    {
+      "owner": "lsp",
+      "patch": "/tmp/lsp-n13-coupled-stage6-host-v2/proposal.patch",
+      "sha256": "00517dc3a2c81a4937febab1d63078e2ec0181b6940a6da8d7145a1f45f5a832",
+      "status": "NOT applyready: genuine region\u2192child declarationproducer+consumer join pending; bounded delta58162review active"
+    },
+    {
+      "owner": "vm-runtime",
+      "patch": "/tmp/vm-runtime-condition-seam/condition-seam-with-controls-v2.patch",
+      "sha256": "1c5701ba1770de76dd40e5dde2d05265aa6d782d6a19a56bc2a2fbc662d9ed08",
+      "status": "production CCG staticreviewclean +6controls, untyped/unrun, latercoordinatedVM/CCGbatch"
+    },
+    {
+      "owner": "vm-runtime",
+      "patch": "/tmp/vm-runtime-f5-manifest/f5-core-manifest-with-controls.patch",
+      "sha256": "9d861cda87fd297af60fa3ac956f7bec9ed4f06becb6a90a21ee4d2f0485d8a1",
+      "status": "compilerboundedstaticreviewsolecoreissuer/fullpins clean +8controls, untyped/unrun"
+    },
+    {
+      "owner": "vm-runtime",
+      "patch": "/tmp/vm-runtime-fuzz-compiled-fixture/compiled-fixture.patch",
+      "sha256": "4d5a474aceed74b935173227ae9fcaf2f87e9b7e3d040378f20d0b0543dfb202",
+      "status": "compilerboundedrevieworiginalassertions+authenticcompiledroute, untyped/unrun"
+    },
+    {
+      "owner": "compiler-codegen",
+      "patch": "/tmp/ccg-wasm-diff-host-v2-candidate/proposal.patch",
+      "sha256": "5bb0b9eec59669e5489f70e33837da2d6432ab58d7c6d747feaa87f8386d86b9",
+      "status": "NOT applyready: VMreviewfoundEvalCode mustrefusebeforeVM/handleaccesswhenfirstHostpending; successor/control pending"
+    }
+  ],
+  "compiler_functional_plan": "/tmp/compiler-functional-current-focused-plan-v3.json",
+  "compiler_functional_plan_sha256": "1e7083acdd4ded3c4f8107d5ae5e66b934d40189ad01fdb0641f291530156ffb",
+  "planned_functional_counts": "27filters/48selected before temp3reportdiagnostics; noCargoGO",
+  "no_admissions": true
+}

@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-22T21:37:33+00:00",
+  "status": "Bounded STATIC production approval only; no typing/Clippy/runtime",
+  "production_patch": "/tmp/vm-runtime-condition-seam/condition-seam.patch",
+  "sha256": "f084c49659f9aedf4bb91211ee5410da96ecd8a2a730be19d1c0c56d4cd8b65c",
+  "checks": [
+    "Old try_eval_expr_bytes extract retains exact preparation/evaluation/result/completion logic and original depth/finish boundary order",
+    "New actual NativeOperationScope spans existing expression and PublicExpressionApi Boolean result worker, then checks actual currency",
+    "On early hostErr, later completion locals drop before scope; scope drops before host depth decrements and boundary settlement",
+    "First retained host cause wins through take_host_boundary_refusal fallback; nonOK original guest completion remains intact with None truth",
+    "Output values retain original objects/options/option_origin; consumer must use ready bool without a second getter",
+    "No source/Native compiler/frame/body authority granted by public host evaluation seam"
+  ],
+  "controls": "Read production only. Noted new assert_is_empty in93d66; VM successor1c5701 preserves actualgetter/evaluation via len comparison. All6controls untyped/unrun."
+}

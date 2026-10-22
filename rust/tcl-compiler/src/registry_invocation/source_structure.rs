@@ -4,6 +4,9 @@
 
 //! Readonly original Registry source structure shared by editor and host consumers.
 
+mod original_body_syntax;
+pub use original_body_syntax::OriginalBodySyntaxInventory;
+
 mod package_target_survey;
 pub use package_target_survey::{
     OriginalPackageIndexAdvertisement, OriginalPackageIndexControl,
@@ -1074,6 +1077,18 @@ pub(crate) fn selected_registry_words_in_original_image(
             registry, realm, &tokens,
         )
     })?;
+    selected_registry_words_from_tokens(&image, config, &tokens, segment, registry, assistance)
+}
+
+fn selected_registry_words_from_tokens(
+    image: &tcl_lexer::SourceImage,
+    config: tcl_lexer::LexerConfig,
+    tokens: &crate::ir::CommandTokens,
+    segment: &crate::segmenter::SegmentedCommand,
+    registry: &CommandRegistry,
+    assistance: crate::registry_invocation::RegistryInvocationAssistance,
+) -> Option<OriginalRegistryWords> {
+    let image = image.clone();
     let selected = assistance.unanimous_command_words()?;
     let roles = assistance.candidates.first().and_then(|first| {
         let roles = first

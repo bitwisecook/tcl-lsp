@@ -635,3 +635,42 @@ impl SourcePrivateTclNamespaceSubject {
             })
     }
 }
+
+#[cfg(test)]
+impl DiagnosticSubject {
+    pub(crate) fn trace_report_subject_pair(&self, other: &Self) {
+        match (self, other) {
+            (Self::UserSourceArity(left), Self::UserSourceArity(right)) => {
+                eprintln!(
+                    "REPORT_SUBJECT variant=UserSourceArity arity_equal={} obligations_equal={} original_equal={}",
+                    left.arity == right.arity,
+                    left.obligations == right.obligations,
+                    left.original == right.original
+                );
+                match (&left.original, &right.original) {
+                    (
+                        OriginalUserCallOwner::NativeSource(left),
+                        OriginalUserCallOwner::NativeSource(right),
+                    ) => left.trace_report_owner_pair(right),
+                    (
+                        OriginalUserCallOwner::Logical(left),
+                        OriginalUserCallOwner::Logical(right),
+                    ) => eprintln!(
+                        "REPORT_SUBJECT_USER issuer=Logical actual_receipt_equal={}",
+                        left == right
+                    ),
+                    _ => eprintln!("REPORT_SUBJECT_USER issuer_mismatch=true"),
+                }
+            }
+            (Self::ObjectSourceArity(_), Self::ObjectSourceArity(_)) => eprintln!(
+                "REPORT_SUBJECT variant=ObjectSourceArity actual_receipt_equal={}",
+                self == other
+            ),
+            _ => eprintln!(
+                "REPORT_SUBJECT same_variant={} actual_receipt_equal={}",
+                std::mem::discriminant(self) == std::mem::discriminant(other),
+                self == other
+            ),
+        }
+    }
+}

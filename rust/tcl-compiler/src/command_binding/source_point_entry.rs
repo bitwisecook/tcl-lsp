@@ -762,7 +762,6 @@ mod tests {
             },
             super::super::SourceAnalysisOptions {
                 compilation_scope: tcl_runtime_api::SourceCompilationScope::EnteredSource,
-                region: None,
                 ..options
             },
             super::super::SourceAnalysisOptions {
@@ -1140,5 +1139,49 @@ mod tests {
         assert_ne!(first, second);
         assert_eq!(interner.issue_in_bucket(a, 0), Some(first));
         assert_eq!(interner.issue_in_bucket(b, 0), Some(second));
+    }
+}
+
+#[cfg(test)]
+mod unavailable_entry_reborrow_controls {
+    use super::*;
+
+    #[test]
+    fn source_entry_reborrow_refuses_unavailable_ordinary_and_unknown_history() {
+        let source = "proc sample {} {puts VALUE}\n";
+        let ordinary = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let input = ordinary.resolved_input.as_ref().unwrap().clone();
+        let registry = input.borrowed_context_registry().commands();
+        let unknown_entry = Arc::new(super::super::SourceAnalysisEntry::unknown_history_for_test(
+            &input,
+        ));
+        let unknown = crate::analyser::Analyser::new()
+            .with_resolved_input(input.clone())
+            .with_source_analysis_entry(unknown_entry)
+            .analyse(source, "tcl8.6");
+        for (analysis, unknown_history) in [(ordinary, false), (unknown, true)] {
+            let entry = analysis
+                .original_source_analysis_entry(source, registry, None)
+                .unwrap();
+            assert_eq!(entry.options().unknown_entry, unknown_history);
+            assert!(entry.options().source_point_entry.is_none());
+            let mut unavailable = analysis.clone();
+            unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+                environment: "tcl8.6".to_owned(),
+                overlay: 1,
+            });
+            assert!(
+                unavailable
+                    .original_source_analysis_entry(source, registry, None)
+                    .is_none()
+            );
+            let mut wrong_config = analysis.clone();
+            wrong_config.body_lexer_config = None;
+            assert!(
+                wrong_config
+                    .original_source_analysis_entry(source, registry, None)
+                    .is_none()
+            );
+        }
     }
 }

@@ -3719,6 +3719,24 @@ impl AnalysisResult {
             && origin.is_current_analysis_context()
     }
 
+    /// Reborrow the actual retained source-build issuer after the complete
+    /// current source/input/Registry/evaluator request joins. Identity alone
+    /// supplies no token, invocation, body or edit permission.
+    pub(crate) fn original_optimiser_request_owner(
+        &self,
+        source: &str,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<&crate::compilation_unit::OriginalOptimiserSourceOrigin> {
+        if self.analysis_context_unavailable.is_some() {
+            return None;
+        }
+        crate::source_graph::current_analysis(source, self)?;
+        let input = self.resolved_input.as_ref()?;
+        let origin = self.optimiser_source_origin.as_ref()?;
+        origin.source_analysis_entry_for_current_analysis(source, registry, input, None)?;
+        Some(origin)
+    }
+
     /// Rebuild the actual retained source request once for an uncached report.
     /// The source/config/Registry and independently requested external evidence
     /// must still match. This supplies no Native entry or edit permission;
@@ -3749,6 +3767,9 @@ impl AnalysisResult {
         registry: &tcl_registry::CommandRegistry,
         external: Option<&crate::unit_scope::CallSiteEvidence>,
     ) -> Option<std::sync::Arc<crate::command_binding::SourceAnalysisEntry>> {
+        if self.analysis_context_unavailable.is_some() {
+            return None;
+        }
         crate::source_graph::current_analysis(source, self)?;
         let input = self.resolved_input.as_ref()?;
         let realm = self.retained_command_realm()?;
@@ -6486,5 +6507,36 @@ mod source_alias_coverage_tests {
             &tcl_lexer::SourceImage::document(dynamic_source),
             dynamic.body_lexer_config.unwrap()
         ));
+    }
+}
+
+#[cfg(test)]
+mod original_body_syntax_request_tests {
+    #[test]
+    fn equal_source_and_same_realm_do_not_replace_body_inventory_request() {
+        use crate::registry_invocation::source_structure::OriginalBodySyntaxInventory;
+        use std::sync::Arc;
+        let source = "proc sample {x} {if {$x <= 1} { return 1 }}\nsample 0\n";
+        let first = crate::analyser::Analyser::new()
+            .analyse(source, "tcl8.6")
+            .clone();
+        let other = crate::analyser::Analyser::new()
+            .analyse(source, "tcl8.6")
+            .clone();
+        let inventory = OriginalBodySyntaxInventory::capture(source, &first)
+            .expect("actual retained original body request");
+        let mut changed_request = first.clone();
+        changed_request
+            .optimiser_source_origin
+            .clone_from(&other.optimiser_source_origin);
+        assert!(Arc::ptr_eq(
+            first.retained_command_realm_arc().unwrap(),
+            changed_request.retained_command_realm_arc().unwrap(),
+        ));
+        assert!(!first.optimiser_source_origin.as_ref().unwrap().same_request_allocation(
+            changed_request.optimiser_source_origin.as_ref().unwrap(),
+        ));
+        assert!(!inventory.matches_analysis(source, &changed_request));
+        assert!(inventory.matches_analysis(source, &first));
     }
 }

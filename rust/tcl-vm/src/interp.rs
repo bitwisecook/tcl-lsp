@@ -105,6 +105,8 @@ mod native_error_stack;
 mod native_error_variables;
 mod native_event_context;
 mod native_execution_constants;
+#[cfg(test)]
+mod native_expression_bool_tests;
 mod native_index_lookup;
 mod native_interpreter_paths;
 mod native_introspection;
@@ -123,6 +125,8 @@ mod native_namespace_address_tests;
 #[cfg(test)]
 mod native_namespace_command_query_tests;
 mod native_namespace_names;
+#[cfg(test)]
+mod native_source_manifest_tests;
 pub(crate) use native_namespace_names::OriginalEnsembleNamespaceResult;
 #[cfg(test)]
 mod native_namespace_origin_tests;
@@ -1360,6 +1364,9 @@ pub struct InterpState {
     /// grammar, logical emulation and command availability. An absent explicit
     /// engine supplies no measured Native execution point; availability cannot set it.
     actual_engine_profile: Option<&'static tcl_dialect::DialectProfile>,
+    /// Full context of the genuinely bootstrapped core, independent of user source.
+    /// Selecting a profile cannot create or renew this core receipt.
+    native_core_pin: Option<tcl_registry::model::PinnedContext>,
     jim_object_context: RefCell<Option<Rc<crate::value::NativeJimObjectContext>>>,
     native_c_result: RefCell<Option<Value>>,
     /// Actual interpreter execution-environment Boolean constant roots.
@@ -2362,6 +2369,14 @@ impl Vm {
             self.advance_native_operation_context();
         }
         pin.restate(&self.pack_facts);
+        if self.native_core_pin.as_ref().is_some_and(|core| {
+            std::ptr::eq(core.profile, profile)
+                && self
+                    .actual_engine_profile
+                    .is_some_and(|engine| std::ptr::eq(engine, profile))
+        }) {
+            self.native_core_pin = Some(pin.clone());
+        }
         if pin.context != self.pin.context {
             // A unit admitted under the old context is checked again at its
             // next entry.
@@ -2456,6 +2471,7 @@ impl Vm {
         }
         self.advance_native_operation_context();
         self.actual_engine_profile = Some(profile);
+        self.native_core_pin = None;
         let recipe = self
             .actual_native_invocation_dialect()
             .native_error_objects_protocol();
@@ -3134,6 +3150,9 @@ impl Vm {
         );
         if let Some((_, _, protocol, inputs)) = native {
             vm.bootstrap_native_core(protocol, &inputs);
+            if vm.execution_refusal.is_none() {
+                vm.native_core_pin = Some(vm.pin.clone());
+            }
         } else {
             vm.bootstrap_globals();
         }
@@ -3631,6 +3650,7 @@ impl InterpState {
             framework_builtins: Vec::new(),
             active_native_profile: None,
             actual_engine_profile: None,
+            native_core_pin: None,
             jim_object_context: RefCell::new(None),
             native_c_result: RefCell::new(None),
             native_execution_booleans: None,
@@ -7774,6 +7794,10 @@ impl Vm {
         child.host = Rc::clone(&self.host);
         child.runtime_version = self.runtime_version;
         child.actual_engine_profile = self.actual_engine_profile;
+        child.native_core_pin = self.native_core_pin.clone();
+        if let Some(core) = &mut child.native_core_pin {
+            core.restate(&child.pack_facts);
+        }
         child.bootstrap = self.bootstrap.clone();
         child.logical_providers.quote = self.logical_providers.quote;
         child.logical_providers.expression_parse = self.logical_providers.expression_parse;
@@ -8926,7 +8950,10 @@ impl Vm {
     ) -> bool {
         manifest.is_none_or(|manifest| {
             !manifest
-                .refused_rungs(self.pin.identity())
+                .refused_rungs(match self.selected_source_identity() {
+                    Ok(identity) => identity,
+                    Err(_) => return false,
+                })
                 .intersects(asm.rungs())
         })
     }
@@ -8978,6 +9005,9 @@ impl Vm {
         let state = &mut *self.state;
         state.pack_facts = stamps;
         state.pin.restate(&state.pack_facts);
+        if let Some(core) = &mut state.native_core_pin {
+            core.restate(&state.pack_facts);
+        }
         self.bump_trace_deopt_epoch();
     }
 
@@ -18227,6 +18257,26 @@ impl Vm {
         Ok(module)
     }
 
+    fn selected_source_identity(&self) -> Result<&ArtefactIdentityManifest, TclError> {
+        let Some(active) = self.active_native_profile else {
+            return Ok(self.pin.identity());
+        };
+        if std::ptr::eq(active, self.pin.profile) {
+            return Ok(self.pin.identity());
+        }
+        let unavailable = || {
+            TclError::from(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original native core source context",
+            ))
+        };
+        let engine = self.actual_engine_profile.ok_or_else(unavailable)?;
+        let core = self.native_core_pin.as_ref().ok_or_else(unavailable)?;
+        if !std::ptr::eq(active, engine) || !std::ptr::eq(core.profile, engine) {
+            return Err(unavailable());
+        }
+        Ok(core.identity())
+    }
+
     /// Enforce the bytecode artifact's exact profile at every consumption
     /// boundary.  The permissive fallback profile is still a real compile
     /// target: bytecode lowered with its all-Tcl registry can contain an
@@ -18247,7 +18297,7 @@ impl Vm {
         let Some(manifest) = &module.manifest else {
             return Ok(());
         };
-        let held = self.pin.identity();
+        let held = self.selected_source_identity()?;
         match manifest
             .disagreements(held)
             .into_iter()
@@ -25058,16 +25108,59 @@ impl Vm {
         source: &[u8],
     ) -> Result<Completion<Value>, tcl_runtime_api::NativeExecutionError> {
         self.host_execution_depth += 1;
-        let completion = match self.prepare_expression_bytes(source).and_then(|node| {
+        let completion = self.expression_bytes_completion(source);
+        self.host_execution_depth -= 1;
+        self.finish_host_execution(completion)
+    }
+
+    /// Evaluate an expression and its Boolean result in one original operation.
+    ///
+    /// Truth is present only for a successful guest completion. Abrupt guest
+    /// completions retain their result and return options.
+    ///
+    /// # Errors
+    /// Returns the first typed host refusal independently of guest completion.
+    pub fn try_eval_expr_bool_bytes(
+        &mut self,
+        source: &[u8],
+    ) -> Result<(Completion<Value>, Option<bool>), tcl_runtime_api::NativeExecutionError> {
+        self.host_execution_depth += 1;
+        let result = (|| {
+            let scope = native_operation_currency::NativeOperationScope::enter_native(self)?;
+            let completion = self.expression_bytes_completion(source);
+            let (completion, truth) = if completion.code == Code::Ok {
+                match crate::expr::expression_boolean_for_vm(
+                    self,
+                    &completion.result,
+                    tcl_registry::native_boolean_truth::NativeBooleanExpressionResultProduction::PublicExpressionApi,
+                ) {
+                    Ok(truth) => (completion, Some(truth)),
+                    Err(error) => (crate::command::completion_from_tcl_error(self, error), None),
+                }
+            } else {
+                (completion, None)
+            };
+            scope.check_native(self)?;
+            Ok((completion, truth))
+        })();
+        self.host_execution_depth -= 1;
+        match result {
+            Ok((completion, truth)) => self
+                .finish_host_execution(completion)
+                .map(|completion| (completion, truth)),
+            Err(error) => Err(self.take_host_boundary_refusal().unwrap_or(error)),
+        }
+    }
+
+    fn expression_bytes_completion(&mut self, source: &[u8]) -> Completion<Value> {
+        match self.prepare_expression_bytes(source).and_then(|node| {
             let mut ops = ExprEval::new(self);
             let value = eval(&node, &mut ops)?;
             ops.finish_expression_result(value)
         }) {
             Ok(completion) => completion,
             Err(error) => crate::command::completion_from_tcl_error(self, error),
-        };
-        self.host_execution_depth -= 1;
-        self.finish_host_execution(completion)
+        }
     }
 
     /// Evaluate native expression bytes without projecting their source to Unicode.

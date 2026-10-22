@@ -25,6 +25,16 @@ impl std::fmt::Debug for OriginalSourcePointAdviceGraph {
     }
 }
 impl OriginalSourcePointAdviceGraph {
+    pub(in crate::command_binding) fn owns_procedure_declaration(
+        &self,
+        declaration: &Arc<super::OriginalSourceCommandTransitionAdvice>,
+    ) -> bool {
+        self.graph.cells.values().any(|cell| {
+            matches!(cell, super::AdviceCell::SourceProcedure(body)
+                if Arc::ptr_eq(&body.declaration, declaration))
+        })
+    }
+
     /// Only a retained conditional frame/selected restoration may call this.
     /// Naming coordinates remain source advice, never an entered Native frame.
     pub(in crate::command_binding) fn in_conditional_namespace(
@@ -269,5 +279,79 @@ impl OriginalSourceTransitionSeed {
         )?;
         (!query.refused.get() && query.sealed.get()).then_some(())?;
         query.graph.into_inner().map(Arc::new)
+    }
+}
+
+#[cfg(test)]
+mod conditional_region_purpose_controls {
+    use super::*;
+    use crate::analyser::{Analyser, AnalysisResult};
+    use crate::command_binding::OriginalSourceConditionalRegion;
+    use crate::registry_invocation::source_structure::original_project_source_load_at;
+
+    fn actual_region() -> (
+        AnalysisResult,
+        AnalysisResult,
+        OriginalSourceConditionalRegion,
+    ) {
+        let source = "source child.tcl; set after DONE";
+        let parent = Analyser::new().analyse(source, "tcl8.6");
+        let load = original_project_source_load_at(source, &parent, 0).unwrap();
+        let point = load.source_point_entry(&parent).unwrap();
+        let child = Analyser::new()
+            .analyse_with_source_point_entry("set child VALUE", "tcl8.6", &point)
+            .unwrap();
+        let chain = load
+            .conditional_continuation(&parent, &child)
+            .unwrap()
+            .source_regions(&parent, &child)
+            .unwrap();
+        assert_eq!(chain.regions().len(), 1);
+        (parent, child, chain.regions()[0].clone())
+    }
+
+    #[test]
+    fn conditional_region_purpose_refuses_a_genuine_whole_child() {
+        let (_, child, _) = actual_region();
+        assert!(child.original_source_region().is_none());
+        let input = child.resolved_input.as_ref().unwrap();
+        let context = input.borrowed_context_registry();
+        let realm = child.retained_command_realm().unwrap();
+        let seed = realm
+            .source_bindings_ref()
+            .original_source_transition_seed()
+            .unwrap();
+        assert!(
+            seed.prepare_for(context, OriginalSourceCataloguePurpose::CompleteProgram)
+                .is_some()
+        );
+        assert!(
+            seed.prepare_for(context, OriginalSourceCataloguePurpose::ConditionalRegion)
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn complete_program_purpose_refuses_a_genuine_conditional_region() {
+        let (parent, child, region) = actual_region();
+        let view = Analyser::new()
+            .analyse_source_region(&region, &parent, &child)
+            .unwrap();
+        assert!(region.matches_region_analysis(&view));
+        let input = view.resolved_input.as_ref().unwrap();
+        let context = input.borrowed_context_registry();
+        let realm = view.retained_command_realm().unwrap();
+        let seed = realm
+            .source_bindings_ref()
+            .original_source_transition_seed()
+            .unwrap();
+        assert!(
+            seed.prepare_for(context, OriginalSourceCataloguePurpose::ConditionalRegion)
+                .is_some()
+        );
+        assert!(
+            seed.prepare_for(context, OriginalSourceCataloguePurpose::CompleteProgram)
+                .is_none()
+        );
     }
 }

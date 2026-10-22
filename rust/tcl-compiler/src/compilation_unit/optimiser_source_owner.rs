@@ -285,6 +285,12 @@ impl OriginalInterproceduralTaintRequest {
 }
 
 impl OriginalOptimiserSourceOrigin {
+    /// Same retained source-build issuer, separate from value equality of the
+    /// immutable request and from the rebuilt CU's own token attachment.
+    pub(crate) fn same_request_allocation(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+
     pub(crate) fn analysis_context(&self) -> &crate::value_transfer::AnalysisContextKey {
         &self.0.analysis_context
     }

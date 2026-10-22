@@ -49,6 +49,15 @@ impl Hash for SourceConditionalRegionEntry {
     }
 }
 impl SourceConditionalRegionEntry {
+    pub(in crate::command_binding) fn owns_procedure_declaration(
+        &self,
+        declaration: &Arc<
+            crate::command_binding::source_transition_advice::OriginalSourceCommandTransitionAdvice,
+        >,
+    ) -> bool {
+        self.0.graph.owns_procedure_declaration(declaration)
+    }
+
     fn frame(&self) -> &SourceConditionalScriptFrame {
         &self.0.continuation.plan.frames[self.0.frame_index]
     }
@@ -533,6 +542,93 @@ fn walk_region_uncached(
 }
 
 impl OriginalSourceConditionalRegion {
+    /// Positive original calls from this exact issued region. This supplies no
+    /// whole-file catalogue or absence outside its authenticated commands.
+    #[must_use]
+    pub fn original_procedure_calls(
+        &self,
+        analysis: &crate::analyser::AnalysisResult,
+    ) -> Option<Vec<crate::command_binding::OriginalSourceProcedureCall>> {
+        self.matches_region_analysis(analysis).then_some(())?;
+        let bindings = self.bindings();
+        let owner = bindings.original_analysis_owner()?;
+        owner.matches(bindings, self.input()).then_some(())?;
+        let context = self.input().context_registry();
+        let tape = bindings.original_source_transition_advice_tape_for(
+            &context,
+            crate::command_binding::source_transition_advice::OriginalSourceCataloguePurpose::ConditionalRegion,
+        )?;
+        Some(
+            tape.native_procedure_calls()
+                .filter_map(|call| {
+                    let call = call.clone().with_input(
+                        self.input(),
+                        Arc::clone(owner),
+                        bindings.original_inherited_source_entry(),
+                    );
+                    let head = call.original_words().first()?;
+                    (self.owns_original_command_at(analysis, head.span().start())
+                        && call.matches_source_context(
+                            self.source_image(),
+                            self.input().lexer_config(),
+                            &context,
+                        ))
+                    .then_some(call)
+                })
+                .collect(),
+        )
+    }
+
+    pub(in crate::command_binding) fn matches_declaration_dependency(
+        &self,
+        analysis: &crate::analyser::AnalysisResult,
+    ) -> bool {
+        enum Dependency<'a> {
+            Region(&'a OriginalSourceConditionalRegion),
+            Continuation(&'a Arc<SourceConditionalContinuationPayload>),
+            Outcome(&'a OriginalSourceConditionalOutcome),
+        }
+        let mut pending = vec![Dependency::Region(self)];
+        for _ in 0..4096 {
+            let Some(dependency) = pending.pop() else {
+                return false;
+            };
+            match dependency {
+                Dependency::Region(region) => {
+                    if region.matches_region_analysis(analysis) {
+                        return true;
+                    }
+                    pending.push(Dependency::Continuation(&region.0.entry.0.continuation));
+                    if let Some(predecessor) = &region.0.entry.0.predecessor {
+                        pending.push(Dependency::Region(predecessor));
+                    }
+                }
+                Dependency::Continuation(payload) => {
+                    let continuation = OriginalSourceConditionalContinuation(Arc::clone(payload));
+                    if payload.point.matches_ancestor_analysis(analysis)
+                        || continuation.matches_child_analysis(analysis)
+                    {
+                        return true;
+                    }
+                    if let Some(outcome) = &payload.conditional_outcome {
+                        pending.push(Dependency::Outcome(outcome));
+                    }
+                }
+                Dependency::Outcome(outcome) => match &outcome.0 {
+                    ConditionalOutcomeKind::Regions(set) => {
+                        pending.push(Dependency::Continuation(&set.continuation));
+                        pending.extend(set.regions.iter().map(Dependency::Region));
+                    }
+                    ConditionalOutcomeKind::ThroughRegion(completed) => {
+                        pending.push(Dependency::Region(&completed.region));
+                        pending.push(Dependency::Outcome(&completed.completed));
+                    }
+                },
+            }
+        }
+        false
+    }
+
     /// Rejoin the exact parent and opaque child prefix retained by this region.
     /// The host must separately validate physical document and publication leases.
     #[must_use]
@@ -1045,7 +1141,6 @@ impl OriginalSourceConditionalRegion {
 
 #[cfg(test)]
 mod sequential_controls {
-    use super::*;
     use crate::registry_invocation::source_structure::original_project_source_load_at;
 
     #[test]
@@ -1147,5 +1242,169 @@ mod sequential_controls {
         let (_, root, _) = &prefixes[0];
         assert!(completed.unwrap().matches_prefix_analysis(root));
         assert!(root.original_source_region().is_none());
+    }
+}
+
+#[cfg(test)]
+mod declaration_dependency_controls {
+    #[test]
+    fn region_call_joins_only_the_actual_completed_child_declaration_owner() {
+        use crate::analyser::Analyser;
+        use crate::registry_invocation::source_structure::original_project_source_load_at;
+        let source = "source child.tcl; helper";
+        let parent = Analyser::new().analyse(source, "tcl8.6");
+        let load = original_project_source_load_at(source, &parent, 0).unwrap();
+        let point = load.source_point_entry(&parent).unwrap();
+        let child_source = "proc helper {} {}";
+        let child = Analyser::new()
+            .analyse_with_source_point_entry(child_source, "tcl8.6", &point)
+            .unwrap();
+        let continuation = load.conditional_continuation(&parent, &child).unwrap();
+        let regions = continuation.source_regions(&parent, &child).unwrap();
+        assert_eq!(regions.regions().len(), 1);
+        let region = &regions.regions()[0];
+        let caller = Analyser::new()
+            .analyse_source_region(region, &parent, &child)
+            .unwrap();
+        assert!(region.matches_region_analysis(&caller));
+        let offset = u32::try_from(source.rfind("helper").unwrap()).unwrap();
+        let calls = region.original_procedure_calls(&caller).unwrap();
+        let call = calls
+            .iter()
+            .find(|call| call.original_words()[0].span().start() == offset)
+            .unwrap();
+        assert!(
+            crate::registry_invocation::source_structure::source_original_procedure_call_at(
+                source, &caller, offset
+            )
+            .is_none()
+        );
+        let declaration = call
+            .declaration_in_region_dependency(&caller, &child)
+            .unwrap();
+        assert_eq!(declaration.metadata().name, "helper");
+        assert!(call.declaration_in_parent(&caller, &child).is_none());
+        assert!(call.declaration(&caller).is_none());
+
+        let foreign = Analyser::new()
+            .analyse_with_source_point_entry(child_source, "tcl8.6", &point)
+            .unwrap();
+        assert!(point.matches_child_analysis(&foreign));
+        assert!(!continuation.matches_child_analysis(&foreign));
+        assert!(
+            call.declaration_in_region_dependency(&caller, &foreign)
+                .is_none()
+        );
+        assert!(
+            call.declaration_in_region_dependency(&caller, &parent)
+                .is_none()
+        );
+        let mut unavailable = caller.clone();
+        unavailable.analysis_context_unavailable = Some(tcl_registry::model::OverlayMiss {
+            environment: "tcl8.6".to_owned(),
+            overlay: 1,
+        });
+        assert!(
+            call.declaration_in_region_dependency(&unavailable, &child)
+                .is_none()
+        );
+        let mut wrong_config = caller.clone();
+        wrong_config.body_lexer_config = None;
+        assert!(
+            call.declaration_in_region_dependency(&wrong_config, &child)
+                .is_none()
+        );
+        let mut unavailable_child = child.clone();
+        unavailable_child.body_lexer_config = None;
+        assert!(
+            call.declaration_in_region_dependency(&caller, &unavailable_child)
+                .is_none()
+        );
+    }
+}
+
+#[cfg(test)]
+mod foreign_completed_region_controls {
+    use super::*;
+    use crate::analyser::{Analyser, AnalysisResult};
+    use crate::registry_invocation::source_structure::{
+        OriginalProjectSourceLoad, original_project_source_load_at,
+    };
+
+    fn completed_tail(
+        source: &str,
+        parent: &AnalysisResult,
+        first: &OriginalProjectSourceLoad,
+        child: &AnalysisResult,
+    ) -> (
+        OriginalSourceConditionalRegion,
+        AnalysisResult,
+        OriginalSourceConditionalOutcome,
+    ) {
+        let pending = first
+            .conditional_continuation(parent, child)
+            .unwrap()
+            .source_regions(parent, child)
+            .unwrap();
+        assert!(!pending.complete());
+        assert_eq!(pending.regions().len(), 1);
+        let region = pending.regions()[0].clone();
+        let view = Analyser::new()
+            .analyse_source_region(&region, parent, child)
+            .unwrap();
+        assert!(region.matches_region_analysis(&view));
+        let offset = u32::try_from(source.find("source second").unwrap()).unwrap();
+        let second = original_project_source_load_at(source, &view, offset).unwrap();
+        let point = second.source_point_entry(&view).unwrap();
+        let second_child = Analyser::new()
+            .analyse_with_source_point_entry("", "tcl8.6", &point)
+            .unwrap();
+        let complete = second
+            .conditional_continuation(&view, &second_child)
+            .unwrap()
+            .source_regions(&view, &second_child)
+            .unwrap();
+        assert!(complete.complete());
+        let outcome = complete.normal_outcome().unwrap();
+        assert!(outcome.matches_prefix_analysis(&view));
+        (region, view, outcome)
+    }
+
+    #[test]
+    fn return_outcome_refuses_a_byte_equal_foreign_completed_region_owner() {
+        let source = "source first.tcl; source second.tcl; set after DONE";
+        let parent = Analyser::new().analyse(source, "tcl8.6");
+        let first = original_project_source_load_at(source, &parent, 0).unwrap();
+        let point = first.source_point_entry(&parent).unwrap();
+        let child = Analyser::new()
+            .analyse_with_source_point_entry("", "tcl8.6", &point)
+            .unwrap();
+        let (region, view, completed) = completed_tail(source, &parent, &first, &child);
+        let returned = region
+            .return_outcome(&parent, &child, &view, &completed)
+            .unwrap();
+        assert!(returned.matches_prefix_analysis(&parent));
+
+        // Keep the same parent and source point. A genuine second child analysis
+        // issues an independent attachment, despite its identical source bytes.
+        let other_child = Analyser::new()
+            .analyse_with_source_point_entry("", "tcl8.6", &point)
+            .unwrap();
+        let (other_region, other_view, other_completed) =
+            completed_tail(source, &parent, &first, &other_child);
+        assert_ne!(region, other_region);
+        assert!(!other_region.matches_region_analysis(&view));
+        assert!(other_completed.matches_prefix_analysis(&other_view));
+        assert!(!other_completed.matches_prefix_analysis(&view));
+        assert!(
+            other_region
+                .return_outcome(&parent, &other_child, &other_view, &other_completed)
+                .is_some()
+        );
+        assert!(
+            region
+                .return_outcome(&parent, &child, &view, &other_completed)
+                .is_none()
+        );
     }
 }

@@ -167,7 +167,7 @@ pub(crate) fn effective_argument_at(
     selected
 }
 
-fn from_source_words(
+pub(crate) fn from_source_words(
     words: tcl_compiler::registry_invocation::source_structure::OriginalRegistryWords,
 ) -> OriginalRegistryWords {
     OriginalRegistryWords {

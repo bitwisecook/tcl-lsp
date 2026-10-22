@@ -591,11 +591,18 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
     };
     let mut expressions = Vec::new();
     for command in &structure.commands {
-        let Some(words) =
-            tcl_compiler::registry_invocation::source_structure::source_registry_words(
-                source, analysis, command,
-            )
-        else {
+        let selected = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+            source, analysis, command,
+        );
+        let selected = if selected.as_ref().is_none_or(|words| {
+            !matches!(words.source(), tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::Selected)
+                || !words.operands_preserve_source_lookup()
+        }) {
+            structure.compiler_body_syntax.as_ref().and_then(|inventory| {
+                inventory.words(source, analysis, command)
+            })
+        } else { selected };
+        let Some(words) = selected else {
             continue;
         };
         for &(argument, role) in words.roles().unwrap_or_default() {
@@ -625,7 +632,9 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
                 super::strip_expr_whitespace_with_script_compaction(inner, env, 0, false);
             let Some(proof) = tcl_compiler::registry_invocation::source_structure::original_expression_syntax_gap_compaction(
                 source, analysis, command, argument, &compacted_candidate,
-            ) else { continue; };
+            ).or_else(|| structure.compiler_body_syntax.as_ref().and_then(|inventory| {
+                inventory.expression_gaps(source, analysis, command, argument, &compacted_candidate)
+            })) else { continue; };
             if !proof.matches_source(&image, config) || !proof.matches_registry(context.commands())
             {
                 return Err(MinifyRefusal::SourceCorrespondenceChanged);
@@ -2102,6 +2111,27 @@ mod tests {
                 result
                     .refusals
                     .contains(&MinifyRefusal::MissingKeywordSelectionContract)
+            );
+        }
+    }
+    #[test]
+    fn body_syntax_compaction_retains_changed_handler_and_observer_refusals() {
+        for source in [
+            "proc if {args} {return [lindex $args 0]}\nproc example {} {if { 3 + 4 } { puts NEVER }}\nputs [example]\n",
+            "proc example {x} {if {$x <= 1} { return 1 }}\nrename if native_if\nproc if {args} {return [lindex $args 0]}\nputs [example 0]\n",
+            "proc witness {args} {}\ntrace add execution if enter witness\nproc example {x} {if {$x <= 1} { return 1 }}\nexample 0\n",
+        ] {
+            let analysis = analyse(source, "tcl8.6");
+            let result = minify_with_analysis(source, &analysis, MinifyOptions::default());
+            let expected = if source.contains("{ 3 + 4 }") {
+                "{ 3 + 4 }"
+            } else {
+                "{$x <= 1}"
+            };
+            assert!(
+                result.source.contains(expected),
+                "{source} -> {}",
+                result.source
             );
         }
     }

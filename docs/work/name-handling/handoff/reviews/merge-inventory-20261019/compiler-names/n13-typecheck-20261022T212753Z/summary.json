@@ -1,0 +1,20 @@
+{
+  "cargo_exits": [
+    101
+  ],
+  "compiler_errors": 1,
+  "compiler_warnings": 2,
+  "head_after": "148da10e6727f1e255d8cfff2998e5f9f4f7e8ad",
+  "head_before": "148da10e6727f1e255d8cfff2998e5f9f4f7e8ad",
+  "passed": false,
+  "phases_completed": 1,
+  "provider_changes": [],
+  "retained_log_bytes": 199967,
+  "retention_cap_bytes": 20971520,
+  "scope": "Typecheck only, no tests or N13 functional admission. Compiler failure stops consumer phase. HEAD/index-only coordinator changes are recorded independently.",
+  "source_and_providers_unchanged": true,
+  "source_changes": [],
+  "source_count_after": 6531,
+  "source_count_before": 6531,
+  "utc": "2026-10-22T21:39:45.773280+00:00"
+}

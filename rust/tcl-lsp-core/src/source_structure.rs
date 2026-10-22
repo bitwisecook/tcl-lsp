@@ -45,6 +45,8 @@ pub(crate) struct SourceStructure {
     pub(crate) commands: Vec<SegmentedCommand>,
     pub(crate) bodies: Vec<Span>,
     pub(crate) scripts: Vec<(Span, u32)>,
+    pub(crate) compiler_body_syntax:
+        Option<tcl_compiler::registry_invocation::source_structure::OriginalBodySyntaxInventory>,
     // Refusal-only source contexts: none establishes an entered or new frame.
     pub(crate) caller_context_unavailable_bodies: Vec<Span>,
     definition_members:
@@ -1106,6 +1108,10 @@ impl SourceStructure {
         let mut structure = Self {
             root_commands: Vec::new(),
             commands: Vec::new(),
+            compiler_body_syntax: (purpose == CapturePurpose::SyntaxCompaction)
+                .then(|| analysis.and_then(|analysis| {
+                    tcl_compiler::registry_invocation::source_structure::OriginalBodySyntaxInventory::capture(source, analysis)
+                })).flatten(),
             bodies: Vec::new(),
             scripts: Vec::new(),
             caller_context_unavailable_bodies: Vec::new(),
@@ -1512,9 +1518,22 @@ impl SourceStructure {
         {
             return;
         }
-        let Some(words) =
-            crate::original_invocation::source_registry_words(source, analysis, command)
-        else {
+        let selected = crate::original_invocation::source_registry_words(source, analysis, command);
+        let selected = if purpose == CapturePurpose::SyntaxCompaction
+            && selected.as_ref().is_none_or(|words| {
+                !matches!(
+                    words.source,
+                    crate::original_invocation::OriginalRegistrySource::Selected
+                ) || !words.operands_preserve_source_lookup()
+            }) {
+            self.compiler_body_syntax
+                .as_ref()
+                .and_then(|inventory| inventory.words(source, analysis, command))
+                .map(crate::original_invocation::from_source_words)
+        } else {
+            selected
+        };
+        let Some(words) = selected else {
             return;
         };
         if purpose == CapturePurpose::SyntaxCompaction

@@ -514,6 +514,17 @@ impl SourceInvocationBinding {
         })
     }
 
+    /// Independent actual handler/observer/name-effect admission for an
+    /// already authenticated retained body compiler token vector.
+    pub(crate) fn original_registry_syntax_is_closed(
+        &self,
+        tokens: &CommandTokens,
+        registry: &CommandRegistry,
+    ) -> bool {
+        self.original_registry_syntax_envelope(tokens, registry)
+            .is_some()
+    }
+
     /// Exact lexical gaps under the selected quiet handler. Source-role
     /// admission belongs to the caller; no value or completion proof follows.
     pub(crate) fn original_expression_syntax_gaps(

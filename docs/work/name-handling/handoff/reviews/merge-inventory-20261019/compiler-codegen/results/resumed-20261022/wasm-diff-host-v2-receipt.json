@@ -1,0 +1,95 @@
+{
+  "utc": "2026-10-22T21:36:35.827376+00:00",
+  "status": "OFF-TREE syntax-only consumer scaffold; NOT typed, Clippy-checked, executed or admitted",
+  "patch_sha256": "5bb0b9eec59669e5489f70e33837da2d6432ab58d7c6d747feaa87f8386d86b9",
+  "paths": [
+    {
+      "path": "Cargo.lock",
+      "before_sha256": "5dd915823937b8a61b2d1701381396ae2f1b6d8cdbbdd2bd80a62d0a024765ae",
+      "proposed_sha256": "663cab65a142df1755b96c14f02933f028835ab72dacafdafdecab5162101ed9"
+    },
+    {
+      "path": "rust/tcl-fuzz/Cargo.toml",
+      "before_sha256": "8d728e938513f2a2aec6c5a21418f10d5761b96eec761a19bfd71e74d2f0e9d5",
+      "proposed_sha256": "daf3bbe6c9555d640704afd664d2ef5e7a01fd0a7afb52ad8d456c708153ea16"
+    },
+    {
+      "path": "rust/tcl-fuzz/src/wasm_diff.rs",
+      "before_sha256": "8f2d53e5ad014631b734336379e9fbad801302e155786aedebf4db8511103a0e",
+      "proposed_sha256": "fafc3c809766c6b469dd56b82cfcb77f85e94c5560ab874e8331b7126b5fba12"
+    },
+    {
+      "path": "rust/tcl-fuzz/src/wasm_diff/host_abi.rs",
+      "before_sha256": null,
+      "proposed_sha256": "1ea0ae5ca33604115dc9b459df6c817a5907186eb78c744e7618d2e73e932cc9"
+    }
+  ],
+  "shadow": "/tmp/ccg-wasm-diff-host-v2-shadow",
+  "dependency": {
+    "patch": "/tmp/vm-runtime-condition-seam/condition-seam-with-controls-v2.patch",
+    "sha256": "1c5701ba1770de76dd40e5dde2d05265aa6d782d6a19a56bc2a2fbc662d9ed08",
+    "public_api": "Vm::try_eval_expr_bool_bytes(&mut self,&[u8])->Result<(Completion<Value>,Option<bool>),NativeExecutionError>",
+    "status": "Production f084byteidentical, statically reviewed; all controls/type/runtime pending"
+  },
+  "original_assertions": "COMPLETE original cfg(test) module remains byte-for-byte identical; all8selectors/fixtures/assertions unchanged",
+  "original_tests": [
+    "straight_line_matches",
+    "if_branch_matches",
+    "loop_iteration_matches",
+    "while_with_break_matches",
+    "error_in_loop_unwinds_not_hangs",
+    "return_in_loop_stops_the_script",
+    "dynamic_break_exits_the_loop",
+    "dynamic_continue_skips_the_iteration"
+  ],
+  "new_tests": [
+    "every_selected_import_has_the_actual_registry_signature",
+    "live_frames_are_disjoint_and_freed_storage_is_reused",
+    "cleanup_keeps_the_first_actual_transport_refusal_pending",
+    "condition_keeps_full_owned_guest_completion_and_truth_publication_order",
+    "actual_missing_compiler_refusal_leaves_outputs_untouched_through_cleanup"
+  ],
+  "typed_registry_ids": [
+    "HostRefusalPending",
+    "ObjectNewString",
+    "EvalCode",
+    "CallFrameAlloc",
+    "CallFrameFree",
+    "NewOwnedString",
+    "ExprBoolEval",
+    "CompletionRelease",
+    "ObjectRelease"
+  ],
+  "protocol": [
+    "No printed-name import fallback: each registration uses actual CodegenAbiImportId descriptor. Exact signatures checked by new registry control/actual Wasmtime instantiation",
+    "Owned source copies original counted bytes, no string repair; negative opaque IDs cannot alias legacy nonnegative source handles; checked monotonic identities never reused",
+    "Frame allocator owns checked aligned memory ranges beyond initial module memory, grows as needed, tracks reentrant frames and reuses heap only when no live frame remains",
+    "Actual VM tuple is consumed once, no post-return Boolean getter. Guest code/result/options/option_origin retained as full Completion<i32> metadata with actual Value objects in owned-handle map, no reconstructed dictionaries",
+    "Expression rejects existing host refusal before evaluating; first NativeExecutionError retained as TclError::Host and outputs left untouched. Final host refusal maps Unrunnable, never guest Match or catchable Tcl error",
+    "Completion/source/frame cleanup allowed under refusal without consuming/replacing first cause, mismatched/unknown records refuse, individual result/options release handled as ABI alternative",
+    "HostState declares owned ABI state before Vm so original values drop while VM owner lives, including WASM trap paths"
+  ],
+  "new_control_limits": "Five controls written/unrun: registry signatures, frame disjoint/reuse, real invalid-free first refusal+cleanup, success/guest-syntax owned completion/truth, actual NativeCore missing-compiler host refusal+untouched output+cleanup. Genuine Native negative mirrors VM-owned missing-compiler fixture, not fabricated error.",
+  "preflight": "Pinned rustfmt copied two Rust files and TOML parser passed; no Cargo/type/Clippy or semantic claim",
+  "remaining": [
+    "Root coordinated source/type window + independent static review before apply",
+    "Original8exact heavy rerun and new5controls must execute; later direct-arm preflight failures may surface after current first missing-import issue is removed",
+    "Shared-table/nativei64 five-baseline+two-new v3plan remains separate; no claim scaffold fixes all downstream Native admission"
+  ],
+  "supersedes": {
+    "patch": "/tmp/ccg-wasm-diff-host-candidate/proposal.patch",
+    "sha256": "1f61aa7445b263a1a3fd4d1f662bcce8f5ce9eb8940cc8ac7a228966ea924c5b",
+    "status": "Preserved immutable host-only snapshot"
+  },
+  "producer_delta": {
+    "path": "/tmp/ccg-wasm-diff-host-v2-candidate/producer-delta.patch",
+    "sha256": "f0f228ba3bc895f5208a2eccf27e81e05471aa717973f0ee7404bb01b9003a88",
+    "meaning": [
+      "Fresh VM actual C9 core+same-profile CompileService, removes fallback-profile override",
+      "Direct arm uses actual try_eval_source, guest Error remains guest, actual NativeExecutionError becomes Unrunnable",
+      "WASM front end uses same C9 profile/registry grammar; no donated source/native entry",
+      "Typed top admission guard REFUSES whole-script HostScript/RefuseMissingSource instead of silently executing interpreter controlflow; the WASM structured-control subject remains tested",
+      "Complete original8test module byteidentity still holds"
+    ]
+  }
+}

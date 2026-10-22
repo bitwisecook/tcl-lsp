@@ -1,0 +1,50 @@
+{
+  "utc": "2026-10-22T21:32:39.480447+00:00",
+  "run_id": 39845788481,
+  "source_head": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+  "metadata": "/tmp/work-ci5205/jobs-2131.json",
+  "all_job_count": 30,
+  "aggregate": {
+    "success": 7,
+    "failure": 17,
+    "in_progress": 3,
+    "skipped": 3
+  },
+  "shard2": {
+    "job_id": 120061100472,
+    "started_at": "2026-10-22T20:10:30Z",
+    "completed_at": "2026-10-22T21:28:07Z",
+    "conclusion": "failure",
+    "authoritative_annotation": [
+      {
+        "path": ".github",
+        "blob_href": "https://github.com/bitwisecook/tcl-lsp/blob/2b93470548313b99d29af108d8b38d52b2db7ceb/.github",
+        "start_line": 1,
+        "start_column": null,
+        "end_line": 1,
+        "end_column": null,
+        "annotation_level": "failure",
+        "title": "",
+        "message": "The hosted runner lost communication with the server. Anything in your workflow that terminates the runner process, starves it for CPU/Memory, or blocks its network access can cause this error.",
+        "raw_details": ""
+      }
+    ],
+    "logs_api": "404 BlobNotFound; named outcomes unavailable",
+    "named_result_classification": "unknown; no source/test failure inferred from runner failure"
+  },
+  "shard4": {
+    "job_id": 120061100525,
+    "conclusion": "failure",
+    "annotation": "The operation was canceled.",
+    "logs": "connector Transport closed, CLI redirect Forbidden",
+    "named_outcomes": "unknown"
+  },
+  "remaining_running_shards": [
+    1,
+    3,
+    5
+  ],
+  "zero_pass_to_fail_verdict": "not established; confirmed partial regressions already separately recorded",
+  "need": "Actual named outcomes or guarded rerun required; generic runner-loss annotation does not establish underlying CPU/memory/network cause",
+  "admissions": []
+}
