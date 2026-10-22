@@ -5709,6 +5709,15 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                 ("missing_command\n", false),
                 ("puts [missing_command]\n", false),
                 ("exit 0\n", false),
+                // A procedure whose analysed body closes the world, and one
+                // whose body runs an unknown command.
+                ("proc say {} { puts hi }\nsay\n", true),
+                ("proc bad {} { missing_command }\nbad\n", false),
+                // Incomplete descriptors: a re-entrant callback, a subcommand
+                // the registry cannot select, and a dynamically chosen script.
+                ("lsort -command greet {b a}\n", false),
+                ("string $op x\n", false),
+                ("eval $script\n", false),
             ] {
                 let source = format!("{declaration}{use_site}");
                 let result = crate::analyser::Analyser::new().analyse(&source, dialect);

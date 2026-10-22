@@ -916,11 +916,21 @@ pub fn optimise_raw(
     registry: &CommandRegistry,
     dialect: Option<&str>,
 ) -> Vec<Optimisation> {
+    // A registry projected for a profile (a pack overlay's, say) carries that
+    // profile: a caller naming no dialect over it analyses the document that
+    // profile's interpreter runs. A profile-less registry stays dialect-blind.
     optimise_raw_for_profile(
         source,
         registry,
         dialect
-            .map(|name| crate::environment_ingress::resolve_environment(name).analyser_profile()),
+            .map(|name| crate::environment_ingress::resolve_environment(name).analyser_profile())
+            // TEMP measurement toggle (compiler-codegen), remove before hand-back.
+            .or_else(|| {
+                std::env::var_os("ZZ_CCG_BASELINE")
+                    .is_none()
+                    .then(|| registry.profile())
+                    .flatten()
+            }),
     )
 }
 

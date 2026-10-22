@@ -380,6 +380,16 @@ pub(super) fn materialise_error_storage(
     }
 }
 
+/// One segmented command's tokens, built on the heap.
+#[inline(never)]
+fn boxed_command_tokens(
+    map: &tcl_lexer::SourceMap<'_>,
+    config: tcl_lexer::LexerConfig,
+    segment: &crate::segmenter::SegmentedCommand,
+) -> Box<CommandTokens> {
+    Box::new(CommandTokens::from_segmented(map, config, segment))
+}
+
 /// What [`CompilerTraversal::command`] visits once the command is resolved.
 enum CommandVisit {
     /// Only the command's own word substitutions.
@@ -471,7 +481,9 @@ impl CompilerTraversal<'_> {
             {
                 return self.script_parse_failure(image, base, tail);
             }
-            let tokens = CommandTokens::from_segmented(&map, context.config, &segment);
+            // Boxed: the tokens stay off this frame while the command's
+            // bodies are traversed beneath it.
+            let tokens = boxed_command_tokens(&map, context.config, &segment);
             let failure = self.command(tokens.words(), segment.span.start(), context);
             self.record_compiler_invocation(tokens.words(), segment.span.start(), context);
             if let Some(mut failure) = failure {
@@ -752,7 +764,8 @@ impl CompilerTraversal<'_> {
         }))
     }
 
-    /// Visit a resolved compiler's recipe in its original order.
+    /// Visit a resolved compiler's recipe in its original order. Every value
+    /// it keeps stays in `visit`'s box; only references live in this frame.
     #[inline(never)]
     fn compiled_command(
         &mut self,
@@ -761,18 +774,16 @@ impl CompilerTraversal<'_> {
         context: SourceExecutionContext<'_>,
         mut visit: Box<CompiledCommandVisit>,
     ) -> Option<SourceNativeCompilationFailure> {
-        let preparation = visit.preparation.take();
-        if let Some(recipe) = preparation.as_ref().and_then(|recipe| recipe.structured()) {
+        let preparation = visit.preparation.as_ref();
+        if let Some(recipe) = preparation.and_then(|recipe| recipe.structured()) {
             let failure = self.structured_compilation(words, offset, recipe, context);
             return self.with_command_dependency(failure, &visit.target, &visit.head, context);
         }
-        if let Some(recipe) = preparation.as_ref().and_then(|recipe| recipe.switch()) {
+        if let Some(recipe) = preparation.and_then(|recipe| recipe.switch()) {
             let failure = self.switch_compilation(words, offset, recipe, context);
             return self.with_command_dependency(failure, &visit.target, &visit.head, context);
         }
-        let namespace_bindings = preparation
-            .as_ref()
-            .and_then(|recipe| recipe.namespace_bindings());
+        let namespace_bindings = preparation.and_then(|recipe| recipe.namespace_bindings());
         if let Some(recipe) = namespace_bindings
             && let Some(failure) = self.namespace_binding_prefix(words, recipe, context)
         {
@@ -789,7 +800,7 @@ impl CompilerTraversal<'_> {
             self.require_provider();
             return None;
         };
-        let mut failure = self.visit_compilation_steps(
+        let failure = self.visit_compilation_steps(
             words,
             offset,
             steps,
@@ -797,13 +808,12 @@ impl CompilerTraversal<'_> {
             (visit.selection, visit.spec),
         )?;
         if matches!(visit.selection, NativeCompilationSelection::Inline { .. }) {
-            failure
-                .dependencies
-                .push(self.command_dependency(&visit.target, &visit.head, context));
+            return self.with_command_dependency(Some(failure), &visit.target, &visit.head, context);
         }
         Some(failure)
     }
 
+    #[inline(never)]
     fn with_command_dependency(
         &self,
         mut failure: Option<SourceNativeCompilationFailure>,

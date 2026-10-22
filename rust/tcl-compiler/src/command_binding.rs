@@ -4583,17 +4583,39 @@ impl CapturedNativeCompletionReceipts {
     }
 }
 
-/// Whether a handler without its own closed receipt still leaves the world
-/// exactly as the walk models it on normal return. A declared descriptor must
-/// carry no state transition at all (`list`, `string length`): any binding,
-/// namespace, package, trace or interpreter transition needs a receipt. A
-/// descriptor without declared transitions (`puts`) is the walk's generic
-/// invocation, whose unmodelled effects already mark the state opaque.
-fn command_world_closed_on_normal_return(facts: &InvocationFacts) -> bool {
-    facts
-        .state_transitions
-        .declared()
-        .is_none_or(|transitions| transitions.facts().is_empty())
+/// Whether a handler without its own closed receipt still leaves the command
+/// world exactly as the walk models it on normal return.
+///
+/// Only a command resolved to an unperturbed registry builtin qualifies, and
+/// only when its selected descriptor is complete: every argument role is
+/// known, the subcommand (if any) was selected, it declares no re-entrant
+/// callback (a callback can rebind commands before the invocation returns),
+/// no command-table mutation, and no state transition at all (`list`,
+/// `string length`). A descriptor without declared transitions (`puts`) is
+/// the walk's generic invocation, whose unmodelled non-command effects already
+/// mark the state opaque. Unknown commands, procedures, objects, aliases and
+/// incompletely described commands keep the completed world withheld.
+fn command_world_closed_on_normal_return(
+    target: &SourceCommandTarget,
+    facts: &InvocationFacts,
+) -> bool {
+    use tcl_registry::OwnedSubcommandResolution;
+    target.registry_backed
+        && target.kind == BindingKind::Builtin
+        && target.prepended.is_empty()
+        && facts.arg_roles_complete
+        && matches!(
+            facts.subcommand,
+            OwnedSubcommandResolution::NotApplicable
+                | OwnedSubcommandResolution::Exact { .. }
+                | OwnedSubcommandResolution::UniquePrefix { .. }
+        )
+        && !facts.effects.requires_world_barrier()
+        && !facts.effects.legacy().command_table_mutation
+        && facts
+            .state_transitions
+            .declared()
+            .is_none_or(|transitions| transitions.facts().is_empty())
 }
 
 fn source_frame_namespace(frame: &crate::var_resolve::VariableExecutionFrame) -> &str {
@@ -10404,14 +10426,14 @@ impl SourceCommandBindings {
             Self::prepare_non_body_source_result(native, facts, state, context)
         {
             if outcomes.normal_completion.is_none()
-                && !command_world_closed_on_normal_return(facts)
+                && !command_world_closed_on_normal_return(native.target, facts)
                 && let Some(normal) = outcomes.normal.as_mut()
             {
                 #[cfg(test)]
                 if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
                     eprintln!(
-                        "ZZ_UNCLOSED_EARLY {:?} transitions={:?}",
-                        native.segment.texts, facts.state_transitions
+                        "ZZ_UNCLOSED_EARLY {:?} transitions={:?} kind={:?} reg={} roles={} sub={:?} cb={:?} ctm={}",
+                        native.segment.texts, facts.state_transitions, native.target.kind, native.target.registry_backed, facts.arg_roles_complete, facts.subcommand, facts.effects.callback(), facts.effects.legacy().command_table_mutation
                     );
                 }
                 normal.unclosed_command_world = true;
@@ -10489,14 +10511,14 @@ impl SourceCommandBindings {
             receipts.normal_write.as_ref().filter(|_| write_complete),
         );
         if outcomes.normal_completion.is_none()
-            && !command_world_closed_on_normal_return(facts)
+            && !command_world_closed_on_normal_return(native.target, facts)
             && let Some(normal) = outcomes.normal.as_mut()
         {
             #[cfg(test)]
             if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
                 eprintln!(
-                    "ZZ_UNCLOSED {:?} transitions={:?}",
-                    native.segment.texts, facts.state_transitions
+                    "ZZ_UNCLOSED {:?} transitions={:?} kind={:?} reg={} roles={} sub={:?} cb={:?} ctm={}",
+                    native.segment.texts, facts.state_transitions, native.target.kind, native.target.registry_backed, facts.arg_roles_complete, facts.subcommand, facts.effects.callback(), facts.effects.legacy().command_table_mutation
                 );
             }
             normal.unclosed_command_world = true;

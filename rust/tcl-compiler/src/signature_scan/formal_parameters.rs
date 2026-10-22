@@ -463,10 +463,14 @@ fn original_formal_field(
         .ok()?;
         let inner = nested.get(field)?;
         let input = child.original_list_element(field)?;
-        let range = element
-            .source
-            .literal
-            .then(|| {
+        // A field that is the whole specifier (`n\uD800`, no default) owns
+        // the specifier's own source extent, escapes included: its bytes are
+        // exactly that element's decoded value. A field inside an escaped
+        // specifier has no literal offset there and abstains.
+        let whole = (!element.source.literal && input.bytes() == child.bytes())
+            .then(|| element.source.value.clone());
+        let range = whole.or_else(|| {
+            element.source.literal.then(|| {
                 Some(
                     element
                         .source
@@ -480,7 +484,8 @@ fn original_formal_field(
                             .checked_add(inner.source.value.end)?,
                 )
             })
-            .flatten();
+            .flatten()
+        });
         (input, range)
     };
     let expected = match field {
