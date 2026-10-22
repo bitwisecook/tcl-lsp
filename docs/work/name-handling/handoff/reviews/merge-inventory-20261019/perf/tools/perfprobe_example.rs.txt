@@ -88,7 +88,7 @@ fn main() {
         let mut bad = 0;
         let mut total = 0;
         for path in &args[2..] {
-            let Ok(src) = std::fs::read_to_string(path) else { continue };
+            let src = std::fs::read_to_string(path).expect("every corpus input must be readable");
             let res = std::panic::catch_unwind(|| run(&src, &dialect, compare));
             total += 1;
             match res {
@@ -98,15 +98,20 @@ fn main() {
                     }
                     println!("{} memo_ms={m} plain_ms={p} eq={eq} {path}", if eq { "OK" } else { "BAD" });
                 }
-                Err(_) => println!("PANIC {path}"),
+                Err(_) => {
+                    bad += 1;
+                    println!("PANIC {path}");
+                }
             }
         }
         println!("files={total} mismatches={bad}");
+        assert_eq!(bad, 0, "corpus results must be identical without panics");
         return;
     }
     for n in args[2].split(',').map(|x| x.parse::<usize>().unwrap()) {
         let src = generate(kind, n);
         let (m, p, eq) = run(&src, &dialect, compare);
         println!("{kind} n={n} memo_ms={m} plain_ms={p} eq={eq}");
+        assert!(eq, "synthetic AnalysisResult must be identical");
     }
 }

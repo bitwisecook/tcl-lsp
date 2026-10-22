@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -uo pipefail
+cd /workspace/tcl-lsp-work
+source /tmp/perf-env.sh
+source scripts/dev/agent-build-env.sh
+export CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_PROFILE_DEV_DEBUG=line-tables-only
+export TCL_LSP_JIMSH=$PWD/tmp/jimtcl-oracle/jimsh
+trap 'rm -f "$CARGO_TARGET_DIR/debug/examples/zz_perfprobe" "$CARGO_TARGET_DIR/debug/examples/zz_spectclprobe"' EXIT
+cargo build --locked -j2 -p tcl-compiler --example zz_perfprobe --example zz_spectclprobe > /tmp/perf-work-probe-build.log 2>&1 || { tail -40 /tmp/perf-work-probe-build.log; exit 1; }
+python3 - <<'PY'
+from pathlib import Path
+import os, subprocess
+root=Path.cwd()
+evidence=root/'docs/work/name-handling/handoff/reviews/merge-inventory-20261019/perf/evidence'
+exe=root/'target/debug/examples/zz_perfprobe'
+env=dict(os.environ,ZZ_COMPARE='1')
+cases=[('corpus_run2_threeway.out',['files',*evidence.joinpath('corpus.txt').read_text().splitlines()],{}),('corpus_irules_run2_threeway.out',['files',*evidence.joinpath('corpus_irules.txt').read_text().splitlines()],{'ZZ_DIALECT':'f5-irules'}),('synthetic_run2_threeway.out',['calls','10,20,40,80'],{}),('procs_run2_threeway.out',['procs','41'],{}),('upvar_run2_threeway.out',['upvar','10,30'],{})]
+for name,args,extra in cases:
+    print('START',name,flush=True)
+    with evidence.joinpath(name).open('w') as out:
+        subprocess.run([str(exe),*args],env=env|extra,stdout=out,stderr=subprocess.STDOUT,check=True)
+    print('PASS',name,flush=True)
+with evidence.joinpath('spectcl_run2_threeway.out').open('w') as out:
+    subprocess.run([str(root/'target/debug/examples/zz_spectclprobe')],env=env,stdout=out,stderr=subprocess.STDOUT,check=True)
+print('PASS complete PackSet comparison',flush=True)
+PY

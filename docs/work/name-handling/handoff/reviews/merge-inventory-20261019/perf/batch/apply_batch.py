@@ -91,7 +91,7 @@ def parse_cut(s, p):
         + toggle
         + """        let image = image.get_or_insert_with(|| SourceImage::from_bytes(src, channel));
         if let Some((offset, term, kind)) =
-            command_cut(command, tokens, src, image, config, channel, descent, anchor)?
+            command_cut(command, tokens, image, config, channel, descent, anchor)?
         {""",
         p,
     )
@@ -102,13 +102,17 @@ def parse_cut(s, p):
     tokens: &[Token],
     src: &[u8],
     config: LexerConfig,""",
-        """#[allow(clippy::too_many_arguments)]
-fn command_cut(
+        """fn command_cut(
     command: &CommandSpan,
     tokens: &[Token],
-    src: &[u8],
     image: &SourceImage,
     config: LexerConfig,""",
+        p,
+    )
+    s = rep(
+        s,
+        "    let jobs = word_jobs(&command.words, tokens, src, 0, config);",
+        "    let src = image.bytes();\n    let jobs = word_jobs(&command.words, tokens, src, 0, config);",
         p,
     )
     return rep(

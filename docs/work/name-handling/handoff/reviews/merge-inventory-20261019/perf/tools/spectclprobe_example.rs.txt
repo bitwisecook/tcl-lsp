@@ -1,21 +1,25 @@
 //! Temporary perf probe (perf agent). Delete when done.
 use std::sync::atomic::Ordering;
-fn load(old: bool) -> (u128, Vec<String>) {
+fn load(old: bool) -> (u128, String) {
     tcl_lexer::ZZ_OLD.store(old, Ordering::Relaxed);
     let t = std::time::Instant::now();
     let set = tcl_spectcl::bundled::load_embedded();
     let ms = t.elapsed().as_millis();
     tcl_lexer::ZZ_OLD.store(false, Ordering::Relaxed);
-    let mut lines: Vec<String> = format!("{set:#?}").lines().map(str::to_owned).collect();
-    lines.sort();
-    (ms, lines)
+    (ms, format!("{set:#?}"))
 }
 fn main() {
     let compare = std::env::var_os("ZZ_COMPARE").is_some();
-    let (new_ms, new_lines) = load(false);
-    println!("new load_embedded ms={new_ms} lines={}", new_lines.len());
-    if compare {
-        let (old_ms, old_lines) = load(true);
-        println!("old load_embedded ms={old_ms} lines={} equal_sorted_lines={}", old_lines.len(), old_lines == new_lines);
+    let old1 = compare.then(|| load(true));
+    let (new_ms, new) = load(false);
+    println!("new load_embedded ms={new_ms} lines={}", new.lines().count());
+    if let Some((old1_ms, old1)) = old1 {
+        let (old2_ms, old2) = load(true);
+        let equal = new == old1 || new == old2;
+        println!(
+            "old1_ms={old1_ms} old2_ms={old2_ms} deterministic={} equal_complete_debug={equal}",
+            old1 == old2
+        );
+        assert!(equal, "complete PackSet structure must be identical");
     }
 }
