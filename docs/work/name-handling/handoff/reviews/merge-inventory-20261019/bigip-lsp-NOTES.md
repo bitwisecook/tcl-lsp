@@ -24,7 +24,9 @@ outstanding file. No assertions or latency budgets were weakened.
 
 Full strict Clippy failed with 789 compiler and 379 VM dependency errors.
 Standalone WASM Clippy passes with zero warnings (`wasm-clippy-20261022.json`).
-Six mechanical owned production-code lint fixes compile. Fifty test-only
+Six mechanical owned production-code lint fixes are cleared by fresh
+normal-library core Clippy; its 54 remaining findings are generic LSP
+blockers (`clippy-core-blockers-20261022.json`). Fifty test-only
 empty/non-empty assertions now use equivalent typed equality/inequality
 comparisons for Rust 1.99 Clippy; expectations, inputs and refusal assertions
 are retained. Native scoped verification remains in progress, along with the

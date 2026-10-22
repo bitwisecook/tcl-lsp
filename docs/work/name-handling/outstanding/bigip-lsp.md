@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T16:06Z
+Last updated: 2026-10-22T16:21Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -11,8 +11,8 @@ push at least every 30 minutes and after each finished item. Full unit table:
 ## In progress
 
 WASM Clippy PASS (zero warnings); the first native keep-going pass has finished.
-Fresh core lint is active, followed by owned roots checked with core as a
-dependency. That pass found 50 test-only `assert_is_empty` lints in BIG-IP,
+Fresh core lint finished: 54 generic findings, zero in owned F5 modules.
+Owned roots are now checked with core as a dependency. That pass found 50 test-only `assert_is_empty` lints in BIG-IP,
 iRules, query fixtures and report generator tests. Their equivalent
 assert_eq!/assert_ne! comparisons preserve every empty/non-empty condition
 and show actual values on failure; verification is pending.
@@ -40,6 +40,13 @@ assertion; attribution awaits the reversed result.
    was previously regenerated and `gen-editor-configs --check` passed.
 
 ## Blocked (on whom, and what is needed)
+
+- Generic LSP owner: fresh normal-library core Clippy has **54 errors**,
+  zero in owned BIG-IP/F5 modules. The six owned production lint findings
+  are cleared without an allowance. Exact command/primary locations:
+  `../handoff/reviews/merge-inventory-20261019/bigip-lsp/clippy-core-blockers-20261022.json`.
+  Test lint for core is still gated by its library errors; this is not a
+  whole-crate green result.
 
 - Full strict Clippy: **789 compiler + 379 VM errors**, exit 101, source
   `aeecf397` with Rust 1.99.1. BIG-IP/LSP/editor consumers were not reached.
@@ -90,7 +97,8 @@ assertion; attribution awaits the reversed result.
   Exact command/environment/hash receipt: `wasm-clippy-20261022.json`.
   Six native owned production-code lint findings have mechanical fixes in
   data-group rendering/ILX hover; compilation confirmed by the WASM graph,
-  native lint verification remains pending. No new lint allowance.
+  normal-library native Clippy verification is complete: zero owned F5
+  findings, with 54 generic blockers. No new lint allowance.
 - ILX comparison: `ilx-baseline-20261022.txt` (baseline 1/1) and
   `ilx-current-20261022.txt` (current 2/2). This establishes the deliberate
   contract change, not restored navigation or a passing e2e run.
@@ -124,8 +132,8 @@ assertion; attribution awaits the reversed result.
 - Native scoped lint **46036** finished exit 101 (50 owned assertion-style
   findings, now changed equivalently, plus the old core check). The core
   check had encountered an intermediate adapter lifetime error; that owned
-  error is fixed and compilation confirmed by WASM. Active **23728** runs
-  fresh core lint, then owned roots with core as a dependency (all `-D
+  error is fixed and compilation confirmed by WASM. Active **23728** has finished fresh core lint (54 generic errors)
+  and is now checking owned roots with core as a dependency (all `-D
   warnings --no-deps`). Logs `/tmp/bigip-clippy-{owned-after,core-final,roots-final}*`.
   Standalone WASM **30313** finished PASS with zero warnings.
 - Next: finish the above; fix owned lint findings, route generic ones;

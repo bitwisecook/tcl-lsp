@@ -1,0 +1,610 @@
+{
+  "date_utc": "2026-10-22T16:21:49Z",
+  "source": "aeecf397 plus the owned production lint fixes pushed in f26f6a06; later test-only empty-result assertion updates do not change this normal-library check",
+  "rust": "1.99.1 stable",
+  "command": "cargo clippy --locked -p tcl-lsp-core --lib --no-deps --message-format=json -- -D warnings",
+  "exit_code": 101,
+  "error_count": 54,
+  "owned_bigip_f5_findings": [],
+  "scope": "All 54 findings are in generic LSP modules; do not edit those files from bigip-lsp. Unit/integration-test lint is not green or claimed by this normal-library pass. Full dependency-inclusive strict gate separately remains failed.",
+  "errors": [
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/graphs/original.rs",
+          "line": 94,
+          "column": 17
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/minify/original.rs",
+          "line": 589,
+          "column": 16
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/minify.rs",
+          "line": 2331,
+          "column": 20
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/minify.rs",
+          "line": 2502,
+          "column": 30
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver.rs",
+          "line": 578,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/original_names.rs",
+          "line": 870,
+          "column": 14
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+          "line": 984,
+          "column": 25
+        }
+      ]
+    },
+    {
+      "code": "clippy::similar_names",
+      "message": "binding's name is too similar to existing binding",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+          "line": 4649,
+          "column": 14
+        }
+      ]
+    },
+    {
+      "code": "clippy::needless_pass_by_value",
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/caller_frame.rs",
+          "line": 600,
+          "column": 13
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_actions/spec_notice.rs",
+          "line": 55,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_actions/spec_notice.rs",
+          "line": 71,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "code": "clippy::too_many_arguments",
+      "message": "this function has too many arguments (8/7)",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_actions/spec_notice.rs",
+          "line": 71,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "code": "clippy::cast_possible_truncation",
+      "message": "casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_actions/spec_notice.rs",
+          "line": 96,
+          "column": 41
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+          "line": 78,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+          "line": 79,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_actions/diagnostic_context.rs",
+          "line": 220,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_enum_variant",
+      "message": "large size difference between variants",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/code_lens/logical_source.rs",
+          "line": 12,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "code": "clippy::cast_possible_truncation",
+      "message": "casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/document_links.rs",
+          "line": 743,
+          "column": 50
+        }
+      ]
+    },
+    {
+      "code": "clippy::cast_possible_truncation",
+      "message": "casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/document_links.rs",
+          "line": 744,
+          "column": 48
+        }
+      ]
+    },
+    {
+      "code": "clippy::mutable_key_type",
+      "message": "mutable key type",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/document_symbols/original.rs",
+          "line": 373,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "code": "clippy::unnecessary_wraps",
+      "message": "this function's return value is unnecessarily wrapped by `Option`",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/document_symbols/original.rs",
+          "line": 489,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "code": "clippy::needless_pass_by_value",
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/formatting/engine.rs",
+          "line": 2370,
+          "column": 13
+        }
+      ]
+    },
+    {
+      "code": "clippy::option_option",
+      "message": "use of `Option<Option<T>>`",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/graphs/original.rs",
+          "line": 259,
+          "column": 6
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/graphs.rs",
+          "line": 1235,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "code": "clippy::redundant_closure_for_method_calls",
+      "message": "redundant closure",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/hover/original_registry.rs",
+          "line": 86,
+          "column": 14
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/hover.rs",
+          "line": 351,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_enum_variant",
+      "message": "large size difference between variants",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/implementation.rs",
+          "line": 84,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "code": "clippy::too_many_arguments",
+      "message": "this function has too many arguments (8/7)",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/inlay_hints.rs",
+          "line": 821,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_enum_variant",
+      "message": "large size difference between variants",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/method_symbol.rs",
+          "line": 50,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "code": "clippy::needless_pass_by_value",
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/minify.rs",
+          "line": 1059,
+          "column": 12
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/namespace_import.rs",
+          "line": 544,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+          "line": 443,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+          "line": 444,
+          "column": 13
+        }
+      ]
+    },
+    {
+      "code": "clippy::items_after_statements",
+      "message": "adding items after statements is confusing, since items exist from the start of the scope",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/namespace_rename/original.rs",
+          "line": 444,
+          "column": 37
+        }
+      ]
+    },
+    {
+      "code": "clippy::struct_field_names",
+      "message": "field name starts with the struct's name",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+          "line": 1584,
+          "column": 13
+        }
+      ]
+    },
+    {
+      "code": "clippy::unnecessary_wraps",
+      "message": "this function's return value is unnecessarily wrapped by `Option`",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/original_oo.rs",
+          "line": 392,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "code": "clippy::struct_field_names",
+      "message": "field name ends with the struct's name",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+          "line": 106,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "code": "clippy::struct_excessive_bools",
+      "message": "more than 3 bools in a struct",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/reachability/original.rs",
+          "line": 98,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "code": "clippy::cast_possible_truncation",
+      "message": "casting `usize` to `u32` may truncate the value on targets with 64-bit wide pointers",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/package_resolver/registration.rs",
+          "line": 214,
+          "column": 40
+        }
+      ]
+    },
+    {
+      "code": "clippy::redundant_closure_for_method_calls",
+      "message": "redundant closure",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs",
+          "line": 196,
+          "column": 18
+        }
+      ]
+    },
+    {
+      "code": "clippy::chunks_exact_to_as_chunks",
+      "message": "using `chunks_exact` with a constant chunk size",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/refactor/datagroup/source_subject.rs",
+          "line": 210,
+          "column": 14
+        }
+      ]
+    },
+    {
+      "code": "clippy::too_many_arguments",
+      "message": "this function has too many arguments (8/7)",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/refactor/inline_proc.rs",
+          "line": 240,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "code": "clippy::option_option",
+      "message": "use of `Option<Option<T>>`",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/refactor/mod.rs",
+          "line": 412,
+          "column": 10
+        }
+      ]
+    },
+    {
+      "code": "clippy::doc_markdown",
+      "message": "item in documentation is missing backticks",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/rename.rs",
+          "line": 371,
+          "column": 18
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_enum_variant",
+      "message": "large size difference between variants",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+          "line": 1417,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "code": "clippy::unnecessary_literal_unwrap",
+      "message": "used `unwrap()` on `Some` value",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+          "line": 4878,
+          "column": 13
+        }
+      ]
+    },
+    {
+      "code": "clippy::unnecessary_literal_unwrap",
+      "message": "used `unwrap()` on `Some` value",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/semantic_tokens.rs",
+          "line": 4889,
+          "column": 38
+        }
+      ]
+    },
+    {
+      "code": "clippy::struct_excessive_bools",
+      "message": "more than 3 bools in a struct",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/source_graph.rs",
+          "line": 753,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "code": "clippy::unnecessary_wraps",
+      "message": "this function's return value is unnecessarily wrapped by `Option`",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/source_structure.rs",
+          "line": 514,
+          "column": 5
+        }
+      ]
+    },
+    {
+      "code": "clippy::needless_pass_by_value",
+      "message": "this argument is passed by value, but not consumed in the function body",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/tk_preview.rs",
+          "line": 564,
+          "column": 23
+        }
+      ]
+    },
+    {
+      "code": "clippy::mutable_key_type",
+      "message": "mutable key type",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+          "line": 248,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "code": "clippy::mutable_key_type",
+      "message": "mutable key type",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/variable_symbol/rename.rs",
+          "line": 249,
+          "column": 9
+        }
+      ]
+    },
+    {
+      "code": "clippy::large_enum_variant",
+      "message": "large size difference between variants",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/vendor_declaration.rs",
+          "line": 79,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "code": "clippy::too_many_arguments",
+      "message": "this function has too many arguments (8/7)",
+      "primary": [
+        {
+          "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+          "line": 7956,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "raw_sha256": {
+    "bigip-clippy-core-final.jsonl": "47beb6b0c40864c94f1e3a08bf348e6017b0bb92fcc7c6a709a77ea2fa0e8aa8",
+    "bigip-clippy-core-final-build.log": "61b6f7189b89524b956602493e813ea4f64925a8d501ab5495d2ecb87f42885f"
+  }
+}
