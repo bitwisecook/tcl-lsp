@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T14:03Z
+Last updated: 2026-10-22T14:22Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -10,7 +10,9 @@ push at least every 30 minutes and after each finished item. Full unit table:
 
 ## In progress
 
-Preparing server e2e and current-diagnostics reruns after the XC fix. The ILX
+Building server e2e and current-diagnostics reruns after the XC fix; local
+log `/tmp/bigip-server-selected.log`. Clippy `-D warnings` is also running in independent `/workspace/bigip-clippy-target`;
+logs `/tmp/bigip-clippy.jsonl` and `/tmp/bigip-clippy-build.log`. The ILX
 baseline/current comparison is complete; its missing compiler contract is below.
 
 ## Outstanding (in priority order)
@@ -81,10 +83,15 @@ baseline/current comparison is complete; its missing compiler contract is below.
   CARGO_INCREMENTAL=0 plus test/dev debug=0, then sources agent-build-env.sh.
   `/tmp/bigip-test.py` builds, runs and deletes each test executable within one
   command. Build targets are independent between checkouts.
-- Next: server e2e and F5 pull test; rewrite attribution with/without the F5
-  change; owned clippy; three generator tests; hand the diagnostics file back.
+- Next: finish the running server and clippy checks; rewrite attribution
+  with/without the F5 change; standalone bigip-query-wasm clippy; three generator
+  tests; hand the diagnostics file back.
   Keep unresolved/compiler-owned items explicit. Never open a PR; the PR to
   rust remains gated on external review section F.
+- The first server build needed 76 literal oracle snapshots excluded by the
+  sparse checkout. They and 141 further literal fixture inputs are now
+  materialised from HEAD; no code or assertion was changed. The restarted
+  server build has reached compiler/VM dependencies. No server result yet.
 - Validation above used the initial `9cd5a75b` product source plus the XC fix.
   Fetched updates through `5bd5a503` changed coordination/evidence only. Required
   repository/host gates remain pending under the authorised development-push
