@@ -365,8 +365,8 @@ async fn malformed_recovery_refuses_populated_unavailable_missing_and_foreign_so
         original.context_registry(),
         config,
     ));
-    for refused in [missing, unavailable, foreign, stale] {
-        let names = widen_recovery_extra_commands(&context, &base, source, &refused).await;
+    for refused in [&missing, &unavailable, &foreign, &stale] {
+        let names = widen_recovery_extra_commands(&context, &base, source, refused).await;
         assert_eq!(names.names.as_ref(), &base);
         assert!(names.incomplete);
     }

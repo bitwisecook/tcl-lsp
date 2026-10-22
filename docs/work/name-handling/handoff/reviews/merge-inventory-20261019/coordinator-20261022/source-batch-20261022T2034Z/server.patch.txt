@@ -1,0 +1,395 @@
+--- a/rust/tcl-lsp-server/src/lib.rs
++++ b/rust/tcl-lsp-server/src/lib.rs
+@@ -17098,7 +17098,6 @@
+             ))
+             .await;
+         }
+-        use std::ops::ControlFlow;
+         let target = match self
+             .original_method_candidate_at(uri, source, analysis, position)
+             .await?
+@@ -27103,7 +27102,7 @@
+         let analysed = self
+             .analysed_diagnostics_for(uri, Arc::clone(&text), dialect.clone(), language_id)
+             .await?;
+-        let (pack_seq, pack_set) = {
++        let (pack_generation, pack_set) = {
+             let published = self.spec_packs.lock().await;
+             (published.seq, Arc::clone(&published.packs))
+         };
+@@ -27112,7 +27111,7 @@
+             PackNoticeContext {
+                 uri,
+                 source: &text,
+-                pack_seq,
++                pack_seq: pack_generation,
+                 packs: &pack_set,
+                 registry: &registry,
+                 store: self.store.as_ref(),
+@@ -39376,7 +39375,7 @@
+                     .join(format!("tcl-lsp-w120-{tag}-{}-{n}", std::process::id()));
+                 match std::fs::create_dir(&p) {
+                     Ok(()) => return Self(p),
+-                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
++                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                     Err(error) => panic!("creating owned test directory {}: {error}", p.display()),
+                 }
+             }
+@@ -40278,12 +40277,12 @@
+             .await
+             .add_document(second.as_str(), &analysis);
+         let doc = backend.read_document(&first).await.unwrap().unwrap();
+-        let changes = backend
++        let workspace_edits = backend
+             .cross_document_original_namespace_rename(&first, &doc, &analysis, &symbol, "renamed")
+             .await
+             .unwrap();
+-        assert_eq!(changes.len(), 2);
+-        for mut edits in changes.into_values() {
++        assert_eq!(workspace_edits.len(), 2);
++        for mut edits in workspace_edits.into_values() {
+             assert_eq!(edits.len(), 2);
+             edits.sort_by_key(|edit| {
+                 std::cmp::Reverse((edit.range.start.line, edit.range.start.character))
+@@ -52275,15 +52274,15 @@
+         );
+     }
+ 
+-    async fn captured_workspace_scan_inputs(
+-        backend: &Backend,
+-    ) -> (
++    type CapturedWorkspaceScanInputs = (
+         u64,
+         u64,
+         Arc<HashMap<String, String>>,
+         Vec<(Uri, String)>,
+         String,
+-    ) {
++    );
++
++    async fn captured_workspace_scan_inputs(backend: &Backend) -> CapturedWorkspaceScanInputs {
+         let analyser_inputs_guard = backend.analyser_inputs_gate.read().await;
+         let epoch = backend.diag_inputs_epoch();
+         let document_overrides = backend.document_dialect_override_snapshot().await;
+@@ -52303,13 +52302,7 @@
+     async fn analyse_one_captured_workspace_file(
+         backend: &Backend,
+         path: PathBuf,
+-        inputs: (
+-            u64,
+-            u64,
+-            Arc<HashMap<String, String>>,
+-            Vec<(Uri, String)>,
+-            String,
+-        ),
++        inputs: CapturedWorkspaceScanInputs,
+     ) -> (PackageResolver, usize, bool, bool) {
+         let (epoch, factory_generation, document_overrides, folder_dialects, default_dialect) =
+             inputs;
+@@ -55285,7 +55278,7 @@
+                 std::env::temp_dir().join(format!("tcl-lsp-scan-{tag}-{}-{n}", std::process::id()));
+             match std::fs::create_dir(&dir) {
+                 Ok(()) => return dir,
+-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
++                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+                 Err(error) => panic!(
+                     "creating owned scratch directory {}: {error}",
+                     dir.display()
+@@ -67543,7 +67536,7 @@
+                 report.first_error.unwrap().replacement_text_offset
+                     > decoded.find('\u{fffd}').unwrap()
+             );
+-            let at = document.text.find("puts").unwrap() as u32;
++            let at = u32::try_from(document.text.find("puts").unwrap()).unwrap();
+             let position = document.line_index.position_at_utf16(at, &document.text);
+             assert_eq!((position.line, position.character.get()), (1, 0));
+         }
+@@ -67828,7 +67821,7 @@
+             },
+             Vec::new(),
+         );
+-        assert_eq!(merged, [diagnostic.clone()]);
++        assert_eq!(merged, std::slice::from_ref(&diagnostic));
+         // A retained Studio image has its own real admission owner; it does
+         // not need a fabricated loader SourcePathOrigin to survive the union.
+         let studio_admission = Arc::new(
+@@ -67860,7 +67853,7 @@
+                 },
+                 Vec::new()
+             ),
+-            [diagnostic.clone()]
++            std::slice::from_ref(&diagnostic)
+         );
+         assert_eq!(
+             backend
+--- a/rust/tcl-lsp-server/src/current_diagnostics.rs
++++ b/rust/tcl-lsp-server/src/current_diagnostics.rs
+@@ -2718,46 +2718,6 @@
+ 
+     #[tokio::test]
+     async fn actual_failed_lift_worker_cannot_issue_completed_empty_diagnostics() {
+-        let backend = crate::tests::test_backend();
+-        let expected = DiagnosticSourceExpectation {
+-            uri: Uri::from_str("file:///diagnostic-failed-lift.tcl").unwrap(),
+-            version: 2,
+-            source: String::new(),
+-        };
+-        open_source(&backend, &expected).await;
+-        run_provider(&backend, &expected.uri).await;
+-        let inputs = backend
+-            .diag_inputs(&expected.uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+-            .await;
+-        let job = inputs.capture_job(&expected.uri).await.unwrap();
+-        let pass = job.diagnostic_pass.as_ref().unwrap();
+-        backend
+-            .diagnostic_publisher
+-            .begin_diagnostic_pass(&expected.uri, pass)
+-            .await;
+-        let analysis = backend
+-            .analysis_for(&expected.uri, Arc::clone(&job.text), job.dialect.clone())
+-            .await
+-            .unwrap();
+-        let delivery = DeliveryCtx {
+-            diagnostic_pass: Some(pass),
+-            client: &backend.client,
+-            diagnostic_publisher: &backend.diagnostic_publisher,
+-            documents: &backend.documents,
+-            store: &backend.store,
+-            diag_slots: &backend.diag_slots,
+-            pull_diag_cache: &backend.pull_diag_cache,
+-            closed_diag_gen: &backend.closed_diag_gen,
+-            source: &job.text,
+-            pack_seq: inputs.pack_seq,
+-            pack_set: Some(&inputs.pack_set),
+-            registry: Some(&inputs.registry),
+-            spec_packs: Some(&inputs.spec_packs),
+-            uri: &expected.uri,
+-            currency: job.currency,
+-            version: job.version,
+-            client_supports_pull: false,
+-        };
+         // Preserve the original failed-worker assertion surface. This adapter
+         // delegates to the current publication owner; a failed worker produced
+         // no command-query receipt and cannot enter dependency admission.
+@@ -2784,6 +2744,47 @@
+             )
+             .await
+         }
++        let backend = crate::tests::test_backend();
++        let expected = DiagnosticSourceExpectation {
++            uri: Uri::from_str("file:///diagnostic-failed-lift.tcl").unwrap(),
++            version: 2,
++            source: String::new(),
++        };
++        open_source(&backend, &expected).await;
++        run_provider(&backend, &expected.uri).await;
++        let inputs = backend
++            .diag_inputs(&expected.uri, tcl_lsp_core::profile_for_dialect("tcl8.6"))
++            .await;
++        let job = inputs.capture_job(&expected.uri).await.unwrap();
++        let pass = job.diagnostic_pass.as_ref().unwrap();
++        backend
++            .diagnostic_publisher
++            .begin_diagnostic_pass(&expected.uri, pass)
++            .await;
++        let analysis = backend
++            .analysis_for(&expected.uri, Arc::clone(&job.text), job.dialect.clone())
++            .await
++            .unwrap();
++        let delivery = DeliveryCtx {
++            diagnostic_pass: Some(pass),
++            client: &backend.client,
++            diagnostic_publisher: &backend.diagnostic_publisher,
++            documents: &backend.documents,
++            store: &backend.store,
++            diag_slots: &backend.diag_slots,
++            pull_diag_cache: &backend.pull_diag_cache,
++            closed_diag_gen: &backend.closed_diag_gen,
++            source: &job.text,
++            pack_seq: inputs.pack_seq,
++            pack_set: Some(&inputs.pack_set),
++            registry: Some(&inputs.registry),
++            spec_packs: Some(&inputs.spec_packs),
++            uri: &expected.uri,
++            currency: job.currency,
++            version: job.version,
++            client_supports_pull: false,
++        };
++
+         let failed =
+             crate::rt::spawn_blocking(|| -> Vec<tower_lsp_server::ls_types::Diagnostic> {
+                 panic!("actual diagnostic lift worker failure control")
+@@ -3193,7 +3194,7 @@
+             .expect("serialized response")
+     }
+ 
+-    fn same_optional_arc<T>(before: &Option<Arc<T>>, after: &Option<Arc<T>>) -> bool {
++    fn same_optional_arc<T>(before: Option<&Arc<T>>, after: Option<&Arc<T>>) -> bool {
+         match (before, after) {
+             (None, None) => true,
+             (Some(before), Some(after)) => Arc::ptr_eq(before, after),
+@@ -3291,16 +3292,16 @@
+                 *values
+             );
+             assert!(same_optional_arc(
+-                &evidence.0,
+-                file.external_call_sites(&*db)
++                evidence.0.as_ref(),
++                file.external_call_sites(&*db).as_ref()
+             ));
+             assert!(same_optional_arc(
+-                &evidence.1,
+-                file.workspace_class_factories(&*db)
++                evidence.1.as_ref(),
++                file.workspace_class_factories(&*db).as_ref()
+             ));
+             assert!(same_optional_arc(
+-                &evidence.2,
+-                file.workspace_subclass_methods(&*db)
++                evidence.2.as_ref(),
++                file.workspace_subclass_methods(&*db).as_ref()
+             ));
+         }
+         drop(files);
+--- a/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
++++ b/rust/tcl-lsp-server/src/original_document_metadata_tests.rs
+@@ -5,6 +5,7 @@
+ //! Real document consumers preserve complete source inputs and typed findings.
+ 
+ use super::*;
++use salsa::Setter as _;
+ use tcl_compiler::analyser::ResolvedAnalysisInput;
+ use tower_lsp_server::ls_types::{
+     PartialResultParams, TextDocumentIdentifier, WorkDoneProgressParams,
+@@ -224,10 +225,10 @@
+         tcl_registry::model::resolve_environment("tcl9.1").default_context_registry(),
+     )
+     .resolved_input;
+-    for refused in [missing, unavailable_generation, stale, foreign] {
+-        assert_eq!(unindexed_semantic_tokens(source, &refused).data.len(), 0);
++    for refused in [&missing, &unavailable_generation, &stale, &foreign] {
++        assert_eq!(unindexed_semantic_tokens(source, refused).data.len(), 0);
+         assert_eq!(
+-            unindexed_semantic_tokens_for_range(source, &refused, Some(whole_source_range(source)))
++            unindexed_semantic_tokens_for_range(source, refused, Some(whole_source_range(source)))
+                 .data
+                 .len(),
+             0
+@@ -509,8 +510,12 @@
+         .resolved_input
+         .unwrap(),
+     );
+-    for withdrawn in [missing, unavailable, stale, foreign] {
+-        let withdrawn = Arc::new(withdrawn);
++    for withdrawn in [
++        Arc::new(missing),
++        Arc::new(unavailable),
++        Arc::new(stale),
++        Arc::new(foreign),
++    ] {
+         let result = backend
+             .analyse_with_workspace_classes_from_analysis(
+                 &uri,
+@@ -710,10 +715,15 @@
+             environment: "tcl".to_owned(),
+             overlay: u64::MAX - 352,
+         });
+-    for analysis in [missing, stale, foreign, unavailable_with_receipts] {
++    for analysis in [
++        Arc::new(missing),
++        Arc::new(stale),
++        Arc::new(foreign),
++        Arc::new(unavailable_with_receipts),
++    ] {
+         let seed = FreshAnalysisSeed {
+             path_admission: Arc::clone(&current.path_admission),
+-            analysis: Arc::new(analysis),
++            analysis,
+             analyser_inputs_epoch: current.analyser_inputs_epoch,
+             class_factory_generation: current.class_factory_generation,
+         };
+@@ -727,7 +737,6 @@
+     backend.invalidate_diag_inputs();
+     assert!(!backend.fresh_index_seed_is_current(source, &current).await);
+ 
+-    use salsa::Setter as _;
+     {
+         let mut db = backend.db.lock().await;
+         backend
+@@ -899,7 +908,6 @@
+             .any(|row| row.qualified_name == "::retained")
+     );
+ 
+-    use salsa::Setter as _;
+     {
+         let mut db = backend.db.lock().await;
+         backend
+@@ -926,7 +934,6 @@
+ 
+ #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+ async fn document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays() {
+-    use salsa::Setter as _;
+     let (backend, registry) = workspace_pack_backend().await;
+     let folder = Uri::from_str("file:///outline-resource392/library").unwrap();
+     let uri = Uri::from_str("file:///outline-resource392/library/outline.tcl").unwrap();
+@@ -1038,7 +1045,6 @@
+     // naming.compiler.original-analysis-metadata-context
+     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+     // The real token worker consumes per-file source advice without Native entry.
+-    use salsa::Setter as _;
+     let (backend, _) = workspace_pack_backend().await;
+     let folder = Uri::from_str("file:///project-input354/library").unwrap();
+     let library_uri = Uri::from_str("file:///project-input354/library/reader.tcl").unwrap();
+@@ -1194,7 +1200,6 @@
+     // naming.database.original-project-callback-projection
+     // docs/design/analysis/name-resolution-proofs/database-original-project-callback-projection.md
+     // Authentic source headers/counts remain independent of callback execution.
+-    use salsa::Setter as _;
+     let backend = crate::tests::test_backend();
+     let folder = Uri::from_str("file:///project-source356/library").unwrap();
+     let library_uri = Uri::from_str("file:///project-source356/library/header.tcl").unwrap();
+@@ -1291,7 +1296,6 @@
+     // naming.compiler.original-analysis-metadata-context
+     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+     // The real fixpoint publishes conditional manufacturers, not Native receivers.
+-    use salsa::Setter as _;
+     let (backend, _) = workspace_pack_backend().await;
+     let folder = Uri::from_str("file:///project-source356/factories").unwrap();
+     let library_uri = Uri::from_str("file:///project-source356/factories/meta.tcl").unwrap();
+@@ -1359,7 +1363,6 @@
+     // naming.compiler.original-analysis-metadata-context
+     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+     // Actual host publication retains conditional caller facts, not Native entry.
+-    use salsa::Setter as _;
+     let backend = crate::tests::test_backend();
+     let folder = Uri::from_str("file:///project-call357/callers").unwrap();
+     let library_uri = Uri::from_str("file:///project-call357/library.tcl").unwrap();
+@@ -1450,7 +1453,6 @@
+     // naming.core.original-tk-source-context
+     // docs/design/analysis/name-resolution-proofs/core-original-tk-source-context.md
+     // This public command projects source hints, without creating a widget.
+-    use salsa::Setter as _;
+     let backend = crate::tests::test_backend();
+     let packs = tcl_spectcl::pack::load_in_memory(vec![(
+         tcl_spectcl::PackFile {
+@@ -1573,7 +1575,6 @@
+     // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
+     // These public requests retain actual source/configuration; no appliance
+     // execution or Native body entry is supplied by the event/source roles.
+-    use salsa::Setter as _;
+     let backend = crate::tests::test_backend();
+     let uri = Uri::from_str("file:///workspace/formatter-source-currency.tcl").unwrap();
+     let source = "when CLIENTSSL_HANDSHAKE {\r\nSSL::c3d cert_lifespan 24\r\n}\r\n";
+--- a/rust/tcl-lsp-server/src/recovery_source/tests.rs
++++ b/rust/tcl-lsp-server/src/recovery_source/tests.rs
+@@ -365,8 +365,8 @@
+         original.context_registry(),
+         config,
+     ));
+-    for refused in [missing, unavailable, foreign, stale] {
+-        let names = widen_recovery_extra_commands(&context, &base, source, &refused).await;
++    for refused in [&missing, &unavailable, &foreign, &stale] {
++        let names = widen_recovery_extra_commands(&context, &base, source, refused).await;
+         assert_eq!(names.names.as_ref(), &base);
+         assert!(names.incomplete);
+     }

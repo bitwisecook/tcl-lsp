@@ -1,0 +1,113 @@
+--- a/rust/tcl-registry/src/native_compilation.rs
++++ b/rust/tcl-registry/src/native_compilation.rs
+@@ -1929,13 +1929,7 @@
+                         .is_some_and(|value| value.starts_with(b"::namespace inscope "))
+             }
+             NativeCompilationGrammar::InfoCommands => {
+-                count == 1
+-                    && words.literal(operand_from).is_some_and(|value| {
+-                        value.starts_with(b"::")
+-                            && value.iter().all(|&byte| {
+-                                byte.is_ascii() && !matches!(byte, 0 | b'*' | b'?' | b'[' | b'\\')
+-                            })
+-                    })
++                info_commands_preserves_names(words, operand_from, count)
+             }
+             NativeCompilationGrammar::ArityFrom { .. } => {
+                 self.operation == SemanticOperationId::Intrinsic(crate::IntrinsicId::ListSet)
+@@ -4104,22 +4098,7 @@
+                 2,
+             ),
+             NativeCompilationGrammar::StringTrim { scope, .. } => {
+-                let from = usize::from(
+-                    scope == crate::native_scalar_compilation::NativeScalarScope::PublicMember,
+-                );
+-                if version < TclVersion::V8_6
+-                    || !shapes.get(from..).is_some_and(|arguments| {
+-                        matches!(arguments.len(), 1 | 2)
+-                            && !arguments.contains(&NativeCompilationWordShape::Expanded)
+-                    })
+-                {
+-                    NativeCompilationSelection::Generic
+-                } else {
+-                    NativeCompilationSelection::Inline {
+-                        operation: self.operation,
+-                        guard: NativeCompilationGuard::BeforeArguments,
+-                    }
+-                }
++                string_trim_grammar(shapes, version, self.operation, scope)
+             }
+             NativeCompilationGrammar::StringMatch(scope) => {
+                 let from = usize::from(
+@@ -4946,6 +4925,20 @@
+         words.literal(operand_from),
+         version,
+     ) != crate::native_introspection_compilation::NativeNamespaceWhichShape::Unavailable
++}
++
++fn info_commands_preserves_names(
++    words: &crate::native_compiler_words::NativeCompilerWords<'_>,
++    operand_from: usize,
++    count: usize,
++) -> bool {
++    count == 1
++        && words.literal(operand_from).is_some_and(|value| {
++            value.starts_with(b"::")
++                && value
++                    .iter()
++                    .all(|&byte| byte.is_ascii() && !matches!(byte, 0 | b'*' | b'?' | b'[' | b'\\'))
++        })
+ }
+ 
+ fn dictionary_preserves_names(command: crate::native_dictionary::NativeDictionaryCommand) -> bool {
+@@ -5227,6 +5220,29 @@
+     Selection::Inline {
+         operation,
+         guard: NativeCompilationGuard::BeforeArguments,
++    }
++}
++
++fn string_trim_grammar(
++    shapes: &[NativeCompilationWordShape],
++    version: TclVersion,
++    operation: SemanticOperationId,
++    scope: crate::native_scalar_compilation::NativeScalarScope,
++) -> NativeCompilationSelection {
++    let from =
++        usize::from(scope == crate::native_scalar_compilation::NativeScalarScope::PublicMember);
++    if version < TclVersion::V8_6
++        || !shapes.get(from..).is_some_and(|arguments| {
++            matches!(arguments.len(), 1 | 2)
++                && !arguments.contains(&NativeCompilationWordShape::Expanded)
++        })
++    {
++        NativeCompilationSelection::Generic
++    } else {
++        NativeCompilationSelection::Inline {
++            operation,
++            guard: NativeCompilationGuard::BeforeArguments,
++        }
+     }
+ }
+ 
+--- a/rust/tcl-registry/src/native_string_is_compilation.rs
++++ b/rust/tcl-registry/src/native_string_is_compilation.rs
+@@ -1,5 +1,5 @@
+ // SPDX-License-Identifier: AGPL-3.0-or-later
+-//! The measured non-strict ASCII branch of C's StringIs compiler.
++//! The measured non-strict ASCII branch of C's `StringIs` compiler.
+ //!
+ //! C8.6/9.0/9.1 compile exactly one original subject followed by `STR_CLASS`
+ //! ASCII. Class/options outside this branch stay unknown: their native
+--- a/rust/tcl-registry/src/native_procedure.rs
++++ b/rust/tcl-registry/src/native_procedure.rs
+@@ -53,8 +53,7 @@
+         .get_or_init(Mutex::default)
+         .lock()
+         .unwrap_or_else(PoisonError::into_inner);
+-    *memo
+-        .entry(std::ptr::from_ref(spec).addr())
++    memo.entry(std::ptr::from_ref(spec).addr())
+         .or_insert_with(|| {
+             let mut attached = spec.clone();
+             attached.procedure_definition = Some(NativeProcedureDefinitionSpec::Core);

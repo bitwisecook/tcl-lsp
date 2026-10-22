@@ -1,0 +1,19 @@
+{
+  "utc": "2026-10-22T20:33:51.342901+00:00",
+  "base": "4204767035207de91501e8d4bebab8f002a75395",
+  "paths": [
+    "rust/tcl-registry/src/native_compilation.rs",
+    "rust/tcl-registry/src/native_string_is_compilation.rs",
+    "rust/tcl-registry/src/native_procedure.rs",
+    "rust/tcl-lsp-server/src/lib.rs",
+    "rust/tcl-lsp-server/src/current_diagnostics.rs",
+    "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+    "rust/tcl-lsp-server/src/recovery_source/tests.rs"
+  ],
+  "patches": [
+    "16257e9d0fb7f97e272db6043429dedb1fd642b01730fa5e0722d162c028ed24",
+    "29ec0f039949153486f121a42c6fc576547102ef89569ef2b1e0b998ba0149bf"
+  ],
+  "guards": "Exact before/after SHA256 for all7 paths, apply-check and diff-check passed. Registry independent peer + root static review; server prior peer and root refreshed diff review. No assertion or allowance change.",
+  "tests": "unrun; static/syntax/format evidence only"
+}

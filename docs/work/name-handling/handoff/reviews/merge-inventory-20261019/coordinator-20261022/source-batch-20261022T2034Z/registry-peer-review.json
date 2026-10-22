@@ -1,0 +1,80 @@
+{
+  "schema": "ccg-ci5205-registry-lint-static-peer-review-v1",
+  "patch_path": "/tmp/ccg-ci5205-registry-lints/proposal.patch",
+  "patch_sha256": "16257e9d0fb7f97e272db6043429dedb1fd642b01730fa5e0722d162c028ed24",
+  "review_scope": "static source and off-tree patch applicability only; no Clippy, Cargo, tests, Git, or canonical writes",
+  "diagnostics_from_ci5205": [
+    "native_compilation.rs:1886 clippy::too_many_lines 103/100",
+    "native_compilation.rs:4062 clippy::too_many_lines 108/100",
+    "native_string_is_compilation.rs:2 clippy::doc_markdown",
+    "native_procedure.rs:56 clippy::explicit_auto_deref"
+  ],
+  "static_findings": [
+    {
+      "hunk": "InfoCommands predicate extraction",
+      "finding": "The exact `count == 1 && words.literal(...).is_some_and(...)` expression and short-circuit order are moved into a private same-module helper. Inputs are unchanged and no selection/capability gate is added."
+    },
+    {
+      "hunk": "StringTrim selection extraction",
+      "finding": "The exact Tcl 8.6 version floor, scope-derived starting index, accepted argument lengths, Expanded rejection, and Generic/Inline outcomes are moved into a private helper. The call passes the same shapes/version/operation/scope."
+    },
+    {
+      "hunk": "StringIs module doc",
+      "finding": "Adds Markdown backticks around the identifier only."
+    },
+    {
+      "hunk": "native_procedure memo return",
+      "finding": "The current function returns `&'static CommandSpec`; entry lookup returns `&mut &'static CommandSpec`. Removing the explicit leading dereference relies on expected-return-type coercion to the stored static reference, preserving the map key, lock, closure, and stored value."
+    }
+  ],
+  "line_count_observation": "Proposal reduces both reported overlong functions; no claim of Clippy acceptance without rerun.",
+  "base_verification": {
+    "base_proof_path": "/tmp/ccg-ci5205-registry-lints/base-proof.json",
+    "all_three_proposed_base_files_match_current_active_and_published_39b392_and_CI5205_2b934": true,
+    "hashes": [
+      {
+        "path": "rust/tcl-registry/src/native_compilation.rs",
+        "base_sha256": "55d44455e791e143a85805c4349be96167f4d4058cb306157235b577a7d81d90",
+        "active_sha256": "55d44455e791e143a85805c4349be96167f4d4058cb306157235b577a7d81d90",
+        "published39b392_sha256": "55d44455e791e143a85805c4349be96167f4d4058cb306157235b577a7d81d90",
+        "ci2b934_sha256": "55d44455e791e143a85805c4349be96167f4d4058cb306157235b577a7d81d90",
+        "base_equals_ci": true,
+        "base_equals_active_current": true,
+        "base_equals_published_current": true
+      },
+      {
+        "path": "rust/tcl-registry/src/native_string_is_compilation.rs",
+        "base_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+        "active_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+        "published39b392_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+        "ci2b934_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+        "base_equals_ci": true,
+        "base_equals_active_current": true,
+        "base_equals_published_current": true
+      },
+      {
+        "path": "rust/tcl-registry/src/native_procedure.rs",
+        "base_sha256": "3adb92e6d21601669ddfdf751db9219da677d941b4bea986869afc3f5502e790",
+        "active_sha256": "3adb92e6d21601669ddfdf751db9219da677d941b4bea986869afc3f5502e790",
+        "published39b392_sha256": "3adb92e6d21601669ddfdf751db9219da677d941b4bea986869afc3f5502e790",
+        "ci2b934_sha256": "3adb92e6d21601669ddfdf751db9219da677d941b4bea986869afc3f5502e790",
+        "base_equals_ci": true,
+        "base_equals_active_current": true,
+        "base_equals_published_current": true
+      }
+    ],
+    "offtree_patch_dry_run_against_rebased_active_copies": "pass; no offsets or rejects"
+  },
+  "patch_dry_run": {
+    "status": "pass",
+    "stdout": [
+      "checking file rust/tcl-registry/src/native_compilation.rs",
+      "checking file rust/tcl-registry/src/native_string_is_compilation.rs",
+      "checking file rust/tcl-registry/src/native_procedure.rs"
+    ]
+  },
+  "limitations": [
+    "Static review cannot prove Clippy accepts the refactored functions or type-checking succeeds; no Cargo/Clippy/build ran.",
+    "No test assertions, lint allowances, or compiler capability gates were changed by this proposal."
+  ]
+}

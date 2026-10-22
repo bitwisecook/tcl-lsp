@@ -1,0 +1,41 @@
+{
+  "base_head": "4204767035207de91501e8d4bebab8f002a75395",
+  "status": "OFFTREE refreshed approved17-site residual lint candidate, no Cargo/canonical change",
+  "original_patch_sha256": "7aa4e1650a700159be797d0bffa0f7079773257d139a95def776aa2f64949824",
+  "patch_sha256": "29ec0f039949153486f121a42c6fc576547102ef89569ef2b1e0b998ba0149bf",
+  "refresh": "Prior narrow patch applied to current formatted copies with fuzz0+whitespace matching; only rejected hunk manually realigned identical borrowed four-row semantics. All four full files rustfmt parsed/formatted. Existing API438631 and browser pack_generation correction preserved.",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "4edf5eb0b4ef6c31085d28210e8fc697327fd4cfd2154f05907a05c7dbd13ce3",
+      "proposed_sha256": "3346713545c342e97329be798d77a99a8a0587776f8732826d74455878c4cd87",
+      "diff_lines": 124,
+      "assertion_count_unchanged": 2010,
+      "function_roster_unchanged": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "before_sha256": "f2dd3285c8d8c3163f20101b3918c9601a5e2d3afaf994bfb3e915dcf59c2298",
+      "proposed_sha256": "bdbc4a50e606fe4d507498a93276496a37e55bc8f9b7ed3eb3d86c1b584e2545",
+      "diff_lines": 129,
+      "assertion_count_unchanged": 142,
+      "function_roster_unchanged": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "before_sha256": "0b8c824335ee5d5d3e7893046b7a9cf784527d6883c8ea2087db58670be5f105",
+      "proposed_sha256": "dee9802f14babbca2d3ccba63c9b61f9de75a9c0c9bfc00679da7a3a2abd4e97",
+      "diff_lines": 129,
+      "assertion_count_unchanged": 177,
+      "function_roster_unchanged": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/recovery_source/tests.rs",
+      "before_sha256": "ea1eef9f604d96186da13e19aa360f2de88c458988d0b32465cd1ff57d713374",
+      "proposed_sha256": "1f306ab1075b336f0fd6b9340343fb50a91625b6dc4782e361bcd3c5d86fbf71",
+      "diff_lines": 13,
+      "assertion_count_unchanged": 58,
+      "function_roster_unchanged": true
+    }
+  ]
+}

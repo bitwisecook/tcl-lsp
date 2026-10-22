@@ -2718,6 +2718,32 @@ mod tests {
 
     #[tokio::test]
     async fn actual_failed_lift_worker_cannot_issue_completed_empty_diagnostics() {
+        // Preserve the original failed-worker assertion surface. This adapter
+        // delegates to the current publication owner; a failed worker produced
+        // no command-query receipt and cannot enter dependency admission.
+        async fn publish_diagnostics_result(
+            delivery: &DeliveryCtx<'_>,
+            workspace_index: &Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
+            rehomed_source_seeds: &Arc<Mutex<HashMap<String, Vec<String>>>>,
+            rehoming_gate: &Arc<tokio::sync::Mutex<()>>,
+            analysis: &Arc<AnalysisResult>,
+            result: (
+                Result<(), DiagnosticUnavailable>,
+                Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError>,
+            ),
+            timing: PublishTiming<'_>,
+        ) -> bool {
+            crate::publish_diagnostics_result(
+                delivery,
+                workspace_index,
+                rehomed_source_seeds,
+                rehoming_gate,
+                analysis,
+                (result.0, result.1, None),
+                timing,
+            )
+            .await
+        }
         let backend = crate::tests::test_backend();
         let expected = DiagnosticSourceExpectation {
             uri: Uri::from_str("file:///diagnostic-failed-lift.tcl").unwrap(),
@@ -2758,32 +2784,7 @@ mod tests {
             version: job.version,
             client_supports_pull: false,
         };
-        // Preserve the original failed-worker assertion surface. This adapter
-        // delegates to the current publication owner; a failed worker produced
-        // no command-query receipt and cannot enter dependency admission.
-        async fn publish_diagnostics_result(
-            delivery: &DeliveryCtx<'_>,
-            workspace_index: &Arc<TrackedRwLock<core_workspace_index::WorkspaceIndex>>,
-            rehomed_source_seeds: &Arc<Mutex<HashMap<String, Vec<String>>>>,
-            rehoming_gate: &Arc<tokio::sync::Mutex<()>>,
-            analysis: &Arc<AnalysisResult>,
-            result: (
-                Result<(), DiagnosticUnavailable>,
-                Result<Vec<tower_lsp_server::ls_types::Diagnostic>, crate::rt::JoinError>,
-            ),
-            timing: PublishTiming<'_>,
-        ) -> bool {
-            crate::publish_diagnostics_result(
-                delivery,
-                workspace_index,
-                rehomed_source_seeds,
-                rehoming_gate,
-                analysis,
-                (result.0, result.1, None),
-                timing,
-            )
-            .await
-        }
+
         let failed =
             crate::rt::spawn_blocking(|| -> Vec<tower_lsp_server::ls_types::Diagnostic> {
                 panic!("actual diagnostic lift worker failure control")
@@ -3193,7 +3194,7 @@ mod proposal_endpoint_tests {
             .expect("serialized response")
     }
 
-    fn same_optional_arc<T>(before: &Option<Arc<T>>, after: &Option<Arc<T>>) -> bool {
+    fn same_optional_arc<T>(before: Option<&Arc<T>>, after: Option<&Arc<T>>) -> bool {
         match (before, after) {
             (None, None) => true,
             (Some(before), Some(after)) => Arc::ptr_eq(before, after),
@@ -3291,16 +3292,16 @@ mod proposal_endpoint_tests {
                 *values
             );
             assert!(same_optional_arc(
-                &evidence.0,
-                file.external_call_sites(&*db)
+                evidence.0.as_ref(),
+                file.external_call_sites(&*db).as_ref()
             ));
             assert!(same_optional_arc(
-                &evidence.1,
-                file.workspace_class_factories(&*db)
+                evidence.1.as_ref(),
+                file.workspace_class_factories(&*db).as_ref()
             ));
             assert!(same_optional_arc(
-                &evidence.2,
-                file.workspace_subclass_methods(&*db)
+                evidence.2.as_ref(),
+                file.workspace_subclass_methods(&*db).as_ref()
             ));
         }
         drop(files);

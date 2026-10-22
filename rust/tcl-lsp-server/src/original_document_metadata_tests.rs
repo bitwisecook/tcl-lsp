@@ -5,6 +5,7 @@
 //! Real document consumers preserve complete source inputs and typed findings.
 
 use super::*;
+use salsa::Setter as _;
 use tcl_compiler::analyser::ResolvedAnalysisInput;
 use tower_lsp_server::ls_types::{
     PartialResultParams, TextDocumentIdentifier, WorkDoneProgressParams,
@@ -224,10 +225,10 @@ fn unindexed_tokens_refuse_withdrawn_source_metadata_and_availability() {
         tcl_registry::model::resolve_environment("tcl9.1").default_context_registry(),
     )
     .resolved_input;
-    for refused in [missing, unavailable_generation, stale, foreign] {
-        assert_eq!(unindexed_semantic_tokens(source, &refused).data.len(), 0);
+    for refused in [&missing, &unavailable_generation, &stale, &foreign] {
+        assert_eq!(unindexed_semantic_tokens(source, refused).data.len(), 0);
         assert_eq!(
-            unindexed_semantic_tokens_for_range(source, &refused, Some(whole_source_range(source)))
+            unindexed_semantic_tokens_for_range(source, refused, Some(whole_source_range(source)))
                 .data
                 .len(),
             0
@@ -509,8 +510,12 @@ async fn workspace_class_analysis_refuses_withdrawn_base_before_cached_hints() {
         .resolved_input
         .unwrap(),
     );
-    for withdrawn in [missing, unavailable, stale, foreign] {
-        let withdrawn = Arc::new(withdrawn);
+    for withdrawn in [
+        Arc::new(missing),
+        Arc::new(unavailable),
+        Arc::new(stale),
+        Arc::new(foreign),
+    ] {
         let result = backend
             .analyse_with_workspace_classes_from_analysis(
                 &uri,
@@ -710,10 +715,15 @@ async fn workspace_index_seed_refuses_stale_and_withdrawn_source_owners() {
             environment: "tcl".to_owned(),
             overlay: u64::MAX - 352,
         });
-    for analysis in [missing, stale, foreign, unavailable_with_receipts] {
+    for analysis in [
+        Arc::new(missing),
+        Arc::new(stale),
+        Arc::new(foreign),
+        Arc::new(unavailable_with_receipts),
+    ] {
         let seed = FreshAnalysisSeed {
             path_admission: Arc::clone(&current.path_admission),
-            analysis: Arc::new(analysis),
+            analysis,
             analyser_inputs_epoch: current.analyser_inputs_epoch,
             class_factory_generation: current.class_factory_generation,
         };
@@ -727,7 +737,6 @@ async fn workspace_index_seed_refuses_stale_and_withdrawn_source_owners() {
     backend.invalidate_diag_inputs();
     assert!(!backend.fresh_index_seed_is_current(source, &current).await);
 
-    use salsa::Setter as _;
     {
         let mut db = backend.db.lock().await;
         backend
@@ -899,7 +908,6 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
             .any(|row| row.qualified_name == "::retained")
     );
 
-    use salsa::Setter as _;
     {
         let mut db = backend.db.lock().await;
         backend
@@ -926,7 +934,6 @@ async fn optimise_document_keeps_workspace_roles_and_refuses_unavailable_input()
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn document_symbols_keep_the_resource_input_and_withdraw_unavailable_overlays() {
-    use salsa::Setter as _;
     let (backend, registry) = workspace_pack_backend().await;
     let folder = Uri::from_str("file:///outline-resource392/library").unwrap();
     let uri = Uri::from_str("file:///outline-resource392/library/outline.tcl").unwrap();
@@ -1038,7 +1045,6 @@ async fn project_tokens_use_published_folder_inputs_and_refuse_a_missing_generat
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     // The real token worker consumes per-file source advice without Native entry.
-    use salsa::Setter as _;
     let (backend, _) = workspace_pack_backend().await;
     let folder = Uri::from_str("file:///project-input354/library").unwrap();
     let library_uri = Uri::from_str("file:///project-input354/library/reader.tcl").unwrap();
@@ -1194,7 +1200,6 @@ async fn callback_project_worker_uses_each_librarys_published_configuration() {
     // naming.database.original-project-callback-projection
     // docs/design/analysis/name-resolution-proofs/database-original-project-callback-projection.md
     // Authentic source headers/counts remain independent of callback execution.
-    use salsa::Setter as _;
     let backend = crate::tests::test_backend();
     let folder = Uri::from_str("file:///project-source356/library").unwrap();
     let library_uri = Uri::from_str("file:///project-source356/library/header.tcl").unwrap();
@@ -1291,7 +1296,6 @@ async fn configured_factory_rounds_refuse_stale_publication_and_withdraw_unavail
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     // The real fixpoint publishes conditional manufacturers, not Native receivers.
-    use salsa::Setter as _;
     let (backend, _) = workspace_pack_backend().await;
     let folder = Uri::from_str("file:///project-source356/factories").unwrap();
     let library_uri = Uri::from_str("file:///project-source356/factories/meta.tcl").unwrap();
@@ -1359,7 +1363,6 @@ async fn project_evidence_publication_withdraws_incomplete_checked_contributors(
     // naming.compiler.original-analysis-metadata-context
     // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
     // Actual host publication retains conditional caller facts, not Native entry.
-    use salsa::Setter as _;
     let backend = crate::tests::test_backend();
     let folder = Uri::from_str("file:///project-call357/callers").unwrap();
     let library_uri = Uri::from_str("file:///project-call357/library.tcl").unwrap();
@@ -1450,7 +1453,6 @@ async fn tk_preview_keeps_configured_constructor_and_reports_unavailable_overlay
     // naming.core.original-tk-source-context
     // docs/design/analysis/name-resolution-proofs/core-original-tk-source-context.md
     // This public command projects source hints, without creating a widget.
-    use salsa::Setter as _;
     let backend = crate::tests::test_backend();
     let packs = tcl_spectcl::pack::load_in_memory(vec![(
         tcl_spectcl::PackFile {
@@ -1573,7 +1575,6 @@ async fn original_formatter_requests_keep_checked_availability_raw_coordinates_a
     // docs/design/analysis/name-resolution-proofs/editor-original-source-formatting.md
     // These public requests retain actual source/configuration; no appliance
     // execution or Native body entry is supplied by the event/source roles.
-    use salsa::Setter as _;
     let backend = crate::tests::test_backend();
     let uri = Uri::from_str("file:///workspace/formatter-source-currency.tcl").unwrap();
     let source = "when CLIENTSSL_HANDSHAKE {\r\nSSL::c3d cert_lifespan 24\r\n}\r\n";

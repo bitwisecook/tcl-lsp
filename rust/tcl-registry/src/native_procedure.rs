@@ -53,8 +53,7 @@ pub(crate) fn attach_builtin_core_definition(
         .get_or_init(Mutex::default)
         .lock()
         .unwrap_or_else(PoisonError::into_inner);
-    *memo
-        .entry(std::ptr::from_ref(spec).addr())
+    memo.entry(std::ptr::from_ref(spec).addr())
         .or_insert_with(|| {
             let mut attached = spec.clone();
             attached.procedure_definition = Some(NativeProcedureDefinitionSpec::Core);

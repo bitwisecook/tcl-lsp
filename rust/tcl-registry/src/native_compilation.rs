@@ -1929,13 +1929,7 @@ impl NativeCompilationSpec {
                         .is_some_and(|value| value.starts_with(b"::namespace inscope "))
             }
             NativeCompilationGrammar::InfoCommands => {
-                count == 1
-                    && words.literal(operand_from).is_some_and(|value| {
-                        value.starts_with(b"::")
-                            && value.iter().all(|&byte| {
-                                byte.is_ascii() && !matches!(byte, 0 | b'*' | b'?' | b'[' | b'\\')
-                            })
-                    })
+                info_commands_preserves_names(words, operand_from, count)
             }
             NativeCompilationGrammar::ArityFrom { .. } => {
                 self.operation == SemanticOperationId::Intrinsic(crate::IntrinsicId::ListSet)
@@ -4104,22 +4098,7 @@ impl NativeCompilationSpec {
                 2,
             ),
             NativeCompilationGrammar::StringTrim { scope, .. } => {
-                let from = usize::from(
-                    scope == crate::native_scalar_compilation::NativeScalarScope::PublicMember,
-                );
-                if version < TclVersion::V8_6
-                    || !shapes.get(from..).is_some_and(|arguments| {
-                        matches!(arguments.len(), 1 | 2)
-                            && !arguments.contains(&NativeCompilationWordShape::Expanded)
-                    })
-                {
-                    NativeCompilationSelection::Generic
-                } else {
-                    NativeCompilationSelection::Inline {
-                        operation: self.operation,
-                        guard: NativeCompilationGuard::BeforeArguments,
-                    }
-                }
+                string_trim_grammar(shapes, version, self.operation, scope)
             }
             NativeCompilationGrammar::StringMatch(scope) => {
                 let from = usize::from(
@@ -4948,6 +4927,20 @@ fn namespace_which_preserves_names(
     ) != crate::native_introspection_compilation::NativeNamespaceWhichShape::Unavailable
 }
 
+fn info_commands_preserves_names(
+    words: &crate::native_compiler_words::NativeCompilerWords<'_>,
+    operand_from: usize,
+    count: usize,
+) -> bool {
+    count == 1
+        && words.literal(operand_from).is_some_and(|value| {
+            value.starts_with(b"::")
+                && value
+                    .iter()
+                    .all(|&byte| byte.is_ascii() && !matches!(byte, 0 | b'*' | b'?' | b'[' | b'\\'))
+        })
+}
+
 fn dictionary_preserves_names(command: crate::native_dictionary::NativeDictionaryCommand) -> bool {
     use crate::native_dictionary::NativeDictionaryCommand as Dictionary;
     matches!(
@@ -5227,6 +5220,29 @@ fn list_assignment_grammar(
     Selection::Inline {
         operation,
         guard: NativeCompilationGuard::BeforeArguments,
+    }
+}
+
+fn string_trim_grammar(
+    shapes: &[NativeCompilationWordShape],
+    version: TclVersion,
+    operation: SemanticOperationId,
+    scope: crate::native_scalar_compilation::NativeScalarScope,
+) -> NativeCompilationSelection {
+    let from =
+        usize::from(scope == crate::native_scalar_compilation::NativeScalarScope::PublicMember);
+    if version < TclVersion::V8_6
+        || !shapes.get(from..).is_some_and(|arguments| {
+            matches!(arguments.len(), 1 | 2)
+                && !arguments.contains(&NativeCompilationWordShape::Expanded)
+        })
+    {
+        NativeCompilationSelection::Generic
+    } else {
+        NativeCompilationSelection::Inline {
+            operation,
+            guard: NativeCompilationGuard::BeforeArguments,
+        }
     }
 }
 

@@ -1,0 +1,121 @@
+{
+  "schema": "ci5205-current-source-metadata-v1",
+  "status": "metadata-collected; selector-comparison-pending-nextest-job-logs",
+  "dispatch_metadata_path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/work-ci5205-dispatch-20261022.json",
+  "dispatch_metadata_sha256": "e10b0c1d559959123e017d893730572be77a6be86d97de674e78aa2f525831f7",
+  "current_run": {
+    "id": 39845788481,
+    "number": 5205,
+    "ref": "work",
+    "head_sha": "2b93470548313b99d29af108d8b38d52b2db7ceb",
+    "workflow": "ci.yml",
+    "created_at": "2026-10-22T20:05:26Z",
+    "inputs": {
+      "rust_tests_runner": "hosted",
+      "native_release_build_proof": false
+    }
+  },
+  "current_source_note": "The CI run is on published ref work at exact head SHA shown above. active_source_snapshot in dispatch is recorded separately and is not substituted for actual_head_sha.",
+  "baseline": {
+    "path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/origin-rust-ci-5203-named-log-outcomes-20261022.json",
+    "sha256": "8f0640329c7c60180099d61fe5c2d58ff13b76230b6046ef169f610b3ffa7a58",
+    "run_id": 39816429638,
+    "run_number": 5203,
+    "ref": "rust",
+    "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+    "schema": "nextest-human-reporter-observed-identities-v1",
+    "named_PASS_records": 24312,
+    "identity_rule": "Use the actual canonical nextest RustBinaryId from the untruncated status-line prefix. Do not infer binary_id from a suffix guess. Baseline observed convention: rendered null suffix means binary_id=package; non-null suffix means package::suffix."
+  },
+  "comparator": {
+    "path": "/tmp/ci5203_exact_selector_compare.py",
+    "sha256": "65cb36e14d9145039546e4b5a0b0de02b01e9feb749bc05f2d846d7c3625eaf2",
+    "identity_key": [
+      "binary_id",
+      "selector"
+    ],
+    "rules": {
+      "baseline_PASS_to_current_FAIL_ABORT_TIMEOUT": "regression",
+      "current_SKIP_or_missing": "unknown",
+      "duplicate_key_either_side": "fail_closed_without_classifications",
+      "new_current_PASS": "separate_extra_current_pass"
+    },
+    "receipt_path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/baseline-exact-comparator-20261022/ci5203_exact_selector_compare-receipt.json"
+  },
+  "current_log_inventory": [
+    {
+      "path": "/tmp/work-ci5205/cargo-deny.log",
+      "kind": "supply-chain gate",
+      "bytes": 946381,
+      "sha256": "ff7c7ecaa872b09d83b1876c5e032b1f7b248bda78b99ed4c67e4ef238e9bcb1",
+      "note": "Root reports cargo-deny job 120058581627 succeeded; contains no named test selector records."
+    },
+    {
+      "path": "/tmp/work-ci5205/native-archive.log",
+      "kind": "nextest archive setup",
+      "bytes": 82548,
+      "sha256": "033aeb7f8af5bd1f3273961ce3053145f70a476d54ebaef702188566b403db39",
+      "note": "Identifies cargo-nextest 0.9.148 and archive creation; no named executed test records."
+    },
+    {
+      "path": "/tmp/work-ci5205/runtime.log",
+      "kind": "runtime compatibility job",
+      "bytes": 150677,
+      "sha256": "a523f61eef02de64332b0d58208d58409653098b1cc82cbbea9f42c7c8780dc6",
+      "note": "Contains an aggregate `1 passed; 0 failed` Rust test summary without per-test selectors; not eligible for exact-key comparison."
+    },
+    {
+      "path": "/tmp/work-ci5205/rust-check.log",
+      "kind": "strict formatting and Clippy",
+      "bytes": 77625,
+      "sha256": "8d075606d5444884661d393478ecb42334df024d4ef6e1ec4f7f0ca5233c09ea",
+      "note": "Root reports rustfmt passed and four registry Clippy diagnostics; contains no named test selector records."
+    },
+    {
+      "path": "/tmp/work-ci5205/wasm-real-link.log",
+      "kind": "WASM real-link job",
+      "bytes": 120533,
+      "sha256": "8d141b4cd2abfe5bbbe361f6d912c16f70501b8db45b936adbc37c5a6e747dda",
+      "note": "Contains aggregate test counts, not yet normalized to exact nextest binary_id/selector rows; keep separate from selector comparison pending job/log review."
+    }
+  ],
+  "nextest_selector_inputs_pending": [
+    "completed raw logs for rust-tests-shard-1 through rust-tests-shard-5 (or the actual job set recorded in CI5205 job metadata)",
+    "completed raw logs for lsp-e2e partitions (actual partition count/job names from CI5205 metadata)",
+    "job IDs, outcome/conclusion, exact reported summary counts, log SHA256, and nextest version/profile per parsed job"
+  ],
+  "comparison_input_contract": {
+    "schema": "nextest-human-reporter-observed-identities-v1",
+    "required_top_level": [
+      "run",
+      "parsed_jobs",
+      "records"
+    ],
+    "run_must_equal_current_run": true,
+    "each_record_requires": [
+      "job",
+      "binary_id",
+      "selector",
+      "status"
+    ],
+    "binary_id_source": "literal full RustBinaryId shown in the nextest status line; retain package and rendered-label evidence if collected",
+    "per_job_required_evidence": [
+      "job_id",
+      "completed job conclusion",
+      "raw_log_path",
+      "raw_log_sha256",
+      "nextest version",
+      "profile/features if applicable",
+      "observed summary count and parsed status-line counts"
+    ],
+    "validation": "Reject any input identity duplicates; reconcile parsed named status-line totals against completed log summaries; do not manufacture SKIP rows from summary skip counts."
+  },
+  "comparison_status": "not run; no normalized current nextest receipt was available when this metadata inventory was written",
+  "limits": [
+    "No current P2F classification is asserted.",
+    "Current missing or summary-only skipped identities remain unknown.",
+    "Aggregate runtime/WASM counts are not transformed into selector rows.",
+    "This inventory does not establish CI run or suite completeness.",
+    "No Git fetch, Cargo, test execution, or source modification was performed."
+  ]
+}

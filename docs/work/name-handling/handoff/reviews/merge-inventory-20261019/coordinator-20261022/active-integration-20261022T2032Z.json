@@ -1,0 +1,40 @@
+{
+  "utc": "2026-10-22T20:32:04.450664+00:00",
+  "active_before": "b79e6b69636569b1e607462d3c18e0bf3e0f8104",
+  "active_after": "4204767035207de91501e8d4bebab8f002a75395",
+  "publisher": "39b392963c652b3bc0d8ca95e387b2b00a225b25",
+  "product_tree_diff": [],
+  "active_clean_after_rebase": true,
+  "shallow": "true",
+  "skipped_equivalent_active_checkpoints": [
+    "55a175ac8",
+    "e02b4c438",
+    "d666c9b2a",
+    "93a5a3414",
+    "6a307dbd6",
+    "4f6c7f265",
+    "30926fc32",
+    "6974803cd"
+  ],
+  "fetch_note": "Depth1 work and exact required missing commits only; one shallow-file changed failure retained. Final three missing commit objects copied byte-exactly from existing publisher cache with no new remote history. Earlier rebase while fetch incomplete was a clean no-op onto old remote and did not integrate source; actual integration is this later successful rebase.",
+  "cached_commit_repair": {
+    "utc": "2026-10-22T20:31:13.006650+00:00",
+    "operation": "copy exact missing commit objects already cached in publisher; no remote fetch, no alternate change",
+    "copied": [
+      "0412d5e49b9e03e3d67235b542c2b28fd5629f3e",
+      "1a3689d7cb1ba7f18b37f87d15ba4bade4deaf46",
+      "2d1b85ada2581695670d508ad54c1d57468c1de6"
+    ],
+    "final_boundary_check": {
+      "preserved_existing_boundaries": 20,
+      "restored_cached_tip_boundaries": 19,
+      "missing_commit_objects": [],
+      "still_shallow": true,
+      "cached_commit_headers": 343,
+      "dry_run": false
+    }
+  },
+  "free_bytes": 13685559296,
+  "tests_after_integration": "not run; all prior local results retain old source attribution",
+  "cargo_live": false
+}

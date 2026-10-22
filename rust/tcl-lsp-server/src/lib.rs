@@ -17098,7 +17098,6 @@ impl Backend {
             ))
             .await;
         }
-        use std::ops::ControlFlow;
         let target = match self
             .original_method_candidate_at(uri, source, analysis, position)
             .await?
@@ -27103,7 +27102,7 @@ impl Backend {
         let analysed = self
             .analysed_diagnostics_for(uri, Arc::clone(&text), dialect.clone(), language_id)
             .await?;
-        let (pack_seq, pack_set) = {
+        let (pack_generation, pack_set) = {
             let published = self.spec_packs.lock().await;
             (published.seq, Arc::clone(&published.packs))
         };
@@ -27112,7 +27111,7 @@ impl Backend {
             PackNoticeContext {
                 uri,
                 source: &text,
-                pack_seq,
+                pack_seq: pack_generation,
                 packs: &pack_set,
                 registry: &registry,
                 store: self.store.as_ref(),
@@ -39376,7 +39375,7 @@ mod tests {
                     .join(format!("tcl-lsp-w120-{tag}-{}-{n}", std::process::id()));
                 match std::fs::create_dir(&p) {
                     Ok(()) => return Self(p),
-                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
                     Err(error) => panic!("creating owned test directory {}: {error}", p.display()),
                 }
             }
@@ -40278,12 +40277,12 @@ namespace exists n\uD800";
             .await
             .add_document(second.as_str(), &analysis);
         let doc = backend.read_document(&first).await.unwrap().unwrap();
-        let changes = backend
+        let workspace_edits = backend
             .cross_document_original_namespace_rename(&first, &doc, &analysis, &symbol, "renamed")
             .await
             .unwrap();
-        assert_eq!(changes.len(), 2);
-        for mut edits in changes.into_values() {
+        assert_eq!(workspace_edits.len(), 2);
+        for mut edits in workspace_edits.into_values() {
             assert_eq!(edits.len(), 2);
             edits.sort_by_key(|edit| {
                 std::cmp::Reverse((edit.range.start.line, edit.range.start.character))
@@ -52275,15 +52274,15 @@ proc p {} {
         );
     }
 
-    async fn captured_workspace_scan_inputs(
-        backend: &Backend,
-    ) -> (
+    type CapturedWorkspaceScanInputs = (
         u64,
         u64,
         Arc<HashMap<String, String>>,
         Vec<(Uri, String)>,
         String,
-    ) {
+    );
+
+    async fn captured_workspace_scan_inputs(backend: &Backend) -> CapturedWorkspaceScanInputs {
         let analyser_inputs_guard = backend.analyser_inputs_gate.read().await;
         let epoch = backend.diag_inputs_epoch();
         let document_overrides = backend.document_dialect_override_snapshot().await;
@@ -52303,13 +52302,7 @@ proc p {} {
     async fn analyse_one_captured_workspace_file(
         backend: &Backend,
         path: PathBuf,
-        inputs: (
-            u64,
-            u64,
-            Arc<HashMap<String, String>>,
-            Vec<(Uri, String)>,
-            String,
-        ),
+        inputs: CapturedWorkspaceScanInputs,
     ) -> (PackageResolver, usize, bool, bool) {
         let (epoch, factory_generation, document_overrides, folder_dialects, default_dialect) =
             inputs;
@@ -55285,7 +55278,7 @@ proc p {} {
                 std::env::temp_dir().join(format!("tcl-lsp-scan-{tag}-{}-{n}", std::process::id()));
             match std::fs::create_dir(&dir) {
                 Ok(()) => return dir,
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
                 Err(error) => panic!(
                     "creating owned scratch directory {}: {error}",
                     dir.display()
@@ -67543,7 +67536,7 @@ mod closed_document_source_context_tests {
                 report.first_error.unwrap().replacement_text_offset
                     > decoded.find('\u{fffd}').unwrap()
             );
-            let at = document.text.find("puts").unwrap() as u32;
+            let at = u32::try_from(document.text.find("puts").unwrap()).unwrap();
             let position = document.line_index.position_at_utf16(at, &document.text);
             assert_eq!((position.line, position.character.get()), (1, 0));
         }
@@ -67828,7 +67821,7 @@ mod pack_configuration_input_gate_tests {
             },
             Vec::new(),
         );
-        assert_eq!(merged, [diagnostic.clone()]);
+        assert_eq!(merged, std::slice::from_ref(&diagnostic));
         // A retained Studio image has its own real admission owner; it does
         // not need a fabricated loader SourcePathOrigin to survive the union.
         let studio_admission = Arc::new(
@@ -67860,7 +67853,7 @@ mod pack_configuration_input_gate_tests {
                 },
                 Vec::new()
             ),
-            [diagnostic.clone()]
+            std::slice::from_ref(&diagnostic)
         );
         assert_eq!(
             backend
