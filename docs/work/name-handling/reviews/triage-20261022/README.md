@@ -4,6 +4,7 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 
 | Item | What it is |
 | --- | --- |
+| `run15-latest*`, `run15-build-error-summary.json`, `run15-build-errors.log` | Latest integration fails before probes: 18 compiler + 4 VM errors, Rust1.99.1, exit101. Full structured/rendered diagnostics; zero tests. |
 | `run-latest.sh` | Complete grouped serial latest-tree replay, plus fresh small scaling point and existing fold e2e. Core registry startup is shared; hook-mutating tests and seams run in separate processes. |
 | `run14-final.log`, `run14-partial-*`, `out/run14-final.tar.gz`, `out/run14-final.manifest.json` | Run14 completed 19 groups through N15, then was interrupted for a187c859 integration. 534 engine executions / 78 matching checks pass. Archive retains all 71 output files byte-for-byte; extract under a scratch directory if needed. |
 | `run14-progress.log`, `run14-source-audit.log`, `run14-rename-oracles.log`, `run14-rename-oracle-summary.json` | Post-R1 matrix and current final-replay prefix on 49b067ce; 198 engine executions / 12 matching-profile checks of early edits, no unexpected result. Main replay remains active. |

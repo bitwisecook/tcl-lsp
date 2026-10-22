@@ -1,0 +1,279 @@
+2026-10-22T18:28:30Z
+Revision be53f58c; no tests executed; complete rendered compiler errors follow.
+
+error: implementation of `Fn` is not general enough
+   --> rust/tcl-vm/src/interp/native_command_names.rs:876:21
+    |
+876 |             string: &string,
+    |                     ^^^^^^^ implementation of `Fn` is not general enough
+    |
+    = note: closure with signature `for<'a, 'b> fn(&'a Value, _, &'b (dyn Fn() -> _ + 'b)) -> _` must implement `Fn<(&Value, _, &'0 (dyn Fn() -> _ + '1))>`, for any two lifetimes `'0` and `'1`...
+    = note: ...but it actually implements `Fn<(&Value, _, &'2 (dyn Fn() -> _ + '2))>`, for some specific lifetime `'2`
+help: consider adding an explicit type annotation to the closure's argument
+    |
+870 |         let string = |value: &Value, protocol: NativeStringProtocol, registration: &dyn Fn() -> Result<(), Error>| {
+    |                                              ++++++++++++++++++++++
+
+
+error: implementation of `Fn` is not general enough
+   --> rust/tcl-vm/src/interp/native_command_names.rs:876:21
+    |
+876 |             string: &string,
+    |                     ^^^^^^^ implementation of `Fn` is not general enough
+    |
+    = note: closure with signature `for<'a, 'b> fn(&'a Value, _, &'b (dyn Fn() -> _ + 'b)) -> _` must implement `Fn<(&Value, _, &dyn Fn() -> _)>`
+    = note: ...but it actually implements `Fn<(&Value, _, &'0 (dyn Fn() -> _ + '0))>`, for some specific lifetime `'0`
+help: consider adding an explicit type annotation to the closure's argument
+    |
+870 |         let string = |value: &Value, protocol: NativeStringProtocol, registration: &dyn Fn() -> Result<(), Error>| {
+    |                                              ++++++++++++++++++++++
+
+
+error: implementation of `Fn` is not general enough
+   --> rust/tcl-vm/src/interp/native_variable_names.rs:174:21
+    |
+174 |             string: &string,
+    |                     ^^^^^^^ implementation of `Fn` is not general enough
+    |
+    = note: closure with signature `for<'a, 'b> fn(&'a Value, _, &'b (dyn Fn() -> _ + 'b)) -> _` must implement `Fn<(&Value, _, &'0 (dyn Fn() -> _ + '1))>`, for any two lifetimes `'0` and `'1`...
+    = note: ...but it actually implements `Fn<(&Value, _, &'2 (dyn Fn() -> _ + '2))>`, for some specific lifetime `'2`
+help: consider adding an explicit type annotation to the closure's argument
+    |
+162 |              protocol: NativeStringProtocol,
+    |                      ++++++++++++++++++++++
+
+
+error: implementation of `Fn` is not general enough
+   --> rust/tcl-vm/src/interp/native_variable_names.rs:174:21
+    |
+174 |             string: &string,
+    |                     ^^^^^^^ implementation of `Fn` is not general enough
+    |
+    = note: closure with signature `for<'a, 'b> fn(&'a Value, _, &'b (dyn Fn() -> _ + 'b)) -> _` must implement `Fn<(&Value, _, &dyn Fn() -> _)>`
+    = note: ...but it actually implements `Fn<(&Value, _, &'0 (dyn Fn() -> _ + '0))>`, for some specific lifetime `'0`
+help: consider adding an explicit type annotation to the closure's argument
+    |
+162 |              protocol: NativeStringProtocol,
+    |                      ++++++++++++++++++++++
+
+
+error[E0631]: type mismatch in function arguments
+   --> rust/tcl-compiler/src/analyser/scope.rs:604:39
+    |
+604 | ...                   .and_then(crate::command_binding::SourceNamespaceKey::display)
+    |                        -------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected due to this
+    |                        |
+    |                        required by a bound introduced by this call
+    |
+   ::: rust/tcl-compiler/src/command_binding/namespace_context.rs:151:5
+    |
+151 |     pub fn display(&self) -> Option<String> {
+    |     --------------------------------------- found signature defined here
+    |
+    = note: expected function signature `fn(&SignatureNamespaceScope) -> _`
+               found function signature `fn(&namespace_context::SourceNamespaceKey) -> _`
+note: required by a bound in `std::option::Option::<T>::and_then`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:1537:4
+help: consider wrapping the function in a closure
+    |
+604 |                             .and_then(|arg0: &SignatureNamespaceScope| crate::command_binding::SourceNamespaceKey::display(/* &namespace_context::SourceNamespaceKey */))
+    |                                       ++++++++++++++++++++++++++++++++                                                    ++++++++++++++++++++++++++++++++++++++++++++++
+
+
+error[E0631]: type mismatch in function arguments
+   --> rust/tcl-compiler/src/analyser/scope.rs:629:39
+    |
+629 | ...                   .and_then(crate::command_binding::SourceNamespaceKey::display)
+    |                        -------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected due to this
+    |                        |
+    |                        required by a bound introduced by this call
+    |
+   ::: rust/tcl-compiler/src/command_binding/namespace_context.rs:151:5
+    |
+151 |     pub fn display(&self) -> Option<String> {
+    |     --------------------------------------- found signature defined here
+    |
+    = note: expected function signature `fn(&SignatureNamespaceScope) -> _`
+               found function signature `fn(&namespace_context::SourceNamespaceKey) -> _`
+note: required by a bound in `std::option::Option::<T>::and_then`
+   --> /rustc/58cf8f9c35b355199727627d07ae34a4e2846d67/library/core/src/option.rs:1537:4
+help: consider wrapping the function in a closure
+    |
+629 |                             .and_then(|arg0: &SignatureNamespaceScope| crate::command_binding::SourceNamespaceKey::display(/* &namespace_context::SourceNamespaceKey */))
+    |                                       ++++++++++++++++++++++++++++++++                                                    ++++++++++++++++++++++++++++++++++++++++++++++
+
+
+error[E0308]: mismatched types
+    --> rust/tcl-compiler/src/cfg_builder/mod.rs:4371:9
+     |
+4370 |     ) -> Option<Option<crate::registry_invocation::InvocationMetadataContext<'_>>> {
+     |          ------------------------------------------------------------------------- expected `std::option::Option<std::option::Option<InvocationMetadataContext<'_>>>` because of return type
+4371 |         self.metadata.metadata_context(self.registry.registry())
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Option<Option<_>>`, found `Option<InvocationMetadataSelection<'_>>`
+     |
+     = note: expected enum `Option<std::option::Option<InvocationMetadataContext<'_>>>`
+                found enum `Option<InvocationMetadataSelection<'_>>`
+
+
+error: implementation of `FnOnce` is not general enough
+  --> rust/tcl-compiler/src/analyser/bounds_checks/source_index.rs:26:26
+   |
+26 |       let Some(selected) = original
+   |  __________________________^
+27 | |         .with_schema(tcl_registry::ResolvedInvocation::authored_source_index_bounds)
+   | |____________________________________________________________________________________^ implementation of `FnOnce` is not general enough
+   |
+   = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> Option<_> {ResolvedInvocation::<'_, '2>::authored_source_index_bounds}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+   = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+
+error: implementation of `FnOnce` is not general enough
+    --> rust/tcl-compiler/src/analyser/commands.rs:1687:27
+     |
+1687 |         let transitions = original.with_schema(tcl_registry::ResolvedInvocation::state_transitions)?;
+     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ implementation of `FnOnce` is not general enough
+     |
+     = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> _ {ResolvedInvocation::<'_, '2>::state_transitions}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+     = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+
+error: implementation of `FnOnce` is not general enough
+    --> rust/tcl-compiler/src/analyser/commands.rs:2890:13
+     |
+2890 | /             words
+2891 | |                 .with_source_schema(generation.as_ref(), tcl_registry::ResolvedInvocation::clause_plan)
+     | |_______________________________________________________________________________________________________^ implementation of `FnOnce` is not general enough
+     |
+     = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> Option<_> {ResolvedInvocation::<'_, '2>::clause_plan}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+     = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+
+error: implementation of `FnOnce` is not general enough
+    --> rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:4993:21
+     |
+4993 |         let facts = words.with_source_schema(context, tcl_registry::ResolvedInvocation::facts)?;
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ implementation of `FnOnce` is not general enough
+     |
+     = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> _ {ResolvedInvocation::<'_, '2>::facts}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+     = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+
+error: implementation of `FnOnce` is not general enough
+  --> rust/tcl-compiler/src/analyser/diagnostics/security/source_credentials.rs:16:21
+   |
+16 |     let arguments = original.with_schema(tcl_registry::ResolvedInvocation::authored_source_credential_arguments)?;
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ implementation of `FnOnce` is not general enough
+   |
+   = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> _ {ResolvedInvocation::<'_, '2>::authored_source_credential_arguments}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+   = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+
+error: implementation of `FnOnce` is not general enough
+   --> rust/tcl-compiler/src/analyser/diagnostics/security/source_patterns.rs:120:9
+    |
+120 |         original.with_schema(tcl_registry::ResolvedInvocation::authored_source_case_pattern_layout)??;
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ implementation of `FnOnce` is not general enough
+    |
+    = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> Option<_> {ResolvedInvocation::<'_, '2>::authored_source_case_pattern_layout}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+    = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+
+error: implementation of `FnOnce` is not general enough
+   --> rust/tcl-compiler/src/analyser/diagnostics/security/source_template.rs:152:31
+    |
+152 |           let Some(performed) = original
+    |  _______________________________^
+153 | |             .with_schema(tcl_registry::ResolvedInvocation::substitutions_performed)
+    | |___________________________________________________________________________________^ implementation of `FnOnce` is not general enough
+    |
+    = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> Option<_> {ResolvedInvocation::<'_, '2>::substitutions_performed}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+    = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+
+error: implementation of `FnOnce` is not general enough
+   --> rust/tcl-compiler/src/analyser/diagnostics/security/source_template.rs:161:30
+    |
+161 |           let Some(selected) = projected
+    |  ______________________________^
+162 | |             .with_schema(tcl_registry::ResolvedInvocation::substitutions_performed)
+    | |___________________________________________________________________________________^ implementation of `FnOnce` is not general enough
+    |
+    = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> Option<_> {ResolvedInvocation::<'_, '2>::substitutions_performed}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+    = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+
+error: implementation of `FnOnce` is not general enough
+  --> rust/tcl-compiler/src/analyser/diagnostics/usage/source_channel.rs:25:9
+   |
+25 |         original.with_schema(tcl_registry::ResolvedInvocation::authored_source_channel_configuration)??;
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ implementation of `FnOnce` is not general enough
+   |
+   = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> Option<_> {ResolvedInvocation::<'_, '2>::authored_source_channel_configuration}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+   = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+
+error: implementation of `FnOnce` is not general enough
+    --> rust/tcl-compiler/src/analyser/param_traits.rs:1149:9
+     |
+1149 |         words.with_source_schema(&context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)??;
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ implementation of `FnOnce` is not general enough
+     |
+     = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> Option<_> {ResolvedInvocation::<'_, '2>::authored_source_lambda_call}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+     = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+
+error: implementation of `FnOnce` is not general enough
+   --> rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs:158:20
+    |
+158 |           let call = self
+    |  ____________________^
+159 | |             .words
+160 | |             .with_source_schema(&context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)??;
+    | |________________________________________________________________________________________________________^ implementation of `FnOnce` is not general enough
+    |
+    = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> Option<_> {ResolvedInvocation::<'_, '2>::authored_source_lambda_call}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+    = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+
+error: implementation of `FnOnce` is not general enough
+  --> rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs:87:13
+   |
+87 | /             words
+88 | |                 .with_source_schema(context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)
+   | |___________________________________________________________________________________________________________^ implementation of `FnOnce` is not general enough
+   |
+   = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> Option<_> {ResolvedInvocation::<'_, '2>::authored_source_lambda_call}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+   = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+
+error: implementation of `FnOnce` is not general enough
+   --> rust/tcl-compiler/src/lambda_literal.rs:315:13
+    |
+315 |             words.with_source_schema(&context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)??;
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ implementation of `FnOnce` is not general enough
+    |
+    = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> Option<_> {ResolvedInvocation::<'_, '2>::authored_source_lambda_call}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+    = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+
+error: implementation of `FnOnce` is not general enough
+    --> rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs:1698:9
+     |
+1698 |         words.with_source_schema(context, tcl_registry::ResolvedInvocation::authored_source_lambda_call)??;
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ implementation of `FnOnce` is not general enough
+     |
+     = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> Option<_> {ResolvedInvocation::<'_, '2>::authored_source_lambda_call}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+     = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+
+
+error: implementation of `FnOnce` is not general enough
+   --> rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs:503:27
+    |
+503 |           let inner_query = inner_words
+    |  ___________________________^
+504 | |             .with_source_schema(&context, tcl_registry::ResolvedInvocation::authored_source_package_query)??;
+    | |__________________________________________________________________________________________________________^ implementation of `FnOnce` is not general enough
+    |
+    = note: `for<'a> fn(&'a ResolvedInvocation<'_, '2>) -> Option<_> {source_navigation::<impl ResolvedInvocation<'_, '2>>::authored_source_package_query}` must implement `FnOnce<(&ResolvedInvocation<'_, '1>,)>`, for any lifetime `'1`...
+    = note: ...but it actually implements `FnOnce<(&ResolvedInvocation<'_, '2>,)>`, for some specific lifetime `'2`
+

@@ -2,7 +2,7 @@
 
 Area: Replay of the external review's findings on the current tree.
 
-Last updated: 2026-10-22T18:18:26Z
+Last updated: 2026-10-22T18:28:30Z
 
 Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. This agent commits and pushes it after each run and at least every 30 minutes.
 
@@ -16,7 +16,9 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 
 **Run14 intentionally interrupted:** a187c859 integrated a broad metadata batch touching reviewed compiler/registry/LSP consumers while the immutable 49b067ce executable ran. It completed 19 groups through N15, every exit 0, then own runner/test tree was terminated at N16 (tool exit 143). No semantic failure inferred. Partial N16 and later groups/e2e are not counted. All temporary sources/executables are deleted. Completed outputs replay: 89 files / 534 executions / 68 generated scripts / 78 matched checks, zero unexpected result (`run14-partial-*`). All 71 generated files are in byte-verified `out/run14-final.tar.gz` with manifest; raw output directory removed only after archive verification, to keep evidence below 5 MB.
 
-**NEXT after this checkpoint is pushed:** `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-latest.sh run15-latest`. The prepared grouped serial runner executes all 27 semantic probes on the new integrated tree: server-shaped matrix first, 19 core tests sharing registry startup, isolated 4 hook tests and isolated 3 seams. A separate fresh small scaling probe repeats P25 flat/index/query, source chains 250–2000 and P25 lenses; the full original scaling test stays excluded. Existing named fold e2e runs last. Build/run/delete in one command, df checks; keep active logs untracked. After it finishes, replay all fresh edits on six engines and run a fresh static audit/fetch/affected-case check. Only then write final summary. No Cargo process is currently active.
+**Run15 build failed on be53f58c:** Cargo exit 101, ZERO probes/e2e executed. Rust1.99.1 reports 18 tcl-compiler + 4 tcl-vm errors and one warning. Metadata receiver mismatch at analyser/scope.rs:604/629, Option<Option<InvocationMetadataContext>> vs Option<InvocationMetadataSelection> at cfg_builder/mod.rs:4371, HRTB FnOnce method-item failures across metadata consumers, and VM NativeStringProtocol closure-lifetime errors at interp/native_command_names.rs:876 and native_variable_names.rs:174. Full inventories: run15-build-error-summary.json / run15-build-errors.log; raw build JSON/log retained. Temporary source/executable deleted. No Cargo process is active.
+
+**NEXT:** commit/push the build-failure evidence, fetch/watch for the integration fixes, inspect source changes/owner tracking, then retry `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-latest.sh run16-latest` once fixed. Do not edit product code/tests to unblock it. The prepared grouped runner still covers all 27 semantic probes plus fresh small scaling and the named e2e. No latest-work semantic verdict is possible from the failed build. Copy only closed watch logs if monitoring; active logs stay untracked. R1 itself was already checked; this blocker is the later broad integration.
 
 **Final completion rule:** ordinary C puts-call worlds are confirmed after R1. The new grouped runner replaces the slower per-filter runner; after it finishes, `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-final.sh <fresh-tag>`. It freshly replays all findings, all-six-profile server rename matrix (N04/N05/N06/N07), refactor/lowering seams and the existing N17 e2e. Apply/execute all returned scratch edits using `replay-oracles.sh <tag>` and `summarize-oracles.py <tag>`. Run a fresh static source audit. Fetch again and recheck any relevant later product changes before final summary. Do not write the final summary while these obligations remain.
 
@@ -28,18 +30,18 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 
 ## In progress
 
-- R1 matrix checked; run14 interrupted after N15 for the broad a187c859 integration. Next is run15-latest complete grouped replay on new source.
+- Latest-tree replay blocked on product compilation in be53f58c: 22 errors across compiler/VM, zero tests. Await integration fixes, then run16-latest.
 - Required release gates `make rust-check` and `make prep-pr` are not run; this is evidence-only work under the active `work` development-push exception.
 
 ## Outstanding (in priority order)
 
-1. Start/complete run15-latest on the integrated metadata batch; R1 matrix is already checked on prior source.
+1. Wait for/fetch integration build fixes, then run16-latest complete grouped replay; R1 matrix is already checked on prior source.
 2. After R1 lands, re-check N04, N05, N06 and N07 on all six profiles, apply returned edits and execute them on the matching engines.
 3. Fetch latest `work` and re-check every finding and static seam before the final summary.
 
 ## Blocked (on whom, and what is needed)
 
-- No external R1 blocker now; final replay is in progress. Earlier ten-positive-mismatch results are historical and superseded by the published 54-subcase diagnosis.
+- Product integration compilation errors (compiler/C6/shared metadata and VM owners) block latest-work execution. R1 is landed and independently checked; old g4 mismatches are historical.
 
 ## Done since the last update (with evidence: test counts, commit or snapshot)
 
@@ -97,3 +99,7 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 - 2026-10-22T18:02:09Z: post-R1 matrix complete on 49b067ce: all C ordinary puts worlds true (coverage still refuses), imports still refuse UnknownWorld, N06 same-document guards now give specific command/member collision reasons on 8.6/9.0/9.1, all-six sibling cases refuse at both origins, N07 safely refuses. Early returned edits replayed: 33 files / 198 engine executions / 12 generated files / 12 matched checks, zero unexpected result. Closed run14-progress.log has 12 completed groups, all exit 0. Remaining final findings still running; live log not committed.
 
 - 2026-10-22T18:18:26Z: run14 completed 19 groups through N15, then deliberately interrupted for a187c859 metadata integration. All 68 generated Tcl scripts executed, 534 engine executions / 78 matched checks / zero unexpected result. Outputs byte-verified into archive to preserve evidence under 5 MB. Grouped latest-tree replay is prepared, not yet run.
+
+- 2026-10-22T18:20:26Z: run15-latest launched on be53f58c after fetch/rebase/push. Five groups cover server rename, 19 core tests, fresh small scaling, 4 hooks, 3 seams, then named e2e. Live run15 logs stay untracked; temporary Rust probe is active only until build finishes.
+
+- 2026-10-22T18:28:30Z: run15 exits101 before any test: 18 compiler +4 VM errors, one warning. Full structured/rendered diagnostics preserved; all temporary source/executable files deleted. Next retry after product fixes; no triage product edits authorised.

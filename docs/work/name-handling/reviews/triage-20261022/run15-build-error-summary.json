@@ -1,0 +1,191 @@
+{
+  "revision": "be53f58c97a021a988bbdc11f135052874173d17",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "tests_executed": 0,
+  "build_exit": 101,
+  "error_counts_by_crate": {
+    "tcl_vm": 4,
+    "tcl_compiler": 18
+  },
+  "errors": [
+    {
+      "crate": "tcl_vm",
+      "code": null,
+      "message": "implementation of `Fn` is not general enough",
+      "locations": [
+        "rust/tcl-vm/src/interp/native_command_names.rs:876:21"
+      ]
+    },
+    {
+      "crate": "tcl_vm",
+      "code": null,
+      "message": "implementation of `Fn` is not general enough",
+      "locations": [
+        "rust/tcl-vm/src/interp/native_command_names.rs:876:21"
+      ]
+    },
+    {
+      "crate": "tcl_vm",
+      "code": null,
+      "message": "implementation of `Fn` is not general enough",
+      "locations": [
+        "rust/tcl-vm/src/interp/native_variable_names.rs:174:21"
+      ]
+    },
+    {
+      "crate": "tcl_vm",
+      "code": null,
+      "message": "implementation of `Fn` is not general enough",
+      "locations": [
+        "rust/tcl-vm/src/interp/native_variable_names.rs:174:21"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": "E0631",
+      "message": "type mismatch in function arguments",
+      "locations": [
+        "rust/tcl-compiler/src/analyser/scope.rs:604:39"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": "E0631",
+      "message": "type mismatch in function arguments",
+      "locations": [
+        "rust/tcl-compiler/src/analyser/scope.rs:629:39"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": "E0308",
+      "message": "mismatched types",
+      "locations": [
+        "rust/tcl-compiler/src/cfg_builder/mod.rs:4371:9"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/analyser/bounds_checks/source_index.rs:26:26"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/analyser/commands.rs:1687:27"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/analyser/commands.rs:2890:13"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/analyser/diagnostics/dataflow.rs:4993:21"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/analyser/diagnostics/security/source_credentials.rs:16:21"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/analyser/diagnostics/security/source_patterns.rs:120:9"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/analyser/diagnostics/security/source_template.rs:152:31"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/analyser/diagnostics/security/source_template.rs:161:30"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/analyser/diagnostics/usage/source_channel.rs:25:9"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/analyser/param_traits.rs:1149:9"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/command_binding/source_declared_command/logical_lambda.rs:158:20"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_lambda_formatting.rs:87:13"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/lambda_literal.rs:315:13"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs:1698:9"
+      ]
+    },
+    {
+      "crate": "tcl_compiler",
+      "code": null,
+      "message": "implementation of `FnOnce` is not general enough",
+      "locations": [
+        "rust/tcl-compiler/src/registry_invocation/source_structure/package_target_survey.rs:503:27"
+      ]
+    }
+  ],
+  "warnings": [
+    "unused import: `HashSet`"
+  ]
+}

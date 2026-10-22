@@ -6,6 +6,8 @@ Evidence, scripts and logs: [triage-20261022/](triage-20261022/README.md). Live 
 
 This report is updated after every probe run. Remaining post-R1 and latest-work obligations are stated explicitly.
 
+**Latest-tree replay BLOCKED on product compilation:** grouped run15 on `be53f58c` exits 101 before executing any probe: **18 tcl-compiler errors + 4 tcl-vm errors**, one warning, Rust 1.99.1. Diagnostics: `run15-build-error-summary.json`, `run15-build-errors.log`, raw `run15-latest-build.{json,log}`. These are metadata integration receiver/selection and Fn/FnOnce lifetime errors, not sparse checkout failures or probe errors. Product code is outside triage write scope. Earlier semantic results below remain attributed to their tested snapshots; the required final latest-work replay is not complete.
+
 ## Validation snapshots
 
 This is an interim report. All independent requested seam/scaling/N17 triage is settled. The post-R1 rename matrix is complete. Run14 completed through N15 on 49b067ce, then was intentionally interrupted at N16 because a187c859 integrated a broad compiler/registry/LSP metadata batch. A complete grouped serial replay on the new tree is next; no final sign-off is claimed. No product code or permanent tests were edited. Required release gates `make rust-check` and `make prep-pr` are unrun under the active `work` development-push exception.
