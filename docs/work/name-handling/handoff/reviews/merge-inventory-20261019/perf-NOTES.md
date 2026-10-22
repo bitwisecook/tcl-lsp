@@ -1,8 +1,21 @@
 # perf agent notes: Analyser quadratic and SpecTcl load_embedded
 
-Status: the batch is diagnosed, written and partly proven. It is NOT applied to
-the tree. Everything needed to resume is in `perf/` beside this file. See
-`docs/work/name-handling/outstanding/perf.md` (## Resume) for the step-by-step.
+Status: the full batch is applied only in the isolated proof tree, with the
+temporary old/new switch. Production changes have NOT been committed. Resume
+state and exact commands are in `docs/work/name-handling/outstanding/perf.md`.
+The clean split patches are refreshed: six perf-owned files, two compiler-owned
+files, no temporary switch and no new Clippy allowance. The formal-advice memo
+API also compiles independently of the routed realm caller.
+
+Current evidence (2026-10-22 14:00 UTC):
+
+- origin/rust `fcb7927f` timings complete for 102 Tcl + 15 iRules, synthetic
+  calls/procs/upvar, all four tclIndex prefixes and ordinary LSP shapes.
+- lexer lib: 583 passed / the same 3 failed in each switch mode; zero pass-to-fail.
+- full-batch corpus, compiler/SpecTcl/server proofs: pending compilation.
+- Clippy: foreign-source failures reported; full and owned-only checks running.
+- `perf-analyser-images.patch`: unproven draft for compiler-names, not applied.
+
 
 ## Root causes (gdb stack sampling, opt-level 1 builds)
 
@@ -50,7 +63,7 @@ Every change is exact by construction: memoise a pure function of immutable inpu
   - `invocation_at_source` uses `retained_original_invocation(offset)`.
   - New `declaration_caller_alias_arguments` on the realm; interprocedural calls it.
 
-## Measurements (opt-level 1; full tables in `perf/evidence/timings.md`)
+## Prior measurements (opt-level 1; full tables in `perf/evidence/timings.md`)
 
 - `p 1` x n: before n=40/80 = 3.5/14.8 s; after = 1.4/2.9 s; n=160 ~7 s.
 - upvar shape n=30: 39.6 → 11.8 s.
@@ -58,7 +71,7 @@ Every change is exact by construction: memoise a pure function of immutable inpu
   - Still mildly super-linear. The residual is per-command whole-document SourceImage/SourceMap/LineIndex rebuilds (~20%) plus re-segmentation per query (~25%), spread over analyser/commands.rs, registry_invocation/source_structure.rs and diagnostics/validity.rs.
   - A further fix would cache one document SourceImage on the Analyser. Those are compiler-names / unowned files; not done.
 - load_embedded: 7.3-10.4 s → 1.9-3.1 s.
-- origin/rust comparison: not measured. The worktree was set up but never built because of the RAM/disk budget.
+- origin/rust comparison: completed on the isolated machine; see `perf/evidence/origin-*.out` and the new session table in `perf/evidence/timings.md`.
 
 ## Equality evidence
 
@@ -72,7 +85,7 @@ Every change is exact by construction: memoise a pure function of immutable inpu
 
 1. Three-way corpus rerun.
 2. Crate tests (tcl-lexer lib; tcl-compiler lib filters spectcl_source / original_name_value / formal_call_advice / realm / interprocedural / w216 / w143; tcl-spectcl eval_loader, golden_packs), run with and without `ZZ_OLD_ENV=1`, to show zero pass-to-fail.
-3. origin/rust timings.
-4. Landing: one batch, after the coordinator's warning.
+3. Final before/after table alongside the completed origin/rust timings.
+4. Land only the six perf-owned files; route the separately proven realm/interprocedural patch.
 5. The residual tclIndex constant.
 6. The review's section 4 scaling shapes.

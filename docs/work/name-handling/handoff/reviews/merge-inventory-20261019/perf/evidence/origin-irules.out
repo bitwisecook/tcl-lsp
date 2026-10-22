@@ -1,0 +1,16 @@
+OK memo_ms=149 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/for_screenshots/32-extract-datagroup-mapping-after.irul
+OK memo_ms=32 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/for_screenshots/31-extract-datagroup-ip-before.irul
+OK memo_ms=29 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/for_screenshots/31-extract-datagroup-ip-after.irul
+OK memo_ms=158 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/for_screenshots/24-template-fallback.irul
+OK memo_ms=55 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/for_screenshots/32-extract-datagroup-mapping-before.irul
+OK memo_ms=23 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/for_screenshots/05-security-taint-before.irul
+OK memo_ms=33 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/for_screenshots/30-extract-datagroup-before.irul
+OK memo_ms=42 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/for_screenshots/05-security-taint-after.irul
+OK memo_ms=48 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/for_screenshots/30-extract-datagroup-after.irul
+OK memo_ms=14 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/for_screenshots/ai-scene.irul
+OK memo_ms=137 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/irules/cookbook_http_collect.irul
+OK memo_ms=111 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/irules/diagnostics_event_flow.irul
+OK memo_ms=193 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/irules/cookbook_tcp_collect.irul
+OK memo_ms=57 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/irules/diagnostics_security.irul
+OK memo_ms=307 plain_ms=0 eq=true /workspace/tcl-lsp-work/samples/irules/diagnostics_style_perf.irul
+files=15 mismatches=0

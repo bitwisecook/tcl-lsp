@@ -1,0 +1,13 @@
+calls n=1 memo_ms=1868 plain_ms=0 eq=true
+calls n=10 memo_ms=35 plain_ms=0 eq=true
+calls n=20 memo_ms=48 plain_ms=0 eq=true
+calls n=40 memo_ms=134 plain_ms=0 eq=true
+calls n=80 memo_ms=154 plain_ms=0 eq=true
+calls n=10 memo_ms=81 plain_ms=0 eq=true
+calls n=20 memo_ms=76 plain_ms=0 eq=true
+calls n=40 memo_ms=129 plain_ms=0 eq=true
+calls n=80 memo_ms=109 plain_ms=0 eq=true
+calls n=10 memo_ms=56 plain_ms=0 eq=true
+calls n=20 memo_ms=89 plain_ms=0 eq=true
+calls n=40 memo_ms=83 plain_ms=0 eq=true
+calls n=80 memo_ms=86 plain_ms=0 eq=true

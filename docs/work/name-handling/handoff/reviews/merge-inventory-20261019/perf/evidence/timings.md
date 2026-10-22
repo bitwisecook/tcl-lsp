@@ -49,3 +49,38 @@ command, and re-segmentation per query (`evidence/idx253.stacks`).
 
 Equality: the sorted `{:#?}` lines of the PackSet are identical old vs new
 (484,936 lines), in-process.
+
+## Isolated cloud session, 2026-10-22
+
+Rust 1.99.1, opt-level 1, debug assertions and line tables, incremental off,
+`-j2`; separate target directories for each tree. Builds ran concurrently,
+so these wall-clock diagnostics are not release latency or a clean exponent
+measurement. The baseline is the verified origin/rust `fcb7927f`; work proof
+is based on `8a01a718` plus the refreshed full batch. Work results are pending.
+
+Tk 8.6.18 `library/tclIndex`: 253 lines, SHA-256
+`e7ea83cd5df322fb760c9787c9eda92bad3d048737be28d2c9606b9243cf0bbb`.
+Exactly the same first 10/40/100/253 lines are used in both trees.
+
+| Input | origin/rust | work old | work full batch |
+|---|---:|---:|---:|
+| calls 10 (median of 3 warmed runs) | 56 ms | pending | pending |
+| calls 20 (median of 3 warmed runs) | 76 ms | pending | pending |
+| calls 40 (median of 3 warmed runs) | 129 ms | pending | pending |
+| calls 80 (median of 3 warmed runs) | 109 ms | pending | pending |
+| tclIndex 10 lines | 163 ms | pending | pending |
+| tclIndex 40 lines | 492 ms | pending | pending |
+| tclIndex 100 lines | 1021 ms | pending | pending |
+| tclIndex 253 lines | 1596 ms | pending | pending |
+| load_embedded | 4665 ms | pending | pending |
+
+Raw timing-only runs: `origin-calls.out`, `origin-upvar.out`, `origin-procs.out`,
+`origin-tclIndex.out`, `origin-corpus.out` (102), `origin-irules.out` (15),
+`origin-spectcl.out`, `origin-lsp-document.out`, `origin-lsp-chain.out`.
+The baseline probe's `eq=true` field is a placeholder in timing-only mode,
+not an equality proof between baseline and migrated results.
+The ordinary LSP probe uses actual analysed declarations and asserts that
+index intake and code lenses retain every measured procedure. Source-chain
+construction uses the public RunOrder compatibility ingress, separately from
+actual source/provider admission. No unavailable provider is counted as a
+fast successful document query.

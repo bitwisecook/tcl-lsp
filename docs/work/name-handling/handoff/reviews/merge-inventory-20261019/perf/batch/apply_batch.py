@@ -445,11 +445,11 @@ def realm(s, p):
                 self.bindings.source_metadata_owner(),
             );
         };
-        self.bindings.declaration_caller_alias_arguments_memo(
+        self.bindings.declaration_caller_alias_arguments_with(
             invocation,
             registry,
             self.bindings.source_metadata_owner(),
-            memo,
+            Some(memo),
         )
     }
 
@@ -461,11 +461,11 @@ def realm(s, p):
     }
 """
     else:
-        caller = """        self.bindings.declaration_caller_alias_arguments_memo(
+        caller = """        self.bindings.declaration_caller_alias_arguments_with(
             invocation,
             registry,
             self.bindings.source_metadata_owner(),
-            &self.query_memo,
+            Some(&self.query_memo),
         )
     }
 """

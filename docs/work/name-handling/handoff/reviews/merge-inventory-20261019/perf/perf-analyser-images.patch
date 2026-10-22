@@ -1,0 +1,196 @@
+--- a/rust/tcl-compiler/src/analyser/commands.rs
++++ b/rust/tcl-compiler/src/analyser/commands.rs
+@@ -208,6 +208,20 @@
+ }
+ 
+ impl Analyser {
++    /// Reuse the retained document's immutable bytes and line index only
++    /// while the complete public source buffer still matches. All callers
++    /// keep their independent source/input/configuration admission checks.
++    pub(in crate::analyser) fn document_source_image(&self) -> tcl_lexer::SourceImage {
++        self.head_identities
++            .original_source_image()
++            .filter(|image| {
++                image.channel() == tcl_lexer::SourceChannel::Document
++                    && image.bytes() == self.source.as_bytes()
++            })
++            .cloned()
++            .unwrap_or_else(|| tcl_lexer::SourceImage::document(&self.source))
++    }
++
+     /// Re-segment a body script and dispatch each command at
+     /// `scope_path`.
+     ///
+@@ -416,7 +430,8 @@
+             return false;
+         }
+         let config = self.file_lexer_config();
+-        let sm = SourceMap::new(&self.source);
++        let image = self.document_source_image();
++        let sm = SourceMap::from_image(&image);
+         let child = descend_token(&sm, body_tok, config);
+         if !child.is_terminated() {
+             return false;
+@@ -567,7 +582,7 @@
+         if token.kind != TokenType::Var {
+             return None;
+         }
+-        let image = tcl_lexer::SourceImage::document(&self.source);
++        let image = self.document_source_image();
+         let config = self.file_lexer_config();
+         let word = if head {
+             self.head_identities
+@@ -949,7 +964,7 @@
+         // Implementation contract: naming.source.original-command-token-memo
+         // docs/design/analysis/name-resolution-proofs/original-command-token-memo.md
+         self.head_identities.retained_original_tokens(
+-            &tcl_lexer::SourceImage::document(&self.source),
++            &self.document_source_image(),
+             self.file_lexer_config(),
+             invocation_offset,
+             argument_tokens,
+@@ -968,7 +983,7 @@
+         let Some(origin) = bindings.source_origin() else {
+             return;
+         };
+-        let image = tcl_lexer::SourceImage::document(&self.source);
++        let image = self.document_source_image();
+         let config = self.file_lexer_config();
+         if !bindings.matches_original_source_image(&image, config)
+             || origin.source_image() != &image
+@@ -1099,8 +1114,9 @@
+             return None;
+         }
+         let segment = commands.pop()?;
++        let image = self.document_source_image();
+         let mut tokens = crate::ir::CommandTokens::from_segmented(
+-            &tcl_lexer::SourceMap::new(&self.source),
++            &tcl_lexer::SourceMap::from_image(&image),
+             config,
+             &segment,
+         );
+@@ -1142,7 +1158,7 @@
+         let Some(origin) = bindings.source_origin() else {
+             return;
+         };
+-        let image = tcl_lexer::SourceImage::document(&self.source);
++        let image = self.document_source_image();
+         let config = self.file_lexer_config();
+         if !bindings.matches_original_source_image(&image, config)
+             || origin.source_image() != &image
+@@ -1540,7 +1556,7 @@
+         let symbol_advice = (|| {
+             let tokens = self.retained_invocation_tokens(cmd_tok.span.start(), arg_tokens)?;
+             if self.result.has_original_vendor_source_names() {
+-                let image = tcl_lexer::SourceImage::document(&self.source);
++                let image = self.document_source_image();
+                 let config = self.file_lexer_config();
+                 let original = self.result.original_vendor_source_name_in_source(
+                     &image,
+@@ -2072,7 +2088,7 @@
+         let Some(input) = self.result.resolved_input.as_ref() else {
+             return false;
+         };
+-        let image = tcl_lexer::SourceImage::document(&self.source);
++        let image = self.document_source_image();
+         if !self
+             .result
+             .matches_original_source_image(&image, input.lexer_config())
+@@ -2356,7 +2372,7 @@
+             return None;
+         }
+         let tokens = self.retained_invocation_tokens(offset, argument_tokens)?;
+-        let image = tcl_lexer::SourceImage::document(&self.source);
++        let image = self.document_source_image();
+         let config = self.file_lexer_config();
+         let native = crate::registry_invocation::original_native_compiler_words(
+             &image,
+@@ -2455,7 +2471,8 @@
+         if token.kind != TokenType::Cmd || word.image().bytes() != self.source.as_bytes() {
+             return None;
+         }
+-        let sm = tcl_lexer::SourceMap::new(&self.source);
++        let image = self.document_source_image();
++        let sm = tcl_lexer::SourceMap::from_image(&image);
+         let descended = descend_token(&sm, *token, word.config());
+         let mut segments = segments_from_tree(descended.tree(), &sm);
+         if segments.len() != 1 {
+@@ -3001,7 +3018,7 @@
+         arg_single: &[bool],
+         scope_path: &[usize],
+     ) {
+-        let image = tcl_lexer::SourceImage::document(&self.source);
++        let image = self.document_source_image();
+         let config = self.file_lexer_config();
+         let Some(head) = tokens.words().first().and_then(|word| {
+             self.result
+@@ -3793,7 +3810,7 @@
+         let Some(head_word) = tokens.words().first() else {
+             return;
+         };
+-        let image = tcl_lexer::SourceImage::document(&self.source);
++        let image = self.document_source_image();
+         let config = self.file_lexer_config();
+         let vendor = self
+             .result
+@@ -3964,7 +3981,7 @@
+                 &tokens,
+             )
+         } else if self.vendor_source_name_policy().is_some() {
+-            let image = tcl_lexer::SourceImage::document(&self.source);
++            let image = self.document_source_image();
+             tokens
+                 .words()
+                 .first()
+@@ -4278,7 +4295,7 @@
+         let Some(owner) = self.result.resolved_input.as_ref() else {
+             return (None, None);
+         };
+-        let image = tcl_lexer::SourceImage::document(&self.source);
++        let image = self.document_source_image();
+         if !self
+             .result
+             .matches_original_source_image(&image, owner.lexer_config())
+@@ -5162,7 +5179,7 @@
+         if !self.result.allows_lexical_declaration_advice() {
+             let generation = self.analysis_context();
+             let registry = generation.commands();
+-            let image = tcl_lexer::SourceImage::document(&self.source);
++            let image = self.document_source_image();
+             return self
+                 .head_identities
+                 .source_bindings_ref()
+@@ -5927,10 +5944,9 @@
+                     .snapshot()
+                     .semantic_key()
+             || self.file_lexer_config() != input.lexer_config()
+-            || !self.result.matches_original_source_image(
+-                &tcl_lexer::SourceImage::document(&self.source),
+-                input.lexer_config(),
+-            )
++            || !self
++                .result
++                .matches_original_source_image(&self.document_source_image(), input.lexer_config())
+         {
+             return None;
+         }
+--- a/rust/tcl-compiler/src/analyser/diagnostics/validity.rs
++++ b/rust/tcl-compiler/src/analyser/diagnostics/validity.rs
+@@ -2234,7 +2234,7 @@
+         let Some(input) = self.result.resolved_input.as_ref().cloned() else {
+             return;
+         };
+-        let image = tcl_lexer::SourceImage::document(&self.source);
++        let image = self.document_source_image();
+         let Some((head, site)) = self
+             .head_identities
+             .original_written_head_at_span_in_source(&image, cmd_tok.span, input.lexer_config())
+@@ -2815,7 +2815,7 @@
+         right: &ExprNode,
+     ) -> Option<String> {
+         let config = self.file_lexer_config();
+-        let image = tcl_lexer::SourceImage::document(&self.source);
++        let image = self.document_source_image();
+         let (word, offset) = self
+             .head_identities
+             .original_written_word_at_span_in_source(&image, content_span, config)?;

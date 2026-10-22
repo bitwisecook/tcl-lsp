@@ -78,8 +78,9 @@ impl SourceCommandBindings {
         invocation: &crate::ir::CommandTokens,
         registry: &tcl_registry::CommandRegistry,
         owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
-        memo: Option<&DeclarationCallerAliasMemo>,
+        memo: Option<&super::original_name_value::OriginalRealmQueryMemo>,
     ) -> Option<Vec<String>> {
+        let memo = memo.map(|memo| &memo.caller_alias);
         invocation
             .source_binding
             .as_ref()?

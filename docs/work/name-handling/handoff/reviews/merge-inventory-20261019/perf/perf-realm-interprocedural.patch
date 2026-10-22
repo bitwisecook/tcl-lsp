@@ -19,11 +19,11 @@
 +        invocation: &crate::ir::CommandTokens,
 +        registry: &CommandRegistry,
 +    ) -> Option<Vec<String>> {
-+        self.bindings.declaration_caller_alias_arguments_memo(
++        self.bindings.declaration_caller_alias_arguments_with(
 +            invocation,
 +            registry,
 +            self.bindings.source_metadata_owner(),
-+            &self.query_memo,
++            Some(&self.query_memo),
 +        )
 +    }
 +

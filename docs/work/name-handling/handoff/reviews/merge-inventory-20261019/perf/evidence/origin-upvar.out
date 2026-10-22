@@ -1,0 +1,2 @@
+upvar n=10 memo_ms=247 plain_ms=0 eq=true
+upvar n=30 memo_ms=752 plain_ms=0 eq=true

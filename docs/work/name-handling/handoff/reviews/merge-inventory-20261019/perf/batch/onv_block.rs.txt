@@ -83,23 +83,6 @@
         selected
     }
 
-    /// Original callee caller-alias arguments, sharing the realm's per-callee
-    /// survey. See [`Self::declaration_caller_alias_arguments`].
-    pub(crate) fn declaration_caller_alias_arguments_memo(
-        &self,
-        invocation: &crate::ir::CommandTokens,
-        registry: &tcl_registry::CommandRegistry,
-        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
-        memo: &OriginalRealmQueryMemo,
-    ) -> Option<Vec<String>> {
-        self.declaration_caller_alias_arguments_with(
-            invocation,
-            registry,
-            owner,
-            Some(&memo.caller_alias),
-        )
-    }
-
     fn original_written_word_observations_at_span(
         &self,
         span: tcl_lexer::Span,
@@ -343,6 +326,6 @@ struct OriginalWrittenWordSite {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct OriginalRealmQueryMemo {
     written_word_sites: Arc<std::sync::OnceLock<Option<Vec<OriginalWrittenWordSite>>>>,
-    caller_alias: super::formal_call_advice::DeclarationCallerAliasMemo,
+    pub(super) caller_alias: super::formal_call_advice::DeclarationCallerAliasMemo,
 }
 

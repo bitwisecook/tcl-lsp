@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 13:24 UTC
+Last updated: 2026-10-22 14:00 UTC
 
 Maintained by the perf agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -31,8 +31,29 @@ allowance. The corpus probe now fails on unreadable inputs, panics and
 mismatches. The PackSet probe compares the entire Debug structure in an
 old1/new/old2 run, preserving order and field association.
 
-All **102 `.tcl` + 15 `.irul` inputs are present**. No corpus equality verdict
-or crate-test result is claimed for this session yet.
+All **102 `.tcl` + 15 `.irul` inputs are present**. The origin/rust timing run
+has completed on all of them, the synthetic cases, exact Tk tclIndex prefixes,
+and actual LSP document/index/existence/code-lens and source-chain shapes.
+These baseline timing-only rows do not compare AnalysisResult across branches.
+The new full-batch corpus verdict is still pending compilation.
+
+The lexer lib proof finished: **583 pass / 3 fail in both modes**, identical
+pass/fail inventories and zero pass-to-fail. Captured outputs and summary:
+`perf/evidence/tests-lexer-lib-{new,old}.out`, `tests-lexer-summary.json`.
+The identical failures are original_jim_syntax_roster, original_parse_descent,
+and original_bracket_boundaries; assertions are unchanged. Compiler lib,
+SpecTcl and the two server tests are still pending.
+
+A standalone six-file Clippy check is running in `/workspace/tcl-lsp-owned`,
+with its own target. The batch API no longer adds a wrapper used only by the
+routed realm integration: the existing formal advice entry borrows the realm
+memo directly. No new allowance is added. Refreshed clean split patches have
+six owned files and two routed files, with no ZZ switch.
+
+Full-batch Clippy has reported failures in foreign files (similar names,
+empty doc-comment spacing, unused unit and unnested or-patterns). The complete
+check is still running; do not claim zero-warning gates. Diagnostic log:
+`/tmp/perf-clippy-full-batch.log`. No foreign fixes are applied.
 
 ## In progress
 
@@ -42,12 +63,13 @@ or crate-test result is claimed for this session yet.
   `/tmp/perf-work-probe-build.log`; results go to `perf/evidence/*run2_threeway.out`.
   The command deletes example executables on exit. Temporary source probes are
   `rust/tcl-compiler/examples/zz_perfprobe.rs` and `zz_spectclprobe.rs`; never stage.
-- Baseline build/run at `/workspace/tcl-lsp-rust` (opt-level 1, `-j2`):
+- Completed baseline build/run at `/workspace/tcl-lsp-rust` (opt-level 1, `-j2`):
   `/tmp/perf-origin-build.log`, `/tmp/perf-origin-calls.out`,
   `/tmp/perf-origin-spectcl.out`. It also deletes executables in its command.
 - Tcl 9.0.4, Tcl 8.6.18 and the pinned Jim oracle are built. Tk 8.6.18 is
   fetched for the identical tclIndex prefixes. Logs:
   `/tmp/perf-tcl-setup.log`, `/tmp/perf-jim-setup.log`, `/tmp/perf-tk-setup.log`.
+- Full crate proof runner: `perf/tools/run_crate_proofs.py ROOT --target-dir ROOT/target-tests`; log `/tmp/perf-crate-all.log`. Lexer completed; compiler test build is active. Each executable runs new/old and is deleted in the same command.
 - Shell build environment: `source /tmp/perf-env.sh`, then source the active
   tree's `scripts/dev/agent-build-env.sh`; export
   `TCL_LSP_JIMSH=$PWD/tmp/jimtcl-oracle/jimsh`. Incremental and test debug are 0.
@@ -67,6 +89,16 @@ or crate-test result is claimed for this session yet.
 
 ## Blocked (on whom, and what is needed)
 
+- Compiler-names: `perf/perf-analyser-images.patch` is a formatted, apply-checked
+  **unproven draft**, deliberately not applied to the proof tree. It reuses the
+  genuine document image after a complete byte/channel check, including when
+  callers mutate the public source buffer. Other source/input guards remain.
+  Re-segmentation still needs a separate routed patch; original_source_segment
+  currently reconstructs a projection and segments again although the actual
+  source origin already owns the same complete-vector lexical projection.
+- Current lint failures and the three matching lexer failures need their
+  owning agents; this checkpoint is not a green workspace verdict.
+
 - `realm.rs` / `interprocedural.rs` hunks: compiler agent, via the coordinator.
 
 ## Done since the last update (with evidence: test counts, commit or snapshot)
@@ -75,7 +107,7 @@ or crate-test result is claimed for this session yet.
 - Shallow clone plus sparse selection avoids downloading old experiment history.
 - Applied the full batch and verified all 117 corpus paths exist.
 - Strengthened probe failure handling and complete PackSet comparison; no tests weakened.
-- Full required crate tests, warning/fmt gates and both named LSP tests are still unexecuted; this is an evidence-only checkpoint under the work-branch push exception.
+- Full required crate proof is in progress. Full warning/fmt gates and both named LSP tests remain unresolved; development checkpoints use the work-branch push exception.
 
 - Saved the clean split patches, apply script, probes, tools, timings, corpus outputs and stacks under `perf/`. Wrote `perf-NOTES.md`.
 - Deleted /dev/shm/perf-target, /dev/shm/exp and the rust-wt worktree. The `zz_perfprobe.rs` tree probe was already deleted.

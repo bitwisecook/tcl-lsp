@@ -1,0 +1,5 @@
+OK memo_ms=163 plain_ms=0 eq=true /tmp/perf-inputs/tclIndex-10.tcl
+OK memo_ms=492 plain_ms=0 eq=true /tmp/perf-inputs/tclIndex-40.tcl
+OK memo_ms=1021 plain_ms=0 eq=true /tmp/perf-inputs/tclIndex-100.tcl
+OK memo_ms=1596 plain_ms=0 eq=true /tmp/perf-inputs/tclIndex-253.tcl
+files=4 mismatches=0

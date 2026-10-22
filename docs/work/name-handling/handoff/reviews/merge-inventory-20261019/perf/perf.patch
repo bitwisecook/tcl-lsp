@@ -11,25 +11,22 @@
 +        let image = image.get_or_insert_with(|| SourceImage::from_bytes(src, channel));
          if let Some((offset, term, kind)) =
 -            command_cut(command, tokens, src, config, channel, descent, anchor)?
-+            command_cut(command, tokens, src, image, config, channel, descent, anchor)?
++            command_cut(command, tokens, image, config, channel, descent, anchor)?
          {
              return Ok(Some(ParseCut {
                  command: index,
-@@ -564,10 +568,12 @@
- }
- 
- /// The first cut among one command's words, in source order.
-+#[allow(clippy::too_many_arguments)]
+@@ -567,15 +571,16 @@
  fn command_cut(
      command: &CommandSpan,
      tokens: &[Token],
-     src: &[u8],
+-    src: &[u8],
 +    image: &SourceImage,
      config: LexerConfig,
      channel: SourceChannel,
      descent: ParseCutDescent,
-@@ -575,7 +581,7 @@
+     anchor: Option<MemoAnchor<'_>>,
  ) -> Result<Option<(u32, u32, crate::ParseIssueKind)>, ParseCutUnavailable> {
++    let src = image.bytes();
      let jobs = word_jobs(&command.words, tokens, src, 0, config);
      let mut stack = vec![Frame::Words {
 -        image: SourceImage::from_bytes(src, channel),
@@ -95,7 +92,7 @@
      }
  }
  
-@@ -249,20 +261,28 @@
+@@ -249,19 +261,27 @@
              return false;
          }
          if let Some(parent) = &self.parent {
@@ -113,7 +110,7 @@
                  && self.local.statement.image == self.root
                  && self.local.statement.config == config
          }
-     }
++    }
 +
 +    /// The link to the immediate parent, against this word's own root image.
 +    /// A root word has no link and never satisfies it.
@@ -128,11 +125,10 @@
 +                    && self.root.bytes().get(span.as_range())
 +                        == Some(self.local.statement.image.bytes())
 +            })
-+    }
+     }
      /// Reparse only this exact selected original container path under another
      /// independently supplied full config. No recursive brace search or line/name
-     /// match is used, and every selected word must retain the same source extent.
-@@ -396,6 +416,50 @@
+@@ -396,6 +416,67 @@
      use super::*;
      use tcl_lexer::{LeadingBom, SourceSegmentationPurpose};
  
@@ -140,8 +136,19 @@
 +    /// `in_body` itself checks only inductively (one parent link per word).
 +    #[test]
 +    fn every_bound_body_word_satisfies_the_full_chain_proof() {
-+        fn walk(word: &OriginalPackSourceWord, image: &SourceImage, config: LexerConfig, depth: usize, seen: &mut usize, deepest: &mut usize) {
-+            assert!(word.matches_source(image, config), "{}", word.captured_text());
++        fn walk(
++            word: &OriginalPackSourceWord,
++            image: &SourceImage,
++            config: LexerConfig,
++            depth: usize,
++            seen: &mut usize,
++            deepest: &mut usize,
++        ) {
++            assert!(
++                word.matches_source(image, config),
++                "{}",
++                word.captured_text()
++            );
 +            *seen += 1;
 +            *deepest = (*deepest).max(depth);
 +            if !word.is_braced() {
@@ -170,7 +177,14 @@
 +            for statement in original_pack_source_statements(source, config) {
 +                for ordinal in 0..statement.row().argv.len() {
 +                    if let Some(local) = statement.local_word(ordinal) {
-+                        walk(&local.in_document(), &image, config, 0, &mut seen, &mut deepest);
++                        walk(
++                            &local.in_document(),
++                            &image,
++                            config,
++                            0,
++                            &mut seen,
++                            &mut deepest,
++                        );
 +                    }
 +                }
 +            }
@@ -178,7 +192,6 @@
 +            assert!(seen > 10, "{source:?} bound {seen} words");
 +        }
 +    }
-+
 +
      #[test]
      fn original_pack_word_geometry_keeps_selected_rows_parents_and_full_configuration() {
@@ -236,28 +249,7 @@
          {
              if ordinal != 0 {
                  continue;
-@@ -1928,82 +1954,81 @@
-         selected
-     }
- 
-+    /// Original callee caller-alias arguments, sharing the realm's per-callee
-+    /// survey. See [`Self::declaration_caller_alias_arguments`].
-+    pub(crate) fn declaration_caller_alias_arguments_memo(
-+        &self,
-+        invocation: &crate::ir::CommandTokens,
-+        registry: &tcl_registry::CommandRegistry,
-+        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
-+        memo: &OriginalRealmQueryMemo,
-+    ) -> Option<Vec<String>> {
-+        self.declaration_caller_alias_arguments_with(
-+            invocation,
-+            registry,
-+            owner,
-+            Some(&memo.caller_alias),
-+        )
-+    }
-+
-     fn original_written_word_observations_at_span(
+@@ -1932,78 +1958,65 @@
          &self,
          span: tcl_lexer::Span,
          config: tcl_lexer::LexerConfig,
@@ -318,8 +310,6 @@
 -                            written.start() <= span.start() && span.end() <= written.end()
 -                        })
 -                })
--            {
--                continue;
 +        if let Some(memo) = memo {
 +            let sites = memo
 +                .written_word_sites
@@ -347,7 +337,15 @@
 +                        found.push((word, written, site.binding.clone(), call));
 +                    }
 +                }
-             }
++            }
++        } else {
++            for offset in self
++                .original_written_word_site_offsets(origin, Some(span.start()))
++                .iter()
++                .rev()
+             {
+-                continue;
+-            }
 -            let original = origin.original_lexical_command(words, *offset, config)?;
 -            let native = original.native_words();
 -            let mut ordinals =
@@ -370,23 +368,23 @@
 -            };
 -            if ordinals.next().is_some() {
 -                return None;
-+        } else {
-+            for offset in self.original_written_word_site_offsets(origin, Some(span.start())).iter().rev() {
+-            }
+-            let site = binding.invocation_site()?.clone();
+-            found.push((native[written].clone(), written, binding, site));
 +                let binding = self.original_written_word_site_binding(origin, *offset);
-+                match self.original_written_word_site_step(origin, *offset, &binding, span, config) {
++                match self.original_written_word_site_step(origin, *offset, &binding, span, config)
++                {
 +                    OriginalWrittenWordSiteStep::Skip => {}
 +                    OriginalWrittenWordSiteStep::Refuse => return None,
 +                    OriginalWrittenWordSiteStep::Found(word, written, call) => {
 +                        found.push((word, written, binding, call));
 +                    }
 +                }
-             }
--            let site = binding.invocation_site()?.clone();
--            found.push((native[written].clone(), written, binding, site));
++            }
          }
          if found.is_empty() {
              if let Some(input) = self.original_logical_source_name_advice_input() {
-@@ -2032,6 +2057,164 @@
+@@ -2032,6 +2045,164 @@
          }
          (!found.is_empty()).then_some(found)
      }
@@ -547,7 +545,7 @@
 +#[derive(Debug, Clone, Default)]
 +pub(crate) struct OriginalRealmQueryMemo {
 +    written_word_sites: Arc<std::sync::OnceLock<Option<Vec<OriginalWrittenWordSite>>>>,
-+    caller_alias: super::formal_call_advice::DeclarationCallerAliasMemo,
++    pub(super) caller_alias: super::formal_call_advice::DeclarationCallerAliasMemo,
  }
  
  #[cfg(test)]
@@ -619,7 +617,7 @@
  impl SourceCommandBindings {
      /// Original callee formal operands used by registry-owned caller links.
      /// The returned names suppress caller diagnostics only. Unknown dispatch,
-@@ -43,6 +102,19 @@
+@@ -43,6 +102,20 @@
          registry: &tcl_registry::CommandRegistry,
          owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
      ) -> Option<Vec<String>> {
@@ -634,12 +632,13 @@
 +        invocation: &crate::ir::CommandTokens,
 +        registry: &tcl_registry::CommandRegistry,
 +        owner: &crate::registry_invocation::OwnedInvocationMetadataContext,
-+        memo: Option<&DeclarationCallerAliasMemo>,
++        memo: Option<&super::original_name_value::OriginalRealmQueryMemo>,
 +    ) -> Option<Vec<String>> {
++        let memo = memo.map(|memo| &memo.caller_alias);
          invocation
              .source_binding
              .as_ref()?
-@@ -55,83 +127,105 @@
+@@ -55,83 +128,105 @@
                  return None;
              }
              let allocation = target.implementation_allocation.as_ref()?;
@@ -667,9 +666,9 @@
 +                Some(memo) => memo.get_or_survey(allocation, registry, owner, || {
 +                    self.declaration_caller_alias_survey(allocation, registry, owner)
 +                })?,
-+                None => std::sync::Arc::new(self.declaration_caller_alias_survey(
-+                    allocation, registry, owner,
-+                )?),
++                None => std::sync::Arc::new(
++                    self.declaration_caller_alias_survey(allocation, registry, owner)?,
++                ),
 +            };
              let mut values = Vec::new();
 -            for (site, observations) in &self.declaration_layouts {
@@ -711,14 +710,8 @@
 +                let super::declaration_layout::OriginalDiagnosticFrameEntry::Body(body) =
 +                    observation.entry.as_ref()
                  else {
--                    continue;
 +                    return None;
-                 };
--                if !callee.owns_source(&site.source, site.offset)
--                    || observations.clone().any(|observation|
--                        !matches!(observation.entry.as_ref(), super::declaration_layout::OriginalDiagnosticFrameEntry::Body(body) if body == &callee))
--                { continue; }
--                let Some(tokens) = self.declaration_original_tokens_at(&callee, site.offset) else {
++                };
 +                (body.allocation() == allocation).then(|| body.clone())
 +            })?;
 +        let names = callee
@@ -743,15 +736,22 @@
 +            let Some(layout) = self.declaration_operand_layout_advice(&tokens) else {
 +                continue;
 +            };
-+            let Some(flow) = crate::registry_invocation::declaration_invocation_flow(
-+                registry, &tokens, &layout,
-+            ) else {
++            let Some(flow) =
++                crate::registry_invocation::declaration_invocation_flow(registry, &tokens, &layout)
++            else {
 +                continue;
 +            };
 +            for operand in flow.caller_alias_operands {
 +                let crate::ir::WordExpr::Variable { spelling, source } = operand else {
                      continue;
                  };
+-                if !callee.owns_source(&site.source, site.offset)
+-                    || observations.clone().any(|observation|
+-                        !matches!(observation.entry.as_ref(), super::declaration_layout::OriginalDiagnosticFrameEntry::Body(body) if body == &callee))
+-                { continue; }
+-                let Some(tokens) = self.declaration_original_tokens_at(&callee, site.offset) else {
+-                    continue;
+-                };
 -                let Some(layout) = self.declaration_operand_layout_advice(&tokens) else {
 -                    continue;
 -                };
@@ -805,15 +805,16 @@
 -                return None;
 -            }
 -            agreed = Some(values);
-         }
+-        }
 -        agreed
++        }
 +        Some(DeclarationCallerAliasSurvey { callee, parameters })
      }
  
      /// Query a command-head formal through its original incoming/copy receipt,
 --- a/rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs
 +++ b/rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs
-@@ -24,8 +24,61 @@
+@@ -24,8 +24,59 @@
      content: Span,
  }
  
@@ -826,11 +827,7 @@
 +/// image by `SourceImage` equality (shared-allocation fast path, complete
 +/// byte comparison otherwise) and the memo retains the image clone, so its
 +/// bytes stay alive and no other image can alias them.
-+fn header(
-+    image: &SourceImage,
-+    region: Span,
-+    config: LexerConfig,
-+) -> Option<Arc<IncompleteHeader>> {
++fn header(image: &SourceImage, region: Span, config: LexerConfig) -> Option<Arc<IncompleteHeader>> {
 +    type Memo = Option<(
 +        SourceImage,
 +        LexerConfig,
@@ -841,14 +838,16 @@
 +    }
 +    let key = (region.start(), region.end());
 +    let current = |memo: &Memo| {
-+        memo.as_ref()
-+            .is_some_and(|(retained, retained_config, _)| {
-+                retained == image && *retained_config == config
-+            })
++        memo.as_ref().is_some_and(|(retained, retained_config, _)| {
++            retained == image && *retained_config == config
++        })
 +    };
 +    let retained = MEMO.with_borrow(|memo| {
 +        current(memo)
-+            .then(|| memo.as_ref().and_then(|(_, _, entries)| entries.get(&key).cloned()))
++            .then(|| {
++                memo.as_ref()
++                    .and_then(|(_, _, entries)| entries.get(&key).cloned())
++            })
 +            .flatten()
 +    });
 +    if let Some(retained) = retained {
@@ -897,11 +896,11 @@
 +        invocation: &crate::ir::CommandTokens,
 +        registry: &CommandRegistry,
 +    ) -> Option<Vec<String>> {
-+        self.bindings.declaration_caller_alias_arguments_memo(
++        self.bindings.declaration_caller_alias_arguments_with(
 +            invocation,
 +            registry,
 +            self.bindings.source_metadata_owner(),
-+            &self.query_memo,
++            Some(&self.query_memo),
 +        )
 +    }
 +
