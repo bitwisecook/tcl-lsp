@@ -2,13 +2,14 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 10:52 UTC
+Last updated: 2026-10-22 11:20 UTC
 
 Maintained by the perf agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress
 
-- Equality proof, after vs before, in the isolated `/dev/shm/exp` copy: AnalysisResult (`==`) over 102 corpus `.tcl` files, 15 `.irul` files and synthetic shapes. The fixed spectcl build has just finished; runs start now.
+- tclIndex repro has a third hot path: `incomplete_body_metadata.rs::incomplete_body_operand_layout_advice`. Each command re-parses the document tail for every earlier declaration site through `header()`. Fix: an exact per-region thread_local memo of `header()`. Building it in exp now.
+- Then: the AnalysisResult equality corpus (102 `.tcl` + 15 `.irul` + synthetic), then the crate tests.
 
 ## Outstanding (in priority order)
 

@@ -5698,6 +5698,7 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
         // arity) only adds a path that never reaches it. `exit` or an
         // unknown command keeps it withheld.
         let declaration = "proc greet {} { return hi }\n";
+        let mut mismatches = Vec::new();
         for dialect in ["tcl8.6", "tcl9.0"] {
             for (use_site, completed) in [
                 ("", true),
@@ -5730,29 +5731,30 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
             ] {
                 let source = format!("{declaration}{use_site}");
                 let result = crate::analyser::Analyser::new().analyse(&source, dialect);
-                assert_eq!(
-                    result
-                        .retained_command_realm()
-                        .and_then(
-                            crate::realm::CommandBindingRealm::original_completed_command_world
-                        )
-                        .is_some(),
-                    completed,
-                    "{dialect}: {use_site:?}"
-                );
+                if result
+                    .retained_command_realm()
+                    .and_then(crate::realm::CommandBindingRealm::original_completed_command_world)
+                    .is_some()
+                    != completed
+                {
+                    mismatches.push(format!("{dialect}: {use_site:?}: world expected {completed}"));
+                }
                 // Every command of the body keeps its own original lookup
                 // however often, and from wherever, the body is entered.
-                assert!(
-                    result
-                        .command_invocations
-                        .iter()
-                        .filter(|invocation| invocation.name == "return"
-                            && invocation.range.start() < declaration.len() as u32)
-                        .all(|invocation| invocation.original_lookup.is_some()),
-                    "{dialect}: {use_site:?}"
-                );
+                if !result
+                    .command_invocations
+                    .iter()
+                    .filter(|invocation| {
+                        invocation.name == "return"
+                            && invocation.range.start() < declaration.len() as u32
+                    })
+                    .all(|invocation| invocation.original_lookup.is_some())
+                {
+                    mismatches.push(format!("{dialect}: {use_site:?}: body lookup lost"));
+                }
             }
         }
+        assert!(mismatches.is_empty(), "{mismatches:#?}");
     }
 
     #[test]

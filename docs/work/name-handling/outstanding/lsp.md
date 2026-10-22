@@ -2,13 +2,13 @@
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-22T10:55Z
+Last updated: 2026-10-22T11:20Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress
 
-- tcl-lsp-server lib full run on the current tree (fresh binary, host-install survey now off in the test harness): collect failures, separate Server108-cache-caused from pre-existing; verify `fresh_analysis_is_reused_only_for_an_unchanged_input_revision`, `scan_workspace_folders_surveys_a_pinned_discovered_installation`, and the two 180 s tests (`workspace_symbol_caps_its_answer`, `startup_index_and_factory_reindex_keep_checked_document_roles`).
+- tcl-lsp-server lib run on the current tree, one process per test (400 s cap) because the whole-binary run aborts at thread exit (vm-runtime TLS bug, see Blocked); fresh binary, host-install survey now off in the test harness: collect failures, separate Server108-cache-caused from pre-existing; verify `fresh_analysis_is_reused_only_for_an_unchanged_input_revision`, `scan_workspace_folders_surveys_a_pinned_discovered_installation`, and the two 180 s tests (`workspace_symbol_caps_its_answer`, `startup_index_and_factory_reindex_keep_checked_document_roles`).
 - Re-run lsp-core integration targets after the latest edits: hover_completion (past-end-of-line `$` completion clamp), force_import_shadow_consumers (references/rename agreement test), references_residual, name_resolution.
 
 ## Outstanding (in priority order)
@@ -20,6 +20,8 @@ Maintained by the lsp agent. It lists what this agent considers it must still co
 5. Review findings pending triage routing (do not start until routed): N03 (variable cursor scanner bypasses the dialect lexer; `profile_for_dialect("")` in rename), N04 (imported-command rename declaration-only edits), N05 (rename edits a forced-import call references excludes — my oracle-only ABSTAIN path already makes rename and references use the same `program_forced_import_abstains` decision; the in-document N05 shape is not covered), N06 (rename collision checks by target kind/origin), N07 (speculative proc-variable navigation used as a binding for rename), N11–N16 (package availability, incremental settlement vs fresh index, source views missing inherited namespace path, callback arity/semantic-token tails, minifier compaction, provider fallbacks).
 
 ## Blocked (on whom, and what is needed)
+
+- vm-runtime: tcl-lsp-server lib process aborts after ~221 tests — a tokio worker's thread-exit drops a thread-local PackHookHost → tcl_vm Value drop → `value::native_retirement::release` touches an already-destroyed TLS ("cannot access a Thread Local Storage value during or after destruction") → panic in destructor → SIGABRT. Needs `try_with` in the retirement path. Workaround: per-test processes.
 
 - perf agent / compiler: Analyser cost is quadratic in command count (n=10 3.1 s, 80 66 s debug; 41 empty procs 8.5 s; tk8.6 tclIndex tens of minutes) and `tcl_spectcl::bundled::load_embedded` 65–84 s. Blocks: `workspace_symbol_caps_its_answer` and `startup_index_and_factory_reindex_keep_checked_document_roles` (180 s), all WASI row-17 host checks, folder-add test time.
 - compiler-names: object created by a relative name inside `namespace eval` is published at root (`::a`'s `rex` → `::rex`, `::b`'s → none) → name_resolution `tn_object_command_dispatch_is_scoped_to_its_creation_namespace`.
