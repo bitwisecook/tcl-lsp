@@ -1,0 +1,35 @@
+{
+  "utc": "2026-10-22T19:04:09.949650+00:00",
+  "scope": "Correct binary identity interpretation only; no test execution, changed outcomes, audit admission or P2F verdict",
+  "old_receipt_sha256": "d02e90de0acac350316f822bab19448c048fa57fb194159991960d7ec245f39a",
+  "new_receipt_sha256": "8f0640329c7c60180099d61fe5c2d58ff13b76230b6046ef169f610b3ffa7a58",
+  "named_pass_records": 24312,
+  "library_ids_recovered": 14094,
+  "unique_binary_selector_keys": 24312,
+  "original_outcome_fields_sha256": "4ec3c693ebadec14471cc1db13ff801e428c6f29b3f275757ed5bed8782c24ae",
+  "outcome_fields_unchanged": true,
+  "no_truncation_markers": true,
+  "remaining_unnamed_summary_skips": 4625,
+  "root_independent_source_review": {
+    "helpers.rs": {
+      "blob": "3d6684878af782efff4c105a4c7c2a9397547b39",
+      "lines": "175-240",
+      "fact": "DisplayTestInstance prints instance.binary_id; constructor max_width None"
+    },
+    "test_list.rs": {
+      "blob": "69a06a2cfff883b68afbaace4ae150cabb484a5d",
+      "lines": "290-360",
+      "fact": "stable RustBinaryId::from_parts assigns package for lib/proc-macro"
+    },
+    "displayer/imp.rs": {
+      "blob": "861d157ba7c0a4d65af0d22a1b04996d133708dd",
+      "lines": "1835-1867",
+      "fact": "status formatter helper calls new without width override"
+    }
+  },
+  "evidence": [
+    "ci5203-nextest-console-binaryid-audit.md",
+    "ci5203-nextest-console-boundary-audit.md"
+  ],
+  "gate_changes": []
+}

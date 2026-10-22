@@ -1,0 +1,133 @@
+{
+  "utc": "2026-10-22T19:25:07.660931+00:00",
+  "source_product_commit": "d666c9b2a7142a0f1e5940e81681efef769d7fe2",
+  "source_checkpoint": "93a5a341462bf646c6eeb16875d6f5f12197c798",
+  "baseline_sha256": "8f0640329c7c60180099d61fe5c2d58ff13b76230b6046ef169f610b3ffa7a58",
+  "scope": "Partial local compiler failure attribution only. Exact selectors joined to named baseline PASS; local build/profile differs from hosted baseline and full shipping CI remains required. New controls absent from baseline remain unmatched. No suite completeness or release verdict.",
+  "rows": [
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator",
+      "local_result": "panic in failed selected filter",
+      "filter": "fp_rbs_15",
+      "log_sha256": "b79633343fdd7901761113c3a0bee1854db4677c92887fcb7ff74b85731f5739",
+      "baseline_named_PASS": true,
+      "baseline_record": {
+        "job": "rust-tests-shard-1",
+        "package": "tcl-compiler",
+        "binary_label_as_rendered": null,
+        "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator",
+        "status": "PASS",
+        "reporter_ordinal": 476,
+        "reporter_total": 6760,
+        "binary_id": "tcl-compiler"
+      },
+      "source_stable": true,
+      "providers_stable": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+      "local_result": "panic in failed selected filter",
+      "filter": "fp_rbs_15",
+      "log_sha256": "b79633343fdd7901761113c3a0bee1854db4677c92887fcb7ff74b85731f5739",
+      "baseline_named_PASS": true,
+      "baseline_record": {
+        "job": "rust-tests-shard-1",
+        "package": "tcl-compiler",
+        "binary_label_as_rendered": null,
+        "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+        "status": "PASS",
+        "reporter_ordinal": 480,
+        "reporter_total": 6760,
+        "binary_id": "tcl-compiler"
+      },
+      "source_stable": true,
+      "providers_stable": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+      "local_result": "panic in failed selected filter",
+      "filter": "fp_rbs_15",
+      "log_sha256": "b79633343fdd7901761113c3a0bee1854db4677c92887fcb7ff74b85731f5739",
+      "baseline_named_PASS": true,
+      "baseline_record": {
+        "job": "rust-tests-shard-1",
+        "package": "tcl-compiler",
+        "binary_label_as_rendered": null,
+        "selector": "analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+        "status": "PASS",
+        "reporter_ordinal": 1002,
+        "reporter_total": 6760,
+        "binary_id": "tcl-compiler"
+      },
+      "source_stable": true,
+      "providers_stable": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105",
+      "local_result": "panic in failed selected filter",
+      "filter": "fp_tnt_03",
+      "log_sha256": "10973a4fabee02dd9244852f7c938081a157c1caaa4438fe4de743aa44fcd079",
+      "baseline_named_PASS": true,
+      "baseline_record": {
+        "job": "rust-tests-shard-1",
+        "package": "tcl-compiler",
+        "binary_label_as_rendered": null,
+        "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105",
+        "status": "PASS",
+        "reporter_ordinal": 743,
+        "reporter_total": 6760,
+        "binary_id": "tcl-compiler"
+      },
+      "source_stable": true,
+      "providers_stable": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "taint::tests::original_cross_interp_script_reads_keep_the_tainted_command_word",
+      "local_result": "panic in failed selected filter",
+      "filter": "original_cross_interp_script_reads_keep_the_tainted_command_word",
+      "log_sha256": "3bf9d177568e738b4d4db9058f4404c0f241519f191f1066a24a7f7195f70d48",
+      "baseline_named_PASS": false,
+      "baseline_record": null,
+      "source_stable": true,
+      "providers_stable": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "registry_invocation::source_taint::tests::original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites",
+      "local_result": "panic in failed selected filter",
+      "filter": "original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites",
+      "log_sha256": "1548fa96b4d73edf78f58eedf50b8ebbc7e9f4546914e44248d28e76fbb5b325",
+      "baseline_named_PASS": false,
+      "baseline_record": null,
+      "source_stable": true,
+      "providers_stable": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "command_binding::original_compiled_list_owner_join_tests::compiled_list_head_original_owner_refuses_unknown_binding_join",
+      "local_result": "panic in failed selected filter",
+      "filter": "compiled_list_head_",
+      "log_sha256": "5956d6495c25424317797002d07e52517e4631bfc4cd44cf4859744fbafd6a07",
+      "baseline_named_PASS": false,
+      "baseline_record": null,
+      "source_stable": true,
+      "providers_stable": true
+    },
+    {
+      "binary_id": "tcl-compiler",
+      "selector": "registry_invocation::source_taint::tests::compiled_list_head_uses_one_current_original_compiler_owner",
+      "local_result": "panic in failed selected filter",
+      "filter": "compiled_list_head_",
+      "log_sha256": "5956d6495c25424317797002d07e52517e4631bfc4cd44cf4859744fbafd6a07",
+      "baseline_named_PASS": false,
+      "baseline_record": null,
+      "source_stable": true,
+      "providers_stable": true
+    }
+  ]
+}

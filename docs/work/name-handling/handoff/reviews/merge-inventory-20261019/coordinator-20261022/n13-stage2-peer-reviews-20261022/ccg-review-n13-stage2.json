@@ -1,0 +1,55 @@
+{
+  "status": "Independent STATIC review of partial immutable snapshot; no typecheck, Cargo, tests, apply, or integration-readiness verdict",
+  "updated_utc": "2026-10-22T19:10:18.568189+00:00",
+  "patch": "/tmp/compiler-names-n13-stage2.patch",
+  "patch_sha256": "33bdf6c763aeed82d35071d59eb91681b3167cb8ddbb276856a6aa3c7f24d3f2",
+  "n17_plan_sha256_unchanged": "406063b58edf7ab331d69dcfb801832e36dd36fffa0324b6e1df8ebd4efca731",
+  "source_identity_findings": [],
+  "static_observations": [
+    "SourcePointInterner::issue hashes complete immutable payload only to choose a bucket; issue_in_bucket compares complete payload equality before returning an existing key.",
+    "Payload equality includes the exact OriginalSourceAnalysisOwner Arc identity, full input, source/site/words/path, full SourceLookupSnapshot equality, and namespace. SourceLookupSnapshot equality compares full state and realm; no new fingerprint-only or owner-only shortcut was introduced.",
+    "Production issuance uses a single private global interner. checked_add refuses fresh allocation at u64::MAX after first allowing reuse of an existing live equal receipt. Retired keys are never recycled.",
+    "Entry Eq/Hash/Ord use the issued key consistently. Origin token contains only that immutable key and cannot independently access state. SourceOriginKind still includes exact child SourceImage and full semantic origin equality beyond its cached fingerprint.",
+    "Strong payload retains parent analysis owner and snapshot; options, SourceAnalysisEntry, source cache key, child baseline, inherited call receipt and retained CU carry entry clones. Ancestor state is retained through prior entry chain.",
+    "matches_parent_analysis checks exact retained owner pointer, full input/config/image and source realm. It deliberately does not certify physical publication currentness. Independent byte-equal B cannot match A; a clone of the retained same A can.",
+    "Derived source graph memo is outside semantic Eq/Hash and releases its table mutex before recursive preparation. No payload-to-self graph ownership cycle was identified statically.",
+    "inspect_operand_effects records uncertainty before observe_source_point; query rejects uncertain_operations, so observing before the later operand_barrier widen does not itself bypass substitution uncertainty."
+  ],
+  "concrete_gaps": [
+    {
+      "id": "N13-CCG-1",
+      "kind": "validation gap",
+      "anchor": "command_binding/source_point_entry.rs:517",
+      "detail": "Forced hash-collision test uses two point() analyses, which differ at actual owner identity before snapshot/site equality is exercised. It would also pass if future equality accidentally masked different snapshots under one owner.",
+      "required_control": "Force same bucket for authentic distinct points from the SAME retained parent owner, with different sites and namespace/path state; verify distinct keys/origins and exact repeat reuse."
+    },
+    {
+      "id": "N13-CCG-2",
+      "kind": "validation gap",
+      "anchor": "command_binding/source_point_entry.rs:60",
+      "detail": "No expired-payload/reissue control or Entry/Origin Eq-Hash-Ord consistency control is present. Existing overflow test covers live reuse and fresh refusal but not retirement/lifetime behavior.",
+      "required_control": "Retain old immutable origin token, release all local full receipts under controlled cache lifetime, reissue equal payload and prove fresh key/no old-key reuse; separately retain live clones across graph memo warming and verify reuse plus Eq/Hash/Ord consistency. Confirm child/CU retain entry after external entry/parent handles are dropped."
+    },
+    {
+      "id": "N13-CCG-3",
+      "kind": "unresolved source-boundary consistency concern, sent to names",
+      "anchor": "command_binding/source_point_entry.rs:288; lowering/mod.rs:2272",
+      "detail": "child_state validates metadata/config/Registry/native/host/provider/contracts then clones original snapshot baseline, but does not compare supplied execution naming policy, invocation dialect, logical/vendor inputs or realm. Public Lowerer::set_source_analysis_options stores those supplied fields. Thus the same public inherited-options carrier can describe a hybrid with original binding state and changed lowering policy unless an outer consumer rejects it. No acceptance or authority-bypass execution has been measured.",
+      "required_control": "Document which fields may intentionally vary; reject incompatible alternatives before both binding and lowering consumers or normalize through one checked carrier. Add changed-policy/dialect/realm/logical/vendor negatives; do not merely mask fields in Eq."
+    },
+    {
+      "id": "N13-CCG-4",
+      "kind": "host integration gap already acknowledged",
+      "anchor": "OriginalSourcePointEntry::matches_parent_analysis; OriginalSourceProcedureCall::declaration_in_parent",
+      "detail": "Old retained A remains a matching immutable analysis even after its physical publication is retired. No compiler-local predicate can infer host retirement. Stage2 has no host A-retired/B-current proof or complete two-parent/twelve-hop convergence execution.",
+      "required_control": "Host must resolve current physical URI/path/publication owner before rejoining analysis/entry; byte-equal B cannot renew A. Run exact retirement and supported graph convergence controls before N13 closure."
+    }
+  ],
+  "changes_made": "Only this off-tree review receipt. No implementation or canonical writes, no Cargo queue, no N17 plan changes.",
+  "owner_response": {
+    "at_utc": "2026-10-22T19:10:30.514258+00:00",
+    "role": "compiler-names",
+    "status": "Stage2 option-axis concern confirmed (also independently by VM); stage3 off-tree preparation derives expected parent realm/policy/dialect/Logical/Vendor/scope into minted entry and validates exact axes. Stage3 controls pending. Stage2 immutable/unapplied. No stage3 acceptance claimed.",
+    "planned_controls": "Same-owner distinct actual sites/path states in forced bucket; payload expiry retaining old token; live clone reuse after graph warming; explicit Entry/Origin Eq/Hash/Ord."
+  }
+}

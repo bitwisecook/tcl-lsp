@@ -1,0 +1,11 @@
+{
+  "status": "syntax/static only, no Cargo, no executable selector run",
+  "safety": "unchanged test argv/180s selector timeout/inherited stack; stream artifact SHA to avoid allocation of full binary; timeout own process group and tolerate already exited race; capped draining logs; no target cleanup",
+  "files": {
+    "run.sh": "912a266bf22779275de1cf984352dbaae1d6e8dec9b740273ba5887c66d34c67",
+    "collect-build.py": "76c690585d22185516cebe5a7c701deef467b91f9f4bee5b36dccefa6f48ec9a",
+    "providers.py": "5b01d95b0e919dc8aa16048c663003fbaa708d2f1e970408ef3c14fe47eeacd8",
+    "run-selector.py": "edb8bea9bc953db28c611909e756eb926f99be1bf883d99f87c405a4ed8f9bc8",
+    "db-owner-correction-provenance.json": "b35d70a69a6dae9c68f5c9821e080834dc415d2dfb2af3d621d1fa541643b5ef"
+  }
+}

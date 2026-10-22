@@ -1,0 +1,36 @@
+{
+  "status": "OFF-TREE uncompiled residual-test lint candidate; no canonical writes, Cargo or lint/runtime verdict",
+  "after_prerequisites": [
+    "LSP production656365",
+    "CCG test2ef1",
+    "external5"
+  ],
+  "syntax": "four full files parsed by rustfmt; original unrelated CCG formatting retained in minimal patch",
+  "patch_sha256": "7aa4e1650a700159be797d0bffa0f7079773257d139a95def776aa2f64949824",
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "77e63cb751615fd415be55cd82e254c0c9fe1d6d9bd0cc94abe56cc913bcf550",
+      "proposed_sha256": "0f59779720496d9cde5483e834312d7f947d0fcabd964f8dc408be20701ec716",
+      "diff_lines": 126
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "before_sha256": "f2dd3285c8d8c3163f20101b3918c9601a5e2d3afaf994bfb3e915dcf59c2298",
+      "proposed_sha256": "bdbc4a50e606fe4d507498a93276496a37e55bc8f9b7ed3eb3d86c1b584e2545",
+      "diff_lines": 129
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "before_sha256": "6b1da61287561a0fa2fccc346a9f7628b56702d21dfbd5a9e18c1dd9678df012",
+      "proposed_sha256": "db97bcd022682618ec686348d71b7fb350cc468d0f37ade257f7bf86511f7f95",
+      "diff_lines": 129
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/recovery_source/tests.rs",
+      "before_sha256": "ea1eef9f604d96186da13e19aa360f2de88c458988d0b32465cd1ff57d713374",
+      "proposed_sha256": "1f306ab1075b336f0fd6b9340343fb50a91625b6dc4782e361bcd3c5d86fbf71",
+      "diff_lines": 13
+    }
+  ]
+}

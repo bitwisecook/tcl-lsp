@@ -1,0 +1,76 @@
+{
+  "status": "Independent static review ONLY. Frozen host v1 and wire v2 are partial/unintegrated/uncompiled; wire v2 has definite test defect. No apply/Cargo/canonical source changes.",
+  "updated_utc": "2026-10-22T19:24:22.545476+00:00",
+  "host": {
+    "path": "/tmp/lsp-n13-host-views/source_views-v1.rs.txt",
+    "sha256": "4b1db55db7eaa7cc9058a20f1b5736f8a978127481ad811a87775fffccd2f7ac"
+  },
+  "wire": {
+    "path": "/tmp/lsp-n13-source-view-wire-v2/proposal.patch",
+    "sha256": "175fe69101a07107ae0fb31ec72f5500b358e3efa3a534722868b6653cf41fa6"
+  },
+  "scope_receipts_read": [
+    "/tmp/lsp-n13-host-views/receipt.json",
+    "/tmp/lsp-n13-source-view-wire-v2/receipt.json"
+  ],
+  "findings": [
+    {
+      "id": "CCG-N13-HOST-1",
+      "severity": "definite test failure, statically established",
+      "location": "wire v2 proposed original_declaration.rs:3010",
+      "detail": "New schema5 test expects serialized object length3. Existing session-bearing Serialize emits schema, token, session, wirePurpose =4; schema5 issuance now requires real EditorWireSession.",
+      "required_change": "Correct only test transport inventory to four actual fields and explicitly retain exact session/purpose checks; do not drop serializer fields or weaken session.",
+      "owner_response": "LSP confirmed and will prepare distinct immutable v3 successor; frozen v2 unchanged."
+    },
+    {
+      "id": "CCG-N13-HOST-2",
+      "severity": "conditional publication validity defect / integration guard missing",
+      "location": "source_views-v1.rs.txt:223,240,343-360",
+      "detail": "A draft can retain a live ancestor with the SAME physical URI being replaced. stage checks the old ancestor is live, then replace removes every old ID for that URI. The newly returned/published batch immediately fails parent_chain_is_live/contains_actual and cannot be a settled valid publication. This is fail-closed at resolve, not false Native authority.",
+      "required_change": "Explicitly refuse/keep same-URI ancestor work pending before index/table mutation in this first-edge design; any later recursive-source solution needs genuine receipt/continuation semantics, not URI/text reparenting."
+    },
+    {
+      "id": "CCG-N13-HOST-3",
+      "severity": "consumer integration obligation, no existing bypass demonstrated",
+      "location": "source_views-v1.rs.txt:459-497",
+      "detail": "resolve_original_source_view_declaration returns a strong PublishedOriginalSourceView Arc after the currentness lease is released. That Arc preserves immutable evidence, not continued physical currentness. Missing declaration/lifting consumers must not read metadata/render/publish later solely because this method once returned it.",
+      "required_change": "Perform final consumer selection/lifting/render within a checked view callback, or rejoin saved exact ID and every ancestor under its final publication lease; retain no analysis_for/URI/text renewal."
+    }
+  ],
+  "static_positive_observations": [
+    "Real EditorWireSession allocation is reused; no source/time/hash/reset-counter surrogate introduced. Missing session entropy refuses new schema5 issuance. Both stamp lookup and resolution require schema5 plus matching registry session and exact retained enum variant/type.",
+    "Typed host stamp full equality checks exact concrete type and value, and identity.is_current checks source/analysis independently. Legacy Native1/TYPE2/CALL3/LENS4 cannot cast through the new resolver.",
+    "Wire stamp lookup is inert and occurs before host exact-ID lookup. Final identity resolution re-locks registry under current host source/table/index lease; concurrent row eviction yields refusal.",
+    "Host ID checked_add has no reset or recycle in proposed table. Stage works on local next_id; table sequence changes only on successful replace. Reuse requires actual producer and physical Arc identity, parent ID and opaque point equality, plus existing index revision.",
+    "View strongly retains actual physical source, genuine FreshAnalysis producer, point receipt and parent Arc chain. Ancestor traversal checks repeated IDs; every retained ancestor must still be in live by_uri/by_id table and current index revision.",
+    "After async saved-source reads, final currentness lease holds analyser-input gate, factory generation, open document map, DB/file/published path/URI generations and provider saved-source guard. Under it the draft checks actual physical SourceFile/path/text/dialect, diagnostic configuration, full document_analysis_input context/config equality and genuine seed epoch/factory/input/body lexer/realm.",
+    "with_current_original_source_view obtains old retained view before async work and rejects retired view/ancestors in final table/index/physical rejoin. No URI/text reconstruction, first-URI lifting or standalone fallback was found.",
+    "capture_inherited checks current parent/point before worker, returns only retained draft, and final publish rechecks full chain after worker; a parent retirement during worker cannot itself pass final publication.",
+    "No weakening of existing readonly report global DB revision guard was found. New purpose omits global DB revision but rechecks purpose-specific physical/config/input/publication axes instead."
+  ],
+  "explicit_limitations": [
+    "Host v1 depends on compiler matches_child_analysis/stage3, backend table initialization and module wiring that are not in this frozen draft.",
+    "Root/inherited classifier, reconciliation queue, None-required-edge pending semantics and all view-aware Core declaration/class/hierarchy/reference consumers are absent. No complete multi-source integration or supported 12-hop convergence claim.",
+    "Prefix/tail continuation across SourceLoad remains unresolved; no finite depth or implicit successful source-effect fallback may be inferred.",
+    "Physical child input is forced into driver and producer while compiler point requires exact parent input. Differing physical child/parent contexts refuse; multiple parent-input interpretations cannot yet coexist unless physical currency is separated from inherited interpretation input. VM independently reported this same explicit context limitation.",
+    "All-ancestor actual A-retired/byteequal-B-current and configuration/provider/epoch/index revision mutation controls are still unexecuted.",
+    "Duplicate saved admissions may need deduplication under actual provider protocol (already noted in host receipt).",
+    "No semantic/runtime/typecheck/Clippy acceptance from this static review. No N17 plan change or whole51 result inferred from external run16 observations."
+  ],
+  "source_continuity": "Both exact frozen artifact hashes rechecked at review completion; no candidate changes by reviewer.",
+  "owner_response": {
+    "at_utc": "2026-10-22T19:24:43.270725+00:00",
+    "role": "lsp",
+    "detail": "Both host findings accepted for successor: explicit same-URI ancestor Pending/refusal before whole-URI publication; replace escaping identity+Arc resolve API with a checked render callback. Frozen host v1 remains unchanged."
+  },
+  "wire_successor_static_review": {
+    "path": "/tmp/lsp-n13-source-view-wire-v3/proposal.patch",
+    "sha256": "2ca3c23de730aea4a1a6109e546fd4a8e19257ef9e4c7aafaa1cf9c9b90c1beb",
+    "status": "Static diff review only, no new findings; fixes v2 field count and adds exact typed purpose transport. No host integration/type/runtime verdict.",
+    "observations": [
+      "Serializer retains all four session fields; only schema5 selects new originalSourceViewRelationship purpose. Existing session schemas keep logicalSourceRelationship.",
+      "Decoder requires originalSourceViewRelationship exactly with schema5 and rejects that purpose on1/2/3/4. Logical purpose cannot decode schema5. Legacy sessionless schema5 is still inert because both resolvers require matching genuine session.",
+      "Original A/B/restored/stamp-type/real-session counter collision/missing-entropy controls retained. New four-field/session/purpose roundtrip and missing/wrong/cross-family purpose negatives preserve original predicates."
+    ]
+  }
+}

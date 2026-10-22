@@ -1,0 +1,79 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-22T19:25:42.933106+00:00",
+  "scheduled_report_utc": "2026-10-22T19:25:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-22T19:55:37+00:00",
+  "change_since_previous_report": [
+    "Clean LSP merge/release readiness from rust remains the primary goal. General VM parity is deferred. No section F checkbox, validated product row or audit admission changed; no PR, merge, tag or release.",
+    "The prior18:55 cycle normal-pushed5d054dc7 onto fresh external6df7. Active93a and published5d have identical committed product trees; active source remains frozen during guarded functional tests.",
+    "Compiler original18 filters now execute after the22m39 first build: fp_rbs_15 selected9 with6PASS/3FAIL, fp_sh_21 selected7 allPASS, fp_tnt_03 selected6 with5PASS/1FAIL. Original assertions are retained. New taint/list positive controls expose unavailable original-owner joins rather than proving lexical inventory defects.",
+    "One dead_code warning identifies a helper whose only remaining use is in cfg(test). A narrow cfg(test) gate is peer-reviewed off-tree; no lint allowance or assertion change. All measured filter source/provider guards remain equal; full18 suite is still partial.",
+    "Compiler finishes original g4/main/ZZ/eight, then two separate exact scanner/Logical-role guards. CURRENT three LSP losses follow, then focused12 minify and VM/codegen plans when explicitly handed the shared lock. No competing Cargo queue.",
+    "N13 static reviews caught mismatched requested context settings, inappropriate Native procedure-lowering eligibility, and cross-session wire counter collision in off-tree drafts. Names/LSP are correcting these. Exact load layout and decoding/body/handler debts remain explicit; no workspace image is called an attested Native load.",
+    "Conditional continuation contract v2 requires joining or refusing every unknown child branch that may continue normally, positive selected completion grammar, and retention of genuine compiler source/world/table owners. First-edge host publication alone does not close multiple sequential sources or prefix/tail continuity.",
+    "Corrected baseline binary identity using exact cargo-nextest0.9.148 and pinned upstream metadata/PASS formatter: all24,312 named passes have canonical binary IDs, zero duplicate binary/selector identities and unchanged original outcome fields. Recovery receipt and independent audits are recorded;4,625 skipped tests remain unnamed.",
+    "Latest original-source baseline is still rust fcb7927 CI5203. Full current shipping CI and complete zero pass-to-fail comparison remain required; recovered identities do not constitute a shipping verdict.",
+    "BIG-IP final handoff18:08 exceeded60 minutes; user notified19:09 and a stale-event receipt is recorded. Its blockers remain routed without duplicate agent or takeover. Perf full-corpus equality is unproven and realm patch remains withheld. Review-triage run16 is not a latest-source signoff.",
+    "New external45766fc341 contains completed earlier-source run16:27 observational groups and small scaling, named packfold and effects/unclosed tests passed;642 engine executions and186 matching checks had zero unexpected result. Latest5d054 replay and JSON-RPC integration remain unrun; no latest-tree release signoff.",
+    "Independent comparator helper validates exact baseline binary/selector pairs, rejects duplicate identities, treats missing/skipped current rows as unknown, and preserves all original provenance. Synthetic controls and same-receipt plumbing checks pass; no shipping-work verdict.",
+    "Original g4 main now passes1/1 with exact source/provider postguards. All four original C6 failure selectors join exact baseline namedPASS; four new failing taint/list controls are absent from baseline. Partial local attribution retains different-profile and suite-completeness limits.",
+    "Hosted work CI will be dispatched after this snapshot under the existing2026-10-19T14:20Z authorization to obtain a complete current failure inventory in parallel; branch dispatch uses hosted runners and native_release_build_proof=false, with no release/tag/publish."
+  ],
+  "committed": [
+    "93a5a341462bf646c6eeb16875d6f5f12197c798"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Publish full WIP with probe exclusion through isolated work publisher; refresh all role freshness, disk, official report and19:55 reminder.",
+    "Complete original compiler18 and two exact follow-ups; diagnose owner joins off-tree while LSP guarded losses execute next.",
+    "Integrate only fully reviewed source fixes between captured runs; complete N13 source-view/continuation contracts and truthful ILX source effects.",
+    "Run VM/SpecTcl, minify, shipped native/browser/WASI and strict lint gates; dispatch full hosted shipping CI and compare exact baseline PASS identities."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08Z",
+    "perf": "2026-10-22T18:56Z",
+    "review-triage": "2026-10-22T19:16:27Z"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No release-gate closures or audit admissions. Current partial compiler failures/warning are preserved. Baseline identity recovery is a provenance correction, not a current-work green verdict. Static off-tree reviews and prepared selector plans are not runtime acceptance.",
+  "disk_free_bytes": 7182192640,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}

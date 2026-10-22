@@ -1,0 +1,26 @@
+{
+  "recorded_utc": "2026-10-22T19:21:22.212604+00:00",
+  "scope": "Static off-tree review only; no compile, runtime acceptance or N13 closure. Stage2 remains immutable; gaps are addressed in separate stage3.",
+  "files": [
+    {
+      "file": "vm-runtime-n13-stage2-peer-review.json",
+      "sha256": "c34c0414cd65b590102ee79652eed0ea7a4e96ace04a9e2b916e247caf4597a5"
+    },
+    {
+      "file": "ccg-review-n13-stage2.json",
+      "sha256": "c69bc4502011a9142137aa61751319d3b535619243a5203445404f71ebaad031"
+    },
+    {
+      "file": "n13-stage2-purpose-matrix-20261022.md",
+      "sha256": "f0a24d380d7f06f2ec55546a73dea419a4414b4857ced0b5f7379fd7e4e7e48e"
+    },
+    {
+      "file": "compiler-names-n13-conditional-continuation-contract.md",
+      "sha256": "8cf2de28c6ddc0ff3286c3a5b869fb24810aad1e74bbd69fe9432680f346ce11"
+    },
+    {
+      "file": "compiler-names-n13-conditional-continuation-contract-v2.md",
+      "sha256": "a9be744fb0893d31d3e879622d1b79796f0ff8cf23824a582f365230adcf2fed"
+    }
+  ]
+}

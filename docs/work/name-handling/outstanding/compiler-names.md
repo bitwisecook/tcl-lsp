@@ -2,7 +2,7 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-22T18:51:45Z (agent-reported work only)
+Last updated: 2026-10-22T19:21:42Z (agent-reported work only)
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -116,6 +116,11 @@ Perf aliases evidence reviewed read-only after staged GO: all-old control proves
 - g3: `crlf_class…` and `substituted_heads…` ok. `completed_world…` failed on positive cases, caused by the strict `::unknown` kind check, which is now relaxed.
 
 ## Resume
+
+- **N13 frozen stage2 checkpoint:** `/tmp/compiler-names-n13-stage2.patch` SHA33bdf6c763aeed82d35071d59eb91681b3167cb8ddbb276856a6aa3c7f24d3f2,16paths/1966lines, and its matching shadow remain immutable for VM/CCG/checks static review. Syntax parsed and canonical apply-check/whitespace check passed; no Cargo/typecheck/test result. Manifest copied to compiler-names/n13-stage2-manifest.json. Review found two concrete boundaries to fix in a separate stage3 successor: complete raw source-entry option axes, and public runtime lowerer target APIs stamping ProcedureCode after a source-only point. No downstream Native exploit is claimed. Stage3 has exact minted-axis checks, unavailable/Barrier refusal, matches_child_analysis and new lifetime/collision/foreign/config controls in `/tmp/compiler-names-n13-stage3-shadow`; still off-tree/uncompiled/unrun.
+- **N13 multi-source continuation is real integration debt:** physical TrustedSourceModuleLoader/Loaded completion cannot be borrowed from workspace bytes. Generic SourceLoad makes later state opaque; no existing cross-file conditional-effect issuer closes this. The proposed existing-kernel continuation contract is compiler-reviewed with explicit conservative normal-branch joins, exact positively selected source-file completion grammar, separate original compiler-visit owners and no fresh-parent renewal. V2 SHAa9be744fb0893d31d3e879622d1b79796f0ff8cf23824a582f365230adcf2fed is copied to compiler-names/n13-conditional-continuation-contract.md. Actual finite continuation/region-view recombination remains an implementation review gate; later None must stay unavailable, not settled. LSP can transport distinct sealed region views while retaining prefix A/child/physical-publication owners; per-view index membership must preserve unchanged prefix IDs.
+- **Current original suite:** compiler owns `/tmp/compiler-c6-original/20261022T185226.681972Z` whole-command lock; main/ZZ/eight remain running/pending, no own Cargo. Names read the fp_sh_21 result and full log:7/7PASS, including unchanged dict-for S100 positive/negative family; receipt reports stable source/providers and artifact SHA d7d3fd6be30e1677717d9031d69961190b490f6f0fc7ad35941348c36be35cc6. This scoped compiler-run result is not a zero-P2F admission and has one current unused-method warning in original_definer.rs79. VM owns the held cfg(test) correction; no source writes during the suite.
+- **ILX static peer review:** d5c1 source-only remote owner draft had an authored source-resolver uncovered-write gap: raw authored effects included source_resolver but the ordinary role-write helper did not. Compiler accepted blocker and successor064792d23e7e5364e838f16f670473d40ca7292686ff70751f82a6942361456b now conservatively refuses every command/sub/form source_resolver, including later Replace, with synthetic source-only VariableStore writer controls. Narrow guard reviewed statically; full draft is held/uncompiled/unrun and real remote positive authority remains unknown pending truthful registry contract.
 
 Timestamp correction: the previous 18:50 header was rounded forward; this header uses the actual clock receipt. Product/test receipts retain their original exact recorded times.
 

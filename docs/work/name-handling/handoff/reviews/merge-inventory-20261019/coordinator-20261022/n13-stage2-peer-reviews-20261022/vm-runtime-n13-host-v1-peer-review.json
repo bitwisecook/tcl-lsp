@@ -1,0 +1,40 @@
+{
+  "reviewed_utc": "2026-10-22T19:23:17.831717+00:00",
+  "artifact": "/tmp/lsp-n13-host-views/source_views-v1.rs.txt",
+  "sha256": "4b1db55db7eaa7cc9058a20f1b5736f8a978127481ad811a87775fffccd2f7ac",
+  "scope": "Independent source-only purpose/Native boundary/child decoding/context/parentretention static review. Wire-schema review belongs CCG. Frozenpartialhost, no integrationapproval/apply/Cargo.",
+  "findings": [
+    {
+      "id": "N13-HOST-VM-1",
+      "classification": "concrete supported-context limitation / conditional integration blocker; awaiting LSP scope confirmation",
+      "where": "capture_inherited_original_source_view lines585-611; matches_producer lines54-59",
+      "finding": "Driver is forced physical.input and physicaldocument dialect, producer.input/config/configuration are those physicaldocument values, matches_producer requires physical.input==producer.input. Compiler sourcepointchild entry requires exactretainedparent input. Thus differing parent versus childordinaryanalysis context declines, and onephysicalchild cannot represent both parentA and parentB inheritedinputs when these differ. Source bytes/publication ownership and inherited interpretation context need independent fields/validation; ordinarychild context must not silently select parent interpretation. Staticcodebehavior only, no measuredregression.",
+      "required_resolution": "Explicitly record first-edge same-input-only refusal limitation, or separate physicalpublication input/currency from inheritedcompilerinput/config before claiming two-parent N13 contexts. Preserveexactparentinput and no fallbackfrommissingpoint.",
+      "controls": [
+        "Onechild ordinaryfolderdialect9.0, parent8.6 sourceview; retain correct conditionalparent8.6 interpretation or explicit documentedrefusal untilsupported.",
+        "SamechildURI/bytes withparentA/B distinctpack/stub/input; both exactviews coexist or preserve explicitdebt; queryingA cannot liftB.",
+        "Childphysicalconfigurationchanges retire oldviews while physicalcurrency and inheritedinterpretationinput remain independentlyrejoined."
+      ]
+    }
+  ],
+  "boundary_observations": [
+    "Host never constructs SourceOriginKind::Loaded, NativeCompilationEntry, nativecompilation context, NativeArgumentInput, HandleScope or runtimebodyreceipt. OrdinaryReadonlySourceDocument and OriginalSourcePointEntry only feed source-only analyse_with_source_point_entry.",
+    "Point mintedbycompiler is prerequisite; capture_inherited childrefusal returnsNone and never calls capture_initial_root. Rootconstructor isprivate and separate.",
+    "Frozenhost relies on point.matches_child_analysis API; this is absentstage2 but namesstage3successor intended. Reviewdoesnotclaimtypeclear.",
+    "Parent Arc and point retained; matches_producer rejoins actualparentanalysis and childanalysis; lookup/publish rechecks allancestor tablemembership/indexrevision/physicalsourceconfigprovider via one readonlylease. Retirement/re-add getsnewID; no byteequalparent substitute bythispath.",
+    "Nativephysicalpresence/sourcefilesystemread does not prove Tcl source decode, successfulhandlerselection or containingbodyexecution. Treat editorimage sourceview as conditional; HandlerSelection/FileReadAndDecode/ContainingBody obligations must remain on producer+consumer facts. No existinghostdraftfield removes those obligations, but consumer wiring absent and needs explicit audit.",
+    "Stage3 exact2originalwords/pathordinal0 restriction must be retained at authenticpointissuer. No -encoding/-nopkg/dynamicexpansion decoding is proved by read_document/normalise_lone_cr. Such forms must refuseuntil typeddecoder/selectedform contract exists.",
+    "CRnormalization and readonlysource bytecurrency intentionally use ordinaryeditorimage; do not promote normalization/UTF8decoder success to attestedNativeLoaded image or sourcefileevaluation equivalence."
+  ],
+  "open_scope_debts": [
+    "Prefix normalcontinuation and source effects/tail continuity unresolved; authentic childview alone cannot publish parentlater commands or absence.",
+    "Two-parent/twelve-hop reconciliation/providerpublication wiring and A-retired/B-current protocol proof unimplemented/unrun.",
+    "HandlerSelection/FileReadAndDecode/ContainingBody applicability must be carried into declarations/actions; viewmembership iscurrencyonly.",
+    "No globalwhole-scoperelease approval; no execution/lint/typeclaim."
+  ],
+  "tiny_warning_cleanup": {
+    "patch": "/tmp/vm-runtime-unused-native-argument-input/test-only-helper.patch",
+    "sha256": "a34c9b61752f06cd0c25f2e7575c8e8a99b5ca518c5c1f87b15b047e3464e0f8",
+    "status": "Root staticapproved; held unapplied fornextcoordinatedsourcewindow; onlyremainingcall is cfg(test)module516; one-line cfg(test) gate preservesassertions/noallows."
+  }
+}

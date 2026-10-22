@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-22T19:01:31.911045+00:00",
+  "scheduled": "2026-10-22T18:55:37Z",
+  "source_snapshot": "93a5a341462bf646c6eeb16875d6f5f12197c798",
+  "published_snapshot": "5d054dc7ad396b8f08ad1a212e573293424cfd80",
+  "pre_push_depth1_fetch": "6df7bbeaac6090d7c62b15fa2cc8a3c9bb9c4c7d",
+  "normal_push": "6df7bbeaac..5d054dc7ad HEAD:work accepted",
+  "product_tree_diff": [],
+  "disk_free_bytes": 10436775936,
+  "next_cycle": "2026-10-22T19:25:37Z",
+  "reminder_session": 4340,
+  "active_check": "Compiler original18 suite started18:52:26.681972Z; sourcefrozen; no tests complete yet",
+  "gate_changes": [],
+  "audit_admissions": []
+}

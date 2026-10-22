@@ -1,0 +1,14 @@
+{
+  "status": "OFF-TREE uncompiled v2; extends v1 source-view storage with distinct schema5 + genuine EditorWireSession; no canonical apply or product/runtime verdict",
+  "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+  "before_sha256": "d665ce6edc542e38135ff367e8c0398f2afa6f5d2d6de73c6151af9653abe60a",
+  "proposed_sha256": "9f2c71cdef9295d98376f4a591c527b2346e8598d7ec0a3f938889a63cb315ea",
+  "patch_sha256": "175fe69101a07107ae0fb31ec72f5500b358e3efa3a534722868b6653cf41fa6",
+  "wire_kind": "schema5 + existing real EditorWireSession; legacy Native1/TYPE2/CALL3/LENS4 behavior unchanged",
+  "controls": [
+    "all v1 same-byte A/B/restoredA typed stamp/schema/legacy-cast controls retained",
+    "actual independent registry counter collision rejects old foreign-session locator",
+    "missing session/entropy refuses new source-view kind; legacy Native independent"
+  ],
+  "limit": "storage controls do not supply actual host physical publication retirement, all-ancestor currentness, source entry or Native authority"
+}

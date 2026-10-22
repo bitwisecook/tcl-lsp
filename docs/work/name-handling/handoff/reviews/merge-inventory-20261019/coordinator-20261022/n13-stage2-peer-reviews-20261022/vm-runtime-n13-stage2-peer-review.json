@@ -1,0 +1,57 @@
+{
+  "reviewed_utc": "2026-10-22T19:07:54.052366+00:00",
+  "reviewer": "vm-runtime",
+  "artifact": "/tmp/compiler-names-n13-stage2.patch",
+  "sha256": "33bdf6c763aeed82d35071d59eb91681b3167cb8ddbb276856a6aa3c7f24d3f2",
+  "scope": "PARTIAL16path snapshot; static authority/currentness review only, no whole-scope approval, no apply/Cargo/execution",
+  "findings": [
+    {
+      "id": "N13-VM-1",
+      "classification": "concrete validation omission; effect unmeasured",
+      "priority": "resolve before host integration",
+      "where": [
+        "source_point_entry.rs::child_state patchlines662-700",
+        "source_point_entry.rs::accepts_child_contracts patchlines638-659",
+        "command_binding.rs::root_source_execution_context patchline1412 plus currentrealm assignment"
+      ],
+      "finding": "child_state checks actualmetadata/input/config/registry/contracts and rejects Native/host/provider fields, but never compares requested invocation_realm/execution_name_policy/logical_source_input/vendor_source_input/invocation_dialect/compilation_scope to the point-derived entry. The copied state keeps point baseline while root_source_execution_context consumes raw requested invocation_realm. A retained point can therefore enter mixed pointbaseline/requestedrealm processing without this boundary refusing. This is a static code path, not measured downstream permission escalation.",
+      "controls_needed": [
+        "Mint valid RuleLoader point; change only invocation_realm to InterpreterRuntime and require terminalunavailable/refusal, no standalone fallback.",
+        "Change individualinvocation dialect/naming policy/logical/vendorinput/scope axes to foreign/currentbyteequal configurations; preserve expectedpositive unchanged exactmintedentry.",
+        "Check lowerer/module entry and sharedbindings expose one coherent pointderivedinput, not conflictingcontext."
+      ]
+    },
+    {
+      "id": "N13-VM-2",
+      "classification": "concrete existing ingress omitted from point-specific compiler-frame guard; Native opcode effect unmeasured",
+      "priority": "resolve before host integration",
+      "where": [
+        "lowering/mod.rs::set_source_analysis_options patchline1596",
+        "lowering/mod.rs::runtime_target_namespace patchlines1558-1565",
+        "lowering/mod.rs::lower_procedure_target canonical1722 existing unconditionalProcedureCodewrite"
+      ],
+      "finding": "Existing public lower_procedure_target calls start_module, retaining source_point_entry, then unconditionally writes module.source_entry.native_compilation.frame=ProcedureCode. New sourcepoint code does not reject that entry mode; only ordinary original_optimiser_source_unit lowering is covered by newcontrols. Thus inherited point can coexist in Module source_entry with nondefaultNativeframe even though child_state and native_compiler_dialect separately block Native compilation. This is an owner/representation inconsistency and audit/control gap, not evidence Nativeopcode execution succeeded.",
+      "controls_needed": [
+        "Drive same authenticpoint through lower_procedure_target and lower_script_target, keep sourcepoint conditional and noNativecompiler/frame/body/provider receipts.",
+        "Contradictory explicit NativeCompilationContext/Nativeentry/compiledVariableProvider with point must terminalrefuse, not regenerateauthoring.",
+        "Retain existing optimiser samepointpositive and actualnativebodyunits-empty assertions."
+      ]
+    }
+  ],
+  "boundaries_checked_without_static_issue": [
+    "Private SourcePointPayload issuer owns complete sourcewords/path/snapshot/namespace/input and OriginalSourceAnalysisOwner Arc; interner hashes bucket then completepayload equality and checkedcounter; token no publicconstructor.",
+    "matches_parent_analysis uses exact ownerArc, complete input/grammar/image/currentcontext checks; clone accepted, independentbyteequalanalysis refused.",
+    "sourcecard reselects currentactual schema and words through parentrealm; graphsourcepoint query compares originalorigin/vector/path/namespace and selected CurrentSourceLoadschema, rejects uncertain/arity/pathunknown.",
+    "Invalid child_state uses explicit Unavailable metadata/unknownhistory and no authoredfallback.",
+    "SourceOriginKind::InheritedPoint explicitly rejected by actual source-declaration match; implicitOriginalInvocationSourcePurpose refused; native_compiler_dialect/bodycompilation defaulted and completedworld/deferred Nativebody traversal suppressed.",
+    "declaration_in_parent checks actualchildowner/image/config/point plus transitiveactualancestor before metadatajoin. Hostpublication retirement is explicitly not supplied here; allancestor currentpublications still host responsibility.",
+    "Pointgraph caches attached to actualpayload not hashalone; sourceprefix graph preserves parentproducers and clears declaration/body/handle scratch on childgraph."
+  ],
+  "partial_gaps_still_required": [
+    "Hostphysicalprovider/publication/currentness glue and A-retired/B-current controls",
+    "Two-parent/sourceeffectavailability/twelvehop convergence and transitiveancestor chain currentness",
+    "Complete originalsourcepurpose ingress audit, including publiclowerer/explicitoptions alternate modes",
+    "Compiler/hosttypecheck and fixedcontrols, strictzero-warninggate; no type/functional acceptance inferred"
+  ],
+  "coordination": "Findings sent names; root/LSP receive report. No canonicalRustwrites/builds."
+}

@@ -1,0 +1,13 @@
+{
+  "status": "OFF-TREE partial producer transport only; not compile-ready until compiler-names complete issuer stage2; no host publication/view implementation or N13 result",
+  "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+  "before_sha256": "cdcf378220769d158a96f1999b1f82b546d9ea6ab375209ce7f0792f56672937",
+  "proposed_sha256": "943c918de9906e9f4eeeb548157036a283c78f05a1ea4da31bd41720632f4e4d",
+  "patch_sha256": "bbcaaed141d87fd0be0d6a538f164b8b697a10279300ca64c934054ee6467bfc",
+  "authority": "issuer called only with actual parent AnalysisResult still present in index_sources; None retained in required source row, no string/Native/standalone substitution",
+  "host_obligations": [
+    "retain SAME actual parent Arc and physical URI/path/publication chain",
+    "distinct equal-URI views and child cache keyed authentic parent point + child publication/input",
+    "validate live saved view before consumer lookup/lifting, retire old A before new answers"
+  ]
+}

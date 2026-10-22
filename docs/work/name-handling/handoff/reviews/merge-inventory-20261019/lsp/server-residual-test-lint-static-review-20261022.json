@@ -1,0 +1,103 @@
+{
+  "reviewed_utc": "2026-10-22T18:56:52.511583+00:00",
+  "reviewer": "compiler-codegen",
+  "status": "Independent STATIC approval only; no apply/Cargo/typecheck/Clippy/runtime verdict",
+  "patch": "/tmp/lsp-server-residual-lints/proposal.patch",
+  "patch_sha256": "7aa4e1650a700159be797d0bffa0f7079773257d139a95def776aa2f64949824",
+  "copied_apply": {
+    "exit": 0,
+    "stdout": "patching file rust/tcl-lsp-server/src/lib.rs\npatching file rust/tcl-lsp-server/src/current_diagnostics.rs\npatching file rust/tcl-lsp-server/src/original_document_metadata_tests.rs\npatching file rust/tcl-lsp-server/src/recovery_source/tests.rs\n",
+    "stderr": ""
+  },
+  "files": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before_sha256": "77e63cb751615fd415be55cd82e254c0c9fe1d6d9bd0cc94abe56cc913bcf550",
+      "proposed_sha256": "0f59779720496d9cde5483e834312d7f947d0fcabd964f8dc408be20701ec716",
+      "function_selectors_unchanged": true,
+      "function_selector_count": 1525,
+      "assertion_counts_unchanged": {
+        "assert": 1044,
+        "assert_eq": 944,
+        "assert_ne": 22
+      },
+      "canonical_after_still_matches_before": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/current_diagnostics.rs",
+      "before_sha256": "f2dd3285c8d8c3163f20101b3918c9601a5e2d3afaf994bfb3e915dcf59c2298",
+      "proposed_sha256": "bdbc4a50e606fe4d507498a93276496a37e55bc8f9b7ed3eb3d86c1b584e2545",
+      "function_selectors_unchanged": true,
+      "function_selector_count": 45,
+      "assertion_counts_unchanged": {
+        "assert": 74,
+        "assert_eq": 58,
+        "assert_ne": 10
+      },
+      "canonical_after_still_matches_before": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/original_document_metadata_tests.rs",
+      "before_sha256": "6b1da61287561a0fa2fccc346a9f7628b56702d21dfbd5a9e18c1dd9678df012",
+      "proposed_sha256": "db97bcd022682618ec686348d71b7fb350cc468d0f37ade257f7bf86511f7f95",
+      "function_selectors_unchanged": true,
+      "function_selector_count": 34,
+      "assertion_counts_unchanged": {
+        "assert": 122,
+        "assert_eq": 46,
+        "assert_ne": 9
+      },
+      "canonical_after_still_matches_before": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/recovery_source/tests.rs",
+      "before_sha256": "ea1eef9f604d96186da13e19aa360f2de88c458988d0b32465cd1ff57d713374",
+      "proposed_sha256": "1f306ab1075b336f0fd6b9340343fb50a91625b6dc4782e361bcd3c5d86fbf71",
+      "function_selectors_unchanged": true,
+      "function_selector_count": 12,
+      "assertion_counts_unchanged": {
+        "assert": 48,
+        "assert_eq": 9,
+        "assert_ne": 1
+      },
+      "canonical_after_still_matches_before": true
+    }
+  ],
+  "review": [
+    {
+      "scope": "two borrowed AnalysisResult pointer arrays",
+      "conclusion": "Same four original missing/unavailable/foreign/stale values and row order. Calls still receive &AnalysisResult; no clone or substitute metadata owner. The named values live to scope end rather than moving through the aggregate; no post-loop condition depends on their retirement, and no lock/Drop guard or source-authority upgrade is introduced."
+    },
+    {
+      "scope": "two Arc-pointer arrays",
+      "conclusion": "Exactly one Arc::new per original AnalysisResult, in the same row order; allocation moves before pointer aggregate construction rather than per iteration. No extra Arc clones, skipped row or reconstructed receipt. Withdrawn-owner Arc::ptr_eq and source-currentness assertions remain intact; seed retains exact path admission/epochs/factory generation."
+    },
+    {
+      "scope": "same_optional_arc",
+      "conclusion": "Option<&Arc<T>> preserves the entire truth table: None/None true; Some/Some still Arc::ptr_eq; mixed false. Caller as_ref borrows the same inner Arc, with no clone, value equality or missing-owner fallback."
+    },
+    {
+      "scope": "checked position cast",
+      "conclusion": "try_from(...).unwrap() equals original cast for the fixed tiny decoded-source fixture. No truncation fallback; all decoder/position expectations remain unchanged."
+    },
+    {
+      "scope": "two Diagnostic Vec-versus-slice assertions",
+      "conclusion": "Compares the same complete Diagnostic value, including data and related fields, using a one-element borrowed slice instead of cloning. No partial predicate or omitted assertion field."
+    },
+    {
+      "scope": "CapturedWorkspaceScanInputs alias",
+      "conclusion": "Exact five tuple components/order retained (epoch, factory generation, Arc overrides, folder dialects, default dialect); helper capture/guards, destructuring and actual ScanAnalysisInputs call remain."
+    },
+    {
+      "scope": "local items/imports and names",
+      "conclusion": "Function item is moved before statements without capturing locals; Salsa Setter anonymous trait import moved to existing test module; production duplicate ControlFlow import removal uses existing top-level import. Local generation/workspace edit renames retain field names and expressions."
+    },
+    {
+      "scope": "AlreadyExists continue arms",
+      "conclusion": "Both matches are loop-tail expressions with no following statement in the loop. Empty arms therefore start the next iteration identically; successful return and panic cases remain."
+    }
+  ],
+  "new_allows_or_stack_budget_changes": false,
+  "findings": [],
+  "limits": "Static equivalence only. New borrowed local lifetime and earlier per-row Arc allocation do not themselves establish runtime acceptance; existing source/provider/currentness tests and fresh typecheck/Clippy are still required."
+}

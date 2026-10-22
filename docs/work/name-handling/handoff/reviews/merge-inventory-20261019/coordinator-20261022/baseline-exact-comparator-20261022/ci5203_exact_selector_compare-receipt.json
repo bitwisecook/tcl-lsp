@@ -1,0 +1,91 @@
+{
+  "schema": "ci5203-exact-selector-comparator-validation-v1",
+  "recorded_at_utc": "2026-10-22",
+  "helper_path": "/tmp/ci5203_exact_selector_compare.py",
+  "helper_sha256": "65cb36e14d9145039546e4b5a0b0de02b01e9feb749bc05f2d846d7c3625eaf2",
+  "baseline_path": "/workspace/naming-migration-active/tcl-lsp/docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/origin-rust-ci-5203-named-log-outcomes-20261022.json",
+  "baseline_sha256": "8f0640329c7c60180099d61fe5c2d58ff13b76230b6046ef169f610b3ffa7a58",
+  "baseline_run": {
+    "id": 39816429638,
+    "number": 5203,
+    "ref": "rust",
+    "head_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+  },
+  "baseline_schema": "nextest-human-reporter-observed-identities-v1",
+  "baseline_record_count": 24312,
+  "baseline_identity_validation": "all rows contain package, rendered label, exact binary_id consistent with package/label, nonempty selector, and PASS status; no duplicate exact keys (verified by helper self-comparison)",
+  "synthetic_only_validation": {
+    "synthetic_cases": {
+      "baseline_to_current_pass": "matched_passes",
+      "baseline_pass_to_fail_abort_timeout": "regressions",
+      "baseline_pass_to_skip_or_missing": "unknown",
+      "duplicate_baseline_or_current_key": "fail_closed_no_classifications",
+      "new_current_pass": "extra_current_passes"
+    },
+    "synthetic_expected_counts": {
+      "matched_passes": 1,
+      "regressions": 3,
+      "unknown": 2,
+      "extra_current_passes": 1,
+      "unmatched_current_nonpass": 0
+    },
+    "synthetic_regression_reasons": [
+      "current_abort",
+      "current_fail",
+      "current_timeout"
+    ],
+    "synthetic_unknown_reasons": [
+      "current_skip",
+      "missing_current_record"
+    ],
+    "duplicate_tests": {
+      "current_duplicate_status": "fail_closed_duplicate_identity",
+      "baseline_duplicate_status": "fail_closed_duplicate_identity",
+      "both_emit_zero_classifications": true
+    },
+    "provenance_and_rows_preserved": {
+      "baseline_run": {
+        "number": 5203,
+        "head_sha": "baseline-head"
+      },
+      "current_run": {
+        "number": 9999,
+        "head_sha": "synthetic-current"
+      },
+      "current_profile": "default",
+      "current_features": [
+        "native",
+        "browser"
+      ],
+      "row_feature_profile_and_custom_fields": "preserved verbatim in each original record wrapper"
+    }
+  },
+  "self_comparison_mechanical_check": {
+    "purpose": "schema/identity plumbing check only; same baseline supplied on both sides, not a current-work outcome or regression verdict",
+    "status": "compared",
+    "counts": {
+      "matched_passes": 24312,
+      "regressions": 0,
+      "unknown": 0,
+      "extra_current_passes": 0,
+      "unmatched_current_nonpass": 0
+    }
+  },
+  "policy": {
+    "key": [
+      "binary_id",
+      "selector"
+    ],
+    "baseline_PASS_to_current_fail_abort_timeout": "regression",
+    "current_missing_or_skip": "unknown",
+    "duplicate_key_either_side": "fail closed with no classifications",
+    "new_current_PASS": "extra_current_passes separate from baseline regression set",
+    "preservation": "complete receipt envelope minus repeated records is copied into provenance; full original rows copied into classifications, retaining package/job/feature/profile/custom fields"
+  },
+  "limitations": [
+    "Synthetic examples only; no current-run regression verdict.",
+    "No complete current CI receipt has been compared.",
+    "Missing/skipped remain unknown; absent baseline identities are not regressions.",
+    "The helper does not establish suite/listing completeness."
+  ]
+}

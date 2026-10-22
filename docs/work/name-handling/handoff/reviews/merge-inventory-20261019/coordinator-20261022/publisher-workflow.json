@@ -2,8 +2,8 @@
   "created_utc": "2026-10-22T15:17:08.060204+00:00",
   "active_root": "/workspace/naming-migration-active/tcl-lsp",
   "publisher_root": "/workspace/naming-migration-publish/tcl-lsp",
-  "last_source_snapshot": "e75345a7ef7827c6bbeaf564a8d1c387608cc8a8",
-  "last_published_snapshot": "e75345a7ef7827c6bbeaf564a8d1c387608cc8a8",
+  "last_source_snapshot": "93a5a341462bf646c6eeb16875d6f5f12197c798",
+  "last_published_snapshot": "5d054dc7ad396b8f08ad1a212e573293424cfd80",
   "source_branch": "work",
   "publisher_branch": "work",
   "rules": [
@@ -16,8 +16,8 @@
     "After a stable build window, checkpoint all active work and rebase active work onto latest work, allowing Git to skip previously cherry-picked equivalents. Notify owners/rebuild if product inputs changed.",
     "Keep active logs under /tmp; preserve all target/executable disk rules."
   ],
-  "last_published_utc": "2026-10-22T18:28:00.157143+00:00",
+  "last_published_utc": "2026-10-22T19:01:31.911045+00:00",
   "product_tree_diff": [],
   "source_lineage_rebased_utc": "2026-10-22T18:49:22.058432+00:00",
-  "source_lineage_note": "Active rebased onto published e753; equivalent prior checkpoints skipped; product tree equals publisher. New rebased doc commits remain unpublished."
+  "source_lineage_note": "Active55a/e02/d666/93a mapped onto publisher after FF1a368, freshfetch/rebase onto6df7 and normalpush5d054. Producttrees equal; compiler guarded source untouched."
 }

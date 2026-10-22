@@ -1,0 +1,71 @@
+{
+  "utc": "2026-10-22T19:25:43.214057+00:00",
+  "publisher_origin": "45766fc341446388e383d6de5bb3ed6274443237",
+  "roles": [
+    {
+      "role": "bigip-lsp",
+      "last_reported_utc": "2026-10-22T18:08:00+00:00",
+      "age_minutes": 77.72,
+      "under60_minutes": false,
+      "source": "publisher origin/work"
+    },
+    {
+      "role": "compiler-codegen",
+      "last_reported_utc": "2026-10-22T19:25:00+00:00",
+      "age_minutes": 0.72,
+      "under60_minutes": true,
+      "source": "active role file"
+    },
+    {
+      "role": "compiler-names",
+      "last_reported_utc": "2026-10-22T19:21:42+00:00",
+      "age_minutes": 4.02,
+      "under60_minutes": true,
+      "source": "active role file"
+    },
+    {
+      "role": "compiler",
+      "last_reported_utc": "2026-10-22T19:22:04+00:00",
+      "age_minutes": 3.65,
+      "under60_minutes": true,
+      "source": "active role file"
+    },
+    {
+      "role": "coordinator",
+      "last_reported_utc": "2026-10-22T19:25:42.833673+00:00",
+      "age_minutes": 0.01,
+      "under60_minutes": true,
+      "source": "active role file"
+    },
+    {
+      "role": "lsp",
+      "last_reported_utc": "2026-10-22T19:18:24+00:00",
+      "age_minutes": 7.32,
+      "under60_minutes": true,
+      "source": "active role file"
+    },
+    {
+      "role": "perf",
+      "last_reported_utc": "2026-10-22T18:56:00+00:00",
+      "age_minutes": 29.72,
+      "under60_minutes": true,
+      "source": "publisher origin/work"
+    },
+    {
+      "role": "review-triage",
+      "last_reported_utc": "2026-10-22T19:16:27+00:00",
+      "age_minutes": 9.27,
+      "under60_minutes": true,
+      "source": "publisher origin/work"
+    },
+    {
+      "role": "vm-runtime",
+      "last_reported_utc": "2026-10-22T19:23:42+00:00",
+      "age_minutes": 2.02,
+      "under60_minutes": true,
+      "source": "active role file"
+    }
+  ],
+  "disk_free_bytes": 7182184448,
+  "stale_external_action": "BIG-IP final18:08 exceeded60m; user notified19:09, recorded receipt; no takeover."
+}

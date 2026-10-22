@@ -73,5 +73,66 @@
   "validation_note": "No audit admissions or release-gate closure. New batch has static/syntax proof only; original compiler tests are building, and all later expected counts are plans. Historical/prebatch passes retain exact source attribution. All unmatched identities and unexecuted cases remain explicit.",
   "disk_free_bytes": 10922156032,
   "baseline_ci_run": 39816429638,
-  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "publication_followup": {
+    "utc": "2026-10-22T19:01:31.911045+00:00",
+    "scheduled": "2026-10-22T18:55:37Z",
+    "source_snapshot": "93a5a341462bf646c6eeb16875d6f5f12197c798",
+    "published_snapshot": "5d054dc7ad396b8f08ad1a212e573293424cfd80",
+    "pre_push_depth1_fetch": "6df7bbeaac6090d7c62b15fa2cc8a3c9bb9c4c7d",
+    "normal_push": "6df7bbeaac..5d054dc7ad HEAD:work accepted",
+    "product_tree_diff": [],
+    "disk_free_bytes": 10436775936,
+    "next_cycle": "2026-10-22T19:25:37Z",
+    "reminder_session": 4340,
+    "active_check": "Compiler original18 suite started18:52:26.681972Z; sourcefrozen; no tests complete yet",
+    "gate_changes": [],
+    "audit_admissions": []
+  },
+  "baseline_identity_correction": {
+    "utc": "2026-10-22T19:04:09.949650+00:00",
+    "scope": "Correct binary identity interpretation only; no test execution, changed outcomes, audit admission or P2F verdict",
+    "old_receipt_sha256": "d02e90de0acac350316f822bab19448c048fa57fb194159991960d7ec245f39a",
+    "new_receipt_sha256": "8f0640329c7c60180099d61fe5c2d58ff13b76230b6046ef169f610b3ffa7a58",
+    "named_pass_records": 24312,
+    "library_ids_recovered": 14094,
+    "unique_binary_selector_keys": 24312,
+    "original_outcome_fields_sha256": "4ec3c693ebadec14471cc1db13ff801e428c6f29b3f275757ed5bed8782c24ae",
+    "outcome_fields_unchanged": true,
+    "no_truncation_markers": true,
+    "remaining_unnamed_summary_skips": 4625,
+    "root_independent_source_review": {
+      "helpers.rs": {
+        "blob": "3d6684878af782efff4c105a4c7c2a9397547b39",
+        "lines": "175-240",
+        "fact": "DisplayTestInstance prints instance.binary_id; constructor max_width None"
+      },
+      "test_list.rs": {
+        "blob": "69a06a2cfff883b68afbaace4ae150cabb484a5d",
+        "lines": "290-360",
+        "fact": "stable RustBinaryId::from_parts assigns package for lib/proc-macro"
+      },
+      "displayer/imp.rs": {
+        "blob": "861d157ba7c0a4d65af0d22a1b04996d133708dd",
+        "lines": "1835-1867",
+        "fact": "status formatter helper calls new without width override"
+      }
+    },
+    "evidence": [
+      "ci5203-nextest-console-binaryid-audit.md",
+      "ci5203-nextest-console-boundary-audit.md"
+    ],
+    "gate_changes": []
+  },
+  "external_followup": {
+    "utc": "2026-10-22T19:07:21.495312+00:00",
+    "source_commit": "6df7bbeaac6090d7c62b15fa2cc8a3c9bb9c4c7d",
+    "updates": {
+      "bigip-lsp": "2026-10-22T18:08Z",
+      "perf": "2026-10-22T18:56Z",
+      "review-triage": "2026-10-22T18:52:52Z"
+    },
+    "perf_realm_patch": "WITHHELD; corpus/irule equality unresolved",
+    "triage": "run16 building older2d1b85ad; no semantic verdict"
+  }
 }

@@ -18,7 +18,7 @@
   "inputs": [
     {
       "path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/origin-rust-ci-5203-named-log-outcomes-20261022.json",
-      "sha256": "d02e90de0acac350316f822bab19448c048fa57fb194159991960d7ec245f39a"
+      "sha256": "8f0640329c7c60180099d61fe5c2d58ff13b76230b6046ef169f610b3ffa7a58"
     },
     {
       "path": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/ci-5201-partial-comparison.json",
@@ -1130,5 +1130,12 @@
       },
       "baseline_candidate_count": 0
     }
-  ]
+  ],
+  "baseline_identity_enrichment": {
+    "utc": "2026-10-22T19:04:09.949650+00:00",
+    "receipt": "ci5203-console-binary-id-recovery-20261022.json",
+    "original_baseline_receipt_sha256": "d02e90de0acac350316f822bab19448c048fa57fb194159991960d7ec245f39a",
+    "historical_matches_unchanged": true,
+    "note": "Baseline named PASS binary IDs are now exact. Historical work extraction limitations and priority-only status remain; no shipping verdict inferred."
+  }
 }

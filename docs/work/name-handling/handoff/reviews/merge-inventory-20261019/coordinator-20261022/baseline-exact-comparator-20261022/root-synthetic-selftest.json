@@ -1,0 +1,46 @@
+{
+  "synthetic_cases": {
+    "baseline_to_current_pass": "matched_passes",
+    "baseline_pass_to_fail_abort_timeout": "regressions",
+    "baseline_pass_to_skip_or_missing": "unknown",
+    "duplicate_baseline_or_current_key": "fail_closed_no_classifications",
+    "new_current_pass": "extra_current_passes"
+  },
+  "synthetic_expected_counts": {
+    "matched_passes": 1,
+    "regressions": 3,
+    "unknown": 2,
+    "extra_current_passes": 1,
+    "unmatched_current_nonpass": 0
+  },
+  "synthetic_regression_reasons": [
+    "current_abort",
+    "current_fail",
+    "current_timeout"
+  ],
+  "synthetic_unknown_reasons": [
+    "current_skip",
+    "missing_current_record"
+  ],
+  "duplicate_tests": {
+    "current_duplicate_status": "fail_closed_duplicate_identity",
+    "baseline_duplicate_status": "fail_closed_duplicate_identity",
+    "both_emit_zero_classifications": true
+  },
+  "provenance_and_rows_preserved": {
+    "baseline_run": {
+      "number": 5203,
+      "head_sha": "baseline-head"
+    },
+    "current_run": {
+      "number": 9999,
+      "head_sha": "synthetic-current"
+    },
+    "current_profile": "default",
+    "current_features": [
+      "native",
+      "browser"
+    ],
+    "row_feature_profile_and_custom_fields": "preserved verbatim in each original record wrapper"
+  }
+}

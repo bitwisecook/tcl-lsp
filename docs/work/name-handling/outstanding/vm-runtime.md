@@ -2,7 +2,7 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T18:53:15Z (C1–C2 off-tree acceptance map complete; root reports Jim11/D4 path applied d666c9b2; compiler18 active, then current LSP3 then VM11; no VM Cargo queued)
+Last updated: 2026-10-22T19:23:42Z (partial host N13 purpose/context review complete; one context limitation sent LSP; cfg(test) cleanup root-approved held; no VM Cargo queued)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -69,6 +69,50 @@ check. Cold/warm/first-worker/reload-memory measurements remain performance-role
 and root release evidence. Old Rust successes/failures and finite native/Jim
 manual oracle receipts are explicitly separate, with the Tcl8.4 NUL failure
 preserved. No coverage closure, budget increase or general VM parity is claimed.
+
+Partial N13 stage2 static peer review is recorded at
+`/tmp/vm-runtime-n13-stage2-peer-review.json`, for exact draft
+`33bdf6c763aeed82d35071d59eb91681b3167cb8ddbb276856a6aa3c7f24d3f2`.
+Two concrete gaps were sent to names/LSP/root: inherited `child_state` does not
+compare all requested realm/policy/dialect/Logical/Vendor/scope axes to the
+minted point while root processing still consumes raw requested realm; existing
+public `lower_procedure_target` can retain a point then stamp Native
+`ProcedureCode`. No downstream opcode admission or runtime exploit is claimed.
+Names acknowledged both and keeps stage2 frozen, preparing full axis comparison
+and explicit fail-closed lowering controls in a successor. Exact parent/source/
+config/owner and graph-point joins, transitive ancestor checks and terminal
+invalid-state refusal were reviewed without a concrete static issue found in
+those paths. This is not whole-scope approval: host publication/currentness,
+all-ancestor retirement, two-parent/twelve-hop convergence, complete ingress
+purpose audit and all type/functional checks remain partial or unrun. No VM
+implementation, source application or Cargo execution occurred.
+
+Frozen first-edge host N13 review is retained at
+`/tmp/vm-runtime-n13-host-v1-peer-review.json`, exact host snapshot SHA-256
+`4b1db55db7eaa7cc9058a20f1b5736f8a978127481ad811a87775fffccd2f7ac`.
+No Native Loaded/entry/argument/frame/handle manufacture was identified in this
+source-only host path. Retained parent/point and all-ancestor live table,
+publication, source/config/provider checks preserve the intended static currency
+boundary. One concrete context limitation is sent to LSP/root: physical child
+ordinary-document input/config is also used as inherited producer input, while
+compiler point ingress requires exact parent input. Different parent/child
+contexts therefore refuse, and distinct parent inputs cannot coexist for one
+physical child without separating physical currency from interpretation input.
+This is static partial-scope analysis, not a measured regression or whole approval.
+HandlerSelection, FileReadAndDecode and ContainingBody remain applicability debts;
+ordinary editor UTF-8/CR-normalized images cannot become Native Loaded receipts.
+Names' exact two-word/path0 issuer restriction remains required; `-encoding` has
+no typed decoder proof. Parent prefix/tail continuity and host reconciliation
+remain unresolved. CCG independently reviews wire/currency.
+
+The current compiler build reported unused production helper
+`OriginalClassDefinerSource::native_argument_input`. Whole-compiler `rg` found
+only its definition and the original cfg(test) call at line516, so the tiny
+cleanup gates that helper with `#[cfg(test)]`, preserving every test assertion.
+Off-tree patch `/tmp/vm-runtime-unused-native-argument-input/test-only-helper.patch`,
+SHA-256 `a34c9b61752f06cd0c25f2e7575c8e8a99b5ca518c5c1f87b15b047e3464e0f8`,
+has before/after hash receipt and root static approval. It remains unapplied for
+the next coordinated source window; no allows, Rust writes or Cargo here.
 
 Trusted Jim proc attachment has compiler static approval, including exact
 trusted compiled-in boundary, selected row and pointer/generation idempotence.

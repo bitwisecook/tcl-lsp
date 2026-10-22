@@ -1,0 +1,10 @@
+{
+  "observed_utc": "2026-10-22T19:09:06Z",
+  "last_reported_utc": "2026-10-22T18:08:00Z",
+  "role": "bigip-lsp",
+  "file": "docs/work/name-handling/outstanding/bigip-lsp.md",
+  "latest_checked_commit": "6df7bbeaac6090d7c62b15fa2cc8a3c9bb9c4c7d",
+  "blob_sha": "debab6e43fee78d4c42f182f119b638e3f0f3745",
+  "user_notified": true,
+  "action": "Flagged over60-minute handoff age; no duplicate agent or takeover. Final file reports unblocked work complete; ILX and generic server blockers stay routed to compiler/LSP."
+}

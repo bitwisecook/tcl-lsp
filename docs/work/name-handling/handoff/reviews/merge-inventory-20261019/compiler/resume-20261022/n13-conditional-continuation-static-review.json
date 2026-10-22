@@ -1,0 +1,18 @@
+{
+  "reviewed_utc": "2026-10-22T19:15:57.374999+00:00",
+  "contract": "/tmp/compiler-names-n13-conditional-continuation-contract.md",
+  "contract_sha256": "8cf2de28c6ddc0ff3286c3a5b869fb24810aad1e74bbd69fe9432680f346ce11",
+  "status": "Static source-only boundary accepted; implementation and runtime/consumer acceptance remain unmeasured.",
+  "source_checked": [
+    "rust/tcl-compiler/src/command_binding/source_file.rs",
+    "rust/tcl-registry/src/source_file.rs"
+  ],
+  "required_clarifications": [
+    "Unknown child alternatives capable of normal continuation must conservatively join/refuse or retain explicit branch-specific alternative ownership; they cannot be reduced to debts while issuing a unique whole-tail binding.",
+    "Independent actual compiler visits remain under the original source/world/table owner. Byte/offset equality cannot reattach them to a changed conditional tail dispatch.",
+    "source_file::completion_route is not a positive grammar issuer: unsupported source_file_grammar returns non-Return routes (including Ok) unchanged. Retain independently applicable selected completion grammar/shared audited source contract; navigation-only path_candidate cannot grant continuation."
+  ],
+  "remaining_review": "Exact region-result representation/recombination before implementation.",
+  "policy": "No new policy choice identified within these fail-closed source-only conditions; recorded13:17 actual-after-load compiler observations stay independent.",
+  "validation": "Read-only static review only; no canonical Rust changes, typecheck, Cargo or executed controls."
+}
