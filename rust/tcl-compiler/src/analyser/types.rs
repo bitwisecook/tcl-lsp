@@ -5718,6 +5718,15 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                 ("lsort -command greet {b a}\n", false),
                 ("string $op x\n", false),
                 ("eval $script\n", false),
+                // The closed-builtin shortcut rests on the fresh-interpreter
+                // premise: nothing lets a builtin re-enter Tcl. A program
+                // that installs such a hook withholds the completed world.
+                ("proc xf args {}\nchan push stdout ::xf\nputs hi\n", false),
+                ("proc rc args {}\nset c [chan create write ::rc]\nputs $c hi\n", false),
+                ("proc cb args {}\ntrace add variable x write ::cb\nset x 1\n", false),
+                ("proc cb args {}\ntrace add execution puts enter ::cb\nputs hi\n", false),
+                ("proc cb args {}\nnamespace unknown ::cb\nputs hi\n", false),
+                ("proc unknown args {}\nputs hi\n", false),
             ] {
                 let source = format!("{declaration}{use_site}");
                 let result = crate::analyser::Analyser::new().analyse(&source, dialect);
