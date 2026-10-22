@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T14:22Z
+Last updated: 2026-10-22T14:43Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -11,7 +11,9 @@ push at least every 30 minutes and after each finished item. Full unit table:
 ## In progress
 
 Building server e2e and current-diagnostics reruns after the XC fix; local
-log `/tmp/bigip-server-selected.log`. Clippy `-D warnings` is also running in independent `/workspace/bigip-clippy-target`;
+log `/tmp/bigip-server-selected.log`. The full Clippy `-D warnings` run failed in Compiler/VM dependencies. A
+selected-package `--no-deps -D warnings` pass is starting in independent
+`/workspace/bigip-clippy-target`;
 logs `/tmp/bigip-clippy.jsonl` and `/tmp/bigip-clippy-build.log`. The ILX
 baseline/current comparison is complete; its missing compiler contract is below.
 
@@ -39,6 +41,14 @@ baseline/current comparison is complete; its missing compiler contract is below.
    here for the coordinator/LSP agent. It remains on loan until then.
 
 ## Blocked (on whom, and what is needed)
+
+- Full strict Clippy: **789 compiler + 379 VM errors**, exit 101, source
+  `aeecf397` with Rust 1.99.1. BIG-IP/LSP/editor consumers were not reached.
+  Compiler and VM owners must clear these causes; no new lint allowances.
+  Exact command, environment, primary file/line/message inventory and raw-log
+  hash: `../handoff/reviews/merge-inventory-20261019/bigip-lsp/clippy-dependency-blockers-20261022.json`.
+  A separate selected-package `--no-deps` pass is in progress to reach the
+  owned code; it cannot replace this failed full gate.
 
 - ILX: the compiler owner must supply an authenticated original source
   constructor/setter/later-read relation for remote handles. The current
@@ -83,6 +93,15 @@ baseline/current comparison is complete; its missing compiler contract is below.
   CARGO_INCREMENTAL=0 plus test/dev debug=0, then sources agent-build-env.sh.
   `/tmp/bigip-test.py` builds, runs and deletes each test executable within one
   command. Build targets are independent between checkouts.
+- Active server run uses `BIGIP_TEST_PLAN` from `/tmp/bigip-server-plan.json`
+  with `/tmp/bigip-test.py --locked -p tcl-lsp-server --lib --test e2e`. It
+  runs only the requested e2e selectors, then the F5 and plain-Tcl diagnostic
+  tests in separate processes. Do not restart it as an unfiltered full suite.
+  Active server tool session: 68675. Full clippy session 52506 has finished
+  with the dependency errors above; the selected-package pass follows it. Both use the same
+  unchanged product source. The original `/workspace/tcl-lsp` setup rebase was
+  aborted and its tracked files are clean; its ignored oracle directory is
+  retained through the active checkout's `tmp` symlink.
 - Next: finish the running server and clippy checks; rewrite attribution
   with/without the F5 change; standalone bigip-query-wasm clippy; three generator
   tests; hand the diagnostics file back.
