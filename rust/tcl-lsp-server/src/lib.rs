@@ -46533,6 +46533,88 @@ info exists ::N::v\uD800";
         }
     }
 
+    #[tokio::test]
+    async fn package_definition_keeps_each_callers_release_in_one_backend() {
+        let workspace = TmpWs::new("pkgver-domains");
+        for (directory, version) in [("v1", "1.0"), ("v2", "2.0")] {
+            workspace.write(
+                &format!("reporoot/{directory}/pkgIndex.tcl"),
+                &format!(
+                    "package ifneeded P {version} [list source [file join $dir package.tcl]]\n",
+                ),
+            );
+            workspace.write(&format!("reporoot/{directory}/package.tcl"), &format!(
+                "namespace eval ::P {{proc run {{}} {{return {version}}}; proc café {{}} {{return {version}}}}}\npackage provide P {version}\n",
+            ));
+        }
+        workspace.write(
+            "reporoot/hidden/pkgIndex.tcl",
+            "if {0} {package ifneeded P 99.0 [list source [file join $dir hidden.tcl]]}\n",
+        );
+        workspace.write("reporoot/hidden/hidden.tcl",
+            "namespace eval ::P {proc run {} {return HIDDEN}; proc café {} {return HIDDEN}}\npackage provide P 99.0\n");
+        let mut callers = Vec::new();
+        for (name, requirement) in [
+            ("first", "-exact P 1.0"),
+            ("second", "-exact P 2.0"),
+            ("latest", "P"),
+        ] {
+            let source = format!(
+                "lappend auto_path [file dirname [file dirname [info script]]]\npackage require {requirement}\nputs [::P::run]\nputs [::P::café]\n"
+            );
+            let path = format!("reporoot/examples/{name}.tcl");
+            workspace.write(&path, &source);
+            callers.push((Uri::from_file_path(workspace.0.join(path)).unwrap(), source));
+        }
+        for order in [[0, 1, 0, 2], [1, 0, 1, 2]] {
+            let backend = test_backend();
+            *backend.workspace_folders.lock().await =
+                vec![Uri::from_file_path(workspace.0.join("reporoot/examples")).unwrap()];
+            backend.scan_workspace_folders().await.unwrap();
+            for (uri, source) in &callers {
+                register(&backend, uri, source).await;
+            }
+            for caller in order {
+                let expected = if caller == 0 { "v1" } else { "v2" };
+                for (line, character) in [(2, 12), (3, 14)] {
+                    let locations = backend
+                        .compute_definition(&callers[caller].0, Position { line, character })
+                        .await
+                        .unwrap();
+                    assert_eq!(
+                        locations.len(),
+                        1,
+                        "caller {caller}, order {order:?}: {locations:?}"
+                    );
+                    assert!(
+                        locations[0]
+                            .uri
+                            .as_str()
+                            .contains(&format!("/{expected}/package.tcl")),
+                        "caller {caller}, order {order:?}: {locations:?}"
+                    );
+                }
+            }
+            let changed = callers[0].1.replace("-exact P 1.0", "-exact P 2.0");
+            register(&backend, &callers[0].0, &changed).await;
+            let locations = backend
+                .compute_definition(
+                    &callers[0].0,
+                    Position {
+                        line: 2,
+                        character: 12,
+                    },
+                )
+                .await
+                .unwrap();
+            assert_eq!(locations.len(), 1, "changed requirement: {locations:?}");
+            assert!(
+                locations[0].uri.as_str().contains("/v2/package.tcl"),
+                "changed requirement: {locations:?}"
+            );
+        }
+    }
+
     /// TP: `set auto_path` assigns a **list**, so every
     /// element becomes a search directory; TN: a brace-quoted element holding
     /// a space stays exactly one directory.

@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-22T14:44:09.727316+00:00",
+  "versions": {
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "wasmtime": "wasmtime 49.0.3 (f96eabaa1 2026-10-14)",
+    "wasm_merge": "wasm-merge version 133 (version_133)",
+    "wasm_opt": "wasm-opt version 133 (version_133)",
+    "rust_targets": "wasm32-unknown-unknown\nwasm32-wasip1\nwasm32-wasip2\nx86_64-unknown-linux-gnu",
+    "wasi_clang": "clang version 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)\nTarget: wasm32-unknown-wasip1\nThread model: posix\nInstalledDir: /workspace/.toolchains/wasi-sdk-34.0/bin\nConfiguration file: /workspace/.toolchains/wasi-sdk-34.0/bin/clang.cfg"
+  },
+  "setup_source": ".claude/hooks/session-start.sh",
+  "setup_source_sha256": "936f11e16a16c847fc97d53aa368ad7ae0422a454eeb6355dd1bb29a5707c433",
+  "archive_pins": {
+    "wasmtime49.0.3-x86_64-linux": "4001225413f208345b980525f31c4080e1873808b38d0ddc7918497340667fbb",
+    "binaryen133-x86_64-linux": "2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489"
+  },
+  "note": "Official setup helpers reused with workspace-writable prefixes/symlinks; inherited proxy/CA preserved, archive hashes verified by helper. Tool availability only; no host functional gate run."
+}

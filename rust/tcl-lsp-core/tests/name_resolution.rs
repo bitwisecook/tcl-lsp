@@ -1411,3 +1411,66 @@ mod namespace_scoped_class_dispatch {
         assert_eq!(classmethod_refs_at(src, 2, 20), vec![2], "declaration only");
     }
 }
+
+#[test]
+fn class_commands_follow_each_invocations_namespace_path_before_kind_selection() {
+    // Review N10: a class command uses ordinary site-level command lookup.
+    // A nearer procedure remains an occupant even though it is not a class.
+    let source = concat!(
+        "namespace eval left {oo::class create C {}}\n",
+        "namespace eval right {oo::class create C {}}\n",
+        "oo::class create C {}\n",
+        "namespace eval app {\n",
+        "    namespace path {::left ::right}\n",
+        "    set one [C new]\n",
+        "    puts [info object class $one]\n",
+        "    namespace path {::right ::left}\n",
+        "    set two [C new]\n",
+        "    puts [info object class $two]\n",
+        "    proc C {args} {return LOCAL}\n",
+        "    puts [C new]\n",
+        "}\n",
+    );
+    for (dialect, version) in [
+        ("tcl8.6", tcl_dialect::TclVersion::V8_6),
+        ("tcl9.0", tcl_dialect::TclVersion::V9_0),
+        ("tcl9.1", tcl_dialect::TclVersion::V9_1),
+    ] {
+        if let Some(oracle) = tcl_test_support::witness_tclsh(version) {
+            let result = tcl_test_support::run_script(&oracle.path, source.as_bytes())
+                .expect("namespace-path oracle execution");
+            assert!(result.success(), "{dialect}: {:?}", result.stderr);
+            assert_eq!(result.stdout, b"::left::C\n::right::C\nLOCAL\n");
+        }
+        let analysis = Analyser::new().analyse(source, dialect);
+        for (line, character, declaration, owner) in
+            [(5, 13, 0, "::left::C"), (8, 13, 1, "::right::C")]
+        {
+            let definitions =
+                tcl_lsp_core::definition::definition(source, line, character, &analysis);
+            assert_eq!(
+                ref_lines(&definitions),
+                vec![declaration],
+                "{dialect}: {owner}"
+            );
+            let hover = tcl_lsp_core::hover::hover(source, line, character, &analysis, None)
+                .expect("class command hover");
+            assert!(hover.value.contains(owner), "{dialect}: {}", hover.value);
+            let hierarchy =
+                tcl_lsp_core::type_hierarchy::prepare(source, line, character, &analysis);
+            assert_eq!(hierarchy.len(), 1, "{dialect}: {owner}: {hierarchy:?}");
+            assert_eq!(hierarchy[0].name, owner);
+            assert_eq!(hierarchy[0].selection_range.start_line, declaration);
+        }
+        let definitions = tcl_lsp_core::definition::definition(source, 11, 10, &analysis);
+        assert_eq!(
+            ref_lines(&definitions),
+            vec![10],
+            "{dialect}: nearer procedure"
+        );
+        assert!(
+            tcl_lsp_core::type_hierarchy::prepare(source, 11, 10, &analysis).is_empty(),
+            "{dialect}: a nearer procedure must block all class candidates"
+        );
+    }
+}

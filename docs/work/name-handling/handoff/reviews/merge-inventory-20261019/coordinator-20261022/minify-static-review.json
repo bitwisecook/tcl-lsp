@@ -1,0 +1,39 @@
+{
+  "review": "read-only static implementation review",
+  "checkout": "/workspace/naming-migration-active/tcl-lsp",
+  "head": "41e547bcbe1f451ef767b083826328a5c8dd7de4",
+  "origin_work": "41e547bcbe1f451ef767b083826328a5c8dd7de4",
+  "origin_rust": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "source_changes_by_reviewer": false,
+  "verified_facts": [
+    {
+      "area": "selected source and role admission",
+      "evidence": "rust/tcl-compiler/src/registry_invocation/source_structure.rs:1526-1570",
+      "finding": "Syntax-gap proof issuance requires selected original source words, preserved source lookup, the argument's current Expr role, a successful selected source schema, resolved input and input lexer configuration; original tokens are restamped from the retained command realm."
+    },
+    {
+      "area": "original source/config correspondence",
+      "evidence": "rust/tcl-compiler/src/registry_invocation/source_structure.rs:1822-1858; rust/tcl-compiler/src/analyser/types.rs:4096-4113",
+      "finding": "Source/schema selection checks retained body lexer configuration, realm, document image, resolved input, and matching source image/configuration."
+    },
+    {
+      "area": "dispatch and observers",
+      "evidence": "rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs:358-410",
+      "finding": "The rewrite envelope checks source binding identity, unobserved native dispatch, retained invocation site/configuration, selected registry-backed builtin target, no prepended alias words, current source origin, no opaque domain/source-step observation, quiet command observers, current retained target and registry generation, no runtime execution observer, and preserved compiler names."
+    },
+    {
+      "area": "exact lexical preservation",
+      "evidence": "rust/tcl-compiler/src/command_binding/original_literal_argv_rewrite.rs:415-468",
+      "finding": "The operand must be the original non-expanding braced word under the same image/configuration and native compiler argv. Original and candidate expression token kind/text sequences must match, both checked parses must succeed, and accepted edits are only deleted ASCII-whitespace gaps."
+    },
+    {
+      "area": "descendant composition and revalidation",
+      "evidence": "rust/tcl-lsp-core/src/minify/original.rs:589-592, 620-660; rust/tcl-lsp-core/src/minify.rs:3770-3810",
+      "finding": "The candidate uses compact_scripts=false; that path preserves the full original command-token text while projecting expression whitespace. Selected descendant-script gaps are composed separately. The emitted selected script regions are reparsed and checked for fatal tails, command/word counts, expansion flags, and exact word bytes after edits."
+    }
+  ],
+  "limitations": [
+    "No concrete bypass or outstanding correctness limitation was identified in this static review.",
+    "No tests or builds were run; this receipt makes no runtime verification claim."
+  ]
+}

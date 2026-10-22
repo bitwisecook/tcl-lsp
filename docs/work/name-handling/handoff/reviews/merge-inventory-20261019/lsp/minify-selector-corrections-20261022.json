@@ -1,0 +1,27 @@
+{
+  "scope": "Narrow expectation corrections; source tests not yet executed in resumed environment",
+  "authority": [
+    "docs/work/name-handling/reviews/naming-migration-review-20261022.md N15",
+    "user-decisions-20261022T1317Z.json: N15 refusal of alpha renaming is unaffected"
+  ],
+  "selectors": [
+    {
+      "old": "minify_compact_isolated_renames_proc_everywhere_and_preserves_result",
+      "new": "minify_compact_isolated_refuses_proc_renaming_and_preserves_result"
+    },
+    {
+      "old": "minify_compact_renames_local_var_at_def_and_read",
+      "new": "minify_compact_isolated_refuses_local_and_proc_names_together"
+    }
+  ],
+  "required_assertions": [
+    "MissingAlphaRenameContract refusal",
+    "empty procedure and variable maps",
+    "exact supported whitespace-compacted source retaining original names",
+    "successful original/minified execution with identical stdout/stderr on required Tcl8.6/9.0"
+  ],
+  "unchanged_default_selectors": [
+    "minify_preserves_string_and_expr_results",
+    "minify_strips_comments_and_collapses_whitespace_factorial"
+  ]
+}

@@ -60,11 +60,8 @@
 //!     puts $total` -> 15.
 //!   * `set s "hello world"; puts [string toupper $s]; puts [expr {3+4*2}]`
 //!     -> "HELLO WORLD" / 11, identical after minification.
-//!   * compact-tier rename `fact`->`a` everywhere:
-//!     `proc a {n} {…[a [expr {$n-1}]]…};puts [a 5]` -> 120 (the recursive
-//!     self-call and the top-level call both bind to the one renamed proc).
-//!   * clean proc-local compaction `proc add {a b} {set sum …;return $sum}`
-//!     -> 5; renamed `proc a {a b} {set c …;return $c};puts [a 2 3]` -> 5.
+//!   * isolated compact requests refuse unavailable naming passes, retain all
+//!     names and preserve the original result through supported syntax gaps.
 
 use std::collections::{HashMap, HashSet};
 
@@ -358,38 +355,59 @@ fn minify_is_idempotent_on_already_minified_source() {
     assert_eq!(once, twice, "minify must be idempotent");
 }
 
-// minify — compact tier (`minify_tcl_compact`) — the clean rename case
-//
-// The compact tier renames proc-local vars / params / proc names. The
-// rename is correct exactly when the renamed script still resolves the same
-// way Tcl does, which is the cited tclsh proof.
+// Review N15 and decision 2026-10-22T13:17Z retain the alpha-renaming refusal;
+// independently supported whitespace compaction still preserves execution.
+fn isolated_compact_refusal(source: &str) -> tcl_lsp_core::minify::MinifyResult {
+    use tcl_lsp_core::minify::{MinifyOptions, MinifyRefusal, MinifyTier, minify_with_profile};
+    let result = minify_with_profile(
+        source,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        registry(),
+        MinifyOptions {
+            tier: MinifyTier::Compact,
+            isolated: true,
+            ..MinifyOptions::default()
+        },
+    );
+    assert!(
+        result
+            .refusals
+            .contains(&MinifyRefusal::MissingAlphaRenameContract),
+        "{:?}",
+        result.refusals
+    );
+    assert!(
+        result.symbol_map.procs.is_empty(),
+        "{:?}",
+        result.symbol_map
+    );
+    assert!(
+        result.symbol_map.variables.is_empty(),
+        "{:?}",
+        result.symbol_map
+    );
+    for version in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
+        if let Some(oracle) = tcl_test_support::witness_tclsh(version) {
+            let before = tcl_test_support::run_script(&oracle.path, source.as_bytes())
+                .expect("original Tcl execution");
+            let after = tcl_test_support::run_script(&oracle.path, result.source.as_bytes())
+                .expect("minified Tcl execution");
+            assert!(before.success() && after.success(), "{:?}", result.source);
+            assert_eq!(after.stdout, before.stdout, "{:?}", result.source);
+            assert_eq!(after.stderr, before.stderr, "{:?}", result.source);
+        }
+    }
+    result
+}
 
 #[test]
-fn minify_compact_isolated_renames_proc_everywhere_and_preserves_result() {
-    // tclsh (8.6 + 9.0): original `proc fact {n} {…}; puts [fact 5]` -> 120.
-    // Under `isolated` (proc names are public identities in the non-isolated
-    // tier) the compact tier renames `fact`->`a` at the
-    // DECLARATION, the RECURSIVE self-call, and the top-level call. The
-    // renamed program
-    // `proc a {n} {if {$n<=1} {return 1};return [expr {$n*[a [expr {$n-1}]]}]};
-    // puts [a 5]` -> 120 (verified identical) — all three sites bind to the
-    // one renamed proc, so the value is unchanged.
-    let src = "proc fact {n} {\n    if {$n <= 1} { return 1 }\n    return [expr {$n * [fact [expr {$n - 1}]]}]\n}\nputs [fact 5]\n";
-    let (out, map) = minify_tcl_compact(
-        src,
-        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-        true,
-        registry(),
-    );
+fn minify_compact_isolated_refuses_proc_renaming_and_preserves_result() {
+    let source = "proc fact {n} {\n    if {$n <= 1} { return 1 }\n    return [expr {$n * [fact [expr {$n - 1}]]}]\n}\nputs [fact 5]\n";
+    let result = isolated_compact_refusal(source);
     assert_eq!(
-        out,
-        "proc a {n} {if {$n<=1} {return 1};return [expr {$n*[a [expr {$n-1}]]}]};puts [a 5]",
+        result.source,
+        "proc fact {n} {if {$n<=1} {return 1};return [expr {$n*[fact [expr {$n-1}]]}]};puts [fact 5]",
     );
-    // The symbol map records the rename so an error referring to `a` can be
-    // un-minified back to `fact`.
-    assert_eq!(map.procs.get("fact").map(String::as_str), Some("a"));
-    // `fact` no longer appears anywhere (decl + both call sites rewritten).
-    assert!(!out.contains("fact"), "all `fact` sites renamed: {out:?}");
 }
 
 #[test]
@@ -410,36 +428,15 @@ fn minify_compact_non_isolated_keeps_proc_names() {
 }
 
 #[test]
-fn minify_compact_renames_local_var_at_def_and_read() {
-    // tclsh (8.6 + 9.0): `proc add {a b} {set sum [expr {$a+$b}];return $sum};
-    // puts [add 2 3]` -> 5; the compact rename
-    // `proc a {a b} {set c [expr {$a+$b}];return $c};puts [a 2 3]` -> 5
-    // (verified identical). `sum`->`c` is rewritten at BOTH the `set`
-    // definition and the `$sum` read, so the value is preserved. (The
-    // params `a`/`b` are already 1 char, so they are left alone.)
-    let src =
+fn minify_compact_isolated_refuses_local_and_proc_names_together() {
+    // N15 refusal is atomic for this unsupported isolated naming request.
+    let source =
         "proc add {a b} {\n    set sum [expr {$a + $b}]\n    return $sum\n}\nputs [add 2 3]\n";
-    let (out, map) = minify_tcl_compact(
-        src,
-        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
-        true,
-        registry(),
-    );
+    let result = isolated_compact_refusal(source);
     assert_eq!(
-        out,
-        "proc a {a b} {set c [expr {$a+$b}];return $c};puts [a 2 3]",
+        result.source,
+        "proc add {a b} {set sum [expr {$a+$b}];return $sum};puts [add 2 3]",
     );
-    // proc renamed `add`->`a`, local `sum`->`c` recorded under the proc scope.
-    assert_eq!(map.procs.get("add").map(String::as_str), Some("a"));
-    assert!(
-        map.variables
-            .values()
-            .any(|m| m.get("sum").map(String::as_str) == Some("c")),
-        "sum->c must be in the symbol map: {map:?}",
-    );
-    // The `$sum` read became `$c`; no stray `sum` survives.
-    assert!(out.contains("$c"), "{out:?}");
-    assert!(!out.contains("sum"), "{out:?}");
 }
 
 #[test]

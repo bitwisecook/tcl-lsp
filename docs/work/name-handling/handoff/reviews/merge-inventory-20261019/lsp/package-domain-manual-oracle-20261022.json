@@ -1,0 +1,110 @@
+{
+  "scope": "C Tcl fixture semantics only; no server/backend run or D1 admission",
+  "rows": [
+    {
+      "engine": "TCL_LSP_TCLSH84",
+      "case": "first",
+      "exit": 0,
+      "stdout": "1.0\n1.0\n",
+      "stderr": ""
+    },
+    {
+      "engine": "TCL_LSP_TCLSH85",
+      "case": "first",
+      "exit": 0,
+      "stdout": "1.0\n1.0\n",
+      "stderr": ""
+    },
+    {
+      "engine": "TCL_LSP_TCLSH86",
+      "case": "first",
+      "exit": 0,
+      "stdout": "1.0\n1.0\n",
+      "stderr": ""
+    },
+    {
+      "engine": "TCL_LSP_TCLSH90",
+      "case": "first",
+      "exit": 0,
+      "stdout": "1.0\n1.0\n",
+      "stderr": ""
+    },
+    {
+      "engine": "TCL_LSP_TCLSH91",
+      "case": "first",
+      "exit": 0,
+      "stdout": "1.0\n1.0\n",
+      "stderr": ""
+    },
+    {
+      "engine": "TCL_LSP_TCLSH84",
+      "case": "second",
+      "exit": 0,
+      "stdout": "2.0\n2.0\n",
+      "stderr": ""
+    },
+    {
+      "engine": "TCL_LSP_TCLSH85",
+      "case": "second",
+      "exit": 0,
+      "stdout": "2.0\n2.0\n",
+      "stderr": ""
+    },
+    {
+      "engine": "TCL_LSP_TCLSH86",
+      "case": "second",
+      "exit": 0,
+      "stdout": "2.0\n2.0\n",
+      "stderr": ""
+    },
+    {
+      "engine": "TCL_LSP_TCLSH90",
+      "case": "second",
+      "exit": 0,
+      "stdout": "2.0\n2.0\n",
+      "stderr": ""
+    },
+    {
+      "engine": "TCL_LSP_TCLSH91",
+      "case": "second",
+      "exit": 0,
+      "stdout": "2.0\n2.0\n",
+      "stderr": ""
+    },
+    {
+      "engine": "TCL_LSP_TCLSH84",
+      "case": "latest",
+      "exit": 0,
+      "stdout": "2.0\n2.0\n",
+      "stderr": ""
+    },
+    {
+      "engine": "TCL_LSP_TCLSH85",
+      "case": "latest",
+      "exit": 0,
+      "stdout": "2.0\n2.0\n",
+      "stderr": ""
+    },
+    {
+      "engine": "TCL_LSP_TCLSH86",
+      "case": "latest",
+      "exit": 0,
+      "stdout": "2.0\n2.0\n",
+      "stderr": ""
+    },
+    {
+      "engine": "TCL_LSP_TCLSH90",
+      "case": "latest",
+      "exit": 0,
+      "stdout": "2.0\n2.0\n",
+      "stderr": ""
+    },
+    {
+      "engine": "TCL_LSP_TCLSH91",
+      "case": "latest",
+      "exit": 0,
+      "stdout": "2.0\n2.0\n",
+      "stderr": ""
+    }
+  ]
+}

@@ -26,6 +26,60 @@ pub(crate) struct HostedStructuredInvocation {
     case_bodies: Option<tcl_registry::case_bodies::CaseBodyOperands>,
 }
 
+struct SourceBodyLayout {
+    roles: Vec<(usize, tcl_registry::ArgRole)>,
+    case_bodies: Option<tcl_registry::case_bodies::CaseBodyOperands>,
+}
+
+fn source_body_layout(
+    words: &OriginalRegistryWords,
+    input: &crate::analyser::ResolvedAnalysisInput,
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<SourceBodyLayout> {
+    let case_bodies = if schema.semantics.options.case_list.is_some() {
+        (schema.semantics.frame_effect.is_none()
+            && schema.semantics.body_kind == tcl_registry::BodyKind::Plain
+            && schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current)
+            .then_some(())?;
+        let clauses = schema.authored_source_case_clause_projection(
+            tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
+        )?;
+        for body in &clauses.bodies {
+            if schema.authored_source_script_timing_at(body.argument)?
+                != tcl_registry::ScriptTiming::SameInvocation
+            {
+                return None;
+            }
+        }
+        Some(clauses)
+    } else {
+        None
+    };
+    let source_roles = if let Some(clauses) = &case_bodies {
+        let mut roles = Vec::new();
+        for body in &clauses.bodies {
+            if !roles.contains(&(body.argument, tcl_registry::ArgRole::Body)) {
+                roles.push((body.argument, tcl_registry::ArgRole::Body));
+            }
+        }
+        roles
+    } else {
+        schema.authored_source_argument_roles().1.then_some(())?;
+        words.roles()?.to_vec()
+    };
+    for &(argument, role) in &source_roles {
+        if role == tcl_registry::ArgRole::Body
+            && words.arguments().get(argument)?.literal_bytes().is_none()
+        {
+            return None;
+        }
+    }
+    Some(SourceBodyLayout {
+        roles: source_roles,
+        case_bodies,
+    })
+}
+
 pub(crate) fn original_hosted_structured_invocation(
     registry: &CommandRegistry,
     context: InvocationMetadataContext<'_>,
@@ -58,45 +112,9 @@ pub(crate) fn original_hosted_structured_invocation(
             {
                 return None;
             }
-            let case_bodies = if schema.semantics.options.case_list.is_some() {
-                (schema.semantics.frame_effect.is_none()
-                    && schema.semantics.body_kind == tcl_registry::BodyKind::Plain
-                    && schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current)
-                    .then_some(())?;
-                let clauses = schema.authored_source_case_clause_projection(
-                    tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
-                )?;
-                for body in &clauses.bodies {
-                    if schema.authored_source_script_timing_at(body.argument)?
-                        != tcl_registry::ScriptTiming::SameInvocation
-                    {
-                        return None;
-                    }
-                }
-                Some(clauses)
-            } else {
-                None
-            };
-            let source_roles = if let Some(clauses) = &case_bodies {
-                let mut roles = Vec::new();
-                for body in &clauses.bodies {
-                    if !roles.contains(&(body.argument, tcl_registry::ArgRole::Body)) {
-                        roles.push((body.argument, tcl_registry::ArgRole::Body));
-                    }
-                }
-                roles
-            } else {
-                schema.authored_source_argument_roles().1.then_some(())?;
-                words.roles()?.to_vec()
-            };
-            for &(argument, role) in &source_roles {
-                if role == tcl_registry::ArgRole::Body
-                    && words.arguments().get(argument)?.literal_bytes().is_none()
-                {
-                    return None;
-                }
-            }
-            Some((schema.descriptor_key(), hook, source_roles, case_bodies))
+            let SourceBodyLayout { roles, case_bodies } =
+                source_body_layout(&words, input, schema)?;
+            Some((schema.descriptor_key(), hook, roles, case_bodies))
         })??;
     Some(SourceStructuredInvocation::Hosted(Box::new(
         HostedStructuredInvocation {
@@ -129,7 +147,6 @@ pub(crate) fn original_native_source_structured_invocation(
     if !matches!(
         words.source(),
         super::source_structure::OriginalRegistrySource::SourceTransitions(_)
-            | super::source_structure::OriginalRegistrySource::ConditionalNativeSource(_)
     ) || tokens
         .words()
         .iter()
@@ -166,45 +183,9 @@ pub(crate) fn original_native_source_structured_invocation(
             {
                 return None;
             }
-            let case_bodies = if schema.semantics.options.case_list.is_some() {
-                (schema.semantics.frame_effect.is_none()
-                    && schema.semantics.body_kind == tcl_registry::BodyKind::Plain
-                    && schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current)
-                    .then_some(())?;
-                let clauses = schema.authored_source_case_clause_projection(
-                    tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
-                )?;
-                for body in &clauses.bodies {
-                    if schema.authored_source_script_timing_at(body.argument)?
-                        != tcl_registry::ScriptTiming::SameInvocation
-                    {
-                        return None;
-                    }
-                }
-                Some(clauses)
-            } else {
-                None
-            };
-            let source_roles = if let Some(clauses) = &case_bodies {
-                let mut roles = Vec::new();
-                for body in &clauses.bodies {
-                    if !roles.contains(&(body.argument, tcl_registry::ArgRole::Body)) {
-                        roles.push((body.argument, tcl_registry::ArgRole::Body));
-                    }
-                }
-                roles
-            } else {
-                schema.authored_source_argument_roles().1.then_some(())?;
-                words.roles()?.to_vec()
-            };
-            for &(argument, role) in &source_roles {
-                if role == tcl_registry::ArgRole::Body
-                    && words.arguments().get(argument)?.literal_bytes().is_none()
-                {
-                    return None;
-                }
-            }
-            Some((schema.descriptor_key(), hook, source_roles, case_bodies))
+            let SourceBodyLayout { roles, case_bodies } =
+                source_body_layout(&words, input, schema)?;
+            Some((schema.descriptor_key(), hook, roles, case_bodies))
         })??;
     Some(SourceStructuredInvocation::NativeSource(Box::new(
         HostedStructuredInvocation {

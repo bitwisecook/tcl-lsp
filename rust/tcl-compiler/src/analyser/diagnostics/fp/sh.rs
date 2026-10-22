@@ -1694,6 +1694,14 @@ fn zz_sol49_dict_for_probe() {
                 let Some(tokens) = script.retained_source_tokens_for_statement(statement) else {
                     continue;
                 };
+                if let Some(binding) = &tokens.source_binding {
+                    eprintln!(
+                        "    BINDING native={} proved={} handler={}",
+                        binding.has_original_native_source_command(),
+                        binding.proved_execution_target().is_some(),
+                        binding.proved_handler_target().is_some()
+                    );
+                }
                 for (offset, binding) in &tokens.nested_bindings {
                     eprintln!(
                         "    NESTED @{offset} recorded={}",

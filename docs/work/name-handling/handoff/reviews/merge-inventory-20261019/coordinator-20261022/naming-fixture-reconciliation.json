@@ -1,0 +1,2596 @@
+{
+  "status": "read-only reconciliation; no repository edits, builds, or tests",
+  "worktree": "/workspace/naming-migration-active/tcl-lsp",
+  "input_hashes": {
+    "inventory_sha256": "98eb0048103007eed1020116356c2cf9b28bff25ce5fabf1e56d1d4bbe106ec0",
+    "review_sha256": "95fa55b6879d543fddd63d76ecd7c041b901fad04a9b4df66b4dd408e6fbb2ff"
+  },
+  "counts": {
+    "selected_families": 18,
+    "inventory_substantive": 195,
+    "inventory_absent_feature": 132,
+    "review_prose_substantive": 208,
+    "unexplained_prose_minus_inventory_substantive": 13
+  },
+  "info_inventory_reconstruction": {
+    "inventory_count_substantive": 138,
+    "inventory_count_absent_feature": 122,
+    "paths_enumerated_from_materialized_family": 260,
+    "method": "five C release dirs; enumerate stdout.tsv under exact-, prefix-, inventory-, exists-missing capture directories; decode hex fields; absent marker terms: bad option, unknown or ambiguous subcommand, invalid command name, unavailable/not available",
+    "path_level_class_counts": {
+      "substantive-output": 138,
+      "absent-feature-marker": 122
+    }
+  },
+  "empty_output_preservation": {
+    "zero_byte_read_files_in_selected_families": 0,
+    "read_paths_with_empty_values_may_still_be_asserted": true,
+    "zero_byte_unasserted_paths": [
+      [
+        "native_dictionary_search",
+        "epilogues/8.4.20.tsv"
+      ],
+      [
+        "native_equality",
+        "8.4.20.tsv"
+      ],
+      [
+        "native_equality",
+        "8.5.19.tsv"
+      ]
+    ]
+  },
+  "limitations": [
+    "Other-family absent-feature path assignments follow the inventory counts plus the obvious feature marker encoded by the release/path (Tcl coroutine unavailable on 8.4/8.5/Jim; return -level unavailable on 8.4; getter-effect case unavailable on Jim; C8.4/8.5 formal-slot capture classified unavailable).",
+    "The 13-path prose gap is not resolved by this 18-family reconstruction; do not create fixtures or call the difference real missing coverage without source-level evidence."
+  ],
+  "families": [
+    {
+      "family": "native_child_command_lifetime",
+      "data_path": "runtime/rust/tests/data/native_child_command_lifetime",
+      "consumer_sources": [
+        {
+          "path": "runtime/rust/src/interp/native_children.rs",
+          "sha256": "4fd6b3d03edd42a94d97ff808935064e9a716ab79aa4854b7e458ec1c545b221"
+        }
+      ],
+      "inventory_read_paths": [
+        "v2/capture/8.4.20/stdout.tsv",
+        "v2/capture/8.5.19/stdout.tsv",
+        "v2/capture/8.6.18/stdout.tsv",
+        "v2/capture/9.0.4/stdout.tsv",
+        "v2/capture/9.1.0/stdout.tsv",
+        "v2/protocol/inputs/active-child-continuation-errors.tcl",
+        "v2/protocol/inputs/active-child-replacement-survives-error.tcl",
+        "v2/protocol/inputs/namespace-publication-intermediate.tcl",
+        "v2/protocol/inputs/namespace-qualified-publication.tcl",
+        "v2/protocol/inputs/namespace-relative-qualified-publication.tcl",
+        "v2/protocol/inputs/namespace-relative-root-lookup.tcl",
+        "v2/protocol/inputs/namespace-renamed-child-deleted-with-namespace.tcl",
+        "v2/protocol/inputs/namespace-root-child-survives-delete.tcl",
+        "v2/protocol/inputs/renamed-child-delete-recreate.tcl"
+      ],
+      "unasserted_path_sample": [
+        "v2/capture/jim/stdout.tsv"
+      ],
+      "inventory_unasserted_counts": {
+        "substantive": 1
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "v2/capture/jim/stdout.tsv",
+          "exists": true,
+          "bytes": 6390,
+          "classification": "substantive-output",
+          "sha256": "bebe4ef00ab531c00595e3e3a4fa4ee4fca155aa0040dbd8950095b8d10b5e00"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 14,
+      "inventory_file_count": 109
+    },
+    {
+      "family": "native_concat",
+      "data_path": "rust/tcl-cmd-core/tests/data/native_concat",
+      "consumer_sources": [
+        {
+          "path": "runtime/rust/src/value_ops/native_concat.rs",
+          "sha256": "82290f9b8eab4c35173fd85e1fb622d91e316f246bdd48a98da53e17b225a6b3"
+        },
+        {
+          "path": "runtime/rust/src/value_ops/native_concat_tests.rs",
+          "sha256": "d909bd05175832402bb824bc7be58e8e651a5ca80a70c3ed380c62d26d722948"
+        },
+        {
+          "path": "rust/tcl-vm/src/value_ops/native_concat_tests.rs",
+          "sha256": "971169f6ebb29e7833d03d2b43fa7af772ec367448ba5cd6a471cae12b25cc36"
+        }
+      ],
+      "inventory_read_paths": [
+        "arithseries-9.0.4.tsv",
+        "arithseries-9.1.0.tsv",
+        "cases.rs"
+      ],
+      "unasserted_path_sample": [
+        "arithseries-8.4.20.tsv",
+        "arithseries-8.5.19.tsv",
+        "arithseries-8.6.18.tsv",
+        "arithseries-jim.tsv"
+      ],
+      "inventory_unasserted_counts": {
+        "substantive": 4
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "arithseries-8.4.20.tsv",
+          "exists": true,
+          "bytes": 12,
+          "classification": "substantive-output",
+          "sha256": "486bce24322d1951a1f235b9e02230d764c44c4b89c3e5c6c1abdefb4fb1fe0a"
+        },
+        {
+          "path": "arithseries-8.5.19.tsv",
+          "exists": true,
+          "bytes": 12,
+          "classification": "substantive-output",
+          "sha256": "486bce24322d1951a1f235b9e02230d764c44c4b89c3e5c6c1abdefb4fb1fe0a"
+        },
+        {
+          "path": "arithseries-8.6.18.tsv",
+          "exists": true,
+          "bytes": 12,
+          "classification": "substantive-output",
+          "sha256": "486bce24322d1951a1f235b9e02230d764c44c4b89c3e5c6c1abdefb4fb1fe0a"
+        },
+        {
+          "path": "arithseries-jim.tsv",
+          "exists": true,
+          "bytes": 12,
+          "classification": "substantive-output",
+          "sha256": "486bce24322d1951a1f235b9e02230d764c44c4b89c3e5c6c1abdefb4fb1fe0a"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 3,
+      "inventory_file_count": 22
+    },
+    {
+      "family": "native_switch_compiler_sources",
+      "data_path": "rust/tcl-compiler/tests/data/native_switch_compiler_sources",
+      "consumer_sources": [
+        {
+          "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
+          "sha256": "03e25731908184ff3101bdad20acb58ef982050d27fa6db1cc9d9171f1fba31e"
+        }
+      ],
+      "inventory_read_paths": [
+        "8.5.19.tsv",
+        "8.6.18.tsv",
+        "9.0.4.tsv",
+        "9.1.0.tsv"
+      ],
+      "unasserted_path_sample": [
+        "8.4.20.tsv"
+      ],
+      "inventory_unasserted_counts": {
+        "substantive": 1
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "8.4.20.tsv",
+          "exists": true,
+          "bytes": 152,
+          "classification": "substantive-output",
+          "sha256": "5616544a40565374b101d7b1ba86930b8619f27c6c27a45d0e19c39ce1937981"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 4,
+      "inventory_file_count": 8
+    },
+    {
+      "family": "native_control_expression",
+      "data_path": "rust/tcl-registry/tests/data/native_control_expression",
+      "consumer_sources": [
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/control_expression_tests.rs",
+          "sha256": "af4713e94fb400278f068c14cba1a81b5963697f464865b0b4d56fd58a248c8a"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_literal_pool.rs",
+          "sha256": "a5a36d215e72d063e9a3d8688685c4f95d0e3dcbcbc3f2594cf72eba5a73ee0d"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_control_expression_tests.rs",
+          "sha256": "a9f86c6fb917fb43291017a1ebb627260be58bbab8caf563f81be647c2bc00b2"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_error_variables.rs",
+          "sha256": "e90a98d0795c2ba39a91304b596582f234081bc1891e96d47952b8d813dfe858"
+        }
+      ],
+      "inventory_read_paths": [
+        "catch-publication6.tsv",
+        "catch4.tsv",
+        "compound40.tsv",
+        "control75.tsv",
+        "folded-boolean8.tsv",
+        "logical84.tsv",
+        "return-context-8.6.18.tsv",
+        "return-context-9.0.4.tsv",
+        "return-context-9.1.0.tsv",
+        "storage40.tsv",
+        "syntax-context-8.6.18.tsv",
+        "syntax-context-9.0.4.tsv",
+        "syntax-context-9.1.0.tsv",
+        "syntax-lifecycle-9.1.0.tsv"
+      ],
+      "unasserted_path_sample": [
+        "return-context-8.4.20.tsv",
+        "return-context-8.5.19.tsv",
+        "syntax-context-8.4.20.tsv",
+        "syntax-context-8.5.19.tsv"
+      ],
+      "inventory_unasserted_counts": {
+        "absent-feature/NA": 1,
+        "substantive": 3
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "return-context-8.4.20.tsv",
+          "exists": true,
+          "bytes": 676,
+          "classification": "absent-feature-marker",
+          "sha256": "ef4edac7d78c4f052857f87c5aa8a6cc52383a85cd5d8d659090fdda9553197c"
+        },
+        {
+          "path": "return-context-8.5.19.tsv",
+          "exists": true,
+          "bytes": 218,
+          "classification": "substantive-output",
+          "sha256": "8a348786e768589f3ae175ab12dc2edcb3e3e2062021258c3c3c8e09a1bab214"
+        },
+        {
+          "path": "syntax-context-8.4.20.tsv",
+          "exists": true,
+          "bytes": 561,
+          "classification": "substantive-output",
+          "sha256": "6119824be9e34629e03ac4c5756823300e16b051b73aabb22294adee2f0f487e"
+        },
+        {
+          "path": "syntax-context-8.5.19.tsv",
+          "exists": true,
+          "bytes": 568,
+          "classification": "substantive-output",
+          "sha256": "72b7a970d673bbea3d07e7fd90e33e1fe78669cf9e4f338463cf530374306624"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 14,
+      "inventory_file_count": 39
+    },
+    {
+      "family": "native_coroutine_publication",
+      "data_path": "rust/tcl-registry/tests/data/native_coroutine_publication",
+      "consumer_sources": [
+        {
+          "path": "runtime/rust/src/cmd_coro/native_injection_tests.rs",
+          "sha256": "0bd5689e9ee970dd3cd6487dd1dff84261222b6da25393fd9cdc5b3f739f4878"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_coroutine_names.rs",
+          "sha256": "d02855de438e6995ac21c083dcdc61fd9511ae8903bc285f9246b78248998049"
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_coro/native_injection_tests.rs",
+          "sha256": "d3788248bf639bee8d0ed9d835db3591624bccf8ad9138e582591c8c2ee3d410"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_coroutine_names.rs",
+          "sha256": "30c4c1334091cd4ec172d8fac4d8b1f24b82478d92419de33506a0bf02518919"
+        }
+      ],
+      "inventory_read_paths": [
+        "9.1.0/stdout.tsv",
+        "v2/8.6.18/stdout.tsv",
+        "v2/9.0.4/stdout.tsv",
+        "v2/9.1.0/stdout.tsv"
+      ],
+      "unasserted_path_sample": [
+        "8.4.20/stdout.tsv",
+        "8.5.19/stdout.tsv",
+        "8.6.18/stdout.tsv",
+        "9.0.4/stdout.tsv",
+        "jim/stdout.tsv",
+        "v2/8.4.20/stdout.tsv",
+        "v2/8.5.19/stdout.tsv",
+        "v2/jim/stdout.tsv"
+      ],
+      "inventory_unasserted_counts": {
+        "absent-feature/NA": 6,
+        "substantive": 2
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "8.4.20/stdout.tsv",
+          "exists": true,
+          "bytes": 47949,
+          "classification": "absent-feature-marker",
+          "sha256": "c09e51943e575e81f93693134a43356065c24ae51b9bdc89bc83eb0968190ee9"
+        },
+        {
+          "path": "8.5.19/stdout.tsv",
+          "exists": true,
+          "bytes": 58097,
+          "classification": "absent-feature-marker",
+          "sha256": "a11bab67ac23b8bbd55e65b1ee7c3d15a922464ec137f1241c4a69b3261c1a05"
+        },
+        {
+          "path": "8.6.18/stdout.tsv",
+          "exists": true,
+          "bytes": 56284,
+          "classification": "substantive-output",
+          "sha256": "1dc871ca7b937c84b92b2e334dfe472714b6dbb32c9372b3e9ea63d7a99668c9"
+        },
+        {
+          "path": "9.0.4/stdout.tsv",
+          "exists": true,
+          "bytes": 60602,
+          "classification": "substantive-output",
+          "sha256": "72a921792befe2b7cfa21b4a62901691dbf3c72adc2c787ec43a65fa4d19ae25"
+        },
+        {
+          "path": "jim/stdout.tsv",
+          "exists": true,
+          "bytes": 95307,
+          "classification": "absent-feature-marker",
+          "sha256": "5821ad5c2742f982fb99beeb20c5a9b5b30315a6b14b9ac481642d28b134d90e"
+        },
+        {
+          "path": "v2/8.4.20/stdout.tsv",
+          "exists": true,
+          "bytes": 53491,
+          "classification": "absent-feature-marker",
+          "sha256": "6cc6b2ad5731a5d394dc07ccf0449f09f514be86920be0c02c82f3365b4ba68a"
+        },
+        {
+          "path": "v2/8.5.19/stdout.tsv",
+          "exists": true,
+          "bytes": 71063,
+          "classification": "absent-feature-marker",
+          "sha256": "b4b80f1449819cfc861e9cc682afcf574a397b5f0c42d5cab124954d90f59986"
+        },
+        {
+          "path": "v2/jim/stdout.tsv",
+          "exists": true,
+          "bytes": 100849,
+          "classification": "absent-feature-marker",
+          "sha256": "d15b7f5bd03bebc960d3333c99ade9977e1766e8817395078ad213700589f8c3"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 4,
+      "inventory_file_count": 73
+    },
+    {
+      "family": "native_dict_update_write_error_lifetime398",
+      "data_path": "rust/tcl-registry/tests/data/native_dict_update_write_error_lifetime398",
+      "consumer_sources": [
+        {
+          "path": "rust/tcl-vm/src/cmd_dict.rs",
+          "sha256": "027db25db8d88dddddc130dbc0ab6f555799a65733ebd25c537c2f0bf243c2b0"
+        }
+      ],
+      "inventory_read_paths": [
+        "8.6.18/baseline-case9.stdout",
+        "8.6.18/observed-case0.stderr",
+        "8.6.18/observed-case19.stderr",
+        "8.6.18/observed-case9.stderr",
+        "8.6.18/observed-case9.stdout",
+        "request/original-source.tcl"
+      ],
+      "unasserted_path_sample": [
+        "9.0.4/baseline-case9.stdout",
+        "9.0.4/observed-case0.stderr",
+        "9.0.4/observed-case19.stderr",
+        "9.0.4/observed-case9.stderr",
+        "9.0.4/observed-case9.stdout",
+        "9.1.0/baseline-case9.stdout",
+        "9.1.0/observed-case0.stderr",
+        "9.1.0/observed-case19.stderr",
+        "9.1.0/observed-case9.stderr",
+        "9.1.0/observed-case9.stdout"
+      ],
+      "inventory_unasserted_counts": {
+        "substantive": 10
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "9.0.4/baseline-case9.stdout",
+          "exists": true,
+          "bytes": 280,
+          "classification": "substantive-output",
+          "sha256": "b4b81dbe05b966e99bf8ccc05f9ea11bced7fa8673026bf59ca5b83bfdece4ac"
+        },
+        {
+          "path": "9.0.4/observed-case0.stderr",
+          "exists": true,
+          "bytes": 102,
+          "classification": "substantive-output",
+          "sha256": "1e91f1304dbdce3cb96c254d1f0a362a2e22a9c4060cdaa4a100ad6d716548e9"
+        },
+        {
+          "path": "9.0.4/observed-case19.stderr",
+          "exists": true,
+          "bytes": 44,
+          "classification": "substantive-output",
+          "sha256": "bda631bf408cd40fe3c436b4bb9c574ac2d02bdaa60c3495170980875ea5877d"
+        },
+        {
+          "path": "9.0.4/observed-case9.stderr",
+          "exists": true,
+          "bytes": 44,
+          "classification": "substantive-output",
+          "sha256": "5e5bc948eb92d110a87b70242565e329c634ef4485f0938ced8361167b097d4c"
+        },
+        {
+          "path": "9.0.4/observed-case9.stdout",
+          "exists": true,
+          "bytes": 280,
+          "classification": "substantive-output",
+          "sha256": "b4b81dbe05b966e99bf8ccc05f9ea11bced7fa8673026bf59ca5b83bfdece4ac"
+        },
+        {
+          "path": "9.1.0/baseline-case9.stdout",
+          "exists": true,
+          "bytes": 280,
+          "classification": "substantive-output",
+          "sha256": "b4b81dbe05b966e99bf8ccc05f9ea11bced7fa8673026bf59ca5b83bfdece4ac"
+        },
+        {
+          "path": "9.1.0/observed-case0.stderr",
+          "exists": true,
+          "bytes": 102,
+          "classification": "substantive-output",
+          "sha256": "1e91f1304dbdce3cb96c254d1f0a362a2e22a9c4060cdaa4a100ad6d716548e9"
+        },
+        {
+          "path": "9.1.0/observed-case19.stderr",
+          "exists": true,
+          "bytes": 44,
+          "classification": "substantive-output",
+          "sha256": "1e67f1048decd835aecdd26b01f3627bd230caacdf7ca021f6f935cdc4f08ec2"
+        },
+        {
+          "path": "9.1.0/observed-case9.stderr",
+          "exists": true,
+          "bytes": 43,
+          "classification": "substantive-output",
+          "sha256": "d1e9691dcc55ba901b172aff12fd900e60c61d422820a1ecd3f66df8fda9903f"
+        },
+        {
+          "path": "9.1.0/observed-case9.stdout",
+          "exists": true,
+          "bytes": 280,
+          "classification": "substantive-output",
+          "sha256": "b4b81dbe05b966e99bf8ccc05f9ea11bced7fa8673026bf59ca5b83bfdece4ac"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 6,
+      "inventory_file_count": 187
+    },
+    {
+      "family": "native_dict_with_write_error_lifetime405",
+      "data_path": "rust/tcl-registry/tests/data/native_dict_with_write_error_lifetime405",
+      "consumer_sources": [
+        {
+          "path": "rust/tcl-vm/src/cmd_dict.rs",
+          "sha256": "027db25db8d88dddddc130dbc0ab6f555799a65733ebd25c537c2f0bf243c2b0"
+        }
+      ],
+      "inventory_read_paths": [
+        "8.6.18/baseline-case19.stdout",
+        "8.6.18/observed-case10.stderr",
+        "8.6.18/observed-case19.stderr",
+        "8.6.18/observed-case19.stdout",
+        "8.6.18/observed-case9.stderr",
+        "request/original-source.tcl"
+      ],
+      "unasserted_path_sample": [
+        "9.0.4/baseline-case19.stdout",
+        "9.0.4/observed-case10.stderr",
+        "9.0.4/observed-case19.stderr",
+        "9.0.4/observed-case19.stdout",
+        "9.0.4/observed-case9.stderr",
+        "9.1.0/baseline-case19.stdout",
+        "9.1.0/observed-case10.stderr",
+        "9.1.0/observed-case19.stderr",
+        "9.1.0/observed-case19.stdout",
+        "9.1.0/observed-case9.stderr"
+      ],
+      "inventory_unasserted_counts": {
+        "substantive": 10
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "9.0.4/baseline-case19.stdout",
+          "exists": true,
+          "bytes": 278,
+          "classification": "substantive-output",
+          "sha256": "9f2d927a77f3c38175d0b65e621c65d348b72c39f17bdb2e609560217fead8f4"
+        },
+        {
+          "path": "9.0.4/observed-case10.stderr",
+          "exists": true,
+          "bytes": 173,
+          "classification": "substantive-output",
+          "sha256": "e53c35b96910aa688e294e3d5adf47974e1698ed95af204c17d0d38aa23f8e0d"
+        },
+        {
+          "path": "9.0.4/observed-case19.stderr",
+          "exists": true,
+          "bytes": 272,
+          "classification": "substantive-output",
+          "sha256": "c204a102f196ca7747fbda9c012d6f8d9a813b0ab0c48230fcee61c5fa7740a8"
+        },
+        {
+          "path": "9.0.4/observed-case19.stdout",
+          "exists": true,
+          "bytes": 278,
+          "classification": "substantive-output",
+          "sha256": "9f2d927a77f3c38175d0b65e621c65d348b72c39f17bdb2e609560217fead8f4"
+        },
+        {
+          "path": "9.0.4/observed-case9.stderr",
+          "exists": true,
+          "bytes": 156,
+          "classification": "substantive-output",
+          "sha256": "4a0beeae9c66d1c776616383763344a711ba65333ede51ea4c01aed7225d2e66"
+        },
+        {
+          "path": "9.1.0/baseline-case19.stdout",
+          "exists": true,
+          "bytes": 278,
+          "classification": "substantive-output",
+          "sha256": "9f2d927a77f3c38175d0b65e621c65d348b72c39f17bdb2e609560217fead8f4"
+        },
+        {
+          "path": "9.1.0/observed-case10.stderr",
+          "exists": true,
+          "bytes": 173,
+          "classification": "substantive-output",
+          "sha256": "e53c35b96910aa688e294e3d5adf47974e1698ed95af204c17d0d38aa23f8e0d"
+        },
+        {
+          "path": "9.1.0/observed-case19.stderr",
+          "exists": true,
+          "bytes": 272,
+          "classification": "substantive-output",
+          "sha256": "0ec245043ab5e1d18193e6f445a9099e99a92efd228f443fa3cc2cebe918ae53"
+        },
+        {
+          "path": "9.1.0/observed-case19.stdout",
+          "exists": true,
+          "bytes": 278,
+          "classification": "substantive-output",
+          "sha256": "9f2d927a77f3c38175d0b65e621c65d348b72c39f17bdb2e609560217fead8f4"
+        },
+        {
+          "path": "9.1.0/observed-case9.stderr",
+          "exists": true,
+          "bytes": 155,
+          "classification": "substantive-output",
+          "sha256": "527b848f7feb2771ecbb38e4f295aad9c7c391b7c03fab64aaaf0ace6acc45ec"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 6,
+      "inventory_file_count": 186
+    },
+    {
+      "family": "native_error_variables",
+      "data_path": "rust/tcl-registry/tests/data/native_error_variables",
+      "consumer_sources": [
+        {
+          "path": "runtime/rust/src/interp/native_error_variables.rs",
+          "sha256": "5f08fd4a3d4a9b870fc6fb264ba080300843895ed6c0f7c7cae04b23e7161818"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_object_vector.rs",
+          "sha256": "3cfe83dcc5baa8ea822c69f238397ee3c8424faabeb3edc305cb54f7d1950a3d"
+        },
+        {
+          "path": "rust/tcl-registry/src/special_vars.rs",
+          "sha256": "7ea5a584689af1e31e298e7fa71842e603420cfa3fea0b29e9c29c7ce4ccb7f7"
+        },
+        {
+          "path": "rust/tcl-vm/src/interp/native_error_variables.rs",
+          "sha256": "e90a98d0795c2ba39a91304b596582f234081bc1891e96d47952b8d813dfe858"
+        }
+      ],
+      "inventory_read_paths": [
+        "8.5.19-producers.tsv",
+        "8.6.18-producers.tsv",
+        "9.0.4-producers.tsv",
+        "9.1.0-producers.tsv",
+        "empty-vector-reset-8.4.20.tsv",
+        "empty-vector-reset-8.5.19.tsv",
+        "empty-vector-reset-8.6.18.tsv",
+        "empty-vector-reset-9.0.4.tsv",
+        "empty-vector-reset-9.1.0.tsv",
+        "observations.tsv",
+        "reset-episodes.tsv"
+      ],
+      "unasserted_path_sample": [
+        "8.4.20-producers.tsv"
+      ],
+      "inventory_unasserted_counts": {
+        "substantive": 1
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "8.4.20-producers.tsv",
+          "exists": true,
+          "bytes": 483,
+          "classification": "substantive-output",
+          "sha256": "fce12318d7f826d6240b1962f809d511d0162255367b1edc4850c03f187c6458"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 11,
+      "inventory_file_count": 40
+    },
+    {
+      "family": "native_info_inventory_original",
+      "data_path": "rust/tcl-registry/tests/data/native_info_inventory_original",
+      "consumer_sources": [
+        {
+          "path": "runtime/rust/src/cmd_info/native_jim.rs",
+          "sha256": "69cfc762daa2f4e52f711cc5839d990302a5aea09bd8123a348cbad63e8eadbd"
+        },
+        {
+          "path": "rust/tcl-registry/src/commands/tcl/info_.rs",
+          "sha256": "14e41c412fc150394a3f7f1a184a7255d572e52b7b2cdc70311fd18aa1e74c5e"
+        },
+        {
+          "path": "rust/tcl-registry/src/commands/tcl/info_jim.rs",
+          "sha256": "58836b5ed1711c381ffe694db2a58714b6d935f11d8f64e04ea62d256389c71e"
+        },
+        {
+          "path": "rust/tcl-vm/src/cmd_info/native_jim.rs",
+          "sha256": "7e558db76d4c6e50b775ecafa1427752344baee8443fb00ff31dfa0fba8db5d8"
+        }
+      ],
+      "inventory_read_paths": [
+        "jim/exact-alias/stdout.tsv",
+        "jim/exact-aliases/stdout.tsv",
+        "jim/exact-args/stdout.tsv",
+        "jim/exact-body/stdout.tsv",
+        "jim/exact-channels/stdout.tsv",
+        "jim/exact-class/stdout.tsv",
+        "jim/exact-cmdcount/stdout.tsv",
+        "jim/exact-cmdtype/stdout.tsv",
+        "jim/exact-commands/stdout.tsv",
+        "jim/exact-complete/stdout.tsv",
+        "jim/exact-constant/stdout.tsv",
+        "jim/exact-consts/stdout.tsv",
+        "jim/exact-coroutine/stdout.tsv",
+        "jim/exact-default/stdout.tsv",
+        "jim/exact-errorstack/stdout.tsv",
+        "jim/exact-exists/stdout.tsv",
+        "jim/exact-frame/stdout.tsv",
+        "jim/exact-functions/stdout.tsv",
+        "jim/exact-globals/stdout.tsv",
+        "jim/exact-help/stdout.tsv",
+        "jim/exact-hostname/stdout.tsv",
+        "jim/exact-level/stdout.tsv",
+        "jim/exact-library/stdout.tsv",
+        "jim/exact-loaded/stdout.tsv",
+        "jim/exact-locals/stdout.tsv",
+        "jim/exact-nameofexecutable/stdout.tsv",
+        "jim/exact-object/stdout.tsv",
+        "jim/exact-patchlevel/stdout.tsv",
+        "jim/exact-procs/stdout.tsv",
+        "jim/exact-references/stdout.tsv",
+        "jim/exact-returncodes/stdout.tsv",
+        "jim/exact-script/stdout.tsv",
+        "jim/exact-sharedlibextension/stdout.tsv",
+        "jim/exact-source/stdout.tsv",
+        "jim/exact-stacktrace/stdout.tsv",
+        "jim/exact-statics/stdout.tsv",
+        "jim/exact-tainted/stdout.tsv",
+        "jim/exact-tclversion/stdout.tsv",
+        "jim/exact-usage/stdout.tsv",
+        "jim/exact-vars/stdout.tsv",
+        "jim/exact-version/stdout.tsv",
+        "jim/exists-missing/stdout.tsv",
+        "jim/inventory-c-map/stdout.tsv",
+        "jim/inventory-jim-list/stdout.tsv",
+        "jim/inventory-miss/stdout.tsv",
+        "jim/prefix-cl/stdout.tsv",
+        "jim/prefix-cm/stdout.tsv",
+        "jim/prefix-co/stdout.tsv",
+        "jim/prefix-cor/stdout.tsv",
+        "jim/prefix-empty/stdout.tsv",
+        "jim/prefix-sta/stdout.tsv",
+        "jim/prefix-vers/stdout.tsv",
+        "sources/8.4.20/tclCmdIL.c",
+        "sources/8.5.19/tclCmdIL.c",
+        "sources/8.6.18/tclCmdIL.c",
+        "sources/9.0.4/tclCmdIL.c",
+        "sources/9.1.0/tclCmdIL.c"
+      ],
+      "unasserted_path_sample": [
+        "8.4.20/exact-alias/stdout.tsv",
+        "8.4.20/exact-aliases/stdout.tsv",
+        "8.4.20/exact-args/stdout.tsv",
+        "8.4.20/exact-body/stdout.tsv",
+        "8.4.20/exact-channels/stdout.tsv",
+        "8.4.20/exact-class/stdout.tsv",
+        "8.4.20/exact-cmdcount/stdout.tsv",
+        "8.4.20/exact-cmdtype/stdout.tsv",
+        "8.4.20/exact-commands/stdout.tsv",
+        "8.4.20/exact-complete/stdout.tsv",
+        "8.4.20/exact-constant/stdout.tsv",
+        "8.4.20/exact-consts/stdout.tsv",
+        "8.4.20/exact-coroutine/stdout.tsv",
+        "8.4.20/exact-default/stdout.tsv",
+        "8.4.20/exact-errorstack/stdout.tsv",
+        "8.4.20/exact-exists/stdout.tsv",
+        "8.4.20/exact-frame/stdout.tsv",
+        "8.4.20/exact-functions/stdout.tsv",
+        "8.4.20/exact-globals/stdout.tsv",
+        "8.4.20/exact-help/stdout.tsv",
+        "8.4.20/exact-hostname/stdout.tsv",
+        "8.4.20/exact-level/stdout.tsv",
+        "8.4.20/exact-library/stdout.tsv",
+        "8.4.20/exact-loaded/stdout.tsv",
+        "8.4.20/exact-locals/stdout.tsv",
+        "8.4.20/exact-nameofexecutable/stdout.tsv",
+        "8.4.20/exact-object/stdout.tsv",
+        "8.4.20/exact-patchlevel/stdout.tsv",
+        "8.4.20/exact-procs/stdout.tsv",
+        "8.4.20/exact-references/stdout.tsv",
+        "8.4.20/exact-returncodes/stdout.tsv",
+        "8.4.20/exact-script/stdout.tsv",
+        "8.4.20/exact-sharedlibextension/stdout.tsv",
+        "8.4.20/exact-source/stdout.tsv",
+        "8.4.20/exact-stacktrace/stdout.tsv",
+        "8.4.20/exact-statics/stdout.tsv",
+        "8.4.20/exact-tainted/stdout.tsv",
+        "8.4.20/exact-tclversion/stdout.tsv",
+        "8.4.20/exact-usage/stdout.tsv",
+        "8.4.20/exact-vars/stdout.tsv"
+      ],
+      "inventory_unasserted_counts": {
+        "absent-feature/NA": 122,
+        "substantive": 138
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "8.4.20/exact-alias/stdout.tsv",
+          "bytes": 503,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-aliases/stdout.tsv",
+          "bytes": 507,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-args/stdout.tsv",
+          "bytes": 124,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-body/stdout.tsv",
+          "bytes": 124,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-channels/stdout.tsv",
+          "bytes": 509,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-class/stdout.tsv",
+          "bytes": 503,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-cmdcount/stdout.tsv",
+          "bytes": 114,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-cmdtype/stdout.tsv",
+          "bytes": 507,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-commands/stdout.tsv",
+          "bytes": 134,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-complete/stdout.tsv",
+          "bytes": 130,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-constant/stdout.tsv",
+          "bytes": 509,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-consts/stdout.tsv",
+          "bytes": 505,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-coroutine/stdout.tsv",
+          "bytes": 511,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-default/stdout.tsv",
+          "bytes": 154,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-errorstack/stdout.tsv",
+          "bytes": 513,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-exists/stdout.tsv",
+          "bytes": 126,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-frame/stdout.tsv",
+          "bytes": 503,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-functions/stdout.tsv",
+          "bytes": 136,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-globals/stdout.tsv",
+          "bytes": 132,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-help/stdout.tsv",
+          "bytes": 501,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-hostname/stdout.tsv",
+          "bytes": 114,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-level/stdout.tsv",
+          "bytes": 126,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-library/stdout.tsv",
+          "bytes": 112,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-loaded/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-locals/stdout.tsv",
+          "bytes": 130,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-nameofexecutable/stdout.tsv",
+          "bytes": 130,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-object/stdout.tsv",
+          "bytes": 505,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-patchlevel/stdout.tsv",
+          "bytes": 118,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-procs/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-references/stdout.tsv",
+          "bytes": 513,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-returncodes/stdout.tsv",
+          "bytes": 515,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-script/stdout.tsv",
+          "bytes": 132,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-sharedlibextension/stdout.tsv",
+          "bytes": 134,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-source/stdout.tsv",
+          "bytes": 505,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-stacktrace/stdout.tsv",
+          "bytes": 513,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-statics/stdout.tsv",
+          "bytes": 507,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-tainted/stdout.tsv",
+          "bytes": 507,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-tclversion/stdout.tsv",
+          "bytes": 118,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-usage/stdout.tsv",
+          "bytes": 503,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exact-vars/stdout.tsv",
+          "bytes": 126,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/exact-version/stdout.tsv",
+          "bytes": 507,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/exists-missing/stdout.tsv",
+          "bytes": 37,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/inventory-c-map/stdout.tsv",
+          "bytes": 343,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/inventory-jim-list/stdout.tsv",
+          "bytes": 511,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/inventory-miss/stdout.tsv",
+          "bytes": 525,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/prefix-cl/stdout.tsv",
+          "bytes": 497,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/prefix-cm/stdout.tsv",
+          "bytes": 114,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/prefix-co/stdout.tsv",
+          "bytes": 509,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/prefix-cor/stdout.tsv",
+          "bytes": 499,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/prefix-empty/stdout.tsv",
+          "bytes": 505,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.4.20/prefix-sta/stdout.tsv",
+          "bytes": 499,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.4.20/prefix-vers/stdout.tsv",
+          "bytes": 501,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-alias/stdout.tsv",
+          "bytes": 559,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-aliases/stdout.tsv",
+          "bytes": 563,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-args/stdout.tsv",
+          "bytes": 124,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-body/stdout.tsv",
+          "bytes": 124,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-channels/stdout.tsv",
+          "bytes": 565,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-class/stdout.tsv",
+          "bytes": 559,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-cmdcount/stdout.tsv",
+          "bytes": 114,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-cmdtype/stdout.tsv",
+          "bytes": 563,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-commands/stdout.tsv",
+          "bytes": 134,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-complete/stdout.tsv",
+          "bytes": 130,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-constant/stdout.tsv",
+          "bytes": 565,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-consts/stdout.tsv",
+          "bytes": 561,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-coroutine/stdout.tsv",
+          "bytes": 567,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-default/stdout.tsv",
+          "bytes": 154,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-errorstack/stdout.tsv",
+          "bytes": 569,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-exists/stdout.tsv",
+          "bytes": 126,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-frame/stdout.tsv",
+          "bytes": 126,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-functions/stdout.tsv",
+          "bytes": 136,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-globals/stdout.tsv",
+          "bytes": 132,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-help/stdout.tsv",
+          "bytes": 557,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-hostname/stdout.tsv",
+          "bytes": 114,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-level/stdout.tsv",
+          "bytes": 126,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-library/stdout.tsv",
+          "bytes": 112,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-loaded/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-locals/stdout.tsv",
+          "bytes": 130,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-nameofexecutable/stdout.tsv",
+          "bytes": 130,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-object/stdout.tsv",
+          "bytes": 561,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-patchlevel/stdout.tsv",
+          "bytes": 118,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-procs/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-references/stdout.tsv",
+          "bytes": 569,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-returncodes/stdout.tsv",
+          "bytes": 571,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-script/stdout.tsv",
+          "bytes": 132,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-sharedlibextension/stdout.tsv",
+          "bytes": 134,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-source/stdout.tsv",
+          "bytes": 561,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-stacktrace/stdout.tsv",
+          "bytes": 569,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-statics/stdout.tsv",
+          "bytes": 563,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-tainted/stdout.tsv",
+          "bytes": 563,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-tclversion/stdout.tsv",
+          "bytes": 118,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-usage/stdout.tsv",
+          "bytes": 559,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exact-vars/stdout.tsv",
+          "bytes": 126,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/exact-version/stdout.tsv",
+          "bytes": 563,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/exists-missing/stdout.tsv",
+          "bytes": 37,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/inventory-c-map/stdout.tsv",
+          "bytes": 1363,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/inventory-jim-list/stdout.tsv",
+          "bytes": 567,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/inventory-miss/stdout.tsv",
+          "bytes": 581,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/prefix-cl/stdout.tsv",
+          "bytes": 553,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/prefix-cm/stdout.tsv",
+          "bytes": 114,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.5.19/prefix-co/stdout.tsv",
+          "bytes": 553,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/prefix-cor/stdout.tsv",
+          "bytes": 555,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/prefix-empty/stdout.tsv",
+          "bytes": 549,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/prefix-sta/stdout.tsv",
+          "bytes": 555,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.5.19/prefix-vers/stdout.tsv",
+          "bytes": 557,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-alias/stdout.tsv",
+          "bytes": 635,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-aliases/stdout.tsv",
+          "bytes": 639,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-args/stdout.tsv",
+          "bytes": 124,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-body/stdout.tsv",
+          "bytes": 124,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-channels/stdout.tsv",
+          "bytes": 641,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-class/stdout.tsv",
+          "bytes": 437,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-cmdcount/stdout.tsv",
+          "bytes": 114,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-cmdtype/stdout.tsv",
+          "bytes": 639,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-commands/stdout.tsv",
+          "bytes": 134,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-complete/stdout.tsv",
+          "bytes": 130,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-constant/stdout.tsv",
+          "bytes": 641,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-consts/stdout.tsv",
+          "bytes": 637,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-coroutine/stdout.tsv",
+          "bytes": 116,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-default/stdout.tsv",
+          "bytes": 154,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-errorstack/stdout.tsv",
+          "bytes": 136,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-exists/stdout.tsv",
+          "bytes": 126,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-frame/stdout.tsv",
+          "bytes": 126,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-functions/stdout.tsv",
+          "bytes": 136,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-globals/stdout.tsv",
+          "bytes": 132,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-help/stdout.tsv",
+          "bytes": 633,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-hostname/stdout.tsv",
+          "bytes": 114,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-level/stdout.tsv",
+          "bytes": 126,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-library/stdout.tsv",
+          "bytes": 112,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-loaded/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-locals/stdout.tsv",
+          "bytes": 130,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-nameofexecutable/stdout.tsv",
+          "bytes": 130,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-object/stdout.tsv",
+          "bytes": 371,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-patchlevel/stdout.tsv",
+          "bytes": 118,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-procs/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-references/stdout.tsv",
+          "bytes": 645,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-returncodes/stdout.tsv",
+          "bytes": 647,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-script/stdout.tsv",
+          "bytes": 132,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-sharedlibextension/stdout.tsv",
+          "bytes": 134,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-source/stdout.tsv",
+          "bytes": 637,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-stacktrace/stdout.tsv",
+          "bytes": 645,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-statics/stdout.tsv",
+          "bytes": 639,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-tainted/stdout.tsv",
+          "bytes": 639,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-tclversion/stdout.tsv",
+          "bytes": 118,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-usage/stdout.tsv",
+          "bytes": 635,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exact-vars/stdout.tsv",
+          "bytes": 126,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/exact-version/stdout.tsv",
+          "bytes": 639,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/exists-missing/stdout.tsv",
+          "bytes": 37,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/inventory-c-map/stdout.tsv",
+          "bytes": 1591,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/inventory-jim-list/stdout.tsv",
+          "bytes": 643,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/inventory-miss/stdout.tsv",
+          "bytes": 657,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/prefix-cl/stdout.tsv",
+          "bytes": 437,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/prefix-cm/stdout.tsv",
+          "bytes": 114,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/prefix-co/stdout.tsv",
+          "bytes": 629,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/prefix-cor/stdout.tsv",
+          "bytes": 116,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "8.6.18/prefix-empty/stdout.tsv",
+          "bytes": 625,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/prefix-sta/stdout.tsv",
+          "bytes": 631,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "8.6.18/prefix-vers/stdout.tsv",
+          "bytes": 633,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exact-alias/stdout.tsv",
+          "bytes": 687,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exact-aliases/stdout.tsv",
+          "bytes": 691,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exact-args/stdout.tsv",
+          "bytes": 122,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-body/stdout.tsv",
+          "bytes": 122,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-channels/stdout.tsv",
+          "bytes": 693,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exact-class/stdout.tsv",
+          "bytes": 501,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exact-cmdcount/stdout.tsv",
+          "bytes": 112,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-cmdtype/stdout.tsv",
+          "bytes": 134,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-commands/stdout.tsv",
+          "bytes": 132,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-complete/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-constant/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-consts/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-coroutine/stdout.tsv",
+          "bytes": 114,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-default/stdout.tsv",
+          "bytes": 152,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-errorstack/stdout.tsv",
+          "bytes": 134,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-exists/stdout.tsv",
+          "bytes": 124,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-frame/stdout.tsv",
+          "bytes": 124,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-functions/stdout.tsv",
+          "bytes": 134,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-globals/stdout.tsv",
+          "bytes": 130,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-help/stdout.tsv",
+          "bytes": 685,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exact-hostname/stdout.tsv",
+          "bytes": 112,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-level/stdout.tsv",
+          "bytes": 124,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-library/stdout.tsv",
+          "bytes": 110,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-loaded/stdout.tsv",
+          "bytes": 144,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-locals/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-nameofexecutable/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-object/stdout.tsv",
+          "bytes": 417,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exact-patchlevel/stdout.tsv",
+          "bytes": 116,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-procs/stdout.tsv",
+          "bytes": 126,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-references/stdout.tsv",
+          "bytes": 697,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exact-returncodes/stdout.tsv",
+          "bytes": 699,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exact-script/stdout.tsv",
+          "bytes": 130,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-sharedlibextension/stdout.tsv",
+          "bytes": 132,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-source/stdout.tsv",
+          "bytes": 689,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exact-stacktrace/stdout.tsv",
+          "bytes": 697,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exact-statics/stdout.tsv",
+          "bytes": 691,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exact-tainted/stdout.tsv",
+          "bytes": 691,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exact-tclversion/stdout.tsv",
+          "bytes": 116,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-usage/stdout.tsv",
+          "bytes": 687,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exact-vars/stdout.tsv",
+          "bytes": 124,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/exact-version/stdout.tsv",
+          "bytes": 691,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/exists-missing/stdout.tsv",
+          "bytes": 35,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/inventory-c-map/stdout.tsv",
+          "bytes": 1763,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/inventory-jim-list/stdout.tsv",
+          "bytes": 695,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/inventory-miss/stdout.tsv",
+          "bytes": 709,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/prefix-cl/stdout.tsv",
+          "bytes": 501,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/prefix-cm/stdout.tsv",
+          "bytes": 681,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/prefix-co/stdout.tsv",
+          "bytes": 681,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/prefix-cor/stdout.tsv",
+          "bytes": 114,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.0.4/prefix-empty/stdout.tsv",
+          "bytes": 677,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/prefix-sta/stdout.tsv",
+          "bytes": 683,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.0.4/prefix-vers/stdout.tsv",
+          "bytes": 685,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exact-alias/stdout.tsv",
+          "bytes": 687,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exact-aliases/stdout.tsv",
+          "bytes": 691,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exact-args/stdout.tsv",
+          "bytes": 122,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-body/stdout.tsv",
+          "bytes": 122,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-channels/stdout.tsv",
+          "bytes": 693,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exact-class/stdout.tsv",
+          "bytes": 501,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exact-cmdcount/stdout.tsv",
+          "bytes": 112,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-cmdtype/stdout.tsv",
+          "bytes": 134,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-commands/stdout.tsv",
+          "bytes": 132,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-complete/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-constant/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-consts/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-coroutine/stdout.tsv",
+          "bytes": 114,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-default/stdout.tsv",
+          "bytes": 152,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-errorstack/stdout.tsv",
+          "bytes": 134,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-exists/stdout.tsv",
+          "bytes": 124,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-frame/stdout.tsv",
+          "bytes": 124,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-functions/stdout.tsv",
+          "bytes": 134,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-globals/stdout.tsv",
+          "bytes": 130,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-help/stdout.tsv",
+          "bytes": 685,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exact-hostname/stdout.tsv",
+          "bytes": 112,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-level/stdout.tsv",
+          "bytes": 124,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-library/stdout.tsv",
+          "bytes": 110,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-loaded/stdout.tsv",
+          "bytes": 144,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-locals/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-nameofexecutable/stdout.tsv",
+          "bytes": 128,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-object/stdout.tsv",
+          "bytes": 417,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exact-patchlevel/stdout.tsv",
+          "bytes": 116,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-procs/stdout.tsv",
+          "bytes": 126,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-references/stdout.tsv",
+          "bytes": 697,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exact-returncodes/stdout.tsv",
+          "bytes": 699,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exact-script/stdout.tsv",
+          "bytes": 130,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-sharedlibextension/stdout.tsv",
+          "bytes": 132,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-source/stdout.tsv",
+          "bytes": 689,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exact-stacktrace/stdout.tsv",
+          "bytes": 697,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exact-statics/stdout.tsv",
+          "bytes": 691,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exact-tainted/stdout.tsv",
+          "bytes": 691,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exact-tclversion/stdout.tsv",
+          "bytes": 116,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-usage/stdout.tsv",
+          "bytes": 687,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exact-vars/stdout.tsv",
+          "bytes": 124,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/exact-version/stdout.tsv",
+          "bytes": 691,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/exists-missing/stdout.tsv",
+          "bytes": 35,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/inventory-c-map/stdout.tsv",
+          "bytes": 1763,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/inventory-jim-list/stdout.tsv",
+          "bytes": 695,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/inventory-miss/stdout.tsv",
+          "bytes": 709,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/prefix-cl/stdout.tsv",
+          "bytes": 501,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/prefix-cm/stdout.tsv",
+          "bytes": 681,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/prefix-co/stdout.tsv",
+          "bytes": 681,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/prefix-cor/stdout.tsv",
+          "bytes": 114,
+          "classification": "substantive-output"
+        },
+        {
+          "path": "9.1.0/prefix-empty/stdout.tsv",
+          "bytes": 677,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/prefix-sta/stdout.tsv",
+          "bytes": 683,
+          "classification": "absent-feature-marker"
+        },
+        {
+          "path": "9.1.0/prefix-vers/stdout.tsv",
+          "bytes": 685,
+          "classification": "absent-feature-marker"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 57,
+      "inventory_file_count": 987
+    },
+    {
+      "family": "native_jim_alias_publication194",
+      "data_path": "rust/tcl-registry/tests/data/native_jim_alias_publication194",
+      "consumer_sources": [
+        {
+          "path": "runtime/rust/src/cmd_alias.rs",
+          "sha256": "1cac8b205bba7f2b48804b55a60c274c4f6125b089df2f6f611da7c04d2edff1"
+        },
+        {
+          "path": "rust/tcl-vm/tests/native_compilation_conformance.rs",
+          "sha256": "b5fe19f089c744416c1f1d99a0e534b895965689530049ef318cf5691ff5f70c"
+        }
+      ],
+      "inventory_read_paths": [
+        "jim/stdout",
+        "probe.tcl"
+      ],
+      "unasserted_path_sample": [
+        "8.4.20/stdout",
+        "8.5.19/stdout",
+        "8.6.18/stdout",
+        "9.0.4/stdout",
+        "9.1.0/stdout"
+      ],
+      "inventory_unasserted_counts": {
+        "substantive": 5
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "8.4.20/stdout",
+          "exists": true,
+          "bytes": 73,
+          "classification": "substantive-output",
+          "sha256": "f080a8e5b2649922d035d6cbec3245ad7253ffd051a88d55fee95b6517f585e8"
+        },
+        {
+          "path": "8.5.19/stdout",
+          "exists": true,
+          "bytes": 73,
+          "classification": "substantive-output",
+          "sha256": "5354b814b64b7ff242e5ad97d7e6dc8189b0b6fdd1604d164916a747d68682c4"
+        },
+        {
+          "path": "8.6.18/stdout",
+          "exists": true,
+          "bytes": 73,
+          "classification": "substantive-output",
+          "sha256": "986498fe160bf70b1d2fb52e6dd3518731f7c55bcbe63f1f52b5d716e06035ef"
+        },
+        {
+          "path": "9.0.4/stdout",
+          "exists": true,
+          "bytes": 72,
+          "classification": "substantive-output",
+          "sha256": "1b4f1a85978b2a771ed055f07a623a6f10c22b1b1ef3d0e739084c36e084020e"
+        },
+        {
+          "path": "9.1.0/stdout",
+          "exists": true,
+          "bytes": 72,
+          "classification": "substantive-output",
+          "sha256": "d8294dddbf0095bb9f7c6cbde2b49f6bf39904b5a5ff268c7075ff6528adf1aa"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 2,
+      "inventory_file_count": 23
+    },
+    {
+      "family": "native_list_operations",
+      "data_path": "rust/tcl-registry/tests/data/native_list_operations",
+      "consumer_sources": [
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_operations.rs",
+          "sha256": "bd7c449b60705ef54a5c6290218d27e3c7dcaa5b19dd49bf2006d768a26b1742"
+        },
+        {
+          "path": "rust/tcl-cmd-core/src/native_list_storage.rs",
+          "sha256": "fd946e9b123ade60e2b90602c1a68f702a5e218d7884412f08f39c9841bbe85e"
+        },
+        {
+          "path": "rust/tcl-registry/src/native_list_operations_compilation.rs",
+          "sha256": "3fd2b988e01fdc1bf2e11dd5744e59919145202fd4ca83db3bf51c92ffe257cf"
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/native_list_operations_tests.rs",
+          "sha256": "b171a91e129c4b093d3d5083847cd7fbdd8479ced40220edfea5937c07b19e1f"
+        }
+      ],
+      "inventory_read_paths": [
+        "8.4.20.txt",
+        "8.5.19.txt",
+        "8.6.18.txt",
+        "9.0.4.txt",
+        "9.1.0.txt",
+        "cases.rs",
+        "tables.rs"
+      ],
+      "unasserted_path_sample": [
+        "jim.txt"
+      ],
+      "inventory_unasserted_counts": {
+        "substantive": 1
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "jim.txt",
+          "exists": true,
+          "bytes": 2084,
+          "classification": "substantive-output",
+          "sha256": "c6d78db36f9a442da2b02d3fe2ea86512765ef332732d16774d1c536d26ca528"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 7,
+      "inventory_file_count": 12
+    },
+    {
+      "family": "native_namespace_string_compilation",
+      "data_path": "rust/tcl-registry/tests/data/native_namespace_string_compilation",
+      "consumer_sources": [
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_namespace_string.rs",
+          "sha256": "90bd1d2549b2bfb97a1f24bd270a3098f4e53e5d3f3d01fc6a878fbb0627b95d"
+        },
+        {
+          "path": "rust/tcl-vm/src/exec/native_namespace_string_tests.rs",
+          "sha256": "29e8491f6c765dc7974c133e86cb9aa8b9507577b91ccac4b4e2220108f415e9"
+        }
+      ],
+      "inventory_read_paths": [
+        "8.4.20/stdout.tsv",
+        "8.5.19/stdout.tsv",
+        "8.6.18/stdout.tsv",
+        "9.0.4/stdout.tsv",
+        "9.1.0/stdout.tsv"
+      ],
+      "unasserted_path_sample": [
+        "jim/stdout.tsv"
+      ],
+      "inventory_unasserted_counts": {
+        "substantive": 1
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "jim/stdout.tsv",
+          "exists": true,
+          "bytes": 1087,
+          "classification": "substantive-output",
+          "sha256": "f3952906ba2a78f8a253acabac29e8379ffa47194143c1b9221b01e6b552fdcb"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 5,
+      "inventory_file_count": 36
+    },
+    {
+      "family": "native_naming_argument_getter_effect_order_original",
+      "data_path": "rust/tcl-registry/tests/data/native_naming_argument_getter_effect_order_original",
+      "consumer_sources": [
+        {
+          "path": "runtime/rust/src/cmd_namespace/original_argument_tests.rs",
+          "sha256": "8850b010b6d14ca11bb352022cca4c39ae5dabf9474b8bb0f40fb61406952c58"
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_definition_order_tests.rs",
+          "sha256": "ee3576345bdf034ea1a1299986a7216266ae4fb6253fe02a212e346a52c8c28b"
+        }
+      ],
+      "inventory_read_paths": [
+        "499c/providers/8.4.20/execute.stdout",
+        "499c/providers/8.5.19/execute.stdout",
+        "499c/providers/8.6.18/execute.stdout",
+        "499c/providers/9.0.4/execute.stdout",
+        "499c/providers/9.1.0/execute.stdout",
+        "499d/providers/jim/execute.stdout"
+      ],
+      "unasserted_path_sample": [
+        "499c/providers/jim/execute.stdout",
+        "499d/providers/8.4.20/execute.stdout",
+        "499d/providers/8.5.19/execute.stdout",
+        "499d/providers/8.6.18/execute.stdout",
+        "499d/providers/9.0.4/execute.stdout",
+        "499d/providers/9.1.0/execute.stdout"
+      ],
+      "inventory_unasserted_counts": {
+        "absent-feature/NA": 1,
+        "substantive": 5
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "499c/providers/jim/execute.stdout",
+          "exists": true,
+          "bytes": 6078,
+          "classification": "absent-feature-marker",
+          "sha256": "12d42cc07848a891233c7e89510bd8c1bb879bd7a4baf44ad9b693631ec842f8"
+        },
+        {
+          "path": "499d/providers/8.4.20/execute.stdout",
+          "exists": true,
+          "bytes": 9535,
+          "classification": "substantive-output",
+          "sha256": "b8388cc468762f7657327cd1279a17e8d0ef4a16ba5d79a04fb3a786fd91cf97"
+        },
+        {
+          "path": "499d/providers/8.5.19/execute.stdout",
+          "exists": true,
+          "bytes": 8515,
+          "classification": "substantive-output",
+          "sha256": "378ad16f31ef1c14a5e190e9d0cb5241409938c23b66cd6ae9bdc622cc275f73"
+        },
+        {
+          "path": "499d/providers/8.6.18/execute.stdout",
+          "exists": true,
+          "bytes": 8515,
+          "classification": "substantive-output",
+          "sha256": "ef4a937cca979ef84d9e1004c9cb5d5dedba8cf70bc1a593d586dd6dc6ff1a5c"
+        },
+        {
+          "path": "499d/providers/9.0.4/execute.stdout",
+          "exists": true,
+          "bytes": 8485,
+          "classification": "substantive-output",
+          "sha256": "00bbe6b0bef51de4a6dd9498d6f00db1bb6cac44de881864c0a287c9ac4f17f2"
+        },
+        {
+          "path": "499d/providers/9.1.0/execute.stdout",
+          "exists": true,
+          "bytes": 8485,
+          "classification": "substantive-output",
+          "sha256": "b2bf0ac828f6188305345f57d8506cdc11af16de4d561f44bef715897aafa53b"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 6,
+      "inventory_file_count": 1592
+    },
+    {
+      "family": "native_primitive_boolean_expression_truth_original",
+      "data_path": "rust/tcl-registry/tests/data/native_primitive_boolean_expression_truth_original",
+      "consumer_sources": [
+        {
+          "path": "runtime/rust/src/typed_value/native_boolean_truth.rs",
+          "sha256": "cec7b27ac4aff5c1c2b11d75e358611234adeda66194a8c4c42acd9a54a7a7c5"
+        },
+        {
+          "path": "rust/tcl-vm/src/expr/native_boolean_truth.rs",
+          "sha256": "e2c5e617931ace5220e8ae0beb008df8ebc8f013b126403e8b47bd4c1cdfccb8"
+        }
+      ],
+      "inventory_read_paths": [
+        "jim/execute-direct.stdout"
+      ],
+      "unasserted_path_sample": [
+        "8.4.20/execute-direct.stdout",
+        "8.5.19/execute-direct.stdout",
+        "8.6.18/execute-direct.stdout",
+        "9.0.4/execute-direct.stdout",
+        "9.1.0/execute-direct.stdout"
+      ],
+      "inventory_unasserted_counts": {
+        "substantive": 5
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "8.4.20/execute-direct.stdout",
+          "exists": true,
+          "bytes": 70675,
+          "classification": "substantive-output",
+          "sha256": "51a01e8ee91c20ed0268d152e61c9d4acacece5c69e0dc1290500c8f78dffb12"
+        },
+        {
+          "path": "8.5.19/execute-direct.stdout",
+          "exists": true,
+          "bytes": 68210,
+          "classification": "substantive-output",
+          "sha256": "a96127f8a658b736d2405cb6da5f0d094eee911670c363326347c1fc4f24c661"
+        },
+        {
+          "path": "8.6.18/execute-direct.stdout",
+          "exists": true,
+          "bytes": 68829,
+          "classification": "substantive-output",
+          "sha256": "6a0f719669fc66eba4eefc978cb94f9cdbd3c75f59cccc2d2b1c2b98db99962d"
+        },
+        {
+          "path": "9.0.4/execute-direct.stdout",
+          "exists": true,
+          "bytes": 67891,
+          "classification": "substantive-output",
+          "sha256": "5f62e33a23e290e92c3a36156c1db78479b204d8c0c6dd9391708b1ff11b7721"
+        },
+        {
+          "path": "9.1.0/execute-direct.stdout",
+          "exists": true,
+          "bytes": 67891,
+          "classification": "substantive-output",
+          "sha256": "6d3918953d543fd17dc1f75322905168c70291904d9ece8f8100d56cf6458f76"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 1,
+      "inventory_file_count": 94
+    },
+    {
+      "family": "native_substitution_owner",
+      "data_path": "rust/tcl-registry/tests/data/native_substitution_owner",
+      "consumer_sources": [
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_substitution.rs",
+          "sha256": "224069297d6ec5b43e2d40bab2c8f28f7342f33b262fafbed7826d73980cb5a6"
+        },
+        {
+          "path": "rust/tcl-vm/src/command/native_substitution_tests.rs",
+          "sha256": "e146f4831d14be219b6446071f8781d3585f1a2a057833785b48a26f9f09af20"
+        }
+      ],
+      "inventory_read_paths": [
+        "inputs.json",
+        "v6/8.6.18/stdout.tsv",
+        "v6/9.0.4/stdout.tsv",
+        "v6/9.1.0/stdout.tsv"
+      ],
+      "unasserted_path_sample": [
+        "v6/8.4.20/stdout.tsv",
+        "v6/8.5.19/stdout.tsv"
+      ],
+      "inventory_unasserted_counts": {
+        "substantive": 2
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "v6/8.4.20/stdout.tsv",
+          "exists": true,
+          "bytes": 17644,
+          "classification": "substantive-output",
+          "sha256": "f1fda94901ca4e83efb558cf3ae3607993be0494da315e7cef0b14edc5753770"
+        },
+        {
+          "path": "v6/8.5.19/stdout.tsv",
+          "exists": true,
+          "bytes": 17606,
+          "classification": "substantive-output",
+          "sha256": "8705e95e1c39fefaf8b9c248ce092630926001d65a6987685be180a5274f5440"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 4,
+      "inventory_file_count": 164
+    },
+    {
+      "family": "native_dictionary_search",
+      "data_path": "rust/tcl-vm/tests/data/native_dictionary_search",
+      "consumer_sources": [
+        {
+          "path": "rust/tcl-vm/src/interp/native_compiled_locals.rs",
+          "sha256": "9e8ab417f6e8a8cdca3f2f36e5b96525265dbc4b8411bd9e7cf2a094b5b041a7"
+        }
+      ],
+      "inventory_read_paths": [
+        "8.5.19.tsv",
+        "8.6.18.tsv",
+        "9.0.4.tsv",
+        "9.1.0.tsv",
+        "epilogues/8.5.19.tsv",
+        "epilogues/8.6.18.tsv",
+        "epilogues/9.0.4.tsv",
+        "epilogues/9.1.0.tsv"
+      ],
+      "unasserted_path_sample": [
+        "8.4.20.tsv",
+        "Jim.tsv",
+        "epilogues/8.4.20.tsv"
+      ],
+      "inventory_unasserted_counts": {
+        "substantive": 3
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "8.4.20.tsv",
+          "exists": true,
+          "bytes": 28,
+          "classification": "substantive-output",
+          "sha256": "1358e42e60fa8a7ad175a3235ec817d49df50adecf13e1a70fc5f6ec1cf9785e"
+        },
+        {
+          "path": "Jim.tsv",
+          "exists": true,
+          "bytes": 28,
+          "classification": "substantive-output",
+          "sha256": "1358e42e60fa8a7ad175a3235ec817d49df50adecf13e1a70fc5f6ec1cf9785e"
+        },
+        {
+          "path": "epilogues/8.4.20.tsv",
+          "exists": true,
+          "bytes": 0,
+          "classification": "substantive-output",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [
+        "epilogues/8.4.20.tsv"
+      ],
+      "inventory_read_files": 8,
+      "inventory_file_count": 22
+    },
+    {
+      "family": "native_equality",
+      "data_path": "rust/tcl-vm/tests/data/native_equality",
+      "consumer_sources": [
+        {
+          "path": "rust/tcl-vm/src/value_ops.rs",
+          "sha256": "cf857afe7a483f115c11e52da71de7389cce0b3176673c6cdfe44ae931c0bb11"
+        }
+      ],
+      "inventory_read_paths": [
+        "8.6.18.tsv",
+        "9.0.4.tsv",
+        "9.1.0.tsv",
+        "Jim.tsv"
+      ],
+      "unasserted_path_sample": [
+        "8.4.20.tsv",
+        "8.5.19.tsv"
+      ],
+      "inventory_unasserted_counts": {
+        "substantive": 2
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "8.4.20.tsv",
+          "exists": true,
+          "bytes": 0,
+          "classification": "substantive-output",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "path": "8.5.19.tsv",
+          "exists": true,
+          "bytes": 0,
+          "classification": "substantive-output",
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [
+        "8.4.20.tsv",
+        "8.5.19.tsv"
+      ],
+      "inventory_read_files": 4,
+      "inventory_file_count": 9
+    },
+    {
+      "family": "native_formal_slots",
+      "data_path": "rust/tcl-vm/tests/data/native_formal_slots",
+      "consumer_sources": [
+        {
+          "path": "rust/tcl-compiler/src/var_escape/original_slots.rs",
+          "sha256": "4f85e40b2e3afb0d6b33c349c90c29a0af1cd2682e10ed6658e1658da4ce4d82"
+        }
+      ],
+      "inventory_read_paths": [
+        "compiled-local-names-8.6.18.jsonl",
+        "compiled-local-names-9.0.4.jsonl",
+        "compiled-local-names-9.1.0.jsonl"
+      ],
+      "unasserted_path_sample": [
+        "compiled-local-names-8.4.20.jsonl",
+        "compiled-local-names-8.5.19.jsonl",
+        "compiled-local-names-Jim.jsonl"
+      ],
+      "inventory_unasserted_counts": {
+        "absent-feature/NA": 2,
+        "substantive": 1
+      },
+      "materialized_unasserted_paths": [
+        {
+          "path": "compiled-local-names-8.4.20.jsonl",
+          "exists": true,
+          "bytes": 12802,
+          "classification": "absent-feature-marker",
+          "sha256": "32349492892755457a1ed8f4045eb072b94ff4aa698442544fbd23084529037e"
+        },
+        {
+          "path": "compiled-local-names-8.5.19.jsonl",
+          "exists": true,
+          "bytes": 16754,
+          "classification": "absent-feature-marker",
+          "sha256": "86dabdaa707558e87df42892b99d197837314c4d6ddbc7174130625afe47d9ca"
+        },
+        {
+          "path": "compiled-local-names-Jim.jsonl",
+          "exists": true,
+          "bytes": 9046,
+          "classification": "substantive-output",
+          "sha256": "3194509d8ae3cb1fb396946b0761ec6e3b3929c992532cc19e8f6c60ebea98d7"
+        }
+      ],
+      "read_paths_that_are_zero_byte_files": [],
+      "unasserted_zero_byte_files": [],
+      "inventory_read_files": 3,
+      "inventory_file_count": 17
+    }
+  ]
+}

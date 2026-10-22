@@ -2,16 +2,30 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T14:21Z (resumed in the transferred checkout)
+Last updated: 2026-10-22T14:56Z (blocked on the shared build sequence; planning only)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Resumed at 14:21Z in `/workspace/naming-migration-active/tcl-lsp`, snapshot
-`d7224c706`. Compiler-names owns the first build-lock slot. After it, run the six
-remaining Jim/EDA targets (32 cases) under the shared lock, then rerun and triage
-`jim_document`. No current result below is a guarded validation or audit admission.
+Resumed at 14:21Z in `/workspace/naming-migration-active/tcl-lsp`; root rebased and
+pushed the full WIP/report as `41e547bcb`. Waiting for root's explicit build release:
+compiler-names, compiler-codegen, compiler, VM-runtime, coordination checks, then
+lsp. No VM-runtime cargo process has started. First run remains the six Jim/EDA
+targets (32 cases), then rerun and triage `jim_document` (26 cases). No current
+result below is a guarded validation or audit admission.
+
+Six-vendor EDA smoke is prepared in `spec_packs.rs` and included in the WIP, with
+all eight pack names, own-vendor plus shared SDC/UPF availability and rival-vendor
+exclusion checked in one server process. It is unmeasured; section D stays open.
+
+New release blocker: external strict Clippy on `aeecf39743b` with Rust 1.99.1
+reported **379 VM diagnostics across 72 paths**. Inventory:
+`/tmp/naming-clippy-vm-runtime.json`; canonical external receipt is
+`../handoff/reviews/merge-inventory-20261019/bigip-lsp/clippy-dependency-blockers-20261022.json`.
+These are old-snapshot observations, not a current source measurement. Prepare the
+cleanup off-tree during the source hold, then fix it after SpecTcl/Jim triage;
+no new lint allowances. A selected `--no-deps` run does not clear the full gate.
 
 The scratch runner is `/tmp/vm-runtime-preflight/seq-safe.sh`: one `cargo test`
 build/run per target, draining filtered logs capped at 20 MB, recording exit and
@@ -32,11 +46,12 @@ environments. Server lib and general section D lifecycle seams stay with lsp.
 - Not run: `jim_own_surface`, `jim_surface_roster`, `jim_generation_zero`,
   `jim_seed_after_publish`, `eda_loadables`, `eda_environment_packs`.
 
-**Exact next command.** Copy the runner first, and set its `S=` to a writable directory:
+**Exact next command after root releases the VM slot.** Active logs stay under `/tmp`;
+copy completed receipts into the evidence tree only after the target finishes:
 
 ```
-cp docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/seq.sh <scratch>/seq.sh
-TMO=1800 <scratch>/seq.sh after8b tcl-spectcl:jim_own_surface tcl-spectcl:jim_surface_roster \
+source /tmp/tcl-lsp-naming-env.sh
+TMO=1800 bash /tmp/vm-runtime-preflight/seq-safe.sh after8b-resumed tcl-spectcl:jim_own_surface tcl-spectcl:jim_surface_roster \
   tcl-spectcl:jim_generation_zero tcl-spectcl:jim_seed_after_publish tcl-spectcl:eda_loadables \
   tcl-spectcl:eda_environment_packs
 ```
@@ -90,7 +105,8 @@ coordinator's commit):
 - Waiting for compiler-names, compiler-codegen and compiler C6 build slots in that
   order; root owns sequencing. The initial waiting flock was cancelled before any
   VM-runtime cargo process started. Active logs will remain under `/tmp` and only
-  completed receipts will be copied into evidence. Preparing the six-vendor EDA smoke.
+  completed receipts will be copied into evidence. Six-vendor EDA smoke is prepared;
+  planning the external Clippy inventory off-tree without dependency source edits.
   The remaining Jim/EDA targets are queued. Earlier `jim_document` is 9/17/26;
   its failures include signature/static/body analysis and disabled-command diagnostics
   as well as class facts. This target does not execute VM code or external oracles.

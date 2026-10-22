@@ -2,7 +2,7 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-22T14:20Z (RESUMED; agent-reported, not validation)
+Last updated: 2026-10-22T14:45Z (RESUMED; agent-reported, not validation)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -55,7 +55,7 @@ The probe compares O129 output for the pack registry (`registry_for_dialect_with
 
 ## Blocked (on whom, and what is needed)
 
-- Waiting for compiler-names first locked build window before measuring the unchanged N17 fold probe; no build of this role is running.
+- Waiting for explicit compiler-names early-window release before measuring the unchanged N17 fold probe; its dependency/compiler build is running, and no build of this role has started. No new test verdict is claimed. New N17 negative controls are written and formatted; canonical const_subst.rs barrier is unchanged. Rebase pause/CLEAR completed to work41e547bcb. Live logs are configured under /tmp and copied into evidence only on completion. Untoggle script root is adapted, but it is not run: require_provider has one additional TEMP comment absent from its expected text, to remove manually after measurement while preserving all script assertions.
 
 ## Done since the last update (with evidence: test counts, commit or snapshot)
 

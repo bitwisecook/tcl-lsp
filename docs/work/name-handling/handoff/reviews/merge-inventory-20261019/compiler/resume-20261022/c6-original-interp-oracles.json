@@ -1,0 +1,89 @@
+{
+  "sources": {
+    "original_literal": "set raw [gets stdin]\ninterp eval $child [list puts $raw]\n",
+    "original_tainted_head": "set raw [gets stdin]\ninterp eval $child [list $raw]\n"
+  },
+  "stdin": "mark\n",
+  "observations": [
+    {
+      "name": "original_literal",
+      "release": "8.4",
+      "executable": "/workspace/naming-toolchains/bin/tclsh8.4",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "can't read \"child\": no such variable\n    while executing\n\"interp eval $child [list puts $raw]\"\n    (file \"/tmp/compiler-c6-original_literal.tcl\" line 2)\n"
+    },
+    {
+      "name": "original_literal",
+      "release": "8.5",
+      "executable": "/workspace/naming-toolchains/bin/tclsh8.5",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "can't read \"child\": no such variable\n    while executing\n\"interp eval $child [list puts $raw]\"\n    (file \"/tmp/compiler-c6-original_literal.tcl\" line 2)\n"
+    },
+    {
+      "name": "original_literal",
+      "release": "8.6",
+      "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "can't read \"child\": no such variable\n    while executing\n\"interp eval $child [list puts $raw]\"\n    (file \"/tmp/compiler-c6-original_literal.tcl\" line 2)\n"
+    },
+    {
+      "name": "original_literal",
+      "release": "9.0",
+      "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "can't read \"child\": no such variable\n    while executing\n\"interp eval $child [list puts $raw]\"\n    (file \"/tmp/compiler-c6-original_literal.tcl\" line 2)\n"
+    },
+    {
+      "name": "original_literal",
+      "release": "9.1",
+      "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "can't read \"child\": no such variable\n    while executing\n\"interp eval $child [list puts $raw]\"\n    (file \"/tmp/compiler-c6-original_literal.tcl\" line 2)\n"
+    },
+    {
+      "name": "original_tainted_head",
+      "release": "8.4",
+      "executable": "/workspace/naming-toolchains/bin/tclsh8.4",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "can't read \"child\": no such variable\n    while executing\n\"interp eval $child [list $raw]\"\n    (file \"/tmp/compiler-c6-original_tainted_head.tcl\" line 2)\n"
+    },
+    {
+      "name": "original_tainted_head",
+      "release": "8.5",
+      "executable": "/workspace/naming-toolchains/bin/tclsh8.5",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "can't read \"child\": no such variable\n    while executing\n\"interp eval $child [list $raw]\"\n    (file \"/tmp/compiler-c6-original_tainted_head.tcl\" line 2)\n"
+    },
+    {
+      "name": "original_tainted_head",
+      "release": "8.6",
+      "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "can't read \"child\": no such variable\n    while executing\n\"interp eval $child [list $raw]\"\n    (file \"/tmp/compiler-c6-original_tainted_head.tcl\" line 2)\n"
+    },
+    {
+      "name": "original_tainted_head",
+      "release": "9.0",
+      "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "can't read \"child\": no such variable\n    while executing\n\"interp eval $child [list $raw]\"\n    (file \"/tmp/compiler-c6-original_tainted_head.tcl\" line 2)\n"
+    },
+    {
+      "name": "original_tainted_head",
+      "release": "9.1",
+      "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "can't read \"child\": no such variable\n    while executing\n\"interp eval $child [list $raw]\"\n    (file \"/tmp/compiler-c6-original_tainted_head.tcl\" line 2)\n"
+    }
+  ]
+}

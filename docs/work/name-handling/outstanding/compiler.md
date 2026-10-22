@@ -2,7 +2,7 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-22T14:20Z (compiler role resumed in the active checkout)
+Last updated: 2026-10-22T14:59Z (compiler role resumed in the active checkout)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -10,7 +10,7 @@ Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-2026
 
 ## Resume
 
-**Resumed in `/workspace/naming-migration-active/tcl-lsp` at `d7224c706`.** Compiler-names has the first build lock for g4. C6 priorities are the opaque-switch conditional completion scan, deferred-write schema widening and reached cross-interpreter taint. N09 and authenticated ILX source-handle provenance follow C6. The perf realm/interprocedural patch remains unapplied pending its equality proof. No build is running for this role yet.
+**Resumed in `/workspace/naming-migration-active/tcl-lsp` at `d7224c706`.** Compiler-names has the first build lock for g4. C6 priorities are the opaque-switch conditional completion scan, deferred-write schema widening and reached cross-interpreter taint. N09 and authenticated ILX source-handle provenance follow C6. The perf realm/interprocedural patch remains unapplied pending its equality proof. No build is running for this role yet. The initial clean dependency build belongs to compiler-names; the coordinator queues compiler-codegen next, then this role.
 
 Evidence directory (in the repo): `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/`.
 - `scripts/`: the batch scripts. Set `SOL49_SCRATCH` to a scratch directory first; results go to `$SOL49_SCRATCH/res/<tag>-<filter>.txt`.
@@ -69,6 +69,13 @@ Files I have touched since e34d8a427e (details in `sol-49-NOTES.md`):
 - `docs/design/contracts/naming-consumer-matrix.md`
 
 ## In progress
+
+- **Build status / source hold:** the first shared g4 build reached the Compiler test crate, then found nine missing tracked compile-time experiment includes; zero test cases executed. The coordinator is repairing materialisation. This role has run no Rust test or gate yet and holds all Compiler source mutations since 14:44Z through names' early g4 and codegen's initial N17 window. The coordinator approved a tiny temporary integration diagnosis probe against the normal library for this role's subsequent window; `/tmp/zz_compiler_resume_probe.rs` preserves exact original inputs and diagnostic expectations plus reached controls. It does not substitute the original regression filters.
+- **Release lint work queued:** `/tmp/naming-clippy-compiler.json` assigns 565 old-snapshot diagnostics across 132 paths; names additionally transferred eight in `source_transition_advice/body_effects.rs` and four C6 root binding diagnostics (`analyse_deferred_entries`, `walk_deferred_entry_with`). No allowances or assertion changes. `/tmp/compiler-clippy-offtree/` retains current file base hashes and 78 uncompiled mechanical candidates across 29 paths (docs, redundant borrows and copied IDs); nothing is applied. A shared borrowed metadata selection enum is coordinated with names so refusal remains separate from explicit Standalone. Long functions and other structural lints remain outstanding.
+
+- **Resumed C6 candidates (unmeasured).** `lowering/mod.rs` now falls back to the authenticated original Native source structure reader; that reader retains its original SourceTransitions issuer and adds registry-described Switch/case bodies. Hosted and Native readers share the same source body layout checks. The opaque switch escape scan also uses its existing conditional source completion owner, including the dead-code cutoff. The e1 evidence showed the switch was a generic Call, so both structure and completion are needed. Temporary exact-command deferred/taint traces and expanded probes await the first build window. A source-schema-only quotation suppression candidate was withdrawn before measurement because it did not establish closure of unknown execution alternatives.
+- **Native controls:** `handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/c6-native-oracles.json` records Tcl 8.4/8.5/8.6/9.0/9.1. All five reach the post-switch undefined read, execute a tainted constructed-list head, and keep a constructed-list argument quoted. These are semantic controls, not Rust acceptance. `c6-original-interp-oracles.json` additionally runs both exact original `gets stdin` fixtures as files on all five C releases: each exits 1 at the unset `child` read before the list substitution; any fixture initialisation correction must cite this evidence and retain positive/negative expectations.
+- **New routed work after C6:** N09's missing `::n::c` summary and authenticated ILX constructor→setter→later source-variable relation. ILX keeps runtime `target` meaning and existing negative controls; no consumer-local handle walker. Jim overriding-pack `proc` metadata may lack the native procedure-definition descriptor; VM execution confirmation is pending.
 
 - **C6 zero-regression pass.** Landed in the tree: the companion and the WIP hunks, plus:
   - the `bounds_checks` W241 switch-clause fix;

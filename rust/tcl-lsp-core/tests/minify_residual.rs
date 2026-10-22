@@ -788,9 +788,10 @@ fn default_minify_compacts_expression_gaps_and_preserves_oracle_results() {
     let source = "puts [expr {3 + 4 * 2}]\n\
         proc fact {n} {\n\
             if {$n <= 1} { return 1 }\n\
-            return [expr {$n * [fact [expr {$n - 1}]]}]\n\
+            return [expr { $n * [ fact   [expr { $n - 1 }] ] }]\n\
         }\n\
         puts [fact 5]\n";
+    // Outer expression gaps and nested script separators compact independently.
     for (dialect, version) in [
         ("tcl8.4", Some(tcl_dialect::TclVersion::V8_4)),
         ("tcl8.5", Some(tcl_dialect::TclVersion::V8_5)),

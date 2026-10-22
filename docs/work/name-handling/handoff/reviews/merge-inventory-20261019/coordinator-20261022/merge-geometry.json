@@ -1,0 +1,12 @@
+{
+  "utc": "2026-10-22T14:42:10.953540+00:00",
+  "head": "41e547bcbe1f451ef767b083826328a5c8dd7de4",
+  "origin_rust": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "merge_base": "fcb7927f02b5395753247b322fdd7be87ae5c731",
+  "trial_merge_tree": "f60ccd3599370ffd58d9f182058f0505fd79dcee",
+  "head_tree": "f60ccd3599370ffd58d9f182058f0505fd79dcee",
+  "clone_still_shallow": true,
+  "history_note": "Fetched rust depth1; deepened work only in50-commit steps until merge base became available, stopping immediately.271reachable work commits at proof time.",
+  "result": "Fast-forward merge geometry is clean on this named committed snapshot. Dirty source changes excluded.",
+  "limitations": "This proves Git ancestry/conflict status only; sectionF, tests, pass-to-fail comparison and release signoff remain pending. No merge, PR or release performed."
+}

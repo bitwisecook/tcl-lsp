@@ -714,6 +714,13 @@ pub struct WorkspaceNamespaceRef {
 /// rewrite the dependent's `source` literal.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WorkspaceSource {
+    /// Actual current-interpreter source association and its retained schema.
+    /// This remains separate from child-interpreter source visibility advice.
+    pub original_project_source_load: Option<
+        std::sync::Arc<
+            tcl_compiler::registry_invocation::source_structure::OriginalProjectSourceLoad,
+        >,
+    >,
     /// Sealed conditional expression selected from genuine original words.
     /// It retains the full analysis/context and supplies no actual file load.
     pub original_path_expression:
@@ -2190,12 +2197,23 @@ impl DocumentRecords {
     /// unresolvable, constants without rows are inert).
     fn index_sources(&mut self, uri: &str, analysis: &AnalysisResult) {
         for target in &analysis.source_targets {
+            if let Some(original) = &target.original_project_source_load
+                && !analysis.resolved_input.as_ref().is_some_and(|input| {
+                    original.path_word().is_some_and(|word| {
+                        analysis.matches_original_source_image(word.image(), input.lexer_config())
+                            && original.matches_source(word.image(), input)
+                    })
+                })
+            {
+                continue;
+            }
             if let Some(original) = &target.original_interpreter_source_load
                 && !original.matches_analysis(analysis)
             {
                 continue;
             }
             self.sources.push(WorkspaceSource {
+                original_project_source_load: target.original_project_source_load.clone(),
                 original_path_expression:
                     tcl_compiler::auto_path_eval::capture_source_target_path_expression(
                         analysis, target,
@@ -11720,6 +11738,65 @@ p\uD801";
                 )
                 .as_deref(),
             Some("::mymod::helper"),
+        );
+    }
+
+    #[test]
+    fn inherited_path_constants_cross_twelve_source_hops_and_retire_with_the_edge() {
+        let root_source = "set dir /s\nsource /s/hop1.tcl\n";
+        let root = tcl_compiler::analyser::Analyser::new().analyse(root_source, "tcl8.6");
+        let mut documents = vec![("file:///s/root.tcl".to_owned(), root.clone())];
+        for hop in 1..=12 {
+            let source = if hop == 12 {
+                "source $dir/leaf.tcl\n".to_owned()
+            } else {
+                format!("source /s/hop{}.tcl\n", hop + 1)
+            };
+            documents.push((
+                format!("file:///s/hop{hop}.tcl"),
+                tcl_compiler::analyser::Analyser::new().analyse(&source, "tcl8.6"),
+            ));
+        }
+        documents.push((
+            "file:///s/leaf.tcl".to_owned(),
+            tcl_compiler::analyser::Analyser::new().analyse("proc leaf {} {}\n", "tcl8.6"),
+        ));
+        let mut index = sourced_index(
+            documents
+                .iter()
+                .map(|(uri, analysis)| (uri.as_str(), analysis)),
+        );
+        assert_eq!(
+            index
+                .imported_path_constants_for("file:///s/hop12.tcl")
+                .get("dir")
+                .map(String::as_str),
+            Some("/s")
+        );
+        assert!(
+            index
+                .source_seed_map(test_resolve)
+                .contains_key("file:///s/leaf.tcl")
+        );
+        let removed = tcl_compiler::analyser::Analyser::new().analyse("set dir /s\n", "tcl8.6");
+        index.replace_document("file:///s/root.tcl", &removed);
+        assert!(
+            !index
+                .imported_path_constants_for("file:///s/hop12.tcl")
+                .contains_key("dir")
+        );
+        assert!(
+            !index
+                .source_seed_map(test_resolve)
+                .contains_key("file:///s/leaf.tcl")
+        );
+        index.replace_document("file:///s/root.tcl", &root);
+        assert_eq!(
+            index
+                .imported_path_constants_for("file:///s/hop12.tcl")
+                .get("dir")
+                .map(String::as_str),
+            Some("/s")
         );
     }
 

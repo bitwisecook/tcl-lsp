@@ -510,9 +510,6 @@ impl SourceInvocationBinding {
         {
             return None;
         }
-        if !self.original_compiler_names_preserved_for_tokens(tokens) {
-            return brace_refusal(tokens, "compiler-name-effects");
-        }
         Some(ExpressionRewriteEnvelope {
             site,
             config,

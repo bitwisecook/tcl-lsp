@@ -2,11 +2,13 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-22T14:20Z (resumed; agent-reported work only)
+Last updated: 2026-10-22T14:55Z (agent-reported work only)
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
+
+Initial clean g4 build is active under the global lock; no test verdict yet. The first tool-sandbox attempt failed resolving sha2 before compilation; the network-enabled retry reached tcl-compiler. Its verified process tree was SIGSTOP/SIGCONT around the coordinator's documentation-only rebase. Active logs and exits are `/tmp/compiler-names-g4/`; completed receipts will be copied into evidence. Young executables are retained. No audit admission or validated row changes.
 
 1. **R1 guardrail plus global hook guard** (`rust/tcl-compiler/src/command_binding.rs`). Coordinator rulings of 11:20Z and 12:50Z.
    - `command_world_closed_on_normal_return(target, facts)`. A handler without a closed receipt keeps the completed world only when it:
@@ -35,9 +37,11 @@ Maintained by the compiler-names agent. It lists what this agent considers it mu
 
 ## Outstanding (in priority order, after the above)
 
+N13 is additionally assigned after R1/W210: issue an authenticated source-only parent point/namespace/path seed from the existing private SourceLookupSnapshot/ModuleCommandBindings owner. Retain exact complete parent source/input/config/point/frame/provenance; refuse stale, wrong-frame, ambiguous or incomplete state. NativeCompilationEntry remains physical runtime capture and is never fabricated from namespace strings. LSP owns server/index transport and warm/fresh convergence; coordinate compiler compilation_unit hunks before editing. Planning only during early g4 and N17 build windows.
+
 1. Verify g4: the main set, zz probes, W210 probe, the 8 regressions singly, `signature_scan::` and `command_binding::`. Report the numbers to the coordinator.
 2. Run the LSP-level R1 check after the compiler is green: `cargo test --locked -p tcl-lsp-core --test references_rename rename_proc_updates_definition_and_all_call_sites -- --test-threads=1` and `references_proc_from_definition_includes_decl_and_both_calls`, then delete the executable.
-3. Relative object name in `create` inside `namespace eval ::a` → `::a::rex`. The g3 zz probe shows `rex` resolving to root slot `[] rex`. Find where the constructed command slot is qualified (command_binding/object_instance.rs `constructed_command_name`, named_manufacture.rs).
+3. Relative object name in `create` inside `namespace eval ::a` → `::a::rex`. C Tcl 8.6/9.0/9.1 independently confirm ::a::rex exists and ::rex does not (receipt `/tmp/compiler-names-g4/relative-object-oracle.json`). Static cause: OriginalNamedManufacture uses root-oriented C API publication instead of current-namespace object publication; TclNewObjectInstanceCommon calls TclGetNamespaceForQualName with current namespace. No fix written yet. The g3 zz probe shows `rex` resolving to root slot `[] rex`. Find where the constructed command slot is qualified (command_binding/object_instance.rs `constructed_command_name`, named_manufacture.rs).
 4. (b) `namespace eval ::a {oo::class create Widget {}}; namespace eval ::a {Widget new}` rename → incomplete coverage. Compiler facts are good (world true; `Widget` has a lookup and reference to `::a::Widget` in g3), so this is likely on the LSP side; confirm and hand over.
 5. Remaining `signature_scan` work-only failures:
    - `formal_parameters::…worker…`: the counterfactual tcl9.1 decline fails for one dialect (the message now names it);
@@ -55,7 +59,7 @@ Maintained by the compiler-names agent. It lists what this agent considers it mu
 
 ### Pending triage routing (review naming-migration-review-20261022.md)
 
-- N01: non-injective display-string identity (`a:` + `p` versus `a` + `:p` → `::a:::p`), and the empty tail `n::`.
+- N01 assigned after R1: preserve typed declaration slots/allocation joins; the UI map is explicitly lossy and original_procedure_metadata already retains typed declarations. Prove current colon-collision behaviour before changing types. External review-triage owns actual provider replay; empty-tail link is reported fixed there.
 - N02: no Jim command-name policy. The Jim `:` namespace signature_scan failure likely belongs here.
 - N03 parser debt: `is_braced_indirect_array_ref`, `normalise_var_name_for_style`.
 - Section 3.3: `insert_rebound_candidates` treats any `::` as absolute.
@@ -63,6 +67,8 @@ Maintained by the compiler-names agent. It lists what this agent considers it mu
 Until routed, build nothing that re-parses display strings into identities or assumes C colon rules for Jim.
 
 ## Blocked (on whom, and what is needed)
+
+- External strict Clippy inventory (14:43, aeecf397, Rust 1.99.1) reports 789 Compiler and 379 VM errors; dependent consumers were not reached. This is external agent-reported evidence, not a local run or admission. Names-domain paths are assigned here after R1 attribution, pending the coordinator's exact inventory routing. Plan off-tree during source holds; preserve guards and semantics, add no allows. Canonical incoming inventory: bigip-lsp/clippy-dependency-blockers-20261022.json.
 
 - R1 and import fixes remain unverified; early g4 main/zz and eight regression attribution run first after coordinator GO. User decision 20261022T1317Z permits narrow after-load Reached corrections, jointly classified with compiler.
 - The 8 `command_binding` pass→fail in g1 (`compiler-names/g1-command_binding-pass2fail.txt`) have been forwarded to the compiler agent to classify against C6. They were all ok in sol49 z2 (00:00). Their assertions (uncalled-body commands now carry proved execution targets; Reached versus Conditional) point at C6's `uncalled_body_after_load` and conditional in-frame hunks.
@@ -79,7 +85,7 @@ Until routed, build nothing that re-parses display strings into identities or as
 
 - **Next command** (separately locked complete cargo-test build/run filters; draining output capped at 20 MB; executables younger than 60 minutes retained):
   `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/buildrun.sh g4`
-  - Logs: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/g4-*.log`; source `/tmp/tcl-lsp-naming-env.sh`; first run main/zz and eight regressions, broad batches later. Runner audited for stale paths, global lock, disk and bounded draining output before use.
+  - Active logs: `/tmp/compiler-names-g4/g4-*.log` (copy completed receipts into evidence); source `/tmp/tcl-lsp-naming-env.sh`; first run main/zz and eight regressions, broad batches later. Runner audited for stale paths, global lock, disk and bounded draining output before use.
   - It needs more than 2.3 GB free disk.
   - g4 has never run. Two attempts were stopped before the build finished: one when a pkill hit my own shell, and one by the pause.
 - **Then:**

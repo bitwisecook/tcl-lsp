@@ -6,35 +6,50 @@
       "executable": "/workspace/naming-toolchains/bin/tclsh8.4",
       "exit": 0,
       "stdout": "switch_exit 1 {can't read \"y\": no such variable}\nhead_executes 1\nmark\nargument_quoted 0\n",
-      "stderr": ""
+      "stderr": "",
+      "patchlevel": "8.4.20",
+      "provider_image": "/workspace/naming-toolchains/tmp/tcl8.4.20/unix/tclsh",
+      "provider_image_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85"
     },
     {
       "release": "8.5",
       "executable": "/workspace/naming-toolchains/bin/tclsh8.5",
       "exit": 0,
       "stdout": "switch_exit 1 {can't read \"y\": no such variable}\nhead_executes 1\nmark\nargument_quoted 0\n",
-      "stderr": ""
+      "stderr": "",
+      "patchlevel": "8.5.19",
+      "provider_image": "/workspace/naming-toolchains/tmp/tcl8.5.19/unix/tclsh",
+      "provider_image_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961"
     },
     {
       "release": "8.6",
       "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
       "exit": 0,
       "stdout": "switch_exit 1 {can't read \"y\": no such variable}\nhead_executes 1\nmark\nargument_quoted 0\n",
-      "stderr": ""
+      "stderr": "",
+      "patchlevel": "8.6.18",
+      "provider_image": "/workspace/naming-toolchains/tmp/tcl8.6.18/unix/tclsh",
+      "provider_image_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c"
     },
     {
       "release": "9.0",
       "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
       "exit": 0,
       "stdout": "switch_exit 1 {can't read \"y\": no such variable}\nhead_executes 1\nmark\nargument_quoted 0\n",
-      "stderr": ""
+      "stderr": "",
+      "patchlevel": "9.0.4",
+      "provider_image": "/workspace/naming-toolchains/tmp/tcl9.0.4/unix/tclsh",
+      "provider_image_sha256": "80667c5d2784438d3e1bd195ac0a76875bf973aa480253041d2d2715b0143c6b"
     },
     {
       "release": "9.1",
       "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
       "exit": 0,
       "stdout": "switch_exit 1 {can't read \"y\": no such variable}\nhead_executes 1\nmark\nargument_quoted 0\n",
-      "stderr": ""
+      "stderr": "",
+      "patchlevel": "9.1.0",
+      "provider_image": "/workspace/naming-toolchains/tmp/tcl9.1.0/unix/tclsh",
+      "provider_image_sha256": "509c977b93f8976239a0a0b2e5cdda9364735031cec292e1fcac5c696e06ff60"
     }
   ]
 }

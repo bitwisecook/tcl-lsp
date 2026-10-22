@@ -2965,6 +2965,9 @@ impl<'r> Lowerer<'r> {
             )
         })
         .or_else(|| {
+            if self.target.is_bytecode() {
+                return None;
+            }
             crate::registry_invocation::original_native_source_structured_invocation(
                 self.registry,
                 metadata,

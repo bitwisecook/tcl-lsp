@@ -1,0 +1,85 @@
+{
+  "scope": "Manual nested-expression/script control only; no production minifier execution yet",
+  "source": "puts [expr {3 + 4 * 2}]\nproc fact {n} {\n if {$n <= 1} { return 1 }\n return [expr { $n * [ fact   [expr { $n - 1 }] ] }]\n}\nputs [fact 5]\n",
+  "proposal": "puts [expr {3+4*2}];proc fact {n} {if {$n<=1} {return 1};return [expr {$n*[fact [expr {$n-1}]]}]};puts [fact 5]",
+  "rows": [
+    {
+      "engine": "TCL_LSP_TCLSH84",
+      "original": {
+        "exit": 0,
+        "stdout": "11\n120\n",
+        "stderr": ""
+      },
+      "manual_minified_control": {
+        "exit": 0,
+        "stdout": "11\n120\n",
+        "stderr": ""
+      }
+    },
+    {
+      "engine": "TCL_LSP_TCLSH85",
+      "original": {
+        "exit": 0,
+        "stdout": "11\n120\n",
+        "stderr": ""
+      },
+      "manual_minified_control": {
+        "exit": 0,
+        "stdout": "11\n120\n",
+        "stderr": ""
+      }
+    },
+    {
+      "engine": "TCL_LSP_TCLSH86",
+      "original": {
+        "exit": 0,
+        "stdout": "11\n120\n",
+        "stderr": ""
+      },
+      "manual_minified_control": {
+        "exit": 0,
+        "stdout": "11\n120\n",
+        "stderr": ""
+      }
+    },
+    {
+      "engine": "TCL_LSP_TCLSH90",
+      "original": {
+        "exit": 0,
+        "stdout": "11\n120\n",
+        "stderr": ""
+      },
+      "manual_minified_control": {
+        "exit": 0,
+        "stdout": "11\n120\n",
+        "stderr": ""
+      }
+    },
+    {
+      "engine": "TCL_LSP_TCLSH91",
+      "original": {
+        "exit": 0,
+        "stdout": "11\n120\n",
+        "stderr": ""
+      },
+      "manual_minified_control": {
+        "exit": 0,
+        "stdout": "11\n120\n",
+        "stderr": ""
+      }
+    },
+    {
+      "engine": "TCL_LSP_JIMSH",
+      "original": {
+        "exit": 0,
+        "stdout": "11\n120\n",
+        "stderr": ""
+      },
+      "manual_minified_control": {
+        "exit": 0,
+        "stdout": "11\n120\n",
+        "stderr": ""
+      }
+    }
+  ]
+}

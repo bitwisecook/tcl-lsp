@@ -160,8 +160,8 @@ fn naming_refusals(options: MinifyOptions, scalar_alpha: bool) -> Vec<MinifyRefu
 }
 
 /// Minify using the actual complete source image, full configuration and command
-/// generation retained by `analysis`. Native syntax compaction keeps each whole
-/// original word unchanged and independently checks emitted lexical structure.
+/// generation retained by `analysis`. Native syntax compaction preserves whole
+/// word structure and independently selected script/expression token gaps.
 /// This is source correspondence, not runtime reflection equivalence. Missing
 /// naming, observer, store, movement or insertion contracts report refusals;
 /// their passes never fall through to reporting String maps. Explicit lexical

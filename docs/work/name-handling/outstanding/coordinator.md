@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T14:32Z
+Last updated: 2026-10-22T15:02Z
 
 ## In progress
 
@@ -47,5 +47,17 @@ Last updated: 2026-10-22T14:32Z
 - Serialize complete build/run/cleanup commands using `flock /tmp/tcl-lsp-naming-build.lock`; compiler-names g4 gets first lock. Jobs=2, incremental=0, test/dev debug=0, draining logs capped20MB. Stop below2GB. Cleanup must retain executables younger60min and run only with no cargo/rustc process; old runners need adaptation.
 - Five implementation roles resumed; external bigip-lsp/perf/review-triage are monitored without duplicates. All external files are fresh at14:26 (bigip14:22,perf14:00,triage14:17:22). ILX source contract routed to compiler; perf realm/interprocedural proof still pending.
 - Historical CI5202/run39616304947 has finished:24 failed/4 passed/16 skipped/3 cancelled jobs. Cancelled partitions expose273pass/71fail observations only; compare identities with5201 and run a fresh complete CI snapshot when compilation is ready. Receipts: `../handoff/reviews/merge-inventory-20261019/coordinator-20261022/`. No admission or release-gate checkbox changes.
-- The overdue13:55 and14:25 cycles are being published after checkout/sync. WIP commits rebased onto8c902c555 as d1a5bf950/e4bee2529. The first push was normally rejected after external advancement; no force push. Next scheduled cycle14:55:37Z; rearm30min each cycle. Fetchdepth1work before each push and rebase/FF without stashing or resetting agent work.
+- The overdue13:55 and14:25 cycles are being published after checkout/sync. WIP commits rebased onto8c902c555 as d1a5bf950/e4bee2529. The first push was normally rejected after external advancement; no force push. Next scheduled cycle15:25:37Z; rearm30min each cycle. Fetchdepth1work before each push and rebase/FF without stashing or resetting agent work.
 - Target remains clean merge/release readiness into rust under reviewF and zero pass-to-fail against origin/rust; general runtime parity follows release. Never open a PR unless the user asks.
+
+### Current cycle and routing (14:55Z)
+
+- WIP41e547bcb is pushed. Baseline rust remainsfcb7927f02; recorded merge-base/trial-merge proof for41e547 shows a clean fast-forward geometry, not product acceptance. All sectionF checkboxes open, no admissions.
+- First g4 compile: normal library built, then9missinginclude errors in test phase; interrupted before0test execution. Audited2,152tracked literal include paths and restored166absent tracked inputs byte-for-byte (176,787bytes). Receipt `coordinator-20261022/compile-time-inputs.json`; compiler-observed missing paths are distinguished from scan candidates, seven untracked literal examples remain explicit. No assertions changed.
+- Source holds: compiler and Core production sources frozen through earlyg4/N17probe; other roles prepare /tmp patches. Names orchestration paused for current Git window; restartmain after rootCLEAR. Build order: namesearlyg4,codegen,compiler,VM,coordinationD3,LSP. Active logs /tmp only.
+- New D3 test-only module `tests/e2e/naming_lifecycle.rs`, selector `warm_lifecycle_answers_match_fresh_after_open_and_closed_provider_changes`, formatted/diffchecked but uncompiled/unexecuted. Closed-source edge, stable retirementoffset, firstpostchange diagnostics and provider answers vsfresh; URI update log lacksrevisionfield, documentedcausalityboundary. LSP retains production fixes.
+- N13 names owns authentic source-point seed/child entry; LSP owns distinct current/child-interpreter transport and convergence. Never fabricate NativeCompilationEntry. N11 membership filtering must be applied across inventory/identity/index, not only final definition locations.
+- External strictClippy789compiler/379VM ataeecf397; inventory split /tmp/naming-clippy-<role>.json. Initialsplitcompiler565,names170,codegen54,VM379; names transfers8body_effects+4C6root tocompiler and2literal_argv toLSP. Confirm sharedhun hands before changes; no newallows. Shadowcopies only duringhold; full gate stillred.
+- Externalfilesfresh14:53: bigip14:43,perf14:38,triage14:42:43. Perf equalitystillpending; do notapplyrealm/interprocedural patch. Newunproven analysersegments draft awareness to names, noadmission.
+- Review-triage followup afterR1: N01 actual provider/typed allocation behavior, not just all_procs display-mapcount, alongsideN04-N07 six-profile edits. Existing run6 prints definitions; avoid duplicatefullreplay.
+- Pinned Wasmtime49.0.3/Binaryen133/WASI34.0 and RustWASMtargets ready; toolavailability receipts only, hostgates unexecuted. Nextcycle15:25:37Z, diskabout14GB.

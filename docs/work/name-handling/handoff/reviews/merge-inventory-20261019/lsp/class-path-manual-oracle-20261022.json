@@ -1,0 +1,32 @@
+{
+  "observed_utc": "2026-10-22T14:59:51.667269+00:00",
+  "scope": "Manual C Tcl fixture control only. No LSP production execution or section-F admission.",
+  "source": "namespace eval left {oo::class create C {}}\nnamespace eval right {oo::class create C {}}\noo::class create C {}\nnamespace eval app {\n    namespace path {::left ::right}\n    set one [C new]\n    puts [info object class $one]\n    namespace path {::right ::left}\n    set two [C new]\n    puts [info object class $two]\n    proc C {args} {return LOCAL}\n    puts [C new]\n}\n",
+  "sha256": "2cc93bd4ff73b0a916149d77054f2aa77c78b4e5f8623052aaf6d19f7ab28e45",
+  "results": [
+    {
+      "engine": "8.6",
+      "executable": "/workspace/naming-toolchains/bin/tclsh8.6",
+      "exit": 0,
+      "stdout": "::left::C\n::right::C\nLOCAL\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "engine": "9.0",
+      "executable": "/workspace/naming-toolchains/bin/tclsh9.0",
+      "exit": 0,
+      "stdout": "::left::C\n::right::C\nLOCAL\n",
+      "stderr": "",
+      "pass_fixture": true
+    },
+    {
+      "engine": "9.1",
+      "executable": "/workspace/naming-toolchains/bin/tclsh9.1",
+      "exit": 0,
+      "stdout": "::left::C\n::right::C\nLOCAL\n",
+      "stderr": "",
+      "pass_fixture": true
+    }
+  ]
+}

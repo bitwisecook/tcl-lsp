@@ -1,0 +1,252 @@
+{
+  "review_source": {
+    "path": "docs/work/name-handling/reviews/naming-migration-review-20261022.md",
+    "section": "D. Missing integrated release proofs",
+    "sha256": "1eab0fd09c14cab307102c18d1c59df982d7b090e18fb6a01e1849f369925cc9",
+    "workspace_head": "cd0c0ddd93cde695baa644833198d4240a53ca36",
+    "method": "read-only source/test inventory; no tests/builds run"
+  },
+  "coverage_summary": "All six Section-D integrated proofs remain incomplete. Existing tests provide useful lower-level or adjacent evidence but do not establish the specified multi-document/server lifecycle, release/provider parity, or shipped-host behavior.",
+  "scenarios": [
+    {
+      "id": "D1",
+      "name": "Package selection in one server process",
+      "existing_selectors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "test": "definition_lands_in_the_package_release_tcl_would_load",
+          "scope": "server backend unit test",
+          "coverage": "Checks Tcl package version selection and definition target for several requirements; constructs a fresh backend for each row, so it does not test inter-document isolation/order in one server process."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "test": "definition_resolves_through_a_document_auto_path_package",
+          "scope": "server backend unit test",
+          "coverage": "One document-local auto_path package resolution."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "test": "declared_package_provides_resolve_per_folder",
+          "scope": "server backend unit test",
+          "coverage": "Folder/global declared provides config selection, not two discovered release providers and shared-server query order."
+        }
+      ],
+      "missing_proofs": [
+        "Two release roots outside scan root; multiple entry documents require distinct releases and query A\u2192B\u2192A plus B\u2192A\u2192B in one server instance.",
+        "Unavailable higher registration and Unicode autoload name.",
+        "Change requirement/library path and assert old provider disappears from first settled result."
+      ]
+    },
+    {
+      "id": "D2",
+      "name": "Inherited source state and deep chains",
+      "existing_selectors": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/rename.rs",
+          "test": "did_rename_files_retires_the_old_path_and_keeps_source_rehoming",
+          "scope": "native LSP e2e",
+          "coverage": "Closed sourced file rename retires old path and checks source rehoming; basic case only."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "test": "sourced_file_defs_rehome_under_the_source_site_namespace_m9",
+          "scope": "server backend unit test",
+          "coverage": "Namespace inherited by sourced declarations."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "test": "sourced_file_defs_rehome_through_a_same_file_constant_variable_idx_46",
+          "scope": "server backend unit test",
+          "coverage": "Constant source path resolution within a source file."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "test": "mixed_global_and_namespaced_source_sites_reach_a_fixed_point_1297",
+          "scope": "server backend unit test",
+          "coverage": "Mixed source-site convergence at a bounded graph."
+        }
+      ],
+      "missing_proofs": [
+        "A 7\u201312 file literal source chain beyond both current depth limits, with source-directory constant after hop five and namespace composition after hop four.",
+        "Same child sourced under two known namespaces; remove/change/rename an edge and verify obsolete views disappear.",
+        "Independent readiness wait followed by one completed reconciliation; repeated naming queries must not advance state or conceal truncation."
+      ]
+    },
+    {
+      "id": "D3",
+      "name": "Warm versus fresh lifecycle answers",
+      "existing_selectors": [
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "test": "watched_files_deletion_drops_index_entry",
+          "scope": "server backend unit test",
+          "coverage": "Closed deleted file leaves workspace index."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "test": "watched_file_delete_reschedules_open_xc_documents",
+          "scope": "server backend unit test",
+          "coverage": "Closed-file deletion reschedules open cross-file diagnostics."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "test": "watched_file_delete_reschedules_non_xc_document_too",
+          "scope": "server backend unit test",
+          "coverage": "Deletion invalidation reaches a non-cross-file document."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "test": "watched_change_refreshes_closed_file_badge",
+          "scope": "server backend unit test",
+          "coverage": "Watched closed-file change refreshes the diagnostic badge."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "test": "reindex_from_disk_refreshes_index_rather_than_dropping",
+          "scope": "server backend unit test",
+          "coverage": "Direct disk reindex updates the indexed file."
+        }
+      ],
+      "missing_proofs": [
+        "Warm definitions/references/diagnostics, edit through didChange, then repeat with watched change to a closed provider.",
+        "Compare the first completed new-revision answers against a fresh server; prove no cached old result or stale publication survives."
+      ]
+    },
+    {
+      "id": "D4",
+      "name": "Environment changes without text edits",
+      "existing_selectors": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs",
+          "test": "a_pack_added_after_startup_reloads_and_re_analyses_open_documents",
+          "scope": "native LSP e2e",
+          "coverage": "Pack file appears after startup; open document receives new hover fact without a document edit."
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs",
+          "test": "a_pack_reload_after_an_edit_yields_the_new_answer_on_the_memoised_path",
+          "scope": "native LSP e2e",
+          "coverage": "Pack body reload publishes a new analysis answer; document also receives a text edit."
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs",
+          "test": "a_removed_pack_stops_advertising_its_extension",
+          "scope": "native LSP e2e",
+          "coverage": "Removed pack no longer advertises its extension."
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs",
+          "test": "a_pack_declared_environment_routes_its_documents_through_the_ingress",
+          "scope": "native LSP e2e",
+          "coverage": "Pack-declared environment routing."
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs",
+          "test": "a_stale_startup_snapshot_cannot_overwrite_a_newer_pack_set",
+          "scope": "native LSP e2e",
+          "coverage": "Stale startup pack set cannot overwrite later set."
+        }
+      ],
+      "missing_proofs": [
+        "Change/remove/restore folder dialect plus custom pack/stub while document text remains fixed.",
+        "Include an unopened provider and a source-seeded consumer; check naming, aliases and argument roles across all providers/workspace gates.",
+        "Assert new generation and no late publication from the prior environment."
+      ]
+    },
+    {
+      "id": "D5",
+      "name": "Actual protocol edits and provider agreement",
+      "existing_selectors": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/rename.rs",
+          "test": "rename_definition_and_calls",
+          "scope": "native LSP e2e",
+          "coverage": "Basic declaration/call rename."
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/rename.rs",
+          "test": "rename_from_call_site",
+          "scope": "native LSP e2e",
+          "coverage": "Call-origin rename."
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/rename.rs",
+          "test": "rename_from_shadowed_duplicate_proc_decl_reaches_cross_document_caller",
+          "scope": "native LSP e2e",
+          "coverage": "Cross-document duplicate declaration selection."
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/tcloo_navigation.rs",
+          "test": "tp_consumer_rename_and_references_agree_on_the_same_sites",
+          "scope": "native LSP e2e",
+          "coverage": "References and rename agree on selected method sites."
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/issue945.rs",
+          "test": "const_dispatch_rename_rewrites_the_defining_literal_and_executes_945",
+          "scope": "native LSP e2e plus interpreter check",
+          "coverage": "Applies returned edit and runs a focused transformed source against a selected Tcl oracle."
+        }
+      ],
+      "missing_proofs": [
+        "Declaration-origin and call-origin protocol edits across open/closed files, imports/aliases, class/method collisions, and Unicode/UTF-16 ranges.",
+        "Apply complete WorkspaceEdit to scratch source and run the matching interpreter for each matched case/release.",
+        "Prove definitions, references, diagnostics, quick fixes and enabled optimize/minify commands agree on the same identities; current direct edit cases cover subsets only."
+      ]
+    },
+    {
+      "id": "D6",
+      "name": "Shipped transports and editor hosts",
+      "existing_selectors": [
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/jim.rs",
+          "test": "a_tcl_jim_document_is_analysed_as_jim",
+          "scope": "native LSP e2e",
+          "coverage": "Native protocol route for a Jim-dialect document."
+        },
+        {
+          "path": "rust/tcl-lsp-server/tests/e2e/spec_packs.rs",
+          "test": "the_bundled_eda_loadables_make_their_vendor_commands_known",
+          "scope": "native LSP e2e",
+          "coverage": "Bundled EDA commands known in the native server."
+        },
+        {
+          "path": "rust/tcl-lsp-server-wasm/test/e2e.mjs",
+          "test": "host smoke scenarios (script-level assertions)",
+          "scope": "browser/WASM host",
+          "coverage": "Harness exists; CI run 39616304947 reached six naming-adjacent checks and failed pack hover, workspace scan, sourced definition, workspace symbols, tclIndex autoload and pack notices."
+        },
+        {
+          "path": "rust/tcl-lsp-server-wasi/test/e2e.mjs",
+          "test": "host smoke scenarios (script-level assertions)",
+          "scope": "WASI host",
+          "coverage": "Harness exists; CI run 39616304947 passed 22 unit tests but failed seven host behavior checks, including diagnostics/source navigation/cache/lifecycle."
+        }
+      ],
+      "missing_proofs": [
+        "Complete native JSON-RPC, browser/WASM and WASI test runs with file/VFS updates, effective dialect/pack propagation and edit application.",
+        "Naming-specific host acceptance remains unproven; cited CI observations are failures, and editor web partitions stopped before host assertions."
+      ]
+    }
+  ],
+  "layer_coverage": {
+    "lsp_server": [
+      "Section-D targets are integrated server behavior; direct compiler/registry/unit tests do not substitute. All six scenarios remain open to the scope stated above.",
+      "The three native e2e partitions in CI 39616304947 were cancelled after 344 observations (273 pass, 71 fail), so their suite provides partial evidence only."
+    ],
+    "vm_runtime": [
+      "No general VM/runtime naming migration is required by this review; retain existing architecture where SpecTcl works.",
+      "Runtime execution remains a required oracle for transformed-source scenarios (D5), and supported pack evaluation/live-hook behavior is a functional LSP requirement.",
+      "Relevant owner-level N17 regressions reported in compiler-codegen-NOTES.md \u00a78: tcl-compiler compile_service::tests::a_variable_reference_ends_where_the_release_scanner_ends_it, and tcl-spectcl/tests/variable_reference_boundaries.rs template and production live const-fold hook cases. The notes report 16 template combinations; this evidence is owner-reported and not an independent build in this audit.",
+      "Older W216 failure in fixture review: tcl-compiler/src/analyser/diagnostics/tests.rs::w216_fixed_proposals_match_captured_public_value_examples; current review counts it as requiring an explicit correctness decision, so do not treat it as passing evidence."
+    ],
+    "shared_oracles": [
+      "The review requires family/release vectors across C Tcl 8.4\u20139.1 and pinned latest Jim, retaining expected differences. Existing `issue945` executes one focused transformed-source case; there is no evidence here of full six-scenario \u00d7 release matrix coverage."
+    ]
+  },
+  "ci_5201_comparison": {
+    "receipt": "docs/work/name-handling/handoff/reviews/merge-inventory-20261019/coordinator-20261022/ci-5201-partial-comparison.json",
+    "exact_matches_in_available_failure_lists": 0,
+    "interpretation": "No exact matched rows. This is not zero pass-to-fail: CI-5201 inputs are failure-only lists, their total disagrees with the reported aggregate and shard2 is absent; missing selectors remain unknown."
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "utc": "2026-10-22T14:39:50.007679+00:00",
+  "files": {
+    "naming-fixture-reconciliation.json": {
+      "bytes": 84668,
+      "sha256": "f80adf2c213bc87199be71f36113c4e90e8b4e65e44fa5f14e99f825696d2970"
+    },
+    "naming-section-d-coverage.json": {
+      "bytes": 13528,
+      "sha256": "cd0cf2e183c03fa2de4dd526fb96a7cd5347487358907e37a2d05fd8b2e94df6"
+    }
+  },
+  "authority": "Read-only source/inventory inspection, not executed acceptance or audit admissions.",
+  "fixture_note": "195 substantive inventory captures across18families;13-path difference from review prose208 remains unexplained. Preserve true empty expectations and absent-feature markers.",
+  "section_d_note": "Adjacent tests and missing integrated proofs only; all release checklist boxes remain open."
+}

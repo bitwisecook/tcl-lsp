@@ -1,0 +1,4 @@
+session-start: fetching wasmtime v49.0.3
+session-start: wasmtime wasmtime 49.0.3 (f96eabaa1 2026-10-14) installed at /workspace/naming-toolchains/wasmtime-49.0.3
+session-start: fetching binaryen v133
+session-start: binaryen wasm-merge version 133 (version_133) installed at /workspace/naming-toolchains/binaryen-133

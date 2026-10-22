@@ -1,0 +1,78 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook)
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+use std::ops::ControlFlow;
+
+fn selection<T>(flow: ControlFlow<Option<T>>) -> &'static str {
+    match flow {
+        ControlFlow::Continue(()) => "continue",
+        ControlFlow::Break(None) => "refuse",
+        ControlFlow::Break(Some(_)) => "selected",
+    }
+}
+
+#[test]
+fn hover_schema_diagnostic() {
+    for (source, cursor) in [
+        ("regexp {plainword} $line\n", 12),
+        ("regexp {^[a-z]+$} $line\n", 12),
+        ("lsearch -exact $list $needle\n", 11),
+        ("regexp {plainword} WORD\n", 12),
+    ] {
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let input = analysis.resolved_input.as_ref().unwrap();
+        let context = input.context_registry();
+        println!(
+            "HOVER source={source:?} namespace={} variable={} method={} math={}",
+            selection(tcl_lsp_core::namespace_symbol::select_at_offset(
+                source, &analysis, cursor
+            )),
+            selection(tcl_lsp_core::variable_symbol::select(
+                source, &analysis, 0, cursor
+            )),
+            selection(tcl_lsp_core::method_symbol::select(
+                source, &analysis, 0, cursor
+            )),
+            selection(tcl_lsp_core::math_function_symbol::select_at_offset(
+                source, &analysis, cursor
+            )),
+        );
+        let commands = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
+            source,
+            0,
+            input.lexer_config(),
+        );
+        for command in &commands {
+            let words = tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                source, &analysis, command,
+            );
+            if let Some(words) = words {
+                println!("SCHEMA source={source:?} selected={} roles={:?} patterns={:?}",
+                    matches!(words.source(), tcl_compiler::registry_invocation::source_structure::OriginalRegistrySource::Selected),
+                    words.roles(),
+                    words.with_source_schema(&context, |schema| schema.authored_source_pattern_arguments().map(|rows| rows.len())),
+                );
+                for (argument, word) in words.arguments().iter().enumerate() {
+                    println!(
+                        "ARG {argument} value={:?} original={:?}",
+                        word.literal_bytes().map(String::from_utf8_lossy),
+                        words.original_argument_word(argument).map(|word| (
+                            word.span(),
+                            word.tokens()
+                                .iter()
+                                .map(|token| token.kind)
+                                .collect::<Vec<_>>()
+                        ))
+                    );
+                }
+            } else {
+                println!("SCHEMA absent {source:?}");
+            }
+        }
+        println!(
+            "HOVER answer={:?}",
+            tcl_lsp_core::hover::hover(source, 0, cursor, &analysis, None).map(|hover| hover.value)
+        );
+    }
+}
