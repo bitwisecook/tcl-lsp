@@ -2,13 +2,13 @@
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-22T12:31Z
+Last updated: 2026-10-22T12:50Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-Where to pick up: re-run the lsp-core integration batch `p7` (it was SIGKILLed twice by memory pressure while other agents compiled tcl-compiler; run it when no other large rustc is running), then the lsp-core lib per test, then tcl-lsp-db lib, then clippy.
+Where to pick up: integration batch `p8` (p7 targets + hover_residual) was started at 2026-10-22T12:50Z; scratch logs `out-p8-*.log` / `status-p8-*.txt`. Next: tcl-lsp-server lib as ONE process again (vm-runtime fixed the thread-exit SIGABRT, coordinator 2026-10-22 ~12:50Z) with `--test-threads=2` and a whole-run timeout, compare with srv4; then lsp-core lib (minify tests first, for the N15 list), tcl-lsp-db lib, clippy.
 
 Commands (from the repo root; scripts in `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/lsp/`, copy them to a scratch dir and set `S` inside them to that dir first):
 
@@ -35,7 +35,7 @@ Evidence in the repo (`merge-inventory-20261019/lsp/`): `server-lib-srv4-status.
 
 ## Blocked (on whom, and what is needed)
 
-- vm-runtime: tcl-lsp-server lib process aborts after ~221 tests — a tokio worker's thread-exit drops a thread-local PackHookHost → tcl_vm Value drop → `value::native_retirement::release` touches an already-destroyed TLS ("cannot access a Thread Local Storage value during or after destruction") → panic in destructor → SIGABRT. Needs `try_with` in the retirement path. Workaround: per-test processes.
+- (resolved by vm-runtime, pending my confirmation run) vm-runtime: tcl-lsp-server lib process aborts after ~221 tests — a tokio worker's thread-exit drops a thread-local PackHookHost → tcl_vm Value drop → `value::native_retirement::release` touches an already-destroyed TLS ("cannot access a Thread Local Storage value during or after destruction") → panic in destructor → SIGABRT. Needs `try_with` in the retirement path. Workaround: per-test processes.
 
 - perf agent / compiler: Analyser cost is quadratic in command count (n=10 3.1 s, 80 66 s debug; 41 empty procs 8.5 s; tk8.6 tclIndex tens of minutes) and `tcl_spectcl::bundled::load_embedded` 65–84 s. Blocks: `workspace_symbol_caps_its_answer` and `startup_index_and_factory_reindex_keep_checked_document_roles` (180 s), all WASI row-17 host checks, folder-add test time.
 - compiler-names: object created by a relative name inside `namespace eval` is published at root (`::a`'s `rex` → `::rex`, `::b`'s → none) → name_resolution `tn_object_command_dispatch_is_scoped_to_its_creation_namespace`.
@@ -44,7 +44,6 @@ Evidence in the repo (`merge-inventory-20261019/lsp/`): `server-lib-srv4-status.
 - compiler (iRules realm): top-level `proc hit` in f5-irules — invocation lacks resolved reference / original lookup, so declaration selection breaks → `irules_switch_glob_body_is_followed`.
 - compiler: registry source schema withdrawn when an operand reads an undefined variable (`regexp {plainword} $line`, `lsearch -exact $list $needle`) → 3 hover_residual tests.
 - compiler-names: C6 (`namespace import ::a::Factory; Factory make`), C9 (W210 in pkgIndex `[file join $dir $missing]`).
-- decision needed: references_residual `document_highlights_dedup_keeps_write_over_read_on_collision` (synthetic default AnalysisResult + injected reporting map, refused by the original-context contract) and `references_external_obj_method_inside_proc_body_subst` (tclsh contradicts the fixture: `$d` unset inside `proc run`).
 
 ## Done since the last update (with evidence: test counts, commit or snapshot)
 

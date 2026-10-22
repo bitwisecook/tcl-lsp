@@ -50,7 +50,11 @@ fn zz_ccg_fold_probe() {
         const_fold: pack_spec.const_fold,
         ..tcl_registry::spec::CommandSpec::DEFAULT
     });
-    for (label, reg) in [("B-default+packspec", &b), ("C-default+minimal", &c)] {
+    let mut d = tcl_registry::CommandRegistry::build_default();
+    let mut pure_spec = pack_spec.clone();
+    pure_spec.world_effects = Some(tcl_registry::world_effect::WorldEffectDescriptor::EMPTY);
+    d.insert(pure_spec);
+    for (label, reg) in [("B-default+packspec", &b), ("C-default+minimal", &c), ("D-default+packspec+pure", &d)] {
         for dialect in [None, Some("tcl8.6")] {
             let found: Vec<(String, String)> = tcl_compiler::optimiser::optimise_raw("proc ::f {} {\n    set y [mylib::strlen abcde]\n}\n", reg, dialect)
                 .into_iter().map(|o| (o.code.as_str().to_owned(), o.replacement)).collect();
@@ -63,6 +67,30 @@ fn zz_ccg_fold_probe() {
                 .into_iter().map(|o| (o.code.as_str().to_owned(), o.replacement)).collect();
             eprintln!("ZZP opt {dialect:?} {src:?}: {found:?}");
         }
+    }
+    pack_hooks::clear_host();
+    let _ = std::fs::remove_dir_all(&dir);
+    let source = "\nspeclib mylib 1 {\n    command mylib::strlen {\n        arity 1\n        arg 0 -role Value\n        world_effects none\n        const_fold -inputs {words} {words ctx} {\n            fold [string length [lindex $words 0]]\n        }\n    }\n}\n";
+    let dir = std::env::temp_dir().join(format!("zz-ccg-fold2-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("mylib.tclspec");
+    std::fs::write(&path, source).unwrap();
+    let packs = tcl_spectcl::pack::load(&[PackFile { tier: Tier::Workspace, path, origin: Origin::DotDir, dependency_tier: None }]);
+    eprintln!("ZZP2 notices {:?}", packs.notices);
+    let plan = hooks::plan_for(&packs);
+    let host = Rc::new(tclvm_host());
+    for programs in plan.packs() {
+        for installed in host.install_pack_hooks(programs.clone()) {
+            eprintln!("ZZP2 installed declined={:?}", installed.declined);
+        }
+    }
+    pack_hooks::install_host(host);
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+    for dialect in [None, Some("tcl8.6")] {
+        let found: Vec<(String, String)> = tcl_compiler::optimiser::optimise_raw("proc ::f {} {\n    set y [mylib::strlen abcde]\n}\n", &registry, dialect)
+            .into_iter().map(|o| (o.code.as_str().to_owned(), o.replacement)).collect();
+        eprintln!("ZZP2 world_effects-none {dialect:?}: {found:?}");
     }
     pack_hooks::clear_host();
     let _ = std::fs::remove_dir_all(&dir);
