@@ -2,7 +2,7 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T12:22Z
+Last updated: 2026-10-22T12:48Z
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -32,7 +32,7 @@ The evidence is in the repository under
   5. Copy only the accepted files.
   6. Delete the probe.
 
-Current step: the thread-exit abort fix. Re-run it with:
+The thread-exit fix is done. To re-check it:
 
 ```
 cd /home/user/tcl-lsp && CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0 \
@@ -62,25 +62,17 @@ Then continue, in this order:
 
 ## In progress
 
-- **PRIORITY (from the lsp agent): process abort when a VM is dropped at thread exit.**
-  - The `pack_hooks` `HOST` thread-local drops a `HookHost<TclVmEngine>` → `Vm` →
-    `Value` retirement, which touches an already-destroyed thread-local, and the process
-    aborts (SIGABRT).
-  - Fix in place (`rust/tcl-vm/src/value/native_retirement.rs`, `value/native_jim_pool.rs`,
-    `value.rs`): use `try_with` throughout and leak rather than panic.
-  - New regression test: `rust/tcl-vm/tests/thread_exit_retirement.rs`.
-  - First run: 1/2, but it failed as a test rather than aborting. Diagnosing now.
+- Review C.2: the Jim core-pack and EDA acceptance targets (`seq.sh after8`). Running now:
+  - `jim_document`
+  - `jim_own_surface`
+  - `jim_surface_roster`
+  - `jim_generation_zero`
+  - `jim_seed_after_publish`
+  - `eda_loadables`
+  - `eda_environment_packs`
 
 ## Outstanding (in priority order)
 
-0. **Review C.2 Jim/EDA acceptance targets.** Paused for the priority bug. Run:
-   - `jim_document`
-   - `jim_own_surface`
-   - `jim_surface_roster`
-   - `jim_generation_zero`
-   - `jim_seed_after_publish`
-   - `eda_loadables`
-   - `eda_environment_packs`
 1. **`spec_corpus` `every_shipped_tclspec_loads_installs_and_analyses_against_corpus`.**
    - Rerun it alone, single-threaded. Its last run hit the 600 s watchdog under load.
    - It must confirm the `spec_corpus_baseline.txt` edit, which removed the 9 obsolete
@@ -132,6 +124,14 @@ Then continue, in this order:
 - **N17** (codegen `$a:b` variable grammar → wrong registration): compiler-codegen.
 
 ## Done since the last update (with evidence: test counts, commit or snapshot)
+
+- **Thread-exit abort fixed** (priority, from the lsp agent).
+  - The drop paths in `tcl-vm` `value/native_retirement.rs`, `value/native_jim_pool.rs` and
+    `value.rs` (`DoubleFormatContext`) now use `LocalKey::try_with`, and leak instead of
+    panicking once a thread-local is gone.
+  - New `tcl-vm` test `thread_exit_retirement` passes 2/2.
+  - Negative control: with only `release` reverted to `PENDING.with`, the test binary
+    aborts with the reported AccessError (exit 134).
 
 The state is in WIP snapshot `56893780b9`, plus the working tree since.
 
