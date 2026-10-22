@@ -38,10 +38,13 @@ thread_local! {
 /// Native values inside a VM, nested deep enough that retiring them goes
 /// through the queued (non-recursive) release.
 fn vm_holding_native_values() -> Vm {
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     let mut nested = Value::new_native_string_bytes(b"leaf".as_slice());
     for _ in 0..64 {
-        nested = Value::list(vec![nested, Value::new_native_string_bytes(b"x".as_slice())]);
+        nested = Value::list(vec![
+            nested,
+            Value::new_native_string_bytes(b"x".as_slice()),
+        ]);
     }
     vm.set_var("held", nested).expect("set held");
     vm.eval_source("set doubled [expr {1.5 * 2}]; set l [list a b c]")
@@ -76,7 +79,7 @@ fn a_vm_dropped_by_a_thread_local_at_thread_exit_does_not_abort() {
 fn a_vm_dropped_while_the_thread_lives_retires_normally() {
     let held = Value::new_native_string_bytes(b"observer".as_slice());
     let weak = held.downgrade_native_object();
-    let mut vm = Vm::new();
+    let mut vm = tcl_vm::test_support::native_vm();
     vm.set_var("held", held).expect("set held");
     drop(vm);
     assert!(weak.upgrade().is_none(), "the held value was retired");
