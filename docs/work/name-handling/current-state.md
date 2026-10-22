@@ -54,6 +54,8 @@ Measurements below are the implementation agents' own runs on the shared working
 | contracts (finished) | Owner manifest | owner-resolution 608 → 310 → **0** diagnostics (`355bd99edf`). | 23 | `contracts-NOTES.md` |
 | review-triage | External review | Replaying every N01–N17 repro on the current tree; routing to owners. | Release gate | triage file above |
 
+Each agent also maintains its own list of outstanding work in [outstanding/](outstanding/README.md): [lsp](outstanding/lsp.md), [compiler](outstanding/compiler.md), [compiler-names](outstanding/compiler-names.md), [compiler-codegen](outstanding/compiler-codegen.md), [vm-runtime](outstanding/vm-runtime.md), [bigip-lsp](outstanding/bigip-lsp.md), [perf](outstanding/perf.md), [review-triage](outstanding/review-triage.md) and [coordinator](outstanding/coordinator.md). They are committed with every 30-minute WIP snapshot.
+
 ## Counts
 
 | Area | Integrated | Verified complete |
@@ -169,6 +171,7 @@ The complete local SpecTcl receipts are archived separately as `tmp/name-handlin
 
 - Agent notes and patches since the merge: [handoff/reviews/merge-inventory-20261019/](handoff/reviews/merge-inventory-20261019/) (`sol-4x-NOTES.md`, `luna-4x-NOTES.md`).
 - External review and per-finding triage: [reviews/](reviews/).
+- Per-agent outstanding work: [outstanding/](outstanding/README.md).
 - User decisions: [handoff/reviews/resume-20261017-diagnosis/](handoff/reviews/resume-20261017-diagnosis/) (`user-decisions-*.json`).
 - Progress reports: `progress-report-<UTC>.json` in this directory.
 - Previous retained capture48: `experiments/name-handling/results/owner-adoption-20261018/lsp-generic-consumers-14/capture.json`; current guarded run and comparison are identified above.
