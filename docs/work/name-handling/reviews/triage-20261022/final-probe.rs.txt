@@ -425,9 +425,15 @@ fn n17_control_mylib() {
         let packs = tcl_spectcl::pack::load(&[PackFile { tier: Tier::Workspace, path, origin: Origin::DotDir, dependency_tier: None }]);
         let plan = hooks::plan_for(&packs);
         let host = Rc::new(tclvm_host());
-        for programs in plan.packs() { let _ = host.install_pack_hooks(programs.clone()); }
+        let mut declined = Vec::new();
+        for programs in plan.packs() {
+            for installed in host.install_pack_hooks(programs.clone()) {
+                declined.push(format!("{:?}", installed.declined));
+            }
+        }
         pack_hooks::install_host(host);
         let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+        println!("N17_CONTROL_INSTALL dsl={dsl} plan_empty={} notices={:?} declined={declined:?} registry_profile={:?}", plan.is_empty(), packs.notices, registry.profile().map(|p| p.name));
         let direct = registry.get("mylib::strlen").and_then(|s| s.run_const_fold(&["abcde"], Some(tcl_dialect::TclVersion::V8_6)));
         for dialect in [None, Some("tcl8.6")] {
             for with_return in [false, true] {

@@ -2,7 +2,7 @@
 
 Area: Replay of the external review's findings on the current tree.
 
-Last updated: 2026-10-22T17:07:01Z
+Last updated: 2026-10-22T17:15:37Z
 
 Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. This agent commits and pushes it after each run and at least every 30 minutes.
 
@@ -18,7 +18,11 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 
 **Run11 replay:** 28 files / 168 engine executions; eight generated folded drivers / 48 matching checks; zero unexpected result. Logs/source are `run11-n17*`, `run11-variable-boundaries.log`, and exact compiled `run11-source.rs.txt` (SHA c94ea9b0…). Evidence disk use is 3.5 MB (keep below 5 MB).
 
-**Next:** commit/push run11, then run `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-focused.sh run12-n17-profile n17_control_mylib`. The prepared final-probe source now copies the exact existing e2e control hook body and varies DSL1/2, optimiser dialect None/Some(tcl8.6), return/no-return. This is motivated by the existing None-context test failure versus successful explicit-context hooks; it has not yet executed. Replay its eight generated drivers, update report and push. R1 remains blocked; after it lands run the complete latest-work semantic/rename replay, static audit and output replay before the final summary. No Cargo command is currently active.
+**Run12 finished:** `run12-n17-profile` on `b3c8ea5b` passed one observational test in 73.12s. Exact existing guarded hook body, DSL1/2 × dialect None/Some(tcl8.6) × return/no-return: all eight direct API answers are None and O129 is empty. Dialect/default context is NOT the cause demonstrated by this contrast. C 8.4–9.1 and pinned Jim all evaluate the same guarded callback as `ascii=1|hook=5` (`tcl/n17-ascii-hook.tcl`). Output replay: 29 files / 174 executions, eight generated scripts / 48 matched checks, no unexpected result. Temporary source/executable deleted.
+
+**Next:** commit/push run12, then `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-focused.sh run13-n17-install n17_control_mylib`. Prepared final-probe adds plan/notices/installation-decline/retained-profile fields to identify whether the guarded callback is declined before invocation; API None alone does not settle that. Run11 proves ordinary explicit-dialect hooks and absent-effect hooks now fold correctly and declared callback barriers remain enforced (4/4 product regressions). No Cargo process is active. Keep evidence under 5 MB (currently about 3.6 MB).
+
+**After run13:** replay generated outputs, update report, commit/push. All independent seam/scaling items are settled. Await R1, then run complete latest-work semantic/rename replay and static/oracle audits before writing the final summary. R1 remains blocked in the latest compiler-names report; no final summary yet.
 
 **N09 retry:** `run9-n09` on `128e1bb4` passed its one observational test (64.04s). Type/call graph correct; taint dependencies retain all three source ProcedureIds conservatively, rather than a wrong singleton. Taint lattices/warnings are unverified. Initial failed run8 used a private helper and executed zero tests; exact source/logs preserved. Run10 repeats the corrected result.
 
@@ -34,7 +38,7 @@ Before every push fetch/rebase `origin/work`, retry rejection, never force or op
 
 ## In progress
 
-- Run11 verifies corrected explicit-dialect hooks and all 4 existing variable-boundary regressions. Default-context existing fold control still fails; exact context comparison is next. R1 remains blocked; final post-R1 replay remains outstanding.
+- Run11 verifies corrected explicit-dialect hooks and all 4 existing variable-boundary regressions. Exact guarded body fails with both None/explicit contexts; hook installation diagnostics are next. R1 remains blocked; final post-R1 replay remains outstanding.
 - Required release gates `make rust-check` and `make prep-pr` are not run; this is evidence-only work under the active `work` development-push exception.
 
 ## Outstanding (in priority order)
@@ -91,3 +95,5 @@ Before every push fetch/rebase `origin/work`, retry rejection, never force or op
 - 2026-10-22T17:04:56Z: run11 is active on `0e21cada`. Fresh custom live-hook filter completed 2 observational tests (75.36s): all five original controls fold (good/5), and all eight effects/reference combinations now fold good, including undeclared effects. Existing variable_reference_boundaries has three of four tests passed so far, including declared-effect negative control; last template test running. Raw logs durable; tool session handle was unavailable but verified script/test PIDs remain active. Fresh driver oracle replay is active. Prepared future control in final-probe.rs.txt compares the exact existing strlen body with None/Some(tcl8.6), both DSLs and with/without return; tested run11 source is saved separately in run11-source.rs.txt.
 
 - 2026-10-22T17:07:01Z: run11 complete: 2 observational probes, 4/4 existing regressions, 168 oracle executions / 48 matched generated checks, all correct. Explicit dialect now folds undeclared-effect hooks; default None control still needs context comparison. Targets deleted.
+
+- 2026-10-22T17:15:37Z: run12 context/return contrast complete, 1 observational probe / 8 variants all direct None and no O129; C/Jim guarded-body result is 5. 174 engine executions / 48 matched output checks all correct. Next field is installation decline, not another context hypothesis.

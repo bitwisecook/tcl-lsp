@@ -4,6 +4,7 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 
 | Item | What it is |
 | --- | --- |
+| `run12-n17-profile*`, `tcl/n17-ascii-hook.tcl` | Exact guarded control fails direct/optimiser folding with both DSLs, dialect options and return variants; all six engines compute 5. 174 engine executions / 48 matched checks, no unexpected output. |
 | `run11-n17*`, `run11-variable-boundaries.log`, `run11-source.rs.txt` | Post-fix explicit-context matrix passes; 4/4 existing variable-boundary regressions pass; 168 engine executions / 48 matched generated checks, no unexpected result. |
 | `run11-n17.sh` | Builds/runs/deletes fresh custom matrix and existing declared-callback regression target in one command. |
 | `run10-current.log`, `run10-current-oracles.log`, `run10-current-oracle-summary.json` | Complete interim 27-probe replay at `60ce7009`; 588 engine executions / 138 matched checks, no unexpected output. Later rebuilt existing fold control STILL FAILS on `13050f6a` with the N17 correction. |
