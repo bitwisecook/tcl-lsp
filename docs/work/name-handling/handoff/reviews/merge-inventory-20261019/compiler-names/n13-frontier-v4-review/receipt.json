@@ -1,0 +1,62 @@
+{
+  "utc": "2026-10-22T22:39:07.440105+00:00",
+  "status": "OFF-TREE syntax/applycheck only; independent common whole-scope guard review/type/runtime pending",
+  "sha256": "b8e4ebb4a9950c01e31fab04cdb32ca8987ef5e49f4f3d3e040e2e72daf425f1",
+  "delta_sha256": "d470317101a46daeef8f7e707d1fa94f9223a7a150c29f355ea4e969ab7d3a2f",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "4668b6f5e4c3c8cabb5fac2273e3039c83074cec35af8620b0f5aaa9abf0043a",
+      "after_sha256": "0fea3e35a4749159af7dd5651bcedbd928f5cae46ff220064e4302ba23a1eec7"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_source.rs",
+      "before_sha256": "314d9537ecead65f07a3656f4ed8d56c37416356fa148d075ed7133a084e272e",
+      "after_sha256": "cfd880df17b7cdc7b8ee72f438b44f03ff3aea68fc54d9621c9286bab0b56199"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_source/region.rs",
+      "before_sha256": "b6eab08466bbf2618abcd120a7e6066972da8f7e51baf85b703406ee5f350f2b",
+      "after_sha256": "673ac9a33a82a21e1a376ba066105c09abdf2f3cfbe6bce23c22e80faf0347a8"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "before_sha256": "5e126fc3ab98e22160c9afe91632a78a6604839405fa6c32c96e7671134110a4",
+      "after_sha256": "f8e00a4f3013e9695514c7fe7c53f00571e28a05a8faaf9d1541866530fc9f96"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
+      "before_sha256": "f8d53d9211945081c78924f9cfde02d46fccc65eb56c96526250b3a85db861e0",
+      "after_sha256": "0b86e61998e0ca5365514d79a3b9ca5894b384595c2456ff934b10679e36bc23"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load.rs",
+      "before_sha256": "53c640324ac78bdeb32b09d14bfdb045ca939ffa6c0152d968f76dfa2c249237",
+      "after_sha256": "3302c494b82da07c9e9ac078264dbdd97381cf577e12dc21771643837f46a055"
+    },
+    {
+      "path": "rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs",
+      "before_sha256": null,
+      "after_sha256": "843968c0aee743aa3c86e954bb3c3e0e2c353acf1f42c0dc32cd68315699b9e8"
+    },
+    {
+      "path": "rust/tcl-compiler/src/source_graph.rs",
+      "before_sha256": "b04dea6b3d8e8e4bc03351445f4dbdf5a7c6c4096d1ffb2722480a9986abc284",
+      "after_sha256": "541b3b62c589ae8fc6f14a474935713bc189a510f1713de19e48ff7cfc4927fa"
+    }
+  ],
+  "tests": [
+    "a_genuine_point_cannot_replace_a_withdrawn_finite_plan",
+    "finite_root_and_namespace_cuts_retain_actual_kernel_plans",
+    "declared_procedure_and_deferred_package_body_keep_conditional_association_debts",
+    "association_receipts_refuse_foreign_parent_and_unavailable_or_changed_input",
+    "unsupported_decode_dynamic_path_and_later_held_load_remain_unknown",
+    "independently_selected_enclosing_body_is_not_an_association_only_frontier",
+    "region_cut_rejoins_the_exact_view_and_refuses_equal_byte_foreign_region",
+    "replayed_frontier_transfers_only_the_exact_prefix_command_debt",
+    "whole_scope_join_refuses_a_stripped_region_but_keeps_full_child_views"
+  ],
+  "api": "region.reissued_source_frontier(actual_direct_prefix, original_load, actual_region_analysis) -> Option<(OriginalProjectSourceLoad, OriginalProjectSourceFrontier)>",
+  "v3": "Immediate actual continuation parent + exact owned full command vector + fresh selected region SourceLoad. Missing replay retains old debt; successful Unknown transfers to actual region load, never clears debt. Three-load root/namespace progression + foreign/unavailable/stripped/outside/ancestor bypass negatives.",
+  "v4": "Common source_graph::current_analysis also refuses actual retained partial-region entry when internal result marker is stripped. Full inherited child whole views stay allowed; image matcher remains region-capable."
+}

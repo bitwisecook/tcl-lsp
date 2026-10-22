@@ -107,3 +107,7 @@ CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 TCL_LSP_REQUIRE_TCLSH=9.0,8.6
 TCL_LSP_JIMSH=$PWD/tmp/jimtcl-oracle/jimsh. Tcl9.0.4/8.6.18 and pinned Jim
 are built; tmp symlinks retain oracles. Keep worktrees' targets separate.
 All requested test executables were built/run/deleted in their own command.
+
+### Coordinator routing — 2026-10-22T22:56:21.361198+00:00 (owner header unchanged)
+
+The user authorized **authenticated full-report comparison** as the new perf equivalence acceptance contract. Decision: `../handoff/reviews/resume-20261017-diagnosis/user-decisions-20261022T2256Z.json`. Compiler owns the distinct API and authentic native/hosted carriers; global/runtime equality and cache/Salsa cutoff stay strict. Every field and typed subject requires complete unique current actual correspondence; Unavailable fails the gate. TEMP3 current-source attribution is in `../handoff/reviews/merge-inventory-20261019/compiler/resume-20261022/report-first-refusal-20261022T221949Z/`. Resume harness/full old+mixed corpus work when the reviewed API/carriers arrive. No perf patch, including realm/interprocedural, is accepted or forwarded by this decision alone. No duplicate perf role started.

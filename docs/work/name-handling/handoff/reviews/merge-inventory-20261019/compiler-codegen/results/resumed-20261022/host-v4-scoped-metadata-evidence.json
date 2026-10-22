@@ -1,0 +1,133 @@
+{
+  "utc": "2026-10-22T22:47:10.404592+00:00",
+  "status": "Scoped actual compiler metadata evidence for exact4 CCGhost198512 source paths. NOT overall metadata gate, Clippy, executable build or test acceptance.",
+  "run": "/tmp/compiler-names-n13-combined-20261022T215045Z",
+  "actual_run_head_before": "80193fbc6ab4622057088714d03114b14cdfce30",
+  "actual_run_head_after": "2773b58e046de8b5e1cbf86a096ddc07f4b0aa81",
+  "source_and_providers_unchanged": true,
+  "source_count": 6535,
+  "full_run_cargo_exit": 101,
+  "full_run_errors": 1,
+  "full_run_warnings": 6,
+  "error_scope": "One Core libtest E0275; six compiler unused_parens TEMP warnings. No tcl-fuzz diagnostic errors/warnings. Later root fixes are separate/source-attributed.",
+  "files": [
+    {
+      "path": "Cargo.lock",
+      "candidate_before_run_after_run_sha256": "663cab65a142df1755b96c14f02933f028835ab72dacafdafdecab5162101ed9"
+    },
+    {
+      "path": "rust/tcl-fuzz/Cargo.toml",
+      "candidate_before_run_after_run_sha256": "daf3bbe6c9555d640704afd664d2ef5e7a01fd0a7afb52ad8d456c708153ea16"
+    },
+    {
+      "path": "rust/tcl-fuzz/src/wasm_diff.rs",
+      "candidate_before_run_after_run_sha256": "9e4e33019d60f95f9504910ed20c9d1f06b600565244d1dc5f09ab1c2d162c89"
+    },
+    {
+      "path": "rust/tcl-fuzz/src/wasm_diff/host_abi.rs",
+      "candidate_before_run_after_run_sha256": "2eb2975f6db15d34868450f0475c67efadfdb3c28b87b3893c66031a45b4fb5b"
+    }
+  ],
+  "actual_fuzz_normal_and_test_metadata": [
+    {
+      "reason": "compiler-artifact",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-fuzz#0.1.0",
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-fuzz/Cargo.toml",
+      "target": {
+        "kind": [
+          "bin"
+        ],
+        "crate_types": [
+          "bin"
+        ],
+        "name": "tcl-fuzz",
+        "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-fuzz/src/main.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": false,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "features": [],
+      "filenames": [
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/libtcl_fuzz-19bd1b0df4527c9c.rmeta"
+      ],
+      "executable": null,
+      "fresh": false
+    },
+    {
+      "reason": "compiler-artifact",
+      "package_id": "path+file:///workspace/naming-migration-active/tcl-lsp/rust/tcl-fuzz#0.1.0",
+      "manifest_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-fuzz/Cargo.toml",
+      "target": {
+        "kind": [
+          "bin"
+        ],
+        "crate_types": [
+          "bin"
+        ],
+        "name": "tcl-fuzz",
+        "src_path": "/workspace/naming-migration-active/tcl-lsp/rust/tcl-fuzz/src/main.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": false,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": true
+      },
+      "features": [],
+      "filenames": [
+        "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/libtcl_fuzz-ed638827eed31c64.rmeta"
+      ],
+      "executable": null,
+      "fresh": false
+    }
+  ],
+  "inputs": [
+    {
+      "path": "/tmp/compiler-names-n13-combined-20261022T215045Z/summary.json",
+      "sha256": "4c538b9ab4e0c5ecfea9531f63975ec85c40571c6986b28af46c7357fd713cd9"
+    },
+    {
+      "path": "/tmp/compiler-names-n13-combined-20261022T215045Z/combined-result.json",
+      "sha256": "d1ffdddacbc976228e906e8c659a595db05d3b14d016d11e29e631598a7f804f"
+    },
+    {
+      "path": "/tmp/compiler-names-n13-combined-20261022T215045Z/before-source.json",
+      "sha256": "47359a8fcc08d3506cb8e4e09f08a9e2f7d30a721d7d7778148623bca25cdbbd"
+    },
+    {
+      "path": "/tmp/compiler-names-n13-combined-20261022T215045Z/after-source.json",
+      "sha256": "47b44e2eb4ab11c206d75d4f125e5957a3b05c35fdb3998a288e5c21b69a8ec3"
+    },
+    {
+      "path": "/tmp/compiler-names-n13-combined-20261022T215045Z/combined.stdout.jsonl",
+      "sha256": "4262a3062a4af0eb89dc25b800665b6142c2ee1ce94f0d60b18d80ecc1f0816a"
+    },
+    {
+      "path": "/tmp/compiler-names-n13-combined-20261022T215045Z/before-providers.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    },
+    {
+      "path": "/tmp/compiler-names-n13-combined-20261022T215045Z/after-providers.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    }
+  ],
+  "limits": [
+    "cargo check only: both default-feature tcl-fuzz normal/test targets emit actual fresh=false .rmeta compiler-artifact records. No Cargo command launched by CCG for this join.",
+    "No manual rmeta/executable invocation/reuse. New5hostcontrol assertions and original8 tests remain unrun.",
+    "This is source-specific historical run80193 evidence; current whole-tree type/strict-lint/runtime acceptance not inferred.",
+    "Native5+2 runtime WASM artifact still must be built from ordinary Cargo under full planned providers."
+  ]
+}

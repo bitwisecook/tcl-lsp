@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-22T22:31:26.019124+00:00 (ACTIVE; agent-reported, not validation)
+Last updated: 2026-10-22T22:47:29.717077+00:00 (ACTIVE; agent-reported, not validation)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+**Actual CCGhost metadata join, 2026-10-22T22:47:29.717077+00:00:** read-only join of root's completed combined215045 raw Cargo JSON confirms default-feature tcl-fuzz NORMAL and TEST metadata artifacts both emitted fresh=false on historical80193. All4 CCGhost198512 candidate source hashes match before=after; zero fuzz diagnostic errors/warnings. Scoped evidence `/tmp/ccg-host-v4-scoped-metadata-evidence.json` SHA `0c77b80f6a30896e836b3bf3fe7a468151a01a7e37a5b27b944929f8a584cefa` copied into resumed results. This corrects current own-component typing status from unknown to actual normal/test metadata present; original8+new5 remain UNRUN. Overall check remains Cargo101 with1CorelibtestE0275+6compilerTEMP unused_parens warnings, unchanged6535-source/root providers, no fullgate/Clippy/executable/runtime acceptance. Later root smallfix54daa and Core-only pass are separate provenance; no latestwhole-tree pass inferred. No CCG Cargo command/manual artifact reuse/product edits. Final native5+2/full51/optional2 observer plans remain unchanged and unqueued.
 
 **Receipt-producer API trace, 2026-10-22T22:31:26.019124+00:00:** copied source-hashed static map `/tmp/ccg-derived-first-decline-v4/producer-map.json` SHA `5428410c51aca7345642b3f8d81555768af4f7448e11c1ef2eac833db90c34e9`. Binding projection marks preview/logical-purpose invocations Conditional. Execution-target, argument-Normal, invocation-Normal and Normal-result public consumers each refuse that purpose before further receipts, so several false booleans need not be independent failures or actual guest abrupt/host refusal. Actual normal-result basis is frozen before dispatch; joined argument/observer/handler outcomes are recorded afterward, and totalNormal additionally needs normal completion plus no abrupt alternatives. Parent normal-transfer has no direct invocation-totality requirement; do not promote prior child-normal hypothesis into measured cause. These are source/API facts only; exact expr42/catxy fixture purpose/first-decline remain UNMEASURED. Map routed compiler/root, no repair candidate/public-scope workaround. Public041eb/optional2a148 and exact cleanup remain ready, no canonical product/Cargo work.
 

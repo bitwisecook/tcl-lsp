@@ -1,0 +1,15 @@
+{
+  "utc": "2026-10-22T22:52:05.143632+00:00",
+  "status": "OFF-TREE narrow test-purpose correction, independent exact diff review pending; untyped/unrun",
+  "sha256": "1e73a21a45b25002ae9197dfb312ed61fe29317a83c9e20adf53de79cb57fa99",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs",
+      "before_sha256": "1874b1364f0b680140392bf2525f8744ebe35a97eb6d5c682b77d0351cfc3ce6",
+      "after_sha256": "63f951337ecee466549c091d1e411d7d5d2e54ffc948d177c1acaec883402dac"
+    }
+  ],
+  "selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+  "basis": "Existing origin_inventory::record_conditional_in_frame_script stores frame=None plus conditional_namespace; broad namespace getter explicitly retains that conditional syntax. Exact entry namespace accessor requires unanimous actual Some(frame). Not an after-load/13:17 correction or new Native authority.",
+  "preserved": "native_structured None, compiled_script_namespace None, all original IR/source/frame/synthetic/foreign/config negatives and selector; add precise actual entry None while asserting conditional namespace equals actual expected."
+}

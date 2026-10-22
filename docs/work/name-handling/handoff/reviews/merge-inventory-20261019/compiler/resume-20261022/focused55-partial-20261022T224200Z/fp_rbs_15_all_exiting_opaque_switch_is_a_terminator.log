@@ -1,0 +1,15 @@
+    Finished `test` profile [unoptimized] target(s) in 0.71s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator ... 
+thread 'analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator' (164908) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6554:5:
+default-less opaque switch falls through (W210 expected on y)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10535 filtered out; finished in 17.77s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

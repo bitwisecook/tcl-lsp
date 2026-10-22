@@ -1,0 +1,24 @@
+{
+  "utc": "2026-10-22T22:40:51.111416+00:00",
+  "selector": "cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion",
+  "exact_first_failed_script": "namespace eval dest {namespace import ::src::x}",
+  "first_setup_script": "namespace eval src {proc x {} {return OLD}}",
+  "old": {
+    "artifact_sha256": "b37b2b5176176b745181e9967d590b8d710441e01e049e238f6727c422601d29",
+    "source_path": "/tmp/vm-runtime-ci5205-original-input-archive/source/src/cmd_namespace.rs.txt",
+    "source_sha256": "c90b27fe37b622a19f7b5f3fe3c730d01155de62d42a9967a6cddf63b5264d62",
+    "stderr_path": "/tmp/vm-runtime-ci5205-six-run-attempt3/test-5.stderr",
+    "stderr_sha256": "faddba3bddd7f80ca0deab4f39e40edeeb4ed1da0e37504888b18b3aa5552efb",
+    "first_failed_assert_LF_line": 7056
+  },
+  "new": {
+    "artifact_sha256": "5600ac5f06ee26ccf03653b9041ea9f16b80007f7b28deca18510324e8c366f5",
+    "source_path": "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/src/cmd_namespace.rs",
+    "source_sha256": "3732c7dcb007509d14105c0b83e9cf52e3ff2e3fb0488c07039e4432f8efe87b",
+    "stderr_path": "/tmp/vm-runtime-ci5205-six-postfix/test-5.stderr",
+    "stderr_sha256": "c08cd568f08f45495bb7df0e5353296c7cd3e8369f047ac77ea6e4df804e7bec",
+    "first_failed_assert_LF_line": 7059
+  },
+  "conclusion": "Same import assertion fails both runs, initial setup passed both. Three diagnostic lines explain line shift; NO progress established. Import assertion lacks native refusal/result payload.",
+  "correction": "Supersedes prior oldrun summary/receipt jim_limits saying first namespace/proc setup failed. That was an attribution mistake; original source/log/receipts preserved byte-for-byte."
+}

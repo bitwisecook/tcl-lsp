@@ -1,0 +1,96 @@
+{
+  "prepared_utc": "2026-10-22T22:50:50.029293+00:00",
+  "status": "OFFTREE remaining10 only; root GO required, no Cargo queued",
+  "scope": "Finish original frozen55 previously unrun coverage after required count mismatch STOP, no repeat of completed24filter45tests",
+  "required_filters": [
+    {
+      "label": "n13_source_entry_reborrow_unavailable_extra",
+      "selector": "command_binding::source_point_entry::unavailable_entry_reborrow_controls::source_entry_reborrow_refuses_unavailable_ordinary_and_unknown_history",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "Same54e substantive control required by original frozen55; actual module is outside tests prefix, independently verified canonical source1150"
+    },
+    {
+      "label": "n13_conditional_region_purpose_refuses_a_genuine_whole_child",
+      "selector": "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::conditional_region_purpose_refuses_a_genuine_whole_child",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "new purpose refusal proves legitimate opposite positive first"
+    },
+    {
+      "label": "n13_complete_program_purpose_refuses_a_genuine_conditional_region",
+      "selector": "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::complete_program_purpose_refuses_a_genuine_conditional_region",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "new purpose refusal proves legitimate opposite positive first"
+    },
+    {
+      "label": "n13_foreign_completed_region",
+      "selector": "command_binding::conditional_source::region::foreign_completed_region_controls::return_outcome_refuses_a_byte_equal_foreign_completed_region_owner",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "new independently genuine child/region chains refuse byte-equal foreign completed outcome"
+    },
+    {
+      "label": "n13_region_declaration_dependency",
+      "selector": "command_binding::conditional_source::region::declaration_dependency_controls::region_call_joins_only_the_actual_completed_child_declaration_owner",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "new09e9/bc9 genuine region positive issuer and exact child declaration dependency; byte-equal fresh child refuses"
+    },
+    {
+      "label": "lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis",
+      "selector": "registry_invocation::source_structure::original_body_syntax::tests::body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained"
+    },
+    {
+      "label": "lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request",
+      "selector": "analyser::types::original_body_syntax_request_tests::equal_source_and_same_realm_do_not_replace_body_inventory_request",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained"
+    },
+    {
+      "label": "lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners",
+      "selector": "command_binding::original_literal_argv_rewrite::tests::original_boolean_inversion_retains_leaf_and_dispatch_owners",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained"
+    },
+    {
+      "label": "lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates",
+      "selector": "command_binding::original_literal_argv_rewrite::tests::original_boolean_inversion_checks_leaf_token_coordinates",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained"
+    },
+    {
+      "label": "lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor",
+      "selector": "command_binding::original_literal_argv_rewrite::tests::original_boolean_inversion_retains_selected_version_floor",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained"
+    }
+  ],
+  "expected_filters": 10,
+  "expected_selected": 10,
+  "source_basis": "Same frozen canonical source/artifact as /tmp/compiler-focused/20261022T224200.215874Z; source change requires fresh explicit attribution",
+  "guards": "Global lock over entire suite; all local workspace source/fixture/Cargo input inventory + current Rust diff; provider wrappers/actual workers/Rust tools/transitive shared binaries before/after; 5second disk monitor interrupts only own Cargo process group below2GiB; per-log20MiB filtered cap; no executable cleanup",
+  "assertion_policy": "Original sources/assertions unchanged; unexpected count including zero is terminal. No broad unfiltered lib. Every selector via current Cargo under same frozen artifact/source/provider guards, no direct old executable.",
+  "predecessor_plan": "/tmp/compiler-functional-current-focused-plan-v5.json",
+  "full_corrected_plan": "/tmp/compiler-functional-current-focused-plan-v6-corrected-counts.json",
+  "partial_receipt": "/tmp/compiler-focused/20261022T224200.215874Z",
+  "not_a_full_suite_verdict": "The45completed and10pending are separate guarded runs on same source only if all exact provider/source/artifact equality joins succeed."
+}

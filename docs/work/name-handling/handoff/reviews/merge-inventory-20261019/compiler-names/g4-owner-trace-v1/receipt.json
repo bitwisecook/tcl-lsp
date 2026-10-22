@@ -1,0 +1,38 @@
+{
+  "utc": "2026-10-22T22:52:39.676675+00:00",
+  "status": "OFF-TREE temporary bounded test-only introspection; all original assertions/selectors unchanged; syntax/applycheck only",
+  "sha256": "1d696b57820dfdbde0f7a88c7e736160fc0eb0e656847e8ca1a13ce4d5eaa548",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding.rs",
+      "before_sha256": "4668b6f5e4c3c8cabb5fac2273e3039c83074cec35af8620b0f5aaa9abf0043a",
+      "after_sha256": "058e274b22213324dcc9ed8326ba1d3b42fba0e078cc33e07f8587c93d2e1617"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs",
+      "before_sha256": "100ce76fa95bbb9b23f12cf419fe0551f3fc529fd08bf852eedd8dcf0f815a2e",
+      "after_sha256": "9fb3b12a25ec29cc6ea81765167a5acdab14315a30a9db4016c1270610a156cc"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/declaration_layout.rs",
+      "before_sha256": "4b26b37226caba04a70e227d8fd0dc2c6fc5f8ae72aff2c133a0156360e4712e",
+      "after_sha256": "4872524ea5ea99181621248170b180032189bc6e1a967f0166ce840f04435b9b"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/expression_preparation.rs",
+      "before_sha256": "942ae2886e8f643d3b7223f50d437fc4879741a6425c8fee488a64cc43a6205c",
+      "after_sha256": "fc259f9017189a6cb5b121f071fb88a9b79d2fadf8560a1cf9bbf955c34a51e7"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs",
+      "before_sha256": "fec1d0cbd47ef1e828f15bd0310f238104240046789761dea9436fd10179d782",
+      "after_sha256": "fee9109746d6706a9121e9fef394c0fc85f5d3d30a0af719df1ebd7bee2ee970"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/normal_result.rs",
+      "before_sha256": "d6a41edd775c2bec3bb62f1a4cdc0128bc22d1049dc3e4a7da2b5b1881b6c10f",
+      "after_sha256": "1ffb4b05452dc7ebf9e9078442bacaf471b165983fd5df63d6b7ed5be025cfdd"
+    }
+  ],
+  "plan": "Run exact six original selectors through Cargo under whole source/provider/artifact guards; no new selectors, no normal/phase/frame assertion edits. Temporary helper prints bounded booleans/typed selection tags/target presentation only, max8 direct visits each. Reached/words/policy alone never asserted actual visit proof. Remove temporary diagnostics after attribution."
+}

@@ -1,0 +1,393 @@
+{
+  "utc": "2026-10-22T22:54:48.687589+00:00",
+  "status": "Current original8 each selected1 FAIL with unchanged assertions, per-filter source/provider/artifact stable0warnings; complete finite55 stopped later on count mismatch, not whole gate admission",
+  "run": "/tmp/compiler-focused/20261022T224200.215874Z",
+  "rows": [
+    {
+      "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "log": "/tmp/compiler-focused/20261022T224200.215874Z/g4-regress-conditional_expression_template_retains_grammar_without_actual_entry.log",
+      "log_sha256": "48122d1367ef86c3961a0de148e201efcc559d491293718dd16308e73b8f1d1f",
+      "result": {
+        "actual_selected": 1,
+        "artifact_stable": true,
+        "artifacts": [
+          {
+            "age_seconds": 596.966912984848,
+            "mtime_utc": "2026-10-22T22:33:58.186338+00:00",
+            "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+            "retained": true,
+            "sha256": "542120d61494bcb1cfb331c5fa8278b6eb68a97f2ed3a21368f6dce2e2c64348"
+          }
+        ],
+        "cargo_wrapper_exit": 101,
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "tcl-compiler",
+          "--lib",
+          "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "expected_selected": 1,
+        "label": "g4-regress-conditional_expression_template_retains_grammar_without_actual_entry",
+        "log_at_cap": false,
+        "providers_stable": true,
+        "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+        "source_stable": true,
+        "summaries": [
+          [
+            "FAILED",
+            "0",
+            "1",
+            "0"
+          ]
+        ],
+        "warnings": false
+      },
+      "attribution": "After-load policy correction candidate only; no current actual compiler-owner/admission trace yet, preserve assertions pending exact provenance."
+    },
+    {
+      "selector": "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "log": "/tmp/compiler-focused/20261022T224200.215874Z/g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit.log",
+      "log_sha256": "d6e2229d6b39a1c69ebad5db31ac3df1f197458168a7eaed219306c07cadab38",
+      "result": {
+        "actual_selected": 1,
+        "artifact_stable": true,
+        "artifacts": [
+          {
+            "age_seconds": 605.697508096695,
+            "mtime_utc": "2026-10-22T22:33:58.186338+00:00",
+            "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+            "retained": true,
+            "sha256": "542120d61494bcb1cfb331c5fa8278b6eb68a97f2ed3a21368f6dce2e2c64348"
+          }
+        ],
+        "cargo_wrapper_exit": 101,
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "tcl-compiler",
+          "--lib",
+          "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "expected_selected": 1,
+        "label": "g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+        "log_at_cap": false,
+        "providers_stable": true,
+        "selector": "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+        "source_stable": true,
+        "summaries": [
+          [
+            "FAILED",
+            "0",
+            "1",
+            "0"
+          ]
+        ],
+        "warnings": false
+      },
+      "attribution": "After-load policy correction candidate only; no current actual compiler-owner/admission trace yet, preserve assertions pending exact provenance."
+    },
+    {
+      "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "log": "/tmp/compiler-focused/20261022T224200.215874Z/g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source.log",
+      "log_sha256": "2289d9d2226ffd8cfbd5f14c56b195d51b1b50247194f18d022f1f2d1577abb7",
+      "result": {
+        "actual_selected": 1,
+        "artifact_stable": true,
+        "artifacts": [
+          {
+            "age_seconds": 613.6608064174652,
+            "mtime_utc": "2026-10-22T22:33:58.186338+00:00",
+            "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+            "retained": true,
+            "sha256": "542120d61494bcb1cfb331c5fa8278b6eb68a97f2ed3a21368f6dce2e2c64348"
+          }
+        ],
+        "cargo_wrapper_exit": 101,
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "tcl-compiler",
+          "--lib",
+          "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "expected_selected": 1,
+        "label": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source",
+        "log_at_cap": false,
+        "providers_stable": true,
+        "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+        "source_stable": true,
+        "summaries": [
+          [
+            "FAILED",
+            "0",
+            "1",
+            "0"
+          ]
+        ],
+        "warnings": false
+      },
+      "attribution": "After-load policy correction candidate only; no current actual compiler-owner/admission trace yet, preserve assertions pending exact provenance."
+    },
+    {
+      "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "log": "/tmp/compiler-focused/20261022T224200.215874Z/g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source.log",
+      "log_sha256": "32d7c682e90149c76375e8dd2181f16b894fc0f2119415d496c451052eb162c2",
+      "result": {
+        "actual_selected": 1,
+        "artifact_stable": true,
+        "artifacts": [
+          {
+            "age_seconds": 620.7618029117584,
+            "mtime_utc": "2026-10-22T22:33:58.186338+00:00",
+            "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+            "retained": true,
+            "sha256": "542120d61494bcb1cfb331c5fa8278b6eb68a97f2ed3a21368f6dce2e2c64348"
+          }
+        ],
+        "cargo_wrapper_exit": 101,
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "tcl-compiler",
+          "--lib",
+          "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "expected_selected": 1,
+        "label": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source",
+        "log_at_cap": false,
+        "providers_stable": true,
+        "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+        "source_stable": true,
+        "summaries": [
+          [
+            "FAILED",
+            "0",
+            "1",
+            "0"
+          ]
+        ],
+        "warnings": false
+      },
+      "attribution": "After-load policy correction candidate only; no current actual compiler-owner/admission trace yet, preserve assertions pending exact provenance."
+    },
+    {
+      "selector": "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "log": "/tmp/compiler-focused/20261022T224200.215874Z/g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source.log",
+      "log_sha256": "a8b1c9104968f08c46e16dfd00fb1f61bca01e961464b391a66d991653d11215",
+      "result": {
+        "actual_selected": 1,
+        "artifact_stable": true,
+        "artifacts": [
+          {
+            "age_seconds": 628.9689931869507,
+            "mtime_utc": "2026-10-22T22:33:58.186338+00:00",
+            "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+            "retained": true,
+            "sha256": "542120d61494bcb1cfb331c5fa8278b6eb68a97f2ed3a21368f6dce2e2c64348"
+          }
+        ],
+        "cargo_wrapper_exit": 101,
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "tcl-compiler",
+          "--lib",
+          "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "expected_selected": 1,
+        "label": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+        "log_at_cap": false,
+        "providers_stable": true,
+        "selector": "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+        "source_stable": true,
+        "summaries": [
+          [
+            "FAILED",
+            "0",
+            "1",
+            "0"
+          ]
+        ],
+        "warnings": false
+      },
+      "attribution": "After-load policy correction candidate only; no current actual compiler-owner/admission trace yet, preserve assertions pending exact provenance."
+    },
+    {
+      "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "log": "/tmp/compiler-focused/20261022T224200.215874Z/g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations.log",
+      "log_sha256": "ce026de9276ccb8856ac9b7ed6a26b9f904196f421de7fc5f4caecea4f045c3c",
+      "result": {
+        "actual_selected": 1,
+        "artifact_stable": true,
+        "artifacts": [
+          {
+            "age_seconds": 636.231184720993,
+            "mtime_utc": "2026-10-22T22:33:58.186338+00:00",
+            "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+            "retained": true,
+            "sha256": "542120d61494bcb1cfb331c5fa8278b6eb68a97f2ed3a21368f6dce2e2c64348"
+          }
+        ],
+        "cargo_wrapper_exit": 101,
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "tcl-compiler",
+          "--lib",
+          "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "expected_selected": 1,
+        "label": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+        "log_at_cap": false,
+        "providers_stable": true,
+        "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+        "source_stable": true,
+        "summaries": [
+          [
+            "FAILED",
+            "0",
+            "1",
+            "0"
+          ]
+        ],
+        "warnings": false
+      },
+      "attribution": "After-load policy correction candidate only; no current actual compiler-owner/admission trace yet, preserve assertions pending exact provenance."
+    },
+    {
+      "selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "log": "/tmp/compiler-focused/20261022T224200.215874Z/g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix.log",
+      "log_sha256": "c4498e8ef1faf463ec96b920881719ef498db9f03a2e191ad17c01ebf03ce947",
+      "result": {
+        "actual_selected": 1,
+        "artifact_stable": true,
+        "artifacts": [
+          {
+            "age_seconds": 654.4197566509247,
+            "mtime_utc": "2026-10-22T22:33:58.186338+00:00",
+            "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+            "retained": true,
+            "sha256": "542120d61494bcb1cfb331c5fa8278b6eb68a97f2ed3a21368f6dce2e2c64348"
+          }
+        ],
+        "cargo_wrapper_exit": 101,
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "tcl-compiler",
+          "--lib",
+          "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "expected_selected": 1,
+        "label": "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+        "log_at_cap": false,
+        "providers_stable": true,
+        "selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+        "source_stable": true,
+        "summaries": [
+          [
+            "FAILED",
+            "0",
+            "1",
+            "0"
+          ]
+        ],
+        "warnings": false
+      },
+      "attribution": "Broad readonly namespace-context query deliberately includes conditional namespace; compiler-reviewed narrow strict-entry-negative correction1e73, unrun."
+    },
+    {
+      "selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+      "log": "/tmp/compiler-focused/20261022T224200.215874Z/g4-regress-original_namespace_import_keeps_the_source_declaration_allocation.log",
+      "log_sha256": "b704b5ceb1f6877bb04f3e5857885327dee9aef5ddd4989354a5165adacb205f",
+      "result": {
+        "actual_selected": 1,
+        "artifact_stable": true,
+        "artifacts": [
+          {
+            "age_seconds": 662.3095650672913,
+            "mtime_utc": "2026-10-22T22:33:58.186338+00:00",
+            "path": "/workspace/naming-migration-active/tcl-lsp/target/debug/deps/tcl_compiler-ef22ef87d0bd65a7",
+            "retained": true,
+            "sha256": "542120d61494bcb1cfb331c5fa8278b6eb68a97f2ed3a21368f6dce2e2c64348"
+          }
+        ],
+        "cargo_wrapper_exit": 101,
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "tcl-compiler",
+          "--lib",
+          "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+          "--",
+          "--exact",
+          "--nocapture",
+          "--test-threads=1"
+        ],
+        "expected_selected": 1,
+        "label": "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation",
+        "log_at_cap": false,
+        "providers_stable": true,
+        "selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+        "source_stable": true,
+        "summaries": [
+          [
+            "FAILED",
+            "0",
+            "1",
+            "0"
+          ]
+        ],
+        "warnings": false
+      },
+      "attribution": "Producer completion/world failure; no after-load expectation correction. Preserve exact source/import allocation assertions."
+    }
+  ],
+  "decision": "user-decisions-20261021T0820Z after-load world; user-decisions-20261022T1317Z actual compiler visits countReached; Reached/preview0 alone is not evidence of an actual compiler visit.",
+  "next": "Trace exact owner/recipe/admission/source policy before narrow corrections; actual source-only region/ingress gaps investigated separately, no whole/Native loosening."
+}

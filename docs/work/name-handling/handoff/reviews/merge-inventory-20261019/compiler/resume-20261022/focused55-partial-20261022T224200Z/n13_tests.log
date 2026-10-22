@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 1.08s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 4 tests
+test command_binding::conditional_source::tests::namespace_plan_retains_inner_then_outer_suffix_and_actual_restore_owner ... ok
+test command_binding::conditional_source::tests::original_finite_plan_keeps_the_real_script_suffix_and_prior_outcome ... ok
+test command_binding::conditional_source::tests::refused_same_site_observation_withdraws_and_cannot_renew_a_prior_plan ... ok
+test command_binding::conditional_source::tests::unsupported_control_descent_and_unknown_prefix_cannot_issue_finite_plans ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 10532 filtered out; finished in 8.09s

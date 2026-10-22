@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-22T22:51:14.236644+00:00",
+  "status": "PARTIAL bounded STATIC Core issuer/private physical lease review only; NOT whole bootstrap/root-selection approval",
+  "patch_sha256": "ee539567da8bd4117653093d3a03a57ea5108e8b6b1bf9cbafc4a64d195600b3",
+  "findings": [],
+  "examined_conclusions": [
+    "Core source_edges_for_analysis validates exact whole/region source owner, full input and config before indexing actual source rows; Option preserves unavailable vs empty.",
+    "Private ordinary candidate retains actual producer/physical bytes/admission/config/input; no publication ID minted for classification.",
+    "Postworker with_current_original_root_candidate rejoins saved bytes/admission/open revision/URI generation/file/config/input/producer epoch and factory.",
+    "Published candidate requires actual table/index ID and same producer; unpublished candidate refuses existing interpreted membership. Publication repeats interpreted-URI guard."
+  ],
+  "unapproved_open": [
+    "Every-edge tentative exclusions require final actual frontier/currentness and discovered-inherited association reconciliation.",
+    "Per-independent/request scope Pending/complete projection still global in this partial snapshot.",
+    "Actual type/tests/native two-parent/deep12/retirement protocols unrun."
+  ]
+}

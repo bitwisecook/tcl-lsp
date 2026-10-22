@@ -1,0 +1,19 @@
+{
+  "CARGO_BUILD_JOBS": "2",
+  "CARGO_HOME": "/workspace/.cargo",
+  "CARGO_HTTP_MULTIPLEXING": "false",
+  "CARGO_INCREMENTAL": "0",
+  "CARGO_PROFILE_DEV_DEBUG": "0",
+  "CARGO_PROFILE_TEST_DEBUG": "0",
+  "CARGO_TARGET_DIR": "/workspace/naming-migration-active/tcl-lsp/target",
+  "RUSTUP_HOME": "/workspace/.rustup",
+  "RUSTUP_TOOLCHAIN": "1.99.1",
+  "TCL_LSP_JIMSH": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh",
+  "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6",
+  "TCL_LSP_TCLSH84": "/workspace/naming-toolchains/bin/tclsh8.4",
+  "TCL_LSP_TCLSH85": "/workspace/naming-toolchains/bin/tclsh8.5",
+  "TCL_LSP_TCLSH86": "/workspace/naming-toolchains/bin/tclsh8.6",
+  "TCL_LSP_TCLSH90": "/workspace/naming-toolchains/bin/tclsh9.0",
+  "TCL_LSP_TCLSH91": "/workspace/naming-toolchains/bin/tclsh9.1",
+  "WASI_SDK_PATH": "/workspace/.toolchains/wasi-sdk-34.0"
+}

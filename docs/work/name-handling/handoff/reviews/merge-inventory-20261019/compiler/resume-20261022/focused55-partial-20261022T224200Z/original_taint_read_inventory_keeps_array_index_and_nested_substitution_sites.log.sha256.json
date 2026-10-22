@@ -1,0 +1,9 @@
+{
+  "/tmp/compiler-focused/20261022T224200.215874Z/original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites.log": "2bd527aa516b80db2d099af4c76f303dd08e60508d10f6f622414df157b3239d",
+  "/tmp/compiler-focused/20261022T224200.215874Z/original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites.log.artifact.json": "4c3eac613dc1b822446c5ea20528a3fd39f7e1374a815f700d5754e3d1d8f143",
+  "/tmp/compiler-focused/20261022T224200.215874Z/original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites.log.command": "975336d051c9546084fef4d96921cce84cf361836f3306528fd406e7ff7e7586",
+  "/tmp/compiler-focused/20261022T224200.215874Z/original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites.log.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+  "/tmp/compiler-focused/20261022T224200.215874Z/original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites.log.process.json": "63ebf2b61ac3a0e47f763926e4aff5c316ddce5b63f178f99ebd57d081fade53",
+  "/tmp/compiler-focused/20261022T224200.215874Z/original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites.log.result.json": "9000baa13cd65e152add97180e0d5bcdd1b3040dd3775eb5d7c87d7fedbd3d9d",
+  "/tmp/compiler-focused/20261022T224200.215874Z/original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites.log.source-after.json": "a6e7cf1d4beaab84288ca40bc4f813d2a5434c991a81ce6ae05423e879a68fea"
+}

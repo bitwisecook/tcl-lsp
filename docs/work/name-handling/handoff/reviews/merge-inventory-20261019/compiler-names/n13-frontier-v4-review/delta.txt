@@ -1,0 +1,78 @@
+--- a/rust/tcl-compiler/src/command_binding/conditional_source.rs
++++ b/rust/tcl-compiler/src/command_binding/conditional_source.rs
+@@ -572,13 +572,18 @@
+     }
+ }
+ impl super::SourceCommandBindings {
++    /// A missing result marker cannot convert a retained partial entry to a
++    /// whole-file analysis. Full inherited children have no region payload.
++    pub(crate) fn has_conditional_source_region(&self) -> bool {
++        self.original_inherited_source_entry()
++            .is_some_and(|entry| entry.conditional_region().is_some())
++    }
++
+     pub(crate) fn source_frontier_parent_view_matches(
+         &self,
+         parent: &crate::analyser::AnalysisResult,
+     ) -> bool {
+-        let partial = self
+-            .original_inherited_source_entry()
+-            .is_some_and(|entry| entry.conditional_region().is_some());
++        let partial = self.has_conditional_source_region();
+         match parent.original_source_region.as_ref() {
+             Some(region) => partial && region.matches_region_analysis(parent),
+             None => !partial,
+--- a/rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs
++++ b/rust/tcl-compiler/src/registry_invocation/source_structure/source_load/frontier.rs
+@@ -428,6 +428,36 @@
+     }
+ 
+     #[test]
++    fn whole_scope_join_refuses_a_stripped_region_but_keeps_full_child_views() {
++        let source = "source first.tcl; source second.tcl";
++        let parent = Analyser::new().analyse(source, "tcl8.6");
++        assert!(crate::source_graph::current_analysis(source, &parent).is_some());
++        let first = load(source, &parent, "source first");
++        let cut = expect_cut(first.frontier(&parent));
++        let child = Analyser::new()
++            .analyse_with_source_point_entry("", "tcl8.6", cut.point())
++            .unwrap();
++        assert!(crate::source_graph::current_analysis("", &child).is_some());
++        let continuation = first.conditional_continuation(&parent, &child).unwrap();
++        let chain = continuation.source_regions(&parent, &child).unwrap();
++        let region = chain.regions().first().unwrap();
++        let view = Analyser::new()
++            .analyse_source_region(region, &parent, &child)
++            .unwrap();
++        assert!(region.matches_region_analysis(&view));
++        assert!(crate::source_graph::current_analysis(source, &view).is_none());
++        let mut stripped = view.clone();
++        stripped.original_source_region = None;
++        // Image matching remains available to genuine region-specific APIs.
++        let input = stripped.resolved_input.as_ref().unwrap();
++        assert!(stripped.matches_original_source_image(
++            &tcl_lexer::SourceImage::document(source),
++            input.lexer_config()
++        ));
++        assert!(crate::source_graph::current_analysis(source, &stripped).is_none());
++    }
++
++    #[test]
+     fn replayed_frontier_transfers_only_the_exact_prefix_command_debt() {
+         for source in [
+             "source first.tcl; source second.tcl; source third.tcl",
+--- a/rust/tcl-compiler/src/source_graph.rs
++++ b/rust/tcl-compiler/src/source_graph.rs
+@@ -14,7 +14,11 @@
+     source: &str,
+     analysis: &AnalysisResult,
+ ) -> Option<(SourceImage, LexerConfig)> {
+-    if analysis.original_source_region.is_some() {
++    if analysis.original_source_region.is_some()
++        || analysis
++            .retained_command_realm()
++            .is_some_and(|realm| realm.source_bindings_ref().has_conditional_source_region())
++    {
+         return None;
+     }
+     let image = SourceImage::document(source);

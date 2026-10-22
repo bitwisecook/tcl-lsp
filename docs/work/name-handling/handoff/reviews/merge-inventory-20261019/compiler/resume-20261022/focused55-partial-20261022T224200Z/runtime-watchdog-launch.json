@@ -1,0 +1,23 @@
+{
+  "started_utc": "2026-10-22T22:42:00.160611+00:00",
+  "suite_pid": 164159,
+  "observer_pid": 164161,
+  "pins_before": {
+    "/tmp/compiler-focused-run.sh": "a730e14a0487a05ae3ee4a414a1d74c0ea47d31b3b8c1309979417af968da2f4",
+    "/tmp/compiler-focused-runtime-watchdog-v5.py": "c3a9ddbd812938dbfb336e96b4616361c378e030aa1b1d8fdd609a5f483f4191",
+    "/tmp/compiler-functional-current-focused-plan-v5.json": "6c0aeb0dd7e366ec4f9db8d0da76fc47ad3e1542bc339a8fe5d91fe1ed85b5cf"
+  },
+  "receipt": "/tmp/compiler-focused/20261022T224200.215874Z",
+  "timer_seconds": 180,
+  "runtime_scope": "whole selected executable, excluding compilation",
+  "root_authorization": "explicit GO after VM6 stable closure; root reviewed watcher v5 delta",
+  "finished_utc": "2026-10-22T22:48:05.389237+00:00",
+  "suite_exit": 1,
+  "observer_exit": 0,
+  "pins_after": {
+    "/tmp/compiler-focused-run.sh": "a730e14a0487a05ae3ee4a414a1d74c0ea47d31b3b8c1309979417af968da2f4",
+    "/tmp/compiler-focused-runtime-watchdog-v5.py": "c3a9ddbd812938dbfb336e96b4616361c378e030aa1b1d8fdd609a5f483f4191",
+    "/tmp/compiler-functional-current-focused-plan-v5.json": "6c0aeb0dd7e366ec4f9db8d0da76fc47ad3e1542bc339a8fe5d91fe1ed85b5cf"
+  },
+  "runtime_acceptance_invalid": false
+}

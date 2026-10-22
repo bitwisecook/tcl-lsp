@@ -1,0 +1,20 @@
+    Finished `test` profile [unoptimized] target(s) in 0.97s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 2 tests
+test command_binding::conditional_source::region::sequential_controls::sequential_tail_returns_to_the_same_original_prefix_without_reanalysis ... 
+thread 'command_binding::conditional_source::region::sequential_controls::sequential_tail_returns_to_the_same_original_prefix_without_reanalysis' (169429) panicked at rust/tcl-compiler/src/command_binding/conditional_source/region.rs:1167:68:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::conditional_source::region::sequential_controls::twelve_literal_source_hops_return_only_through_the_original_live_chain ... 
+thread 'command_binding::conditional_source::region::sequential_controls::twelve_literal_source_hops_return_only_through_the_original_live_chain' (169449) panicked at rust/tcl-compiler/src/command_binding/conditional_source/region.rs:1212:60:
+called `Option::unwrap()` on a `None` value
+FAILED
+
+failures:
+
+failures:
+    command_binding::conditional_source::region::sequential_controls::sequential_tail_returns_to_the_same_original_prefix_without_reanalysis
+    command_binding::conditional_source::region::sequential_controls::twelve_literal_source_hops_return_only_through_the_original_live_chain
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 10534 filtered out; finished in 2.75s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

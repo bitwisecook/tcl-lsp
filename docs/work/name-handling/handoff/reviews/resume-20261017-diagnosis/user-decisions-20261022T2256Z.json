@@ -1,0 +1,21 @@
+{
+  "utc": "2026-10-22T22:56:21.361198+00:00",
+  "source": "User answer in this coordinator chat to the explicit perf equivalence acceptance-contract question",
+  "question": "Should perf equivalence use a separate authenticated complete-report comparison instead of AnalysisResult ==, keeping global/runtime Eq and cache cutoff strict?",
+  "answer": "Authenticated full-report comparison (Recommended)",
+  "decisions": {
+    "perf_authenticated_full_report_comparison": {
+      "choice": "Authenticated full-report comparison",
+      "meaning": "Authorize a distinct authenticated full-report comparison operation for the perf/report harness. Its successful complete Equal result replaces AnalysisResult== as the perf equivalence gate; strict global/runtime equality outcomes remain separately recorded.",
+      "requirements": [
+        "Compare every report field and typed diagnostic subject using complete unique current actual source/input/registry/body-owner correspondence. Never omit fields/subjects or normalize IDs, pointers, Debug or names as a substitute for authentic correspondence.",
+        "Missing, stale, foreign, unsupported, incomplete or ambiguous correspondence returns Unavailable and fails the gate; Different records an actual field mismatch.",
+        "Keep global AnalysisResult equality, runtime-owner equality, cache/Salsa cutoffs and host eligibility strict and unchanged. Report correspondence grants no Native entry, compiler visit, frame, reaching cell, target, quiet effect or Normal completion.",
+        "Hosted reports require a genuine authenticated hosted-domain carrier retaining all applicable debts and currentness checks; do not remove existing exclusion to manufacture proof.",
+        "Diagnose aliases declaration-site count under existing policy; preserve fail-closed count/totality guards until genuine producer/correspondence evidence justifies a narrow repair.",
+        "Implement and validate Equal/Different/Unavailable, strict identity negatives and changed/missing/duplicate/foreign/stale source/input/registry/body controls. Re-run the complete actual all-old and mixed corpora before any perf patch is accepted or forwarded."
+      ],
+      "implementation_owners": "compiler owns report correspondence API/carriers; separate perf session owns harness integration and full equality/performance evidence. No duplicate perf role."
+    }
+  }
+}

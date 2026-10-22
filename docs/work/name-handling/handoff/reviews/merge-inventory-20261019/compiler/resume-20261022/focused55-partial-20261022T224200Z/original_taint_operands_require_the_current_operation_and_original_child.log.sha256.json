@@ -1,0 +1,9 @@
+{
+  "/tmp/compiler-focused/20261022T224200.215874Z/original_taint_operands_require_the_current_operation_and_original_child.log": "94dfb0b664627b9171ffcd1c5950eea0a382b66acbfa2ff6d9d138df654f9be2",
+  "/tmp/compiler-focused/20261022T224200.215874Z/original_taint_operands_require_the_current_operation_and_original_child.log.artifact.json": "8fda43fe7c35ac1b210d1e022139e8242024e871425b2cb1e346d50f8e7329d1",
+  "/tmp/compiler-focused/20261022T224200.215874Z/original_taint_operands_require_the_current_operation_and_original_child.log.command": "104b3dd672ea1ae717669fb3420aeba9d9309927641a4d8cdfd01e06116b9af4",
+  "/tmp/compiler-focused/20261022T224200.215874Z/original_taint_operands_require_the_current_operation_and_original_child.log.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+  "/tmp/compiler-focused/20261022T224200.215874Z/original_taint_operands_require_the_current_operation_and_original_child.log.process.json": "76853e1bafbe7740778b3499ac945f85e655cfb5b321563466dbafb56bf831e6",
+  "/tmp/compiler-focused/20261022T224200.215874Z/original_taint_operands_require_the_current_operation_and_original_child.log.result.json": "7189d57549eeaf2125629e8277d00d2c6f113048f317bf819a96b8a5f66fdd36",
+  "/tmp/compiler-focused/20261022T224200.215874Z/original_taint_operands_require_the_current_operation_and_original_child.log.source-after.json": "a6e7cf1d4beaab84288ca40bc4f813d2a5434c991a81ce6ae05423e879a68fea"
+}

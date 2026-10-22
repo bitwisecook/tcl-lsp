@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized] target(s) in 0.71s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 4 tests
+test command_binding::source_argument_syntax::purpose_controls::a_nested_script_parser_purpose_cannot_borrow_whole_input_syntax_scope ... ok
+test command_binding::source_argument_syntax::tests::direct_argument_geometry_survives_an_undefined_read_without_a_compiler_visit ... ok
+test command_binding::source_argument_syntax::tests::direct_argument_lookup_refuses_each_typed_alias_map ... ok
+test command_binding::source_argument_syntax::tests::raw_image_and_analysis_owner_cannot_replace_the_recorded_command_scope ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 10532 filtered out; finished in 0.84s

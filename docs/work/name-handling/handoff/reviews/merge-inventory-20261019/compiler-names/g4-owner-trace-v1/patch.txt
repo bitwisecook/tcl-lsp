@@ -1,0 +1,129 @@
+--- a/rust/tcl-compiler/src/command_binding.rs
++++ b/rust/tcl-compiler/src/command_binding.rs
+@@ -25887,3 +25887,54 @@
+         );
+     }
+ }
++
++// Temporary bounded original-g4 attribution. Existing assertions remain exact.
++#[cfg(test)]
++fn trace_original_g4_owner(
++    label: &str,
++    bindings: &SourceCommandBindings,
++    tokens: &crate::ir::CommandTokens,
++) {
++    let Some(binding) = tokens.source_binding.as_ref() else {
++        return;
++    };
++    let site = binding.invocation_site();
++    let current_owner = binding
++        .original_analysis_owner
++        .as_ref()
++        .zip(bindings.original_analysis_owner())
++        .is_some_and(|(actual, expected)| Arc::ptr_eq(actual, expected));
++    let visits = site.and_then(|site| bindings.compiler_invocations.get(site));
++    eprintln!(
++        "G4_OWNER label={label} offset={:?} reached={:?} unknown={} target={:?} owner={} words={} native_dialect={} source_protocol={} table={} structured={} admission={:?} visits={}",
++        site.map(|site| site.offset),
++        binding.runtime_reachability(),
++        binding.execution_is_unknown(),
++        binding
++            .proved_execution_target()
++            .map(|target| target.command.as_str()),
++        current_owner,
++        binding.original_compiler_words.is_some(),
++        binding.native_compiler_dialect().is_some(),
++        binding.compiler_source_protocol().is_some(),
++        binding.compiler_lookup_state.is_some(),
++        binding.native_structured_preparation.is_some(),
++        binding.native_compilation_admission_selection(),
++        visits.map_or(0, Vec::len),
++    );
++    if let Some(visits) = visits {
++        for (ordinal, visit) in visits.iter().take(8).enumerate() {
++            eprintln!(
++                "G4_VISIT label={label} ordinal={ordinal} selection={:?} admitted={} structured={} words={} policy={} native_entry={} opaque={} unclosed={}",
++                visit.selection,
++                visit.admitted.is_some(),
++                visit.structured.is_some(),
++                visit.original_words.is_some(),
++                visit.policy.is_some(),
++                visit.table.state.baseline.native_entry.is_some(),
++                visit.table.state.has_opaque_domain(),
++                visit.table.state.unclosed_command_world,
++            );
++        }
++    }
++}
+--- a/rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs
++++ b/rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs
+@@ -40,7 +40,8 @@
+ #[test]
+ fn conditional_expression_template_retains_grammar_without_actual_entry() {
+     let source = "proc f {} {expr {7 << 1}}";
+-    let (_, tokens) = original(source, "expr {7 << 1}", source.find("expr").unwrap());
++    let (bindings, tokens) = original(source, "expr {7 << 1}", source.find("expr").unwrap());
++    crate::command_binding::trace_original_g4_owner("conditional-expression", &bindings, &tokens);
+     let binding = tokens.source_binding.as_ref().unwrap();
+     let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
+     let receipt = binding
+--- a/rust/tcl-compiler/src/command_binding/declaration_layout.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_layout.rs
+@@ -5017,6 +5017,7 @@
+         let source = "proc p {mode} {switch -- $mode {a {puts A} default {puts D}}}";
+         let body = "switch -- $mode {a {puts A} default {puts D}}";
+         let (bindings, tokens) = original_tokens(source, body, source.find("switch").unwrap());
++        crate::command_binding::trace_original_g4_owner("declaration-layout", &bindings, &tokens);
+         let advice = bindings.declaration_operand_layout_advice(&tokens);
+         if advice.is_none() {
+             let binding = tokens.source_binding.as_ref().unwrap();
+--- a/rust/tcl-compiler/src/command_binding/expression_preparation.rs
++++ b/rust/tcl-compiler/src/command_binding/expression_preparation.rs
+@@ -2042,6 +2042,11 @@
+                     &command,
+                 );
+                 bindings.stamp_original_tokens(&mut tokens);
++                crate::command_binding::trace_original_g4_owner(
++                    "scoped-nested",
++                    &bindings,
++                    &tokens,
++                );
+                 let binding = tokens.source_binding.as_ref().unwrap();
+                 assert!(binding.proved_execution_target().is_none());
+                 assert_eq!(
+@@ -2110,6 +2115,11 @@
+                     &command,
+                 );
+                 bindings.stamp_original_tokens(&mut tokens);
++                crate::command_binding::trace_original_g4_owner(
++                    "selected-nested",
++                    &bindings,
++                    &tokens,
++                );
+                 let binding = tokens.source_binding.as_ref().unwrap();
+                 assert!(binding.proved_execution_target().is_none());
+                 assert_eq!(
+--- a/rust/tcl-compiler/src/command_binding/lifecycle_advice.rs
++++ b/rust/tcl-compiler/src/command_binding/lifecycle_advice.rs
+@@ -409,6 +409,7 @@
+     #[test]
+     fn scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source() {
+         let (bindings, tokens, registry) = inventory("");
++        crate::command_binding::trace_original_g4_owner("scoped-lifecycle", &bindings, &tokens);
+         let binding = tokens.source_binding.as_ref().unwrap();
+         assert!(binding.proved_execution_target().is_none());
+         let advice = SourceCommandBindings::scoped_lifecycle_advice(&tokens, &registry)
+--- a/rust/tcl-compiler/src/command_binding/normal_result.rs
++++ b/rust/tcl-compiler/src/command_binding/normal_result.rs
+@@ -603,6 +603,11 @@
+                 &segment,
+             );
+             bindings.stamp_original_tokens(&mut tokens);
++            crate::command_binding::trace_original_g4_owner(
++                "scoped-procedure-equivalence",
++                &bindings,
++                &tokens,
++            );
+             tokens
+         };
+         let positive = make("proc answer {} {return 42}; proc f {} {return [answer]}");

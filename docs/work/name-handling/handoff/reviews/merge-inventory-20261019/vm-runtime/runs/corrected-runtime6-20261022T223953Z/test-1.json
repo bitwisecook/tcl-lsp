@@ -1,0 +1,17 @@
+{
+  "argv": [
+    "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+    "cmd_error::tests::eight_four_catch_takes_no_options_variable",
+    "--exact",
+    "--nocapture",
+    "--test-threads",
+    "1"
+  ],
+  "cwd": "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust",
+  "exit": 101,
+  "started_utc": "2026-10-22T22:38:55.671382+00:00",
+  "ended_utc": "2026-10-22T22:39:01.682554+00:00",
+  "bytes": 818,
+  "stopped": null,
+  "deadline_seconds": 180
+}

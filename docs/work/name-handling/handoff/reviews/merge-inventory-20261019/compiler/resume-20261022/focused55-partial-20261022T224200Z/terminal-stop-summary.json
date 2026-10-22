@@ -1,0 +1,18 @@
+{
+  "observed_utc": "2026-10-22T22:50:09.193791+00:00",
+  "status": "STOP unexpected count; no full55 result",
+  "filters_completed": 24,
+  "selected": 45,
+  "passed": 23,
+  "failed": 22,
+  "all_source_provider_stable": true,
+  "all_artifact_stable": true,
+  "warnings": 0,
+  "stop_label": "n13_source_point_entry10",
+  "expected": 10,
+  "actual": 9,
+  "watchdog_records": 24,
+  "timed_out": 0,
+  "watchdog_failure": null,
+  "runner_input_hashes_stable": true
+}

@@ -1,6 +1,6 @@
 {
   "utc": "2026-10-22T22:38:09.551874+00:00",
-  "status": "User question pending; no answer or implementation authorization assumed",
+  "status": "ANSWERED: authenticated full-report comparison authorized; implementation/proof pending",
   "proposed_contract": "Distinct authenticated complete-report comparison only for perf/report harness, replacing the current AnalysisResult== perf equivalence gate. Global/runtime Eq, Salsa/cache cutoff and host eligibility remain strict.",
   "requirements": [
     "Every report field and typed diagnostic subject compared via complete unique current actual input/registry/source/body-owner correspondence",
@@ -21,5 +21,8 @@
     "E003": "Both reports present/current; diagnostic0 sourcearity only analysis_owner identity differs among emitted subject fields, all emitted ordinary fields equal; no complete correspondence proof",
     "hosted": "Both firstcapture refusal unsupported-source-domain"
   },
-  "proposal_sha256": "069dcc1b1ff40299d28959eb50130ede2fdecba94dcab04574827f7ed1f20900"
+  "proposal_sha256": "069dcc1b1ff40299d28959eb50130ede2fdecba94dcab04574827f7ed1f20900",
+  "answered_utc": "2026-10-22T22:56:21.361198+00:00",
+  "decision_file": "docs/work/name-handling/handoff/reviews/resume-20261017-diagnosis/user-decisions-20261022T2256Z.json",
+  "actual_answer": "Authenticated full-report comparison (Recommended)"
 }

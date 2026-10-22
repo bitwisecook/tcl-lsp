@@ -1,0 +1,10 @@
+{
+  "RUSTUP_TOOLCHAIN": "1.99.1",
+  "CARGO_TARGET_DIR": "/tmp/vm-runtime-ci5205-target-20261022",
+  "CARGO_INCREMENTAL": "0",
+  "CARGO_PROFILE_TEST_DEBUG": "0",
+  "CARGO_PROFILE_DEV_DEBUG": "0",
+  "TCL_TOMMATH_DIR": null,
+  "TCL_LSP_JIMSH": "/workspace/naming-toolchains/tmp/jimtcl-oracle/jimsh",
+  "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6"
+}

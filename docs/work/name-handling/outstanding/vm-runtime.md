@@ -2,11 +2,51 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T22:37:47Z (correctedruntime6 actual refresh complete22:36:43Z; frozen guarded Cargo active, no tests/results yet; compiler55 held, product HOLD/docs CLEAR)
+Last updated: 2026-10-22T22:50:48Z (correctedruntime6 canonical archive4PASS2FAIL lossless/dedup complete; exactJim correction retained; C84boundary3/Jim1 plans frozenv3, noCargoqueue; product HOLD/docs CLEAR)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Completed runtime6 evidence was canonically archived at22:50:20Z, including
+raw test logs, artifact/refresh proofs, exact Jim assertion correction and full
+old/new source bytes. Identical6MB before/after inventories (SHA-256 `a0a72dd2`)
+share one lossless gzip with both logical paths recorded; decompression was
+verified. Original oldb37 raw receipts/source/executable remain untouched.
+Archive manifest is `decc0b89a33374203fb1f82c0d72449ceea5616481693d034c95b4926948e0c1`.
+
+Separate guarded runtime boundary plans are frozen in
+`/tmp/vm-runtime-runtime-boundaries-v3/`: existing C84 boundary3 `ee6aa943`,
+optional Jim import1 `53f03321`, driver `4c3d524a`. Each future invocation obtains
+an actual current Cargo-owned artifact, including measured standalone target
+kind `[rlib, cdylib, staticlib]`, inside the whole source/provider/build/run guard.
+No direct old executable execution is planned. Optional Jim requires root to
+integrate diagnostic candidate `87824c4a` first; the actual same failing import
+assertion will report initial refusal, result and genuine full completion or
+capture error without changing its script/pass condition. All boundary-plan
+cases are unrun and no Cargo/lock is queued. Catch source triage identifies the
+existing C84 first-episode logger/global setter path, but has no proven product
+root cause or proposed production change yet.
+
+Corrected runtime6 closed/reaped at22:39:53Z with exact full source/provider
+comparison (35074 source entries), independent lock-free confirmation and
+actual artifact `5600ac5f`. Results: alias enumeration, both metadata-TLS controls
+and corrected OO callback-phase test PASS; catch8.4 and Jim import FAIL101.
+No timeout/abort occurred. Build had zero typed warnings and only the deliberate
+no-tommath notice; this is not a zero-warning gate or full-runtime claim.
+Completed logs/guards are in `vm-runtime/runs/corrected-runtime6-20261022T223953Z/`.
+
+Catch's original script returns guest CodeError with native refusal `None` and
+exact bytes `can't read "::errorCode": no such variable`. Original assertions
+remain unchanged. The Jim failure is the SAME import assertion in both oldb37
+and new5600 runs: `namespace eval dest {namespace import ::src::x}`. Archived
+old source/log identify7056, new7059 differs by three added diagnostic lines.
+Both initial namespace/proc setup assertions passed. The earlier report saying
+first setup failed was an attribution mistake and is explicitly superseded by
+`jim-exact-assertion-comparison.json`; raw logs/old receipts remain preserved.
+No Jim progress or first host-refusal cause is established. Compiler55 may use
+the released slot; VM has no additional Cargo queued. Narrow catch guest-state
+triage continues read-only/off-tree; general parity remains parked.
 
 Corrected runtime6 has explicit coordinator GO after TEMP3 closed at22:35:33Z.
 Mirror refresh completed at22:36:43Z, copying exactly the three current diagnostic/
@@ -728,7 +768,7 @@ Actual root strict-Clippy inventory on def9 has181VM findings. Off-tree six-path
 
 Current-source standalone no-tommath artifact SHA `b37b2b5176176b745181e9967d590b8d710441e01e049e238f6727c422601d29` executed each exact selector once with180s deadlines. Actual outcomes: alias PASS; both new metadata-TLS retirement controls PASS; catch8.4 FAIL exit101; Jim import-family selector FAIL exit101; unchanged OO callback test abortSIGABRT(-6). No timeout. Library roster is2147 tests; only these6 ran, no full-suite claim. Exactly the deliberate no-tommath build-script warning was recorded, no typed compiler warning; no zero-warning gate claim.
 
-Catch's original exact wrapper script `list [catch {catch {set x 1} r o} m] $m $::errorCode` fails the run helper's CodeOk assertion with actual CodeError atcmd_error.rs1280. The assertion lacks result/refusal context, so cause is still unresolved, original expected C8.4 bytes unchanged. Jim fails FIRST `namespace eval src {proc x {} {return OLD}}` setup atcmd_namespace.rs7056, before import/key assertions; no metadata TLS abort is reproduced. Both independent focused TLS controls genuinely pass, including unavailable-real-maps destructor precondition and live-map Weak release. This is bounded focused TLS evidence, not a claim that the Jim test or fullruntime suite passes.
+Catch's original exact wrapper script `list [catch {catch {set x 1} r o} m] $m $::errorCode` fails the run helper's CodeOk assertion with actual CodeError atcmd_error.rs1280. The assertion lacks result/refusal context, so cause is still unresolved, original expected C8.4 bytes unchanged. Correction after exact archived-source join: old7056 is the import assertion `namespace eval dest {namespace import ::src::x}`, not initial setup. Initial setup passed; no metadata TLS abort is reproduced. See new exact comparison receipt. Both independent focused TLS controls genuinely pass, including unavailable-real-maps destructor precondition and live-map Weak release. This is bounded focused TLS evidence, not a claim that the Jim test or fullruntime suite passes.
 
 All full source/provider/experiment fixture hashes matched after the command. Session77699 completed, no live Cargo/rustc remained (pre-existing zombies only), and independent nonblocking flock succeeded atactual21:09:14Z. Final receipt SHA `0d4aa3a7940e31e3fd0c53167c83563112f7ff65d49f22e0e253890b01cca402`; completed logs/roster/artifact/guard maps copied under `ci5205-runtime-triage-20261022T2042Z/runtime6-attempts/attempt3-completed`. No cleanup; fresh artifact/mirror/target retained.
 

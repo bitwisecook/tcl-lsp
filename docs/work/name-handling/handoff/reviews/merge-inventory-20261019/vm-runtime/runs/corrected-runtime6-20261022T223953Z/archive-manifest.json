@@ -1,0 +1,225 @@
+{
+  "utc": "2026-10-22T22:50:20.151662+00:00",
+  "status": "Completed exact6 raw bytes retained losslessly; identical before/after manifests deduplicated; original /tmp oldb37 receipts/source/executable untouched",
+  "files": [
+    {
+      "path": "jim-exact-assertion-comparison.json",
+      "sha256": "1bd83d1caf617956f006a75d9c5a3b0e6b160104864db608fe5217cac52e2696",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/jim-exact-assertion-comparison.json"
+    },
+    {
+      "path": "final-receipt.json",
+      "sha256": "915e95da5e45f5ea92fd4c81d52d3ceea5e070e962e9d0e6b538827684527df7",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/final-receipt.json"
+    },
+    {
+      "path": "guard.json",
+      "sha256": "29abd62f79123e9554c28fc3af648ffec4b3327d49198e666e18cbacd5c0c2e0",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/guard.json"
+    },
+    {
+      "path": "after.json",
+      "sha256": "a0a72dd25d59d36848052a91a7f6957ebdd5467c999238dfa0878928aec062ea",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/after.json",
+      "logical_original_path": "after.json",
+      "storage_path": "manifests/a0a72dd25d59d36848052a91a7f6957ebdd5467c999238dfa0878928aec062ea.json.gz",
+      "compression": "gzip-lossless",
+      "stored_sha256": "22567daf8fd89b6ab4d24c188cb24c35a806682b2a5c97349b5cc0cad404b84d",
+      "original_bytes": 6053832,
+      "stored_bytes": 1350929
+    },
+    {
+      "path": "test-6.json",
+      "sha256": "df12d0ce5f9f64a09b9dfe709ff34e79004f43a9f7bf37c35325758457afdb70",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-6.json"
+    },
+    {
+      "path": "test-6.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-6.stderr"
+    },
+    {
+      "path": "test-6.stdout",
+      "sha256": "31263131b68cb7df7b742718c67f5525c5b184c752ffede28b8d23c486317349",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-6.stdout"
+    },
+    {
+      "path": "test-5.json",
+      "sha256": "1cdc57e680217f6e855574ede5ae23530e6cfb84f285ff6371159b3d0dde3f4c",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-5.json"
+    },
+    {
+      "path": "test-5.stderr",
+      "sha256": "c08cd568f08f45495bb7df0e5353296c7cd3e8369f047ac77ea6e4df804e7bec",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-5.stderr"
+    },
+    {
+      "path": "test-5.stdout",
+      "sha256": "e653b11a4bebf715e83505511ba40e0b7ee6a1883257a41984869d29afead150",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-5.stdout"
+    },
+    {
+      "path": "test-4.json",
+      "sha256": "8c11cabf97b8a375f5cb8f81e62dea0044b3db6c73cbd07b524295bb1124f0a2",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-4.json"
+    },
+    {
+      "path": "test-4.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-4.stderr"
+    },
+    {
+      "path": "test-4.stdout",
+      "sha256": "841cf2505182297260ed27ff50b78649f8569762b5c65505721f4afe369b38ca",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-4.stdout"
+    },
+    {
+      "path": "test-3.json",
+      "sha256": "cdf094a262d997e7ad2dab371cf7701be893389a59bfaa04a0f84ee17e8b0377",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-3.json"
+    },
+    {
+      "path": "test-3.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-3.stderr"
+    },
+    {
+      "path": "test-3.stdout",
+      "sha256": "28d573428ac2ca4362efe606a516b3dc943dbc80f17f7e2c01d497c349684b47",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-3.stdout"
+    },
+    {
+      "path": "test-2.json",
+      "sha256": "b6d4de0ef2363ffa9cfb028acd521e4cb6f0f61a5afdde26537a0adc4f39dacd",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-2.json"
+    },
+    {
+      "path": "test-2.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-2.stderr"
+    },
+    {
+      "path": "test-2.stdout",
+      "sha256": "55e317c17d85ca99d72e0e986ec4bf6a44893ba11e3f227b2a86e1cc70e2983c",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-2.stdout"
+    },
+    {
+      "path": "results.json",
+      "sha256": "c9a8d3014ae7a62844b827173b7d3b208949d47d26bdc27089b7c90bb794179f",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/results.json"
+    },
+    {
+      "path": "test-1.json",
+      "sha256": "d48b444381a96a2928f01998fd48be61eb5ceaeed07bfab5b36e11da137f34a3",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-1.json"
+    },
+    {
+      "path": "test-1.stderr",
+      "sha256": "e9a0803207bffbf808506f73d43716714f310a718dd7c743d8a48b7fad3d6edd",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-1.stderr"
+    },
+    {
+      "path": "test-1.stdout",
+      "sha256": "10e7c62bdd2d1f7a61852ea4bfb663c9a924814ff68fec9fd447ccb0869ce45b",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/test-1.stdout"
+    },
+    {
+      "path": "roster.json",
+      "sha256": "a5d48ddffe722772c6673184cffda642c9f0a15edb83faaed34a927865c245dd",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/roster.json"
+    },
+    {
+      "path": "roster.stderr",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/roster.stderr"
+    },
+    {
+      "path": "roster.stdout",
+      "sha256": "2af0a2f690a4d56da0318fd943dde2bea2a3a93f7fbae32a3c60a04b7f93f13d",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/roster.stdout"
+    },
+    {
+      "path": "artifact.json",
+      "sha256": "a6f04a0f560e40dc210b5371d4d70268068ebcfd28a6ff88fa4eefccdcdc7da5",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/artifact.json"
+    },
+    {
+      "path": "build.json",
+      "sha256": "1aaa9c78820175b41ef7db7656b83c06cf8649bb05d9d35fa63d398e7171dc04",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/build.json"
+    },
+    {
+      "path": "build.stderr",
+      "sha256": "84db57fb1161477ba5e3460d04841df18f193ebe074609b54a2406a7c2888b9b",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/build.stderr"
+    },
+    {
+      "path": "build.stdout",
+      "sha256": "dfa1384c33301555f9efd3b950695b2384db03adcef544b97bc0400f2435923a",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/build.stdout"
+    },
+    {
+      "path": "environment.json",
+      "sha256": "72a75031cffffd36655ce8bc33e5d0b9b16f110a1d397b453aa95910c23cd1c9",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/environment.json"
+    },
+    {
+      "path": "plan.json",
+      "sha256": "004f125651e82ee61c0b9ecd51e6f4d9cf6bbade748d1aa42e57f3c437538fec",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/plan.json"
+    },
+    {
+      "path": "before.json",
+      "sha256": "a0a72dd25d59d36848052a91a7f6957ebdd5467c999238dfa0878928aec062ea",
+      "source": "/tmp/vm-runtime-ci5205-six-postfix/before.json",
+      "logical_original_path": "before.json",
+      "storage_path": "manifests/a0a72dd25d59d36848052a91a7f6957ebdd5467c999238dfa0878928aec062ea.json.gz",
+      "compression": "gzip-lossless",
+      "stored_sha256": "22567daf8fd89b6ab4d24c188cb24c35a806682b2a5c97349b5cc0cad404b84d",
+      "original_bytes": 6053832,
+      "stored_bytes": 1350929
+    },
+    {
+      "path": "old-jim-source.rs.txt.gz",
+      "source": "/tmp/vm-runtime-ci5205-original-input-archive/source/src/cmd_namespace.rs.txt",
+      "sha256": "c90b27fe37b622a19f7b5f3fe3c730d01155de62d42a9967a6cddf63b5264d62",
+      "original_sha256": "c90b27fe37b622a19f7b5f3fe3c730d01155de62d42a9967a6cddf63b5264d62",
+      "stored_sha256": "f6134b42e4c95d3713611b30c9826f44bcaeb015c20a9a2ee377df35db2ee756",
+      "compression": "gzip-lossless",
+      "original_bytes": 318589,
+      "stored_bytes": 56224
+    },
+    {
+      "path": "new-jim-source.rs.txt.gz",
+      "source": "/tmp/vm-runtime-ci5205-no-tommath/runtime/rust/src/cmd_namespace.rs",
+      "sha256": "3732c7dcb007509d14105c0b83e9cf52e3ff2e3fb0488c07039e4432f8efe87b",
+      "original_sha256": "3732c7dcb007509d14105c0b83e9cf52e3ff2e3fb0488c07039e4432f8efe87b",
+      "stored_sha256": "0c6643f431ffd9558195ca7a1bee507988e6f30e822fd08337f7ae09c6dd7efc",
+      "compression": "gzip-lossless",
+      "original_bytes": 318737,
+      "stored_bytes": 56264
+    },
+    {
+      "path": "mirror-refresh.json.gz",
+      "source": "/tmp/vm-runtime-ci5205-original-input-archive/refresh-receipt.json",
+      "sha256": "f95047a01c9755bef3c0b108ba90019fe3633a81b661d7bbb8e2d46f46121377",
+      "original_sha256": "f95047a01c9755bef3c0b108ba90019fe3633a81b661d7bbb8e2d46f46121377",
+      "stored_sha256": "60e6f07a4b0f053e95a83746cbc2b510289a1f4b660a217527a421428bb783c3",
+      "compression": "gzip-lossless",
+      "original_bytes": 1520886,
+      "stored_bytes": 311066
+    }
+  ],
+  "deduplicated_full_input_manifest": {
+    "before.json": "manifests/a0a72dd25d59d36848052a91a7f6957ebdd5467c999238dfa0878928aec062ea.json.gz",
+    "after.json": "manifests/a0a72dd25d59d36848052a91a7f6957ebdd5467c999238dfa0878928aec062ea.json.gz",
+    "uncompressed_sha256": "a0a72dd25d59d36848052a91a7f6957ebdd5467c999238dfa0878928aec062ea"
+  },
+  "warning_exception": "Exactly deliberate no-tommath build-script notice, zero typed warnings. No zero-warning gate claim.",
+  "outcomes": {
+    "PASS": 4,
+    "FAIL": 2,
+    "abort": 0,
+    "timeout": 0
+  }
+}

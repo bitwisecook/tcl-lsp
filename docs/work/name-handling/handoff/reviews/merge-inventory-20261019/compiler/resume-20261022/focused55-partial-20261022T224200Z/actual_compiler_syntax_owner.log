@@ -1,0 +1,15 @@
+    Finished `test` profile [unoptimized] target(s) in 0.70s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test command_binding::compiler_inventory::original_inline_control_source_tests::original_compiler_syntax_keeps_the_actual_input_and_vector_owner ... 
+thread 'command_binding::compiler_inventory::original_inline_control_source_tests::original_compiler_syntax_keeps_the_actual_input_and_vector_owner' (168208) panicked at rust/tcl-compiler/src/command_binding/compiler_inventory.rs:1868:13:
+assertion failed: binding.original_compiler_argument_syntax(tokens, &foreign,
+        registry).is_none()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10535 filtered out; finished in 1.04s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

@@ -1,0 +1,304 @@
+{
+  "prepared_utc": "2026-10-22T22:50:50.029293+00:00",
+  "status": "PREPARED exact count correction after actual partial-stop; NO Cargo queued, root GO required",
+  "scope": "First exact4 confirmed C6 losses + unchanged8 original naming assertions, then required new Direct/compiler owner/refusal and conditional region controls +five exact newly introduced body/inversion owner/refusal controls on same compiler artifact",
+  "required_filters": [
+    {
+      "label": "fp_rbs_15_all_break_switch_not_a_proc_terminator",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_all_break_switch_not_a_proc_terminator",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "unchanged original confirmed baseline pass-to-fail, actual assertion preserved"
+    },
+    {
+      "label": "fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+      "selector": "analyser::diagnostics::fp::rbs::fp_rbs_15_while1_break_in_opaque_switch_exits_loop",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "unchanged original confirmed baseline pass-to-fail, actual assertion preserved"
+    },
+    {
+      "label": "fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+      "selector": "analyser::diagnostics::tests::fp_rbs_15_all_exiting_opaque_switch_is_a_terminator",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "unchanged original confirmed baseline pass-to-fail, actual assertion preserved"
+    },
+    {
+      "label": "fp_tnt_03_interp_eval_list_literal_head_no_t105",
+      "selector": "analyser::diagnostics::fp::tnt::fp_tnt_03_interp_eval_list_literal_head_no_t105",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "unchanged original confirmed baseline pass-to-fail, actual assertion preserved"
+    },
+    {
+      "label": "g4-regress-conditional_expression_template_retains_grammar_without_actual_entry",
+      "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs"
+    },
+    {
+      "label": "g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "selector": "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/declaration_layout.rs"
+    },
+    {
+      "label": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/expression_preparation.rs"
+    },
+    {
+      "label": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/expression_preparation.rs"
+    },
+    {
+      "label": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "selector": "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs"
+    },
+    {
+      "label": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/normal_result.rs"
+    },
+    {
+      "label": "g4-regress-original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs"
+    },
+    {
+      "label": "g4-regress-original_namespace_import_keeps_the_source_declaration_allocation",
+      "selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/source_command_world.rs"
+    },
+    {
+      "label": "original_cross_interp_script_reads_keep_the_tainted_command_word",
+      "selector": "original_cross_interp_script_reads_keep_the_tainted_command_word",
+      "exact": false,
+      "expected_selected": 1,
+      "env": {}
+    },
+    {
+      "label": "original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites",
+      "selector": "original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites",
+      "exact": false,
+      "expected_selected": 1,
+      "env": {}
+    },
+    {
+      "label": "original_taint_operands_require_the_current_operation_and_original_child",
+      "selector": "original_taint_operands_require_the_current_operation_and_original_child",
+      "exact": false,
+      "expected_selected": 1,
+      "env": {}
+    },
+    {
+      "label": "compiled_list_head_",
+      "selector": "compiled_list_head_",
+      "exact": false,
+      "expected_selected": 4,
+      "env": {}
+    },
+    {
+      "label": "source_argument_syntax",
+      "selector": "command_binding::source_argument_syntax::",
+      "exact": false,
+      "expected_selected": 4,
+      "env": {},
+      "purpose": "unrun new candidate control; not a replacement for original regressions"
+    },
+    {
+      "label": "actual_compiler_syntax_owner",
+      "selector": "command_binding::compiler_inventory::original_inline_control_source_tests::original_compiler_syntax_keeps_the_actual_input_and_vector_owner",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "unrun new candidate control; not a replacement for original regressions"
+    },
+    {
+      "label": "direct_source_taint_arguments",
+      "selector": "registry_invocation::source_taint_arguments::tests::",
+      "exact": false,
+      "expected_selected": 2,
+      "env": {},
+      "purpose": "unrun new candidate control; not a replacement for original regressions"
+    },
+    {
+      "label": "n13_tests",
+      "selector": "command_binding::conditional_source::tests::",
+      "exact": false,
+      "expected_selected": 4,
+      "env": {},
+      "purpose": "new actual conditional continuation/region owner/restoration/refusal controls, not replacement original assertions"
+    },
+    {
+      "label": "n13_continuation_controls",
+      "selector": "command_binding::conditional_source::continuation_controls::",
+      "exact": false,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "new actual conditional continuation/region owner/restoration/refusal controls, not replacement original assertions"
+    },
+    {
+      "label": "n13_region_controls",
+      "selector": "command_binding::conditional_source::region::controls::",
+      "exact": false,
+      "expected_selected": 3,
+      "env": {},
+      "purpose": "new actual conditional continuation/region owner/restoration/refusal controls, not replacement original assertions"
+    },
+    {
+      "label": "n13_region_sequential_controls",
+      "selector": "command_binding::conditional_source::region::sequential_controls::",
+      "exact": false,
+      "expected_selected": 2,
+      "env": {},
+      "purpose": "new actual conditional continuation/region owner/restoration/refusal controls, not replacement original assertions"
+    },
+    {
+      "label": "n13_source_point_entry9",
+      "selector": "command_binding::source_point_entry::tests::",
+      "exact": false,
+      "expected_selected": 9,
+      "env": {},
+      "purpose": "Actual current tests module9; independent54e guard is separate exact selector, preserving original required10 coverage"
+    },
+    {
+      "label": "n13_source_entry_reborrow_unavailable_extra",
+      "selector": "command_binding::source_point_entry::unavailable_entry_reborrow_controls::source_entry_reborrow_refuses_unavailable_ordinary_and_unknown_history",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "Same54e substantive control required by original frozen55; actual module is outside tests prefix, independently verified canonical source1150"
+    },
+    {
+      "label": "n13_conditional_region_purpose_refuses_a_genuine_whole_child",
+      "selector": "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::conditional_region_purpose_refuses_a_genuine_whole_child",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "new purpose refusal proves legitimate opposite positive first"
+    },
+    {
+      "label": "n13_complete_program_purpose_refuses_a_genuine_conditional_region",
+      "selector": "command_binding::source_transition_advice::source_point::conditional_region_purpose_controls::complete_program_purpose_refuses_a_genuine_conditional_region",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "new purpose refusal proves legitimate opposite positive first"
+    },
+    {
+      "label": "n13_foreign_completed_region",
+      "selector": "command_binding::conditional_source::region::foreign_completed_region_controls::return_outcome_refuses_a_byte_equal_foreign_completed_region_owner",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "new independently genuine child/region chains refuse byte-equal foreign completed outcome"
+    },
+    {
+      "label": "n13_region_declaration_dependency",
+      "selector": "command_binding::conditional_source::region::declaration_dependency_controls::region_call_joins_only_the_actual_completed_child_declaration_owner",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "new09e9/bc9 genuine region positive issuer and exact child declaration dependency; byte-equal fresh child refuses"
+    },
+    {
+      "label": "lsp-owner-guard-body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis",
+      "selector": "registry_invocation::source_structure::original_body_syntax::tests::body_syntax_inventory_cannot_borrow_an_equal_foreign_analysis",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained"
+    },
+    {
+      "label": "lsp-owner-guard-equal_source_and_same_realm_do_not_replace_body_inventory_request",
+      "selector": "analyser::types::original_body_syntax_request_tests::equal_source_and_same_realm_do_not_replace_body_inventory_request",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained"
+    },
+    {
+      "label": "lsp-owner-guard-original_boolean_inversion_retains_leaf_and_dispatch_owners",
+      "selector": "command_binding::original_literal_argv_rewrite::tests::original_boolean_inversion_retains_leaf_and_dispatch_owners",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained"
+    },
+    {
+      "label": "lsp-owner-guard-original_boolean_inversion_checks_leaf_token_coordinates",
+      "selector": "command_binding::original_literal_argv_rewrite::tests::original_boolean_inversion_checks_leaf_token_coordinates",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained"
+    },
+    {
+      "label": "lsp-owner-guard-original_boolean_inversion_retains_selected_version_floor",
+      "selector": "command_binding::original_literal_argv_rewrite::tests::original_boolean_inversion_retains_selected_version_floor",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "purpose": "New current body request/borrower/unavailable/inversion leaf/version controls justified by latest body code change; original50 retained"
+    }
+  ],
+  "expected_filters": 34,
+  "expected_selected": 55,
+  "guards": "Global lock over entire suite; all local workspace source/fixture/Cargo input inventory + current Rust diff; provider wrappers/actual workers/Rust tools/transitive shared binaries before/after; 5second disk monitor interrupts only own Cargo process group below2GiB; per-log20MiB filtered cap; no executable cleanup",
+  "assertion_policy": "Original sources/assertions unchanged; unexpected count including zero is terminal. No broad unfiltered lib. Every selector via current Cargo under same frozen artifact/source/provider guards, no direct old executable.",
+  "excluded_repeats": [
+    "g4 main54 and diagnosticZZ already measured pass/rows, no new concern here",
+    "full fp_rbs_15/fp_sh_21/fp_tnt_03 broad families delegated hosted deep CI by root",
+    "old minify issuer green is separate LSP scope"
+  ],
+  "remaining_n13_debt": [],
+  "actual_module_count_confirmation": "Names 2026-10-22 confirmed region4+1+3+2 exact modules against canonical source; no runtime enumeration claim",
+  "predecessor_sha256": "6c0aeb0dd7e366ec4f9db8d0da76fc47ad3e1542bc339a8fe5d91fe1ed85b5cf",
+  "required_source_patch": {
+    "path": "/tmp/naming-next-batch-2142-applied.json",
+    "status": "root exact23path integration applied21:48, actual hashes verified",
+    "components": [
+      "09e9 region+purpose4controls",
+      "54e extra source entry control",
+      "453935 oldtestfield compatibility correction"
+    ],
+    "original_sources_assertions": "retained unchanged"
+  },
+  "temporary_diagnostic_plan_separate": "/tmp/compiler-report-first-refusal-v1/run-plan.json SHA938fc0ec99e82f1c4b51352e3508e19196c85ed2f01b2a54723509c448632f71",
+  "supplement_manifest": {
+    "path": "/tmp/lsp-folder-minify-current13/body-inversion-guards-supplement.json",
+    "sha256": "ddbb92975d51b07d90db18ac2586767641687939cfeddc8594d8c745dc33b83a",
+    "core_extra": "separate LSP package phase, not included"
+  },
+  "count_correction": "Actual source_point_entry::tests selected9;54e guard is in unavailable_entry_reborrow_controls. No tests/assertions dropped, no primary runner change."
+}

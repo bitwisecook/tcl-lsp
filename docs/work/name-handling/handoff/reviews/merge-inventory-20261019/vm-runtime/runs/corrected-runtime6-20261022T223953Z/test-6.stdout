@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2146 filtered out; finished in 4.79s
+

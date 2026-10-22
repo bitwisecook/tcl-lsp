@@ -1,0 +1,24 @@
+    Finished `test` profile [unoptimized] target(s) in 0.44s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 3 tests
+test command_binding::conditional_source::region::controls::deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix ... 
+thread 'command_binding::conditional_source::region::controls::deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix' (169188) panicked at rust/tcl-compiler/src/command_binding/conditional_source/region.rs:926:64:
+called `Option::unwrap()` on a `None` value
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test command_binding::conditional_source::region::controls::ordered_namespace_suffixes_restore_the_actual_inner_frame_before_outer_walk ... 
+thread 'command_binding::conditional_source::region::controls::ordered_namespace_suffixes_restore_the_actual_inner_frame_before_outer_walk' (169203) panicked at rust/tcl-compiler/src/command_binding/conditional_source/region.rs:844:14:
+called `Option::unwrap()` on a `None` value
+FAILED
+test command_binding::conditional_source::region::controls::suffix_view_reuses_the_same_kernel_and_refuses_whole_document_or_foreign_parent ... 
+thread 'command_binding::conditional_source::region::controls::suffix_view_reuses_the_same_kernel_and_refuses_whole_document_or_foreign_parent' (169204) panicked at rust/tcl-compiler/src/command_binding/conditional_source/region.rs:813:9:
+assertion failed: source_load(source, &view,
+            "source second").source_point_entry(&view).is_some()
+FAILED
+
+failures:
+
+failures:
+    command_binding::conditional_source::region::controls::deep_return_uses_the_completed_chain_without_renewing_the_opaque_child_prefix
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 10533 filtered out; finished in 3.26s
+error: test failed, to rerun pass `-p tcl-compiler --lib`

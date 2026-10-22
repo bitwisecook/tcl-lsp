@@ -1,0 +1,9 @@
+{
+  "/tmp/compiler-focused/20261022T224200.215874Z/direct_source_taint_arguments.log": "4b00a68ae77d20a5a929bc1bf62eb5f61d8b72cb418cf2bfc1a61156932d6351",
+  "/tmp/compiler-focused/20261022T224200.215874Z/direct_source_taint_arguments.log.artifact.json": "5d3cc7b3c65c9ba187f824fe325e27706de0ee7bdc2b26d0458fe19860cfd077",
+  "/tmp/compiler-focused/20261022T224200.215874Z/direct_source_taint_arguments.log.command": "37486f7c4afea205bd2578fc29c8bed87dca8b0ffbff00f3379445f92deeb89a",
+  "/tmp/compiler-focused/20261022T224200.215874Z/direct_source_taint_arguments.log.env.json": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356",
+  "/tmp/compiler-focused/20261022T224200.215874Z/direct_source_taint_arguments.log.process.json": "c0ad3d357bf617edeea0e79e7bfb7f0e42d6b717fd65b2e893b48a5bf182b458",
+  "/tmp/compiler-focused/20261022T224200.215874Z/direct_source_taint_arguments.log.result.json": "30f65ff6d0bde5bdac75cb182cf813526934e53ce8285ded1f05dc8ad24a140d",
+  "/tmp/compiler-focused/20261022T224200.215874Z/direct_source_taint_arguments.log.source-after.json": "a6e7cf1d4beaab84288ca40bc4f813d2a5434c991a81ce6ae05423e879a68fea"
+}

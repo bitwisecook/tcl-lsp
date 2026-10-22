@@ -1,0 +1,11 @@
+
+running 1 test
+test cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion ... FAILED
+
+failures:
+
+failures:
+    cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2146 filtered out; finished in 0.49s
+

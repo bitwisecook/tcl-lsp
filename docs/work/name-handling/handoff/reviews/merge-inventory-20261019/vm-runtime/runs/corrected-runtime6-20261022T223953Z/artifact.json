@@ -1,0 +1,8 @@
+{
+  "path": "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+  "sha256": "5600ac5f06ee26ccf03653b9041ea9f16b80007f7b28deca18510324e8c366f5",
+  "intentional_no_tommath_notice": [
+    "warning: tcl-runtime@0.1.0: libtommath source not found; bignum backend disabled"
+  ],
+  "zero_warning_claim": false
+}

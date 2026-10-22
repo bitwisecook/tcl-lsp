@@ -1,0 +1,11 @@
+
+running 1 test
+test cmd_error::tests::eight_four_catch_takes_no_options_variable ... FAILED
+
+failures:
+
+failures:
+    cmd_error::tests::eight_four_catch_takes_no_options_variable
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2146 filtered out; finished in 6.00s
+

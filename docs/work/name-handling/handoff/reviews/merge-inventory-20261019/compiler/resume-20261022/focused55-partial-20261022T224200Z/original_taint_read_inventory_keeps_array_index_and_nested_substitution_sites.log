@@ -1,0 +1,5 @@
+    Finished `test` profile [unoptimized] target(s) in 0.43s
+     Running unittests src/lib.rs (target/debug/deps/tcl_compiler-ef22ef87d0bd65a7)
+running 1 test
+test registry_invocation::source_taint::tests::original_taint_read_inventory_keeps_array_index_and_nested_substitution_sites ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10535 filtered out; finished in 0.64s

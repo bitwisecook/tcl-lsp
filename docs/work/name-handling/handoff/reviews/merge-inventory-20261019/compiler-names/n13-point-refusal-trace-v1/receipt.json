@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-22T22:53:54.707999+00:00",
+  "status": "OFF-TREE temporary cfg(test) diagnostics only, no assertion/guard changes; syntax/applycheck only",
+  "sha256": "61f3a77405d1fb0f625fd21606e2748d8740b2e043339283130cc7d360bb51d7",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_point_entry.rs",
+      "before_sha256": "1ce3bd70b3e81cdddc05548327ace991ef9fa47c8e33bad548a1e2b0612e5e2d",
+      "after_sha256": "b078441ff6ac555d40a301a31c434be6cba7111ec7223cb3a1355383a681d5a6"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_point.rs",
+      "before_sha256": "d4f1d2b98e9e1f76f59cf1c90aa632472584e081496f8e52536828c5efe6f613",
+      "after_sha256": "2ea19bf266ed7b79e1860f95942dee811f6beda7282a2c5d9ac78eb653ae33f0"
+    }
+  ],
+  "plan": "TCL_LSP_TRACE_N13_POINT=1; exact existing region3/sequential2/point9 selectors under whole command source/provider/artifact guards. Typed booleans/offset labels only; no graph/NativeWord dumps; all eligibility guards unchanged. Retire temporary diagnostics after attribution."
+}

@@ -1,0 +1,57 @@
+{
+  "utc": "2026-10-22T22:54:48.686273+00:00",
+  "scope": "Exact six original unchanged regression assertions with bounded actual-owner test diagnostics; no new selectors, no broad lib",
+  "filters": [
+    {
+      "label": "g4-regress-conditional_expression_template_retains_grammar_without_actual_entry",
+      "selector": "command_binding::conditional_expression_tests::conditional_expression_template_retains_grammar_without_actual_entry",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/conditional_expression_tests.rs"
+    },
+    {
+      "label": "g4-regress-declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "selector": "command_binding::declaration_layout::tests::declaration_layout_keeps_its_original_table_without_a_compiler_visit",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/declaration_layout.rs"
+    },
+    {
+      "label": "g4-regress-scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "selector": "command_binding::expression_preparation::tests::scoped_nested_normalisation_keeps_original_world_frame_and_source",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/expression_preparation.rs"
+    },
+    {
+      "label": "g4-regress-selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "selector": "command_binding::expression_preparation::tests::selected_nested_normalisation_projects_actual_operand_and_command_source",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/expression_preparation.rs"
+    },
+    {
+      "label": "g4-regress-scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "selector": "command_binding::lifecycle_advice::tests::scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs"
+    },
+    {
+      "label": "g4-regress-scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "selector": "command_binding::normal_result::tests::scoped_procedure_equivalence_keeps_independent_world_and_completion_obligations",
+      "exact": true,
+      "expected_selected": 1,
+      "env": {},
+      "source": "rust/tcl-compiler/src/command_binding/normal_result.rs"
+    }
+  ],
+  "expected_selected": 6,
+  "guards": "Coordinator whole-command source/provider/artifact/log20MiB/disk2GiB/j2/incremental0/debug0; Cargo only; cfg(test) bounded traces, no raw graph dumps",
+  "not_authorized": "No Cargo queued; parent owns next slot."
+}

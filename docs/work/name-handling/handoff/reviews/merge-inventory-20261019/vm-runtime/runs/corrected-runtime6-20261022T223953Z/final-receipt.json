@@ -1,0 +1,64 @@
+{
+  "utc": "2026-10-22T22:39:53.767061+00:00",
+  "scope": "Exact6 current-source standalone runtime no-tommath; not full runtime or zero-warning gate",
+  "plan_sha256": "004f125651e82ee61c0b9ecd51e6f4d9cf6bbade748d1aa42e57f3c437538fec",
+  "runner_sha256": "c1dd9389b85d85b04a6324d2cb2a03afa43d8510f20064ce4f1a1776eb37f14d",
+  "artifact": {
+    "path": "/tmp/vm-runtime-ci5205-target-20261022/debug/deps/tcl_runtime-1f8f0379ac20d55d",
+    "sha256": "5600ac5f06ee26ccf03653b9041ea9f16b80007f7b28deca18510324e8c366f5",
+    "intentional_no_tommath_notice": [
+      "warning: tcl-runtime@0.1.0: libtommath source not found; bignum backend disabled"
+    ],
+    "zero_warning_claim": false
+  },
+  "results": [
+    {
+      "selector": "cmd_error::tests::eight_four_catch_takes_no_options_variable",
+      "exit": 101,
+      "stopped": null,
+      "started_exactly_one_test": true
+    },
+    {
+      "selector": "cmd_alias::tests::aliases_lists_every_alias",
+      "exit": 0,
+      "stopped": null,
+      "started_exactly_one_test": true
+    },
+    {
+      "selector": "obj::tls_retirement_tests::original_object_retirement_after_metadata_tls_destruction_does_not_abort",
+      "exit": 0,
+      "stopped": null,
+      "started_exactly_one_test": true
+    },
+    {
+      "selector": "obj::tls_retirement_tests::original_object_retirement_while_tls_is_live_releases_source_metadata",
+      "exit": 0,
+      "stopped": null,
+      "started_exactly_one_test": true
+    },
+    {
+      "selector": "cmd_namespace::original_import_alias_tests::original_jim_import_prefix_keeps_the_enumerated_hash_key_after_source_deletion",
+      "exit": 101,
+      "stopped": null,
+      "started_exactly_one_test": true
+    },
+    {
+      "selector": "cmd_oo::original_namespace_copy_tests::original_namespace_copy_checks_occupied_procedure_retirement_before_original_holder_publication",
+      "exit": 0,
+      "stopped": null,
+      "started_exactly_one_test": true
+    }
+  ],
+  "passed": 4,
+  "failed": 2,
+  "guard": {
+    "source_and_providers_unchanged": true,
+    "source_count": 35074,
+    "cleanup": "None; mirror, fresh executable, target and logs retained."
+  },
+  "flock_independently_free": true,
+  "catch": "Guest CodeError, native refusal None, exact result bytes decode can't read \"::errorCode\": no such variable",
+  "Jim": "Initial namespace/proc setup PASSED; subsequent namespace eval dest {namespace import ::src::x} fails CodeError at7059. That assertion lacks result/refusal payload; no actual first refusal inferred.",
+  "OO": "Corrected C-callback phase test PASS; no abort; original retained lifecycle/publication assertions remain.",
+  "cleanup": "None; b37 executable archived with exact hash; new5600 artifact retained."
+}

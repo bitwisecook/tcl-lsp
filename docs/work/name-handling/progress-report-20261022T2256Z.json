@@ -1,0 +1,79 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Clean LSP merge/release readiness into rust first, including required compiler/registry/syntax/lexer and SpecTcl execution. General runtime parity follows release. No PR unless the user asks.",
+  "stage_order": [
+    "Repair release-blocking semantics and safety while retaining conservative uncertainty",
+    "Meet section F and zero pass-to-fail against origin/rust on a named shipping snapshot",
+    "Prepare clean release comparison only when the user requests it",
+    "Continue the remaining migration after release"
+  ],
+  "utc": "2026-10-22T22:56:21.630783+00:00",
+  "scheduled_report_utc": "2026-10-22T22:55:37+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "next_report_utc": "2026-10-22T23:25:37+00:00",
+  "change_since_previous_report": [
+    "Primarygoal clean LSP merge/release readiness fromrust beforedeferredparity. Workonly/noPR/merge/tag/release; zero auditadmissions,allFboxesopen.",
+    "22:25cycle normally pushed9a4692551 from4026 afterfreshdepth1fetch/rebase, producttree0diff; nextreminder22:55armed. ExternalownerheadersBIGIP18:08/perf21:00/completedtriage19:57remainstale,usernotified,no takeover.",
+    "Useranswer2231: Stop navigation after opaque calls. Recordedexactuser-decisions-20261022T2231Z.json andpushed7feacad1b frombc55. ILXonly; no repeatedconditionalassociation. Compilerfirstoperandauthissuer+opaque-barrierwithdrawal andexternalBIGIPnarrowlater-sitecorrections/original16 assigned; no runtime/quiet/Normalgrant orN13policychange.",
+    "TEMP3actualcurrentdiagnosticrun closed22:35:33 stable100394source/fullproviders/same542120d6artifact,0warnings/no caps/diskabort,threeunchangedfullEqassertionsfailed expecteddiagnostics(22.78/10.11/23.58s),nofunctionaladmission. Bothaliases capturecount!=1,zero/multipleunmeasured; E003two currentreports butdiagnostic0typedsourcearityanalysisowneridentityaloneunequalamongemittedfields; hostedbothunsupported-source-domain.",
+    "Newgenuinefullreportcomparisoncontractquestionpendinguser. Proposedperf/report-onlyauthenticatedcompletecomparison, everyfield/typedsubject retained withfulluniquecurrentactualowner/input/source/registry/bodymapping, unsupported/missing/ambiguityUnavailablefailgate. Strictglobal/runtimeEq/cache/Salsacutoffandhosteligibilityunchanged; genuinehostedcarrier+aliasdiagnosis/fulloldmixedrerunsstillrequired. Noanswerassumed, noimplementation/perfacceptance/forwarding.",
+    "ClosedTEMP3evidence+pendingproposalpushed55b96f668 from71d34 afterfreshdepth1fetch/rebase/normalpush; exactproducttree0diff. Alloriginal/tmp evidence retained, largeidenticalsourceinventorieslosslessgzipdeduplicatedwithhashmaps.",
+    "Correctedruntime6build/run closed22:39:53:actualartifact5600ac5f,stable35074source/providerinputs,4PASS2FAIL,notfullruntimegate. Alias+2TLS+correctedOO pass(noabort). CatchCodeError/nativeNone exactmissing::errorCode. JimfirstsetupPASSEDinBOTHoldandnew; SAMEimportassert shifts7056\u21927059bydiagnosticlines. Previousfirst-setupattributionexplicitlycorrectedwithrawsource+stderrhashes,noresultimprovementclaimed. Intentionalno-tommathnotice retained; notstrictzerowarningproof.",
+    "RuntimeownerpreparedactualfailingJimimportdiagnostic87824(onehunkunchangedassert/scriptevaluationonce) andexisting3C84boundary+Jim1plansv3; actualstandalonetargetkindrlib/cdylib/staticlib guardcorrectedbeforeexecution. EveryfuturephasefreshCargo-ownedbuild/runwholecommand, neveradhocoldexe. Noqueue.",
+    "Finite55started22:42 reviewedexternalwatchdogv5actualattachedbeforetests,180perselectedwholefilterexcludescompile,fullpin/currentness/cap/diskguards. TerminalSTOPafter24filters/45actualtests23PASS22FAIL becauseprefixexpected10got9. Source/provider/artifactstable0warnings/nocap/diskabort/timeouts; all24observedprocessesunder180. Missing54eguardis siblingmodule, correctedfullv6preserves34filters55; unrun10 includesmissing1+remaining9,noneauto-rerun.",
+    "OriginalT105TNTPASSactualcurrent; original3RBS+8namesstillFAIL. Newwhole-inputnegative exposedBOMerasedbyinput.for_nested_source; static-reviewed30d2firstauthenticatesactualownerfullinput, thenonlythatownerprojection. Noassertionsweakened. Region/sequential5+pointallocator1 areactualproducer/ingressgaps, privategatetracesnext;8of9pointprefixcontrolsPASS, missingnewguardstillunrun.",
+    "Namesfrontierv4b8e4staticclear includesgenuinefiniteplan/currentregion, conditionalbodydebts, immediatepredecessorreplayedload+frontierandwhole-querypartialentryguard. NoNative/frame/Normalgrant. Hostfullsuccessorremains off-tree: actualphysical/bootstraplease and perrootscope/coverage/racejoiningarebeingreviewed, noindependentrootfallbackfrommissinginheritedcontext orvacuousrootlesscompletion.",
+    "CompilerRBSactualvisit/namespacepreselectionproof stillneededbeforepurpose-specificissuer, notgenericNativeframeguardrelaxation. Existingtraceflagsneedlog-prefixwidening-only isolatedrunner becauseoldfilterdropsNATIVE_/someORIGINAL_; noabsenceclaimfromfilteredlogs. CCGpublicN17pureobserver041eb separatefromactiveinternalfoldsnippet, actual2derivedfailuresstillunmeasuredatfirstgate.",
+    "Strict666locatedfindingsolddef9 remainunclosed; allnewlintdrafts static/untyped/unmeasured. Requiredmake rust-check/prep-pr/generated/native/editor/browser/WASI/SpecTclC1C2/shippingperformance andactualrustzero-P2Fcomparison remain. CI5205metadata still7success17failure3running3skip; actualheavy27P2F24absent andhost15P2F2absent remainseparatepartialledgers,main2/4unknown.",
+    "Cycleofficialreport/table/freshness/fullWIPexcludezzRustprobes, freshfetch/FFpublisher+normalpushrebase,productdiffproof,diskchecks/reminder23:25:37. No target/executablecleanup; jobs2/debug0/incremental0/2GiBfloor/20MiBlogs andsourceHOLD preserved.",
+    "User nowAUTHORIZEDauthenticatedfull-reportcomparison; exactnewdecision user-decisions-20261022T2256Z.json. CompilerownsseparateAPI/carriers, perfseparatesessionharness+fullold/mixedproof. Everyfield/typedsubject retained/currentuniqueownerproofelseUnavailablefails; global/runtimeEq/cache/Salsacutoff+hosteligibilityUNCHANGED. No currentproof/perfpatchacceptance. Existingpendingreportproposalresolvedbyactualanswer, notelapsedtime."
+  ],
+  "committed": [
+    "71d34bd7b734b914be88717343f7b5a2b4b00707"
+  ],
+  "admissions": [],
+  "in_progress": [
+    "Integrate exactreviewednextbatch onlyafterexclusiveguardclosure:30d2inputguard,frontierv4,N17publicobserver,Jimdiagnostic,compactg4traces/correctpurposeasserts,exactTEMP3retirement. Typecheckallownedconsumers thenexecuteexplicitunrun10+focusedreruns/minify13/Core2/CCGandVMfiniteplans.",
+    "ResolveactualRBScompilerpurpose,region/sourcepointissuerfailures,ILXfirstoperandproducer/sourcebarrierwithdrawal,SpecTclderivedparentgate andcatch/Jimfailures; reportcomparisonimplementationnowauthorizedwithstrictidentity/currentnessandfullproofrequirements.",
+    "Finishphysicalhostbootstrap/perscopecoverage/raceproof, strict/generated/host/SpecTcl/perf/fullactualrustP2Fgates beforeuser-requestedPR/release."
+  ],
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T18:08:00+00:00",
+    "perf": "2026-10-22T21:00:00+00:00",
+    "review-triage": "2026-10-22T19:57:30+00:00"
+  },
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "Noaudit/F/releaseadmissions. Core-onlymetadataPASSscopepreserved; TEMP3all3fullEqassertionsFAILdiagnosticonly. Runtime6scoped4/2withintentionalno-tommathnotice. Planned55UNDERSELECTEDSTOPafter45(23/22), correctremainderunrun; nofull55verdict orsilentcountdecrement. ILX2231decisionrecorded,reportcontractUSERAUTHORIZED, implementation/proofpending. AllunknownCIoutcomesstayunknown.",
+  "disk_free_bytes": 12069482496,
+  "baseline_ci_run": 39816429638,
+  "baseline_ci_sha": "fcb7927f02b5395753247b322fdd7be87ae5c731"
+}
