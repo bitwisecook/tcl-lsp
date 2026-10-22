@@ -253,6 +253,18 @@ def original_word(s, p):
 """,
         p,
     )
+    s = rep(s, "absolute NativeWord or", "absolute `NativeWord` or", p)
+    legacy = block("original_line_at.rs")
+    body = legacy.split("{\n", 1)[1].rsplit("\n}", 1)[0]
+    old = ""
+    if zz:
+        body = body.replace("    u32::try_from(", "    return u32::try_from(", 1)
+        old = "    if tcl_lexer::zz_old() {\n" + "\n".join("    " + line for line in body.rstrip().splitlines()) + ";\n    }\n"
+    replacement = "fn line_at(image: &SourceImage, offset: u32) -> Option<u32> {\n" + old + """    image.bytes().get(..usize::try_from(offset).ok()?)?;
+    image.source_map().line_index().line_at(offset).checked_add(1)
+}
+"""
+    s = rep(s, legacy, replacement, p)
     anchor = """mod tests {
     use super::*;
     use tcl_lexer::{LeadingBom, SourceSegmentationPurpose};
@@ -262,11 +274,18 @@ def original_word(s, p):
 
 @edit("rust/tcl-compiler/src/command_binding/original_name_value.rs")
 def original_name_value(s, p):
-    return between(
+    s = between(
         s,
         "    /// Unanimous genuine whole source word and its original parent head.",
         "#[cfg(test)]\nmod graph_tests {",
         block("onv_block.rs"),
+        p,
+    )
+    return between(
+        s,
+        "    fn original_word_vector_config(",
+        "    /// Same-vector source grammar from its original dispatch, compiler or",
+        block("onv_config_block.rs"),
         p,
     )
 
@@ -292,7 +311,7 @@ def incomplete_body(s, p):
         if zz
         else ""
     )
-    return rep(
+    s = rep(
         s,
         """/// The real parse cut and independently complete header words; no invented closer.
 fn header(image: &SourceImage, region: Span, config: LexerConfig) -> Option<IncompleteHeader> {""",
@@ -355,6 +374,11 @@ fn header_uncached(
 ) -> Option<IncompleteHeader> {""",
         p,
     )
+
+    s = rep(s, "_site: &CommandAllocationSite,", "site: &CommandAllocationSite,", p)
+    s = rep(s, "_site.offset", "site.offset", p)
+    return rep(s, "    if !target.prepended.is_empty() {",
+               "    #[cfg(not(debug_assertions))]\n    let _ = site;\n    if !target.prepended.is_empty() {", p)
 
 
 @edit("rust/tcl-compiler/src/realm.rs")
@@ -485,6 +509,15 @@ def realm(s, p):
     pub(crate) fn source_bindings_ref(&self) -> &SourceCommandBindings {""",
         p,
     )
+    if not zz:
+        s = rep(s, "            query_memo: Default::default(),",
+                "            query_memo: crate::command_binding::original_name_value::OriginalRealmQueryMemo::default(),", p)
+        inventory_doc = """    /// Borrow the retained inventory for syntax navigation in the same source
+    /// root. Reconstructed/entered sources must select their own origin first.
+"""
+        s = rep(s, inventory_doc, "", p)
+        s = rep(s, "    pub(crate) fn source_bindings_ref(&self) -> &SourceCommandBindings {",
+                inventory_doc + "    pub(crate) fn source_bindings_ref(&self) -> &SourceCommandBindings {", p)
     if zz:
         s += """
 /// ZZ perf probe toggle (experiment copy only).

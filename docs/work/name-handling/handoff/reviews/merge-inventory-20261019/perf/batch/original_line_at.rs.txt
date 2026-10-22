@@ -1,0 +1,12 @@
+fn line_at(image: &SourceImage, offset: u32) -> Option<u32> {
+    u32::try_from(
+        image
+            .bytes()
+            .get(..usize::try_from(offset).ok()?)?
+            .iter()
+            .filter(|&&b| b == b'\n')
+            .count(),
+    )
+    .ok()?
+    .checked_add(1)
+}

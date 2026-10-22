@@ -1,0 +1,39 @@
+--- a/rust/tcl-compiler/src/analyser/commands.rs
++++ b/rust/tcl-compiler/src/analyser/commands.rs
+@@ -2374,27 +2374,15 @@
+         let tokens = self.retained_invocation_tokens(offset, argument_tokens)?;
+         let image = self.document_source_image();
+         let config = self.file_lexer_config();
+-        let native = crate::registry_invocation::original_native_compiler_words(
+-            &image,
+-            tokens.words(),
+-            offset,
+-            config,
+-        )?;
+-        let first = native.first()?;
+-        let last = native.last()?;
+-        let source = self
+-            .source
+-            .get(first.span().start() as usize..last.span().end() as usize)?;
+-        let mut segments = crate::segmenter::segment_commands_with_offset_and_config(
+-            source,
+-            first.span().start(),
+-            config.nested(),
+-        );
+-        if segments.len() != 1 {
+-            return None;
+-        }
+-        let segment = segments.pop()?;
+-        Some((segment, first.clone()))
++        let origin = self.head_identities.source_bindings_ref().source_origin()?;
++        (origin.source_image() == &image).then_some(())?;
++        // The original projection already checked this exact vector and built
++        // this segment from the same whole-word region and nested config.
++        let original = origin.original_lexical_command(tokens.words(), offset, config)?;
++        Some((
++            original.command().clone(),
++            original.native_words().first()?.clone(),
++        ))
+     }
+
+     /// Selected original Registry or declared syntax under the actual input.

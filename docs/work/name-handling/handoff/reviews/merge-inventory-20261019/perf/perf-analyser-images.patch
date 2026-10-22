@@ -2,7 +2,7 @@
 +++ b/rust/tcl-compiler/src/analyser/commands.rs
 @@ -208,6 +208,20 @@
  }
- 
+
  impl Analyser {
 +    /// Reuse the retained document's immutable bytes and line index only
 +    /// while the complete public source buffer still matches. All callers

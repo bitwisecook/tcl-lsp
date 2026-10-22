@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 14:00 UTC
+Last updated: 2026-10-22 14:38 UTC
 
 Maintained by the perf agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -44,18 +44,37 @@ The identical failures are original_jim_syntax_roster, original_parse_descent,
 and original_bracket_boundaries; assertions are unchanged. Compiler lib,
 SpecTcl and the two server tests are still pending.
 
-A standalone six-file Clippy check is running in `/workspace/tcl-lsp-owned`,
-with its own target. The batch API no longer adds a wrapper used only by the
-routed realm integration: the existing formal advice entry borrows the realm
-memo directly. No new allowance is added. Refreshed clean split patches have
-six owned files and two routed files, with no ZZ switch.
+The standalone six-file Clippy check completed after cleanup: **zero diagnostics
+in the six owned files**, 783 diagnostics elsewhere. Full-batch Clippy before
+cleanup had 791 diagnostics, seven in owned files and one for the temporary
+realm query-memo initializer. All seven owned diagnostics are fixed; the clean
+routed patch uses the explicit memo initializer. No new allowance is added.
+The complete structured reports are `perf/evidence/clippy-{full-before,owned-after}-cleanup.json`.
+This is not a green workspace lint verdict.
 
-Full-batch Clippy has reported failures in foreign files (similar names,
-empty doc-comment spacing, unused unit and unnested or-patterns). The complete
-check is still running; do not claim zero-warning gates. Diagnostic log:
-`/tmp/perf-clippy-full-batch.log`. No foreign fixes are applied.
+The pack-word line helper now reuses the actual image's native LF index rather
+than scanning its prefix; it retains the original bounds check and one-based
+line conversion. The probe switch restores the exact old counting path.
+The added fixed unit control covers CRLF, bare CR, EOF/out-of-bounds, opaque
+bytes and both channels. Existing assertions are unchanged. The formal advice
+entry also borrows the realm memo directly, avoiding a wrapper used only by the
+unlanded realm integration. Refreshed patches still contain exactly six owned
+and two routed files, no switch. `tools/refresh_patches.py ROOT --snapshot
+/tmp/perf-clean-batch --check-toggled` reproduces the proof tree byte-for-byte.
 
 ## In progress
+
+- Current proofs are compiling the final owned cleanup. Do not reapply the
+  batch or interrupt a build merely to publish evidence. A docs-only worktree
+  `/workspace/tcl-lsp-publish` fetches/rebases and pushes snapshots while the
+  source tree is building. Its rebased evidence commits can differ from the
+  active tree's commit IDs; production Rust is unchanged between those bases.
+- Initial compiler lib test build stopped before execution on one omitted
+  `include!` fixture. That file and 47 other literal Rust includes are now
+  fetched. `/tmp/perf-crate-rest.log` is running SpecTcl then server;
+  `/tmp/perf-crate-compiler-retry.log` retries the compiler stage. Results and
+  summaries are written under perf/evidence. No compiler/SpecTcl/server test
+  verdict is claimed until those runs finish.
 
 - `/tmp/perf-run-work.sh`: builds the two toggled examples with `-j2`, opt-level
   1, line tables, then runs old1/new/old2 across both corpus lists and synthetic
@@ -89,13 +108,13 @@ check is still running; do not claim zero-warning gates. Diagnostic log:
 
 ## Blocked (on whom, and what is needed)
 
-- Compiler-names: `perf/perf-analyser-images.patch` is a formatted, apply-checked
-  **unproven draft**, deliberately not applied to the proof tree. It reuses the
-  genuine document image after a complete byte/channel check, including when
-  callers mutate the public source buffer. Other source/input guards remain.
-  Re-segmentation still needs a separate routed patch; original_source_segment
-  currently reconstructs a projection and segments again although the actual
-  source origin already owns the same complete-vector lexical projection.
+- Compiler-names: `perf/perf-analyser-images.patch` and, on top of it,
+  `perf/perf-analyser-segments.patch` are **unproven drafts**, deliberately not
+  applied to the proof tree. Images retains full byte/channel correspondence;
+  segments reuses the actual origin's existing complete-vector projection.
+  `perf/residual-routing.md` records the exactness argument and required
+  corpus, mutation/channel/config/partial-source and tclIndex controls.
+  These artifacts are routed candidates, not a landed or proven speedup.
 - Current lint failures and the three matching lexer failures need their
   owning agents; this checkpoint is not a green workspace verdict.
 

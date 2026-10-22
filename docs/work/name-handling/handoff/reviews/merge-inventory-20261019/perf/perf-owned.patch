@@ -37,7 +37,7 @@
 --- a/rust/tcl-lexer/src/source_map.rs
 +++ b/rust/tcl-lexer/src/source_map.rs
 @@ -113,7 +113,10 @@
- 
+
  impl PartialEq for SourceImage {
      fn eq(&self, other: &Self) -> bool {
 -        self.channel == other.channel && self.bytes == other.bytes
@@ -91,7 +91,16 @@
 +        candidate.matches_parent_link().then_some(candidate)
      }
  }
- 
+
+@@ -143,7 +155,7 @@
+         self.local.statement.ordinal
+     }
+     /// Complete local original argv; positions belong to the held local image,
+-    /// not a fabricated absolute NativeWord or an evaluated command vector.
++    /// not a fabricated absolute `NativeWord` or an evaluated command vector.
+     #[must_use]
+     pub fn original_words(&self) -> &[NativeWord] {
+         &self.local.statement.words
 @@ -249,19 +261,27 @@
              return false;
          }
@@ -128,10 +137,63 @@
      }
      /// Reparse only this exact selected original container path under another
      /// independently supplied full config. No recursive brace search or line/name
-@@ -396,6 +416,67 @@
-     use super::*;
+@@ -331,16 +351,12 @@
+     }
+ }
+ fn line_at(image: &SourceImage, offset: u32) -> Option<u32> {
+-    u32::try_from(
+-        image
+-            .bytes()
+-            .get(..usize::try_from(offset).ok()?)?
+-            .iter()
+-            .filter(|&&b| b == b'\n')
+-            .count(),
+-    )
+-    .ok()?
+-    .checked_add(1)
++    image.bytes().get(..usize::try_from(offset).ok()?)?;
++    image
++        .source_map()
++        .line_index()
++        .line_at(offset)
++        .checked_add(1)
+ }
+ /// The existing loader CST parser, with original complete row/word geometry.
+ /// Recovered rows stay readable but cannot lend checked word provenance beyond
+@@ -397,6 +413,98 @@
      use tcl_lexer::{LeadingBom, SourceSegmentationPurpose};
- 
+
+     #[test]
++    fn pack_line_numbers_keep_lf_coordinates_and_checked_bounds() {
++        for channel in [
++            tcl_lexer::SourceChannel::Document,
++            tcl_lexer::SourceChannel::NativeValue,
++        ] {
++            let image = SourceImage::from_bytes(b"a\r\nb\rc\n", channel);
++            assert_eq!(
++                (0..=7)
++                    .map(|offset| line_at(&image, offset))
++                    .collect::<Vec<_>>(),
++                vec![
++                    Some(1),
++                    Some(1),
++                    Some(1),
++                    Some(2),
++                    Some(2),
++                    Some(2),
++                    Some(2),
++                    Some(3)
++                ]
++            );
++            assert_eq!(line_at(&image, 8), None);
++            let opaque = SourceImage::from_bytes(b"\xff\nx", channel);
++            assert_eq!(line_at(&opaque, 2), Some(2));
++            assert_eq!(line_at(&opaque, 3), Some(2));
++            assert_eq!(line_at(&opaque, 4), None);
++            assert_eq!(line_at(&SourceImage::from_bytes(b"", channel), 0), Some(1));
++        }
++    }
++
 +    /// Every word bound through `in_body` satisfies the full-chain proof that
 +    /// `in_body` itself checks only inductively (one parent link per word).
 +    #[test]
@@ -193,12 +255,123 @@
 +        }
 +    }
 +
-     #[test]
++    #[test]
      fn original_pack_word_geometry_keeps_selected_rows_parents_and_full_configuration() {
          let source = "\u{feff}speclib demo 1 {command demo {arty 1; arty 2}}";
+         let config = super::super::pack_source_lexer_config(SourceSegmentationPurpose::WholeInput);
 --- a/rust/tcl-compiler/src/command_binding/original_name_value.rs
 +++ b/rust/tcl-compiler/src/command_binding/original_name_value.rs
-@@ -1879,10 +1879,24 @@
+@@ -1133,50 +1133,8 @@
+                 && original.words.as_ref() == tokens.words())
+             .then_some(original.config);
+         }
+-        if let Some(original) = &self.original_compiler_words {
+-            // A compiler visit can own this vector after an abrupt runtime
+-            // prefix. Its exact snapshot supplies syntax, never invocation.
+-            #[cfg(test)]
+-            trace_original_word_config(
+-                "compiler_snapshot",
+-                tokens,
+-                self.compiler_lookup_state.is_some(),
+-            );
+-            let snapshot = self.compiler_lookup_state.as_ref()?;
+-            #[cfg(test)]
+-            if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
+-                trace_original_word_config(
+-                    "compiler_origin",
+-                    tokens,
+-                    snapshot.state.current_source_origin.as_ref() == Some(&original.site.source),
+-                );
+-                trace_original_word_config(
+-                    "compiler_site",
+-                    tokens,
+-                    self.invocation_site()
+-                        .is_none_or(|site| site == &original.site),
+-                );
+-                trace_original_word_config(
+-                    "compiler_head",
+-                    tokens,
+-                    tokens
+-                        .words()
+-                        .first()
+-                        .is_some_and(|word| word.source().span.start() == original.site.offset),
+-                );
+-                trace_original_word_config(
+-                    "compiler_vector",
+-                    tokens,
+-                    original.words.as_ref() == tokens.words(),
+-                );
+-            }
+-            return (snapshot.state.current_source_origin.as_ref() == Some(&original.site.source)
+-                && self
+-                    .invocation_site()
+-                    .is_none_or(|site| site == &original.site)
+-                && tokens.words().first()?.source().span.start() == original.site.offset
+-                && original.words.as_ref() == tokens.words())
+-            .then_some(original.config);
++        if self.original_compiler_words.is_some() {
++            return self.original_compiler_word_vector_config(tokens);
+         }
+         #[cfg(test)]
+         trace_original_word_config("declaration_site", tokens, self.invocation_site().is_some());
+@@ -1215,6 +1173,56 @@
+                 .all(|row| row.words == first.words && row.config == first.config))
+         .then_some(first.config)
+     }
++    fn original_compiler_word_vector_config(
++        &self,
++        tokens: &crate::ir::CommandTokens,
++    ) -> Option<tcl_lexer::LexerConfig> {
++        let original = self.original_compiler_words.as_ref()?;
++        // A compiler visit can own this vector after an abrupt runtime
++        // prefix. Its exact snapshot supplies syntax, never invocation.
++        #[cfg(test)]
++        trace_original_word_config(
++            "compiler_snapshot",
++            tokens,
++            self.compiler_lookup_state.is_some(),
++        );
++        let snapshot = self.compiler_lookup_state.as_ref()?;
++        #[cfg(test)]
++        if std::env::var_os("TCL_LSP_TRACE_ORIGINAL_CHILD_GUARDS").is_some() {
++            trace_original_word_config(
++                "compiler_origin",
++                tokens,
++                snapshot.state.current_source_origin.as_ref() == Some(&original.site.source),
++            );
++            trace_original_word_config(
++                "compiler_site",
++                tokens,
++                self.invocation_site()
++                    .is_none_or(|site| site == &original.site),
++            );
++            trace_original_word_config(
++                "compiler_head",
++                tokens,
++                tokens
++                    .words()
++                    .first()
++                    .is_some_and(|word| word.source().span.start() == original.site.offset),
++            );
++            trace_original_word_config(
++                "compiler_vector",
++                tokens,
++                original.words.as_ref() == tokens.words(),
++            );
++        }
++        (snapshot.state.current_source_origin.as_ref() == Some(&original.site.source)
++            && self
++                .invocation_site()
++                .is_none_or(|site| site == &original.site)
++            && tokens.words().first()?.source().span.start() == original.site.offset
++            && original.words.as_ref() == tokens.words())
++        .then_some(original.config)
++    }
++
+     /// Same-vector source grammar from its original dispatch, compiler or
+     /// declaration owner. This does not select a physical compiler engine.
+     pub(crate) fn original_source_word_dialect_for_tokens(
+@@ -1879,10 +1887,24 @@
          span: tcl_lexer::Span,
          config: tcl_lexer::LexerConfig,
      ) -> Option<(tcl_lexer::NativeWord, u32)> {
@@ -224,7 +397,7 @@
              (site.source.source_image() == image).then_some(())?;
              let current = (word, site.offset);
              if selected
-@@ -1906,11 +1920,23 @@
+@@ -1906,11 +1928,23 @@
          span: tcl_lexer::Span,
          config: tcl_lexer::LexerConfig,
      ) -> Option<(tcl_lexer::NativeWord, super::CommandAllocationSite)> {
@@ -249,7 +422,7 @@
          {
              if ordinal != 0 {
                  continue;
-@@ -1932,78 +1958,65 @@
+@@ -1932,106 +1966,255 @@
          &self,
          span: tcl_lexer::Span,
          config: tcl_lexer::LexerConfig,
@@ -276,40 +449,6 @@
 +    ) -> Option<Vec<OriginalWrittenWordObservation>> {
          let origin = self.root_origin.as_ref()?;
          let mut found = Vec::new();
--        let mut offsets = self
--            .dispatch_points
--            .range(..=span.start())
--            .map(|(offset, _)| *offset)
--            .collect::<std::collections::BTreeSet<_>>();
--        if self.original_logical_source_name_advice_input().is_some() {
--            offsets.extend(self.declaration_layouts.iter().filter_map(|(site, _)| {
--                (site.source == *origin && site.offset <= span.start()).then_some(site.offset)
--            }));
--        }
--        for offset in offsets.iter().rev() {
--            let binding = self.attach_invocation_reads(
--                Self::query_dispatch_points(
--                    self.dispatch_points_at(*offset)
--                        .filter(|point| point.state.current_source_origin.as_ref() == Some(origin)),
--                ),
--                Some(origin),
--                *offset,
--            );
--            let geometry = if let Some(input) = self.original_logical_source_name_advice_input() {
--                binding.original_logical_source_geometry_words(input)
--            } else {
--                binding.original_recorded_name_words()
--            };
--            let Some((words, retained_config)) = geometry else {
--                continue;
--            };
--            if retained_config != config
--                || !words.iter().any(|word| {
--                    word.original_written_span(origin.source_image().bytes())
--                        .is_some_and(|written| {
--                            written.start() <= span.start() && span.end() <= written.end()
--                        })
--                })
 +        if let Some(memo) = memo {
 +            let sites = memo
 +                .written_word_sites
@@ -334,7 +473,7 @@
 +                    OriginalWrittenWordSiteStep::Skip => {}
 +                    OriginalWrittenWordSiteStep::Refuse => return None,
 +                    OriginalWrittenWordSiteStep::Found(word, written, call) => {
-+                        found.push((word, written, site.binding.clone(), call));
++                        found.push((*word, written, site.binding.clone(), call));
 +                    }
 +                }
 +            }
@@ -343,51 +482,45 @@
 +                .original_written_word_site_offsets(origin, Some(span.start()))
 +                .iter()
 +                .rev()
-             {
--                continue;
--            }
--            let original = origin.original_lexical_command(words, *offset, config)?;
--            let native = original.native_words();
--            let mut ordinals =
--                words
--                    .iter()
--                    .zip(native)
--                    .enumerate()
--                    .filter_map(|(index, (word, native))| {
--                        (word.source().span == span
--                            || native.span() == span
--                            || native.content_span().ok() == Some(span)
--                            || native
--                                .tokens()
--                                .first()
--                                .is_some_and(|token| token.span == span))
--                        .then_some(index)
--                    });
--            let Some(written) = ordinals.next() else {
--                continue;
--            };
--            if ordinals.next().is_some() {
--                return None;
--            }
--            let site = binding.invocation_site()?.clone();
--            found.push((native[written].clone(), written, binding, site));
++            {
 +                let binding = self.original_written_word_site_binding(origin, *offset);
 +                match self.original_written_word_site_step(origin, *offset, &binding, span, config)
 +                {
 +                    OriginalWrittenWordSiteStep::Skip => {}
 +                    OriginalWrittenWordSiteStep::Refuse => return None,
 +                    OriginalWrittenWordSiteStep::Found(word, written, call) => {
-+                        found.push((word, written, binding, call));
++                        found.push((*word, written, binding, call));
 +                    }
 +                }
 +            }
-         }
-         if found.is_empty() {
-             if let Some(input) = self.original_logical_source_name_advice_input() {
-@@ -2032,6 +2045,164 @@
-         }
-         (!found.is_empty()).then_some(found)
-     }
++        }
++        if found.is_empty()
++            && let Some(input) = self.original_logical_source_name_advice_input()
++        {
++            if config != input.lexer_config() {
++                return None;
++            }
++            let tape = self.original_source_transition_advice_tape_for(
++                input.borrowed_context_registry(),
++                super::OriginalSourceCataloguePurpose::CompletePrefix,
++            )?;
++            for (word, written, site) in
++                tape.logical_original_word_observations_at_span(origin, input, span)?
++            {
++                let binding = self.invocation_at_source("", site.offset);
++                // A present original owner stays terminal even when its checks
++                // refuse. Independent body geometry only fills an absent facet.
++                if binding.original_written_words.is_some()
++                    || binding.original_compiler_words.is_some()
++                    || binding.declaration_layout_observations.is_some()
++                {
++                    continue;
++                }
++                found.push((word, written, binding, site));
++            }
++        }
++        (!found.is_empty()).then_some(found)
++    }
 +
 +    /// Root-origin dispatch offsets, plus Logical declaration-layout sites,
 +    /// at or before `limit` (every one when `None`), ascending.
@@ -397,16 +530,34 @@
 +        limit: Option<u32>,
 +    ) -> std::collections::BTreeSet<u32> {
 +        let limit = limit.unwrap_or(u32::MAX);
-+        let mut offsets = self
-+            .dispatch_points
+         let mut offsets = self
+             .dispatch_points
+-            .range(..=span.start())
 +            .range(..=limit)
-+            .map(|(offset, _)| *offset)
-+            .collect::<std::collections::BTreeSet<_>>();
-+        if self.original_logical_source_name_advice_input().is_some() {
-+            offsets.extend(self.declaration_layouts.iter().filter_map(|(site, _)| {
+             .map(|(offset, _)| *offset)
+             .collect::<std::collections::BTreeSet<_>>();
+         if self.original_logical_source_name_advice_input().is_some() {
+-            offsets.extend(self.declaration_layouts.iter().filter_map(|(site, _)| {
+-                (site.source == *origin && site.offset <= span.start()).then_some(site.offset)
++            offsets.extend(self.declaration_layouts.keys().filter_map(|site| {
 +                (site.source == *origin && site.offset <= limit).then_some(site.offset)
-+            }));
-+        }
+             }));
+         }
+-        for offset in offsets.iter().rev() {
+-            let binding = self.attach_invocation_reads(
+-                Self::query_dispatch_points(
+-                    self.dispatch_points_at(*offset)
+-                        .filter(|point| point.state.current_source_origin.as_ref() == Some(origin)),
+-                ),
+-                Some(origin),
+-                *offset,
+-            );
+-            let geometry = if let Some(input) = self.original_logical_source_name_advice_input() {
+-                binding.original_logical_source_geometry_words(input)
+-            } else {
+-                binding.original_recorded_name_words()
+-            };
+-            let Some((words, retained_config)) = geometry else {
 +        offsets
 +    }
 +
@@ -445,8 +596,71 @@
 +        for offset in self.original_written_word_site_offsets(origin, None) {
 +            let binding = self.original_written_word_site_binding(origin, offset);
 +            let Some((words, config)) = self.original_written_word_site_geometry(&binding) else {
-+                continue;
-+            };
+                 continue;
+             };
+-            if retained_config != config
+-                || !words.iter().any(|word| {
+-                    word.original_written_span(origin.source_image().bytes())
+-                        .is_some_and(|written| {
+-                            written.start() <= span.start() && span.end() <= written.end()
+-                        })
+-                })
+-            {
+-                continue;
+-            }
+-            let original = origin.original_lexical_command(words, *offset, config)?;
+-            let native = original.native_words();
+-            let mut ordinals =
+-                words
+-                    .iter()
+-                    .zip(native)
+-                    .enumerate()
+-                    .filter_map(|(index, (word, native))| {
+-                        (word.source().span == span
+-                            || native.span() == span
+-                            || native.content_span().ok() == Some(span)
+-                            || native
+-                                .tokens()
+-                                .first()
+-                                .is_some_and(|token| token.span == span))
+-                        .then_some(index)
+-                    });
+-            let Some(written) = ordinals.next() else {
+-                continue;
+-            };
+-            if ordinals.next().is_some() {
+-                return None;
+-            }
+-            let site = binding.invocation_site()?.clone();
+-            found.push((native[written].clone(), written, binding, site));
+-        }
+-        if found.is_empty() {
+-            if let Some(input) = self.original_logical_source_name_advice_input() {
+-                if config != input.lexer_config() {
+-                    return None;
+-                }
+-                let tape = self.original_source_transition_advice_tape_for(
+-                    input.borrowed_context_registry(),
+-                    super::OriginalSourceCataloguePurpose::CompletePrefix,
+-                )?;
+-                for (word, written, site) in
+-                    tape.logical_original_word_observations_at_span(origin, input, span)?
+-                {
+-                    let binding = self.invocation_at_source("", site.offset);
+-                    // A present original owner stays terminal even when its checks
+-                    // refuse. Independent body geometry only fills an absent facet.
+-                    if binding.original_written_words.is_some()
+-                        || binding.original_compiler_words.is_some()
+-                        || binding.declaration_layout_observations.is_some()
+-                    {
+-                        continue;
+-                    }
+-                    found.push((word, written, binding, site));
+-                }
+-            }
+-        }
+-        (!found.is_empty()).then_some(found)
+-    }
 +            let written = words
 +                .iter()
 +                .filter_map(|word| word.original_written_span(bytes))
@@ -513,7 +727,7 @@
 +        let Some(site) = binding.invocation_site() else {
 +            return OriginalWrittenWordSiteStep::Refuse;
 +        };
-+        OriginalWrittenWordSiteStep::Found(native[written].clone(), written, site.clone())
++        OriginalWrittenWordSiteStep::Found(Box::new(native[written].clone()), written, site.clone())
 +    }
 +}
 +
@@ -527,7 +741,11 @@
 +enum OriginalWrittenWordSiteStep {
 +    Skip,
 +    Refuse,
-+    Found(tcl_lexer::NativeWord, usize, super::CommandAllocationSite),
++    Found(
++        Box<tcl_lexer::NativeWord>,
++        usize,
++        super::CommandAllocationSite,
++    ),
 +}
 +
 +/// One root-origin site's span-independent written geometry.
@@ -547,14 +765,14 @@
 +    written_word_sites: Arc<std::sync::OnceLock<Option<Vec<OriginalWrittenWordSite>>>>,
 +    pub(super) caller_alias: super::formal_call_advice::DeclarationCallerAliasMemo,
  }
- 
+
  #[cfg(test)]
 --- a/rust/tcl-compiler/src/command_binding/formal_call_advice.rs
 +++ b/rust/tcl-compiler/src/command_binding/formal_call_advice.rs
 @@ -33,6 +33,65 @@
      }
  }
- 
+
 +/// One callee's invocation-independent caller-alias survey.
 +#[derive(Debug)]
 +pub(crate) struct DeclarationCallerAliasSurvey {
@@ -810,14 +1028,14 @@
 +        }
 +        Some(DeclarationCallerAliasSurvey { callee, parameters })
      }
- 
+
      /// Query a command-head formal through its original incoming/copy receipt,
 --- a/rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs
 +++ b/rust/tcl-compiler/src/command_binding/incomplete_body_metadata.rs
 @@ -24,8 +24,59 @@
      content: Span,
  }
- 
+
 +/// [`header_uncached`], memoised per region of the most recent source image
 +/// and configuration. Each command's query walks every earlier declaration
 +/// site and asks for that site's header over the rest of the document, so
@@ -875,3 +1093,29 @@
      if region.end().checked_sub(region.start())? > 64 * 1024 {
          return None;
      }
+@@ -188,13 +239,15 @@
+
+ fn incomplete_procedure_name(
+     // The caller owns source geometry; this parameter retains debug trace coordinates.
+-    _site: &CommandAllocationSite,
++    site: &CommandAllocationSite,
+     header: &IncompleteHeader,
+     target: &super::SourceCommandTarget,
+     advice: &OriginalCompilationLookupAdvice,
+     registry: &tcl_registry::CommandRegistry,
+     config: LexerConfig,
+ ) -> Option<usize> {
++    #[cfg(not(debug_assertions))]
++    let _ = site;
+     if !target.prepended.is_empty() {
+         return None;
+     }
+@@ -225,7 +278,7 @@
+     if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
+         eprintln!(
+             "INCOMPLETE_HEADER site={} stage=procedure-roles complete={} accepted={:?} roles={} values={}",
+-            _site.offset,
++            site.offset,
+             facts.arg_roles_complete,
+             facts.arity_accepts_frozen_arguments(),
+             facts.arg_roles.len(),
