@@ -1,0 +1,5 @@
+
+running 1 test
+test codegen::statements::tests::native_array_indices_emit_iteratively_from_the_full_original_arena ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10482 filtered out; finished in 7.81s

@@ -22,5 +22,13 @@
     "failed": 1,
     "ignored": 0,
     "log": "tests-spectcl-golden_packs-new.out"
+  },
+  "spectcl/golden_packs/old": {
+    "returncode": 101,
+    "seconds": 5717.749,
+    "passed": 2,
+    "failed": 1,
+    "ignored": 0,
+    "log": "tests-spectcl-golden_packs-old.out"
   }
 }

@@ -1,0 +1,72 @@
+Breakpoint 1 at 0x31a5130
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+
+Breakpoint 1, 0x00005555586f9130 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9137 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f913f in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9147 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f914f in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9157 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f915f in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9167 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f916f in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9177 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f917f in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9186 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f918c in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+EQ_CALL_RETURN 1 0 0x5555586f9186 call   *0x1101cdc(%rip)        # 0x5555597fae68
+0x00005555586f918f in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9197 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f919d in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+EQ_CALL_RETURN 2 0 0x5555586f9197 call   *0x10f26bb(%rip)        # 0x5555597eb858
+0x00005555586f91a5 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f91ad in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f91b4 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f91ba in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+EQ_CALL_RETURN 3 0 0x5555586f91b4 call   *0x1101cae(%rip)        # 0x5555597fae68
+0x00005555586f91bd in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f91c5 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f91cb in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+EQ_CALL_RETURN 4 0 0x5555586f91c5 call   *0x10f2695(%rip)        # 0x5555597eb860
+0x00005555586f91d3 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f91db in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f91e3 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f91eb in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f91f0 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f91f2 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f91f6 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f91fa in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9200 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9223 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f922b in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9230 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9232 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9236 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f923a in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9240 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f924c in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9254 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f925c in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9262 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+EQ_CALL_RETURN 5 0 0x5555586f925c call   *0x118fac6(%rip)        # 0x555559888d28
+0x00005555586f9264 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f926b in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9272 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f9274 in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x00005555586f927b in <tcl_compiler::object_types::ObjectHandleFacts>::analysis_report_eq ()
+0x0000555558791da9 in <tcl_compiler::analyser::types::AnalysisResult as core::cmp::PartialEq>::eq ()
+LEFT_EQUALITY 0x555558791da9 return 0
+TRACE 0x5555586f9236 cmove  %rcx,%rax
+TRACE 0x5555586f923a test   $0x1,%rax
+TRACE 0x5555586f9240 je     0x5555586f924c <_RNvMs_NtNtCs1a1fjWCmaew_12tcl_compiler12object_types17report_comparisonNtB6_17ObjectHandleFacts18analysis_report_eq+284>
+TRACE 0x5555586f924c lea    0xa8(%rsp),%rdi
+TRACE 0x5555586f9254 lea    0xb0(%rsp),%rsi
+TRACE 0x5555586f925c call   *0x118fac6(%rip)        # 0x555559888d28
+TRACE 0x5555586f9262 and    $0x1,%al
+TRACE 0x5555586f9264 mov    %al,0xbf(%rsp)
+TRACE 0x5555586f926b mov    0xbf(%rsp),%al
+TRACE 0x5555586f9272 and    $0x1,%al
+TRACE 0x5555586f9274 add    $0x608,%rsp
+TRACE 0x5555586f927b ret
+[Inferior 1 (process 30596) killed]

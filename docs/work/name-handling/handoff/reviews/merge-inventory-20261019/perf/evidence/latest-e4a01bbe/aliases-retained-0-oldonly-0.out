@@ -1,0 +1,11 @@
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_equal=true
+det=false
+BAD memo_ms=97828 plain_ms=195258 eq=false rust/tcl-compiler/tests/data/name-consumers/aliases.tcl
+files=1 mismatches=1
+
+thread 'main' (30305) panicked at rust/tcl-compiler/examples/zz_diagprobe.rs:200:9:
+assertion `left == right` failed: corpus results must be identical without panics
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

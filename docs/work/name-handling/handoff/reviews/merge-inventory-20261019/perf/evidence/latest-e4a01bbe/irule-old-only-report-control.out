@@ -1,0 +1,11 @@
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_equal=true
+det=false
+BAD memo_ms=97128 plain_ms=163849 eq=false samples/irules/cookbook_http_collect.irul
+files=1 mismatches=1
+
+thread 'main' (29980) panicked at /tmp/zz_aliasfieldprobe_up13jacn/zz_aliasfieldprobe.rs:200:9:
+assertion `left == right` failed: corpus results must be identical without panics
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
