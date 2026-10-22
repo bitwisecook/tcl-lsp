@@ -2,11 +2,34 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-22T12:15Z (Sol-49)
+Last updated: 2026-10-22T12:29Z (Sol-49)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/sol-49-NOTES.md`.
+
+## Resume
+
+Evidence directory (in the repo): `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/`.
+- `scripts/` holds the batch scripts. Set `SOL49_SCRATCH` to a scratch directory first; results go to `$SOL49_SCRATCH/res/<tag>-<filter>.txt`.
+  - `cycle2.sh <tag> <filters…>`: one command that builds the `tcl-compiler` lib tests, runs the `zz_sol49` probes with `--nocapture` (written to `<tag>-probe.log`), runs each filter, then deletes the executable.
+  - `cycle.sh`: the same, without the probes.
+  - `cmp.sh <base.txt> <after.txt>`: prints pass-to-fail tests and the gain count.
+- `sol49-results-z2-y3-d1.tar.gz`: per-test ok/FAILED lists. `z2`/`y3` are the pre-C6 baselines; `c1`/`d1` are with C6.
+
+Where to pick up:
+1. Running now: cycle `e1`. Command:
+   `THREADS=3 cycle2.sh e1 fp_rbs_15 fp_sh_21 fp_tnt_03 irules_checks:: analyser::diagnostics::tests registry_invocation signature_scan:: taint:: lowering:: source_class::tests depth_guard::tests::cap_deep depth_guard::tests::deep_namespace_eval_lowering cfg_builder:: deferred_writes command_binding::`
+   Compare each filter with `cmp.sh res/z2-<filter>.txt res/e1-<filter>.txt`; use `y3` where `z2` has no list for that filter.
+2. Use the `e1-probe.log` output:
+   - `ZZ_SOL49_ANY supplied.rs:<line>` lines show which site turns `deferred_writes.any` on for `fp_sh_21`.
+   - The `FU` block dump shows the CFG for the W210-after-switch cases (the `fp_rbs_15` trio).
+   - `zz_sol49_hover_schema_probe` shows which `source_registry_words` stage withdraws the schema for `regexp {plainword} $line`.
+3. Remove the temporary probes before hand-back:
+   - `zz_sol49_dict_for_probe` in `analyser/diagnostics/fp/sh.rs`
+   - `zz_sol49_hover_schema_probe` in `registry_invocation/source_structure.rs`
+   - `zz_sol49_any` in `deferred_writes/supplied.rs` and `deferred_writes.rs`: restore every `zz_sol49_any(line!())` to `true` and delete the function.
+4. Then the integration binaries, as one build-run-delete command each: `cargo test -p tcl-compiler --test optimiser_coverage`, and `cargo test -p tcl-spectcl --test spec_corpus shared_unit_matches_legacy_for_representative_profiles`.
 
 ## In progress
 
