@@ -109,12 +109,18 @@ impl SourceScan<'_> {
 
     fn original_registration(&mut self, tokens: &CommandTokens) {
         let Some(binding) = tokens.source_binding.as_ref() else {
+            if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+                eprintln!("ZZ_COMPILER_DEFERRED {} {:?}", line!(), tokens.argv_texts);
+            }
             self.out.any = zz_sol49_any(line!());
             return;
         };
         let Some(footprint) =
             binding.original_materialized_footprint_for_module(tokens, self.module, self.registry)
         else {
+            if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+                eprintln!("ZZ_COMPILER_DEFERRED {} {:?}", line!(), tokens.argv_texts);
+            }
             self.out.any = zz_sol49_any(line!());
             return;
         };
@@ -123,12 +129,18 @@ impl SourceScan<'_> {
             .bindings()
             .retained_original_source_purpose(metadata, self.registry)
         else {
+            if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+                eprintln!("ZZ_COMPILER_DEFERRED {} {:?}", line!(), tokens.argv_texts);
+            }
             self.out.any = zz_sol49_any(line!());
             return;
         };
         let Some(invocation) =
             original_callback_invocation_with_metadata_context(self.registry, metadata, tokens)
         else {
+            if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+                eprintln!("ZZ_COMPILER_DEFERRED {} {:?}", line!(), tokens.argv_texts);
+            }
             self.out.any = zz_sol49_any(line!());
             return;
         };
@@ -145,16 +157,25 @@ impl SourceScan<'_> {
             },
         );
         let Some(selected) = selected else {
+            if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+                eprintln!("ZZ_COMPILER_DEFERRED {} {:?}", line!(), tokens.argv_texts);
+            }
             self.out.any = zz_sol49_any(line!());
             return;
         };
         let global = footprint.deferred_namespace(Some(ScriptLookupScope::GlobalFrame));
         for value in selected.deferred {
             let Some(namespace) = footprint.deferred_namespace(value.scope) else {
+                if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+                    eprintln!("ZZ_COMPILER_DEFERRED {} {:?}", line!(), tokens.argv_texts);
+                }
                 self.out.any = zz_sol49_any(line!());
                 continue;
             };
             let Some(text) = value.text else {
+                if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+                    eprintln!("ZZ_COMPILER_DEFERRED {} {:?}", line!(), tokens.argv_texts);
+                }
                 self.out.any = zz_sol49_any(line!());
                 continue;
             };

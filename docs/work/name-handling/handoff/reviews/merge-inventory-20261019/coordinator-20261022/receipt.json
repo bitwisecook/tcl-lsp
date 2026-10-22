@@ -1,0 +1,130 @@
+{
+  "receipt_version": 1,
+  "source_run": {
+    "id": 39616304947,
+    "run_number": 5202,
+    "head_branch": "work",
+    "head_sha": "f6c4694f14c9be6f5f155397d30e46a6e72efc80",
+    "status": "completed",
+    "conclusion": "failure",
+    "created_at": "2026-10-21T14:22:35Z",
+    "run_started_at": "2026-10-21T14:22:35Z",
+    "updated_at": "2026-10-21T20:40:15Z",
+    "url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39616304947"
+  },
+  "job_inventory": {
+    "total": 47,
+    "conclusions": {
+      "failure": 24,
+      "success": 4,
+      "skipped": 16,
+      "cancelled": 3
+    }
+  },
+  "cancelled_e2e_partitions": [
+    {
+      "job_id": 119285770088,
+      "name": "lsp-e2e-partition (1/3)",
+      "url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39616304947/job/119285770088",
+      "conclusion": "cancelled",
+      "coverage": "partial observed terminal outcomes; no whole-partition acceptance",
+      "counts": {
+        "PASS": 39,
+        "FAIL": 14
+      },
+      "outcome_records": 53,
+      "slow_at_cancel_count": 6,
+      "started_at": "2026-10-21T14:38:30Z",
+      "completed_at": "2026-10-21T20:39:47Z"
+    },
+    {
+      "job_id": 119285770029,
+      "name": "lsp-e2e-partition (2/3)",
+      "url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39616304947/job/119285770029",
+      "conclusion": "cancelled",
+      "coverage": "partial observed terminal outcomes; no whole-partition acceptance",
+      "counts": {
+        "PASS": 103,
+        "FAIL": 22
+      },
+      "outcome_records": 125,
+      "slow_at_cancel_count": 6,
+      "started_at": "2026-10-21T14:38:30Z",
+      "completed_at": "2026-10-21T20:40:07Z"
+    },
+    {
+      "job_id": 119285770151,
+      "name": "lsp-e2e-partition (3/3)",
+      "url": "https://github.com/bitwisecook/tcl-lsp/actions/runs/39616304947/job/119285770151",
+      "conclusion": "cancelled",
+      "coverage": "partial observed terminal outcomes; no whole-partition acceptance",
+      "counts": {
+        "PASS": 131,
+        "FAIL": 35
+      },
+      "outcome_records": 166,
+      "slow_at_cancel_count": 8,
+      "started_at": "2026-10-21T14:38:30Z",
+      "completed_at": "2026-10-21T20:39:16Z"
+    }
+  ],
+  "aggregate_observed_outcomes": {
+    "pass": 273,
+    "fail": 71,
+    "total": 344
+  },
+  "files": [
+    {
+      "file": "run.json",
+      "source": "/tmp/naming-ci-39616304947-run.json",
+      "bytes": 14207,
+      "sha256": "d84a50dd759601fbfe8b7721216d0a5b06213a96b4e734e057ee1a2a9b11d8d0"
+    },
+    {
+      "file": "all-jobs.json",
+      "source": "/tmp/naming-ci-39616304947-all-jobs.json",
+      "bytes": 164449,
+      "sha256": "5167d50d611ee0e592787cc277d2ff4edd9af6d55b17ac779f5af3dce5a47913"
+    },
+    {
+      "file": "job-119285770029-filtered.log",
+      "source": "/tmp/naming-ci-job-119285770029-filtered.log",
+      "bytes": 345568,
+      "sha256": "22c5d8d34ea381538bad3ee16189024c84420795f8d6d6b5a58b0c19352c31f7"
+    },
+    {
+      "file": "job-119285770029-outcomes.json",
+      "source": "/tmp/naming-ci-job-119285770029-outcomes.json",
+      "bytes": 22617,
+      "sha256": "ca23ae40455f8d635c2e0b5bd13a07a772634dea81e628f3d35707e1e8780eee"
+    },
+    {
+      "file": "job-119285770088-filtered.log",
+      "source": "/tmp/naming-ci-job-119285770088-filtered.log",
+      "bytes": 305378,
+      "sha256": "796ec0aeebb4ad08dae8791311948f2503cbded135a5307ac5217b2a2ed8a4d0"
+    },
+    {
+      "file": "job-119285770088-outcomes.json",
+      "source": "/tmp/naming-ci-job-119285770088-outcomes.json",
+      "bytes": 9464,
+      "sha256": "4e8cf10ea7e635306f9fbcc99d1d018f1cbc19517147ffe43c6e1c1ae5f9d490"
+    },
+    {
+      "file": "job-119285770151-filtered.log",
+      "source": "/tmp/naming-ci-job-119285770151-filtered.log",
+      "bytes": 361024,
+      "sha256": "2a2d0823d4973f9a2d874bdf755aeec4589d27d687f44648686627ea2379122a"
+    },
+    {
+      "file": "job-119285770151-outcomes.json",
+      "source": "/tmp/naming-ci-job-119285770151-outcomes.json",
+      "bytes": 29810,
+      "sha256": "039b6bee4ed8f789747969946f5be2ed2583bd8d4dabfcb05ba474a5a90e56c6"
+    }
+  ],
+  "limitations": [
+    "The three e2e jobs were cancelled; these are partial observations and do not establish whole-partition completion or run-5201 pass-to-fail comparison.",
+    "Filtered logs and decoded outcomes are bounded local evidence copies; GitHub Actions job logs remain remote authority."
+  ]
+}

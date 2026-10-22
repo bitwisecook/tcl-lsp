@@ -1,0 +1,69 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "LSP merge-and-release readiness into rust first; compiler/registry/syntax/lexer and SpecTcl execution paths required by the LSP are in scope. General runtime parity follows release. No PR without explicit user request.",
+  "stage_order": [
+    "Fix release-blocking naming/provider/transformation/SpecTcl regressions",
+    "Complete sectionF and zero pass-to-fail against origin/rust on named shipping snapshot",
+    "Produce clean reviewed release comparison into rust only on user request",
+    "Resume parked compiler/VM/runtime migration after the LSP release"
+  ],
+  "utc": "2026-10-22T14:21:34.914254+00:00",
+  "scheduled_report_utc": "2026-10-22T13:55:37.260907+00:00",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": [
+    "Read the canonical handoff, all24 user decisions, external review/triage and role evidence; resumed five roles with explicit ownership. No duplicate external roles.",
+    "Completed the requested shallow single-branch work clone; reused its object cache for the active selective work tree with all2,514 keep-list fixture inputs. Bounded depth50 fetch was necessary to reconcile shallow tips and fast-forward to d7224c706.",
+    "Provisioned Rust1.99.1, Node26.12.1, Corepack0.36.0, exact Tcl8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 and pinned Jim0.84. Oracle receipt is preserved in coordinator-20261022/oracle-setup.json.",
+    "Five roles received GO at14:20Z; compiler-names first g4 build started14:20:52Z under shared build lock. No fresh verdict yet.",
+    "Corrected obsolete historical CI active status using API/job-log receipts: run39616304947 is completed failure,47jobs24failure4success16skipped3cancelled. Cancelled partitions expose273pass71fail partial observations, not complete acceptance or zero pass-to-fail.",
+    "Routed ILX source relation to compiler; perf compiler patch remains unapplied pending proof. External role files are fresh at14:15."
+  ],
+  "admissions": [],
+  "committed": [],
+  "in_progress": [
+    "lsp: native minify syntax-preserving gap proof and generic provider/server acceptance.",
+    "compiler: three C6 regressions, N09 call graph, ILX source relation.",
+    "compiler-names: g4/R1 then import/W210/relative object/N01.",
+    "compiler-codegen: N17 live const-fold in actual tcl-compiler/src/const_subst.rs.",
+    "vm-runtime: after8b Jim/EDA acceptance and six-vendor server smoke."
+  ],
+  "next_report_utc": "2026-10-22T14:25:37.260907+00:00",
+  "green_PR": false,
+  "merge_or_issue_closure": false,
+  "validation_note": "No new product test verdicts or guarded captures. Historical CI completion/status is evidenced by coordinator-20261022/receipt.json. Counts unchanged; no admissions.",
+  "cycle_blocker": "Overdue13:55 cycle delayed by clone/materialisation/sync; setup blocker is now resolved. Publication is in progress.",
+  "external_role_updates": {
+    "bigip-lsp": "2026-10-22T14:03Z",
+    "perf": "2026-10-22T14:00Z",
+    "review-triage": "2026-10-22T13:59:37Z"
+  },
+  "disk_free_bytes": 17715060736
+}

@@ -1481,6 +1481,95 @@ pub fn original_expression_gap_compaction(
         .original_expression_gap_compaction(&tokens, analysis.resolved_registry()?, candidate)
 }
 
+/// Syntax-only whitespace gaps in one whole selected braced Expr operand.
+/// Variable, function and child-script tokens stay exact. This does not prove
+/// pure evaluation, normal completion, source reflection or alpha renaming.
+pub struct OriginalExpressionSyntaxGapCompaction {
+    original: tcl_lexer::NativeWord,
+    gaps: Vec<tcl_lexer::Span>,
+    registry: tcl_registry::RegistrySemanticKey,
+}
+
+impl OriginalExpressionSyntaxGapCompaction {
+    /// Exact original braced operand under its complete source configuration.
+    #[must_use]
+    pub fn original_operand(&self) -> &tcl_lexer::NativeWord {
+        &self.original
+    }
+
+    /// Only configured expression token gaps may disappear.
+    #[must_use]
+    pub fn removed_gaps(&self) -> &[tcl_lexer::Span] {
+        &self.gaps
+    }
+
+    /// Original whole source and complete configuration remain current.
+    #[must_use]
+    pub fn matches_source(
+        &self,
+        image: &tcl_lexer::SourceImage,
+        config: tcl_lexer::LexerConfig,
+    ) -> bool {
+        self.original.image() == image && self.original.config() == config
+    }
+
+    /// The selected source schema retains its actual Registry generation.
+    #[must_use]
+    pub fn matches_registry(&self, registry: &CommandRegistry) -> bool {
+        self.registry == registry.snapshot().semantic_key()
+    }
+}
+
+/// Issue syntax gaps only for a selected whole original Expr-role operand.
+/// Conditional source advice and observed or changed dispatch cannot issue it.
+#[must_use]
+pub fn original_expression_syntax_gap_compaction(
+    source: &str,
+    analysis: &AnalysisResult,
+    segment: &crate::segmenter::SegmentedCommand,
+    argument: usize,
+    candidate: &str,
+) -> Option<OriginalExpressionSyntaxGapCompaction> {
+    let words = source_registry_words(source, analysis, segment)?;
+    let input = analysis.resolved_input.as_ref()?;
+    let context = input.context_registry();
+    if !matches!(words.source(), OriginalRegistrySource::Selected)
+        || !words.operands_preserve_source_lookup()
+        || !words
+            .roles()?
+            .contains(&(argument, tcl_registry::ArgRole::Expr))
+    {
+        return None;
+    }
+    words.with_source_schema(&context, |_| ())?;
+    let original = words.original_argument_word(argument)?.clone();
+    let image = tcl_lexer::SourceImage::document(source);
+    let config = input.lexer_config();
+    let mut tokens = crate::ir::CommandTokens::from_segmented(
+        &tcl_lexer::SourceMap::from_image(&image),
+        config,
+        segment,
+    );
+    analysis
+        .retained_command_realm()?
+        .stamp_original_tokens(&mut tokens);
+    let gaps = tokens
+        .source_binding
+        .as_ref()?
+        .original_expression_syntax_gaps(
+            &tokens,
+            context.commands(),
+            input,
+            &original,
+            candidate,
+        )?;
+    Some(OriginalExpressionSyntaxGapCompaction {
+        original,
+        gaps,
+        registry: context.commands().snapshot().semantic_key(),
+    })
+}
+
 /// Source structure from the selected original argv, or the independently
 /// retained conditional schema. The latter keeps its applicability obligations
 /// and grants no runtime dispatch, entered frame, compiler or edit permission.
@@ -4490,21 +4579,30 @@ mod tests {
             "set line x\nregexp {plainword} $line\n",
             "lsearch -exact $list $needle\n",
         ] {
-            let analysis = crate::analyser::Analyser::new().analyse(source, "tcl8.6").clone();
+            let analysis = crate::analyser::Analyser::new()
+                .analyse(source, "tcl8.6")
+                .clone();
             let config = analysis.body_lexer_config.unwrap();
             let offset = u32::try_from(
-                source.find("regexp").or_else(|| source.find("lsearch")).unwrap(),
+                source
+                    .find("regexp")
+                    .or_else(|| source.find("lsearch"))
+                    .unwrap(),
             )
             .unwrap();
             let tail = &source[offset as usize..];
-            let segment = crate::segmenter::segment_commands_with_offset_and_config(tail, offset, config)
-                .into_iter()
-                .next()
-                .unwrap();
+            let segment =
+                crate::segmenter::segment_commands_with_offset_and_config(tail, offset, config)
+                    .into_iter()
+                    .next()
+                    .unwrap();
             eprintln!("PROBE {source:?} offset={offset}");
             let realm = analysis.retained_command_realm().unwrap();
             let binding = realm.invocation_at_source("", offset);
-            eprintln!("  recorded={}", binding.original_recorded_command().is_some());
+            eprintln!(
+                "  recorded={}",
+                binding.original_recorded_command().is_some()
+            );
             let image = tcl_lexer::SourceImage::document(source);
             eprintln!(
                 "  conditional_metadata={}",
@@ -4517,7 +4615,10 @@ mod tests {
             eprintln!(
                 "  vendor_names={} logical={}",
                 analysis.has_original_vendor_source_names(),
-                realm.source_bindings_ref().original_logical_source_name_advice_input().is_some()
+                realm
+                    .source_bindings_ref()
+                    .original_logical_source_name_advice_input()
+                    .is_some()
             );
             let registry = analysis.resolved_registry().unwrap();
             eprintln!(

@@ -3457,6 +3457,15 @@ enum ExprTok {
 /// spaces only around word-operators and between adjacent word
 /// tokens. (no AST shrinking).
 fn strip_expr_whitespace(text: &str, env: MinifyEnv<'_>, depth: u32) -> String {
+    strip_expr_whitespace_with_script_compaction(text, env, depth, true)
+}
+
+fn strip_expr_whitespace_with_script_compaction(
+    text: &str,
+    env: MinifyEnv<'_>,
+    depth: u32,
+    compact_scripts: bool,
+) -> String {
     let mut syntax = tcl_syntax::expr::parser::ExprParseContext::for_profile(env.dialect);
     syntax.lexer_grammar = env.config.grammar_over(syntax.lexer_grammar);
     if matches!(
@@ -3465,7 +3474,11 @@ fn strip_expr_whitespace(text: &str, env: MinifyEnv<'_>, depth: u32) -> String {
     ) {
         return text.to_owned();
     }
-    let tokens = tokenise_expr(text, env, depth);
+    let tokens = if compact_scripts {
+        tokenise_expr(text, env, depth)
+    } else {
+        tokenise_expr_with_script_compaction(text, env, depth, false)
+    };
     let rendered = tokens
         .iter()
         .filter_map(|token| match token {
@@ -3755,6 +3768,15 @@ fn shrink_not(node: &ExprNode, operand: &ExprNode) -> ExprNode {
 /// Project the selected shared expression tokens and original command terms.
 /// Unknown syntax keeps the entire original expression, including its gaps.
 fn tokenise_expr(text: &str, env: MinifyEnv<'_>, nest_depth: u32) -> Vec<ExprTok> {
+    tokenise_expr_with_script_compaction(text, env, nest_depth, true)
+}
+
+fn tokenise_expr_with_script_compaction(
+    text: &str,
+    env: MinifyEnv<'_>,
+    nest_depth: u32,
+    compact_scripts: bool,
+) -> Vec<ExprTok> {
     let project = || -> Option<Vec<ExprTok>> {
         let tokens = configured_expression_tokens(text, env)?;
         let terms = tcl_lexer::expression_terms(text.as_bytes(), &tokens, env.config)?;
@@ -3772,7 +3794,7 @@ fn tokenise_expr(text: &str, env: MinifyEnv<'_>, nest_depth: u32) -> Vec<ExprTok
             if original.as_bytes() != token.text {
                 return None;
             }
-            if token.kind == tcl_lexer::ExprTokenType::Command {
+            if compact_scripts && token.kind == tcl_lexer::ExprTokenType::Command {
                 let term = terms.iter().find(|term| {
                     term.kind == tcl_lexer::ExprTermKind::Command
                         && term.source == (token.start..end)

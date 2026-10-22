@@ -2964,6 +2964,13 @@ impl<'r> Lowerer<'r> {
                 tokens,
             )
         })
+        .or_else(|| {
+            crate::registry_invocation::original_native_source_structured_invocation(
+                self.registry,
+                metadata,
+                tokens,
+            )
+        })
     }
 
     /// Build a `CommandTokens` snapshot from a segmented command, decomposing

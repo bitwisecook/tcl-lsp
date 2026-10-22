@@ -142,26 +142,9 @@ fn same_expression_gaps(
     config: LexerConfig,
     tree: &ExprNode<Vec<u8>>,
 ) -> bool {
-    let signature = |source: &[u8]| {
-        let (tokens, unknown) = tcl_lexer::tokenise_expr_bytes_checked_with_expression_grammar(
-            source,
-            &parser.lexer_grammar,
-            parser.expr_grammar_base,
-            parser.f5_word_grammar,
-        );
-        if unknown || tcl_lexer::expression_terms(source, &tokens, config).is_none() {
-            return None;
-        }
-        Some(
-            tokens
-                .into_iter()
-                .filter(|token| {
-                    !token.kind.is_skipped() && token.kind != tcl_lexer::ExprTokenType::Eof
-                })
-                .collect::<Vec<_>>(),
-        )
-    };
-    let Some((original_tokens, candidate_tokens)) = signature(original).zip(signature(candidate))
+    let Some((original_tokens, candidate_tokens)) =
+        expression_syntax_signature(original, parser, config)
+            .zip(expression_syntax_signature(candidate, parser, config))
     else {
         return false;
     };
@@ -183,6 +166,50 @@ fn same_expression_gaps(
     }
     cursor == candidate.len()
         && matches!(tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(candidate, parser), CheckedExprParse::Parsed(ref candidate) if same_pure_expression_tree(tree, candidate, &original_tokens, &candidate_tokens))
+}
+
+fn expression_syntax_signature(
+    source: &[u8],
+    parser: &ExprParseContext,
+    config: LexerConfig,
+) -> Option<Vec<tcl_lexer::ExprToken<Vec<u8>>>> {
+    let (tokens, unknown) = tcl_lexer::tokenise_expr_bytes_checked_with_expression_grammar(
+        source,
+        &parser.lexer_grammar,
+        parser.expr_grammar_base,
+        parser.f5_word_grammar,
+    );
+    if unknown || tcl_lexer::expression_terms(source, &tokens, config).is_none() {
+        return None;
+    }
+    Some(
+        tokens
+            .into_iter()
+            .filter(|token| !token.kind.is_skipped() && token.kind != tcl_lexer::ExprTokenType::Eof)
+            .collect(),
+    )
+}
+
+fn whitespace_gap_spans(original: &[u8], candidate: &[u8], base: u32) -> Option<Vec<Span>> {
+    let mut cursor = 0;
+    let mut gaps: Vec<Span> = Vec::new();
+    for (index, &byte) in original.iter().enumerate() {
+        if candidate.get(cursor) == Some(&byte) {
+            cursor += 1;
+        } else {
+            if !byte.is_ascii_whitespace() {
+                return None;
+            }
+            let start = base.checked_add(u32::try_from(index).ok()?)?;
+            let end = start.checked_add(1)?;
+            if let Some(last) = gaps.last_mut().filter(|gap| gap.end() == start) {
+                *last = Span::new(last.start(), end);
+            } else {
+                gaps.push(Span::new(start, end));
+            }
+        }
+    }
+    (cursor == candidate.len()).then_some(gaps)
 }
 
 // Exact AST equality also compares source coordinates. Gap removal changes
@@ -324,33 +351,16 @@ impl SourceInvocationBinding {
             ExpressionRewrite::Gaps(candidate),
         )?;
         let content = expression.original_operand().content_span().ok()?;
-        let mut cursor = 0;
-        let mut gaps: Vec<Span> = Vec::new();
-        for (index, &byte) in expression.native.iter().enumerate() {
-            if candidate.as_bytes().get(cursor) == Some(&byte) {
-                cursor += 1;
-            } else {
-                let start = content.start().checked_add(u32::try_from(index).ok()?)?;
-                let end = start.checked_add(1)?;
-                if let Some(last) = gaps.last_mut().filter(|gap| gap.end() == start) {
-                    *last = Span::new(last.start(), end);
-                } else {
-                    gaps.push(Span::new(start, end));
-                }
-            }
-        }
+        let gaps = whitespace_gap_spans(&expression.native, candidate.as_bytes(), content.start())?;
         Some(OriginalExpressionGapCompaction { expression, gaps })
     }
 
-    fn original_expression_rewrite_envelope(
+    fn original_registry_syntax_envelope(
         &self,
         tokens: &CommandTokens,
         registry: &CommandRegistry,
     ) -> Option<ExpressionRewriteEnvelope<'_>> {
-        if tokens.source_binding.as_ref() != Some(self)
-            || tokens.words().len() != 2
-            || !self.unobserved_native_dispatch()
-        {
+        if tokens.source_binding.as_ref() != Some(self) || !self.unobserved_native_dispatch() {
             return brace_refusal(tokens, "original-dispatch-guard");
         }
         let site = brace_required(tokens, "original-site", self.invocation_site())?;
@@ -389,6 +399,90 @@ impl SourceInvocationBinding {
         {
             return brace_refusal(tokens, "current-handler-observers");
         }
+        if !self.original_compiler_names_preserved_for_tokens(tokens) {
+            return brace_refusal(tokens, "compiler-name-effects");
+        }
+        Some(ExpressionRewriteEnvelope {
+            site,
+            config,
+            target,
+            state,
+        })
+    }
+
+    /// Exact lexical gaps under the selected quiet handler. Source-role
+    /// admission belongs to the caller; no value or completion proof follows.
+    pub(crate) fn original_expression_syntax_gaps(
+        &self,
+        tokens: &CommandTokens,
+        registry: &CommandRegistry,
+        input: &crate::analyser::ResolvedAnalysisInput,
+        operand: &NativeWord,
+        candidate: &str,
+    ) -> Option<Vec<Span>> {
+        let envelope = self.original_registry_syntax_envelope(tokens, registry)?;
+        if input.lexer_config() != envelope.config
+            || operand.config() != envelope.config
+            || operand.image() != envelope.site.source.source_image()
+            || operand.group().kind != WordKind::Braced
+            || operand.group().expand
+        {
+            return None;
+        }
+        let original = crate::registry_invocation::original_native_compiler_words(
+            envelope.site.source.source_image(),
+            tokens.words(),
+            envelope.site.offset,
+            envelope.config,
+        )?;
+        if !original.contains(operand) {
+            return None;
+        }
+        let content = operand.content_span().ok()?;
+        let bytes = operand.image().bytes().get(content.as_range())?;
+        let mut parser = ExprParseContext::for_profile(input.unit_profile());
+        parser.lexer_grammar = envelope.config.grammar_over(parser.lexer_grammar);
+        let original_tokens = expression_syntax_signature(bytes, &parser, envelope.config)?;
+        let candidate_tokens =
+            expression_syntax_signature(candidate.as_bytes(), &parser, envelope.config)?;
+        if original_tokens
+            .iter()
+            .map(|token| (&token.kind, &token.text))
+            .ne(candidate_tokens
+                .iter()
+                .map(|token| (&token.kind, &token.text)))
+            || !matches!(
+                tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(bytes, &parser),
+                CheckedExprParse::Parsed(_)
+            )
+            || !matches!(
+                tcl_syntax::expr::parser::parse_expr_bytes_checked_with_context(
+                    candidate.as_bytes(),
+                    &parser
+                ),
+                CheckedExprParse::Parsed(_)
+            )
+        {
+            return None;
+        }
+        whitespace_gap_spans(bytes, candidate.as_bytes(), content.start())
+    }
+
+    fn original_expression_rewrite_envelope(
+        &self,
+        tokens: &CommandTokens,
+        registry: &CommandRegistry,
+    ) -> Option<ExpressionRewriteEnvelope<'_>> {
+        let envelope = self.original_registry_syntax_envelope(tokens, registry)?;
+        if tokens.words().len() != 2 {
+            return None;
+        }
+        let ExpressionRewriteEnvelope {
+            site,
+            config,
+            target,
+            state,
+        } = envelope;
         let spec = registry.get(target.registry_identity()?)?;
         if spec.lowering_hook != Some(tcl_registry::hooks::LoweringHookId::Expr) {
             return None;

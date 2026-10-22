@@ -2,11 +2,11 @@
 
 Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-22T13:16Z (PAUSED by user instruction)
+Last updated: 2026-10-22T14:20Z (resumed; agent-reported work only)
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
-## In progress (paused; edits are on disk, verification build g4 not run)
+## In progress (resumed in /workspace/naming-migration-active/tcl-lsp; g4 first)
 
 1. **R1 guardrail plus global hook guard** (`rust/tcl-compiler/src/command_binding.rs`). Coordinator rulings of 11:20Z and 12:50Z.
    - `command_world_closed_on_normal_return(target, facts)`. A handler without a closed receipt keeps the completed world only when it:
@@ -64,7 +64,7 @@ Until routed, build nothing that re-parses display strings into identities or as
 
 ## Blocked (on whom, and what is needed)
 
-- Paused by user instruction (13:10Z). Waiting for the coordinator's resume message.
+- R1 and import fixes remain unverified; early g4 main/zz and eight regression attribution run first after coordinator GO. User decision 20261022T1317Z permits narrow after-load Reached corrections, jointly classified with compiler.
 - The 8 `command_binding` pass→fail in g1 (`compiler-names/g1-command_binding-pass2fail.txt`) have been forwarded to the compiler agent to classify against C6. They were all ok in sol49 z2 (00:00). Their assertions (uncalled-body commands now carry proved execution targets; Reached versus Conditional) point at C6's `uncalled_body_after_load` and conditional in-frame hunks.
 
 ## Done since the last update (with evidence)
@@ -77,9 +77,9 @@ Until routed, build nothing that re-parses display strings into identities or as
 
 ## Resume
 
-- **Next command** (one build, run, delete; filtered output capped at 20 MB):
+- **Next command** (separately locked complete cargo-test build/run filters; draining output capped at 20 MB; executables younger than 60 minutes retained):
   `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/buildrun.sh g4`
-  - Logs: `/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/compiler-names/g4-*.log`. To redirect them, edit `D=`.
+  - Logs: `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/g4-*.log`; source `/tmp/tcl-lsp-naming-env.sh`; first run main/zz and eight regressions, broad batches later. Runner audited for stale paths, global lock, disk and bounded draining output before use.
   - It needs more than 2.3 GB free disk.
   - g4 has never run. Two attempts were stopped before the build finished: one when a pkill hit my own shell, and one by the pause.
 - **Then:**

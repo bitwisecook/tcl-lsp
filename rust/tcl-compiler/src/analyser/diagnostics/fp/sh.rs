@@ -1668,6 +1668,9 @@ fn zz_sol49_dict_for_probe() {
         "proc f {x} { while 1 { switch -glob $x {a* {break} default {break}} }; puts $y }\n",
         "set raw [gets stdin]\ninterp eval $child [list puts $raw]\n",
         "set raw [gets stdin]\nset child [interp create]\ninterp eval $child [list $raw]\n",
+        "set child [interp create]\nset raw [gets stdin]\ninterp eval $child [list $raw]\n",
+        "set child {}\nset raw [gets stdin]\ninterp eval $child [list $raw]\n",
+        "set child [interp create]\nset raw [gets stdin]\ninterp eval $child [list puts $raw]\n",
     ] {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let profile =

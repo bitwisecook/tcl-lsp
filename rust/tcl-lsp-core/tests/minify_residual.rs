@@ -781,3 +781,56 @@ fn n15_compact_and_aggressive_refuse_unsafe_renaming_and_keep_the_output() {
         }
     }
 }
+
+#[test]
+fn default_minify_compacts_expression_gaps_and_preserves_oracle_results() {
+    // Decision 2026-10-22T13:17Z: Default minify removes safe expression gaps.
+    let source = "puts [expr {3 + 4 * 2}]\n\
+        proc fact {n} {\n\
+            if {$n <= 1} { return 1 }\n\
+            return [expr {$n * [fact [expr {$n - 1}]]}]\n\
+        }\n\
+        puts [fact 5]\n";
+    for (dialect, version) in [
+        ("tcl8.4", Some(tcl_dialect::TclVersion::V8_4)),
+        ("tcl8.5", Some(tcl_dialect::TclVersion::V8_5)),
+        ("tcl8.6", Some(tcl_dialect::TclVersion::V8_6)),
+        ("tcl9.0", Some(tcl_dialect::TclVersion::V9_0)),
+        ("tcl9.1", Some(tcl_dialect::TclVersion::V9_1)),
+        ("jim", None),
+    ] {
+        let output = min_dialect(source, dialect);
+        assert!(output.contains("expr {3+4*2}"), "{dialect}: {output}");
+        assert!(output.contains("if {$n<=1}"), "{dialect}: {output}");
+        assert!(
+            output.contains("expr {$n*[fact [expr {$n-1}]]}"),
+            "{dialect}: {output}"
+        );
+        assert_eq!(
+            min_dialect(&output, dialect),
+            output,
+            "{dialect} idempotence"
+        );
+        let oracle = if let Some(version) = version {
+            tcl_test_support::witness_tclsh(version).map(|interpreter| interpreter.path)
+        } else {
+            tcl_test_support::locate_jimsh()
+                .expect("valid Jim override")
+                .map(|_| {
+                    tcl_test_support::require_jimsh()
+                        .expect("pinned Jim oracle")
+                        .path
+                })
+        };
+        if let Some(oracle) = oracle {
+            let before = tcl_test_support::run_script(&oracle, source.as_bytes())
+                .expect("original oracle execution");
+            let after = tcl_test_support::run_script(&oracle, output.as_bytes())
+                .expect("minified oracle execution");
+            assert!(before.success() && after.success(), "{dialect}: {output}");
+            assert_eq!(before.stdout, b"11\n120\n", "{dialect} original output");
+            assert_eq!(after.stdout, before.stdout, "{dialect}: {output}");
+            assert_eq!(after.stderr, before.stderr, "{dialect}: {output}");
+        }
+    }
+}

@@ -126,14 +126,14 @@ pub(crate) fn original_native_source_structured_invocation(
         .source_binding
         .as_ref()?
         .original_native_source_words(tokens, input, registry)?;
-    let super::source_structure::OriginalRegistrySource::SourceTransitions(advice) = words.source()
-    else {
-        return None;
-    };
-    if advice
-        .original_words()
+    if !matches!(
+        words.source(),
+        super::source_structure::OriginalRegistrySource::SourceTransitions(_)
+            | super::source_structure::OriginalRegistrySource::ConditionalNativeSource(_)
+    ) || tokens
+        .words()
         .iter()
-        .any(|word| word.group().expand)
+        .any(|word| matches!(word, crate::ir::WordExpr::Expand { .. }))
     {
         return None;
     }
@@ -145,7 +145,7 @@ pub(crate) fn original_native_source_structured_invocation(
     {
         return None;
     }
-    let (descriptor, hook) =
+    let (descriptor, hook, source_roles, case_bodies) =
         words.with_source_schema(input.borrowed_context_registry(), |schema| {
             use tcl_registry::hooks::LoweringHookId;
             let hook = schema.facts().lowering_hook?;
@@ -155,6 +155,7 @@ pub(crate) fn original_native_source_structured_invocation(
                     | LoweringHookId::Return
                     | LoweringHookId::Expr
                     | LoweringHookId::If
+                    | LoweringHookId::Switch
                     | LoweringHookId::While
                     | LoweringHookId::For
                     | LoweringHookId::Foreach
@@ -162,20 +163,49 @@ pub(crate) fn original_native_source_structured_invocation(
                     | LoweringHookId::Catch
                     | LoweringHookId::Try
             ) || schema.facts().arity_accepts_frozen_arguments() != Some(true)
-                || !schema.authored_source_argument_roles().1
             {
                 return None;
             }
-            for &(argument, role) in words.roles()? {
+            let case_bodies = if schema.semantics.options.case_list.is_some() {
+                (schema.semantics.frame_effect.is_none()
+                    && schema.semantics.body_kind == tcl_registry::BodyKind::Plain
+                    && schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current)
+                    .then_some(())?;
+                let clauses = schema.authored_source_case_clause_projection(
+                    tcl_syntax::word_rules::WordValueRules::from_config(&input.lexer_config()),
+                )?;
+                for body in &clauses.bodies {
+                    if schema.authored_source_script_timing_at(body.argument)?
+                        != tcl_registry::ScriptTiming::SameInvocation
+                    {
+                        return None;
+                    }
+                }
+                Some(clauses)
+            } else {
+                None
+            };
+            let source_roles = if let Some(clauses) = &case_bodies {
+                let mut roles = Vec::new();
+                for body in &clauses.bodies {
+                    if !roles.contains(&(body.argument, tcl_registry::ArgRole::Body)) {
+                        roles.push((body.argument, tcl_registry::ArgRole::Body));
+                    }
+                }
+                roles
+            } else {
+                schema.authored_source_argument_roles().1.then_some(())?;
+                words.roles()?.to_vec()
+            };
+            for &(argument, role) in &source_roles {
                 if role == tcl_registry::ArgRole::Body
                     && words.arguments().get(argument)?.literal_bytes().is_none()
                 {
                     return None;
                 }
             }
-            Some((schema.descriptor_key(), hook))
+            Some((schema.descriptor_key(), hook, source_roles, case_bodies))
         })??;
-    let source_roles = words.roles()?.to_vec();
     Some(SourceStructuredInvocation::NativeSource(Box::new(
         HostedStructuredInvocation {
             words,
@@ -183,7 +213,7 @@ pub(crate) fn original_native_source_structured_invocation(
             descriptor,
             hook,
             source_roles,
-            case_bodies: None,
+            case_bodies,
         },
     )))
 }

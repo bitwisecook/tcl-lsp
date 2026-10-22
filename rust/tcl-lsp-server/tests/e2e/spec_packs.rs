@@ -923,40 +923,34 @@ fn a_pack_reload_after_an_edit_yields_the_new_answer_on_the_memoised_path() {
 /// The **bundled** tier, end to end: the EDA vendor libraries are `.tclspec`
 /// loadables now, not compiled-in Rust (`docs/design/registry/spec-packs.md`), so this
 /// is the proof that a shipped pack reaches the analyser in the real server
-/// process — a Vivado command has to be discovered on disk, parsed, merged,
-/// installed, and its overlay key published to the analyser before
-/// `synth_design` can read as anything but an unknown command.
+/// process. Each vendor command must be discovered, parsed, merged and installed
+/// before the corresponding document can resolve it.
 ///
 /// The negative half matters as much: every vendor's pack is discovered for
 /// every dialect, so a rival's command must still be unknown here.
 #[test]
 fn the_bundled_eda_loadables_make_their_vendor_commands_known() {
     let root = workspace("bundled-eda");
-    let source = "# tcl-dialect: xilinx-eda-tcl\nsynth_design -top top\nget_cells *\nvsim -c top\n";
-    let doc = root.join("build.tcl");
-    write(&doc, source);
-
     let mut lsp =
         Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
     await_pack_named(&mut lsp, "eda_xilinx");
-    assert!(
-        pack_names(&mut lsp).iter().any(|name| name == "sdc_base"),
-        "the shared SDC library ships alongside it; got {:?}",
-        pack_names(&mut lsp)
-    );
+    let names = pack_names(&mut lsp);
+    for name in [
+        "eda_xilinx",
+        "eda_synopsys",
+        "eda_cadence",
+        "eda_quartus",
+        "eda_mentor",
+        "eda_microchip",
+        "sdc_base",
+        "upf",
+    ] {
+        assert!(
+            names.iter().any(|loaded| loaded == name),
+            "{name}: {names:?}"
+        );
+    }
 
-    let uri = file_uri(&doc);
-    lsp.open_ready(&uri, source);
-
-    // Settle rather than take the first publish. The analyser resolves its own
-    // registry and only *looks up* the pack-carrying entry by key
-    // (`Analyser::with_pack_overlay` / `profile_registry`), falling back to the
-    // un-overlaid registry when that entry has not been built yet. So an
-    // analysis racing workspace init can legitimately report every vendor
-    // command unknown, and does under a loaded runner — the honest answer for
-    // the instant it ran, corrected by the re-analysis that follows. What this
-    // test is about is the settled answer, so wait for it; `settled` panics on
-    // timeout, so a pack that never installs still fails here.
     let unknown_of = |diags: &[Value]| -> Vec<String> {
         diags
             .iter()
@@ -965,24 +959,76 @@ fn the_bundled_eda_loadables_make_their_vendor_commands_known() {
             .map(ToOwned::to_owned)
             .collect()
     };
-    let diagnostics =
-        lsp.await_diagnostics_settled(&uri, std::time::Duration::from_secs(30), |diags| {
-            !unknown_of(diags).iter().any(|m| m.contains("synth_design"))
-        });
-    let unknown = unknown_of(&diagnostics);
+    for (dialect, own_call, own, rival_call, rival) in [
+        (
+            "xilinx-eda-tcl",
+            "synth_design -top top",
+            "synth_design",
+            "vsim -c top",
+            "vsim",
+        ),
+        (
+            "synopsys-eda-tcl",
+            "compile_ultra",
+            "compile_ultra",
+            "vsim -c top",
+            "vsim",
+        ),
+        (
+            "cadence-eda-tcl",
+            "ccopt_design",
+            "ccopt_design",
+            "synth_design -top top",
+            "synth_design",
+        ),
+        (
+            "intel-quartus-eda-tcl",
+            "execute_flow -compile",
+            "execute_flow",
+            "synth_design -top top",
+            "synth_design",
+        ),
+        (
+            "mentor-eda-tcl",
+            "vsim -c top",
+            "vsim",
+            "synth_design -top top",
+            "synth_design",
+        ),
+        (
+            "microchip-libero-eda-tcl",
+            "run_designer",
+            "run_designer",
+            "synth_design -top top",
+            "synth_design",
+        ),
+    ] {
+        let source = format!(
+            "# tcl-dialect: {dialect}\n{own_call}\nget_cells *\ncreate_power_domain PD\n{rival_call}\n"
+        );
+        let doc = root.join(format!("{dialect}.tcl"));
+        write(&doc, &source);
+        let uri = file_uri(&doc);
+        lsp.open_ready(&uri, &source);
+        let diagnostics =
+            lsp.await_diagnostics_settled(&uri, std::time::Duration::from_secs(30), |diags| {
+                !unknown_of(diags)
+                    .iter()
+                    .any(|message| message.contains(own))
+            });
+        let unknown = unknown_of(&diagnostics);
 
-    assert!(
-        !unknown.iter().any(|m| m.contains("synth_design")),
-        "the bundled Vivado pack must make `synth_design` known: {unknown:?}"
-    );
-    assert!(
-        !unknown.iter().any(|m| m.contains("get_cells")),
-        "and the bundled SDC pack `get_cells`: {unknown:?}"
-    );
-    assert!(
-        unknown.iter().any(|m| m.contains("vsim")),
-        "but a Questa command must not resolve under Vivado: {diagnostics:#?}"
-    );
+        for command in [own, "get_cells", "create_power_domain"] {
+            assert!(
+                !unknown.iter().any(|message| message.contains(command)),
+                "{dialect}: bundled command `{command}` must resolve: {diagnostics:#?}"
+            );
+        }
+        assert!(
+            unknown.iter().any(|message| message.contains(rival)),
+            "{dialect}: rival `{rival}` must remain unknown: {diagnostics:#?}"
+        );
+    }
 
     let _ = std::fs::remove_dir_all(&root);
 }

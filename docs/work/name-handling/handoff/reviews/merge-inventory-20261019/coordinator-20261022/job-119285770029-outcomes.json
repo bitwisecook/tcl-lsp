@@ -1,0 +1,664 @@
+{
+  "job_id": 119285770029,
+  "source_run": 39616304947,
+  "head_sha": "f6c4694f14c9be6f5f155397d30e46a6e72efc80",
+  "job_conclusion": "cancelled",
+  "coverage": "partial observed terminal outcomes; no whole-partition acceptance",
+  "outcomes": [
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "closed_document_source_context_tests::closed_read_uses_detected_configured_and_document_override_dialect"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "current_diagnostics::tests::actual_foreign_provider_registry_cannot_borrow_completed_analysis_currency"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "current_diagnostics::tests::cancelled_and_failed_passes_cannot_reuse_a_prior_complete_report"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "current_diagnostics::tests::legacy_cache_equal_path_replacement_cannot_reuse_completed_payload"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "closed_document_source_context_tests::closed_selected_source_and_dialect_reach_real_fresh_analysis_input"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "current_diagnostics::tests::suppression_requires_delivered_clear_and_superseded_clear_cannot_settle"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "environment_notice::tests::an_id_that_is_not_a_plain_file_name_is_refused"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "environment_notice::tests::only_files_in_the_marker_directory_are_dismissals"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "current_diagnostics::proposal_endpoint_tests::actual_proposal_command_refuses_stale_original_and_withdrawn_source_admission"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "environment_notice::tests::simultaneous_dismissals_all_stick"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "environment_notice::tests::text_lists_no_package_a_definition_lacks"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "exit_watchdog::tests::observe_request_tracks_exit_without_shutdown"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_metadata_tests::project_token_config_publication_drops_partial_locks_and_preserves_snapshots"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "current_diagnostics::tests::actual_direct_and_push_rewrites_retain_their_captured_document_source"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "current_diagnostics::tests::workspace_cache_preserves_actual_report_version_and_whole_source"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_metadata_tests::unindexed_range_request_keeps_workspace_pack_roles"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_metadata_tests::unindexed_semantic_tokens_keep_workspace_pack_roles"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_metadata_tests::workspace_index_seed_refuses_stale_and_withdrawn_source_owners"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_metadata_tests::unindexed_tokens_refuse_withdrawn_source_metadata_and_availability"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_path_admission_tests::closed_cached_source_keeps_its_original_mapping_until_genuine_republication"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_path_admission_tests::missing_scan_receipt_cannot_retire_a_remapped_uri"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_path_admission_tests::disk_unavailability_preserves_prior_rows_but_genuine_missing_file_retires"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_path_admission_tests::refused_open_and_unknown_change_publish_no_document_source_or_index"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_path_admission_tests::source_path_admission_distinguishes_nonfile_unicode_and_refused_file_data"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_path_admission_tests::opening_waiting_for_index_cannot_retire_after_mapping_withdrawal"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_path_admission_tests::virtual_registered_path_reaches_actual_source_and_fresh_analysis"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_path_admission_tests::unicode_and_nonfile_receipts_reach_salsa_and_fresh_analysis"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_workspace_diagnostics_tests::original_workspace_diagnostics_keep_current_source_advice_after_foreign_reports"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_workspace_diagnostics_tests::original_workspace_diagnostics_decline_reporting_lookup_and_callable_arity"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "orphan_dependency_currency_tests::absent_or_broad_receipts_wake_instead_of_claiming_source_absence"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "pack_configuration_input_gate_tests::original_folder_and_trust_setters_wait_for_the_report_input_owner"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "pack_configuration_input_gate_tests::pack_notice_union_requires_matching_source_and_publication_owners"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "path_glob::tests::any_pattern_in_the_set_can_hit"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "path_glob::tests::brace_alternation"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "path_glob::tests::empty_set_matches_nothing"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "path_glob::tests::expansion_cap_drops_the_pattern"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "path_glob::tests::name_pattern_ignores_the_relative_path"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "path_glob::tests::nested_brace_alternation"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "path_glob::tests::path_pattern_globstar_covers_a_whole_tree"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "path_glob::tests::question_mark_is_exactly_one_character"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "path_glob::tests::star_never_crosses_a_separator"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "original_workspace_diagnostics_tests::original_workspace_reporting_refuses_pack_generations_and_withdrawn_source_owners"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "policy_truth_table::every_row_offers_fixes_for_shown_findings_only"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_metadata_tests::pull_compiler_and_code_actions_keep_supplied_diagnostic_context"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "provider_source::tests::indexed_package_providers_keep_their_own_pack_and_unavailable_status"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "policy_truth_table::every_rewrite_row_applies_through_optimise_document"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::coarse_semantic_source_tests::coarse_source_keeps_factory_and_original_virtual_provider_receipts"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::conditional_navigation_publication_tests::implementation_possible_locations_keep_typed_debt_until_final_source_lease"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "provider_source::tests::configured_package_refinement_keeps_version_preference_and_unknown_providers"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::conditional_navigation_publication_tests::typed_hierarchy_debt_survives_wire_publication_and_parent_currentness"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "provider_source::tests::poisoned_proposal_inventory_cannot_issue_empty_or_populated_source_completion"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::logical_call_wire_tests::missing_actual_index_stamp_is_unavailable_even_with_equal_source_and_analysis"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::logical_call_provider_generation_tests::newly_indexed_provider_invalidates_old_call_stamp_with_all_retained_rows_unchanged"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::tests::readonly_member_wire_retains_owner_and_partial_coverage"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::logical_call_wire_tests::typed_call_debt_and_parent_target_stamps_survive_until_final_source_lease"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::workspace_symbol_input_lease_tests::symbol_final_joint_lease_retains_real_index_input_epoch_and_open_source_guards"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::tests::readonly_member_wire_withdraws_missing_or_replaced_source_owners"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "recovery_source::tests::malformed_recovery_preserves_original_autoload_labels_and_root_marker"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::workspace_symbol_original_admission_tests::host_reported_file_requires_its_original_source_read_admission"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "recovery_source::tests::detached_indexes_with_equal_generations_keep_recovery_names_separate"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "recovery_source::tests::original_base_completeness_retains_indexed_and_untracked_input_owners"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "rewrite_wire::tests::manually_constructed_rewrite_cannot_acquire_source_association"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "rt::tests::spawn_blocking_round_trips_a_value"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "rt::tests::spawn_round_trips_a_value"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "stdio_pump::tests::everything_arrives_in_order"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "stdio_pump::tests::the_backlog_counter_never_wraps_against_a_fast_drain"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "rewrite_wire::tests::missing_owner_foreign_analysis_changed_bytes_and_partial_group_have_no_payload"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "retained_class_family_receiver_tests::actual_cross_document_classmethod_receivers_require_known_non_itcl_metadata"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "studio_source::tests::cross_backend_same_uri_token_cannot_publish_or_retire_new_owner"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "studio_source::tests::acquire_before_creation_and_shutdown_retire_without_filesystem_cleanup"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "studio_source::tests::original_provider_mapping_cannot_rebind_across_equal_byte_aba"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "studio_source::tests::saved_image_changed_after_load_before_publication_is_unavailable"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_barrier_that_catches_up_during_the_sample_window_is_not_reported"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_collision_refusal_names_where_the_cell_already_lives"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_document_dialect_override_outranks_every_inference"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_dropped_waiter_does_not_wedge_the_edit_order"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_failed_scoped_pull_refreshes_what_a_folder_inherits"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_folder_matching_the_session_shares_its_analyser_handle"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_global_source_site_converges_without_touching_the_index_1297"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_late_resolve_cannot_stamp_the_slot_backwards"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_manifest_or_lockfile_change_reloads_the_packs"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_model_finding_lifts_with_an_exclusive_end"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_named_profile_leaves_the_switch_and_the_codes_to_the_layers"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "studio_source::tests::replaced_or_stale_revision_and_missing_entropy_never_donate_a_live_lease"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_session_dialect_naming_no_environment_falls_back_with_a_warning"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_session_dialect_override_only_reaches_the_fallback_tier"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_session_dialect_override_rejects_an_unknown_dialect"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_source_site_moving_to_global_scope_restores_the_standalone_view_1297"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "studio_source::tests::saved_image_changed_while_reload_is_queued_cannot_acknowledge_publication"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::action_command_forwards_string_args_for_bigip_rename_partition"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::an_invocation_profile_overrules_the_project_file"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::an_iruleslx_rules_entry_without_a_plugin_entry_is_dropped"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::apl_presentation_findings_surface_codes"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::apply_content_change_indexed_keeps_line_index_consistent"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::apply_content_change_ranged_edits"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::apply_content_change_sequence_matches_full_text"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::arity_still_enforces_the_minimum_of_an_args_tailed_signature"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::auto_source_graph_inherits_entry_requires"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::autoload_merge_abstains_when_the_workspace_defines_the_command"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::autoload_merge_makes_rename_reach_the_library_m8"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::bigip_config_findings_surface_codes"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::bigip_routing_uses_the_profile_availability_fact"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cancelled_range_enrichment_schedules_retry_1854"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::canonical_file_uri_declines_opaque_actual_path_without_replacement_alias"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::closed_diag_badge_cache_is_capped"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::coalesced_claim_refreshes_even_when_the_holder_found_no_difference"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::collapse_inlay_alias_resolves_per_layer"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::collect_tcl_files_picks_up_tcltest_files"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::collect_tcl_files_respects_cap"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::concurrent_snapshots_share_one_text_and_index_allocation"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::config_file_settings_apply_through_global_config"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::constructed_product_alias_retains_the_original_counted_path_for_admission"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_definition_resolves_sibling_proc"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_references_do_not_cross_link_colliding_namespace"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_references_follow_namespace_import"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_references_reach_caller_from_nested_self_redefinition"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_rename_reaches_caller_from_nested_self_redefinition"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_arity_honours_a_disabled_code"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_arity_survives_w123_disabled_on_pull_path"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_consumer_does_not_bare_dispatch_an_itcl_class_proc"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_evidence_clears_local_only_orphans_1854"
+    },
+    {
+      "outcome": "PASS",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_math_function_uses_the_retained_expression_coordinate"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_method_references_exclude_declaration"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_method_references_reach_inheritor_document"
+    },
+    {
+      "outcome": "FAIL",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::default_off_w242_hidden_by_default_enableable_via_config"
+    }
+  ],
+  "slow_at_cancel": [
+    {
+      "test": "tcl-lsp-server original_document_metadata_tests::source_rehoming_keeps_workspace_roles_in_the_actual_seed_namespace",
+      "seconds": 21240
+    },
+    {
+      "test": "tcl-lsp-server studio_source::tests::original_provider_mapping_cannot_rebind_across_equal_byte_aba",
+      "seconds": 120
+    },
+    {
+      "test": "tcl-lsp-server tests::a_relative_auto_path_entry_anchors_on_the_document_not_the_server_cwd",
+      "seconds": 21000
+    },
+    {
+      "test": "tcl-lsp-server tests::a_versioned_require_indexes_the_release_it_asks_for",
+      "seconds": 21000
+    },
+    {
+      "test": "tcl-lsp-server tests::concurrent_snapshots_share_one_text_and_index_allocation",
+      "seconds": 4080
+    },
+    {
+      "test": "tcl-lsp-server tests::definition_resolves_through_a_document_auto_path_package",
+      "seconds": 16740
+    }
+  ],
+  "counts": {
+    "PASS": 103,
+    "FAIL": 22
+  }
+}

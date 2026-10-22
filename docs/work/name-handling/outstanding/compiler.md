@@ -2,7 +2,7 @@
 
 Area: Lowering, C6 fresh builders, iRules RuleLoader realm, itcl/snit, OO.
 
-Last updated: 2026-10-22T13:12Z (Sol-49, paused on the user's instruction)
+Last updated: 2026-10-22T14:20Z (compiler role resumed in the active checkout)
 
 Maintained by the compiler agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -10,7 +10,7 @@ Full change notes: `docs/work/name-handling/handoff/reviews/merge-inventory-2026
 
 ## Resume
 
-**Paused at 13:10Z on the user's instruction.** Nothing of mine is running. The e1 test executable is deleted.
+**Resumed in `/workspace/naming-migration-active/tcl-lsp` at `d7224c706`.** Compiler-names has the first build lock for g4. C6 priorities are the opaque-switch conditional completion scan, deferred-write schema widening and reached cross-interpreter taint. N09 and authenticated ILX source-handle provenance follow C6. The perf realm/interprocedural patch remains unapplied pending its equality proof. No build is running for this role yet.
 
 Evidence directory (in the repo): `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler/`.
 - `scripts/`: the batch scripts. Set `SOL49_SCRATCH` to a scratch directory first; results go to `$SOL49_SCRATCH/res/<tag>-<filter>.txt`.
@@ -68,7 +68,7 @@ Files I have touched since e34d8a427e (details in `sol-49-NOTES.md`):
 - `fp/inj.rs`, `fp/sh.rs`
 - `docs/design/contracts/naming-consumer-matrix.md`
 
-## In progress (paused)
+## In progress
 
 - **C6 zero-regression pass.** Landed in the tree: the companion and the WIP hunks, plus:
   - the `bounds_checks` W241 switch-clause fix;

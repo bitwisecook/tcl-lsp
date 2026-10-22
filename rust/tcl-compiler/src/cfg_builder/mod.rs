@@ -1807,7 +1807,11 @@ impl<'a> CfgBuilder<'a> {
                 embedded.opaque,
                 upvar.opaque_arguments,
                 writes.opaque,
-                embedded.commands.iter().map(|command| format!("{command:?}").chars().take(160).collect::<String>()).collect::<Vec<_>>()
+                embedded
+                    .commands
+                    .iter()
+                    .map(|command| format!("{command:?}").chars().take(160).collect::<String>())
+                    .collect::<Vec<_>>()
             );
         }
         for d in writes.names {
@@ -5037,9 +5041,15 @@ fn escaping_loop_jumps_with_classes(
     let mut can_break = false;
     let mut can_continue = false;
     for stmt in &script.statements {
+        // An opaque arm is conditional source, so it need not have an actual
+        // handler visit. Its retained source schema can still establish the
+        // completion when that arm runs, without granting execution authority.
+        let completion = command_classes
+            .completion_route(stmt)
+            .or_else(|| command_classes.conditional_source_completion_route(stmt.tokens()?));
         match stmt {
             Statement::Call { .. } => {
-                if let Some(route) = command_classes.completion_route(stmt) {
+                if let Some(route) = &completion {
                     for route in route.alternatives() {
                         match route {
                             tcl_registry::completion_route::InvocationCompletionRoute::Tcl(
@@ -5105,7 +5115,9 @@ fn escaping_loop_jumps_with_classes(
         // dead code (a later `break`/`continue` never runs), so stop scanning —
         // otherwise a dead `break` after `error`/`return` would forge a
         // loop-exit edge and fire W210 on unreachable post-loop code.
-        if flow_facts_stmt_with_classes(stmt, command_classes).1 != Completion::Normal {
+        if completion.is_some_and(|route| !route.normal_possible())
+            || flow_facts_stmt_with_classes(stmt, command_classes).1 != Completion::Normal
+        {
             break;
         }
     }

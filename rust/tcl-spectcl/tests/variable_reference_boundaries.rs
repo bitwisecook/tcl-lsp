@@ -47,9 +47,7 @@ fn template(dsl: &str, helper: bool, reference: &str) -> String {
              return {reference}\n    }}\n    command [pick] {{arity 0}}\n}}\n"
         )
     } else {
-        format!(
-            "speclib edge {dsl} {{\n        {SETUP}\n    command {reference} {{arity 0}}\n}}\n"
-        )
+        format!("speclib edge {dsl} {{\n        {SETUP}\n    command {reference} {{arity 0}}\n}}\n")
     }
 }
 
@@ -69,8 +67,11 @@ fn a_template_names_its_command_where_the_reference_ends() {
                             ..EvalOptions::default()
                         },
                     );
-                    let names: Vec<&str> =
-                        pack.commands.iter().map(|command| command.spec.name).collect();
+                    let names: Vec<&str> = pack
+                        .commands
+                        .iter()
+                        .map(|command| command.spec.name)
+                        .collect();
                     assert_eq!(
                         names,
                         ["good"],
@@ -94,8 +95,17 @@ fn a_colon_run_in_a_template_is_a_namespace_separator() {
                  command {reference} {{arity 0}}\n}}\n"
             );
             let pack = evaluate_pack_with(&source, &EvalOptions::default());
-            let names: Vec<&str> = pack.commands.iter().map(|command| command.spec.name).collect();
-            assert_eq!(names, ["good"], "{reference} dsl={dsl}: {:?}", pack.load_error);
+            let names: Vec<&str> = pack
+                .commands
+                .iter()
+                .map(|command| command.spec.name)
+                .collect();
+            assert_eq!(
+                names,
+                ["good"],
+                "{reference} dsl={dsl}: {:?}",
+                pack.load_error
+            );
         }
     }
 }
@@ -133,11 +143,18 @@ fn a_live_hook_folds_the_value_its_substitution_computes() {
             dependency_tier: None,
         }]);
         let plan = hooks::plan_for(&packs);
-        assert!(!plan.is_empty(), "dsl={dsl} {reference}: the hook is planned");
+        assert!(
+            !plan.is_empty(),
+            "dsl={dsl} {reference}: the hook is planned"
+        );
         let host = Rc::new(tclvm_host());
         for programs in plan.packs() {
             for installed in host.install_pack_hooks(programs.clone()) {
-                assert!(installed.declined.is_none(), "dsl={dsl}: {:?}", installed.declined);
+                assert!(
+                    installed.declined.is_none(),
+                    "dsl={dsl}: {:?}",
+                    installed.declined
+                );
             }
         }
         pack_hooks::install_host(host);
@@ -154,5 +171,95 @@ fn a_live_hook_folds_the_value_its_substitution_computes() {
         pack_hooks::clear_host();
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(folded, ["good"], "dsl={dsl} {reference}");
+    }
+}
+
+#[test]
+fn a_live_fold_keeps_declared_effects_and_unclosed_arguments() {
+    for dsl in ["1", "2.0"] {
+        let source = format!(
+            "speclib edge {dsl} {{\n    command edge::constant {{\n        arity 1\n        \
+             arg 0 -role Value\n        const_fold -inputs {{words}} {{words ctx}} {{fold good}}\n    }}\n    \
+             command edge::abstain {{\n        arity 1\n        \
+             const_fold -inputs {{words}} {{words ctx}} {{return}}\n    }}\n    \
+             command edge::ordinary {{arity 1}}\n}}\n"
+        );
+        let dir = std::env::temp_dir().join(format!(
+            "tcl-spectcl-fold-effects-{dsl}-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("scratch dir");
+        let path = dir.join("edge.tclspec");
+        std::fs::write(&path, &source).expect("write pack");
+        let packs = tcl_spectcl::pack::load(&[PackFile {
+            tier: Tier::Workspace,
+            path,
+            origin: Origin::DotDir,
+            dependency_tier: None,
+        }]);
+        assert!(packs.notices.is_empty(), "dsl={dsl}: {:?}", packs.notices);
+        let plan = hooks::plan_for(&packs);
+        let host = Rc::new(tclvm_host());
+        for programs in plan.packs() {
+            for installed in host.install_pack_hooks(programs.clone()) {
+                assert!(
+                    installed.declined.is_none(),
+                    "dsl={dsl}: {:?}",
+                    installed.declined
+                );
+            }
+        }
+        pack_hooks::install_host(host);
+        let mut registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+        let replacements = |registry: &tcl_registry::CommandRegistry, call: &str| {
+            tcl_compiler::optimiser::optimise_raw(
+                &format!("proc ::f {{x}} {{\n    set y [{call}]\n}}\n"),
+                registry,
+                None,
+            )
+            .into_iter()
+            .filter(|optimisation| optimisation.code.as_str() == "O129")
+            .map(|optimisation| optimisation.replacement)
+            .collect::<Vec<_>>()
+        };
+        let original = registry
+            .get("edge::constant")
+            .expect("pack command")
+            .clone();
+        assert!(original.world_effects.is_none());
+        assert_eq!(replacements(&registry, "edge::constant abcde"), ["good"]);
+        for call in [
+            "edge::abstain abcde",
+            "edge::ordinary abcde",
+            "edge::constant $x",
+            "edge::constant [edge::ordinary abcde]",
+            "edge::constant [unknown abcde]",
+        ] {
+            assert!(
+                replacements(&registry, call).is_empty(),
+                "dsl={dsl}: {call}"
+            );
+        }
+        let mut declared = original.clone();
+        declared.world_effects =
+            Some(tcl_registry::world_effect::WorldEffectDescriptor::VARIABLE_WRITE);
+        assert_eq!(
+            declared.run_const_fold(&["abcde"], None),
+            Some("good".into())
+        );
+        registry.insert(declared);
+        assert!(
+            replacements(&registry, "edge::constant abcde").is_empty(),
+            "dsl={dsl}: the selected declared callback footprint prevents erasure"
+        );
+        let mut pure = original;
+        pure.world_effects = Some(tcl_registry::world_effect::WorldEffectDescriptor::EMPTY);
+        registry.insert(pure);
+        assert_eq!(replacements(&registry, "edge::constant abcde"), ["good"]);
+        pack_hooks::clear_host();
+        assert!(replacements(&registry, "edge::constant abcde").is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

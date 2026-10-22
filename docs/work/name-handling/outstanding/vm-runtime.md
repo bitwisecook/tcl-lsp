@@ -2,14 +2,26 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T13:09Z (PAUSED on user instruction)
+Last updated: 2026-10-22T14:21Z (resumed in the transferred checkout)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-PAUSED at 13:09Z on user instruction. Nothing of mine is running; the in-flight
-`jim_own_surface` build was killed before it produced an executable.
+Resumed at 14:21Z in `/workspace/naming-migration-active/tcl-lsp`, snapshot
+`d7224c706`. Compiler-names owns the first build-lock slot. After it, run the six
+remaining Jim/EDA targets (32 cases) under the shared lock, then rerun and triage
+`jim_document`. No current result below is a guarded validation or audit admission.
+
+The scratch runner is `/tmp/vm-runtime-preflight/seq-safe.sh`: one `cargo test`
+build/run per target, draining filtered logs capped at 20 MB, recording exit and
+warning counts, no deletion of fresh shared executables. Source
+`/tmp/tcl-lsp-naming-env.sh` first. The old runner below is historical and has
+hardcoded paths plus unsafe fresh-executable cleanup; do not execute it unchanged.
+
+Narrow additional ownership agreed with lsp: extend
+`rust/tcl-lsp-server/tests/e2e/spec_packs.rs` bundled EDA smoke to six vendor
+environments. Server lib and general section D lifecycle seams stay with lsp.
 
 **After8 (review C.2 Jim/EDA targets).**
 - Finished: `jim_document` **9 passed / 17 failed / 26**. The panic summaries are in
@@ -75,8 +87,13 @@ coordinator's commit):
 
 ## In progress
 
-- Nothing running: paused. `jim_document` is done (9/17/26); the remaining Jim/EDA targets
-  are queued, see Resume.
+- Waiting for compiler-names, compiler-codegen and compiler C6 build slots in that
+  order; root owns sequencing. The initial waiting flock was cancelled before any
+  VM-runtime cargo process started. Active logs will remain under `/tmp` and only
+  completed receipts will be copied into evidence. Preparing the six-vendor EDA smoke.
+  The remaining Jim/EDA targets are queued. Earlier `jim_document` is 9/17/26;
+  its failures include signature/static/body analysis and disabled-command diagnostics
+  as well as class facts. This target does not execute VM code or external oracles.
 
 ## Outstanding (in priority order)
 

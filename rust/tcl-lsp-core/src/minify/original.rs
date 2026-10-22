@@ -563,51 +563,45 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
     };
     let mut expressions = Vec::new();
     for command in &structure.commands {
-        // Proposals carry no authority. The original rewrite owner accepts only
-        // its independently selected pure, finite, isolated Native expression.
-        let Some(original) = plans
-            .iter()
-            .flat_map(|(_, plan)| &plan.commands)
-            .find(|original| {
-                original.words.first().is_some_and(|word| {
-                    command
-                        .argv
-                        .first()
-                        .is_some_and(|head| head.span.start() == word.span().start())
-                })
-            })
-        else {
-            continue;
-        };
-        let Some(word) = original
-            .words
-            .get(1)
-            .filter(|word| word.group().kind == tcl_lexer::WordKind::Braced)
-        else {
-            continue;
-        };
-        let Ok(content) = word.content_span() else {
-            continue;
-        };
-        let Some(inner) = source.get(content.as_range()) else {
-            continue;
-        };
-        let candidate = super::strip_expr_whitespace(inner, env, 0);
-        let Some(proof) =
-            tcl_compiler::registry_invocation::source_structure::original_expression_gap_compaction(
-                source, analysis, command, &candidate,
+        let Some(words) =
+            tcl_compiler::registry_invocation::source_structure::source_registry_words(
+                source, analysis, command,
             )
         else {
             continue;
         };
-        if !proof.matches_source(&image, config) || !proof.matches_registry(context.commands()) {
-            return Err(MinifyRefusal::SourceCorrespondenceChanged);
+        for &(argument, role) in words.roles().unwrap_or_default() {
+            if role != tcl_registry::ArgRole::Expr {
+                continue;
+            }
+            let Some(word) = words
+                .original_argument_word(argument)
+                .filter(|word| word.group().kind == tcl_lexer::WordKind::Braced)
+            else {
+                continue;
+            };
+            let Ok(content) = word.content_span() else {
+                continue;
+            };
+            let Some(inner) = source.get(content.as_range()) else {
+                continue;
+            };
+            // Child scripts keep their independently authenticated script gaps.
+            let candidate =
+                super::strip_expr_whitespace_with_script_compaction(inner, env, 0, false);
+            let Some(proof) = tcl_compiler::registry_invocation::source_structure::original_expression_syntax_gap_compaction(
+                source, analysis, command, argument, &candidate,
+            ) else { continue; };
+            if !proof.matches_source(&image, config) || !proof.matches_registry(context.commands())
+            {
+                return Err(MinifyRefusal::SourceCorrespondenceChanged);
+            }
+            edits.extend(proof.removed_gaps().iter().map(|&span| SourceGapEdit {
+                span,
+                replacement: "",
+            }));
+            expressions.push(proof);
         }
-        edits.extend(proof.removed_gaps().iter().map(|&span| SourceGapEdit {
-            span,
-            replacement: "",
-        }));
-        expressions.push(proof);
     }
     edits.retain(|edit| source.get(edit.span.as_range()) != Some(edit.replacement));
     edits.sort_by_key(|edit| (edit.span.start(), edit.span.end()));
@@ -624,15 +618,17 @@ fn syntax_compaction(source: &str, analysis: &AnalysisResult) -> Result<String, 
     );
     let output = source_gap_output(source, whole, &edits)?;
     let emitted_image = SourceImage::document(&output);
-    // Expression interiors need their own selected action proof. Script word
-    // validation below still checks the entire emitted word after all edits.
+    // Compose expression gaps with independently selected descendant scripts.
+    // Every whole emitted word is checked again under the original grammar.
     for proof in expressions {
         let original = proof.original_operand().span();
         let emitted = Span::new(
             emitted_boundary(original.start(), &edits)?,
             emitted_boundary(original.end(), &edits)?,
         );
-        if output.get(emitted.as_range()) != Some(proof.replacement_source_word()) {
+        if output.get(emitted.as_range())
+            != Some(source_gap_output(source, original, &edits)?.as_str())
+        {
             return Err(MinifyRefusal::SourceCorrespondenceChanged);
         }
     }

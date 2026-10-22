@@ -2,11 +2,13 @@
 
 Area: compile_service, codegen, compiled_preflight, tcl-spectcl install.rs, review N17.
 
-Last updated: 2026-10-22T13:12Z (PAUSED by user instruction at 13:10Z)
+Last updated: 2026-10-22T14:20Z (RESUMED; agent-reported, not validation)
 
 Maintained by the compiler-codegen agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
+
+Active checkout: `/workspace/naming-migration-active/tcl-lsp`, resumed from `d7224c706` under the coordinator's GO. The canonical const-fold owner path is `rust/tcl-compiler/src/const_subst.rs`; earlier `optimiser/const_subst.rs` references below are shorthand mistakes. Decision `user-decisions-20261022T1317Z.json` authorises the declared-footprint-only barrier fix. First run remains the existing fold probe before any fix or toggle removal. Builds source `/tmp/tcl-lsp-naming-env.sh` and hold `/tmp/tcl-lsp-naming-build.lock`; compiler-names has the first slot. No commits/push by this role. Adapt the old untoggle script's checkout root only, preserving exact-text assertions. General string compiler parity and frame-size work are parked unless a SpecTcl execution failure establishes need.
 
 State at pause (13:10Z): no build or run of mine is running; my executables are deleted. Another agent's `cargo test --locked -p tcl-compiler --lib --no-run` was running and was left alone.
 
@@ -39,7 +41,7 @@ The probe compares O129 output for the pack registry (`registry_for_dialect_with
 
 **Files I touched this session:** `rust/tcl-compiler/src/compile_service.rs`, `command_binding/compiled_preflight.rs`, `command_binding/compiled_preflight/original_preparation.rs`, `codegen/control_flow.rs`, `codegen/emitter/mod.rs`, `codegen/statements/native_scalar.rs`, `codegen/native_failure.rs`, `optimiser/manager.rs`; `rust/tcl-spectcl/src/install.rs`, `rust/tcl-spectcl/tests/variable_reference_boundaries.rs` (new), `rust/tcl-spectcl/tests/zz_ccg_fold_probe.rs` (TEMP); `rust/tcl-registry/src/native_string_operand_compilation.rs`, `native_compilation.rs`, `commands/tcl/string_.rs`; `runtime/rust/src/interp/native_body_artifact/native_string_operand.rs`; docs: this file, `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen-NOTES.md`, `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-codegen/`.
 
-## In progress (paused)
+## In progress
 
 - const_fold live hooks (release-blocking, coordinator's top item): no live pack const_fold hook folds in `optimise_raw`. The world-barrier hypothesis and the probe are in Resume.
 
@@ -53,7 +55,7 @@ The probe compares O129 output for the pack registry (`registry_for_dialect_with
 
 ## Blocked (on whom, and what is needed)
 
-- Paused by user instruction (13:10Z); waiting for a resume message from the coordinator.
+- Waiting for compiler-names first locked build window before measuring the unchanged N17 fold probe; no build of this role is running.
 
 ## Done since the last update (with evidence: test counts, commit or snapshot)
 

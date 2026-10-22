@@ -2,13 +2,15 @@
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-22T13:09Z
+Last updated: 2026-10-22T14:21Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-State: PAUSED at 2026-10-22T13:09Z on coordinator/user instruction. No build or test is running; every executable my commands built was deleted. No source edits in flight (last source edits: N05 rename guard, N15 minify gate, references_residual rulings A/B — all compile-checked before the pause).
+State: ACTIVE at 2026-10-22T14:21Z in `/workspace/naming-migration-active/tcl-lsp` (starting snapshot `d7224c706`). Native Default minify expression whitespace is first, per the 13:17 user decision; no new validation yet. Compiler-names has the first globally locked build window. Existing results below are agent-reported historical measurements, not validation/admission.
+
+Current ownership: generic Core/DB/Server, including N10 class-command path selection, N11 package views and N13 inherited source views/convergence. Narrow shared Compiler ownership: `command_binding/original_literal_argv_rewrite.rs` and only the expression-gap adapter in `registry_invocation/source_structure.rs`, coordinated with compiler/compiler-names. `tests/e2e/spec_packs.rs` belongs to vm-runtime; BIG-IP modules and perf changes remain with their separate roles. Native minify retains Selected source/observer guards and validates exact configured expression tokens independently from the existing pure-value bracing proof. No cargo/build/test run yet in this environment.
 
 Partial results of integration batch `p8` (current tree, built 13:01Z; evidence `merge-inventory-20261019/lsp/status-p8-*.txt`, `p8-failure-messages.txt`, `p8-summary.txt`):
 - hover_completion **56/56**; hover_residual 33/36 (3 compiler §3c, unchanged); references_residual **23/24** (new negative test passes; ruling-B positive `references_external_obj_method_inside_proc_body_subst` still fails: `[$d bark]` at line 6 not reported even with `global d` — next: check whether the `global d` link reaches the method-dispatch reference path in `references.rs`/`method_symbol.rs`); name_resolution **70/77** (itcl ×4, C6, tn_object, C9); force_import_shadow_consumers **7/11** (4 never-passed unshadowed halves).
@@ -25,7 +27,7 @@ Files touched by me (all already in snapshots up to `ddb21ae4db` except docs): t
 
 ## In progress
 
-- (paused) integration re-measurement p8/p9, see Resume.
+- Native minify Default-tier expression whitespace fix; then hover schema withdrawal, N10 and remaining integration/provider/server proofs. Waiting for compiler-names first build window before any cargo invocation.
 
 ## Outstanding (in priority order)
 

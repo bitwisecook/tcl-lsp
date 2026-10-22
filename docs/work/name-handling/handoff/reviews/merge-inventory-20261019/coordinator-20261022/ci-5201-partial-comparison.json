@@ -1,0 +1,607 @@
+{
+  "comparison": "observed e2e partition results against recorded CI-5201 failed identities",
+  "identity_rule": "exact package + test-binary + selector; no substring or selector-only joins",
+  "current_source_run": 39616304947,
+  "current_jobs": [
+    {
+      "job_id": 119285770088,
+      "job_conclusion": "cancelled",
+      "coverage": "partial observed terminal outcomes; no whole-partition acceptance",
+      "counts": {
+        "PASS": 39,
+        "FAIL": 14
+      },
+      "outcome_records": 53
+    },
+    {
+      "job_id": 119285770029,
+      "job_conclusion": "cancelled",
+      "coverage": "partial observed terminal outcomes; no whole-partition acceptance",
+      "counts": {
+        "PASS": 103,
+        "FAIL": 22
+      },
+      "outcome_records": 125
+    },
+    {
+      "job_id": 119285770151,
+      "job_conclusion": "cancelled",
+      "coverage": "partial observed terminal outcomes; no whole-partition acceptance",
+      "counts": {
+        "PASS": 131,
+        "FAIL": 35
+      },
+      "outcome_records": 166
+    }
+  ],
+  "current_outcome_count": 344,
+  "current_counts": {
+    "PASS": 273,
+    "FAIL": 71
+  },
+  "current_unique_failure_identities": 71,
+  "baseline_reported_failure_count_in_current_state": 3634,
+  "baseline_inventory_failure_lines": 3605,
+  "baseline_by_crate_summary_total": 3607,
+  "baseline_by_crate_summary_sha256": "45c1c748b08a42d623a26a2e5f779ad2fd7e4fef4deb0b0bf1ab88c19006b647",
+  "baseline_files": [
+    {
+      "file": "heavy-failures.txt",
+      "bytes": 5008,
+      "sha256": "d614c5b8da57ee3c06dc7004dbcb46838b86d301e1c32900df258a3993d4621e",
+      "failure_lines": 56
+    },
+    {
+      "file": "shard1-failures.txt",
+      "bytes": 45284,
+      "sha256": "eb68deffcc32aa32721ec8d4d69ef3b428d7abe32748951baf58d63a1f9c8ee0",
+      "failure_lines": 435
+    },
+    {
+      "file": "shard3-failures.txt",
+      "bytes": 118358,
+      "sha256": "43f9eab2f54940c8f1170c67641bd6b7b7b45082c163886195fb7d3556a1d864",
+      "failure_lines": 1516
+    },
+    {
+      "file": "shard4-failures.txt",
+      "bytes": 54114,
+      "sha256": "9102ba76b1dde23ed2e74f2e0e641f99187ffc8b69bf0f6daed607c3f6d3876a",
+      "failure_lines": 616
+    },
+    {
+      "file": "shard5-failures.txt",
+      "bytes": 80344,
+      "sha256": "ce03c8ccc074417bd33d57fd861d94c797f11467f29831c6b7733e7118da59b6",
+      "failure_lines": 982
+    }
+  ],
+  "current_outcome_files": [
+    {
+      "file": "job-119285770088-outcomes.json",
+      "bytes": 9464,
+      "sha256": "4e8cf10ea7e635306f9fbcc99d1d018f1cbc19517147ffe43c6e1c1ae5f9d490"
+    },
+    {
+      "file": "job-119285770029-outcomes.json",
+      "bytes": 22617,
+      "sha256": "ca23ae40455f8d635c2e0b5bd13a07a772634dea81e628f3d35707e1e8780eee"
+    },
+    {
+      "file": "job-119285770151-outcomes.json",
+      "bytes": 29810,
+      "sha256": "039b6bee4ed8f789747969946f5be2ed2583bd8d4dabfcb05ba474a5a90e56c6"
+    }
+  ],
+  "exact_matches": [],
+  "exact_match_count": 0,
+  "current_failures_exactly_matching_recorded_baseline_failures": 0,
+  "current_passes_exactly_matching_recorded_baseline_failures": 0,
+  "unmatched_current_failures": [
+    {
+      "job_id": 119285770088,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_grouped_optimisation_is_never_independently_applicable_issue_2149",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770088,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::autoload_library_command_suppresses_w123_issue_832",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770088,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::closed_file_republish_does_not_memoise_the_deep_compiler_tier",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770088,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::code_lens_resolve_disambiguates_method_and_classmethod_of_the_same_name",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770088,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::code_lens_resolve_disambiguates_same_named_methods_on_different_classes",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770088,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::code_lens_resolve_for_unused_method_is_clickable_with_zero_locations",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770088,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::code_lens_resolve_wires_show_references_command_for_classmethod",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770088,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_references_reach_caller_from_shadowed_duplicate_decl",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770088,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_references_resolve_namespace_path_collision",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770088,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_consumer_excludes_subclass_dispatch_of_a_self_method",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770088,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_consumer_finds_classmethod_bare_dispatch",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770088,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_definition_selects_the_dispatch_entry_945",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770088,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_method_references_reach_inheritor_document_for_classmethod",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770088,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_method_references_span_override_family",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "current_diagnostics::tests::actual_direct_and_push_rewrites_retain_their_captured_document_source",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "policy_truth_table::every_row_offers_fixes_for_shown_findings_only",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_metadata_tests::pull_compiler_and_code_actions_keep_supplied_diagnostic_context",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "provider_source::tests::indexed_package_providers_keep_their_own_pack_and_unavailable_status",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "policy_truth_table::every_rewrite_row_applies_through_optimise_document",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::conditional_navigation_publication_tests::implementation_possible_locations_keep_typed_debt_until_final_source_lease",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "provider_source::tests::configured_package_refinement_keeps_version_preference_and_unknown_providers",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::conditional_navigation_publication_tests::typed_hierarchy_debt_survives_wire_publication_and_parent_currentness",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::logical_call_wire_tests::typed_call_debt_and_parent_target_stamps_survive_until_final_source_lease",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "rewrite_wire::tests::manually_constructed_rewrite_cannot_acquire_source_association",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "rewrite_wire::tests::missing_owner_foreign_analysis_changed_bytes_and_partial_group_have_no_payload",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "studio_source::tests::saved_image_changed_after_load_before_publication_is_unavailable",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::an_invocation_profile_overrules_the_project_file",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::auto_source_graph_inherits_entry_requires",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::autoload_merge_makes_rename_reach_the_library_m8",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_references_follow_namespace_import",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_references_reach_caller_from_nested_self_redefinition",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_rename_reaches_caller_from_nested_self_redefinition",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_arity_survives_w123_disabled_on_pull_path",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_method_references_exclude_declaration",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_method_references_reach_inheritor_document",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770029,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::default_off_w242_hidden_by_default_enableable_via_config",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_metadata_tests::configured_factory_rounds_refuse_stale_publication_and_withdraw_unavailable_library_hints",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_metadata_tests::original_formatter_requests_keep_checked_availability_raw_coordinates_and_withdrawn_input",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_metadata_tests::optimise_document_keeps_workspace_roles_and_refuses_unavailable_input",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "original_workspace_diagnostics_tests::original_workspace_reporting_keeps_actual_builtin_availability_on_the_same_store",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::logical_hierarchy_tests::logical_hierarchy_final_snapshot_rejects_changed_relation_parent_with_current_target",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "readonly_reference_reports::logical_hierarchy_tests::logical_hierarchy_wire_uses_issued_class_and_real_cross_document_owners",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "policy_truth_table::every_row_publishes_its_shown_set",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "recovery_source::tests::malformed_recovery_keeps_provider_input_source_and_unavailable_status",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "rewrite_wire::tests::issued_whole_worker_group_has_explicit_proposal_source_on_every_member",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "rewrite_wire::tests::mixed_workers_and_mismatched_normalised_source_withhold_payloads",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "recovery_source::tests::malformed_recovery_keeps_exact_preference_and_unknown_provider_barriers",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "original_document_metadata_tests::startup_index_and_factory_reindex_keep_checked_document_roles",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_wish_document_reads_the_workspace_packs_like_any_other",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_dynamic_metaclass_head_abstains_even_with_the_scan_index",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::autoload_merge_makes_references_reach_the_library_m8",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::a_three_level_factory_scan_withdraws_descendants_when_the_source_root_disappears",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::classmethod_rename_reaches_subclass_only_document",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::code_lens_resolve_wires_show_references_command",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::code_lens_resolve_for_inherited_method_counts_subclass_dispatch",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::code_lens_resolve_wires_show_references_command_for_method",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::computed_source_paths_fold_statically_m9",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_definition_prefers_class_creation_over_define_stub",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_definition_follows_namespace_path_not_collision",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_references_finds_sibling_call_sites",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_definition_resolves_wildcard_imported_proc",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_references_from_imported_call_reach_source",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_document_rename_reaches_caller_from_shadowed_duplicate_decl",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_consumer_finds_inheriting_subclass_classmethod_dispatch",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_consumer_bare_dispatch_is_namespace_scoped",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_evidence_sync_settles_after_one_pass",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_drops_disk_backed_file_when_gone",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_method_definition_jumps_to_inherited_declaration",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_rename_of_a_self_method_leaves_subclass_dispatch_alone",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::cross_file_resolves_against_disk_backed_file",
+      "outcome": "FAIL"
+    },
+    {
+      "job_id": 119285770151,
+      "package": "tcl-lsp-server",
+      "binary": "tcl-lsp-server",
+      "selector": "tests::did_open_waiting_for_db_leaves_requests_serviceable_1849",
+      "outcome": "FAIL"
+    }
+  ],
+  "coverage_limitations": [
+    "The CI-5201 files are failure-only lists, not complete test inventories.",
+    "There is no README in the ci-5201 directory or its merge-inventory parent; identity format was read directly from the failure files.",
+    "The supplied files are shard1, shard3, shard4, shard5, and heavy-failures; shard2 is absent.",
+    "The supplied failure lines total 3605, the by-crate summary totals 3607, and current-state reports 3634. The 27\u201329 missing/discordant rows are not recoverable from these files.",
+    "All 71 current failures use package/test binary tcl-lsp-server, absent from the recorded package list; no exact match appears in available failure inventories.",
+    "No exact match is not evidence that these selectors passed in CI-5201. Missing and unexecuted selectors remain unknown; no zero pass-to-fail conclusion follows."
+  ]
+}

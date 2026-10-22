@@ -5814,6 +5814,10 @@ namespace eval N {proc p\u0000tail {} {return LOCAL}; p\u0000tail}";
                 "tcl8.6",
                 "namespace eval ::a { oo::class create C {}; C create rex }\nnamespace eval ::a { rex destroy }\n",
             ),
+            (
+                "tcl8.6",
+                "namespace eval lib {oo::class create C {}}; namespace eval app {namespace path ::lib; C new}",
+            ),
         ] {
             let result = std::panic::catch_unwind(|| {
                 crate::analyser::Analyser::new().analyse(source, dialect)

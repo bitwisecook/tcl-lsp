@@ -5552,6 +5552,14 @@ fn emit_retained_invocation_warnings<S: std::hash::BuildHasher, H: std::hash::Bu
             Some(SourceWarningMetadata::Hosted(Box::new(hosted.metadata))),
         ));
     }
+    if std::env::var_os("ZZ_SOL49_ANY").is_some() {
+        eprintln!(
+            "ZZ_COMPILER_TAINT {:?} native={} candidates={}",
+            tokens.argv_texts,
+            native_source,
+            candidates.len()
+        );
+    }
     for (command, effective, source_metadata) in candidates {
         let source_metadata = source_metadata.or_else(|| {
             (!context.source.allows_nominal_metadata())
