@@ -37,11 +37,14 @@ as observations of that earlier build; this section is the current status.
   required contracts are in the outstanding file.
 - Standalone WASM Clippy PASS, zero warnings. Native scoped F5 crates/editor
   generators: zero owned findings after six mechanical production cleanups
-  and **66 equivalent empty/non-empty assertion spellings**. No allowance or
+  and **69 equivalent empty/non-empty assertion spellings**. No allowance or
   weakened assertion. Full gate remains blocked by Compiler/VM (789/379),
   generic core (54), non-editor xtask (53) and generic registry (176).
   `bigip-lsp/clippy-owned-scoped-20261022.json` and the three blocker indexes
-  retain exact commands/locations. Server scoped lint is the last active check.
+  retain exact commands/locations. Fresh server scoped lint has zero owned findings after five minimal F5
+  shared-lib hunks (semicolon, three equivalent assertions, one boxed test
+  future). Generic server findings: 35 normal + 193 test-target messages,
+  including duplicates. Final command is finishing generic registry checks.
 
 All test executables were built, run and deleted within their wrapping
 command. Source inputs came from Registry/KCS/docs; no F5 runtime behavior

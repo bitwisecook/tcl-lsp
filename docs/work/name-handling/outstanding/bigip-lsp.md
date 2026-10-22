@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T17:39Z
+Last updated: 2026-10-22T18:07Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -10,15 +10,20 @@ push at least every 30 minutes and after each finished item. Full unit table:
 
 ## In progress
 
-Only server scoped lint and final handoff/sync remain. Server lint session
-**50998** uses the restored F5 source and the same owned-root package graph;
-logs `/tmp/bigip-clippy-server{.jsonl,-build.log}`. No temporary server diff
-remains. Main HEAD is frozen until this last source check finishes.
+All owned F5 source checks are complete. Fresh server lint has **zero owned
+findings** after five minimal shared-lib hunks: a semicolon, three equivalent
+empty/non-empty assertions, and Box::pin in one BIG-IP test. Normal generic
+server findings 35; test target 193 (228 messages, including duplicates).
+The full final command **76335** is finishing generic registry checking;
+logs `/tmp/bigip-clippy-server-after*`. Once it exits, refresh raw receipt
+hashes, write final state, sync main, and stop. No further source edit planned.
 
 ## Outstanding (in priority order)
 
-1. Finish server scoped lint: fix findings in owned F5 modules; route generic
-   provider/current-diagnostics findings to the returned owner. No allowances.
+1. Finish command 76335, regenerate `clippy-server-blockers-20261022.json`
+   with `/tmp/bigip-server-index.py` so raw hashes cover the completed log.
+   No further owned finding; generic provider/current-diagnostics messages
+   remain with the returned owner. No allowances.
 2. Update final NOTES/tracking, push after fetch/rebase, sync the main checkout
    without losing the tested source snapshot, then stop. Never open a PR.
 3. ILX source navigation and the 16 e2e cases remain blocked on the contracts
@@ -133,9 +138,12 @@ remains. Main HEAD is frozen until this last source check finishes.
   registry findings. Earlier **25657**, **23728**, **46036** finished; core
   normal-library has 54 generic errors, zero owned. WASM **30313** PASS.
   Receipts `clippy-owned-scoped-20261022.json` and blocker indexes above.
-- Only active check: server Clippy **50998**, full owned-root feature graph
+- First server Clippy **50998** finished; only active check is fresh
+  verification **76335**, full owned-root feature graph
   plus tcl-lsp-server, `--lib --bins --tests --no-deps -- -D warnings`.
-  **Keep main source/HEAD frozen until it finishes.** Afterwards update all
+  **Keep main source/HEAD frozen until it finishes.** Five shared-lib hunks
+  are applied to the coordination worktree atop its newer upstream content;
+  never copy the whole older main lib.rs over that version. Afterwards update all
   final states and push via the coordination worktree, then sync main only
   after verifying every local owned copy matches the pushed content.
 - `/tmp/bigip-env.sh` exports the required CARGO and oracle variables and
