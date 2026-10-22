@@ -609,3 +609,55 @@ fn prepare_rename_offers_the_reached_definition() {
         "prepare keeps the local when nothing is imported"
     );
 }
+
+// References and rename settle the shadowed call once, the same way (user
+// decision 2026-10-22T07:18Z): a call only the whole-program view shadows is
+// neither reported for the local declaration nor edited by its rename.
+#[test]
+fn rename_and_references_from_the_local_declaration_agree_on_the_unproven_call() {
+    let local_line = u32::try_from(
+        MAIN[..MAIN.find("proc helper {args}").expect("local proc present")]
+            .matches('\n')
+            .count(),
+    )
+    .expect("tiny");
+    let decl_character = 5;
+    let (shadowed, unshadowed) = both_directions(|analysis, exports| {
+        tcl_lsp_core::references::references_in_program(
+            MAIN,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            local_line,
+            decl_character,
+            analysis,
+            true,
+            Some(program(exports)),
+        )
+        .into_iter()
+        .map(|r| r.start_line)
+        .collect::<Vec<_>>()
+    });
+    assert!(
+        !shadowed.contains(&call_line()),
+        "an unproven sibling export: the call is no reference of the local proc: {shadowed:?}"
+    );
+    assert!(
+        unshadowed.contains(&call_line()),
+        "with no covering export the call references the local proc: {unshadowed:?}"
+    );
+    let (main_s, exports_s) = snapshot(SIBLING_SHADOWS);
+    let renamed = tcl_lsp_core::rename::rename_in_program(
+        MAIN,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        local_line,
+        decl_character,
+        "renamed",
+        &main_s,
+        resolution(&exports_s),
+    );
+    assert!(
+        renamed.as_ref().map_or(true, |edits| edits
+            .iter()
+            .all(|e| e.range.start_line != call_line())),
+        "rename never edits a call references does not return: {renamed:?}"
+    );
+}
