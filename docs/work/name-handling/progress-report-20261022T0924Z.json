@@ -1,0 +1,69 @@
+{
+  "original_LSP": {
+    "required": 325,
+    "integrated": 290,
+    "semantic_integrated": 167,
+    "validation_integrated": 121,
+    "documentation_integrated": 2,
+    "without_integration": 35,
+    "verified_complete": 0
+  },
+  "baseline": {
+    "required": 2158,
+    "integrated": 570,
+    "full_scope_pending": 405,
+    "partial": 165,
+    "without_integration": 1588
+  },
+  "annex": {
+    "required": 71,
+    "integrated": 70,
+    "blocked": 1,
+    "verified_complete": 0
+  },
+  "effective": {
+    "required": 2229,
+    "integrated": 640,
+    "without_integration": 1589,
+    "verified_complete": 0
+  },
+  "scope": "Generic LSP and necessary Compiler/DB/Registry/Syntax owners; Runtime/VM and dedicated BIG-IP/iRules/ILX/XC/APL/tmsh semantics deferred. AI3 generic source-diagnostic boundaries now admitted; dedicated meanings remain deferred.",
+  "stage_order": {
+    "current": "Finish and VERIFY LSP itself first.",
+    "next": "Resume necessary compiler-only dependency packets after LSP verification.",
+    "paused": "VM/runtime naming work remains paused; compiler-only source packets are parked.",
+    "authority": "User reaffirmation relayed by Root; no count or verification change."
+  },
+  "utc": "2026-10-22T09:24:45.944474+00:00",
+  "scheduled_report_utc": "2026-10-22T09:24:00Z",
+  "report_cadence_minutes": 30,
+  "delivery": "Chat and repository only; external guide unchanged.",
+  "change_since_previous_report": {
+    "integrated_LSP": 0,
+    "total_baseline_delta": 0,
+    "effective_delta": 0,
+    "verified_complete": 0
+  },
+  "admissions": {},
+  "committed": {
+    "ec6264623f/1d525b8427": "WIP snapshots"
+  },
+  "progress_in_tree": {
+    "perf": "spectcl load_embedded hot paths found (whole-script SourceImage per top-level command in tcl-lexer parse_cut; full ancestor re-proof with full image byte compares in original_word); fixes plus the two Analyser memos to land as one batch after equality proof and disk > 2.5 GB",
+    "bigip-lsp": "emacs README regenerated (intended renderer change from 669c8e2277); gen-editor-configs --check OK",
+    "compiler-names": "guarded closed-builtin rule for the completed world ready to build"
+  },
+  "in_progress": {
+    "vm-runtime": "active",
+    "compiler": "active",
+    "compiler-codegen": "active",
+    "compiler-names": "waiting for disk",
+    "lsp": "waiting for disk",
+    "bigip-lsp": "server tests running",
+    "perf": "equality proof in /dev/shm"
+  },
+  "resources": "disk 1.9 GB (builds queued for > 2 GB), RAM 5 GB available, /dev/shm 2.0 GB",
+  "next_report_utc": "2026-10-22T09:55:00Z",
+  "green_PR": false,
+  "merge_or_issue_closure": false
+}
