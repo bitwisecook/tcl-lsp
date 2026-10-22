@@ -4,6 +4,8 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 
 | Item | What it is |
 | --- | --- |
+| `run16-progress.log`, `run16-source-audit.log`, `run16-rename-*` | Latest integration compiles; fresh rename matrix/early edits pass, 198 engine executions /12 matching checks. Remaining grouped replay active; live log untracked. |
+| `compressed-audits.json`, historical `.log.gz` | Lossless audit compression with original content hashes; read using gzip -dc. |
 | `run15-latest*`, `run15-build-error-summary.json`, `run15-build-errors.log` | Latest integration fails before probes: 18 compiler + 4 VM errors, Rust1.99.1, exit101. Full structured/rendered diagnostics; zero tests. |
 | `run-latest.sh` | Complete grouped serial latest-tree replay, plus fresh small scaling point and existing fold e2e. Core registry startup is shared; hook-mutating tests and seams run in separate processes. |
 | `run14-final.log`, `run14-partial-*`, `out/run14-final.tar.gz`, `out/run14-final.manifest.json` | Run14 completed 19 groups through N15, then was interrupted for a187c859 integration. 534 engine executions / 78 matching checks pass. Archive retains all 71 output files byte-for-byte; extract under a scratch directory if needed. |
@@ -14,17 +16,17 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 | `run11-n17*`, `run11-variable-boundaries.log`, `run11-source.rs.txt` | Post-fix explicit-context matrix passes; 4/4 existing variable-boundary regressions pass; 168 engine executions / 48 matched generated checks, no unexpected result. |
 | `run11-n17.sh` | Builds/runs/deletes fresh custom matrix and existing declared-callback regression target in one command. |
 | `run10-current.log`, `run10-current-oracles.log`, `run10-current-oracle-summary.json` | Complete interim 27-probe replay at `60ce7009`; 588 engine executions / 138 matched checks, no unexpected output. Later rebuilt existing fold control STILL FAILS on `13050f6a` with the N17 correction. |
-| `run10-progress.log`, `run10-source-audit.log`, `run10-after-fix-source-audit.log`, `run10-startup.log`, `run10-source.rs.txt` | Interim all-finding replay on `60ce7009`: closed prefix through server-shaped rename matrix and static audit; active main log/output replay not yet complete. Startup wrapper correction is separately recorded. |
+| `run10-progress.log`, `run10-source-audit.log.gz`, `run10-after-fix-source-audit.log.gz`, `run10-startup.log`, `run10-source.rs.txt` | Interim all-finding replay on `60ce7009`: closed prefix through server-shaped rename matrix and static audit; active main log/output replay not yet complete. Startup wrapper correction is separately recorded. |
 | `summarize-oracles.py` | Checks known generated outputs on matching engines and requires manual review for new fixture names; reproduces earlier 126/60 check counts. |
-| `run7-pending.log`, `run7-progress.log`, `run7-pending-oracles.log`, `run7-pending-oracle-summary.json`, `run7-source-audit.log` | Complete bounded follow-up on `0434e7e7`, including P25/50/100 lenses; 180 engine executions / 60 matched generated checks, no unexpected result; static seam audit. |
+| `run7-pending.log`, `run7-progress.log`, `run7-pending-oracles.log`, `run7-pending-oracle-summary.json`, `run7-source-audit.log.gz` | Complete bounded follow-up on `0434e7e7`, including P25/50/100 lenses; 180 engine executions / 60 matched generated checks, no unexpected result; static seam audit. |
 | `run-focused.sh`, `run8-n09*` | Focused current-tree runner; initial N09 attempt failed before execution for a private helper. `run9-n09*` is the successful public-ID retry on `128e1bb4`: precise type/call facts, conservatively widened taint dependencies. |
 | `run-final.sh`, `final-probe.rs.txt` | Prepared latest-work replay of every finding and seam, including a direct N09 taint-dependency projection and the existing fold e2e control. |
 | `run-pending.sh`, `pending-probe.rs.txt` | Fresh build, seams first, then bounded R1/parser/source-chain/lens cases; deletes source after build and executable at exit. |
-| `run6.log`, `run6-oracles.log`, `run6-oracle-summary.json`, `run6-source-audit.log` | Completed main snapshot (cap reached during scaling), full 576-execution replay, 126 matched checks with no unexpected result, and later static audit. |
+| `run6.log`, `run6-oracles.log`, `run6-oracle-summary.json`, `run6-source-audit.log.gz` | Completed main snapshot (cap reached during scaling), full 576-execution replay, 126 matched checks with no unexpected result, and later static audit. |
 | `run-r1-transport.sh`, `r1-transport-probe.rs.txt` | Prepared focused R1 transport/bootstrap and N03 parser-debt diagnostic; run after the active full replay. |
 | `run6.sh`, `replay-oracles.sh`, `source-audit.py` | Prepared full replay, six-engine execution, and static seam evidence runners. |
 | `cloud-baseline-oracles.log` | Fresh 19-file / 114-execution baseline replay; full output and exit codes. |
-| `cloud-source-audit.log` | Current static excerpts; no server protocol claim. |
+| `cloud-source-audit.log.gz` | Current static excerpts; no server protocol claim. |
 | `run5-e2e-repeat.log` | Existing live-fold e2e failure: DSL 1 expected ["5"], got []; stable repeat after the first active log lost diagnostics. |
 | `run5-source.rs.txt` | Exact source launched by the initial cloud run5 (before the expanded follow-up). |
 | `cloud-setup.log` | Cloud checkout, compiler and pinned engine versions; no new probe results. |
@@ -36,4 +38,8 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 | `out/` | Edited sources and pack files produced by the probes (each run on tclsh 8.4–9.1 and Jim). |
 | `tcl/` | Tcl repro scripts from the review. |
 
+Historical audit `.log.gz` files are lossless; `compressed-audits.json` records their original hashes. Read with `gzip -dc <file>`.
+
 Evidence stays on `work` (decision 2026-10-21T12:05Z); it is not carried into the PR to `rust`.
+
+Historical run6 outputs are byte-verified in `out/run6.tar.gz` with `run6.manifest.json`; interrupted run14 outputs are similarly archived. Extract archives under a scratch directory to inspect the original paths.

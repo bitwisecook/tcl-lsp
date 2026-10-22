@@ -2,7 +2,7 @@
 
 Area: Replay of the external review's findings on the current tree.
 
-Last updated: 2026-10-22T18:28:30Z
+Last updated: 2026-10-22T18:52:52Z
 
 Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. This agent commits and pushes it after each run and at least every 30 minutes.
 
@@ -18,7 +18,7 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 
 **Run15 build failed on be53f58c:** Cargo exit 101, ZERO probes/e2e executed. Rust1.99.1 reports 18 tcl-compiler + 4 tcl-vm errors and one warning. Metadata receiver mismatch at analyser/scope.rs:604/629, Option<Option<InvocationMetadataContext>> vs Option<InvocationMetadataSelection> at cfg_builder/mod.rs:4371, HRTB FnOnce method-item failures across metadata consumers, and VM NativeStringProtocol closure-lifetime errors at interp/native_command_names.rs:876 and native_variable_names.rs:174. Full inventories: run15-build-error-summary.json / run15-build-errors.log; raw build JSON/log retained. Temporary source/executable deleted. No Cargo process is active.
 
-**NEXT:** commit/push the build-failure evidence, fetch/watch for the integration fixes, inspect source changes/owner tracking, then retry `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-latest.sh run16-latest` once fixed. Do not edit product code/tests to unblock it. The prepared grouped runner still covers all 27 semantic probes plus fresh small scaling and the named e2e. No latest-work semantic verdict is possible from the failed build. Copy only closed watch logs if monitoring; active logs stay untracked. R1 itself was already checked; this blocker is the later broad integration.
+**Run16-latest is ACTIVE on 2d1b85ad** after e75345a7 reviewed type/lifetime fixes and C6 source-taint work arrived. Run15 failure evidence is pushed as 2d1b85ad; its error counts remain scoped to be53f58c. Current retry command: `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-latest.sh run16-latest` once fixed. Do not edit product code/tests to unblock it. The prepared grouped runner still covers all 27 semantic probes plus fresh small scaling and the named e2e. No latest-work semantic verdict is possible from the failed build. Copy only closed watch logs if monitoring; active logs stay untracked. R1 itself was already checked; this blocker is the later broad integration.
 
 **Final completion rule:** ordinary C puts-call worlds are confirmed after R1. The new grouped runner replaces the slower per-filter runner; after it finishes, `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-final.sh <fresh-tag>`. It freshly replays all findings, all-six-profile server rename matrix (N04/N05/N06/N07), refactor/lowering seams and the existing N17 e2e. Apply/execute all returned scratch edits using `replay-oracles.sh <tag>` and `summarize-oracles.py <tag>`. Run a fresh static source audit. Fetch again and recheck any relevant later product changes before final summary. Do not write the final summary while these obligations remain.
 
@@ -30,12 +30,12 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 
 ## In progress
 
-- Latest-tree replay blocked on product compilation in be53f58c: 22 errors across compiler/VM, zero tests. Await integration fixes, then run16-latest.
+- Run16-latest building on 2d1b85ad after e75345a7 fixes. No new verdict yet; preserve run15 22-error build as prior-revision evidence.
 - Required release gates `make rust-check` and `make prep-pr` are not run; this is evidence-only work under the active `work` development-push exception.
 
 ## Outstanding (in priority order)
 
-1. Wait for/fetch integration build fixes, then run16-latest complete grouped replay; R1 matrix is already checked on prior source.
+1. Complete active run16-latest grouped replay, output execution and final static/fetch checks; R1 matrix was checked on prior source.
 2. After R1 lands, re-check N04, N05, N06 and N07 on all six profiles, apply returned edits and execute them on the matching engines.
 3. Fetch latest `work` and re-check every finding and static seam before the final summary.
 
@@ -54,7 +54,7 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 
 - Cloud setup completed: Rust 1.99.1; C Tcl 8.4.20/8.5.19/8.6.18/9.0.4/9.1.0; Jim 0.84 at `5bac7c99ad65864c87da513e22e2f01703fa4e03`. The standard setup hook stopped at missing sudo; its Rust and Tcl build helpers were reused with writable local paths.
 
-- 2026-10-22T13:45:08Z: cloud baseline replay completed: 19 preserved Tcl files, 114 engine executions, no timeouts (`cloud-baseline-oracles.log`). Feature-unavailable rows retain their nonzero exit codes. N17 driver registers `good` on all six engines. Static source excerpts: `cloud-source-audit.log`; pending current-API rows remain pending.
+- 2026-10-22T13:45:08Z: cloud baseline replay completed: 19 preserved Tcl files, 114 engine executions, no timeouts (`cloud-baseline-oracles.log`). Feature-unavailable rows retain their nonzero exit codes. N17 driver registers `good` on all six engines. Static source excerpts: `cloud-source-audit.log.gz`; pending current-API rows remain pending.
 
 - 2026-10-22T13:59:37Z: run5 finished; repeat of the existing fold test confirms a real failure (0 passed / 1 failed; DSL 1 expected ["5"], got []). Evidence: `run5-e2e-repeat.log`. No product files or tests were edited. Required release gates remain unrun.
 
@@ -72,11 +72,11 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 
 - 2026-10-22T16:04:03Z: run9-n09 complete, 1 observational test passed in 64.04s; public-ID taint projection is conservatively all three source candidates. Constructor/call graph unchanged and correct. Temporary source/executable deleted. Awaiting R1.
 
-- 2026-10-22T16:12:43Z: closed run10 progress checkpoint: 7 completed filter groups, all exit 0, through N06; runtime observations remain as reported. Fresh static audit is `run10-source-audit.log` on `60ce7009`. Main command remains active; outputs are not yet replayed and remain uncommitted.
+- 2026-10-22T16:12:43Z: closed run10 progress checkpoint: 7 completed filter groups, all exit 0, through N06; runtime observations remain as reported. Fresh static audit is `run10-source-audit.log.gz` on `60ce7009`. Main command remains active; outputs are not yet replayed and remain uncommitted.
 
 - 2026-10-22T16:30:00Z: run10 closed prefix refreshed through N16 (all groups exit 0; N15 generated all 48 outputs, not replayed yet). Remote `fd5c12bf` publishes the N17 declared-effect barrier correction; R1 still fails ten positive g4 subcases. Rebase at this checkpoint leaves the main executable on `60ce7009`; its later e2e Cargo step will build the rebased tree. After run10 finishes, run a fresh focused `n17_live_hook` replay and all-six-engine outputs on the new correction. No final sign-off yet.
 
-- 2026-10-22T16:36:45Z: run10 closed prefix now has 22 completed filter groups, all exit 0, through pre-fix N17; server-shaped rename matrix is active. Fresh source audit on rebased `6ebc499c` confirms the N17 declared-footprint guard (`run10-after-fix-source-audit.log`). Main exe remains pre-fix `60ce7009`; the later Cargo e2e is expected to build the rebased fix. Keep live log/output directory untracked until replay.
+- 2026-10-22T16:36:45Z: run10 closed prefix now has 22 completed filter groups, all exit 0, through pre-fix N17; server-shaped rename matrix is active. Fresh source audit on rebased `6ebc499c` confirms the N17 declared-footprint guard (`run10-after-fix-source-audit.log.gz`). Main exe remains pre-fix `60ce7009`; the later Cargo e2e is expected to build the rebased fix. Keep live log/output directory untracked until replay.
 
 - 2026-10-22T16:40:56Z: run10 server-shaped six-profile rename matrix completed (460.09 s, exit 0); all results match the recorded pre-fix R1 refusals, C bare-call and Unicode-prefix edits. Three seam checks are active, then Cargo rebuilds the named existing fold control on the rebased N17 fix. After this command finishes, replay `out/run10-current`, run `run-focused.sh run11-n17 n17_live_hook`, and run existing `variable_reference_boundaries` (includes the declared-callback negative control). Build/run/delete its executable in one command after df check. Do not rebase while the upcoming Cargo build runs. Main log remains untracked; only its closed prefix is committed.
 
@@ -103,3 +103,9 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 - 2026-10-22T18:20:26Z: run15-latest launched on be53f58c after fetch/rebase/push. Five groups cover server rename, 19 core tests, fresh small scaling, 4 hooks, 3 seams, then named e2e. Live run15 logs stay untracked; temporary Rust probe is active only until build finishes.
 
 - 2026-10-22T18:28:30Z: run15 exits101 before any test: 18 compiler +4 VM errors, one warning. Full structured/rendered diagnostics preserved; all temporary source/executable files deleted. Next retry after product fixes; no triage product edits authorised.
+
+- 2026-10-22T18:33:08Z: e75345a7 fixes arrived during publication. Run16-latest launched on 2d1b85ad; source/live logs untracked while build runs. No product code/test edits by triage.
+
+Evidence storage: historical run6 output files are losslessly archived as `out/run6.tar.gz` with a per-file SHA-256 manifest; prior oracle logs remain unchanged. This preserves room for the complete latest-tree raw outputs under the 5 MB evidence limit.
+
+- 2026-10-22T18:52:52Z: run16 compiles on 2d1b85ad (8m25s); previous 22 product errors are cleared. Fresh rename group passed; all C plain worlds true, same precise OO collision refusals, same import/coverage limits. Early returned edits: 33 files /198 executions /12 matching checks /zero unexpected result. Core group is active (N01–N07 match), later groups/e2e pending. Only CLOSED run16-progress/build/audit/oracle files are committed; live main log remains untracked. Historical audit logs gzip lossless with hashes, old run6 output tree byte-verified archive, E size ~4.2MB to allow final outputs.

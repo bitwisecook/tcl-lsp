@@ -1,0 +1,35 @@
+{
+  "note": "Historical closed static audit logs compressed losslessly to preserve the under-5-MB evidence limit; use gzip -dc to read. Latest audits remain raw.",
+  "files": [
+    {
+      "original": "cloud-source-audit.log",
+      "archive": "cloud-source-audit.log.gz",
+      "uncompressed_sha256": "ae59179bb5cbea0cdb7f6dc0c9b3e754c725544bf626974b18ffa434abb50f5d",
+      "uncompressed_bytes": 84257
+    },
+    {
+      "original": "run6-source-audit.log",
+      "archive": "run6-source-audit.log.gz",
+      "uncompressed_sha256": "06982b771e43ad0f11b8e0598ca5f51ea21022e548a126604664141a82277c30",
+      "uncompressed_bytes": 84254
+    },
+    {
+      "original": "run7-source-audit.log",
+      "archive": "run7-source-audit.log.gz",
+      "uncompressed_sha256": "426e01445ca4e6a21ecb5e52508c8246b34bb4f984e0d32a348edd434982400a",
+      "uncompressed_bytes": 84254
+    },
+    {
+      "original": "run10-source-audit.log",
+      "archive": "run10-source-audit.log.gz",
+      "uncompressed_sha256": "0b2eb629338023525f3b27204e3e1664cda352d98cc72f2b519d92973b994b46",
+      "uncompressed_bytes": 84254
+    },
+    {
+      "original": "run10-after-fix-source-audit.log",
+      "archive": "run10-after-fix-source-audit.log.gz",
+      "uncompressed_sha256": "e6190b4b8b001d64ff01cf23de6b5c3d3c3a6ce6996ee91de24f4b4625fcd89f",
+      "uncompressed_bytes": 84225
+    }
+  ]
+}
