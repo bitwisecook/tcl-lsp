@@ -23,7 +23,7 @@ The run7 harness passes mean each observational probe completed, not that every 
 
 Cloud setup and earlier failures are preserved in `cloud-setup.log`, `run5.log` and `run5-e2e-repeat.log`. Run5's main/scaling probes did not execute because compile-time fixtures were omitted from the selective checkout; those three fixture trees are restored. Its initial e2e diagnostic segment was lost when a tracked live log's inode changed on rebase, so only the stable repeat and subsequent run6 e2e are used to classify that failure. Initial six-engine input replay is `cloud-baseline-oracles.log` (19 files / 114 executions).
 
-**Interim all-finding replay active on `60ce7009`:** `run10-progress.log` records the completed prefix through N06, all observational groups exiting 0 with the same product results. Static audit: `run10-source-audit.log`. No run10 oracle result is claimed yet, and the still-running `run10-current.log` is intentionally untracked. The initial wrapper startup failure was fixed before compilation; it executed no tests (`run10-startup.log`).
+**Interim all-finding replay active on `60ce7009`:** `run10-progress.log` records the completed prefix through N16, all observational groups exiting 0 with the same product results. Static audit: `run10-source-audit.log`. Remote `fd5c12bf` now contains the N17 effect-gate fix, while R1 remains blocked; a fresh N17 replay is required after rebase. No run10 oracle result is claimed yet, and the still-running `run10-current.log` is intentionally untracked. The initial wrapper startup failure was fixed before compilation; it executed no tests (`run10-startup.log`).
 
 ## Method
 

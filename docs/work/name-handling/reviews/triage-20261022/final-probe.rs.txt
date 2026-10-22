@@ -267,8 +267,6 @@ fn n08_unit_inference() {
         let dbg = format!("{:?}", unit.sccp);
         println!("N08U proc={} return_type={:?} sccp_mentions GLOBAL={} LOCAL={} INIT={}", unit.name, unit.return_type, dbg.matches("GLOBAL").count(), dbg.matches("LOCAL").count(), dbg.matches("INIT").count());
     }
-    let irdbg = format!("{:?}", cu.ir_module);
-    println!("N08U ir_module mentions GLOBAL={} LOCAL={}", irdbg.matches("GLOBAL").count(), irdbg.matches("LOCAL").count());
 }
 
 // ---------------------------------------------------------------- N07
