@@ -10405,6 +10405,13 @@ impl SourceCommandBindings {
                 && !command_world_closed_on_normal_return(facts)
                 && let Some(normal) = outcomes.normal.as_mut()
             {
+                #[cfg(test)]
+                if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+                    eprintln!(
+                        "ZZ_UNCLOSED_EARLY {:?} transitions={:?}",
+                        native.segment.texts, facts.state_transitions
+                    );
+                }
                 normal.unclosed_command_world = true;
             }
             return *outcomes;
@@ -10483,6 +10490,13 @@ impl SourceCommandBindings {
             && !command_world_closed_on_normal_return(facts)
             && let Some(normal) = outcomes.normal.as_mut()
         {
+            #[cfg(test)]
+            if std::env::var_os("ZZ_PROBE_OPAQUE").is_some() {
+                eprintln!(
+                    "ZZ_UNCLOSED {:?} transitions={:?}",
+                    native.segment.texts, facts.state_transitions
+                );
+            }
             normal.unclosed_command_world = true;
         }
         outcomes.publish(state);

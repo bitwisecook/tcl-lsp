@@ -421,7 +421,10 @@ fn variable_trigger_completions(
     let index = tcl_lexer::LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&index, source, line, character);
     let position = index.position_at_utf16(cursor, source);
-    if position.line != line || position.character.get() != character {
+    // LSP: a character past the end of its line defaults back to the line
+    // length, so only a position that lands inside a different place is
+    // rejected.
+    if position.line != line || position.character.get() > character {
         return Some(Vec::new());
     }
     let prefix =
