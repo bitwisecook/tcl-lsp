@@ -66,6 +66,26 @@ impl<'a> BoundsMetadataContext<'a> {
         }
     }
 
+    /// The case-list layout of `name` invoked with `args`, when it is one.
+    fn case_invocation(
+        self,
+        name: &str,
+        args: &[&str],
+    ) -> Option<(
+        tcl_registry::spec::CaseListSpec,
+        tcl_registry::spec::CaseInvocation,
+    )> {
+        match self {
+            Self::Retained(context) => context.commands().case_invocation(
+                name,
+                args,
+                Some(context.context().authoring_query()),
+            ),
+            #[cfg(test)]
+            Self::Standalone(_) => self.commands().case_invocation(name, args, None),
+        }
+    }
+
     fn spec(self, name: &str) -> Option<&'a tcl_registry::CommandSpec> {
         match self {
             Self::Retained(context) => context.context().resolve_spec(context.commands(), name),
@@ -1043,7 +1063,7 @@ pub(super) fn any_command_recursive(
             return true;
         }
         for inner in script_words(&cmd, registry) {
-            if any_command_recursive(inner, registry, lexer_config, pred) {
+            if any_command_recursive(&inner, registry, lexer_config, pred) {
                 return true;
             }
         }
@@ -1051,21 +1071,47 @@ pub(super) fn any_command_recursive(
     false
 }
 
-/// The words of `cmd` that may be nested scripts: each braced word, and each
-/// word the registry gives a `Body` role however it is written.
+/// The words of `cmd` that may be nested scripts: each word the registry
+/// gives a `Body` role however it is written. A case-list command's clause
+/// list (`switch $x {a {break} default {...}}`) contributes its clause action
+/// bodies, which run in the same frame, rather than the list itself.
 fn script_words<'c>(
     cmd: &'c SegmentedCommand,
     registry: BoundsMetadataContext<'_>,
-) -> Vec<&'c str> {
+) -> Vec<std::borrow::Cow<'c, str>> {
     let args = cmd.args();
     let words: Vec<&str> = args.iter().map(String::as_str).collect();
     let bodies = registry.argument_indices(cmd.name(), &words, tcl_registry::ArgRole::Body);
-    cmd.arg_tokens()
-        .iter()
-        .enumerate()
-        .filter(|(index, _)| bodies.contains(index))
-        .filter_map(|(index, _)| args.get(index).map(String::as_str))
-        .collect()
+    let case = registry.case_invocation(cmd.name(), &words);
+    let mut scripts = Vec::new();
+    for (index, _) in cmd.arg_tokens().iter().enumerate() {
+        if !bodies.contains(&index) {
+            continue;
+        }
+        let Some(word) = args.get(index) else {
+            continue;
+        };
+        match &case {
+            Some((spec, invocation)) if invocation.clause_list_index == Some(index) => {
+                let shape = tcl_syntax::case_list::CaseListShape {
+                    clause_flags: spec.clause_flags,
+                    clause_value_flags: spec.clause_value_flags,
+                };
+                let Ok(elements) = tcl_syntax::list::split_list(word) else {
+                    // An unreadable clause list may hold any action.
+                    scripts.push(std::borrow::Cow::Borrowed(word.as_str()));
+                    continue;
+                };
+                for clause in tcl_syntax::case_list::split_case_list(word, &shape) {
+                    if let Some(body) = clause.body_index.and_then(|body| elements.get(body)) {
+                        scripts.push(body.clone());
+                    }
+                }
+            }
+            _ => scripts.push(std::borrow::Cow::Borrowed(word.as_str())),
+        }
+    }
+    scripts
 }
 
 /// W231: an `lset` with a constant index known to be out of range.
@@ -1548,6 +1594,21 @@ mod tests {
             .filter(|d| matches!(d.code.as_str(), "W240" | "W241"))
             .map(|d| d.code.to_string())
             .collect()
+    }
+
+    /// A `break` in a switch clause action runs in the loop's own frame, so
+    /// it ends the loop (tclsh: `while 1 {switch a {a {break}}}` returns),
+    /// whatever the solver decides about the constant header.
+    #[test]
+    fn w241_is_silent_when_a_switch_clause_breaks_the_loop() {
+        for source in [
+            "while 1 { switch -glob $x {a* {break} default {break}} }\n",
+            "proc f {x} { while 1 { switch -glob $x {a* {break} default {break}} }; puts $y }\n",
+            "while 1 { switch -- $x a {break} default {return} }\n",
+        ] {
+            assert!(codes(source).is_empty(), "{source}: {:?}", codes(source));
+        }
+        assert_eq!(codes("while 1 { switch $x {a {puts a}} }\n"), vec!["W241"]);
     }
 
     #[test]

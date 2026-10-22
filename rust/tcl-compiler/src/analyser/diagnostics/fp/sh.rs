@@ -1659,3 +1659,43 @@ fn fp_sh_24_braced_expr_operand_still_fires() {
         codes(src, D),
     );
 }
+
+#[test]
+fn zz_sol49_dict_for_probe() {
+    for src in [
+        "set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n",
+        "set d {a 1 b 2}\ndict for {k v} $d { }\n",
+        "set d {a 1 b 2}\nforeach {k v} $d { puts \"$k=$v\" }\n",
+    ] {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
+            src, registry, false, profile,
+        );
+        eprintln!(
+            "SRC {src:?} dyn_trace={} deferred_any={} deferred={:?} traced={:?} body_units={}",
+            cu.ir_module.has_dynamic_variable_trace,
+            cu.ir_module.deferred_writes.any,
+            cu.ir_module.deferred_writes.names,
+            cu.ir_module.traced_variables,
+            cu.ir_module.body_units.len(),
+        );
+        eprintln!(
+            "  SCCP {:?}",
+            format!("{:?}", cu.top_level.sccp.values)
+                .chars()
+                .take(400)
+                .collect::<String>()
+        );
+        let mut ids: Vec<_> = cu.top_level.cfg.blocks.keys().collect();
+        ids.sort();
+        for id in ids {
+            for st in &cu.top_level.cfg.blocks[id].statements {
+                let text = format!("{st:?}");
+                eprintln!("  ST {}", text.chars().take(160).collect::<String>());
+            }
+        }
+        eprintln!("  CODES {:?}", codes(src, D));
+    }
+}
