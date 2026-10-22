@@ -2,7 +2,7 @@
 
 Area: Analysis and SpecTcl pack-load cost.
 
-Last updated: 2026-10-22 18:30 UTC
+Last updated: 2026-10-22 18:56 UTC
 
 ## Resume
 
@@ -36,8 +36,14 @@ proof is genuinely satisfied or the coordinator resolves this blocker.
   followed by raw runtime fact inequality. No coordinate correspondence was
   admitted. See aliases-object-report-trace.out and the owner routing note.
 
-- A continued-proof worker waits on the latest executable, copies it privately,
-  then independently executes all 15 irules and calls/procs/upvar plus PackSet.
+- A continued-proof worker copied the latest executable privately and
+  independently executes all 15 irules and calls/procs/upvar plus PackSet.
+  All 15 irules failed strict equality; calls 10/20/40/80 and procs 41 PASSED
+  complete old/new/old equality. Upvar 10/30 both PASSED. Latest PackSet
+  PASSED full ordered Debug (484936 lines), deterministic old endpoints:
+  old1 44471 ms / new 10673 ms / old2 82646 ms. The continuation command
+  exits 1 because it retains/asserts the failing irule verdict; it did not
+  stop or hide the independently successful shapes.
   It preserves every failing exit code and finally asserts none failed, but
   continues independent shapes even if the text corpus is blocked. Outputs:
   latest-e4a01bbe/continued-proof/. This cannot manufacture a corpus pass.
@@ -47,7 +53,8 @@ proof is genuinely satisfied or the coordinator resolves this blocker.
 - `/tmp/perf-run-latest.sh`: optimized complete corpus/irules/synthetic/PackSet
   command, target-latest, source zz_latest_perfprobe.rs and zz_latest_spectclprobe.rs.
   Build log /tmp/perf-latest-probe-build.log; run log /tmp/perf-latest-run.log.
-  Production library compilation remains active; do not cancel it for probes.
+  Optimized build completed (122m48s); strict text corpus is now running.
+  Do not mutate its source/library artifacts while copied proof workers use them.
 - `/tmp/perf-latest-crate-lexer-compiler.log`: default test-profile lexer then
   compiler. Lexer completed 583 pass / the same 3 fail in both modes, zero
   pass-to-fail. Compiler build completed and its 226 selected tests are now
@@ -57,31 +64,32 @@ proof is genuinely satisfied or the coordinator resolves this blocker.
   both modes; existing assertions require 2000 array instructions and x-ff.
   BOTH PASSED (1/1 each). Outputs: tests-compiler-native-array-bytes-{new,old}.out in latest-e4a01bbe.
 - Alias diagnostics: direct test-profile binary outputs aliases-direct-retained-*
-  show all-old and mixed runs fail with both retained-input settings. Another
-  Cargo-built diagnostic is queued after compiler build, log
-  /tmp/perf-alias-diagnostic-build.log. All four direct diagnostic modes failed; the shared-input setting does not
+  show all-old and mixed runs fail with both retained-input settings. The Cargo-built diagnostic
+  also completed all four modes with exit 101 (aliases-retained-*.out), log
+  /tmp/perf-alias-diagnostic-build.log. The shared-input setting does not
   remove the object-report mismatch. No complete-graph Debug formatting: it
   duplicates shared graphs and is too costly. Verdict remains full PartialEq.
 - `/tmp/perf-crate-rest.log`: old-base unoptimized SpecTcl golden, then the two
   server tests. The golden new run completed 2 pass / 1 fail in 3537.662 s:
   eda_xilinx's interpreted upgrade reached the unchanged 30-minute wall budget.
-  Old golden remains active, so no zero-pass-to-fail verdict for that suite yet.
-  The later server build will use current source and records HEAD/diff inputs.
+  Old golden completed 2 pass / the same 1 fail in 5717.749 s,
+  zero pass-to-fail. The server build is now active on e4a01bbe plus full batch,
+  with recorded HEAD/diff inputs.
   Both server modes have the requested 180-second limit, exact declared test
   inventory checks, and explicit timeout states separate from assertion results.
-- `/tmp/perf-spectcl-complete-input-retry.log`: queued complete-input eval_loader
-  retry after that initial SpecTcl stage finishes. It preserves other summaries.
+- `/tmp/perf-spectcl-complete-input-retry.log`: complete-input eval_loader
+  retry is active in new mode after the initial SpecTcl stage finished. It preserves other summaries.
   Do not start another default-profile SpecTcl harness over the same filenames
   while this or the old golden process is active.
 - Supplemental base optimized eval_loader: 28 PASS in both modes (1482.833 /
   2614.057 s), zero pass-to-fail. Its later golden BUILD failed because the base
   compiler rlib was invalidated; that is not a semantic regression or proof.
 - `/tmp/perf-run-spec-latest-opt1.py`, log /tmp/perf-latest-spectcl-opt1.log:
-  waits for completed latest libraries, then runs unchanged eval_loader and
-  golden_packs in both modes. Harness debug=0, optimization=1, debug/overflow
+  latest optimized eval_loader new completed all 28 PASS (1488.967 s);
+  old mode is now active, followed by unchanged golden_packs in both modes. Harness debug=0, optimization=1, debug/overflow
   assertions ON; exact library artifacts are recorded. The default-profile
   budget comparisons above remain separately recorded and are not called green.
-- Latest ordinary LSP positive controls are queued on the completed libraries.
+- Latest ordinary LSP positive controls completed on the new libraries.
   They use the actual retained editing-input path (as document_analyser does)
   and require one positive reference per lens, plus all proc/index/lens counts.
   BOTH origin and latest positive controls PASSED all sizes; source chain also
@@ -90,8 +98,9 @@ proof is genuinely satisfied or the coordinator resolves this blocker.
 - Old 253-line tclIndex old/new/old remains active in its private copied binary.
   10/40/100 rows were exactly equal; old 100 timing is instrumented by a live
   debugger pause and must not be used as an uninstrumented ratio. A separate
-  new-only 253 timing completed at 326554 ms; its eq=true field is explicitly a
-  timing-only placeholder, NOT an equality result.
+  new-only base-8a 253 timing completed at 326554 ms. Latest e4 new-only
+  10/40/100/253 timings completed at 1319/11962/53223/255893 ms; their eq=true
+  fields are timing-only placeholders, NOT equality results.
 
 ## Corpus and completed evidence
 

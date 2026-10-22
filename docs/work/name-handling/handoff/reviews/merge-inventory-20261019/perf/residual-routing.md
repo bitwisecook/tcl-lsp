@@ -40,8 +40,12 @@ Review 4.1/4.2 measurements use tools/lspprobe_example.rs.txt, built as a
 zz_lspprobe example in tcl-lsp-core, on the actual analysed flat document path.
 The probe asserts all procedures survive index intake and lens collection.
 The public RunOrder::build source-chain fixture is measured separately; its
-compatibility graph is not a Native/provider admission proof. Origin timings
-are saved; work timings remain pending. Other review costs (candidate lists,
+compatibility graph is not a Native/provider admission proof. Origin and latest-work positive-control timings are saved in
+evidence/latest-e4a01bbe/lsp-positive-medians-ms.json and evidence/timings.md.
+All index/procedure/lens counts and one actual reference per lens passed at
+10/20/40/80 procedures; public source-chain sizes 250/500/1000/2000 passed.
+At 80 procedures, work lenses take 25,542.691 ms versus origin 106.465 ms
+(contended opt-level-1 wall observations, not release latency). Other review costs (candidate lists,
 key parsing, body/scope scans, reachable-offset rounds, qualified-reference
 attachment, workspace existence, cross-file settlement, method lenses, rename
 merging, alias chasing, wildcard rebuilding and retained memory) remain open
@@ -72,7 +76,36 @@ handle. Keep each identity's whole-source/input and unique-URI checks, source
 occurrence reissue checks, partial coverage, applicability debt, duplicate
 handling and per-owner range projection. Reusing a report across documents or
 host publication leases is outside this proposal. The memo batch does not
-implement this change. The queued ordinary-path probe measures actual analysed
-source and checks procedure/index/lens counts, so withdrawal cannot masquerade
-as a speedup. A final implementation needs exact complete lens/reference report
+implement this change. The completed ordinary-path probe measures actual analysed
+source and checks procedure/index/lens counts plus actual reference titles,
+so withdrawal cannot masquerade as a speedup. A final implementation needs exact complete lens/reference report
 equality, including retained identities and coverage, not just count equality.
+
+## Selected compiler tests: source-transition body walk
+
+A single read-only stack sample at 18:50 UTC of the active new-mode selected
+compiler test process (base e4a01bbe plus full batch) shows two active worker
+paths outside this batch. One repeatedly nests BodyWalk::regions -> command_inner
+-> command -> script -> regions and retains possible/prepared region effects.
+The other clones AdviceGraph from BodyWalk::regions below
+retain_original_body_command_catalogue / retain_original_body_catalogue /
+retain_source_inventory / retain_original_invocation /
+OriginalSourceTransitionSeed::prepare_for_query, reached through
+original_logical_procedure_body_cards ->
+original_logical_procedure_may_dependencies_for_module ->
+OriginalProcedureSummaryOwners::may_calls -> CfgBuilder::source_call_may_writes.
+
+Evidence: evidence/latest-e4a01bbe/compiler-long-case-stack.out. Symbols from
+the exact active executable resolve the Rust frames; system shared libraries
+were unavailable in the debugger's namespace, so those frames remain unknown.
+This is one sample, not a frequency estimate or proof of a complexity bound.
+The debugger paused/detached without changing inputs, assertions or registers;
+the compiler run's total wall time includes that pause and is not a clean
+performance comparison. Semantic test outcomes remain authoritative.
+
+Blocked/routed to compiler and compiler-names: investigate repeated immutable
+seed/body-catalogue preparation and recursive region traversal before selecting
+a memo boundary. Preserve actual body/registry/input ownership, branch joins,
+unknown calls, traversal-depth outcomes and complete source-transition effects.
+Do not replace graph semantics with name-only summaries or bypass recursion
+limits. No production edit or proven fix is claimed for this finding.

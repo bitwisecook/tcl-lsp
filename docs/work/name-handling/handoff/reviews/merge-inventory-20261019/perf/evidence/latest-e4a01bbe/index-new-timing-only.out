@@ -2,3 +2,5 @@ Timing-only. The eq=true field is a placeholder, not an AnalysisResult equality 
 OK memo_ms=1319 plain_ms=0 eq=true /tmp/perf-inputs/tclIndex-10.tcl
 OK memo_ms=11962 plain_ms=0 eq=true /tmp/perf-inputs/tclIndex-40.tcl
 OK memo_ms=53223 plain_ms=0 eq=true /tmp/perf-inputs/tclIndex-100.tcl
+OK memo_ms=255893 plain_ms=0 eq=true /tmp/perf-inputs/tclIndex-253.tcl
+files=4 mismatches=0

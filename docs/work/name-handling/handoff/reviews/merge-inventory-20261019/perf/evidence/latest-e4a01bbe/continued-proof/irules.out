@@ -54,3 +54,14 @@ NONDETERMINISTIC old1!=old2
 MISMATCH diagnostics_equal=true
 det=false
 BAD memo_ms=14063 plain_ms=22128 eq=false samples/irules/diagnostics_security.irul
+NONDETERMINISTIC old1!=old2
+MISMATCH diagnostics_equal=true
+det=false
+BAD memo_ms=33871 plain_ms=16923 eq=false samples/irules/diagnostics_style_perf.irul
+files=15 mismatches=15
+
+thread 'main' (32164) panicked at rust/tcl-compiler/examples/zz_latest_perfprobe.rs:200:9:
+assertion `left == right` failed: corpus results must be identical without panics
+  left: 15
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

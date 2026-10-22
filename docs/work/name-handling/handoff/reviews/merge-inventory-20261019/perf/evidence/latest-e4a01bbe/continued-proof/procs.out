@@ -1,0 +1,2 @@
+det=true
+procs n=41 memo_ms=3073 plain_ms=6659 eq=true

@@ -1,0 +1,2 @@
+new load_embedded ms=10673 lines=484936
+old1_ms=44471 old2_ms=82646 deterministic=true equal_complete_debug=true

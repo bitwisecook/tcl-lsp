@@ -1,0 +1,4 @@
+det=true
+upvar n=10 memo_ms=42310 plain_ms=31113 eq=true
+det=true
+upvar n=30 memo_ms=91987 plain_ms=397924 eq=true

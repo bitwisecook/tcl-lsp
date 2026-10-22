@@ -1,0 +1,116 @@
+[New LWP 32950]
+[New LWP 32215]
+[New LWP 32214]
+Error while mapping shared library sections:
+Could not open `target:/lib/x86_64-linux-gnu/libgcc_s.so.1' as an executable file: Input/output error
+Error while mapping shared library sections:
+Could not open `target:/lib/x86_64-linux-gnu/libm.so.6' as an executable file: Input/output error
+Error while mapping shared library sections:
+Could not open `target:/lib/x86_64-linux-gnu/libc.so.6' as an executable file: Input/output error
+Error while mapping shared library sections:
+Could not open `target:/lib64/ld-linux-x86-64.so.2' as an executable file: Input/output error
+
+warning: Unable to find dynamic linker breakpoint function.
+GDB will be unable to debug shared library initializers
+and track explicitly loaded dynamic code.
+0x00007ff9d01807b9 in ?? ()
+
+Thread 4 (LWP 32214 "interprocedural"):
+#0  0x00007ff9d010c9ee in ?? ()
+#1  0x00007ff9d0101668 in ?? ()
+#2  0x00007ff9d006c9c8 in ?? ()
+#3  0x00000000ffffffff in ?? ()
+#4  0x00007ff9b7fff6c0 in ?? ()
+#5  0x00007ff9d0101c8c in ?? ()
+#6  0x00000000000000ca in ?? ()
+#7  0x0000000000000000 in ?? ()
+
+Thread 3 (LWP 32215 "interprocedural"):
+#0  0x00005567da03deaa in <alloc::vec::Vec<tcl_core_types::name_bytes::NameBytes> as core::cmp::PartialEq>::eq ()
+#1  0x00005567da0c4627 in <tcl_core_types::name_bytes::ByteNamespacePath as core::cmp::PartialEq>::eq ()
+#2  0x00005567da168c02 in <tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath> as core::cmp::PartialEq>::eq ()
+#3  0x00005567d528aab9 in <tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath> as hashbrown::Equivalent<tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>>>::equivalent ()
+#4  0x00005567d4e67099 in hashbrown::map::equivalent_key::<tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_compiler::command_binding::source_transition_advice::AdviceCell>::{closure#0} ()
+#5  0x00005567d8649397 in <hashbrown::raw::RawTable<(tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_compiler::command_binding::source_transition_advice::AdviceCell)>>::find::<hashbrown::map::equivalent_key<tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_compiler::command_binding::source_transition_advice::AdviceCell>::{closure#0}>::{closure#0} ()
+#6  0x00005567d83e522c in <hashbrown::raw::RawTable<(tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_compiler::command_binding::source_transition_advice::AdviceCell)>>::find::<hashbrown::map::equivalent_key<tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_compiler::command_binding::source_transition_advice::AdviceCell>::{closure#0}> ()
+#7  0x00005567d4e07a7a in <hashbrown::map::HashMap<tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_compiler::command_binding::source_transition_advice::AdviceCell, std::hash::random::RandomState>>::contains_key::<tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>> ()
+#8  0x00005567d5a45d16 in <std::collections::hash::map::HashMap<tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_compiler::command_binding::source_transition_advice::AdviceCell>>::contains_key::<tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>> ()
+#9  0x00005567d7b07236 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::retain_possible_effects ()
+#10 0x00005567d7b086fc in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::retain_prepared_region_effects ()
+#11 0x00005567d7b0aee4 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::regions ()
+#12 0x00005567d7b01e02 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::command_inner ()
+#13 0x00005567d7b09c29 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::command ()
+#14 0x00005567d7b099e2 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::script ()
+#15 0x00005567d7b0ac96 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::regions ()
+#16 0x00005567d7b01e02 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::command_inner ()
+#17 0x00005567d7b09c29 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::command ()
+#18 0x00005567d7b099e2 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::script ()
+#19 0x00005567d7b0ac96 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::regions ()
+#20 0x00005567d7b01e02 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::command_inner ()
+#21 0x00005567d7b09c29 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::command ()
+#22 0x00005567d7b099e2 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::script ()
+#23 0x00005567d7b0ac96 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::regions ()
+#24 0x00005567d7b01e02 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::command_inner ()
+#25 0x00005567d7b09c29 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::command ()
+#26 0x00005567d7b099e2 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::script ()
+#27 0x00005567d7b0ac96 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::regions ()
+#28 0x00005567d7b01e02 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::command_inner ()
+#29 0x00005567d7b09c29 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::command ()
+#30 0x00005567d7b099e2 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::script ()
+#31 0x00005567d7b0ac96 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::regions ()
+#32 0x00005567d7b01e02 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::command_inner ()
+#33 0x00005567d7b09c29 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::command ()
+#34 0x00005567d7b099e2 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::script ()
+
+Thread 2 (LWP 32950 "interprocedural"):
+#0  0x00005567da24c106 in <alloc::sync::Arc<[u8]> as core::clone::Clone>::clone ()
+#1  0x00005567da258afa in <tcl_core_types::name_bytes::NameBytes as core::clone::Clone>::clone ()
+#2  0x00005567da254d38 in <tcl_core_types::name_bytes::NameBytes as <[_]>::to_vec_in::ConvertVec>::to_vec::<alloc::alloc::Global> ()
+#3  0x00005567da24b2f9 in <alloc::vec::Vec<tcl_core_types::name_bytes::NameBytes> as core::clone::Clone>::clone ()
+#4  0x00005567da0281f8 in <tcl_core_types::name_bytes::ByteNamespacePath as core::clone::Clone>::clone ()
+#5  0x00005567da0110cd in <tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath> as core::clone::Clone>::clone ()
+#6  0x00005567d758c4ee in <(tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_compiler::command_binding::source_transition_advice::AdviceCell) as core::clone::Clone>::clone ()
+#7  0x00005567d86de9d2 in <hashbrown::raw::RawTable<(tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_compiler::command_binding::source_transition_advice::AdviceCell)>>::clone_from_impl ()
+#8  0x00005567d873cf26 in <hashbrown::raw::RawTable<(tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_compiler::command_binding::source_transition_advice::AdviceCell)> as hashbrown::raw::RawTableClone>::clone_from_spec ()
+#9  0x00005567d87312f6 in <hashbrown::raw::RawTable<(tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_compiler::command_binding::source_transition_advice::AdviceCell)> as core::clone::Clone>::clone ()
+#10 0x00005567d528abfc in <hashbrown::map::HashMap<tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_compiler::command_binding::source_transition_advice::AdviceCell, std::hash::random::RandomState> as core::clone::Clone>::clone ()
+#11 0x00005567d5e91938 in <std::collections::hash::map::HashMap<tcl_core_types::CommandSlot<tcl_core_types::name_bytes::NameBytes, tcl_core_types::name_bytes::ByteNamespacePath>, tcl_compiler::command_binding::source_transition_advice::AdviceCell> as core::clone::Clone>::clone ()
+#12 0x00005567d83c4271 in <tcl_compiler::command_binding::source_transition_advice::AdviceGraph as core::clone::Clone>::clone ()
+#13 0x00005567d7b0a3bd in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::regions ()
+#14 0x00005567d7b01e02 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::command_inner ()
+#15 0x00005567d7b09c29 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::command ()
+#16 0x00005567d7b099e2 in <tcl_compiler::command_binding::source_transition_advice::body_effects::BodyWalk>::script ()
+#17 0x00005567d819197d in <tcl_compiler::command_binding::source_transition_advice::AdviceInvocationContext>::retain_original_body_command_catalogue ()
+#18 0x00005567d818f130 in <tcl_compiler::command_binding::source_transition_advice::AdviceInvocationContext>::retain_original_body_catalogue ()
+#19 0x00005567d8137bfa in <tcl_compiler::command_binding::source_transition_advice::AdviceInvocationContext>::retain_source_inventory ()
+#20 0x00005567d813a147 in <tcl_compiler::command_binding::source_transition_advice::AdviceInvocationContext>::retain_original_invocation_inner ()
+#21 0x00005567d81389f1 in <tcl_compiler::command_binding::source_transition_advice::AdviceInvocationContext>::retain_original_invocation ()
+#22 0x00005567d813e22e in <tcl_compiler::command_binding::source_transition_advice::OriginalSourceTransitionSeed>::prepare_for_query ()
+#23 0x00005567d813d5f7 in <tcl_compiler::command_binding::source_transition_advice::OriginalSourceTransitionSeed>::prepare_for ()
+#24 0x00005567d64a4cb3 in <tcl_compiler::command_binding::SourceCommandBindings>::original_logical_procedure_body_cards ()
+#25 0x00005567d6e7658a in tcl_compiler::registry_invocation::original_procedure_call::original_logical_procedure_may_dependencies_for_module ()
+#26 0x00005567d57a10a6 in <tcl_compiler::cfg_builder::summary_candidates::OriginalProcedureSummaryOwners>::may_calls ()
+#27 0x00005567d7217a54 in <tcl_compiler::cfg_builder::CfgBuilder>::source_call_may_writes ()
+#28 0x00005567d721a56d in <tcl_compiler::cfg_builder::CfgBuilder>::apply_upvar_invalidation ()
+#29 0x00005567d72115aa in <tcl_compiler::cfg_builder::CfgBuilder>::push_plain_statement ()
+#30 0x00005567d721668e in <tcl_compiler::cfg_builder::CfgBuilder>::lower_script_statement ()
+#31 0x00005567d720f174 in <tcl_compiler::cfg_builder::CfgBuilder>::lower_script_inner ()
+#32 0x00005567d72089ba in <tcl_compiler::cfg_builder::CfgBuilder>::lower_script ()
+#33 0x00005567d7208f87 in <tcl_compiler::cfg_builder::CfgBuilder>::build_function ()
+#34 0x00005567d72bb94d in tcl_compiler::cfg_builder::build_cfg_function_with_upvars_inner ()
+
+Thread 1 (LWP 29960 "tcl_compiler-ef"):
+#0  0x00007ff9d01807b9 in ?? ()
+#1  0x00005567da283ac6 in <std::thread::thread::Thread>::park ()
+#2  0x00005567d9674a55 in <std::sync::mpmc::list::Channel<test::event::CompletedTest>>::recv::{closure#1} ()
+#3  0x00005567d967feb5 in <std::sync::mpmc::list::Channel<test::event::CompletedTest>>::recv ()
+#4  0x00005567d968d9c5 in test::console::run_tests_console ()
+#5  0x00005567d96788dd in test::test_main_static ()
+#6  0x00005567d771c453 in tcl_compiler::main ()
+#7  0x00005567d75150ab in <fn() as core::ops::function::FnOnce<()>>::call_once ()
+#8  0x00005567d6015b56 in std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()> ()
+#9  0x00005567d7668e19 in std::rt::lang_start::<()>::{closure#0} ()
+#10 0x00005567da292319 in std::rt::lang_start_internal ()
+#11 0x00005567d759f7c1 in std::rt::lang_start::<()> ()
+#12 0x00005567d7943305 in main ()
+[Inferior 1 (process 29960) detached]

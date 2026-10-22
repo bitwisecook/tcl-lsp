@@ -40,3 +40,75 @@ det=true
 OK memo_ms=4671 plain_ms=2992 eq=true samples/wasm/t7-dynamic/71_exec_traces_rename.tcl
 det=true
 OK memo_ms=10953 plain_ms=43939 eq=true samples/wasm/t5-completion/51_try_finally.tcl
+det=true
+OK memo_ms=12432 plain_ms=17547 eq=true samples/wasm/t5-completion/52_loop_completion.tcl
+det=true
+OK memo_ms=16060 plain_ms=11195 eq=true samples/wasm/t5-completion/50_catch_error.tcl
+det=true
+OK memo_ms=2271 plain_ms=1922 eq=true samples/wasm/t1-expr-control/15_switch.tcl
+det=true
+OK memo_ms=13227 plain_ms=19415 eq=true samples/wasm/t1-expr-control/13_expr_ops.tcl
+det=true
+OK memo_ms=8344 plain_ms=13630 eq=true samples/wasm/t1-expr-control/16_conditional_arms.tcl
+det=true
+OK memo_ms=12877 plain_ms=6782 eq=true samples/wasm/t2-values/23_dicts.tcl
+det=true
+OK memo_ms=2182 plain_ms=1989 eq=true samples/wasm/t2-values/21_foreach.tcl
+det=true
+OK memo_ms=5804 plain_ms=9202 eq=true samples/wasm/t2-values/20_lists.tcl
+det=true
+OK memo_ms=9463 plain_ms=14002 eq=true samples/wasm/t2-values/22_strings.tcl
+det=true
+OK memo_ms=19996 plain_ms=59197 eq=true samples/wasm/t3-procs/35_native_dispatch_matrix.tcl
+det=true
+OK memo_ms=5138 plain_ms=4461 eq=true samples/wasm/t3-procs/37_return_state.tcl
+det=true
+OK memo_ms=3996 plain_ms=4751 eq=true samples/wasm/t3-procs/31_recursion.tcl
+det=true
+OK memo_ms=2867 plain_ms=3063 eq=true samples/wasm/t3-procs/36_proc_error_info.tcl
+det=true
+OK memo_ms=2109 plain_ms=1323 eq=true samples/wasm/t3-procs/33_string_builder.tcl
+det=true
+OK memo_ms=1436 plain_ms=4981 eq=true samples/wasm/t3-procs/32_defaults_and_args.tcl
+det=true
+OK memo_ms=572 plain_ms=662 eq=true samples/dialect_stubs_inline_example.tcl
+det=true
+OK memo_ms=23897 plain_ms=23414 eq=true samples/optimiser/profile_standard.tcl
+det=true
+OK memo_ms=16983 plain_ms=19705 eq=true samples/optimiser/profile_aggressive.tcl
+det=true
+OK memo_ms=21282 plain_ms=24654 eq=true samples/optimiser/deep_pipeline.tcl
+det=true
+OK memo_ms=9154 plain_ms=10397 eq=true samples/optimiser/profile_readability.tcl
+det=true
+OK memo_ms=41236 plain_ms=46392 eq=true samples/optimiser/profile_full.tcl
+det=true
+OK memo_ms=28516 plain_ms=71833 eq=true samples/optimiser/input.tcl
+det=true
+OK memo_ms=2987 plain_ms=5325 eq=true samples/diagnostics/W211_set_never_used/example.tcl
+det=true
+OK memo_ms=6577 plain_ms=6067 eq=true samples/diagnostics/W105_unbraced_eval/example.tcl
+det=true
+OK memo_ms=9290 plain_ms=14699 eq=true samples/diagnostics/S101_shimmer_merge/example.tcl
+det=true
+OK memo_ms=3977 plain_ms=4381 eq=true samples/diagnostics/O110_canonicalise_expr/example.tcl
+det=true
+OK memo_ms=6381 plain_ms=9774 eq=true samples/diagnostics/W102_subst_injection/example.tcl
+det=true
+OK memo_ms=18942 plain_ms=5470 eq=true samples/diagnostics/W307_non_literal_command/example.tcl
+det=true
+OK memo_ms=2978 plain_ms=20395 eq=true samples/diagnostics/W301_uplevel_unbraced/example.tcl
+det=true
+OK memo_ms=20392 plain_ms=11902 eq=true samples/diagnostics/W313_file_delete_path/example.tcl
+det=true
+OK memo_ms=7426 plain_ms=4577 eq=true samples/diagnostics/W210_read_before_set/example.tcl
+det=true
+OK memo_ms=892 plain_ms=5421 eq=true samples/diagnostics/W220_assignment_never_read/example.tcl
+det=true
+OK memo_ms=2313 plain_ms=3094 eq=true samples/diagnostics/W314_no_absolute_name/example.tcl
+det=true
+OK memo_ms=1497 plain_ms=1134 eq=true samples/diagnostics/W111_long_line/example.tcl
+det=true
+OK memo_ms=10529 plain_ms=3822 eq=true samples/diagnostics/W002_disabled_command/example.tcl
+det=true
+OK memo_ms=1496 plain_ms=1409 eq=true samples/diagnostics/W112_trailing_whitespace/example.tcl

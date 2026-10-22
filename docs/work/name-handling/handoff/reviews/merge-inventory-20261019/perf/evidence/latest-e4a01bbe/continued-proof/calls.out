@@ -1,0 +1,8 @@
+det=true
+calls n=10 memo_ms=5301 plain_ms=10484 eq=true
+det=true
+calls n=20 memo_ms=24119 plain_ms=5595 eq=true
+det=true
+calls n=40 memo_ms=7113 plain_ms=34908 eq=true
+det=true
+calls n=80 memo_ms=4985 plain_ms=33372 eq=true

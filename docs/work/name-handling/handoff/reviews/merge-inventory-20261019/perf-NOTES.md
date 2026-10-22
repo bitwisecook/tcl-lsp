@@ -1,91 +1,125 @@
-# perf agent notes: Analyser quadratic and SpecTcl load_embedded
+# perf agent notes: Analyser and SpecTcl
 
-Status: the full batch is applied only in the isolated proof tree, with the
-temporary old/new switch. Production changes have NOT been committed. Resume
-state and exact commands are in `docs/work/name-handling/outstanding/perf.md`.
-The clean split patches are refreshed: six perf-owned files, two compiler-owned
-files, no temporary switch and no new Clippy allowance. The formal-advice memo
-API also compiles independently of the routed realm caller.
+Status at 2026-10-22 18:40 UTC: full batch applied with a temporary switch in
+`/workspace/tcl-lsp-work`, production base e4a01bbe. No production change is
+committed. The required complete AnalysisResult proof is blocked by an all-old
+object-report comparison failure; selected independent checks are still running.
+Exact continuation instructions are in `docs/work/name-handling/outstanding/perf.md`.
 
-Current evidence (2026-10-22 16:52 UTC):
+## Changes and ownership
 
-- origin/rust `fcb7927f` timings cover 101 original UTF-8 Tcl inputs plus the added class fixture (102 text cases), and all 15 iRules; the original byte fixture is a separate native codegen control. Also synthetic
-  calls/procs/upvar, all four tclIndex prefixes and ordinary LSP shapes.
-- lexer lib: 583 passed / the same 3 failed in each switch mode; zero pass-to-fail.
-- full ordered PackSet Debug comparison PASSED at base 8a01a718, deterministic old runs. Base corpus blocked by all-old aliases nondeterminism and an intentional byte fixture in the text roster (now separated, preserving native coverage); tclIndex 10/40/100 equal, 253 pending. Ordinary LSP measurements complete. Latest e4a01bbe proof build and lexer/compiler runs started in separate evidence directory. Initial SpecTcl eval_loader has the same 26 pass / 2 fail in both modes, but one failure is missing sparse pack inventory; complete-input rerun is queued. Golden interpreter control is active. Compiler/server verdicts remain pending.
-- Clippy: cleaned owned-only snapshot has zero diagnostics in the six owned files; 783 diagnostics elsewhere remain. No workspace-green claim.
-- `perf-analyser-images.patch` plus `perf-analyser-segments.patch`: unproven compiler-names drafts, not applied; see residual-routing.md.
+`perf/perf.patch` is the complete clean batch. `perf/perf-owned.patch` contains
+only six files: lexer parse_cut.rs/source_map.rs; compiler original_word.rs,
+original_name_value.rs, formal_call_advice.rs, incomplete_body_metadata.rs.
+`perf/perf-realm-interprocedural.patch` contains the two compiler-owned callers.
+Both patches exclude the switch. The six-file snapshot compiles independently
+of the routed caller; zero owned Clippy diagnostics were observed, with 783
+foreign diagnostics. Global warning/fmt gates are not claimed green.
 
+- Build a SourceImage once per script rather than once per command. SourceImage
+  equality first checks shared allocation, retaining full channel/byte fallback.
+- Bound SpecTcl words check the immediate parent link; constructors establish
+  the full chain inductively. Fixed tests cover a chain of at least three links,
+  CRLF, bare CR, EOF, opaque bytes and both source channels.
+- Cache original realm query geometry per immutable realm, retaining allocation,
+  registry and metadata identities. Caller-alias surveys are cached per callee;
+  argument-to-formal mapping still runs per invocation.
+- Cache incomplete-body headers by retained image, lexer configuration and region.
+- Compiler-owned callers reuse the realm invocation memo and pass the query memo.
 
-## Root causes (gdb stack sampling, opt-level 1 builds)
+These target measured repeated binding construction (~50% of samples),
+caller-alias declaration surveys (~35%), repeated invocation joins, document-tail
+header parsing, whole-script image construction and full ancestor-chain checks.
 
-### Analyser::analyse, quadratic in top-level commands (all paths new on work)
+## Equality blocker
 
-1. `SourceCommandBindings::original_written_word_observations_at_span`
-   (command_binding/original_name_value.rs), about 50% of samples.
-   - Every W216 query (`emit_w216_brace_then_paren` -> `retained_value_word`) and every W143 query (`emit_w143_private_tcl_namespace` -> `original_written_head_at_span_in_source`) walks every dispatch offset at or before the span.
-   - For each offset it builds a full `attach_invocation_reads(query_dispatch_points(..))` binding, then discards it because its words do not cover the span.
-   - That is O(prior commands) bindings per query. The proc-body offset also carries one point per activation, so that one binding is an O(n) join.
-2. `declaration_caller_alias_arguments` (command_binding/formal_call_advice.rs), about 35%.
-   - It is called per CFG statement from `interprocedural::collect_positioned_call_by_name_reads`.
-   - Each call re-scans the callee's declaration sites and rebuilds `declaration_original_tokens_at`, joining all n activation points, even though the result does not depend on the invocation.
-3. `CommandBindingRealm::invocation_at_source` (realm.rs) re-joins the n per-activation points on every query.
-   - Callers include source_structure, original_definer, interprocedural and lowering.
-   - The realm already has a per-offset memo, `retained_original_invocation`, and `bindings.invocation_at_source` ignores `head`.
-4. tclIndex shape (`set auto_index(X) [list source [file join $dir f.tcl]]`): `incomplete_body_metadata.rs::incomplete_body_operand_layout_advice`.
-   - For every command and every earlier declaration site it calls `header(image, site..end)`, which re-parses the document tail (`native_script_words_in` -> `first_parse_cut`).
-   - That is O(commands x sites x doc).
+`perf/analysis-equality-routing.md` records the owner handoff and exact traces.
+The aliases fixture fails complete PartialEq with all optimizations disabled,
+including when the same independently prepared ResolvedAnalysisInput is reused.
+The first false helper is ObjectHandleFacts::analysis_report_eq. Both admitted
+report-source options are absent; raw facts then compare unequal across runtime
+owners. A hosted iRule also fails the all-old control; its helper has not been
+privately traced. Diagnostics/public-field equality does not replace the whole
+result verdict. No assertion, owner guard or comparator was weakened.
 
-### tcl_spectcl::bundled::load_embedded (65-84 s in the debug test profile, 7.3 s at opt-level 1)
+The text roster is now exactly 102 UTF-8 Tcl inputs plus 15 iRules. The original
+roster had 101 text files and an intentional non-UTF-8 native fixture; the latter
+remains a separate actual native codegen control (passes in both modes), and a
+class fixture supplies the additional text case. No positive input was dropped.
+Latest calls 10/20/40/80, procs 41 and upvar 10/30 all passed complete
+old/new/old equality with deterministic old endpoints. Latest full ordered PackSet Debug comparison also PASSED (484,936 lines,
+deterministic old endpoints). Main text corpus is still running; all 15
+iRules failed strict equality.
+Earlier base-8a01a718 ordered full PackSet Debug comparison passed deterministically
+(484,936 lines); this is not a latest-source verdict. Never sort Debug output or
+strip fields to manufacture equality.
 
-1. tcl-lexer `parse_cut.rs::command_cut` builds `SourceImage::from_bytes(src, channel)` over the whole script once per top-level command. Each build copies, hashes and LineIndexes the whole source, so cost is O(commands x bytes). New on work; origin/rust's `command_cut` has no image.
-2. `parsing/spectcl_source/original_word.rs::in_body` re-proves the whole ancestor chain for every word. At each level it compares the full root image: `SourceImage::eq` is a complete byte compare with no shared-allocation shortcut. Called from tcl-spectcl `loader.rs::body_statements` for every word of every block.
+## Measurements
 
-## The batch (`perf/perf.patch` = `perf-owned.patch` + `perf-realm-interprocedural.patch`)
+Full raw results and provenance are in `perf/evidence/timings.md` and
+`perf/evidence/latest-e4a01bbe/`. Wall times are contended opt-level-1 observations,
+with debug assertions enabled, rather than release latency claims. origin/rust
+is fcb7927f02b5395753247b322fdd7be87ae5c731, built in its own checkout/target.
 
-Every change is exact by construction: memoise a pure function of immutable inputs, or skip work whose outcome is already established.
+Latest new-only tclIndex timings (milliseconds):
 
-- tcl-lexer `parse_cut.rs`: build the script image once per script, not once per command.
-- tcl-lexer `source_map.rs`: `SourceImage::eq` short-circuits on `Arc::ptr_eq`, then falls back to the full byte compare.
-- `original_word.rs`: `in_body` checks only the new parent link (`matches_parent_link`). The invariant is established at construction: in_document debug-asserts the root, and in_body checks each link.
-  - A full-chain or even one-ancestor debug_assert per word costs 6.9-7.0 s vs 1.9 s for load_embedded with debug assertions, so the per-word assert was dropped (coordinator-agreed).
-  - New test `every_bound_body_word_satisfies_the_full_chain_proof`: ≥3 nesting levels plus a CRLF pack.
-- `original_name_value.rs`: new `OriginalRealmQueryMemo`, owned by the realm.
-  - Per-site span-independent geometry: binding, retained config and written spans, computed once.
-  - A span query scans a compact Vec and runs the unchanged per-site step only for covering sites. Unmemoised callers keep the old path.
-- `formal_call_advice.rs`: per-callee `DeclarationCallerAliasSurvey` (callee + caller-alias formal indices), memoised per (allocation, registry semantic key, metadata owner). Per invocation only `original_formal_argument` runs.
-- `incomplete_body_metadata.rs`: `header()` memoised per region in a thread_local.
-  - The key uses SourceImage equality (ptr fast path, then bytes) plus config.
-  - The memo retains the image clone, so no address reuse can alias.
-- `realm.rs` and `interprocedural.rs` (compiler agent's files; hunks in `perf-realm-interprocedural.patch`):
-  - realm owns `query_memo`.
-  - `original_written_{word,head}_at_span_in_source` pass the memo.
-  - `invocation_at_source` uses `retained_original_invocation(offset)`.
-  - New `declaration_caller_alias_arguments` on the realm; interprocedural calls it.
+| Lines | origin/rust | work + full batch |
+| --- | ---: | ---: |
+| 10 | 163 | 1,319 |
+| 40 | 492 | 11,962 |
+| 100 | 1,021 | 53,223 |
+| 253 | 1,596 | 255,893 |
 
-## Prior measurements (opt-level 1; full tables in `perf/evidence/timings.md`)
+The new-only probe prints an equality placeholder; these rows prove timing only.
+The older base three-way run established equality at 10/40/100; the old 100-line
+latency was perturbed by debugger sampling and must not support a speedup ratio.
+The full old/new/old 253-line check remains active.
 
-- `p 1` x n: before n=40/80 = 3.5/14.8 s; after = 1.4/2.9 s; n=160 ~7 s.
-- upvar shape n=30: 39.6 → 11.8 s.
-- tclIndex: 100 lines 90.7 → 7.9 s; all 253 lines >10 min → 29.3 s.
-  - Still mildly super-linear. The residual is per-command whole-document SourceImage/SourceMap/LineIndex rebuilds (~20%) plus re-segmentation per query (~25%), spread over analyser/commands.rs, registry_invocation/source_structure.rs and diagnostics/validity.rs.
-  - A further fix would cache one document SourceImage on the Analyser. Those are compiler-names / unowned files; not done.
-- load_embedded: 7.3-10.4 s → 1.9-3.1 s.
-- origin/rust comparison: completed on the isolated machine; see `perf/evidence/origin-*.out` and the new session table in `perf/evidence/timings.md`.
+Ordinary LSP positive-reference controls passed at n=10/20/40/80, and scope-chain
+controls at 250/500/1000/2000. The work harness uses retained editing inputs as
+the server document driver does. Every lens has one actual reference.
 
-## Equality evidence
+| Procedures | origin index ms | work index ms | origin lenses ms | work lenses ms |
+| --- | ---: | ---: | ---: | ---: |
+| 10 | 0.041 | 64.244 | 1.180 | 83.642 |
+| 20 | 0.082 | 445.391 | 2.172 | 1,380.511 |
+| 40 | 0.381 | 675.448 | 27.844 | 8,034.283 |
+| 80 | 0.497 | 1,557.801 | 106.465 | 25,542.691 |
 
-- Synthetic shapes (calls 10/40/80, procs 41, upvar 10/30) and the tclIndex prefixes 10/40/100/253: in-process old vs new `AnalysisResult ==` holds.
-- PackSet from load_embedded: identical sorted `{:#?}` lines old vs new (484,936).
-- Corpus run 1 (two-way, old after new): 99/101 `.tcl` equal. The 2 `.tcl` mismatches and all 15 `.irul` mismatches are probe artifacts: the same mismatch appears old-vs-old (`ZZ_SAME=old`) in a warm process, with retained OnceLock/registry fields `<uninit>` vs initialised. Diagnostics were equal in every mismatching case.
-  - Outputs: `perf/evidence/corpus_*run1_twoway.out`.
-  - The probe now runs old1/new/old2 and compares new against the old runs (`perf/tools/perfprobe_example.rs.txt`). That rerun is NOT done yet.
+These are medians of three queries. Ordinary Logical lenses repeatedly rebuild
+call inventory/index, including inside currentness checks. Request-scoped admitted
+inventory reuse is routed to the LSP owner; no identity check may be bypassed.
 
-## Not done (see outstanding/perf.md)
+Latest load_embedded: origin 4,665 ms, work old1 44,471 ms / old2 82,646 ms,
+new 10,673 ms. Full ordered PackSet Debug is equal and old runs deterministic;
+the endpoint timing difference prevents a stable speedup-factor claim.
 
-1. Three-way corpus rerun.
-2. Crate tests (tcl-lexer lib; tcl-compiler lib filters spectcl_source / original_name_value / formal_call_advice / realm / interprocedural / w216 / w143; tcl-spectcl eval_loader, golden_packs), run with and without `ZZ_OLD_ENV=1`, to show zero pass-to-fail.
-3. Final before/after table alongside the completed origin/rust timings.
-4. Land only the six perf-owned files; route the separately proven realm/interprocedural patch.
-5. The residual tclIndex constant.
-6. The review's section 4 scaling shapes.
+## Test status
+
+Latest lexer lib: 583 pass and the same three fail in each mode, zero pass-to-fail.
+The isolated formal-advice test has the same [] versus [notacommand] assertion
+failure in both modes. Selected compiler filters and both named 180-second server
+cases remain active. Their inventories must finish before regression claims.
+
+Earlier base SpecTcl opt-level-1 eval_loader: all 28 pass in both modes
+(new 1,482.833 s, old 2,614.057 s). Default-profile golden_packs: two pass and the
+same interpreter 30-minute budget failure in both modes (new 3,537.662 s,
+old 5,717.749 s). The earlier default eval_loader run lacked one sparse fixture;
+complete-input default run remains active. Latest optimized eval_loader new
+completed all 28 PASS (1,488.967 s); its old mode is now active, followed by
+latest optimized golden_packs in both modes. Profile
+or fixture differences are recorded separately, never presented as green retries.
+
+## Routed residual work
+
+`perf/perf-analyser-images.patch` then `perf/perf-analyser-segments.patch` are
+UNPROVEN drafts, not applied, for compiler-names-owned paths. Their controls and
+limits are in `perf/residual-routing.md`. Image reuse retains full byte/channel
+checks, still O(N) per command; eliminating those checks requires an admitted
+immutable operation context. Segmentation reuse retains the authentic origin,
+configuration and complete token vector. Review section 4.1 still needs owner
+fixes after this batch; the LSP timings above demonstrate the remaining cost.
+
+Do not commit the six production files or mark the compiler patch proven until
+the complete required equality proof is valid. Finish pending comparisons, update
+this file with final before/after values, and stop without opening a PR.

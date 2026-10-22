@@ -149,3 +149,33 @@ The host is contended; these are diagnostic scaling results.
 | 80 | 0.497 | 1557.801 | 4.502 | 3.219 | 106.465 | 25542.691 |
 
 Raw inputs/artifact paths and query outputs are recorded in origin-lsp-positive-inputs.json and latest-e4a01bbe/lsp-build-inputs.json and lsp-*-positive.out.
+
+## Latest full-batch synthetic controls, e4a01bbe
+
+All listed work shapes passed full AnalysisResult old/new/old equality, with
+deterministic old endpoints. Work times are the new middle run and old second
+endpoint; origin calls are medians of three warmed timing-only runs, other
+origin shapes are single timing-only samples. Concurrent load makes these
+wall-clock observations noisy (notably calls 20); no monotone speedup or
+release-latency claim follows from this table. Units: milliseconds.
+
+| Input | origin/rust | work old2 | work new |
+| --- | ---: | ---: | ---: |
+| calls 10 | 56 | 10484 | 5301 |
+| calls 20 | 76 | 5595 | 24119 |
+| calls 40 | 129 | 34908 | 7113 |
+| calls 80 | 109 | 33372 | 4985 |
+| procs 41 | 532 | 6659 | 3073 |
+| upvar 10 | 247 | 31113 | 42310 |
+| upvar 30 | 752 | 397924 | 91987 |
+
+Raw work data: latest-e4a01bbe/continued-proof/{calls,procs,upvar}.out.
+All 15 hosted iRules still fail strict whole-result equality. The ordinary Tcl
+corpus is incomplete; synthetic successes do not discharge that gate. See analysis-equality-routing.md for all-old
+controls and the privately traced object-report comparison blocker.
+
+Latest full ordered PackSet Debug comparison PASSED: all 484,936 lines agree;
+old endpoints are deterministic. load_embedded: origin 4,665 ms, work old1
+44,471 ms / old2 82,646 ms, work new 10,673 ms. The different old endpoint
+latencies show host noise; this is not a stable speedup-factor estimate.
+Raw: latest-e4a01bbe/continued-proof/packset.out.

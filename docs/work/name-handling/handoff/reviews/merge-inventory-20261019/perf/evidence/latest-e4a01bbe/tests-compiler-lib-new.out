@@ -140,3 +140,34 @@ test interprocedural::tests::resolve_empty_command_is_none ... ok
 test interprocedural::tests::resolve_relative_dotted_name_prefers_caller_namespace ... ok
 test interprocedural::tests::resolve_relative_with_segments ... ok
 test interprocedural::tests::return_word_classification_keeps_literal_names_and_selected_grammar ... ok
+test interprocedural::tests::side_effect_classification_follows_an_aliased_head ... ok
+test interprocedural::tests::simple_proc_is_recorded_with_params_and_arity ... ok
+test interprocedural::tests::standalone_empty_alias_declaration_and_mutation_have_distinct_write_effects ... FAILED
+test interprocedural::tests::uncertain_point_binding_preserves_unknown_effect_obligation ... ok
+test interprocedural::tests::unknown_alias_prefix_bytes_preserve_document_call_graph_target ... FAILED
+test interprocedural::tests::unknown_call_sets_has_unknown_calls ... ok
+test interprocedural::tests::unreadable_oo_definitions_force_methods_impure ... FAILED
+test interprocedural::tests::upvar_level_word_is_read_by_argument_parity ... ok
+test interprocedural::tests::used_in_condition_detected ... ok
+test interprocedural::tests::user_proc_invoker_is_registry_driven_not_name_matched ... FAILED
+test interprocedural::tests::variable_decl_is_not_counted_as_instance_var_write ... FAILED
+test interprocedural::transfer::source_context::tests::original_expression_fused_top_level_retains_its_existing_parent_record ... FAILED
+test interprocedural::transfer::source_context::tests::original_expression_receipts_join_actual_literal_operand_and_child_extent has been running for over 60 seconds
+test interprocedural::transfer::source_context::tests::original_expression_receipts_join_actual_literal_operand_and_child_extent ... FAILED
+test interprocedural::transfer::source_context::tests::original_expression_receipts_refuse_captured_and_shadowed_producers ... FAILED
+test interprocedural::transfer::source_context::tests::original_expression_receipts_refuse_cooked_and_foreign_producers ... FAILED
+test interprocedural::transfer::source_context::tests::original_transfer_alias_targets_keep_source_symbols_and_refuse_foreign_words ... FAILED
+test interprocedural::transfer::source_context::tests::original_transfer_call_keeps_selected_procedure_and_captured_operands_together ... FAILED
+test interprocedural::transfer::source_context::tests::original_transfer_child_and_body_require_the_genuine_parent_word has been running for over 60 seconds
+test interprocedural::transfer::source_context::tests::original_transfer_child_and_body_require_the_genuine_parent_word ... FAILED
+test interprocedural::transfer::source_context::tests::original_transfer_shadow_and_command_observers_do_not_borrow_catalogue_closure ... FAILED
+test interprocedural::transfer::source_context::tests::original_transfer_source_refuses_missing_foreign_config_and_changed_headers ... ok
+test interprocedural::transfer::tests::a_barrier_has_no_summary has been running for over 60 seconds
+test interprocedural::transfer::tests::a_barrier_has_no_summary ... FAILED
+test interprocedural::transfer::tests::a_call_names_its_omitted_parameters_default has been running for over 60 seconds
+test interprocedural::transfer::tests::a_call_names_its_omitted_parameters_default ... FAILED
+test interprocedural::transfer::tests::a_cycle_that_does_not_converge_is_may_bind ... FAILED
+test interprocedural::transfer::tests::a_name_argument_naming_an_outer_place_is_a_global_write has been running for over 60 seconds
+test interprocedural::tests::deeply_nested_if_survives_interprocedural_scan ... ok
+test interprocedural::transfer::tests::a_rename_or_a_redefinition_moves_the_revision ... FAILED
+test interprocedural::transfer::tests::conditional_source_outer_places_do_not_issue_physical_steps ... FAILED
