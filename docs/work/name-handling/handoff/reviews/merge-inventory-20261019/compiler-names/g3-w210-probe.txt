@@ -1,0 +1,13 @@
+ZZ_W210 block=BlockId(0) index=1 name="$dir" presence=Some((true, false))
+ZZ_W210 block=BlockId(0) index=1 name="$dir" presence=Some((true, false))
+ZZ_W210 block=BlockId(0) index=1 name="$missing" presence=Some((true, false))
+ZZ_W210 block=BlockId(0) index=0 name="$missing" presence=Some((true, false))
+ZZ_W210 block=BlockId(0) index=1 name="$dir" presence=Some((true, false))
+ZZ_W210 block=BlockId(0) index=1 name="$missing" presence=Some((true, false))
+ZZ_W210 block=BlockId(0) index=0 name="$missing" presence=Some((true, false))
+thread 'analyser::diagnostics::tests::w210_pkgindex_reports_other_reads_inside_command_substitutions' (3269) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:6008:5:
+[
+    "/proj/pkgIndex.tcl: \"set f [file join $dir $missing]\\nsource $f\\n\": missing: []",
+    "/proj/other.tcl: \"set f [file join $dir $missing]\\nsource $f\\n\": missing: [\"Variable 'dir' is read before it is set\"]",
+    "/proj/pkgIndex.tcl: \"set f [file join $dir $missing]\\n\": missing: []",
+]

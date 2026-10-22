@@ -1,6 +1,11 @@
 # Continue the naming migration in a new session
 
-Paste the prompt below into a new Claude Code session on `bitwisecook/tcl-lsp`. All agents were paused on 2026-10-22 at about 13:20 UTC. Their state is on `work`.
+Paste the prompt below into a new Claude Code session on `bitwisecook/tcl-lsp`. All five local agents paused by 2026-10-22T13:25Z, with their state and Resume sections on `work`. The tree deliberately contains compiler-codegen's temporary `ZZ_CCG_BASELINE` toggle and `zz_ccg_*` probes; its `untoggle.py` removes them.
+
+Questions to put to the user when the new session starts:
+- lsp: two Default-tier minify tests expect whitespace removal inside expressions (`{3+4*2}`), which the native path no longer does. This is not N15. Check origin/rust, then decide.
+- compiler: for after-load entries, does "reached" include preview depth 0, which also records actual compiler visits? This decides the attribution of compiler-names' 8 `command_binding` pass-to-fail tests.
+- compiler-codegen: its proposed const-fold fix (apply the world barrier only to a declared footprint) is in `const_subst.rs`, which it does not own. Assign an owner.
 
 ```text
 You are the coordinator for the LSP naming migration on bitwisecook/tcl-lsp, branch `work`. Develop and push only on `work`. Never open a PR unless I ask.

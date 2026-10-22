@@ -1,0 +1,192 @@
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", co
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", co
+ZZ_REGISTERED head=namespace offset=74 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=74 registered=Some(Unknown)
+ZZ_REGISTERED head=namespace offset=74 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=74 registered=Some(Unknown)
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", co
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", co
+ZZ_REGISTERED head=namespace offset=74 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=74 registered=Some(Unknown)
+ZZ_REGISTERED head=namespace offset=74 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=74 registered=Some(Unknown)
+ZZ_RESULT "namespace eval ::a {proc p {} {}; namespace export p}\nnamespace eval ::b {namespace import ::a::p; p}\n" ok=true
+ZZ_WORLD false
+ZZ_ROW namespace at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 1
+ZZ_ROW proc at=20 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 114, 111, 99])
+ZZ_ROW namespace at=34 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 
+ZZ_ROW namespace at=54 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 
+ZZ_ROW namespace at=74 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 
+ZZ_ROW p at=99 input=true lookup=false reference=None
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", co
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", co
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", co
+ZZ_REGISTERED head=proc offset=20 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=20 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=34 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=34 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", co
+ZZ_RESULT "namespace eval ::a {proc p {} {}; namespace export p}\nnamespace import ::a::p\np\n" ok=true
+ZZ_WORLD false
+ZZ_ROW namespace at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 1
+ZZ_ROW proc at=20 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 114, 111, 99])
+ZZ_ROW namespace at=34 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 
+ZZ_ROW namespace at=54 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 
+ZZ_ROW p at=78 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112]) }, NamePolicyPro
+ZZ_REGISTERED head=puts offset=32 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=32 registered=Some(Generic)
+ZZ_REGISTERED head=puts offset=32 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=32 registered=Some(Generic)
+ZZ_REGISTERED head=puts offset=32 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=32 registered=Some(Generic)
+ZZ_REGISTERED head=puts offset=32 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=32 registered=Some(Generic)
+ZZ_RESULT "oo::class create Widget {\r\n    method render {} {\r\n        puts \"widget $label\"\r\n    }\r\n}" ok=true
+ZZ_WORLD true
+ZZ_ROW oo::class at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([111, 111])]), simple: NameB
+ZZ_ROW puts at=59 input=false lookup=false reference=None
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_RESULT "namespace eval ::a { oo::class create Widget {} }\nnamespace eval ::a { Widget new }\n" ok=true
+ZZ_WORLD true
+ZZ_ROW namespace at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 1
+ZZ_ROW oo::class at=21 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([111, 111])]), simple: Name
+ZZ_ROW namespace at=50 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 
+ZZ_ROW Widget at=71 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([97])]), simple: NameBytes([87
+ZZ_REGISTERED head=return offset=48 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=48 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=48 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=48 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=48 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=48 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=48 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=48 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_RESULT "oo::class create C { variable n; method get {} {return $n} }\n" ok=true
+ZZ_WORLD true
+ZZ_ROW oo::class at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([111, 111])]), simple: NameB
+ZZ_ROW return at=48 input=true lookup=true reference=None
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_REGISTERED head=return offset=16 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=return offset=16 registered=Some(Inline { operation: StructuredLowering(Return), guard: BeforeArguments })
+ZZ_RESULT "proc greet {} { return hi }\nputs [greet]\nputs [greet]\n" ok=true
+ZZ_WORLD false
+ZZ_ROW proc at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 114, 111, 99]) 
+ZZ_ROW return at=16 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([114, 101, 116, 11
+ZZ_ROW puts at=28 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 117, 116, 115]
+ZZ_ROW greet at=34 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([103, 114, 101, 101
+ZZ_ROW puts at=41 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 117, 116, 115]
+ZZ_ROW greet at=47 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([103, 114, 101, 101
+ZZ_REGISTERED head=namespace offset=18 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=18 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", co
+ZZ_REGISTERED head=proc offset=38 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=38 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=18 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=18 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", co
+ZZ_REGISTERED head=proc offset=38 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=38 registered=Some(Generic)
+ZZ_REGISTERED head=proc offset=81 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=81 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=105 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=105 registered=Some(Unknown)
+ZZ_REGISTERED head=puts offset=137 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=137 registered=Some(Generic)
+ZZ_REGISTERED head=proc offset=81 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=81 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=105 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=105 registered=Some(Unknown)
+ZZ_REGISTERED head=puts offset=137 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=137 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=18 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=18 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", co
+ZZ_REGISTERED head=proc offset=38 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=38 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=18 descriptor=true facts_native=true subcommand=Exact { spelling: "export", canonical_name: "export" }
+ZZ_SELECT_TARGET head=namespace offset=18 registered=Some(NamedInvocation { lookup: NativeCompilerImplementationLookup { ensemble: "::namespace", member: "export", slot: "::tcl::namespace::export", co
+ZZ_REGISTERED head=proc offset=38 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=38 registered=Some(Generic)
+ZZ_REGISTERED head=proc offset=81 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=81 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=105 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=105 registered=Some(Unknown)
+ZZ_REGISTERED head=puts offset=137 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=137 registered=Some(Generic)
+ZZ_REGISTERED head=proc offset=81 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=proc offset=81 registered=Some(Generic)
+ZZ_REGISTERED head=namespace offset=105 descriptor=true facts_native=true subcommand=Exact { spelling: "import", canonical_name: "import" }
+ZZ_SELECT_TARGET head=namespace offset=105 registered=Some(Unknown)
+ZZ_REGISTERED head=puts offset=137 descriptor=true facts_native=true subcommand=NotApplicable
+ZZ_SELECT_TARGET head=puts offset=137 registered=Some(Generic)
+ZZ_RESULT "namespace eval a {namespace export *; proc foo {} {return A}}; namespace eval b {proc foo {} {return B}; namespace import -force ::a::*; puts [foo]}\n" ok=true
+ZZ_WORLD false
+ZZ_ROW namespace at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 1
+ZZ_ROW namespace at=18 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 
+ZZ_ROW proc at=38 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 114, 111, 99])
+ZZ_ROW return at=51 input=true lookup=false reference=None
+ZZ_ROW namespace at=63 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 
+ZZ_ROW proc at=81 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([112, 114, 111, 99])
+ZZ_ROW return at=94 input=true lookup=false reference=None
+ZZ_ROW namespace at=105 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109,
+ZZ_ROW puts at=137 input=true lookup=false reference=None
+ZZ_ROW foo at=143 input=true lookup=false reference=None
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_REGISTERED head=oo::class offset=21 descriptor=true facts_native=true subcommand=Exact { spelling: "create", canonical_name: "create" }
+ZZ_SELECT_TARGET head=oo::class offset=21 registered=Some(Generic)
+ZZ_RESULT "namespace eval ::a { oo::class create C {}; C create rex }\nnamespace eval ::a { rex destroy }\n" ok=true
+ZZ_WORLD false
+ZZ_ROW namespace at=0 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 1
+ZZ_ROW oo::class at=21 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([111, 111])]), simple: Name
+ZZ_ROW C at=44 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([NameBytes([97])]), simple: NameBytes([67]) },
+ZZ_ROW namespace at=59 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([110, 97, 109, 
+ZZ_ROW rex at=80 input=true lookup=true reference=Some(SourceCommandReference { slot: None, original_slot: Some((CommandSlot { namespace: ByteNamespacePath([]), simple: NameBytes([114, 101, 120]) }, N

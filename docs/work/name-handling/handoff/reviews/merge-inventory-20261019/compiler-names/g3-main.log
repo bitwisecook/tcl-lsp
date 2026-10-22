@@ -1,0 +1,51 @@
+
+running 4 tests
+test signature_scan::formal_parameters::tests::original_readonly_worker_formal_fields_keep_exact_child_inputs_and_extents ... FAILED
+test analyser::types::original_declaration_inventory_tests::crlf_class_method_bodies_analyse_without_lexer_panics ... ok
+test analyser::types::original_declaration_inventory_tests::substituted_heads_and_consumed_names_retain_original_lookup ... ok
+test analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups ... FAILED
+
+failures:
+
+---- signature_scan::formal_parameters::tests::original_readonly_worker_formal_fields_keep_exact_child_inputs_and_extents stdout ----
+
+thread 'signature_scan::formal_parameters::tests::original_readonly_worker_formal_fields_keep_exact_child_inputs_and_extents' (2463) panicked at rust/tcl-compiler/src/signature_scan/formal_parameters.rs:697:21:
+tcl9.1: method pick {n\uD800 {optional DEFAULT}} {}
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::signature_scan::formal_parameters::tests::original_readonly_worker_formal_fields_keep_exact_child_inputs_and_extents
+   3: tcl_compiler::signature_scan::formal_parameters::tests::original_readonly_worker_formal_fields_keep_exact_child_inputs_and_extents::{closure#0}
+   4: <tcl_compiler::signature_scan::formal_parameters::tests::original_readonly_worker_formal_fields_keep_exact_child_inputs_and_extents::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups stdout ----
+
+thread 'analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups' (2460) panicked at rust/tcl-compiler/src/analyser/types.rs:5757:9:
+[
+    "tcl8.6: \"puts hi\\n\": world expected true",
+    "tcl8.6: \"puts [greet]\\nputs [greet]\\n\": world expected true",
+    "tcl8.6: \"set a [list [greet]]\\n\": world expected true",
+    "tcl8.6: \"set a [string length x]\\n\": world expected true",
+    "tcl8.6: \"proc say {} { puts hi }\\nsay\\n\": world expected true",
+    "tcl9.0: \"puts hi\\n\": world expected true",
+    "tcl9.0: \"puts [greet]\\nputs [greet]\\n\": world expected true",
+    "tcl9.0: \"set a [list [greet]]\\n\": world expected true",
+    "tcl9.0: \"set a [string length x]\\n\": world expected true",
+    "tcl9.0: \"proc say {} { puts hi }\\nsay\\n\": world expected true",
+]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: tcl_compiler::analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups
+   3: tcl_compiler::analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups::{closure#0}
+   4: <tcl_compiler::analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups
+    signature_scan::formal_parameters::tests::original_readonly_worker_formal_fields_keep_exact_child_inputs_and_extents
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 10475 filtered out; finished in 50.74s
+

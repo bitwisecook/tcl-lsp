@@ -1,117 +1,114 @@
 # Outstanding work: compiler-names agent
 
-Area: command_binding.rs (except the C6 hunks), source name lookup, analyser scope/commands, nested lookups.
+Area: command_binding.rs (except the C6 hunks), command_binding/compiled_invocation.rs, source name lookup, analyser scope/commands, nested lookups, W210 pkgIndex entry plumbing.
 
-Last updated: 2026-10-22T13:05Z
+Last updated: 2026-10-22T13:16Z (PAUSED by user instruction)
 
 Maintained by the compiler-names agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
-## In progress
+## In progress (paused; edits are on disk, verification build g4 not run)
 
-- **Status 13:05Z.** Build g1 (guard only) results:
-  - `puts hi` → world;
-  - unknown, bad-proc, `string $op`, `eval`, `chan create`, `trace add variable`, `trace add execution` and `namespace unknown` → withheld;
-  - three cases were wrongly given a world: `lsort -command greet`, `chan push stdout ::xf; puts hi` and `proc unknown …; puts hi`.
+1. **R1 guardrail plus global hook guard** (`rust/tcl-compiler/src/command_binding.rs`). Coordinator rulings of 11:20Z and 12:50Z.
+   - `command_world_closed_on_normal_return(target, facts)`. A handler without a closed receipt keeps the completed world only when it:
+     - resolves to an unperturbed registry `Builtin` with no prefix;
+     - has complete argument roles and a selected subcommand;
+     - has no command-table mutation;
+     - if it declares transitions: the list is empty and there is no re-entrant callback;
+     - if it declares none (`puts`): its traits carry no `extension_default::{EVALUATION, TRACES}`.
+   - `installs_reentry_hook(facts)`: a COMMAND_PREFIX, TRACE or HOST callback, or the variable-trace trait, sets `unclosed_command_world` for the whole document (`lsort -command`, `chan push`, `chan create`, `trace add`).
+   - `ModuleCommandBindings::unknown_handler_is_original()`: every `::unknown` target must be registry-backed and not source-allocated. The rule was relaxed after g3 and is **not yet verified**. g3's stricter rule (kind == Builtin) withheld the world for all positive cases, so the stock `::unknown` is not kind Builtin. The probe `ZZ_UNKNOWN_HANDLER` prints its targets.
+   - Test `analyser::types::original_declaration_inventory_tests::completed_world_follows_the_normal_completion_path_and_entered_bodies_keep_lookups` now collects all mismatches. Its negative cases are unknown command, missing-command body, `lsort -command`, `string $op`, `eval`, `chan push`, `chan create`, `trace add variable`, `trace add execution`, `namespace unknown` and `proc unknown`.
+   - Evidence: g1 (guard only) withheld everything except `lsort -command`, `chan push` and `proc unknown` (`compiler-names/g3-main.log` shows the g3 state).
+2. **Import alias inside `namespace eval`** (`command_binding/compiled_invocation.rs`, now mine per coordinator).
+   - Root cause: `original_named_selection_is_closed` (c0437decfb, 10-18) took the original-facts selection only when the transitions were empty or `literal_pattern_transfer_is_closed` held. That never holds for import while `auto_import` exists. Named compilers then fall back to `select_for_facts`, which returns Unknown, so the selection is unknown, the state goes opaque, and `p` gets no lookup. At top level (Direct mode) `p` resolves (see `compiler-names/g3-zz-probe.txt`: `ZZ_SELECT_TARGET … import … registered=Some(Unknown)` versus `export` → NamedInvocation).
+   - Fix on disk: the gate requires only `facts.state_transitions.is_declared()`. C Tcl compiles `import`, `export` and `forget` alike with `TclCompileBasicMin0ArgCmd` (tclNamesp.c 8.6.18:151, 9.0.4:169). Closure stays the handler's obligation, so the auto_import contract test still withholds the world.
+   - Removed the unused `original_namespace_binding::literal_pattern_transfer_is_closed`; `closed_pattern_transfer` is still used by the seal.
+   - Not yet verified.
+3. **W210 pkgIndex**, now mine per coordinator.
+   - Root cause: the source walk raises at the undefined `$dir`, so `$missing` in `[file join $dir $missing]` is never walked and has no access record. The pkgIndex `dir` is only a report-level suppression (`pkgindex_implicit_vars`, analyser/diagnostics.rs ~597).
+   - Plan:
+     1. Message the compiler agent (a5be33b83bdcb93bf) before editing compilation_unit.rs.
+     2. Add a defaulted `UnitBuildOptions` field carrying the file's pkgIndex fact or entry `incoming_formals`.
+     3. For basename `pkgIndex.tcl`, start the walk with `incoming_formals = ["dir"]` (→ `bind_unknown_incoming`).
+     4. Drop `pkgindex_implicit_vars` only if it becomes redundant.
+   - Test row `other.tcl` corrected to `["dir"]` only. tclsh 9.0.4: `set f [file join $dir $missing]` → `can't read "dir": no such variable`, so `$missing` is never read. The comment is in the test; this still needs recording in NOTES.
 
-  Fix (build g2 running):
-  - `installs_reentry_hook`: any COMMAND_PREFIX, TRACE or HOST callback, or the variable-trace trait, marks the world as unclosed for the whole document. This is the coordinator's global hook guard.
-  - `unknown_handler_is_original`: `::unknown` must still be the stock builtin, or absent.
+## Outstanding (in priority order, after the above)
 
-  The partial g1 `command_binding::` run shows 8 tests failing that were ok in my earlier final run. They are being rerun singly in g2 to attribute them, since the tree has moved (C6 etc.).
-- **W210:** found it is not barrier-related. Only the first undefined read in a `[..]` is reported (`[file join $dir $missing]` reports `dir` only). Presence probe in g2.
-- **Import alias:** no `actual_ensemble_plan` probe fired, so the Unknown comes from `registered_compiler_selection`. Probe in g2.
+1. Verify g4: the main set, zz probes, W210 probe, the 8 regressions singly, `signature_scan::` and `command_binding::`. Report the numbers to the coordinator.
+2. Run the LSP-level R1 check after the compiler is green: `cargo test --locked -p tcl-lsp-core --test references_rename rename_proc_updates_definition_and_all_call_sites -- --test-threads=1` and `references_proc_from_definition_includes_decl_and_both_calls`, then delete the executable.
+3. Relative object name in `create` inside `namespace eval ::a` → `::a::rex`. The g3 zz probe shows `rex` resolving to root slot `[] rex`. Find where the constructed command slot is qualified (command_binding/object_instance.rs `constructed_command_name`, named_manufacture.rs).
+4. (b) `namespace eval ::a {oo::class create Widget {}}; namespace eval ::a {Widget new}` rename → incomplete coverage. Compiler facts are good (world true; `Widget` has a lookup and reference to `::a::Widget` in g3), so this is likely on the LSP side; confirm and hand over.
+5. Remaining `signature_scan` work-only failures:
+   - `formal_parameters::…worker…`: the counterfactual tcl9.1 decline fails for one dialect (the message now names it);
+   - Jim `namespace eval :` publication (`signature_publication_keys…`): jimsh gives `:::::p`, we give `::p`; overlaps review N02, so hold for triage routing;
+   - `factory::tests` ×2: `::generated` is not published;
+   - `original_import_publication_tests`: may be fixed by the import gate;
+   - hosted `nested_bom_purpose`.
+6. (c) Class `variable n` rename (R3). Low priority.
+7. Before hand-back:
+   - remove the probes (see Resume);
+   - rustfmt my files;
+   - clippy on changed lines;
+   - final filters;
+   - update NOTES and the patch.
 
-- **R1 guardrail on "undeclared descriptors count as closed"** (`command_binding.rs`, `command_world_closed_on_normal_return`). An invocation that has no closed receipt leaves the completed world available only if all of these hold:
-  - it resolves to an unperturbed registry `Builtin` with no prefix;
-  - its argument roles are complete and its subcommand was selected;
-  - it has no command-table mutation;
-  - if it declares transitions: the list is empty and there is no re-entrant callback (`requires_world_barrier`);
-  - if it declares no transitions (`puts`): its traits claim no code evaluation, dynamic barrier or trace. That rules out evaluators and extension-default commands.
+### Pending triage routing (review naming-migration-review-20261022.md)
 
-  New negative cases in `completed_world_follows…`:
-  - `proc bad {} {missing_command}; bad`
-  - `lsort -command greet {b a}`
-  - `string $op x`
-  - `eval $script`
-
-  Positive cases: `proc say {} {puts hi}; say`, plus the existing `puts hi`, `[list ..]` and `[string length x]`.
-
-  The build is running; the first attempt was OOM-killed. Ruling needed (see Blocked): `puts` has the registry's conservative wildcard footprint (UNKNOWN callback, AnyInterpreter).
-- **(a) LSP-level R1 check.** Run the tcl-lsp-core `references_rename` tests one at a time after the compiler build: `rename_proc_updates_definition_and_all_call_sites` and `references_proc_from_definition_includes_decl_and_both_calls`.
-- **Import alias inside `namespace eval`.** Root cause located. `namespace import` compiled inside an eval body (mode BytecodeObject) gets `actual_ensemble_plan` → Unknown, so the selection is `unknown=true` and the state goes opaque. `namespace export` in the same position gets NamedInvocation. Temporary `ZZ_PROBE_ENSEMBLE` probes in `ensemble_compilation.rs` will show which branch. Note: `original_namespace_import_completion_requires_closed_prelude_and_destinations` deliberately withholds the completed world while `auto_import` is present. A fix must keep that, and give the import site a resolved alias without claiming completion.
-
-## Outstanding (in priority order)
-
-1. Finish R1 guardrail verification: rerun the `command_binding::` filter, the 10 R1 regression tests and `completed_world_follows…`.
-2. Import alias fix. Coordinate through the coordinator if it touches C6 hunks.
-3. W210 in pkgIndex (`w210_pkgindex_reports_other_reads_inside_command_substitutions`). Run with `ZZ_PROBE_LOWER=1` (cfg_builder barrier flags), then fix or hand back.
-4. (b) `namespace eval ::a { oo::class create Widget {} }; namespace eval ::a { Widget new }` rename → incomplete coverage. Find the LSP coverage refusal.
-5. Remaining work-only `signature_scan` failures. These are real bugs, not wrong expectations:
-   - `formal_parameters::…lambda…`: fixed (the whole-specifier field keeps its escaped source extent).
-   - `formal_parameters::…worker…`: the extent part is fixed. Its counterfactual tcl9.1 policy-decline assertion still fails for one dialect, now labelled with the dialect name.
-   - `signature_publication_keys_match_six_native_namespace_controls`: Jim only. jimsh 0.84 gives `namespace eval : {proc p}` → `:::::p` (current namespace `:::`), but the scan publishes `::p`, so the `:` namespace is lost. A Jim colon-rule bug, overlapping review N02.
-   - `factory::tests` ×2: `::generated` is not published from `factory generated {} {}`.
-   - `original_import_publication_tests`: no import pattern or declaration, from `namespace import` inside `namespace eval`. Likely the same root cause as the import alias item.
-   - `ctx::…nested_bom_purpose`: hosted F5 `namespace eval nλ` procedures are missing.
-6. N05 regression: `namespace eval a {namespace export *; proc foo {} {return A}}; namespace eval b {proc foo {} {return B}; namespace import -force ::a::*; puts [foo]}`. Renaming `b::foo` must not edit the final `foo`, which resolves to `::a::foo`. The compiler facts are being probed; the rename side belongs to the lsp agent.
-7. Relative object name in `create` inside `namespace eval ::a` must publish as `::a::rex`, not `::rex` (name_resolution `tn_object_command_dispatch_is_scoped_to_its_creation_namespace`). After the import alias item.
-8. (c) Class `variable n` rename (R3). Low priority.
-9. Before hand-back:
-   - remove the ZZ probes (`command_binding.rs` ZZ_COMMAND/ZZ_UNCLOSED, `cfg_builder` ZZ_EMBEDDED/ZZ_CALL_BARRIER, `ensemble_compilation.rs` ZZ_ENSEMBLE, test `zz_probe_import_and_crlf`);
-   - run rustfmt and clippy on changed lines;
-   - rerun the filters (command_binding / registry_invocation / signature_scan / source_graph);
-   - update compiler-names-NOTES.md and the patch.
-
-### Pending triage routing (external review naming-migration-review-20261022.md)
-
-- N01: procedure and class identity keyed by a non-injective display string. `namespace eval a: {proc p}` and `namespace eval a {proc :p}` both become `::a:::p`, and the empty-tail `n::` is normalised away in workspace links.
-- N02: there is no Jim command-name policy. Jim keeps `a::p` and `a:::p` distinct. The Jim `:` namespace scan failure above may belong here.
-- N03, parser-debt paragraph: `is_braced_indirect_array_ref`, `normalise_var_name_for_style`.
+- N01: non-injective display-string identity (`a:` + `p` versus `a` + `:p` → `::a:::p`), and the empty tail `n::`.
+- N02: no Jim command-name policy. The Jim `:` namespace signature_scan failure likely belongs here.
+- N03 parser debt: `is_braced_indirect_array_ref`, `normalise_var_name_for_style`.
 - Section 3.3: `insert_rebound_candidates` treats any `::` as absolute.
 
-Constraint until routed: build nothing that re-parses display strings into identities or assumes C Tcl colon rules for Jim.
+Until routed, build nothing that re-parses display strings into identities or assumes C colon rules for Jim.
 
 ## Blocked (on whom, and what is needed)
 
-- (Resolved 11:20Z) **Coordinator ruling on `puts`**: keep the current cut. It rests on the fresh-interpreter premise. A program that installs a hook must withhold the world. Negative tests have been added for `chan push`, `chan create`, `trace add variable`, `trace add execution`, `namespace unknown` and `proc unknown`; if the existing opacity does not already cover them, a global installer guard is next. The previous text follows for the record.
-- **Coordinator ruling on `puts`.** The registry gives `puts` no declared transitions and no declared world effects. Its footprint is the conservative wildcard (`CallbackKinds::UNKNOWN`, `Reentrancy::AnyInterpreter`), which the registry docs call "missing metadata never means a command is pure". A strict reading of "anything the registry marks as having unmodelled effects" would withhold the world after `puts hi`, and so after `puts [greet]` (item (a)).
+- Paused by user instruction (13:10Z). Waiting for the coordinator's resume message.
+- The 8 `command_binding` pass→fail in g1 (`compiler-names/g1-command_binding-pass2fail.txt`) have been forwarded to the compiler agent to classify against C6. They were all ok in sol49 z2 (00:00). Their assertions (uncalled-body commands now carry proved execution targets; Reached versus Conditional) point at C6's `uncalled_body_after_load` and conditional in-frame hunks.
 
-  Current cut: accept the undeclared wildcard only for a complete registry Builtin whose traits claim no evaluation, barrier or trace. Declared callbacks (`lsort -command`, `eval`) and extension-default commands are rejected.
+## Done since the last update (with evidence)
 
-  The alternative is to declare `puts`'s footprint in the registry. A reflected channel or `chan push` transform is a genuine re-entrant callback in C Tcl, so that would still need a ruling.
-
-## Done since the last update (with evidence: test counts, commit or snapshot)
-
-- Earlier items, recorded in `reviews/merge-inventory-20261019/compiler-names-NOTES.md`:
-  - B (self-dispatch tape), C (math in `[..]`);
-  - nested `[..]` lookups and consumed-name lookups;
-  - R1 first cut and the `unclosed_command_world` refinement (all 10 command_binding pass→fail fixed);
-  - R2 (`return` lookup in entered bodies);
-  - CRLF method bodies (`crlf_class_method_bodies_analyse_without_lexer_panics` passes);
-  - `walker::multiple_handlers` fixture;
-  - café expectation.
-- `signature_scan::formal_parameters::tests::original_readonly_lambda_formal_value_preserves_ancestry_and_source_fields` now passes (build of 10:07, before the guardrail edit).
+- Ruling on `puts`: keep the current cut, with the global hook guard added (on disk).
+- `signature_scan::formal_parameters::tests::original_readonly_lambda_formal_value_preserves_ancestry_and_source_fields` passes (10:07 build). In `formal_parameters.rs`, a whole-specifier field keeps its escaped element source extent.
+- Root causes found for the import alias and W210 (above).
+- g1 full `command_binding::`: 864 ok / 316 FAILED. 8 pass→fail against my 00:12 run; attribution is with the compiler agent.
+- g3: `crlf_class…` and `substituted_heads…` ok. `completed_world…` failed on positive cases, caused by the strict `::unknown` kind check, which is now relaxed.
 
 ## Resume
 
-- **Pick up at:** the result of batch g2. It covers:
-  - guardrail plus hook guard;
-  - the `ZZ_REGISTERED` / `ZZ_SELECT_TARGET` import probes;
-  - the `ZZ_W210` presence probe;
-  - the 8 regressions run singly;
-  - the full `command_binding::` filter.
-- **Batch command:** one build, then run, then delete the executable, all in a single invocation (the test executable is shared by every agent):
-  `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/buildrun.sh <TAG>`.
-  It sets `CARGO_INCREMENTAL=0`, `CARGO_PROFILE_TEST_DEBUG=0`, `CARGO_PROFILE_DEV_DEBUG=0`, `TCL_LSP_REQUIRE_TCLSH=9.0,8.6` and `TCL_LSP_JIMSH`. Logs go to the scratch directory `compiler-names/<TAG>-*.log`. Edit the `D=` line to redirect them.
-- **Evidence in the repo** (`docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/`):
-  - `baseline-command_binding-ok.txt`: the ok list from my 00:12 run;
-  - `g1-command_binding-pass2fail.txt`: the 8 pass→fail from g1, 864 ok / 316 FAILED.
-
-  In sol49 `z2` (00:00) all 8 were ok. Their assertions (uncalled `proc f {x} {expr…}` body commands now carry a proved execution target; Reached vs Conditional; `executed_script_namespace_context`) point at C6's `uncalled_body_after_load` / conditional in-frame hunks, not at the guard. g2 confirms or refutes this.
-- **Temporary probes to remove before hand-back:**
-  - `command_binding.rs`: ZZ_COMMAND, ZZ_UNCLOSED(_EARLY);
-  - `command_binding/ensemble_compilation.rs`: ZZ_ENSEMBLE;
+- **Next command** (one build, run, delete; filtered output capped at 20 MB):
+  `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/buildrun.sh g4`
+  - Logs: `/tmp/claude-0/-home-user-tcl-lsp/8d747420-e446-5e83-b7e6-dff30ae9952e/scratchpad/compiler-names/g4-*.log`. To redirect them, edit `D=`.
+  - It needs more than 2.3 GB free disk.
+  - g4 has never run. Two attempts were stopped before the build finished: one when a pkill hit my own shell, and one by the pause.
+- **Then:**
+  1. Check `g4-main.log`: `completed_world…` should have no mismatches. If `puts hi` is still withheld, read `ZZ_UNKNOWN_HANDLER` in `g4-zz.log`.
+  2. Check `g4-zz.log`: the eval-body import `p` should have a lookup and reference.
+  3. Diff `g4-command_binding.log` FAILED against `compiler-names/baseline-command_binding-ok.txt`.
+  4. Check `g4-signature_scan.log`.
+  5. Then do the W210 plumbing (message the compiler agent first).
+- **Files I touched this session** (beyond the earlier NOTES list):
+  - `command_binding.rs`: guard, hook guard, `unknown_handler_is_original`, probes;
+  - `command_binding/compiled_invocation.rs`: gate, probes;
+  - `command_binding/original_namespace_binding.rs`: removed the helper, doc edit;
+  - `command_binding/ensemble_compilation.rs`: probes only;
+  - `analyser/diagnostics/dataflow.rs`: probe only;
+  - `analyser/diagnostics/tests.rs`: `other.tcl` row;
+  - `analyser/types.rs`: tests and zz probe;
+  - `signature_scan/formal_parameters.rs`: fix and assertion message.
+- **Temporary probes to remove before hand-back** (all `#[cfg(test)]` and env-gated):
+  - `command_binding.rs`: ZZ_COMMAND, ZZ_UNCLOSED, ZZ_UNCLOSED_EARLY, ZZ_UNKNOWN_HANDLER;
+  - `command_binding/ensemble_compilation.rs`: ZZ_ENSEMBLE ×4;
   - `command_binding/compiled_invocation.rs`: ZZ_REGISTERED, ZZ_SELECT_TARGET;
   - `cfg_builder/mod.rs`: ZZ_EMBEDDED, ZZ_CALL_BARRIER;
   - `analyser/diagnostics/dataflow.rs`: ZZ_W210;
-  - test `analyser::types::…::zz_probe_import_and_crlf`.
+  - test `zz_probe_import_and_crlf` in `analyser/types.rs` (copy: `compiler-names/zz_probe_import_and_crlf.rs.txt`).
+- **Evidence in the repo:** `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/compiler-names/`:
+  - `buildrun.sh`, `runfilters.sh`;
+  - `baseline-command_binding-ok.txt` (00:12 run);
+  - `g1-command_binding-pass2fail.txt`;
+  - `g3-main.log`, `g3-regress.log`;
+  - `g3-zz-probe.txt`: import selection, N05, rex, Widget rows;
+  - `g3-w210-probe.txt`: presence probe showing only `$dir` accessed;
+  - `zz_probe_import_and_crlf.rs.txt`.
