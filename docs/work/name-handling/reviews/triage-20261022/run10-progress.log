@@ -525,3 +525,61 @@ r_plain tcl9.1 REFUSED "unknown-completed-command-world: a completed original co
 WORLD r_noputs tcl9.1 completed=true
 r_noputs tcl9.1 edits=[L0:5 "foo"->"baz"] [L1:0 "foo"->"baz"]  -> saved r_noputs_tcl9.1.tcl
 WORLD r_setonly tcl9.1 completed=true
+r_setonly tcl9.1 REFUSED "incomplete-original-command-coverage: the complete source contains an executable region or command selection without original coverage"
+WORLD r_n04wild tcl9.1 completed=false
+r_n04wild tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04exact tcl9.1 completed=false
+r_n04exact tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n03 tcl9.1 completed=false
+r_n03 tcl9.1 edits=[L0:4 "caf"->"zz"] [L2:5 "$caf"->"$zz"]  -> saved r_n03_tcl9.1.tcl
+WORLD r_n05 jim completed=false
+r_n05 jim REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n07 jim completed=false
+r_n07 jim REFUSED "cannot prove the original variable selected by this occurrence"
+WORLD r_plain jim completed=false
+r_plain jim REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_noputs jim completed=false
+r_noputs jim REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_setonly jim completed=false
+r_setonly jim REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n04wild jim completed=false
+r_n04wild jim REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+WORLD r_n04exact jim completed=false
+r_n04exact jim REFUSED "the original command selected at this cursor is unavailable; source-only vendor names and unknown native inputs cannot use lexical name edits"
+WORLD r_n03 jim completed=false
+r_n03 jim REFUSED "cannot prove the original variable selected by this occurrence"
+WORLD r_n06class tcl8.6 completed=false
+r_n06class tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n06method tcl8.6 completed=false
+r_n06method tcl8.6 REFUSED "unknown-current-source-member-roster: the current class has no complete source member roster including builtin names"
+WORLD r_n06proc tcl8.6 completed=false
+r_n06proc tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_classfree tcl8.6 completed=false
+r_classfree tcl8.6 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n06class tcl9.0 completed=false
+r_n06class tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n06method tcl9.0 completed=false
+r_n06method tcl9.0 REFUSED "unknown-current-source-member-roster: the current class has no complete source member roster including builtin names"
+WORLD r_n06proc tcl9.0 completed=false
+r_n06proc tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_classfree tcl9.0 completed=false
+r_classfree tcl9.0 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n06class tcl9.1 completed=false
+r_n06class tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_n06method tcl9.1 completed=false
+r_n06method tcl9.1 REFUSED "unknown-current-source-member-roster: the current class has no complete source member roster including builtin names"
+WORLD r_n06proc tcl9.1 completed=false
+r_n06proc tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+WORLD r_classfree tcl9.1 completed=false
+r_classfree tcl9.1 REFUSED "unknown-completed-command-world: a completed original command world is unavailable for collision coverage"
+R_N06 local->sibling core=Err("unknown-completed-command-world: a completed original command world is unavailable for collision coverage") cross_document_edits=0 allows_lexical_rename_advice=false
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 27 filtered out; finished in 460.09s
+
+CASE_EXIT rename_with_registry exit=0 Thu Oct 22 16:39:10 UTC 2026
+
+CASE seam_ Thu Oct 22 16:39:10 UTC 2026
+
+running 3 tests
+test seam_extract_inline ... 
