@@ -2,74 +2,81 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T12:48Z
+Last updated: 2026-10-22T13:09Z (PAUSED on user instruction)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
 ## Resume
 
-The evidence is in the repository under
-`docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/`:
+PAUSED at 13:09Z on user instruction. Nothing of mine is running; the in-flight
+`jim_own_surface` build was killed before it produced an executable.
 
-- `seq.sh`: the runner. It builds, runs and deletes in one invocation, waits for ≥2 GB
-  free disk, writes `runs/<TAG>.<test>.full.log`, `.status` and `<TAG>.summary`, and
-  passes `$FILTER` to the binary.
-  Usage: `TMO=3000 seq.sh TAG crate:test …`.
-  The script hard-codes `S` (its log dir) to the old scratchpad; edit it to a writable
-  directory first.
-- `runs/*.status`, `runs/*.summary`: per-test pass/fail for every run this session.
-  `before.codegen_stamps.log` holds the codegen_stamps panics before my changes.
-- `sol48-baseline/`: the previous agent's "before" per-test statuses. Compare
-  `before.tcl-vm---lib.status` (1107/1387) with a new run to list every test that passed
-  before and fails now.
-- `zz_vmrt_probe.rs.txt`: the golden-render probe. To regenerate goldens:
-  1. Copy it to `rust/tcl-spectcl/tests/zz_vmrt_probe.rs`.
-  2. Build and run it with `ZZ_OUT=<dir>`.
-  3. Diff `<dir>/*.snap` against `rust/tcl-spectcl/tests/golden/`.
-  4. Classify the differences with `gold/reconstruct.py`, which needs the `xxhash` Python
-     module (I ran it with `/usr/bin/python3`, i.e. 3.13) and the `old.json`/`new.json`
-     files from `gold/structs.py <rev>`. Use `gold/nested_cont.py` for the fold set.
-  5. Copy only the accepted files.
-  6. Delete the probe.
+**After8 (review C.2 Jim/EDA targets).**
+- Finished: `jim_document` **9 passed / 17 failed / 26**. The panic summaries are in
+  `…/vm-runtime/runs/after8.jim_document.failures.txt`. They are W123 "class" unknown in
+  Jim documents, missing class/method facts and `all_classes` entries, i.e. Jim
+  class/document analysis. No pre-change baseline exists. Not yet triaged: owner is
+  probably the compiler/LSP side, VM to be ruled out.
+- Not run: `jim_own_surface`, `jim_surface_roster`, `jim_generation_zero`,
+  `jim_seed_after_publish`, `eda_loadables`, `eda_environment_packs`.
 
-The thread-exit fix is done. To re-check it:
+**Exact next command.** Copy the runner first, and set its `S=` to a writable directory:
 
 ```
-cd /home/user/tcl-lsp && CARGO_INCREMENTAL=0 CARGO_PROFILE_TEST_DEBUG=0 CARGO_PROFILE_DEV_DEBUG=0 \
-  cargo test --locked -p tcl-vm --test thread_exit_retirement -j 2 -- --test-threads 1
+cp docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/seq.sh <scratch>/seq.sh
+TMO=1800 <scratch>/seq.sh after8b tcl-spectcl:jim_own_surface tcl-spectcl:jim_surface_roster \
+  tcl-spectcl:jim_generation_zero tcl-spectcl:jim_seed_after_publish tcl-spectcl:eda_loadables \
+  tcl-spectcl:eda_environment_packs
 ```
 
-To check that the test reproduces the bug, temporarily make `native_retirement::release`
-use `PENDING.with` again; the test binary should then die with SIGABRT.
-
-Then continue, in this order:
-
-1. The Jim/EDA targets:
-   `seq.sh after8 tcl-spectcl:jim_document tcl-spectcl:jim_own_surface tcl-spectcl:jim_surface_roster tcl-spectcl:jim_generation_zero tcl-spectcl:jim_seed_after_publish tcl-spectcl:eda_loadables tcl-spectcl:eda_environment_packs`
-2. `spec_corpus`:
-   `FILTER="--exact every_shipped_tclspec_loads_installs_and_analyses_against_corpus" THREADS=1 seq.sh after9 tcl-spectcl:spec_corpus`
-3. `codegen_stamps`:
-   `FILTER="--skip every_shape" seq.sh after9 tcl-spectcl:codegen_stamps`
-4. The runtime, with libtommath:
+Then:
+1. Triage the `jim_document` failures.
+2. `FILTER="--exact every_shipped_tclspec_loads_installs_and_analyses_against_corpus" THREADS=1 seq.sh after9 tcl-spectcl:spec_corpus`
+3. `FILTER="--skip every_shape" seq.sh after9 tcl-spectcl:codegen_stamps`
+4. The runtime with libtommath:
    `cd runtime/rust && TCL_TOMMATH_DIR=../../tmp/tcl9.0.4/libtommath cargo test --locked --features engine`
-   Run one binary at a time where possible.
 5. The runtime without libtommath:
    `unshare -m sh -c 'mount --bind <emptydir> tmp/tcl9.0.4/libtommath && cd runtime/rust && cargo test --locked'`
-6. tcl-vm, tcl-engine-tclvm and embed:
-   `seq.sh after10 tcl-vm:embed_api_e2e`, plus `cargo test -p tcl-vm --lib` and
-   `cargo test -p tcl-engine-tclvm --lib`, each built and run in one command.
-7. Clippy.
+6. `cargo test -p tcl-vm --lib`, and compare it with
+   `…/vm-runtime/sol48-baseline/before.tcl-vm---lib.status`.
+7. `cargo test -p tcl-engine-tclvm --lib`
+8. `seq.sh after10 tcl-vm:embed_api_e2e`
+9. Clippy `-D warnings` on my crates.
+10. Finish `vm-runtime-NOTES.md`, which has `RESULTS`/`COMPILER`/`REMAINING` placeholders.
+
+Re-check the thread-exit fix with:
+`cargo test --locked -p tcl-vm --test thread_exit_retirement -- --test-threads 1` (2/2).
+
+**Files touched this session** (all uncommitted edits are now in the working tree for the
+coordinator's commit):
+- `rust/tcl-spectcl/src/loader/eval.rs`: `static_row`, the fast-path brace fold.
+- `rust/tcl-spectcl/tests/`:
+  - `codegen_stamps.rs`: `PlainCounting` forwarding.
+  - `upf_hooks.rs`: new.
+  - `spec_corpus.rs` and `spec_corpus_baseline.txt`: oo-class lines removed.
+  - `golden/*.snap`: regenerated.
+- `rust/tcl-vm/src/value/native_retirement.rs`, `value/native_jim_pool.rs`, `value.rs`:
+  the thread-exit `try_with` changes.
+- `rust/tcl-vm/tests/thread_exit_retirement.rs`: new.
+- `rust/tcl-vm/src/cmd_package.rs`: `version_conflict` takes the protocol release.
+- `rust/tcl-engine-tclvm/src/lib.rs`: a doc comment.
+- `runtime/rust/src/{value_ops.rs,interp/native_variable_names.rs,interp/native_body_artifact.rs}`:
+  redundant `#[path]` attributes removed. NOT yet compile-checked; that is runtime step 4.
+- `docs/design/spec-dsl-examples/{oo-class,upvar,lsort,switch,foreach,return,string}.tclspec`
+  and `README.md`.
+- `rust/tcl-spec-studio/tests/{spectcl_ports,pack_store}.rs`.
+
+**Evidence** is under `docs/work/name-handling/handoff/reviews/merge-inventory-20261019/vm-runtime/`:
+- `runs/*.summary`, `*.status` and `after8.jim_document.failures.txt`;
+- `sol48-baseline/` (per-test before statuses);
+- `gold/` (classification scripts and table);
+- `zz_vmrt_probe.rs.txt` (the golden-render probe);
+- `seq.sh`.
 
 ## In progress
 
-- Review C.2: the Jim core-pack and EDA acceptance targets (`seq.sh after8`). Running now:
-  - `jim_document`
-  - `jim_own_surface`
-  - `jim_surface_roster`
-  - `jim_generation_zero`
-  - `jim_seed_after_publish`
-  - `eda_loadables`
-  - `eda_environment_packs`
+- Nothing running: paused. `jim_document` is done (9/17/26); the remaining Jim/EDA targets
+  are queued, see Resume.
 
 ## Outstanding (in priority order)
 
