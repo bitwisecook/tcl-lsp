@@ -67,5 +67,14 @@
   ],
   "disk_free_bytes": 13565222912,
   "index_note": "README is role index, excluded from freshness",
-  "stale_notification": "BIG-IP18:08 final remains stale, previously notified; no takeover. Other external files under60m at snapshot."
+  "stale_notification": "BIG-IP18:08 final remains stale, previously notified; no takeover. Other external files under60m at snapshot.",
+  "followup_utc": "2026-10-22T20:59:42.358507+00:00",
+  "timestamp_correction": {
+    "role": "compiler-codegen",
+    "initial_invalid_future_stamp": "2026-10-22T21:01Z",
+    "observed_at": "2026-10-22T20:55:47Z",
+    "actual_owner_corrected_stamp": "2026-10-22T20:57:50+00:00",
+    "status": "owner corrected both inferred occurrences using actual datetime; no freshness proof based on future stamp"
+  },
+  "staleness_followup": "Review-triage completed19:57:30 crossed60minutes at20:57:30, user notified; no takeover. BIG-IP remains stale, perf20:37 fresh."
 }

@@ -1,10 +1,14 @@
 # Outstanding work: lsp agent
 
-Latest validated update 2026-10-22T20:26Z: focused12 minify completed6PASS/6FAIL, zero timeouts. Exact40917 captured source inputs and full pinned providers are byte-equal; all three test artifacts retained identical hashes. Three comparison-inversion failures, two nested-gap output failures, and one pinned-Jim version-metadata refusal remain distinct blockers. No semantic assertions or expected outputs weakened. Lock released20:26:06Z, independently free; no live Cargo/rustc or target cleanup. Evidence `lsp/minify-focused12-20261022/` pins every selector/log and source-scope hashes. Zero-warning and six-engine acceptance are not closed. Current canonical product hold remains; tiny CI5205 metadata-test API adaptation is off-tree patch438631f5 against byte-exact published2b934 source. N13 first-edge/settings/consumer wiring remains off-tree/incomplete.
+Resumed active status 2026-10-22T20:59:03Z: canonical Rust/C/Cargo hold continues; VM runtime6 owns the sole build slot. No LSP Cargo queued. CI API setup438631 is now integrated; earlier guarded focused12 remains6PASS/6FAIL with identical captured source/providers/artifacts, archived under `lsp/minify-focused12-20261022/`. Jim's authentic ancestry/build repair is agent-reported completed with new provider hashes; no subsequent native minify pass inferred.
+
+Static/off-tree progress: inversion successor `/tmp/lsp-minify-inversion-v2/proposal.patch` SHA59ea7b8e is composed after names d52c and compiler peer-reviewed; native issuer/minifier controls are unrun. Manual50pairs/100pinned-engine executions matched values/errors/read traces on supported profiles, with unsupported Jim traces/version-floor membership explicitly excluded. Refreshed residual17-site lint candidate29ec0f03 is apply-checked/static-only. Folder-context diagnostic probe v2 SHA7eaa8317 retains allsix actual folder/source observations before assertion; uncompiled/unrun. CI5205 browser/WASI source/rename and four multifolder context failures are root-reported exact baseline P2Fs, now prioritized; no timeout/guard relaxation.
+
+N13 coupled region work remains off-tree/partial: actual stage6/d52c interfaces are retained, distinct region purpose/command membership and atomic index append preserve prefix IDs; parent/child/completion physical dependency DAG is separate from compiler origin. Producer/continuation/workqueue wiring is unfinished and no current source-only partial region is promoted to whole input, Native or physical Normal. Newly region-declared procedure-preview bodies remain unavailable; full inherited child bodies keep their existing authentic route. Nested minify body gaps remain unresolved separately from comparison inversion. No shipping/zero-warning/N13 closure claim.
 
 Area: tcl-lsp-core, tcl-lsp-db and tcl-lsp-server (generic providers, server, WASM/WASI hosts).
 
-Last updated: 2026-10-22T20:16:33Z
+Last updated: 2026-10-22T20:59:03Z
 
 Maintained by the lsp agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
