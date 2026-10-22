@@ -1,0 +1,18 @@
+{
+  "utc": "2026-10-22T13:17Z",
+  "source": "User message in chat: \"minify should remove all whitespace it can, existing failing tests may indeed be incorrect, we're trying to model what the code would look like when up and running as far as analysis is concerned. choose the proper owner, i don't know\"",
+  "decisions": {
+    "minify_whitespace": {
+      "choice": "Minify removes all whitespace it can",
+      "meaning": "Default-tier minify must remove every whitespace it safely can, including inside braced expressions (`{3 + 4 * 2}` -> `{3+4*2}`). The two Default-tier lsp_edit_workspace tests that expect this are correct; the native minify path must be fixed to do it (owner: lsp, with compiler-codegen if the native emitter needs it). The N15 refusal of alpha renaming is unaffected."
+    },
+    "analysis_models_running_code": {
+      "choice": "Analysis models the code as it is when up and running",
+      "meaning": "Analysis models the program as it is once loaded and running. Existing failing tests that contradict this may be incorrect. Coordinator's reading for the open 'reached' question: for after-load entries, what the compiler actually visits when the loaded code runs counts as reached, so preview depth 0 entries that record actual compiler visits are reached. Tests that expected otherwise are corrected narrowly, citing this decision and tclsh. If a case does not fit this reading, ask the user."
+    },
+    "const_subst_owner": {
+      "choice": "compiler-codegen owns optimiser/const_subst.rs",
+      "meaning": "The user asked the coordinator to choose. compiler-codegen owns the N17 live const-fold item and already edits the optimiser (manager.rs), and no other role claims const_subst.rs. It applies its proposed fix (world barrier only for a declared world_effects footprint) with a regression test showing that an undeclared-effect pack hook folds only when the fold is pure, and keeps every other call fail-closed."
+    }
+  }
+}

@@ -47,10 +47,10 @@ Three roles were spun out earlier into a separate session I started: bigip-lsp, 
 - review-triage: resume script reviews/triage-20261022/run5.sh. Scaling and e2e have not run.
 If one of those files goes stale for more than 60 minutes, tell me rather than taking the work over.
 
-## Ask me first
-- lsp: two Default-tier minify tests expect whitespace removal inside expressions (`{3+4*2}`), which the native path no longer does. This is not N15. Check origin/rust first.
-- compiler: for after-load entries, does "reached" include preview depth 0, which also records actual compiler visits? This decides the attribution of compiler-names' 8 command_binding pass-to-fail tests.
-- compiler-codegen: its proposed const-fold fix (apply the world barrier only to a declared footprint) is in const_subst.rs, which it does not own. Assign an owner.
+## Decided 2026-10-22T13:17Z (user-decisions-20261022T1317Z.json)
+- Minify removes all whitespace it can, including inside braced expressions. The two Default-tier tests expecting `{3+4*2}` are correct; fix the native minify path (lsp role).
+- Analysis models the code as it is once loaded and running; existing failing tests that contradict this may be incorrect. For after-load entries, actual compiler visits count as reached. Apply this to compiler-names' 8 command_binding tests (compiler and compiler-names roles) and ask me if a case does not fit.
+- compiler-codegen owns optimiser/const_subst.rs and applies its const-fold fix: the world barrier applies only to a declared footprint, and calls stay fail-closed otherwise.
 
 ## Every 30 minutes
 Re-arm a reminder for the next cycle each time. Each cycle:
