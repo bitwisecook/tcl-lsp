@@ -2,7 +2,7 @@
 
 Area: Replay of the external review's findings on the current tree.
 
-Last updated: 2026-10-22T14:42:43Z
+Last updated: 2026-10-22T15:24:20Z
 
 Maintained by the review-triage agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. This agent commits and pushes it after each run and at least every 30 minutes.
 
@@ -12,11 +12,13 @@ Maintained by the review-triage agent. It lists what this agent considers it mus
 
 **Executed repeat:** `run5-e2e-repeat.log` records the existing `pack_source_e2e::a_pack_file_folds_a_call_site_in_the_optimiser` on `53ec43d1`: **0 passed / 1 failed**, DSL 1 expected `["5"]`, got `[]`. No O129 replacement is emitted. Runtime 16.17 s. Its executable and the temporary probe are deleted. All shared libraries are now built.
 
-**Active:** `run6.sh` is running (tool session 64190; test PID 22926). The test executable is built and running; its temporary `.rs` was deleted before this checkpoint. `run6.log` remains untracked and open by the runner; **do not stage or rebase that active file**. `run6-progress.log` is a closed prefix snapshot for this push. The remaining e2e step does not need the temporary probe.
+**Run6 finished:** 24 probe functions completed; the combined main command hit its 3600 s cap during scaling (`exit-main=124`). Flat P=25/50/100/200 and all source-chain rows completed; only code-lens P=25 completed before the cap. The three seam functions were not reached. The later e2e step rebuilt against the rebased `90fe96e2` tree and again failed with expected `["5"]`, actual `[]` (`exit-e2e=101`). The temporary probe/executables are deleted.
 
-Completed fresh observations so far (not the final run result): N01 metadata still collapses but both declaration targets are now correct on C 8.6/9.0/9.1; empty-tail link correct. N02 Jim identities distinct but definitions empty after proper core-surface seeding. N03 C Tcl spans/edits correct, but Jim definition/references empty and rename refuses. N04 refuses both import forms on all six profiles (completed world false). N05 references select only the shadowed declaration; all six rename attempts refuse. N06 currently refuses class/proc collisions with UnknownWorld and methods with incomplete current member roster; its earlier specific collision refusals are not the current result. The six-profile sibling matrix now refuses at both declaration and call origins (all C: UnknownWorld; Jim declaration: UnknownWorld, call: original command unavailable). N07 refuses without navigating to the global on all profiles; W210 is present on C profiles but absent on Jim. The later server-shaped controls are still pending.
+**Oracle replay complete:** `run6-oracles.log` and `run6-oracle-summary.json`: 96 files, 576 engine executions, 76 generated files, 126 matching-profile checks, 0 unexpected matching results. C Unicode-prefix edits are intentionally not portable to Jim's different bare-variable grammar. All eight N17 drivers print `good` on all six engines. The added first-close indirect-name input is valid on C 8.x/Jim and invalid on C 9.x, as recorded in the replay.
 
-**Next:** let the full run finish. Inspect the server-shaped `rename_with_registry` controls for R1, the direct/pure hook contrast, refactor disabled reasons, actual IR conditions and scaling rows. Then `bash docs/work/name-handling/reviews/triage-20261022/replay-oracles.sh run6` and `python3 docs/work/name-handling/reviews/triage-20261022/source-audit.py > docs/work/name-handling/reviews/triage-20261022/run6-source-audit.log`. Update and push the full run before starting a further run. Fetch latest work, and recheck affected findings after fixes; do not finish while the required R1 follow-up is still blocked.
+**Next command after this checkpoint is pushed:** `source /tmp/review-triage-env.sh; CARGO_NET_OFFLINE=true bash docs/work/name-handling/reviews/triage-20261022/run-pending.sh`. It freshly builds once from `pending-probe.rs.txt`, deletes the temporary source, then runs seams FIRST, the N17 direct/pure contrast, R1 realm/result and seeding controls, N03 parser-debt controls, source chains and separately budgeted lens sizes. It only reruns the six-profile server rename matrix if a seeded `puts [foo]` control actually has a completed world. An uncompleted P=200 case would get its own budget, but run6 already completed it. Every executable is deleted in that one command.
+
+**After that:** replay the new `out/run7-pending/` on the six oracles, update the report and this file, and push. The R1 post-fix requirement and final latest-work recheck are still outstanding. Run6's main executable was built at `5bd5a503`; incoming compiler/minifier changes were rebased while that immutable executable ran, and its later e2e cargo step rebuilt at `90fe96e2`. Do not describe the main observations as a complete latest-code recheck. Source audit is `run6-source-audit.log` on `90fe96e2`.
 
 **Keep active build logs outside git mutations:** do not rebase a tracked log while its writer is running. Wait for the run to finish, then update/commit/push. During long runs a separate completed snapshot can be committed, but never replace the file an active command has open.
 
@@ -85,7 +87,7 @@ It restores the probe, builds, runs and deletes the executables in one command, 
 
 ## Outstanding (in priority order)
 
-1. Run the complete `run6.sh` replay now that the libraries and embedded fixtures are available.
+1. Run `run-pending.sh` to settle the unexecuted seams, diagnose the still-failing R1 positive control, and complete the lens rows with individual budgets.
 2. After R1 lands, re-check N04, N05, N06 and N07 on all six profiles, apply returned edits and execute them on the matching engines.
 3. Fetch latest `work` and re-check every finding and static seam before the final summary.
 
@@ -111,3 +113,5 @@ It restores the probe, builds, runs and deletes the executables in one command, 
 - 2026-10-22T14:16:15Z: checkpoint of the first completed run6 observations; the active log is preserved outside the index. Snapshot: `run6-progress.log`. No new edit output has yet been validated on the oracles; those outputs remain uncommitted until replay.
 
 - 2026-10-22T14:42:43Z: run6 confirms N09 call graph fixed, N10 path definition fixed (hover/hierarchy still missing), and N17 direct scanner results correct. Both DSLs fold with declared pure effects and fail to fold without that declaration. Server-shaped C controls so far: bare `foo` renames with a world; `puts [foo]` has no world; `set x [foo]` has a world but refuses coverage. R1 remains incomplete for the required positive case. A small prepared `run-r1-transport.sh` / `r1-transport-probe.rs.txt` can compare realm/result worlds before/after core seeding after the full run; it also checks N03 parser-debt helpers. These diagnostics are not yet executed.
+
+- 2026-10-22T15:24:20Z: full run6 evidence and output replay recorded. Flat analysis (P25/50/100/200) = 23.490 / 73.748 / 237.256 / 630.311 s; index min-of-three = 1.043 / 3.332 / 5.019 / 10.881 s. Source chain F250/500/1000/2000 = 134.775 / 318.125 / 1396.401 / 5055.848 ms. P25 lens query = 6049.759 ms after 61798.1 ms analysis, 25 lenses. All are unoptimised wall-time measurements, not shipping latency.

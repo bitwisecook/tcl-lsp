@@ -6,11 +6,11 @@ Evidence, scripts and logs: [triage-20261022/](triage-20261022/README.md). Live 
 
 This report is updated after every probe run. Rows marked **PENDING** are not settled.
 
-Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. Rust 1.99.1 and the exact six engines are provisioned; see [cloud-setup.log](triage-20261022/cloud-setup.log). Run5 completed with checkout-related failures before its main/scaling probes ran. All embedded fixtures and shared libraries are now available. The repeated existing live-fold e2e test fails as detailed below; the complete current-API replay is active; the closed prefix contains the current observations below. `make rust-check` and `make prep-pr` have not run in this evidence-only session.
+Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. Rust 1.99.1 and the exact six engines are provisioned; see [cloud-setup.log](triage-20261022/cloud-setup.log). Run5 completed with checkout-related failures before its main/scaling probes ran. All embedded fixtures and shared libraries are now available. The repeated existing live-fold e2e test fails as detailed below; the completed main snapshot and oracle replay are recorded below; isolated pending seam/lens checks and the post-R1 final replay remain outstanding. `make rust-check` and `make prep-pr` have not run in this evidence-only session.
 
 ## Cloud validation progress
 
-**Run6 active (2026-10-22T14:16:15Z):** [run6-progress.log](triage-20261022/run6-progress.log) is a closed prefix snapshot from `5bd5a503`; the full log and edit replay are pending. Current observations below supersede the older runs where stated. No final summary or completed migration is claimed.
+**Run6 main snapshot (2026-10-22T14:16:15Z):** [run6-progress.log](triage-20261022/run6-progress.log) is a closed prefix snapshot from `5bd5a503`; the full main log and edit replay are now preserved. The main command completed 24 probe functions, then reached its 3600 s cap in scaling; the three seam functions were not reached. Current observations below supersede the older runs where stated. No final summary or completed migration is claimed.
 
 - **2026-10-22T13:45:08Z:** 19 preserved Tcl inputs replayed on six exact engines: **114 executions, no timeouts**. Complete outputs, exit codes and hashes: [cloud-baseline-oracles.log](triage-20261022/cloud-baseline-oracles.log). Feature-unavailable rows are retained, including Jim's unsupported `interp alias` form; they are not incorrect oracle answers. N17's capture driver registers `good` on every engine.
 - [cloud-source-audit.log](triage-20261022/cloud-source-audit.log) rechecks the static seams on `81a911af`. N11's existing-command early return and N13's four/five-round caps remain. These are source inspections, not server protocol executions.
@@ -18,6 +18,8 @@ Cloud resumption: 2026-10-22T13:17:02Z in a fresh, shallow selective checkout. R
 - The prepared `run6.sh` restores the expanded probe into the authorised temporary path, uses a fresh output directory, records completed-world presence, seeds Jim's compiled-in surfaces as production does, covers all six rename profiles and both sibling collision origins, and distinguishes direct hook answers from optimiser folding with/without declared pure effects. It also replays all findings, scaling and the existing fold e2e test. This is prepared work, not an executed result.
 
 - **Live-fold repeat on `53ec43d1`: 0 passed / 1 failed.** The existing `a_pack_file_folds_a_call_site_in_the_optimiser` fails at `pack_source_e2e.rs:185`: DSL 1 expected `["5"]`, got `[]`. Log: [run5-e2e-repeat.log](triage-20261022/run5-e2e-repeat.log). This confirms the supported control does not fold. The direct/pure contrast remains pending.
+
+**Completed run6 replay:** [run6.log](triage-20261022/run6.log), [run6-oracles.log](triage-20261022/run6-oracles.log), [summary](triage-20261022/run6-oracle-summary.json). There were **96 files / 576 engine executions**, including **76 generated outputs / 126 intended-profile checks**, with **0 unexpected matched results**. Every file ran on every engine; cross-family Unicode-prefix differences are not failures of a C-profile edit. All eight N17 drivers print `good` everywhere. The main executable was built at `5bd5a503`; the later e2e cargo command rebuilt after incoming compiler changes at `90fe96e2` and still fails with no O129. A complete final latest-code check is not claimed yet.
 
 ## Method
 
@@ -272,6 +274,22 @@ Each row gives the evidence (probe call or command and the observed output), the
 
 ### Section 4.1 scaling rows
 
-**PENDING** the active run6, which uses smaller sizes (P = 25, 50, 100, 200; code lenses P = 25, 50, 100; source chain F = 250–2000). Run4 was stopped before scaling ran. Run3: analysing a flat file of 250 `proc pNNNNNNNN {} {}` took 248,263 ms of wall time in the debug test profile, on a heavily shared machine; `WorkspaceIndex::from_documents` took 6,538 ms (the review measured 5.718 ms); 100 missing `workspace_command_exists_for_call` calls took 13.9 ms. The process was then killed by the session stop.
+**REPRODUCES substantial costs in the unoptimised test profile.** Run6's serial measurements below use wall time (`Instant`), not the original review's process-CPU medians or a shipping-server build. Index/query columns are minima of three; analysis is measured once. These fixtures include real current analysis; the review's metadata-only index input is not a direct absolute-time comparator.
 
-By reading the code, the linear scan in `workspace_command_exists_for_call` (`workspace_index.rs:7496`) and the root-ward `paths: UriMap<Vec<Placed>>` in `RunOrder` (`source_graph.rs:1627`) are both still present.
+| Flat procedures | Analysis ms | Index ms | 100 missing call-aware queries ms |
+|---:|---:|---:|---:|
+| 25 | 23,489.8 | 1,043.491 | 1.480 |
+| 50 | 73,747.7 | 3,332.122 | 2.364 |
+| 100 | 237,256.1 | 5,018.812 | 5.314 |
+| 200 | 630,311.1 | 10,880.502 | 16.610 |
+
+| Source-chain files | Build ms (minimum of three) |
+|---:|---:|
+| 250 | 134.775 |
+| 500 | 318.125 |
+| 1,000 | 1,396.401 |
+| 2,000 | 5,055.848 |
+
+Code lenses at **25 procedures** took **6,049.759 ms**, after **61,798.1 ms** pre-analysis, and returned **25 lenses**. The combined batch reached its one-hour cap during the later lens work, so no P50/P100 lens time is inferred. `run-pending.sh` will measure those cases separately and print analysis completion before starting the lens query, with explicit per-case budgets. Because compiler changes arrived during run6, that follow-up refreshes the complete small lens series.
+
+Static inspection still finds the linear live-procedure/class/link scan in `workspace_command_exists_for_call` and the root-path vectors in `RunOrder`. Full server/release latency and RSS remain unmeasured. Logs and source hashes distinguish this snapshot from later implementation fixes.

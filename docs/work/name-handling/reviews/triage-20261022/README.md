@@ -4,6 +4,8 @@ Evidence for the replay of the external review ([../naming-migration-review-2026
 
 | Item | What it is |
 | --- | --- |
+| `run-pending.sh`, `pending-probe.rs.txt` | Fresh build, seams first, then bounded R1/parser/source-chain/lens cases; deletes source after build and executable at exit. |
+| `run6.log`, `run6-oracles.log`, `run6-oracle-summary.json`, `run6-source-audit.log` | Completed main snapshot (cap reached during scaling), full 576-execution replay, 126 matched checks with no unexpected result, and later static audit. |
 | `run-r1-transport.sh`, `r1-transport-probe.rs.txt` | Prepared focused R1 transport/bootstrap and N03 parser-debt diagnostic; run after the active full replay. |
 | `run6.sh`, `replay-oracles.sh`, `source-audit.py` | Prepared full replay, six-engine execution, and static seam evidence runners. |
 | `cloud-baseline-oracles.log` | Fresh 19-file / 114-execution baseline replay; full output and exit codes. |

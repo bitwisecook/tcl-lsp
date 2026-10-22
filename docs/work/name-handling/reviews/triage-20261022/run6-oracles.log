@@ -1,0 +1,866 @@
+Thu Oct 22 15:08:05 UTC 2026
+90fe96e2b10abce1e1dab3b14c708e67b194b1d3
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/child.tcl
+3c2a8874048e75987c32a9863a17b8491016208d76d25db40f12c9087b685595  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/child.tcl
+  tclsh8.4 exit=0: 
+  tclsh8.5 exit=0: 
+  tclsh8.6 exit=0: 
+  tclsh9.0 exit=0: 
+  tclsh9.1 exit=0: 
+  jimsh exit=0: 
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n01.tcl
+190703a9b642c43295d56e3c7aa16cc45e4e3676a60ceb874a5d424373f5c7f8  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n01.tcl
+  tclsh8.4 exit=1: can't create procedure ":p" in non-global namespace with name starting with ":"|    while executing|"proc :p {} {return RIGHT}"|    (in namespace eval "::a" script line 1)|    invoked from within|"namespace eval a  {proc :p {} {return RIGHT}}"|    (file "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n01.tcl" line 2)|
+  tclsh8.5 exit=1: can't create procedure ":p" in non-global namespace with name starting with ":"|    while executing|"proc :p {} {return RIGHT}"|    (in namespace eval "::a" script line 1)|    invoked from within|"namespace eval a  {proc :p {} {return RIGHT}}"|    (file "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n01.tcl" line 2)|
+  tclsh8.6 exit=0: LEFT|RIGHT|
+  tclsh9.0 exit=0: LEFT|RIGHT|
+  tclsh9.1 exit=0: LEFT|RIGHT|
+  jimsh exit=0: RIGHT|RIGHT|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n01b.tcl
+e6cf9f5e4ea67d8ee7c797b021b284e426fd7caabd64993444ee0edc45b5dfab  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n01b.tcl
+  tclsh8.4 exit=0: EMPTY|
+  tclsh8.5 exit=0: EMPTY|
+  tclsh8.6 exit=0: EMPTY|
+  tclsh9.0 exit=0: EMPTY|
+  tclsh9.1 exit=0: EMPTY|
+  jimsh exit=1: /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n01b.tcl:3: Error: wrong # args: should be "interp"|Traceback (most recent call last):|  File "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n01b.tcl", line 3|    interp alias {} a {} n::|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n02.tcl
+632ec162c887317e0e79faae9bf0bfe5abd8d98681e9f4e4babeb82d44759bd1  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n02.tcl
+  tclsh8.4 exit=0: THREE THREE|
+  tclsh8.5 exit=0: THREE THREE|
+  tclsh8.6 exit=0: THREE THREE|
+  tclsh9.0 exit=0: THREE THREE|
+  tclsh9.1 exit=0: THREE THREE|
+  jimsh exit=0: TWO THREE|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n03-indirect-firstclose.tcl
+41b1a085c4aa41fd6e081e170b9412555604a655cd2c301e169cdfbc6433c0e1  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n03-indirect-firstclose.tcl
+  tclsh8.4 exit=0: 1|
+  tclsh8.5 exit=0: 1|
+  tclsh8.6 exit=0: 1|
+  tclsh9.0 exit=1: missing close-brace for variable name|    while executing|"set ${"|    (file "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n03-indirect-firstclose.tcl" line 2)|
+  tclsh9.1 exit=1: missing close-brace for variable name|    while executing|"set ${"|    (file "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n03-indirect-firstclose.tcl" line 2)|
+  jimsh exit=0: 1|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n03.tcl
+17da969717cdb2ed37fc0e81df2531da104a17a992be004b3432a8e50f8161ec  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n03.tcl
+  tclsh8.4 exit=0: Aé|
+  tclsh8.5 exit=0: Aé|
+  tclsh8.6 exit=0: Aé|
+  tclsh9.0 exit=0: Aé|
+  tclsh9.1 exit=0: Aé|
+  jimsh exit=0: B|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n03b.tcl
+d28340b16b35dd8eeb7be2150dcef59aea114f36118d127fa3115d394f09f4eb  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n03b.tcl
+  tclsh8.4 exit=0: X}|
+  tclsh8.5 exit=0: X}|
+  tclsh8.6 exit=0: X}|
+  tclsh9.0 exit=0: Y|
+  tclsh9.1 exit=0: Y|
+  jimsh exit=0: X}|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n04w.tcl
+4573e383719b114d7bb172e1023eb813a4557f96821531bd0e77872fd0c9a82e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n04w.tcl
+  tclsh8.4 exit=0: 1|
+  tclsh8.5 exit=0: 1|
+  tclsh8.6 exit=0: 1|
+  tclsh9.0 exit=0: 1|
+  tclsh9.1 exit=0: 1|
+  jimsh exit=0: 1|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n05.tcl
+6a2f5262f44dc54ba17f8512cfd7f46050c2b21e42b0bc3ad22f2eb2fb2fd84b  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n05.tcl
+  tclsh8.4 exit=0: A|
+  tclsh8.5 exit=0: A|
+  tclsh8.6 exit=0: A|
+  tclsh9.0 exit=0: A|
+  tclsh9.1 exit=0: A|
+  jimsh exit=0: A|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n06c.tcl
+9109be6bd8af0a44150bd159f46d86bfc1fbbac571c92ecddf28c9b86fabb9b6  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06c.tcl
+  tclsh8.4 exit=1: invalid command name "oo::class"|    while executing|"oo::class create A {method m {} {return A}}"|    (file "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06c.tcl" line 1)|
+  tclsh8.5 exit=1: invalid command name "oo::class"|    while executing|"oo::class create A {method m {} {return A}}"|    (file "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06c.tcl" line 1)|
+  tclsh8.6 exit=0: A|B|
+  tclsh9.0 exit=0: A|B|
+  tclsh9.1 exit=0: A|B|
+  jimsh exit=1: /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06c.tcl:1: Error: invalid command name "oo::class"|Traceback (most recent call last):|  File "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06c.tcl", line 1|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n06m.tcl
+7551306858ed5c1fc91477af61b29cde7459e7aaece3474ccaf759a8356a5eef  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06m.tcl
+  tclsh8.4 exit=1: invalid command name "oo::class"|    while executing|"oo::class create K {|    method old {} {return OLD}|    method dest {} {return DEST}|}"|    (file "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06m.tcl" line 1)|
+  tclsh8.5 exit=1: invalid command name "oo::class"|    while executing|"oo::class create K {|    method old {} {return OLD}|    method dest {} {return DEST}|}"|    (file "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06m.tcl" line 1)|
+  tclsh8.6 exit=0: OLD DEST|
+  tclsh9.0 exit=0: OLD DEST|
+  tclsh9.1 exit=0: OLD DEST|
+  jimsh exit=1: /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06m.tcl:1: Error: invalid command name "oo::class"|Traceback (most recent call last):|  File "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06m.tcl", line 1|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n06p.tcl
+6a2a91b5b220318466f33b5b0b9d72731b83846a3a2b2e7385f6c194231f33ea  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06p.tcl
+  tclsh8.4 exit=1: invalid command name "oo::class"|    while executing|"oo::class create C {}"|    (file "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06p.tcl" line 2)|
+  tclsh8.5 exit=1: invalid command name "oo::class"|    while executing|"oo::class create C {}"|    (file "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06p.tcl" line 2)|
+  tclsh8.6 exit=0: P|
+  tclsh9.0 exit=0: P|
+  tclsh9.1 exit=0: P|
+  jimsh exit=1: /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06p.tcl:2: Error: invalid command name "oo::class"|Traceback (most recent call last):|  File "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n06p.tcl", line 2|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n08.tcl
+db093fbdcaa40942b8de0a29667ff103dd9f7e31880a2b21cd21f4e9d5ce8f99  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n08.tcl
+  tclsh8.4 exit=0: LOCAL|
+  tclsh8.5 exit=0: LOCAL|
+  tclsh8.6 exit=0: LOCAL|
+  tclsh9.0 exit=0: LOCAL|
+  tclsh9.1 exit=0: LOCAL|
+  jimsh exit=0: LOCAL|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n09.tcl
+d0c1c441fb8eb065b8ad486b4df0ef003a27343b40758f37a21a8154f6dc7787  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n09.tcl
+  tclsh8.4 exit=1: bad option "path": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which|    while executing|"namespace path ::lib"|    (in namespace eval "::n" script line 2)|    invoked from within|"namespace eval n {|    namespace path ::lib|    proc c {} {return [p]}|}"|    (file "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n09.tcl" line 3)|
+  tclsh8.5 exit=0: LIB|
+  tclsh8.6 exit=0: LIB|
+  tclsh9.0 exit=0: LIB|
+  tclsh9.1 exit=0: LIB|
+  jimsh exit=1: /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n09.tcl:4: Error: namespace, unknown command "path": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which|Traceback (most recent call last):|  File "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n09.tcl", line 4|    namespace path ::lib|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n10.tcl
+564216395321b9b9a0851f70665dce024718a8843e7d354b07026d27113292ee  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n10.tcl
+  tclsh8.4 exit=1: invalid command name "oo::class"|    while executing|"oo::class create Base {}"|    (in namespace eval "::A" script line 1)|    invoked from within|"namespace eval A {oo::class create Base {}}"|    (file "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n10.tcl" line 1)|
+  tclsh8.5 exit=1: invalid command name "oo::class"|    while executing|"oo::class create Base {}"|    (in namespace eval "::A" script line 1)|    invoked from within|"namespace eval A {oo::class create Base {}}"|    (file "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n10.tcl" line 1)|
+  tclsh8.6 exit=0: ::A::Base|
+  tclsh9.0 exit=0: ::A::Base|
+  tclsh9.1 exit=0: ::A::Base|
+  jimsh exit=1: /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n10.tcl:1: Error: invalid command name "oo::class"|Traceback (most recent call last):|  File "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n10.tcl", line 1|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n13p.tcl
+6562514fb1dab709fb515aca116b65a7828ca1473299021dff920910be583e55  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n13p.tcl
+  tclsh8.4 exit=1: bad option "path": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which|    while executing|"namespace path ::lib"|    (in namespace eval "::app" script line 1)|    invoked from within|"namespace eval app {namespace path ::lib; source child.tcl}"|    (file "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n13p.tcl" line 2)|
+  tclsh8.5 exit=0: good|
+  tclsh8.6 exit=0: good|
+  tclsh9.0 exit=0: good|
+  tclsh9.1 exit=0: good|
+  jimsh exit=1: /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n13p.tcl:2: Error: namespace, unknown command "path": should be canonical, code, current, delete, ensemble, eval, export, import, inscope, origin, parent, qualifiers, tail, upvar, which|Traceback (most recent call last):|  File "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n13p.tcl", line 2|    namespace path ::lib|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n14.tcl
+9c01f9b645cc37d9862612dfeaefecb10df1161e588328d91680cb03042f915f  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n14.tcl
+  tclsh8.4 exit=0: plain|0|
+  tclsh8.5 exit=0: plain|0|
+  tclsh8.6 exit=0: plain|0|
+  tclsh9.0 exit=0: plain|0|
+  tclsh9.1 exit=0: plain|0|
+  jimsh exit=0: plain|0|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n15a.tcl
+90c3a00303734a2a51f567d083288fe7cf10dd71c467b972fe16964ba570dffa  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n15a.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n15b.tcl
+1f144ee561c082b64900fff806bd50625551c2038bd8859afc59d85004984ecc  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n15b.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/tcl/n17drv.tcl
+505f553a231d0c119f15b36c769a9a7a1433296a1c903d0b957ce5a5f34daaba  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/tcl/n17drv.tcl
+  tclsh8.4 exit=0: registered: good|
+  tclsh8.5 exit=0: registered: good|
+  tclsh8.6 exit=0: registered: good|
+  tclsh9.0 exit=0: registered: good|
+  tclsh9.1 exit=0: registered: good|
+  jimsh exit=0: registered: good|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n03cafe_tcl8.6.tcl
+465e3d1f2a3dbd5c1274647afd5e2e924abf22a0756c241f0fe18379cdf46d96  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n03cafe_tcl8.6.tcl
+  tclsh8.4 exit=0: Aé|
+  tclsh8.5 exit=0: Aé|
+  tclsh8.6 exit=0: Aé|
+  tclsh9.0 exit=0: Aé|
+  tclsh9.1 exit=0: Aé|
+  jimsh exit=1: /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n03cafe_tcl8.6.tcl:3: Error: can't read "zzé": no such variable|Traceback (most recent call last):|  File "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n03cafe_tcl8.6.tcl", line 3|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n03cafe_tcl9.0.tcl
+465e3d1f2a3dbd5c1274647afd5e2e924abf22a0756c241f0fe18379cdf46d96  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n03cafe_tcl9.0.tcl
+  tclsh8.4 exit=0: Aé|
+  tclsh8.5 exit=0: Aé|
+  tclsh8.6 exit=0: Aé|
+  tclsh9.0 exit=0: Aé|
+  tclsh9.1 exit=0: Aé|
+  jimsh exit=1: /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n03cafe_tcl9.0.tcl:3: Error: can't read "zzé": no such variable|Traceback (most recent call last):|  File "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n03cafe_tcl9.0.tcl", line 3|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n08_opt_jim.tcl
+db093fbdcaa40942b8de0a29667ff103dd9f7e31880a2b21cd21f4e9d5ce8f99  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n08_opt_jim.tcl
+  tclsh8.4 exit=0: LOCAL|
+  tclsh8.5 exit=0: LOCAL|
+  tclsh8.6 exit=0: LOCAL|
+  tclsh9.0 exit=0: LOCAL|
+  tclsh9.1 exit=0: LOCAL|
+  jimsh exit=0: LOCAL|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n08_opt_tcl8.4.tcl
+db093fbdcaa40942b8de0a29667ff103dd9f7e31880a2b21cd21f4e9d5ce8f99  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n08_opt_tcl8.4.tcl
+  tclsh8.4 exit=0: LOCAL|
+  tclsh8.5 exit=0: LOCAL|
+  tclsh8.6 exit=0: LOCAL|
+  tclsh9.0 exit=0: LOCAL|
+  tclsh9.1 exit=0: LOCAL|
+  jimsh exit=0: LOCAL|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n08_opt_tcl8.5.tcl
+db093fbdcaa40942b8de0a29667ff103dd9f7e31880a2b21cd21f4e9d5ce8f99  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n08_opt_tcl8.5.tcl
+  tclsh8.4 exit=0: LOCAL|
+  tclsh8.5 exit=0: LOCAL|
+  tclsh8.6 exit=0: LOCAL|
+  tclsh9.0 exit=0: LOCAL|
+  tclsh9.1 exit=0: LOCAL|
+  jimsh exit=0: LOCAL|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n08_opt_tcl8.6.tcl
+db093fbdcaa40942b8de0a29667ff103dd9f7e31880a2b21cd21f4e9d5ce8f99  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n08_opt_tcl8.6.tcl
+  tclsh8.4 exit=0: LOCAL|
+  tclsh8.5 exit=0: LOCAL|
+  tclsh8.6 exit=0: LOCAL|
+  tclsh9.0 exit=0: LOCAL|
+  tclsh9.1 exit=0: LOCAL|
+  jimsh exit=0: LOCAL|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n08_opt_tcl9.0.tcl
+db093fbdcaa40942b8de0a29667ff103dd9f7e31880a2b21cd21f4e9d5ce8f99  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n08_opt_tcl9.0.tcl
+  tclsh8.4 exit=0: LOCAL|
+  tclsh8.5 exit=0: LOCAL|
+  tclsh8.6 exit=0: LOCAL|
+  tclsh9.0 exit=0: LOCAL|
+  tclsh9.1 exit=0: LOCAL|
+  jimsh exit=0: LOCAL|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n08_opt_tcl9.1.tcl
+db093fbdcaa40942b8de0a29667ff103dd9f7e31880a2b21cd21f4e9d5ce8f99  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n08_opt_tcl9.1.tcl
+  tclsh8.4 exit=0: LOCAL|
+  tclsh8.5 exit=0: LOCAL|
+  tclsh8.6 exit=0: LOCAL|
+  tclsh9.0 exit=0: LOCAL|
+  tclsh9.1 exit=0: LOCAL|
+  jimsh exit=0: LOCAL|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n12_new.tcl
+382a418b494fb1cc09576e423c8d83e7bc0cbd12dcb87d2aebb3460463794626  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n12_new.tcl
+  tclsh8.4 exit=0: 1|
+  tclsh8.5 exit=0: 1|
+  tclsh8.6 exit=0: 1|
+  tclsh9.0 exit=0: 1|
+  tclsh9.1 exit=0: 1|
+  jimsh exit=0: 1|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n12_old.tcl
+fa960d1fb8542570ab299bee979fa934acf317c0bc63c4e17c870a42c28aa261  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n12_old.tcl
+  tclsh8.4 exit=0: 0|
+  tclsh8.5 exit=0: 0|
+  tclsh8.6 exit=0: 0|
+  tclsh9.0 exit=0: 0|
+  tclsh9.1 exit=0: 0|
+  jimsh exit=0: 0|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Aggressive_false_analysis.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Aggressive_false_analysis.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Aggressive_false_profile.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Aggressive_false_profile.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Aggressive_true_analysis.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Aggressive_true_analysis.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Aggressive_true_profile.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Aggressive_true_profile.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Compact_false_analysis.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Compact_false_analysis.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Compact_false_profile.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Compact_false_profile.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Compact_true_analysis.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Compact_true_analysis.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Compact_true_profile.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_jim_Compact_true_profile.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Aggressive_false_analysis.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Aggressive_false_analysis.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Aggressive_false_profile.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Aggressive_false_profile.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Aggressive_true_analysis.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Aggressive_true_analysis.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Aggressive_true_profile.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Aggressive_true_profile.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Compact_false_analysis.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Compact_false_analysis.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Compact_false_profile.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Compact_false_profile.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Compact_true_analysis.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Compact_true_analysis.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Compact_true_profile.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl8.6_Compact_true_profile.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Aggressive_false_analysis.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Aggressive_false_analysis.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Aggressive_false_profile.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Aggressive_false_profile.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Aggressive_true_analysis.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Aggressive_true_analysis.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Aggressive_true_profile.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Aggressive_true_profile.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Compact_false_analysis.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Compact_false_analysis.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Compact_false_profile.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Compact_false_profile.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Compact_true_analysis.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Compact_true_analysis.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Compact_true_profile.tcl
+bf1acb3da47b4d514bd821b4d91a6fa6e8f4a3081984abdad882808b8cbe2f4e  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15a_tcl9.0_Compact_true_profile.tcl
+  tclsh8.4 exit=0: OLD|NEW|
+  tclsh8.5 exit=0: OLD|NEW|
+  tclsh8.6 exit=0: OLD|NEW|
+  tclsh9.0 exit=0: OLD|NEW|
+  tclsh9.1 exit=0: OLD|NEW|
+  jimsh exit=0: OLD|NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Aggressive_false_analysis.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Aggressive_false_analysis.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Aggressive_false_profile.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Aggressive_false_profile.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Aggressive_true_analysis.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Aggressive_true_analysis.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Aggressive_true_profile.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Aggressive_true_profile.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Compact_false_analysis.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Compact_false_analysis.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Compact_false_profile.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Compact_false_profile.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Compact_true_analysis.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Compact_true_analysis.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Compact_true_profile.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_jim_Compact_true_profile.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Aggressive_false_analysis.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Aggressive_false_analysis.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Aggressive_false_profile.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Aggressive_false_profile.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Aggressive_true_analysis.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Aggressive_true_analysis.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Aggressive_true_profile.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Aggressive_true_profile.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Compact_false_analysis.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Compact_false_analysis.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Compact_false_profile.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Compact_false_profile.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Compact_true_analysis.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Compact_true_analysis.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Compact_true_profile.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl8.6_Compact_true_profile.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Aggressive_false_analysis.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Aggressive_false_analysis.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Aggressive_false_profile.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Aggressive_false_profile.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Aggressive_true_analysis.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Aggressive_true_analysis.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Aggressive_true_profile.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Aggressive_true_profile.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Compact_false_analysis.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Compact_false_analysis.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Compact_false_profile.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Compact_false_profile.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Compact_true_analysis.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Compact_true_analysis.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Compact_true_profile.tcl
+23cbe438fcf397b40472c5fc47d522c728f3e859f1182ebd5546f8a2b8c05a1a  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n15b_tcl9.0_Compact_true_profile.tcl
+  tclsh8.4 exit=0: NEW|
+  tclsh8.5 exit=0: NEW|
+  tclsh8.6 exit=0: NEW|
+  tclsh9.0 exit=0: NEW|
+  tclsh9.1 exit=0: NEW|
+  jimsh exit=0: NEW|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_1_false_false.tcl
+88e917508b6b9f0d9011213468db9f3545757e1b5f2e91c0a80d2ac635f903bd  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_1_false_false.tcl
+  tclsh8.4 exit=0: good|
+  tclsh8.5 exit=0: good|
+  tclsh8.6 exit=0: good|
+  tclsh9.0 exit=0: good|
+  tclsh9.1 exit=0: good|
+  jimsh exit=0: good|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_1_false_true.tcl
+88e917508b6b9f0d9011213468db9f3545757e1b5f2e91c0a80d2ac635f903bd  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_1_false_true.tcl
+  tclsh8.4 exit=0: good|
+  tclsh8.5 exit=0: good|
+  tclsh8.6 exit=0: good|
+  tclsh9.0 exit=0: good|
+  tclsh9.1 exit=0: good|
+  jimsh exit=0: good|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_1_true_false.tcl
+cb78f60195f0408384e7e56b0c8139f444fd5954e9b31b2262def7f4f24975d0  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_1_true_false.tcl
+  tclsh8.4 exit=0: good|
+  tclsh8.5 exit=0: good|
+  tclsh8.6 exit=0: good|
+  tclsh9.0 exit=0: good|
+  tclsh9.1 exit=0: good|
+  jimsh exit=0: good|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_1_true_true.tcl
+cb78f60195f0408384e7e56b0c8139f444fd5954e9b31b2262def7f4f24975d0  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_1_true_true.tcl
+  tclsh8.4 exit=0: good|
+  tclsh8.5 exit=0: good|
+  tclsh8.6 exit=0: good|
+  tclsh9.0 exit=0: good|
+  tclsh9.1 exit=0: good|
+  jimsh exit=0: good|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_2.0_false_false.tcl
+88e917508b6b9f0d9011213468db9f3545757e1b5f2e91c0a80d2ac635f903bd  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_2.0_false_false.tcl
+  tclsh8.4 exit=0: good|
+  tclsh8.5 exit=0: good|
+  tclsh8.6 exit=0: good|
+  tclsh9.0 exit=0: good|
+  tclsh9.1 exit=0: good|
+  jimsh exit=0: good|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_2.0_false_true.tcl
+88e917508b6b9f0d9011213468db9f3545757e1b5f2e91c0a80d2ac635f903bd  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_2.0_false_true.tcl
+  tclsh8.4 exit=0: good|
+  tclsh8.5 exit=0: good|
+  tclsh8.6 exit=0: good|
+  tclsh9.0 exit=0: good|
+  tclsh9.1 exit=0: good|
+  jimsh exit=0: good|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_2.0_true_false.tcl
+cb78f60195f0408384e7e56b0c8139f444fd5954e9b31b2262def7f4f24975d0  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_2.0_true_false.tcl
+  tclsh8.4 exit=0: good|
+  tclsh8.5 exit=0: good|
+  tclsh8.6 exit=0: good|
+  tclsh9.0 exit=0: good|
+  tclsh9.1 exit=0: good|
+  jimsh exit=0: good|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_2.0_true_true.tcl
+cb78f60195f0408384e7e56b0c8139f444fd5954e9b31b2262def7f4f24975d0  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/n17_effect_2.0_true_true.tcl
+  tclsh8.4 exit=0: good|
+  tclsh8.5 exit=0: good|
+  tclsh8.6 exit=0: good|
+  tclsh9.0 exit=0: good|
+  tclsh9.1 exit=0: good|
+  jimsh exit=0: good|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl8.4.tcl
+465e3d1f2a3dbd5c1274647afd5e2e924abf22a0756c241f0fe18379cdf46d96  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl8.4.tcl
+  tclsh8.4 exit=0: Aé|
+  tclsh8.5 exit=0: Aé|
+  tclsh8.6 exit=0: Aé|
+  tclsh9.0 exit=0: Aé|
+  tclsh9.1 exit=0: Aé|
+  jimsh exit=1: /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl8.4.tcl:3: Error: can't read "zzé": no such variable|Traceback (most recent call last):|  File "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl8.4.tcl", line 3|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl8.5.tcl
+465e3d1f2a3dbd5c1274647afd5e2e924abf22a0756c241f0fe18379cdf46d96  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl8.5.tcl
+  tclsh8.4 exit=0: Aé|
+  tclsh8.5 exit=0: Aé|
+  tclsh8.6 exit=0: Aé|
+  tclsh9.0 exit=0: Aé|
+  tclsh9.1 exit=0: Aé|
+  jimsh exit=1: /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl8.5.tcl:3: Error: can't read "zzé": no such variable|Traceback (most recent call last):|  File "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl8.5.tcl", line 3|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl8.6.tcl
+465e3d1f2a3dbd5c1274647afd5e2e924abf22a0756c241f0fe18379cdf46d96  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl8.6.tcl
+  tclsh8.4 exit=0: Aé|
+  tclsh8.5 exit=0: Aé|
+  tclsh8.6 exit=0: Aé|
+  tclsh9.0 exit=0: Aé|
+  tclsh9.1 exit=0: Aé|
+  jimsh exit=1: /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl8.6.tcl:3: Error: can't read "zzé": no such variable|Traceback (most recent call last):|  File "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl8.6.tcl", line 3|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl9.0.tcl
+465e3d1f2a3dbd5c1274647afd5e2e924abf22a0756c241f0fe18379cdf46d96  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl9.0.tcl
+  tclsh8.4 exit=0: Aé|
+  tclsh8.5 exit=0: Aé|
+  tclsh8.6 exit=0: Aé|
+  tclsh9.0 exit=0: Aé|
+  tclsh9.1 exit=0: Aé|
+  jimsh exit=1: /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl9.0.tcl:3: Error: can't read "zzé": no such variable|Traceback (most recent call last):|  File "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl9.0.tcl", line 3|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl9.1.tcl
+465e3d1f2a3dbd5c1274647afd5e2e924abf22a0756c241f0fe18379cdf46d96  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl9.1.tcl
+  tclsh8.4 exit=0: Aé|
+  tclsh8.5 exit=0: Aé|
+  tclsh8.6 exit=0: Aé|
+  tclsh9.0 exit=0: Aé|
+  tclsh9.1 exit=0: Aé|
+  jimsh exit=1: /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl9.1.tcl:3: Error: can't read "zzé": no such variable|Traceback (most recent call last):|  File "/workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_n03_tcl9.1.tcl", line 3|
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/r_noputs_tcl8.4.tcl
+105f1d4610ba5ec81988ea2c41c77b058baa921d2fa9af6ac370c3db14cdbacf  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_noputs_tcl8.4.tcl
+  tclsh8.4 exit=0: 
+  tclsh8.5 exit=0: 
+  tclsh8.6 exit=0: 
+  tclsh9.0 exit=0: 
+  tclsh9.1 exit=0: 
+  jimsh exit=0: 
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/r_noputs_tcl8.5.tcl
+105f1d4610ba5ec81988ea2c41c77b058baa921d2fa9af6ac370c3db14cdbacf  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_noputs_tcl8.5.tcl
+  tclsh8.4 exit=0: 
+  tclsh8.5 exit=0: 
+  tclsh8.6 exit=0: 
+  tclsh9.0 exit=0: 
+  tclsh9.1 exit=0: 
+  jimsh exit=0: 
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/r_noputs_tcl8.6.tcl
+105f1d4610ba5ec81988ea2c41c77b058baa921d2fa9af6ac370c3db14cdbacf  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_noputs_tcl8.6.tcl
+  tclsh8.4 exit=0: 
+  tclsh8.5 exit=0: 
+  tclsh8.6 exit=0: 
+  tclsh9.0 exit=0: 
+  tclsh9.1 exit=0: 
+  jimsh exit=0: 
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/r_noputs_tcl9.0.tcl
+105f1d4610ba5ec81988ea2c41c77b058baa921d2fa9af6ac370c3db14cdbacf  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_noputs_tcl9.0.tcl
+  tclsh8.4 exit=0: 
+  tclsh8.5 exit=0: 
+  tclsh8.6 exit=0: 
+  tclsh9.0 exit=0: 
+  tclsh9.1 exit=0: 
+  jimsh exit=0: 
+
+FILE docs/work/name-handling/reviews/triage-20261022/out/run6/r_noputs_tcl9.1.tcl
+105f1d4610ba5ec81988ea2c41c77b058baa921d2fa9af6ac370c3db14cdbacf  /workspace/tcl-lsp-triage/docs/work/name-handling/reviews/triage-20261022/out/run6/r_noputs_tcl9.1.tcl
+  tclsh8.4 exit=0: 
+  tclsh8.5 exit=0: 
+  tclsh8.6 exit=0: 
+  tclsh9.0 exit=0: 
+  tclsh9.1 exit=0: 
+  jimsh exit=0: 

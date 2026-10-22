@@ -1,0 +1,8 @@
+{
+  "files": 96,
+  "engine_executions": 576,
+  "generated_output_files": 76,
+  "matched_profile_checks": 126,
+  "unexpected_matched_results": [],
+  "note": "All six engines ran every file. Generated edits are judged on their matching profile; C Unicode-prefix edits intentionally differ under Jim lexical rules."
+}
