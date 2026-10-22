@@ -2,7 +2,7 @@
 
 Area: tcl-vm, runtime/rust, tcl-spectcl, tcl-spec-studio: SpecTcl execution and acceptance.
 
-Last updated: 2026-10-22T18:36:27Z (ILX static peer review complete/held; Jim11 approved awaiting root integration; compiler18 then LSP3 then VM11 execution order; no VM Cargo queued)
+Last updated: 2026-10-22T18:53:15Z (C1–C2 off-tree acceptance map complete; root reports Jim11/D4 path applied d666c9b2; compiler18 active, then current LSP3 then VM11; no VM Cargo queued)
 
 Maintained by the vm-runtime agent. It lists what this agent considers it must still complete. Update it whenever an item starts, finishes, changes or becomes blocked, and at least every 30 minutes while working. The coordinator commits and pushes it with each WIP snapshot.
 
@@ -18,8 +18,12 @@ two VM test callback-generality errors. The production callback correction
 `a2330cb9` had cleared those production errors; the analogous test-only
 `8f0c5107` correction is applied for R3. Callback bodies, currentness checks,
 mutation/reference-count assertions and TLS retirement guards are unchanged.
-The checks role owns R3 seven-crate `--all-targets`; no completed R3 result is
-claimed. Canonical Rust/tests remain frozen; docs are explicitly clear.
+Root reports Jim11, the explicit D4 child-module path, server lint and three R3
+fixes integrated in `d666c9b2a7142a0f1e5940e81681efef769d7fe2`. The D4
+E0583 module registration error has a root-applied source correction; no test
+pass is inferred. Current compiler18 guarded execution has GO, followed by
+current LSP3 then VM11 then CCG N17. Canonical Rust/tests remain frozen; docs
+are explicitly clear. No fresh completed seven-crate/type-gate claim is made here.
 
 No VM-runtime Cargo process has entered or queued. After type clearance, root
 orders original compiler18 selectors, then short original LSP3 guarded-loss
@@ -35,6 +39,37 @@ zero warnings and cap/truncation fail-closed checks are required. General VM
 parity and unfiltered library/e2e runs remain parked. LSP confirms no duplicate
 watchdog/TLS/EDA/spec-pack selector queued.
 
+C.1–C.2 acceptance mapping is prepared off-tree at
+`/tmp/vm-runtime-c1-c2-acceptance-map.json` with exact source rosters/hashes and
+build/run templates for 25 additional target groups. This is scheduling and
+coverage analysis, not execution or new authorized jobs. The ready11 jobs cover
+32 after8b surface cases, Jim34, TLS2 and three exact server selectors (71 total
+expected tests after applied Jim controls). They do not close the mandatory
+five-target compatibility gate, all17 UPF executable slots, Jim10 final protocol,
+remaining30 parent SpecTcl protocol cases, hook-worker generation controls,
+trust/roster/environment reload checks, studio round trips or host delivery.
+
+CCG reserves its exact51 selected cases: registry ASCII3, variable-reference
+boundaries4 (including exact N17 good/braced controls), pack_source original6
+plus ASCII4, const_fold6 and codegen_stamps28 of29 (one heavy case excluded).
+VM will not duplicate those five target groups. The independent compiler
+`compile_service::tests::a_variable_reference_ends_where_the_release_scanner_ends_it`
+is not in compiler18 or CCG51; root must schedule or reconcile it separately.
+Remaining mandatory compatibility members are eval_loader28, golden_packs3,
+spec_corpus5 and exact9.0 parse-only1; CCG owns pack_source10. Split plans alone
+are not a successful `make test-spectcl-compat` result.
+
+UPF `upf_hooks` has two tests exercising all16 optionarity bodies plus the one
+argument-role body with expected answers; it is outside ready11 and unrun here.
+Native/embedded and MemoryStore delivery controls are mapped separately from
+actual browser/WASI transport, which remains root D6. D4 publication receipts
+and warm/fresh first answers do not establish future transport silence; the
+controlled backend stale-worker proof remains a complementary generic-server
+check. Cold/warm/first-worker/reload-memory measurements remain performance-role
+and root release evidence. Old Rust successes/failures and finite native/Jim
+manual oracle receipts are explicitly separate, with the Tcl8.4 NUL failure
+preserved. No coverage closure, budget increase or general VM parity is claimed.
+
 Trusted Jim proc attachment has compiler static approval, including exact
 trusted compiled-in boundary, selected row and pointer/generation idempotence.
 Direct helper negatives preserve ordinary non-CoreJim and existing-explicit
@@ -45,14 +80,15 @@ The four Jim class-list failures have a concrete static source boundary:
 `source_class_declaration_attempt` admits `command_installation` (Snit/Itcl) or
 TclOO, excluding JimClass. `OriginalClassDefinerSource` also requires all-static
 arguments and cannot carry computed bases/dictionaries. The separate complete
-source-only candidate is statically approved and held off-tree for root integration:
+source-only candidate is statically approved and root reports it applied in
+`d666c9b2`; retained off-tree exact patch:
 `/tmp/vm-runtime-jim-class-shadow/whole/jim-class-whole.patch`, SHA-256
 `9c97198bc9297b4eee9cea8af768a53732d456d37f1ba7202aeb6955d8926759`
 (eleven paths). Names statically approved the prior policy/rename/replacement
 boundary; compiler final static approval covers the exact current eleven-path
-SHA, including independent body catalogue/effects separation. Root will apply
-after the current C6 build/source guard closes. The candidate has not compiled
-or run.
+SHA, including independent body catalogue/effects separation. Current source
+contains all original26 plus eight added controls, static roster34. No VM-owned
+compile/run has executed; the original26 outcomes remain separately required.
 
 Distinct source purposes retain actual authored Jim0.84 recipe versus a
 positively retained older Logical full input/context/config. Original lists

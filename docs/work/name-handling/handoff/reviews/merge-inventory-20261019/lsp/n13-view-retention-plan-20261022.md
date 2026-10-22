@@ -37,9 +37,11 @@ These are proposed signatures, not callable APIs yet. The opaque receipt retains
 actual parent analysis attachment plus exact original pre-handler snapshot,
 image, full input/configuration, source invocation and frame. Its private issued
 token is usable for Eq/Hash/Ord only after full-owner matching. The child has a
-source-only `InheritedPoint` origin with a strong sealed parent receipt and exact
-child image. `SourceAnalysisEntry`/options and every child CU retain that SAME
-receipt. A stale/ambiguous/incomplete issuer or incompatible child input refuses.
+source-only `InheritedPoint` origin with an immutable privately issued token and
+exact child image. The full strong receipt remains in the actual child
+`SourceAnalysisEntry`/options, retained analysis and every child CU. The token
+alone grants neither entry reconstruction nor currentness; escaped identities
+must rejoin the same retained view/full receipt or refuse. A stale/ambiguous/incomplete issuer or incompatible child input refuses.
 There is no standalone retry.
 
 A current-interpreter load whose issuer returns None remains an explicit
@@ -349,3 +351,45 @@ authorised for canonical application. The protocol draft's helper names and
 ranges are checked statically against the manual-oracled fixture. Its first old
 handle request has no arbitrary-error escape: only the existing empty/null
 unavailable protocol result is accepted.
+
+## Compiler stage2 review (off-tree only)
+
+Compiler-names now derives the inherited source graph from the actual parent's
+source-transition tape at the same selected post-argv/pre-handler point. Path,
+imports and producer cells stay attached to that parent state. Its source-only
+origin contains the immutable issued token; no interior graph memo participates
+in map keys. The full entry remains in child options/analysis/CU. Key exhaustion
+now returns unavailable, following review of the earlier panic branch. This is
+agent-reported moving-shadow implementation, not a compiled or integrated API.
+
+A second necessary consumer is proposed as
+`OriginalSourceProcedureCall::declaration_in_parent(child_analysis, parent_analysis)`.
+Existing `declaration(analysis)` rejoins the call owner and then searches that
+analysis's headers; inherited parent helper headers are absent from child
+metadata. The new getter must first validate this call's child attachment, child
+image/full input, same retained full source entry/origin token and actual direct
+or transitive ancestor analysis owner. Only then may the existing typed header
+match return the parent's declaration. It cannot inspect host retirement; the
+host first validates the entire saved physical/publication chain and supplies
+that exact live parent analysis. A saved retired A Arc is not eligible merely
+because the compiler getter still recognizes its original producer.
+
+The corresponding host flow is concrete:
+
+1. A child consuming call is selected from one actual retained child view.
+2. The same frozen inventory supplies its recorded strong ancestor views and
+   current physical leases, rather than searching by URI or reporting name.
+3. Each eligible exact ancestor is passed through the compiler getter. Zero
+   matches means unavailable; more than one distinct declaration remains
+   ambiguous. Equal-byte independent parent B cannot substitute for retired A.
+4. A returned header is paired with that same ancestor view coordinate and
+   physical URI for lifting. The wire handle retains the saved view publication
+   stamp and existing genuine declaration identity.
+5. Resolution rejoins the saved current table entry and all ancestor leases
+   before obtaining the original analysis/header; a stale saved stamp is a
+   terminal refusal, including after equal-byte restoration under A3.
+
+This supplements the publication/view table design above. It does not make
+`OriginalClassInventory` URI deduplication, first-URI call-item lifting or
+`references::invocation_calls_named` reporting-name fallback valid for inherited
+views. Their view-aware routes remain required host/Core implementation work.

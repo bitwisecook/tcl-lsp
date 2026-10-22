@@ -200,3 +200,6 @@ Only the exact non-strict compile-known ASCII `string is` branch is now required
 ## Gates
 
 (filled at hand-back)
+
+
+Post-batch status (2026-10-22T18:52Z): parent integrated the mutually approved Server production/test loans, external five F5 hunks, Jim11 and three R3 type fixes in d666c9b2a7142a0f1e5940e81681efef769d7fe2; see coordinator-20261022/source-batch-20261022T1850Z. Static review is distinct from successful typing/Clippy/runtime acceptance. The exact five-target N17/codegen plan selects51 tests (registry3, boundaries4, actual pack_source10, const_fold6, codegen28 excluding one heavy matrix), SHA406063b58edf7ab331d69dcfb801832e36dd36fffa0324b6e1df8ebd4efca731. It is prepared, not queued, after compiler18/LSP3/VM slots; existing full-source/provider/artifact guards and disk/log/lock rules remain. Exact N17 wrong-registration/live-hook selectors are the boundary target, not generic eval_loader or pack_source coverage. Six helper-migrated codegen cases and22 other selected cases remain separate; no23-old-failure fix claim or speculative derived SCCP patch before the post-batch run.

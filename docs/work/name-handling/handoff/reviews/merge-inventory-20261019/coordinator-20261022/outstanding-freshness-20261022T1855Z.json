@@ -1,0 +1,68 @@
+{
+  "utc": "2026-10-22T18:56:21.502238+00:00",
+  "records": [
+    {
+      "role": "bigip-lsp",
+      "utc": "2026-10-22T18:08:00+00:00",
+      "age_minutes": 48.36,
+      "stale_over60": false,
+      "source": "publisher1a3689d7"
+    },
+    {
+      "role": "compiler-codegen",
+      "utc": "2026-10-22T18:53:00+00:00",
+      "age_minutes": 3.36,
+      "stale_over60": false,
+      "source": "active working tree"
+    },
+    {
+      "role": "compiler-names",
+      "utc": "2026-10-22T18:51:45+00:00",
+      "age_minutes": 4.61,
+      "stale_over60": false,
+      "source": "active working tree"
+    },
+    {
+      "role": "compiler",
+      "utc": "2026-10-22T18:54:57+00:00",
+      "age_minutes": 1.41,
+      "stale_over60": false,
+      "source": "active working tree"
+    },
+    {
+      "role": "coordinator",
+      "utc": "2026-10-22T18:51:04.291749+00:00",
+      "age_minutes": 5.29,
+      "stale_over60": false,
+      "source": "active working tree"
+    },
+    {
+      "role": "lsp",
+      "utc": "2026-10-22T18:52:46+00:00",
+      "age_minutes": 3.59,
+      "stale_over60": false,
+      "source": "active working tree"
+    },
+    {
+      "role": "perf",
+      "utc": "2026-10-22T18:30:00+00:00",
+      "age_minutes": 26.36,
+      "stale_over60": false,
+      "source": "publisher1a3689d7"
+    },
+    {
+      "role": "review-triage",
+      "utc": "2026-10-22T18:28:30+00:00",
+      "age_minutes": 27.86,
+      "stale_over60": false,
+      "source": "publisher1a3689d7"
+    },
+    {
+      "role": "vm-runtime",
+      "utc": "2026-10-22T18:53:15+00:00",
+      "age_minutes": 3.11,
+      "stale_over60": false,
+      "source": "active working tree"
+    }
+  ]
+}

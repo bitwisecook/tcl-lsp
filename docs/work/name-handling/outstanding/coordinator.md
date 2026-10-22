@@ -2,7 +2,7 @@
 
 Area: routing, snapshots, status documents, release gate.
 
-Last updated: 2026-10-22T18:51:04.291749+00:00
+Last updated: 2026-10-22T18:56:22.656871+00:00
 
 ## In progress
 
@@ -143,3 +143,18 @@ Last updated: 2026-10-22T18:51:04.291749+00:00
 - Externalfilesfresh18:08/18:04/18:02. BIGIPunblockedworkdone;228genericserverlintmessagesroutedLSP+testloanCCG. PerfrawobjectreportdifferencebothsourceNone/all-old routednameswithoutEqmasking;provenrealmpatchstillwithheld.
 - Reviewtriagepost-R1run14ordinaryputscompletedworldstrue,coverage/importsstillrefuse;198engineexecutions/12matchedgeneratededitscorrecton49b067ce. Finalallfinding/e2e/sourceauditstillactive.
 - Exactoriginrustbaseline24312namedpassesretainedwithcanonicalbinaryID/skipinventorylimits; gatemapupdatedtocompleted5203andcurrentlockstaticremedies. Freshshippinggates/hosts/performance/completezeroP2Fstillrequired.
+
+### Current cycle and routing (18:55 UTC)
+
+- Clean LSP merge/release readiness from rust remains the primary goal. General VM parity stays deferred. All section F boxes, validated product rows and audit admission counts remain unchanged; no PR, merge, tag or release.
+- R3 selected seven-crate all-targets check completed18:45:21, exit101 with three errors and zero warnings. All6,522 Rust/C/Cargo hashes and Tcl/Jim hashes were unchanged; the HEAD/index checkpoint is explicitly distinguished from source-byte changes.
+- The three errors were D4 module registration, a test calling a private join, and a Logical-role test using an obsolete wrapper accessor. Narrow fixes retain assertions; the join control moved to its owning module and added a valid-before positive precondition.
+- Checkpointed all active work, then rebased onto published e753. Git skipped three equivalent prior checkpoints; committed product equality with the publisher was verified before applying candidates. The preflight merge-tree docs conflicts caused no worktree mutation and the actual rebase completed cleanly.
+- Applied the reviewed Jim11, mutually approved server production/test lint changes, and three compile-time test/wiring corrections across23 files. Copied alternate application orders and actual applied hashes agree; all23 syntax parses pass. Commit d666 records the batch, without type/lint/runtime acceptance.
+- Compiler now owns the first complete functional slot:18 original C6/g4/ZZ/eight filter groups, followed by one separate scanner regression, with frozen source and source/provider/artifact/disk/log guards. CURRENT three LSP guarded-loss selectors run next; no competing Cargo is queued.
+- The DB selector already has its narrow installed-procedure owner correction under user decision2026-10-19T14:20Z. Its None-versus-selected worker memo assertion suffix is byte-identical to the historical function; the old Native-map assertion is not claimed unchanged.
+- Mutual server lint review retained all original expressions, source/currentness checks, full payload equality and cancellation behavior. Seventeen residual test structural sites remain off-tree and under independent review; no new lint allowances were added.
+- VM71 and codegen51 expected-test plans are disjoint and unrun. The additional C1–C2 map keeps UPF17 hooks, compatibility, Jim protocol, reload/generation, studio/delivery and actual browser/WASI gaps explicit; no manual/source roster is called acceptance.
+- ILX draft remains held because real commands have unknown undeclared effects; no quietness, completion or remote-handle identity grant was invented. N13 inherited parent/schema/entry and host publication transport remain incomplete off-tree.
+- Baseline CI5203 retains24,312 named passes on exact rust fcb7927. The helper is auditing whether exact nextest log prefixes already encode canonical unit binary IDs; no limitation or identity field changes until evidence is reviewed. Shipping full gates, hosts, performance and zero pass-to-fail remain open.
+- Latest external depth-one fetch/FF reached1a3689d7: perf18:30 and triage18:28:30 are fresh; BIG-IP final18:08 remains under60minutes. Run15 independently reproduces earlier compiler/VM integration errors on be53, not current d666. The fixes already passed the corresponding later R3 paths; no extra product repair is inferred.

@@ -1,0 +1,224 @@
+{
+  "utc": "2026-10-22T18:39:00.080863+00:00",
+  "reviewer": "compiler-codegen",
+  "patch": "/tmp/lsp-server-production-lints.patch",
+  "patch_sha256": "65636592464b5fc921cd349190ff1a0d23ebe68c233a2a9bf0b5c93ba9407340",
+  "status": "Independent static review; no Cargo/typecheck/Clippy/runtime acceptance",
+  "copied_fuzz0_apply": {
+    "exit": 0,
+    "stdout": "patching file rust/tcl-lsp-server/src/lib.rs\npatching file rust/tcl-lsp-server/src/readonly_reference_reports.rs\n",
+    "stderr": ""
+  },
+  "copied_proposed_hashes_match_owner_receipt": true,
+  "canonical_before_hashes_still_match": [
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "equal": true
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "equal": true
+    }
+  ],
+  "future_sites": [
+    {
+      "function": "commit_open_document",
+      "original_line": 12526,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.commit_open_document_with_seed(\n            uri,\n            text,\n            dialect,\n            version,\n            self.fresh_analysis_seed(uri, Arc::from(text), dialect.to_owned()),\n        ))"
+    },
+    {
+      "function": "compute_definition",
+      "original_line": 16643,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.logical_namespace_locations_for_snapshot(\n                    (uri.clone(), doc.clone(), source_generation),\n                    &analysis,\n                    pos,\n                    source_epoch,\n                    LogicalNamespaceLocationsPurpose::Definitions,\n                ))"
+    },
+    {
+      "function": "compute_definition",
+      "original_line": 16665,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.original_method_locations_for_snapshot(\n                (uri.clone(), doc.clone(), source_generation),\n                &analysis,\n                pos,\n                source_epoch,\n            ))"
+    },
+    {
+      "function": "compute_definition",
+      "original_line": 16741,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.logical_class_member_locations_for_snapshot(\n            (uri.clone(), doc.clone(), source_generation),\n            &analysis,\n            pos,\n            source_epoch,\n        ))"
+    },
+    {
+      "function": "logical_class_member_locations_for_snapshot",
+      "original_line": 18904,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.logical_member_source_targets_for_snapshot(&caller, analysis, position))"
+    },
+    {
+      "function": "logical_member_source_hover",
+      "original_line": 18929,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.logical_member_source_targets_for_snapshot(&caller, analysis, position))"
+    },
+    {
+      "function": "reference_locations",
+      "original_line": 19845,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.readonly_original_method_reference_locations_at(\n                uri,\n                &doc.text,\n                analysis,\n                position,\n                include_declaration,\n            ))"
+    },
+    {
+      "function": "cross_file_method_hover",
+      "original_line": 21655,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.logical_member_source_hover(uri, doc, analysis, pos))"
+    },
+    {
+      "function": "did_open",
+      "original_line": 30916,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.commit_open_document(&uri, &text, &dialect_for_diags, version))"
+    },
+    {
+      "function": "goto_definition",
+      "original_line": 32021,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.compute_definition(&uri, pos))"
+    },
+    {
+      "function": "goto_declaration",
+      "original_line": 32080,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.compute_definition(&uri, pos))"
+    },
+    {
+      "function": "references",
+      "original_line": 32376,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.logical_namespace_locations_for_snapshot(\n                (uri.clone(), doc.clone(), source_generation),\n                &analysis,\n                pos,\n                source_epoch,\n                LogicalNamespaceLocationsPurpose::References {\n                    include_declaration: include_decl,\n                },\n            ))"
+    },
+    {
+      "function": "references",
+      "original_line": 32403,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.reference_locations(&uri, &doc, &analysis, pos, include_decl))"
+    },
+    {
+      "function": "hover",
+      "original_line": 34800,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.original_method_hover_for_snapshot(\n                (uri.clone(), doc.clone(), source_generation),\n                &analysis,\n                pos,\n                source_epoch,\n            ))"
+    },
+    {
+      "function": "hover",
+      "original_line": 34863,
+      "exact_expression_tokens_preserved": true,
+      "once_evaluation": true,
+      "same_await_result_control_flow": true,
+      "new_awaited_expression": "Box::pin(self.cross_file_method_hover(&uri, &doc, &analysis, pos))"
+    }
+  ],
+  "future_whole_body_reverse_checks": [
+    {
+      "function": "commit_open_document",
+      "whole_body_after_removing_only_exact_pin_wrappers_equals_original_tokens": true
+    },
+    {
+      "function": "compute_definition",
+      "whole_body_after_removing_only_exact_pin_wrappers_equals_original_tokens": true
+    },
+    {
+      "function": "cross_file_method_hover",
+      "whole_body_after_removing_only_exact_pin_wrappers_equals_original_tokens": true
+    },
+    {
+      "function": "did_open",
+      "whole_body_after_removing_only_exact_pin_wrappers_equals_original_tokens": true
+    },
+    {
+      "function": "goto_declaration",
+      "whole_body_after_removing_only_exact_pin_wrappers_equals_original_tokens": true
+    },
+    {
+      "function": "goto_definition",
+      "whole_body_after_removing_only_exact_pin_wrappers_equals_original_tokens": true
+    },
+    {
+      "function": "hover",
+      "whole_body_after_removing_only_exact_pin_wrappers_equals_original_tokens": true
+    },
+    {
+      "function": "logical_class_member_locations_for_snapshot",
+      "whole_body_after_removing_only_exact_pin_wrappers_equals_original_tokens": true
+    },
+    {
+      "function": "logical_member_source_hover",
+      "whole_body_after_removing_only_exact_pin_wrappers_equals_original_tokens": true
+    },
+    {
+      "function": "reference_locations",
+      "whole_body_after_removing_only_exact_pin_wrappers_equals_original_tokens": true
+    },
+    {
+      "function": "references",
+      "whole_body_after_removing_only_exact_pin_wrappers_equals_original_tokens": true
+    }
+  ],
+  "future_cancellation_review": "Pin<Box<F>> is immediately awaited in the original branch and forwards F::Output. Same original future/arguments/borrowed owners once; no added spawn/detach/retry/await/scope. Cancelling the outer future still drops that same inner future and held receipts/guards. Only allocation/storage changes.",
+  "structural_review": [
+    {
+      "scope": "DiskPublicationInputs/LiveSourceContents/WorkspaceRenameCaller/PackReloadSourceViews",
+      "finding": "Field-for-argument order retained; same borrowed owners/options/positions. Destructured before unchanged validations. Guards remain separately passed/held; source-input guard renamed but dropped at the same explicit location."
+    },
+    {
+      "scope": "ScanAnalysisInputs",
+      "finding": "Same five owned inputs moved, in the same order, then destructured at function entry; same captured epochs/factory/dialect inputs reach workers/publication. Two test caller updates adapt only argument shape."
+    },
+    {
+      "scope": "DiskScanOutcome::Available",
+      "finding": "Same complete ScannedDocument boxed/unboxed, including path admission/FreshAnalysisSeed and expected epoch/factory. Absent and Unavailable alternatives preserved. All consuming paths checked."
+    },
+    {
+      "scope": "RehomingDocumentSnapshot::Ready",
+      "finding": "Only DocumentState storage boxed; revision remains separate, Pending/Missing distinct. Reader uses the same document text/dialect/seed and live revision for final publication currentness."
+    },
+    {
+      "scope": "LogicalMemberSourceCaller",
+      "finding": "Command/Member remain distinct typed receipts; Box<Receipt>::clone preserves complete receipt contents. Final ReadonlyDeclarationLocation receives the same typed boxed receipt; source/owner/currentness checks are unchanged."
+    },
+    {
+      "scope": "aliases and read-only borrows",
+      "finding": "Exact tuple/reference aliases retain result/error/source-owner types; Uri rendering and payload address-key lookup unchanged. No derived Eq implementation removed, no field-to-name/partial-equality shortcut introduced."
+    },
+    {
+      "scope": "shutdown",
+      "finding": "Equivalent async fn body, same close/reload/withdrawal-complete check, error and await order; no new work or alternate completion path."
+    }
+  ],
+  "findings": [],
+  "limits": "Static equivalence only. Fresh combined-source typing, strict Clippy and existing source/provider/currentness/guarded regressions remain required."
+}
