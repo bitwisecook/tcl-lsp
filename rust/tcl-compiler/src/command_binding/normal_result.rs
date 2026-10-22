@@ -603,6 +603,11 @@ mod tests {
                 &segment,
             );
             bindings.stamp_original_tokens(&mut tokens);
+            crate::command_binding::trace_original_g4_owner(
+                "scoped-procedure-equivalence",
+                &bindings,
+                &tokens,
+            );
             tokens
         };
         let positive = make("proc answer {} {return 42}; proc f {} {return [answer]}");

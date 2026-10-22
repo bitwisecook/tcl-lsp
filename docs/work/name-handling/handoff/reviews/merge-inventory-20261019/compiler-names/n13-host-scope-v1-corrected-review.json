@@ -1,0 +1,30 @@
+{
+  "utc": "2026-10-22T23:03:07.114504+00:00",
+  "status": "Bounded STATIC producer/consumer selection review; no whole N13/type/runtime/release approval",
+  "scope_delta_sha256": "b922071e54119ab6d6bcc306525aadb5ea1d7a2db1ad1ddd5b9b790f33a0c19b",
+  "corrective_delta_sha256": "c8c3aefd4ed00c113d1e062e1d53d39a338e73e59834942b2045e65a39c8b1f9",
+  "full_host_v9_sha256": "7126d40413445b1509e95d075faff4a33f4ca4a5c33aff1a8be9374ebda75d25",
+  "findings": [
+    {
+      "id": "unmaterialized-potential-target-as-completed-parent",
+      "status": "Closed statically by c8c3 correction; runtime control unrun",
+      "original": "b922 completed association target URI despite no materialized interpretation; nested potential D->A->B could lift B fresh.",
+      "correction": "Whole exact association edge retained; every association to candidate parent must be genuine CurrentCut with matching materialized inherited producer and complete/current scope membership; potential/Unknown/stale/unmaterialized prevents coverage."
+    }
+  ],
+  "examined_conclusions": [
+    "Separate root scopes retain complete/Pending state and actual required URI membership; local projection requires all scopes needing URI complete; aggregate requires every scope complete and no conditional association obligations.",
+    "Rootless/cyclic exclusions retain Pending; unrelated completed root cannot select cycle entry.",
+    "Initial root private candidates rejoin actual physical/config/input/provider and final table revision before source settlement.",
+    "Actual source association retires standalone root publication and actual descendants atomically with row removal, keeping separate interpreted sibling IDs.",
+    "Exact table revision pins selected provider inventory across worker and render; final physical/producer/ancestry/index lease still required.",
+    "Raw producer continuation capture uses exact dependency ID scopes, separate from provider settlement.",
+    "e696 removes old association only by exact owner/producer/whole edge match to already-positive replay and actual successor; successful Unknown reissued debt remains, missing mapping preserves it; actual visited URIs remain required."
+  ],
+  "remaining": [
+    "Actual coupled typecheck and native local-vs-aggregate, nested-potential, root-discovery and retirement protocols unrun.",
+    "Current kernel source-point/namespace ingress failures remain real producer blockers.",
+    "Composed incoming global path continuity and region-owned path inventory unresolved."
+  ],
+  "replay_withdrawal_delta_sha256": "e696718a61542bca53256c345c7b3e5e7beee349036f33643db1f10fe6bb6741"
+}

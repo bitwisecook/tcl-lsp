@@ -14,7 +14,11 @@ pub fn current_analysis(
     source: &str,
     analysis: &AnalysisResult,
 ) -> Option<(SourceImage, LexerConfig)> {
-    if analysis.original_source_region.is_some() {
+    if analysis.original_source_region.is_some()
+        || analysis
+            .retained_command_realm()
+            .is_some_and(|realm| realm.source_bindings_ref().has_conditional_source_region())
+    {
         return None;
     }
     let image = SourceImage::document(source);

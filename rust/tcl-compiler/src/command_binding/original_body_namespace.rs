@@ -448,10 +448,21 @@ mod tests {
                     "{environment}: {parent:?}"
                 );
                 assert!(binding.native_structured_preparation.is_none());
+                // The readonly namespace query also retains conditional body
+                // syntax; it does not assert that the body entered. Pin that
+                // distinction against the exact actual-entry query.
+                assert_eq!(
+                    fixture.bindings.executed_script_namespace_context(&body),
+                    Some(expected.clone())
+                );
+                let site = binding.invocation_site().unwrap();
+                // Entered-script keys use post-head argument ordinals, while
+                // body_at above consumes the whole written word ordinal.
+                assert_eq!(fixture.bindings.executed_script_at(site, 1), Some(&body));
                 assert!(
                     fixture
                         .bindings
-                        .executed_script_namespace_context(&body)
+                        .executed_script_entry_namespace_context_at(site, 1, &body)
                         .is_none()
                 );
                 assert!(

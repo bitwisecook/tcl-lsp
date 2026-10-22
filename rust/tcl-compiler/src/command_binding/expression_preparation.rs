@@ -2042,6 +2042,11 @@ mod tests {
                     &command,
                 );
                 bindings.stamp_original_tokens(&mut tokens);
+                crate::command_binding::trace_original_g4_owner(
+                    "scoped-nested",
+                    &bindings,
+                    &tokens,
+                );
                 let binding = tokens.source_binding.as_ref().unwrap();
                 assert!(binding.proved_execution_target().is_none());
                 assert_eq!(
@@ -2110,6 +2115,11 @@ mod tests {
                     &command,
                 );
                 bindings.stamp_original_tokens(&mut tokens);
+                crate::command_binding::trace_original_g4_owner(
+                    "selected-nested",
+                    &bindings,
+                    &tokens,
+                );
                 let binding = tokens.source_binding.as_ref().unwrap();
                 assert!(binding.proved_execution_target().is_none());
                 assert_eq!(

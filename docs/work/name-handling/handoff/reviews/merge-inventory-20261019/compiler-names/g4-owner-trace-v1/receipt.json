@@ -34,5 +34,7 @@
       "after_sha256": "1ffb4b05452dc7ebf9e9078442bacaf471b165983fd5df63d6b7ed5be025cfdd"
     }
   ],
-  "plan": "Run exact six original selectors through Cargo under whole source/provider/artifact guards; no new selectors, no normal/phase/frame assertion edits. Temporary helper prints bounded booleans/typed selection tags/target presentation only, max8 direct visits each. Reached/words/policy alone never asserted actual visit proof. Remove temporary diagnostics after attribution."
+  "plan": "Run exact six original selectors through Cargo under whole source/provider/artifact guards; no new selectors, no normal/phase/frame assertion edits. Temporary helper prints bounded booleans/typed selection tags/target presentation only, max8 direct visits each. Reached/words/policy alone never asserted actual visit proof. Remove temporary diagnostics after attribution.",
+  "agent_reported_peer_review": "Compiler bounded static review clear; no type/runtime admission.",
+  "interpretation_limit": "Printed visits and ordinal rows are DIRECT compiler_invocations.get(site) only. Zero is not proof of no child compiler visits. Reached/original words/policy alone are not actual compiler visit evidence."
 }

@@ -4,6 +4,12 @@
 
 //! Conditional current-interpreter source paths from actual original schemas.
 
+mod frontier;
+pub use frontier::{
+    OriginalProjectSourceAssociation, OriginalProjectSourceCurrentCut,
+    OriginalProjectSourceFrontier,
+};
+
 use super::{OriginalRegistryWords, source_registry_words_at};
 use crate::analyser::{AnalysisResult, ResolvedAnalysisInput};
 

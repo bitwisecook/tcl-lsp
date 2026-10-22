@@ -867,21 +867,3 @@ mod original_captured_call_controls {
         assert!(source_original_procedure_call_at(source, &analysis, offset).is_none());
     }
 }
-
-#[cfg(test)]
-impl OriginalSourceProcedureCall {
-    pub(crate) fn trace_report_owner_pair(&self, other: &Self) {
-        eprintln!(
-            "REPORT_SUBJECT_USER issuer=NativeSource original_equal={} procedure_equal={} prefix_equal={} caller_equal={} uncertainty_equal={} future_equal={} input_equal={} analysis_owner_equal={} inherited_entry_equal={}",
-            self.original == other.original,
-            self.procedure == other.procedure,
-            self.prefix == other.prefix,
-            self.caller == other.caller,
-            self.uncertain_operations == other.uncertain_operations,
-            self.future_body == other.future_body,
-            self.input == other.input,
-            self.analysis_owner == other.analysis_owner,
-            self.inherited_entry == other.inherited_entry
-        );
-    }
-}

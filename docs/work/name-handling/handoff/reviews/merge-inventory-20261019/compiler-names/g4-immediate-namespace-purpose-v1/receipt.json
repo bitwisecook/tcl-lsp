@@ -1,6 +1,6 @@
 {
   "utc": "2026-10-22T22:52:05.143632+00:00",
-  "status": "OFF-TREE narrow test-purpose correction, independent exact diff review pending; untyped/unrun",
+  "status": "WITHDRAWN: whole-word2 incorrectly used as post-head body argument; vacuous negative, MUST NOT APPLY",
   "sha256": "1e73a21a45b25002ae9197dfb312ed61fe29317a83c9e20adf53de79cb57fa99",
   "paths": [
     {
@@ -11,5 +11,6 @@
   ],
   "selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
   "basis": "Existing origin_inventory::record_conditional_in_frame_script stores frame=None plus conditional_namespace; broad namespace getter explicitly retains that conditional syntax. Exact entry namespace accessor requires unanimous actual Some(frame). Not an after-load/13:17 correction or new Native authority.",
-  "preserved": "native_structured None, compiled_script_namespace None, all original IR/source/frame/synthetic/foreign/config negatives and selector; add precise actual entry None while asserting conditional namespace equals actual expected."
+  "preserved": "native_structured None, compiled_script_namespace None, all original IR/source/frame/synthetic/foreign/config negatives and selector; add precise actual entry None while asserting conditional namespace equals actual expected.",
+  "agent_reported_peer_review": "Prior compiler review withdrawn after geometry mistake identified; corrected nonvacuous successor63fafe31 pending renewed review."
 }

@@ -531,3 +531,139 @@ mod continuation_controls {
         }
     }
 }
+
+/// An actual finite kernel plan at its still-current original source point.
+#[derive(Clone)]
+pub(crate) struct OriginalSourceFiniteCut {
+    point: super::OriginalSourcePointEntry,
+    plan: Arc<SourceConditionalPlan>,
+}
+impl std::fmt::Debug for OriginalSourceFiniteCut {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("OriginalSourceFiniteCut")
+            .field("point", &self.point)
+            .finish_non_exhaustive()
+    }
+}
+impl PartialEq for OriginalSourceFiniteCut {
+    fn eq(&self, other: &Self) -> bool {
+        self.point == other.point && Arc::ptr_eq(&self.plan, &other.plan)
+    }
+}
+impl Eq for OriginalSourceFiniteCut {}
+impl OriginalSourceFiniteCut {
+    pub(crate) fn point(&self) -> &super::OriginalSourcePointEntry {
+        &self.point
+    }
+    pub(crate) fn matches_parent_analysis(&self, parent: &crate::analyser::AnalysisResult) -> bool {
+        self.point.matches_parent_analysis(parent)
+            && parent.retained_command_realm().is_some_and(|realm| {
+                realm
+                    .source_bindings_ref()
+                    .source_frontier_parent_view_matches(parent)
+                    && realm
+                        .source_bindings_ref()
+                        .conditional_source
+                        .plans
+                        .get(self.point.allocation_site())
+                        .and_then(Option::as_ref)
+                        .is_some_and(|plan| Arc::ptr_eq(plan, &self.plan))
+            })
+    }
+}
+impl super::SourceCommandBindings {
+    /// A missing result marker cannot convert a retained partial entry to a
+    /// whole-file analysis. Full inherited children have no region payload.
+    pub(crate) fn has_conditional_source_region(&self) -> bool {
+        self.original_inherited_source_entry()
+            .is_some_and(|entry| entry.conditional_region().is_some())
+    }
+
+    pub(crate) fn source_frontier_parent_view_matches(
+        &self,
+        parent: &crate::analyser::AnalysisResult,
+    ) -> bool {
+        let partial = self.has_conditional_source_region();
+        match parent.original_source_region.as_ref() {
+            Some(region) => partial && region.matches_region_analysis(parent),
+            None => !partial,
+        }
+    }
+
+    pub(crate) fn original_source_finite_cut(
+        &self,
+        point: super::OriginalSourcePointEntry,
+        parent: &crate::analyser::AnalysisResult,
+    ) -> Option<OriginalSourceFiniteCut> {
+        point.matches_parent_analysis(parent).then_some(())?;
+        point.source_file_dialect()?.source_file_grammar()?;
+        let plan = self
+            .conditional_source
+            .plans
+            .get(point.allocation_site())?
+            .as_ref()?;
+        (!plan.frames.is_empty()).then_some(())?;
+        let cut = OriginalSourceFiniteCut {
+            point,
+            plan: Arc::clone(plan),
+        };
+        cut.matches_parent_analysis(parent).then_some(cut)
+    }
+
+    pub(crate) fn source_association_has_conflicting_entry(
+        &self,
+        parent: &super::CommandAllocationSite,
+        argument: usize,
+        body: &crate::registry_invocation::OriginalSourceScriptBody,
+    ) -> bool {
+        let content = body.content_span();
+        let bytes = parent.source.source_image().bytes().get(content.as_range());
+        self.entered_scripts
+            .get(parent)
+            .and_then(|arguments| arguments.get(&argument))
+            .is_some_and(|observations| {
+                observations.iter().any(|observation| {
+                    observation.frame.is_some()
+                        || &observation.source.origin != &parent.source
+                        || observation.source.base() != content.start()
+                        || bytes != Some(observation.source.text.bytes())
+                })
+            })
+    }
+}
+
+#[cfg(test)]
+mod finite_cut_controls {
+    #[test]
+    fn a_genuine_point_cannot_replace_a_withdrawn_finite_plan() {
+        let source = "source child.tcl";
+        let parent = crate::analyser::Analyser::new().analyse(source, "tcl8.6");
+        let load = crate::registry_invocation::source_structure::original_project_source_load_at(
+            source, &parent, 0,
+        )
+        .unwrap();
+        let point = load.source_point_entry(&parent).unwrap();
+        let bindings = parent
+            .retained_command_realm()
+            .unwrap()
+            .source_bindings_ref();
+        let cut = bindings
+            .original_source_finite_cut(point.clone(), &parent)
+            .unwrap();
+        assert!(cut.matches_parent_analysis(&parent));
+        let mut withdrawn = bindings.clone();
+        assert!(
+            withdrawn
+                .conditional_source
+                .plans
+                .remove(point.allocation_site())
+                .is_some()
+        );
+        assert!(point.matches_parent_analysis(&parent));
+        assert!(
+            withdrawn
+                .original_source_finite_cut(point, &parent)
+                .is_none()
+        );
+    }
+}

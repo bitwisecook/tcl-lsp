@@ -281,7 +281,19 @@ impl OriginalSourcePointEntry {
         {
             return None;
         }
-        self.source_advice_graph(input.borrowed_context_registry())?;
+        if self
+            .source_advice_graph(input.borrowed_context_registry())
+            .is_none()
+        {
+            #[cfg(test)]
+            if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
+                eprintln!(
+                    "N13_CHILD_ENTRY stage=source-advice-graph offset={}",
+                    self.payload.site.offset
+                );
+            }
+            return None;
+        }
         Some(self.minted_entry(registry, input))
     }
 
@@ -607,8 +619,25 @@ impl SourceCommandBindings {
         original: &[NativeWord],
         path: usize,
     ) -> Option<OriginalSourcePointEntry> {
-        let owner = self.original_analysis_owner()?;
-        owner.matches(self, input).then_some(())?;
+        macro_rules! refuse_point {
+            ($stage:literal) => {{
+                #[cfg(test)]
+                if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
+                    eprintln!(
+                        "N13_POINT stage={} offset={:?}",
+                        $stage,
+                        original.first().map(|word| word.span().start())
+                    );
+                }
+                return None;
+            }};
+        }
+        let Some(owner) = self.original_analysis_owner() else {
+            refuse_point!("owner-missing");
+        };
+        if !owner.matches(self, input) {
+            refuse_point!("owner-input");
+        }
         let head = original.first()?;
         let offset = head.span().start();
         let config = input.lexer_config();
@@ -619,13 +648,45 @@ impl SourceCommandBindings {
             })
             || original.get(path.checked_add(1)?).is_none()
         {
-            return None;
+            refuse_point!("vector-metadata");
         }
         let mut points = self
             .dispatch_points_at(offset)
             .filter(|point| !point.declaration_preview);
-        let first = points.next()?;
+        let Some(first) = points.next() else {
+            refuse_point!("no-dispatch-point");
+        };
         let state = &first.state;
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
+            eprintln!(
+                "N13_POINT_STATE offset={offset} argv={} native={} hosted={} opaque={} unclosed={} step={} quiet={} unknown_frame={} selected_frame={} receiver_frame={} registry_target={} inherited={}",
+                first.original_arguments_complete_normally,
+                state.baseline.native_entry.is_some(),
+                state.baseline.hosted_execution_context.is_some(),
+                state.has_opaque_domain(),
+                state.unclosed_command_world,
+                state.source_step_observed(),
+                state.command_observers.is_quiet(),
+                matches!(
+                    state.variable_frame.layout(),
+                    crate::var_resolve::VariableExecutionFrame::Unknown
+                ),
+                matches!(
+                    state.variable_frame.layout(),
+                    crate::var_resolve::VariableExecutionFrame::Selected { .. }
+                ),
+                matches!(
+                    state.variable_frame.layout(),
+                    crate::var_resolve::VariableExecutionFrame::ReceiverMethod { .. }
+                ),
+                first
+                    .original_dispatch_binding()
+                    .proved_target()
+                    .is_some_and(|target| target.registry_backed),
+                state.baseline.source_point_entry.is_some(),
+            );
+        }
         if !first.original_arguments_complete_normally
             || state.baseline.native_entry.is_some()
             || state.baseline.hosted_execution_context.is_some()
@@ -645,12 +706,12 @@ impl SourceCommandBindings {
                 .proved_target()
                 .is_none_or(|target| !target.registry_backed)
         {
-            return None;
+            refuse_point!("state-or-alternatives");
         }
         let origin = state.current_source_origin.as_ref()?;
         let written = first.original_written_words.as_ref()?;
         if written.site().source != *origin || !written.matches_native_words(original) {
-            return None;
+            refuse_point!("written-origin-vector");
         }
         let payload = SourcePointPayload {
             settings: Arc::clone(self.analyser_source_settings.as_ref()?),

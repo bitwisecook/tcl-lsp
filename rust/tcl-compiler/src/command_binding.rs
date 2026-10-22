@@ -312,6 +312,7 @@ pub(crate) mod original_variable_compilation;
 mod package_target_survey;
 pub(crate) use package_target_survey::OriginalPackageIndexSourceModel;
 mod conditional_source;
+pub(crate) use conditional_source::OriginalSourceFiniteCut;
 mod source_analysis_cache;
 mod source_analysis_entry;
 mod source_point_entry;
@@ -25885,5 +25886,56 @@ mod original_compiled_list_owner_join_tests {
             )
             .is_none()
         );
+    }
+}
+
+// Temporary bounded original-g4 attribution. Existing assertions remain exact.
+#[cfg(test)]
+fn trace_original_g4_owner(
+    label: &str,
+    bindings: &SourceCommandBindings,
+    tokens: &crate::ir::CommandTokens,
+) {
+    let Some(binding) = tokens.source_binding.as_ref() else {
+        return;
+    };
+    let site = binding.invocation_site();
+    let current_owner = binding
+        .original_analysis_owner
+        .as_ref()
+        .zip(bindings.original_analysis_owner())
+        .is_some_and(|(actual, expected)| Arc::ptr_eq(actual, expected));
+    let visits = site.and_then(|site| bindings.compiler_invocations.get(site));
+    eprintln!(
+        "G4_OWNER label={label} offset={:?} reached={:?} unknown={} target={:?} owner={} words={} native_dialect={} source_protocol={} table={} structured={} admission={:?} visits={}",
+        site.map(|site| site.offset),
+        binding.runtime_reachability(),
+        binding.execution_is_unknown(),
+        binding
+            .proved_execution_target()
+            .map(|target| target.command.as_str()),
+        current_owner,
+        binding.original_compiler_words.is_some(),
+        binding.native_compiler_dialect().is_some(),
+        binding.compiler_source_protocol().is_some(),
+        binding.compiler_lookup_state.is_some(),
+        binding.native_structured_preparation.is_some(),
+        binding.native_compilation_admission_selection(),
+        visits.map_or(0, Vec::len),
+    );
+    if let Some(visits) = visits {
+        for (ordinal, visit) in visits.iter().take(8).enumerate() {
+            eprintln!(
+                "G4_VISIT label={label} ordinal={ordinal} selection={:?} admitted={} structured={} words={} policy={} native_entry={} opaque={} unclosed={}",
+                visit.selection,
+                visit.admitted.is_some(),
+                visit.structured.is_some(),
+                visit.original_words.is_some(),
+                visit.policy.is_some(),
+                visit.table.state.baseline.native_entry.is_some(),
+                visit.table.state.has_opaque_domain(),
+                visit.table.state.unclosed_command_world,
+            );
+        }
     }
 }

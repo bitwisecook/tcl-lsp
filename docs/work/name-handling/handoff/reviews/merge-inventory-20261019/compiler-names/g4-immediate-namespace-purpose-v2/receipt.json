@@ -1,0 +1,17 @@
+{
+  "utc": "2026-10-22T23:02:04.050435+00:00",
+  "status": "OFF-TREE exact geometry/purpose successor compiler peer-clear statically; untyped/unrun",
+  "sha256": "63fafe31c241394eeff6e392c21b7bf47010127698f7c0e9c40eebef32b0616b",
+  "paths": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/original_body_namespace.rs",
+      "before_sha256": "1874b1364f0b680140392bf2525f8744ebe35a97eb6d5c682b77d0351cfc3ce6",
+      "after_sha256": "4b805dac6b5d194b70e97895696516bc77f4958c612c78ec9d37542bbf0d1cd0"
+    }
+  ],
+  "selector": "command_binding::original_body_namespace::tests::original_immediate_body_namespace_keeps_actual_native_conditional_and_error_prefix",
+  "basis": "Existing origin_inventory::record_conditional_in_frame_script stores frame=None plus conditional_namespace; broad namespace getter explicitly retains that conditional syntax. Exact entry namespace accessor requires unanimous actual Some(frame). Not an after-load/13:17 correction or new Native authority.",
+  "preserved": "native_structured None, compiled_script_namespace None, all original IR/source/frame/synthetic/foreign/config negatives and selector; add precise actual entry None while asserting conditional namespace equals actual expected.",
+  "v2": "Retires v1 1e73: strict if-body post-head argument1 (not whole-word2), positive exact executed_script_at(site,1)==Some(body) makes strict entryNone nonvacuous. All other original assertions unchanged.",
+  "agent_reported_peer_review": "Compiler checked walk_conditional post-head1 passed unchanged to walk_body_operand entered_scripts record; exact positive observation at1 makes strict negative nonvacuous, all other guards preserved."
+}

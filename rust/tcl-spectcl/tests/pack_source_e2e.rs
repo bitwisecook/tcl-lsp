@@ -30,6 +30,9 @@
 //! runs for real. What this file still owns is the claim that the two halves
 //! line up end to end.
 
+#[path = "support/derived_first_decline.rs"]
+mod derived_first_decline;
+
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -275,6 +278,7 @@ fn proved_under(dialect: &str, definition: &str, arity: usize, call: &str) -> Op
     let registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &packs);
     let source = format!("proc ::p {{}} {{\n    set known [{call}]\n    return $known\n}}\n");
     let unit = CompilationUnit::build_for_dialect(&source, &registry, false, dialect);
+    derived_first_decline::report(dialect, call, &registry, &unit);
     pack_hooks::clear_host();
     let mut candidates = unit
         .ir_module

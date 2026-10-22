@@ -1,0 +1,62 @@
+{
+  "utc": "2026-10-22T23:05:45.390103+00:00",
+  "patch_sha256": "66923cf422d1c81b8a8150a5684a43b63164aba22c88e7580f7cebc2f18fe75d",
+  "composition_receipt_sha256": "34a84031c89522363116d6acb3263d1030f56a607524f7b41562c936fbca11c9",
+  "status": "applied reviewed8part batch; untyped/unrun; fullhost excluded",
+  "original_head": "d341a14a3d2990f2584136ff0bddf95639d1b699",
+  "all_23_before_after_hashes_verified": true,
+  "no_live_cargo_or_rustc_at_application": true,
+  "whole_build_lock_held_at_application": true,
+  "gate_admissions": [],
+  "parts": [
+    {
+      "name": "retire-after-parens",
+      "patch": "/tmp/compiler-report-retire-after-parens-v1/retire.patch",
+      "patch_sha256": "85ebf15fbbd0ebc25eb22b01474153be3f89f6cc2575299e53f42ae2f0e61fd6",
+      "receipt": "/tmp/compiler-report-retire-after-parens-v1/receipt.json"
+    },
+    {
+      "name": "compiler-syntax-owner",
+      "patch": "/tmp/compiler-compiler-syntax-owner-whole-input-v1/proposal.patch",
+      "patch_sha256": "30d2c5ef4d219665b590c3703cacb7c51df326fbb2fa0127d35c37078fd6250e",
+      "receipt": "/tmp/compiler-compiler-syntax-owner-whole-input-v1/receipt.json"
+    },
+    {
+      "name": "n13-frontier-v4",
+      "patch": "/tmp/compiler-names-n13-frontier-v4/proposal.patch",
+      "patch_sha256": "b8e4ebb4a9950c01e31fab04cdb32ca8987ef5e49f4f3d3e040e2e72daf425f1",
+      "receipt": "/tmp/compiler-names-n13-frontier-v4/receipt.json"
+    },
+    {
+      "name": "g4-owner-trace-v1",
+      "patch": "/tmp/compiler-names-g4-owner-trace-v1/proposal.patch",
+      "patch_sha256": "1d696b57820dfdbde0f7a88c7e736160fc0eb0e656847e8ca1a13ce4d5eaa548",
+      "receipt": "/tmp/compiler-names-g4-owner-trace-v1/receipt.json"
+    },
+    {
+      "name": "n13-point-refusal-trace-v1",
+      "patch": "/tmp/compiler-names-n13-point-refusal-trace-v1/proposal.patch",
+      "patch_sha256": "61f3a77405d1fb0f625fd21606e2748d8740b2e043339283130cc7d360bb51d7",
+      "receipt": "/tmp/compiler-names-n13-point-refusal-trace-v1/receipt.json"
+    },
+    {
+      "name": "immediate-namespace-purpose-v2",
+      "patch": "/tmp/compiler-names-immediate-namespace-purpose-v2/proposal.patch",
+      "patch_sha256": "63fafe31c241394eeff6e392c21b7bf47010127698f7c0e9c40eebef32b0616b",
+      "receipt": "/tmp/compiler-names-immediate-namespace-purpose-v2/receipt.json"
+    },
+    {
+      "name": "derived-first-decline-v4",
+      "patch": "/tmp/ccg-derived-first-decline-v4/proposal.patch",
+      "patch_sha256": "041eb0e44d22a7f1274143ef3e9ee236c32d90b3ccfc9332d8bbc02275d39911",
+      "receipt": "/tmp/ccg-derived-first-decline-v4/receipt.json"
+    },
+    {
+      "name": "jim-import-diagnostic-v2",
+      "patch": "/tmp/vm-runtime-jim-import-diagnostics/proposal-v2.patch",
+      "patch_sha256": "87824c4ae058251efb21730f821702f34598a23dceaaa136bc7209925490acd2",
+      "receipt": "/tmp/vm-runtime-jim-import-diagnostics/receipt-v2.json"
+    }
+  ],
+  "receipt_recovery": "Application and all23 postcondition hashes succeeded; receipt writer corrected component_order key to components before checkpoint. No reapplication."
+}

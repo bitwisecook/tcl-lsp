@@ -131,6 +131,23 @@ impl AdviceInvocationContext<'_> {
                 _ => None,
             })
             .collect::<Vec<_>>();
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
+            eprintln!(
+                "N13_POINT_GRAPH offset={} native={} uncertain={} arity={} namespace={} namespace_known={} current_interpreter={} source_paths={} exact_path={}",
+                query.site.offset,
+                graph.native_baseline,
+                !graph.uncertain_operations.is_empty(),
+                !graph.arity_debts.is_empty(),
+                actual_namespace == expected_namespace.as_ref(),
+                expected_namespace
+                    .as_ref()
+                    .is_some_and(|namespace| !graph.unknown_paths.contains(namespace)),
+                schema.semantics.body_interpreter == tcl_registry::BodyInterpreter::Current,
+                !load_paths.is_empty(),
+                load_paths.iter().all(|path| *path == query.path),
+            );
+        }
         if graph.native_baseline
             || !graph.uncertain_operations.is_empty()
             || !graph.arity_debts.is_empty()
@@ -177,6 +194,16 @@ impl OriginalSourceTransitionSeed {
             OriginalSourceCataloguePurpose::CompletePrefix,
             Some(SourceAdviceQuery::SourcePoint(&query)),
         )?;
+        #[cfg(test)]
+        if std::env::var_os("TCL_LSP_TRACE_N13_POINT").is_some() {
+            eprintln!(
+                "N13_POINT_GRAPH_END offset={} seen={} refused={} retained={}",
+                site.offset,
+                query.seen.get(),
+                query.refused.get(),
+                query.graph.borrow().is_some()
+            );
+        }
         (!query.refused.get()).then_some(())?;
         query.graph.into_inner().map(Arc::new)
     }

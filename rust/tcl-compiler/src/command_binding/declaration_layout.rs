@@ -5017,6 +5017,7 @@ mod tests {
         let source = "proc p {mode} {switch -- $mode {a {puts A} default {puts D}}}";
         let body = "switch -- $mode {a {puts A} default {puts D}}";
         let (bindings, tokens) = original_tokens(source, body, source.find("switch").unwrap());
+        crate::command_binding::trace_original_g4_owner("declaration-layout", &bindings, &tokens);
         let advice = bindings.declaration_operand_layout_advice(&tokens);
         if advice.is_none() {
             let binding = tokens.source_binding.as_ref().unwrap();

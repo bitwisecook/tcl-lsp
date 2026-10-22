@@ -409,6 +409,7 @@ mod tests {
     #[test]
     fn scoped_lifecycle_coverage_keeps_declared_issuer_frame_and_original_source() {
         let (bindings, tokens, registry) = inventory("");
+        crate::command_binding::trace_original_g4_owner("scoped-lifecycle", &bindings, &tokens);
         let binding = tokens.source_binding.as_ref().unwrap();
         assert!(binding.proved_execution_target().is_none());
         let advice = SourceCommandBindings::scoped_lifecycle_advice(&tokens, &registry)

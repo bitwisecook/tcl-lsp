@@ -7056,9 +7056,14 @@ mod original_import_alias_tests {
             .original_jim_command_key(GLOBAL, b"src::x")
             .unwrap();
         let before = unsafe { (*key).ref_count };
+        let imported = interp.eval_str(b"namespace eval dest {namespace import ::src::x}");
         assert_eq!(
-            interp.eval_str(b"namespace eval dest {namespace import ::src::x}"),
-            Code::Ok
+            imported,
+            Code::Ok,
+            "Jim import: native refusal before projection {:?}; result {:?}; actual completion {:?}",
+            interp.native_execution_refusal(),
+            interp.result_bytes(),
+            crate::completion::capture_bytes(&mut interp, imported)
         );
         let name = Owned::fresh(obj::new_string_bytes(b"dest::x"));
         let query = tcl_runtime_api::Aliases::alias_prefix_original_value_at(

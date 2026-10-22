@@ -959,6 +959,30 @@ mod controls {
 }
 
 impl OriginalSourceConditionalRegion {
+    /// A replay join retains the exact immediate prefix and the actual issued
+    /// frame inventory. A dependency ancestor or matching image is insufficient.
+    pub(crate) fn reissues_original_source_command(
+        &self,
+        prefix: &crate::analyser::AnalysisResult,
+        analysis: &crate::analyser::AnalysisResult,
+        words: &[tcl_lexer::NativeWord],
+    ) -> bool {
+        let continuation =
+            OriginalSourceConditionalContinuation(Arc::clone(&self.0.entry.0.continuation));
+        if !continuation.matches_parent_analysis(prefix) || !self.matches_region_analysis(analysis)
+        {
+            return false;
+        }
+        let Some(head) = words.first() else {
+            return false;
+        };
+        self.original_vectors().is_some_and(|vectors| {
+            vectors.get(&head.span().start()).and_then(Option::as_deref) == Some(words)
+        })
+    }
+}
+
+impl OriginalSourceConditionalRegion {
     /// Actual command-vector membership, not span containment. Quoted/braced
     /// data cannot create an executable vector. Script-body owners remain a
     /// separate registry-selected purpose and are not inferred from braces.

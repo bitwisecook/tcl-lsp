@@ -1,0 +1,527 @@
+{
+  "driver_queries": {
+    "as": "as",
+    "cc1": "/usr/libexec/gcc/x86_64-linux-gnu/14/cc1",
+    "collect2": "/usr/libexec/gcc/x86_64-linux-gnu/14/collect2",
+    "ld": "ld",
+    "libgcc.a": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+    "liblto_plugin.so": "/usr/lib/gcc/x86_64-linux-gnu/14/liblto_plugin.so"
+  },
+  "records": {
+    "libgcc.a:/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a": {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+      "realpath": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+      "sha256": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d",
+      "size": 3243220
+    },
+    "liblto_plugin.so-shared-shared:/lib64/ld-linux-x86-64.so.2": {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672
+    },
+    "liblto_plugin.so-shared:/lib/x86_64-linux-gnu/libc.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216
+    },
+    "liblto_plugin.so-shared:/lib64/ld-linux-x86-64.so.2": {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672
+    },
+    "liblto_plugin.so:/usr/lib/gcc/x86_64-linux-gnu/14/liblto_plugin.so": {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/liblto_plugin.so",
+      "realpath": "/usr/libexec/gcc/x86_64-linux-gnu/14/liblto_plugin.so",
+      "sha256": "1160335db754d964f3560d403aa58e21380b2284439fe75317ffe5652e8bd839",
+      "size": 68144
+    },
+    "native-ar-shared:/lib/x86_64-linux-gnu/libbfd-2.44-system.so": {
+      "path": "/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+      "sha256": "7a27acdd82e38dbddd8568d54de0df4358e71a3c387d5c1d999d369450c1bf6a",
+      "size": 1463360
+    },
+    "native-ar-shared:/lib/x86_64-linux-gnu/libc.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216
+    },
+    "native-ar-shared:/lib/x86_64-linux-gnu/libsframe.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libsframe.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libsframe.so.1.0.0",
+      "sha256": "adb0b9a33909e7264ad724e138eb97995832e535b22b192c1a898c349c918a9f",
+      "size": 30976
+    },
+    "native-ar-shared:/lib/x86_64-linux-gnu/libz.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libz.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+      "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "size": 125376
+    },
+    "native-ar-shared:/lib/x86_64-linux-gnu/libzstd.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libzstd.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7",
+      "sha256": "27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21",
+      "size": 825336
+    },
+    "native-ar-shared:/lib64/ld-linux-x86-64.so.2": {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672
+    },
+    "native-ar:/usr/bin/ar": {
+      "path": "/usr/bin/ar",
+      "realpath": "/usr/bin/x86_64-linux-gnu-ar",
+      "sha256": "f8fe09d485b40b1d47c534c96f5cbaaa9148e247aa0494c087104421f48ac5eb",
+      "size": 52480
+    },
+    "native-as-shared:/lib/x86_64-linux-gnu/libbfd-2.44-system.so": {
+      "path": "/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+      "sha256": "7a27acdd82e38dbddd8568d54de0df4358e71a3c387d5c1d999d369450c1bf6a",
+      "size": 1463360
+    },
+    "native-as-shared:/lib/x86_64-linux-gnu/libc.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216
+    },
+    "native-as-shared:/lib/x86_64-linux-gnu/libsframe.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libsframe.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libsframe.so.1.0.0",
+      "sha256": "adb0b9a33909e7264ad724e138eb97995832e535b22b192c1a898c349c918a9f",
+      "size": 30976
+    },
+    "native-as-shared:/lib/x86_64-linux-gnu/libz.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libz.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+      "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "size": 125376
+    },
+    "native-as-shared:/lib/x86_64-linux-gnu/libzstd.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libzstd.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7",
+      "sha256": "27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21",
+      "size": 825336
+    },
+    "native-as-shared:/lib64/ld-linux-x86-64.so.2": {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672
+    },
+    "native-as:/usr/bin/as": {
+      "path": "/usr/bin/as",
+      "realpath": "/usr/bin/x86_64-linux-gnu-as",
+      "sha256": "07dd8551ea0aa065975e4dddb8e1bb7dc308d12d54eca22c3858db79467c7cb9",
+      "size": 795184
+    },
+    "native-cc-shared:/lib/x86_64-linux-gnu/libc.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216
+    },
+    "native-cc-shared:/lib64/ld-linux-x86-64.so.2": {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672
+    },
+    "native-cc1-shared-shared:/lib/x86_64-linux-gnu/libc.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216
+    },
+    "native-cc1-shared-shared:/lib/x86_64-linux-gnu/libgmp.so.10": {
+      "path": "/lib/x86_64-linux-gnu/libgmp.so.10",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libgmp.so.10.5.0",
+      "sha256": "d15e1585c6c267296459570c8ac217ca9123044bcd4e896d2f686b32333445d2",
+      "size": 566080
+    },
+    "native-cc1-shared-shared:/lib/x86_64-linux-gnu/libm.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "size": 977112
+    },
+    "native-cc1-shared-shared:/lib/x86_64-linux-gnu/libmpfr.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libmpfr.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libmpfr.so.6.2.2",
+      "sha256": "4e3ccf5b442fc91054b0153140fe62939009f98ca1367f45de62376d5b18d28c",
+      "size": 794992
+    },
+    "native-cc1-shared-shared:/lib64/ld-linux-x86-64.so.2": {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672
+    },
+    "native-cc1-shared:/lib/x86_64-linux-gnu/libc.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216
+    },
+    "native-cc1-shared:/lib/x86_64-linux-gnu/libgmp.so.10": {
+      "path": "/lib/x86_64-linux-gnu/libgmp.so.10",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libgmp.so.10.5.0",
+      "sha256": "d15e1585c6c267296459570c8ac217ca9123044bcd4e896d2f686b32333445d2",
+      "size": 566080
+    },
+    "native-cc1-shared:/lib/x86_64-linux-gnu/libisl.so.23": {
+      "path": "/lib/x86_64-linux-gnu/libisl.so.23",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libisl.so.23.4.0",
+      "sha256": "2c3414e22aef73d2955be7acc1e6213c3e12953d9b6b5f748381bb1e326a8147",
+      "size": 2086872
+    },
+    "native-cc1-shared:/lib/x86_64-linux-gnu/libm.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "size": 977112
+    },
+    "native-cc1-shared:/lib/x86_64-linux-gnu/libmpc.so.3": {
+      "path": "/lib/x86_64-linux-gnu/libmpc.so.3",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libmpc.so.3.3.1",
+      "sha256": "0b478209dd7a8bc37b4f4627795f9214f02572393bacbac04b8fe610ea22e5d0",
+      "size": 139160
+    },
+    "native-cc1-shared:/lib/x86_64-linux-gnu/libmpfr.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libmpfr.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libmpfr.so.6.2.2",
+      "sha256": "4e3ccf5b442fc91054b0153140fe62939009f98ca1367f45de62376d5b18d28c",
+      "size": 794992
+    },
+    "native-cc1-shared:/lib/x86_64-linux-gnu/libz.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libz.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+      "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "size": 125376
+    },
+    "native-cc1-shared:/lib/x86_64-linux-gnu/libzstd.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libzstd.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7",
+      "sha256": "27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21",
+      "size": 825336
+    },
+    "native-cc1-shared:/lib64/ld-linux-x86-64.so.2": {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672
+    },
+    "native-cc1:/usr/libexec/gcc/x86_64-linux-gnu/14/cc1": {
+      "path": "/usr/libexec/gcc/x86_64-linux-gnu/14/cc1",
+      "realpath": "/usr/libexec/gcc/x86_64-linux-gnu/14/cc1",
+      "sha256": "02675980109a4a5496cddf67d5286de57942759edc830deaa525e36f9a2a0291",
+      "size": 34148896
+    },
+    "native-cc:/usr/bin/cc": {
+      "path": "/usr/bin/cc",
+      "realpath": "/usr/bin/x86_64-linux-gnu-gcc-14",
+      "sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "size": 1162264
+    },
+    "native-collect2-shared:/lib/x86_64-linux-gnu/libc.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216
+    },
+    "native-collect2-shared:/lib64/ld-linux-x86-64.so.2": {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672
+    },
+    "native-collect2:/usr/libexec/gcc/x86_64-linux-gnu/14/collect2": {
+      "path": "/usr/libexec/gcc/x86_64-linux-gnu/14/collect2",
+      "realpath": "/usr/libexec/gcc/x86_64-linux-gnu/14/collect2",
+      "sha256": "ea31a4cebd9df1b6428c463428d461ccecfe66c897936409d5b2cde0b3af9e27",
+      "size": 422136
+    },
+    "native-ld-shared-shared-shared:/lib/x86_64-linux-gnu/libc.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216
+    },
+    "native-ld-shared-shared-shared:/lib/x86_64-linux-gnu/libsframe.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libsframe.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libsframe.so.1.0.0",
+      "sha256": "adb0b9a33909e7264ad724e138eb97995832e535b22b192c1a898c349c918a9f",
+      "size": 30976
+    },
+    "native-ld-shared-shared-shared:/lib/x86_64-linux-gnu/libz.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libz.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+      "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "size": 125376
+    },
+    "native-ld-shared-shared-shared:/lib/x86_64-linux-gnu/libzstd.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libzstd.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7",
+      "sha256": "27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21",
+      "size": 825336
+    },
+    "native-ld-shared-shared-shared:/lib64/ld-linux-x86-64.so.2": {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672
+    },
+    "native-ld-shared-shared:/lib/x86_64-linux-gnu/libbfd-2.44-system.so": {
+      "path": "/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+      "sha256": "7a27acdd82e38dbddd8568d54de0df4358e71a3c387d5c1d999d369450c1bf6a",
+      "size": 1463360
+    },
+    "native-ld-shared-shared:/lib/x86_64-linux-gnu/libc.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216
+    },
+    "native-ld-shared-shared:/lib/x86_64-linux-gnu/libsframe.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libsframe.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libsframe.so.1.0.0",
+      "sha256": "adb0b9a33909e7264ad724e138eb97995832e535b22b192c1a898c349c918a9f",
+      "size": 30976
+    },
+    "native-ld-shared-shared:/lib/x86_64-linux-gnu/libz.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libz.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+      "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "size": 125376
+    },
+    "native-ld-shared-shared:/lib/x86_64-linux-gnu/libzstd.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libzstd.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7",
+      "sha256": "27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21",
+      "size": 825336
+    },
+    "native-ld-shared-shared:/lib64/ld-linux-x86-64.so.2": {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672
+    },
+    "native-ld-shared:/lib/x86_64-linux-gnu/libbfd-2.44-system.so": {
+      "path": "/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+      "sha256": "7a27acdd82e38dbddd8568d54de0df4358e71a3c387d5c1d999d369450c1bf6a",
+      "size": 1463360
+    },
+    "native-ld-shared:/lib/x86_64-linux-gnu/libc.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216
+    },
+    "native-ld-shared:/lib/x86_64-linux-gnu/libctf.so.0": {
+      "path": "/lib/x86_64-linux-gnu/libctf.so.0",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libctf.so.0.0.0",
+      "sha256": "bdcd09af9314ef2a40dd137882523e7cb5944189220980257c5ebcc1fe0c9b5b",
+      "size": 220288
+    },
+    "native-ld-shared:/lib/x86_64-linux-gnu/libjansson.so.4": {
+      "path": "/lib/x86_64-linux-gnu/libjansson.so.4",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libjansson.so.4.14.0",
+      "sha256": "424135d01f0f2f957bd61d6a56f5f0cf7afa146a677a216173f1a20e8cd1ad8e",
+      "size": 59752
+    },
+    "native-ld-shared:/lib/x86_64-linux-gnu/libsframe.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libsframe.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libsframe.so.1.0.0",
+      "sha256": "adb0b9a33909e7264ad724e138eb97995832e535b22b192c1a898c349c918a9f",
+      "size": 30976
+    },
+    "native-ld-shared:/lib/x86_64-linux-gnu/libz.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libz.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+      "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "size": 125376
+    },
+    "native-ld-shared:/lib/x86_64-linux-gnu/libzstd.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libzstd.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libzstd.so.1.5.7",
+      "sha256": "27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21",
+      "size": 825336
+    },
+    "native-ld-shared:/lib64/ld-linux-x86-64.so.2": {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672
+    },
+    "native-ld:/usr/bin/ld": {
+      "path": "/usr/bin/ld",
+      "realpath": "/usr/bin/x86_64-linux-gnu-ld.bfd",
+      "sha256": "d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b",
+      "size": 1861256
+    },
+    "rust-lld-shared-shared-shared:/lib/x86_64-linux-gnu/libc.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216
+    },
+    "rust-lld-shared-shared-shared:/lib64/ld-linux-x86-64.so.2": {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672
+    },
+    "rust-lld-shared-shared:/lib/x86_64-linux-gnu/libc.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216
+    },
+    "rust-lld-shared-shared:/lib/x86_64-linux-gnu/libdl.so.2": {
+      "path": "/lib/x86_64-linux-gnu/libdl.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libdl.so.2",
+      "sha256": "295fa521a03cd2faa99974f378c9e23dd622021ec7d32bcad4f8ea61aec8a872",
+      "size": 14408
+    },
+    "rust-lld-shared-shared:/lib/x86_64-linux-gnu/libgcc_s.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libgcc_s.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+      "sha256": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+      "size": 182856
+    },
+    "rust-lld-shared-shared:/lib/x86_64-linux-gnu/libm.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "size": 977112
+    },
+    "rust-lld-shared-shared:/lib/x86_64-linux-gnu/libpthread.so.0": {
+      "path": "/lib/x86_64-linux-gnu/libpthread.so.0",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libpthread.so.0",
+      "sha256": "85e21f7dba0394411d00959176fd18b470e575b0b05f1f4f41e5636802ce0500",
+      "size": 14408
+    },
+    "rust-lld-shared-shared:/lib/x86_64-linux-gnu/librt.so.1": {
+      "path": "/lib/x86_64-linux-gnu/librt.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/librt.so.1",
+      "sha256": "7b7b84d1aedda0e0b2bdfc68844362782132180b8f02be1300e21e77572e514b",
+      "size": 14552
+    },
+    "rust-lld-shared-shared:/lib/x86_64-linux-gnu/libz.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libz.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+      "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "size": 125376
+    },
+    "rust-lld-shared-shared:/lib64/ld-linux-x86-64.so.2": {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672
+    },
+    "rust-lld-shared:/lib/x86_64-linux-gnu/libc.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826",
+      "size": 1995216
+    },
+    "rust-lld-shared:/lib/x86_64-linux-gnu/libdl.so.2": {
+      "path": "/lib/x86_64-linux-gnu/libdl.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libdl.so.2",
+      "sha256": "295fa521a03cd2faa99974f378c9e23dd622021ec7d32bcad4f8ea61aec8a872",
+      "size": 14408
+    },
+    "rust-lld-shared:/lib/x86_64-linux-gnu/libgcc_s.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libgcc_s.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libgcc_s.so.1",
+      "sha256": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af",
+      "size": 182856
+    },
+    "rust-lld-shared:/lib/x86_64-linux-gnu/libm.so.6": {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3",
+      "size": 977112
+    },
+    "rust-lld-shared:/lib/x86_64-linux-gnu/libpthread.so.0": {
+      "path": "/lib/x86_64-linux-gnu/libpthread.so.0",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libpthread.so.0",
+      "sha256": "85e21f7dba0394411d00959176fd18b470e575b0b05f1f4f41e5636802ce0500",
+      "size": 14408
+    },
+    "rust-lld-shared:/lib/x86_64-linux-gnu/librt.so.1": {
+      "path": "/lib/x86_64-linux-gnu/librt.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/librt.so.1",
+      "sha256": "7b7b84d1aedda0e0b2bdfc68844362782132180b8f02be1300e21e77572e514b",
+      "size": 14552
+    },
+    "rust-lld-shared:/lib/x86_64-linux-gnu/libz.so.1": {
+      "path": "/lib/x86_64-linux-gnu/libz.so.1",
+      "realpath": "/usr/lib/x86_64-linux-gnu/libz.so.1.3.1",
+      "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e",
+      "size": 125376
+    },
+    "rust-lld-shared:/lib64/ld-linux-x86-64.so.2": {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "realpath": "/usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0",
+      "size": 225672
+    },
+    "rust-lld-shared:/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/../../../libLLVM.so.23.1-rust-1.99.1-stable": {
+      "path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/../../../libLLVM.so.23.1-rust-1.99.1-stable",
+      "realpath": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/lib/libLLVM.so.23.1-rust-1.99.1-stable",
+      "sha256": "1cfbe1392a767227b88b33ab6187283e281c63f80f9b1ca9010d9cee5fdf9131",
+      "size": 208167760
+    },
+    "rust-lld:/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld": {
+      "path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+      "realpath": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+      "sha256": "9b6f51f983a8184f5d47d224e336cdb35171ad5b138981bc62a22e6d65e7b214",
+      "size": 11879600
+    }
+  },
+  "scope": "Actual native CC/AR/cc1/collect2/as/ld and Rust default wasm rust-lld plus recursively linked shared libraries; no authority grant or gate acceptance.",
+  "selected_overrides": {},
+  "selectors": {
+    "AR": "ar",
+    "CC": "cc",
+    "rust_host": "x86_64-unknown-linux-gnu",
+    "rust_sysroot": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu"
+  },
+  "status": "Read-only selected executable/linker supplement, no Cargo or C compilation. Existing frozen provider seals/plans unchanged.",
+  "utc": "2026-10-22T22:57:16.412828+00:00",
+  "versions": [
+    {
+      "argv": [
+        "cc",
+        "--version"
+      ],
+      "stdout": "cc (Debian 14.2.0-19) 14.2.0\nCopyright (C) 2024 Free Software Foundation, Inc.\nThis is free software; see the source for copying conditions.  There is NO\nwarranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE."
+    },
+    {
+      "argv": [
+        "ar",
+        "--version"
+      ],
+      "stdout": "GNU ar (GNU Binutils for Debian) 2.44\nCopyright (C) 2025 Free Software Foundation, Inc.\nThis program is free software; you may redistribute it under the terms of\nthe GNU General Public License version 3 or (at your option) any later version.\nThis program has absolutely no warranty."
+    },
+    {
+      "argv": [
+        "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+        "-flavor",
+        "wasm",
+        "--version"
+      ],
+      "stdout": "LLD 23.1.1 (/checkout/src/llvm-project/llvm 1b9c0d5ff9bbe7634aead059efe6b11a7eeba145)"
+    }
+  ]
+}

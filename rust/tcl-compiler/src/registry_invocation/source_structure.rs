@@ -26,7 +26,10 @@ fn trace_original_child_guard(label: &str, offset: Option<u32>, passed: bool) {
 
 mod source_load;
 pub(crate) use source_load::capture_original_project_source_load_at;
-pub use source_load::{OriginalProjectSourceLoad, original_project_source_load_at};
+pub use source_load::{
+    OriginalProjectSourceAssociation, OriginalProjectSourceCurrentCut,
+    OriginalProjectSourceFrontier, OriginalProjectSourceLoad, original_project_source_load_at,
+};
 
 mod logical_variable_operands;
 pub(crate) use logical_variable_operands::OriginalLogicalVariableOperands;

@@ -14,5 +14,6 @@
       "after_sha256": "2ea19bf266ed7b79e1860f95942dee811f6beda7282a2c5d9ac78eb653ae33f0"
     }
   ],
-  "plan": "TCL_LSP_TRACE_N13_POINT=1; exact existing region3/sequential2/point9 selectors under whole command source/provider/artifact guards. Typed booleans/offset labels only; no graph/NativeWord dumps; all eligibility guards unchanged. Retire temporary diagnostics after attribution."
+  "plan": "TCL_LSP_TRACE_N13_POINT=1; exact existing region3/sequential2/point9 selectors under whole command source/provider/artifact guards. Typed booleans/offset labels only; no graph/NativeWord dumps; all eligibility guards unchanged. Retire temporary diagnostics after attribution.",
+  "agent_reported_peer_review": "Compiler bounded static review clear; no type/runtime admission."
 }

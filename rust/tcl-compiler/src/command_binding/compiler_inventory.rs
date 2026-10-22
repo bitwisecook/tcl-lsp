@@ -107,10 +107,13 @@ impl SourceInvocationBinding {
             .baseline
             .metadata_context
             .source_analysis_input()?;
-        if point != input && point != &input.for_nested_source() {
-            return None;
-        }
-        if analysis_owner.metadata.source_analysis_input() != Some(point) {
+        let owner_input = analysis_owner.metadata.source_analysis_input()?;
+        // The caller supplies the actual retained whole-input attachment. Only
+        // that issuer may project the compiler point to nested-source rules;
+        // normalising an arbitrary caller would erase changed whole-file axes.
+        if owner_input != input
+            || (point != owner_input && point != &owner_input.for_nested_source())
+        {
             return None;
         }
         let metadata = crate::registry_invocation::InvocationMetadataContext::for_source_input(

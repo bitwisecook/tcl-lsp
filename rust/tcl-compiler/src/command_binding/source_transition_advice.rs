@@ -692,6 +692,25 @@ impl OriginalSourceCommandTransitionAdvice {
         }
     }
 
+    pub(crate) fn original_source_load_association_body(
+        &self,
+    ) -> Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>> {
+        let catalogue = match self.catalogue_body.as_ref() {
+            Some(OriginalSourceCatalogueBody::Script(body)) => Some(body),
+            _ => None,
+        };
+        let mut bodies = [
+            self.procedure_body.as_ref(),
+            self.c_source_body.as_ref(),
+            self.logical_body.as_ref(),
+            catalogue,
+        ]
+        .into_iter()
+        .flatten();
+        let first = bodies.next()?;
+        bodies.all(|body| body == first).then(|| Arc::clone(first))
+    }
+
     pub(crate) fn original_catalogue_source_body(&self) -> Option<&OriginalSourceCatalogueBody> {
         self.catalogue_body.as_ref()
     }

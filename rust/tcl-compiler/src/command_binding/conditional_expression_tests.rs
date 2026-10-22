@@ -40,7 +40,8 @@ fn original(
 #[test]
 fn conditional_expression_template_retains_grammar_without_actual_entry() {
     let source = "proc f {} {expr {7 << 1}}";
-    let (_, tokens) = original(source, "expr {7 << 1}", source.find("expr").unwrap());
+    let (bindings, tokens) = original(source, "expr {7 << 1}", source.find("expr").unwrap());
+    crate::command_binding::trace_original_g4_owner("conditional-expression", &bindings, &tokens);
     let binding = tokens.source_binding.as_ref().unwrap();
     let registry = tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
     let receipt = binding

@@ -337,7 +337,7 @@
         ],
         "warnings": false
       },
-      "attribution": "Broad readonly namespace-context query deliberately includes conditional namespace; compiler-reviewed narrow strict-entry-negative correction1e73, unrun."
+      "attribution": "Broad readonly namespace-context query includes conditional namespace. Original correction1e73 withdrawn for wrong whole-word/post-head ordinal; successor63fafe31 requires positive exact body observation atposthead1 + strict actual-entry None at1 + expected conditional namespace, renewed review pending/unrun."
     },
     {
       "selector": "command_binding::source_command_world::tests::original_namespace_import_keeps_the_source_declaration_allocation",

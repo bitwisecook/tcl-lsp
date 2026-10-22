@@ -1,0 +1,56 @@
+{
+  "utc": "2026-10-22T22:58:21.635106+00:00",
+  "status": "OFF-TREE actual-tool-only pin successors; syntax/inverse/inventory checks only. No Cargo/C compilation/test/source changes.",
+  "basis": "Read-only runtime build.rs confirms nativeCC/AR, nested rustc target uses its own default Rust linker (SDK wasm-ld is distinct). Existing frozen seals did not contain these tool identities.",
+  "selectors": {
+    "path": "/tmp/ccg-selected-actual-tool-pins-20261022.json",
+    "sha256": "0fd7889eacd0bd61ea2aaa2bc8a1f750521858b87cacd4609cfa353ed2e76d72"
+  },
+  "supplement": {
+    "path": "/tmp/ccg-actual-c-and-rust-linker-supplement-20261022.json",
+    "sha256": "35e5be51ba674ab4c763679dbee60ae5590e299086e54bc0867eec00d2c0f2e8"
+  },
+  "records": [
+    {
+      "old_plan": {
+        "path": "/tmp/ccg-postbatch-functional-v2-plan.json",
+        "sha256": "45fd1079922c0693c0b1a13a003053401df866b5225852ada1c939eabdc30216"
+      },
+      "new_plan": {
+        "path": "/tmp/ccg-postbatch-functional-v3-plan.json",
+        "sha256": "fb691896d55f76b63402581e67e9dc858f66ed7caf602079936154fbcaff5f78"
+      },
+      "new_suite": {
+        "path": "/tmp/ccg-postbatch-functional-v3-suite.py",
+        "sha256": "ca7782e4d6426a3097e20bcbf86a09abeb27c45380379636aa3c11151ec22bd3"
+      },
+      "new_runner": {
+        "path": "/tmp/ccg-postbatch-functional-v3-run.sh",
+        "sha256": "810d41d2674c9a42ebcfb269388529ba3ee361c1fafef5843ca996d16cbefb07"
+      },
+      "extra_tool_records": 27,
+      "suite_diff": "--- \n+++ \n@@ -5,7 +5,7 @@\n if not rows: raise SystemExit('STOP: explicit target jobs required')\n lock=open('/tmp/tcl-lsp-naming-build.lock','w'); fcntl.flock(lock,fcntl.LOCK_EX)\n tag=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')\n-receipt=Path('/tmp/ccg-postbatch-functional-v2')/tag; receipt.mkdir(parents=True)\n+receipt=Path('/tmp/ccg-postbatch-functional-v3')/tag; receipt.mkdir(parents=True)\n (receipt/'plan.json').write_text(json.dumps(plan,indent=2)+'\\n')\n def digest(path):\n     with path.open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()\n@@ -22,6 +22,11 @@\n     return records\n def write_json(path,data):path.write_text(json.dumps(data,sort_keys=True,indent=2)+'\\n')\n def check_runner_and_oracle_pins():\n+    selectors=json.loads(Path(plan['actual_tool_selectors']['path']).read_text())\n+    override_names=('CC','AR','RUSTC','RUSTC_WRAPPER','RUSTC_WORKSPACE_WRAPPER','CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER','CARGO_TARGET_WASM32_WASIP1_LINKER')\n+    if {key:os.environ[key] for key in override_names if key in os.environ}!=selectors['overrides']:raise SystemExit('STOP: actual compiler/linker override changed; explicit review required')\n+    for name,expected_path in selectors['programs'].items():\n+        if shutil.which(name)!=expected_path:raise SystemExit('STOP: selected actual compiler/linker path changed '+name)\n     for record in plan['runner_inputs']:\n         if digest(Path(record['path']))!=record['sha256']:raise SystemExit('STOP: runner/provider setup input changed')\n     oracle=json.loads(Path('/tmp/naming-oracle-setup.json').read_text())\n@@ -37,7 +42,7 @@\n (receipt/'current-rust-diff.patch').write_bytes(subprocess.check_output(['git','diff','--binary','HEAD','--','rust','Cargo.toml','Cargo.lock']))\n safe_keys={'CARGO_TARGET_DIR','CARGO_BUILD_JOBS','CARGO_INCREMENTAL','CARGO_PROFILE_TEST_DEBUG','CARGO_PROFILE_DEV_DEBUG','CARGO_TERM_COLOR','RUSTUP_HOME','RUSTUP_TOOLCHAIN','TCL_LSP_REQUIRE_TCLSH','TCL_LSP_TCLSH84','TCL_LSP_TCLSH85','TCL_LSP_TCLSH86','TCL_LSP_TCLSH90','TCL_LSP_TCLSH91','TCL_LSP_JIMSH','WASI_SDK_PATH'}\n write_json(receipt/'build-environment.json',{k:os.environ[k] for k in safe_keys if k in os.environ})\n-runner_files=['/tmp/tcl-lsp-naming-env.sh','/tmp/ccg-postbatch-functional-v2-run.sh','/tmp/ccg-postbatch-functional-v2-suite.py','/tmp/compiler-c6-guarded-cargo.py','/tmp/compiler-c6-provider-manifest.py','/tmp/naming-oracle-setup.json',str(plan_path)]\n+runner_files=['/tmp/tcl-lsp-naming-env.sh','/tmp/ccg-postbatch-functional-v3-run.sh','/tmp/ccg-postbatch-functional-v3-suite.py','/tmp/compiler-c6-guarded-cargo.py','/tmp/compiler-c6-provider-manifest.py','/tmp/naming-oracle-setup.json',str(plan_path)]\n write_json(receipt/'runner-inputs.json',{p:digest(Path(p)) for p in runner_files})\n results=[]; overall=0\n print('START',tag,'receipt='+str(receipt),'source_inputs='+str(len(before)),flush=True)\n"
+    },
+    {
+      "old_plan": {
+        "path": "/tmp/ccg-wasm-five-v5-plan.json",
+        "sha256": "f793633d9255d89f5ed1cae1d4bc2010b5d7db68098c0611269a6102fa7f1064"
+      },
+      "new_plan": {
+        "path": "/tmp/ccg-wasm-five-v6-plan.json",
+        "sha256": "38145a1d649fe52e2ced3b17a2dd84b509c90f87d04751c19dc38d861863e0d6"
+      },
+      "new_suite": {
+        "path": "/tmp/ccg-wasm-five-v6-suite.py",
+        "sha256": "e9fd13fcf01c00bd40634c2a59f6e7da8ac27484b609daa45dd4ad71366aafe2"
+      },
+      "new_runner": {
+        "path": "/tmp/ccg-wasm-five-v6-run.sh",
+        "sha256": "a25ee327fb7c756eb270a5b694b99cef7b66ce495c2abc2aea5de33b4c03bb33"
+      },
+      "extra_tool_records": 27,
+      "suite_diff": "--- \n+++ \n@@ -24,6 +24,11 @@\n     return records\n def write_json(path,data):path.write_text(json.dumps(data,sort_keys=True,indent=2)+'\\n')\n def check_runner_and_oracle_pins():\n+    selectors=json.loads(Path(plan['actual_tool_selectors']['path']).read_text())\n+    override_names=('CC','AR','RUSTC','RUSTC_WRAPPER','RUSTC_WORKSPACE_WRAPPER','CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER','CARGO_TARGET_WASM32_WASIP1_LINKER')\n+    if {key:os.environ[key] for key in override_names if key in os.environ}!=selectors['overrides']:raise SystemExit('STOP: actual compiler/linker override changed; explicit review required')\n+    for name,expected_path in selectors['programs'].items():\n+        if shutil.which(name)!=expected_path:raise SystemExit('STOP: selected actual compiler/linker path changed '+name)\n     for record in plan['runner_inputs']:\n         if digest(Path(record['path']))!=record['sha256']:raise SystemExit('STOP: runner/provider setup input changed')\n     oracle=json.loads(Path('/tmp/naming-oracle-setup.json').read_text())\n@@ -46,7 +51,7 @@\n (receipt/'current-rust-diff.patch').write_bytes(subprocess.check_output(['git','diff','--binary','HEAD','--','rust','Cargo.toml','Cargo.lock']))\n safe_keys={'CARGO_TARGET_DIR','CARGO_BUILD_JOBS','CARGO_INCREMENTAL','CARGO_PROFILE_TEST_DEBUG','CARGO_PROFILE_DEV_DEBUG','CARGO_TERM_COLOR','RUSTUP_HOME','RUSTUP_TOOLCHAIN','TCL_LSP_REQUIRE_TCLSH','TCL_LSP_TCLSH84','TCL_LSP_TCLSH85','TCL_LSP_TCLSH86','TCL_LSP_TCLSH90','TCL_LSP_TCLSH91','TCL_LSP_JIMSH','RUSTFLAGS','CARGO_ENCODED_RUSTFLAGS','WASI_SDK_PATH','TCL_TOMMATH_DIR','TCL_REQUIRE_WASM_LINK','TCL_WASM_CC','TCL_WASM_AR','TCL_WASM_SYSROOT'}\n write_json(receipt/'build-environment.json',{k:os.environ[k] for k in safe_keys if k in os.environ})\n-runner_files=['/tmp/tcl-lsp-naming-env.sh','/tmp/ccg-wasm-five-v5-run.sh','/tmp/ccg-wasm-five-v5-suite.py','/tmp/ccg-wasm-five-guarded-cargo.py','/tmp/ccg-wasm-five-providers.py','/tmp/compiler-c6-provider-manifest.py','/tmp/naming-oracle-setup.json',str(plan_path)]\n+runner_files=['/tmp/tcl-lsp-naming-env.sh','/tmp/ccg-wasm-five-v6-run.sh','/tmp/ccg-wasm-five-v6-suite.py','/tmp/ccg-wasm-five-guarded-cargo.py','/tmp/ccg-wasm-five-providers.py','/tmp/compiler-c6-provider-manifest.py','/tmp/naming-oracle-setup.json',str(plan_path)]\n write_json(receipt/'runner-inputs.json',{p:digest(Path(p)) for p in runner_files})\n runtime_path=root/'target/tcl_reserved_runtime/wasm32-wasip1/debug/tcl_runtime.wasm'\n def runtime_artifact():\n"
+    }
+  ],
+  "limits": "Tool executable/linkedlib identities only, no operating-system-image or complete host C sysroot proof. Existing SDK sysroot/resources/Rust stdlib full seals remain independently enforced. No retroactive guard or runtime acceptance."
+}

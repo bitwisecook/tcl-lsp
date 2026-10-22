@@ -1,0 +1,92 @@
+{
+  "status": "Frozen off-tree; bounded bootstrap/scope/materialized-parent/replay reviews clear in examined seams; NOT whole-host/type/runtime/admission",
+  "sha256": "ca327956be0af8282f31a4c36c1c1f69f90544cbe260cd759ae86502e0b04134",
+  "delta_from_v8_sha256": "d1be85c1c67f67fef63f5cc86bae5c69bf5d8d64b75a140c284c5680b8a955ab",
+  "compiler_prerequisite": "Canonical stage6/09e9 plus frontier-v4 b8e4ebb4a9950c01e31fab04cdb32ca8987ef5e49f4f3d3e040e2e72daf425f1",
+  "paths": [
+    {
+      "path": "rust/tcl-lsp-core/src/lib.rs",
+      "before": "d6c5da9b17812a3ad53c99ea183c096817ba53285e8c096de1d32f6025abaacc",
+      "proposed": "9a6f2420193787a4db5e97880e1d87634f4c5189d617d4a3335d1a94e2c6df24"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_declaration.rs",
+      "before": "d665ce6edc542e38135ff367e8c0398f2afa6f5d2d6de73c6151af9653abe60a",
+      "proposed": "e17b21a594fb4492c8661f7d203cad955dd964b908ea3c55442e1db4afce811b"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/original_source_views.rs",
+      "before": null,
+      "proposed": "07421f4170c7ca81f753e5971c6d248d935198cafb5fc5480436de38aa571696"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/workspace_index/source_views.rs",
+      "before": null,
+      "proposed": "e3bccc60905fdd814fc405ec0f581559bf43107ba30260cc42a63613f9ec78cb"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/workspace_index.rs",
+      "before": "cdcf378220769d158a96f1999b1f82b546d9ea6ab375209ce7f0792f56672937",
+      "proposed": "97be797b76cf30e1b2d887f50f21e801fa13d8f658d7cc47bac82304d7f73b20"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/lib.rs",
+      "before": "3346713545c342e97329be798d77a99a8a0587776f8732826d74455878c4cd87",
+      "proposed": "1923206a9a6793d56808e78f9f89eb671f959cb2865036e9d980fe9701ce9b97"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports/source_views.rs",
+      "before": null,
+      "proposed": "e7e0cea8c2bb1a19429a9b78f684be767b557ff3d335b5e697142f981835783c"
+    },
+    {
+      "path": "rust/tcl-lsp-server/src/readonly_reference_reports.rs",
+      "before": "b5e220cccb332a42ba1d4d95dbf0fedc08a5def1b51be9471e3b9d389f919ac0",
+      "proposed": "b3330e27a594229ad424d4c4108497242720bcfc97ef3cbe989e6131e1ac8ba5"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_source_view_owners.rs",
+      "before": null,
+      "proposed": "5c109d0b4d7b0e3d2e0e0a1d908987050458db2fb9bd5d9d557cbb71f4d00b23"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e/naming_source_views.rs",
+      "before": "2ee1a761bee85d0c3fe502a163369c475e3bb9474a65f3283064685a1143390c",
+      "proposed": "ce18742de81c758d14db7c30162ce34fcd8411a8c43b943f2bea14c5fcbc2f50"
+    },
+    {
+      "path": "rust/tcl-lsp-server/tests/e2e.rs",
+      "before": "9dc807c513520f22da82a5e20d953dcf170340faa641218f9ae71ef20982f476",
+      "proposed": "5fd514f9a91a2c232538a53116a697bdf164265accd0987b9ed81492e3ecd8af"
+    }
+  ],
+  "bootstrap_review": "ee539567 bounded actual lease/Core inventory clear, no whole selection approval",
+  "scope_review": "b922071e immutable initial scope delta under names review; exact scope source bytes remain440e59d5",
+  "actual_source_base": "All11 recorded before hashes independently compared to active canonical source and local base, exact",
+  "controls": [
+    "Existing12hop D2 exact first inventory/reference rosters + retirement unchanged",
+    "Existing two-parent A8.6/B9.0+physicalchild8.5 savedA-retired/B-current exactbytes control unchanged",
+    "New native pending_source_scopes_and_rootless_cycles_keep_independent_first_answers unrun; C8.6 matched semantics only; all original assertions retained"
+  ],
+  "manual_C_control_receipt": "/tmp/lsp-n13-frontier-scope-oracles/profile-classification-correction.json;14positive+1negative8.4floor, initial incorrect all-profile positive receipt preserved",
+  "remaining": [
+    "Coupled typing/strict zero-warning lint and actual native source-view protocols are pending",
+    "Current source_draft_target supplies empty imported constants; incoming directory path advice and exact cut-head prefix/region-owned path inventory+completed-child-return continuity need authentic adapters; no generic SourceLoad/outside-region barrier bypass",
+    "Actual folder6/minify13/Core2 remain unrun, browser/WASI context/source/rename P2Fs remain acceptance blockers",
+    "Conditional-body obligations still refuse aggregate absence/edit coverage; newly region-declared proc preview/class/member/hover/rename routes remain unavailable"
+  ],
+  "delta_from_v9_sha256": "70410522ba367393df0b34b776b34ced757dc35e57388384f95a02a453209305",
+  "accepted_corrections": [
+    "c8c3 actual materialized producer coverage replaces mistaken potential target/NoCut coverage; native D-potential-A/A-potential-B negative appended",
+    "e696 association ledger withdrawal requires same positive direct compiler replay+exact actual successor card; actual visited URIs remain required"
+  ],
+  "peer_review_scope": "Names bounded ee539/b922+c8c3/e696 actual-lease/selection/revision/callback review; no new examined authority blocker after correction; not full host or type/runtime approval",
+  "delta_from_v10_sha256": "e049d5dff83afafda6b73117df0aa06020ea4e7bf657ed8fa2f7d208e90b21a0",
+  "structural_delta": "Refresh root loop extracted to publish_initial_original_roots, reconcile_excluded_original_roots and finish_original_root_reconciliation with private reconciliation state. Guard order, publication order, same bool/None terminal exits and final revision window retained. Four new phase functions each under100 formatted source lines; no lint allows. Static source parser only, no lint/type/run claim.",
+  "evidence_status": "OFF_TREE ONLY. Names peer reports bounded bootstrap/scope/materialized-parent/replay and e049 structural split reviews clear in examined seams. No whole-host/type/lint/protocol evidence.",
+  "preserved_rejected_predecessor": {
+    "scope_b922": "Potential association target was wrongly counted as completed parent coverage. Kept immutable; never applied.",
+    "fix_c8c3": "Requires genuine cut + actual inherited child in completed current scope; all associations must qualify.",
+    "replay_e696": "Old ledger association removed only after exact positive direct replay+actual successor; visited dependencies stay required."
+  }
+}

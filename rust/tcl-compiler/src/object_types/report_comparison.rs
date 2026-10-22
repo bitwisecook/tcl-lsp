@@ -82,29 +82,6 @@ struct ReportCandidates<'a> {
     definition_classes: HashSet<ReportOwner<'a>>,
 }
 
-// Temporary observational control. Conditions retain their original order and
-// short circuit; these traces neither issue correspondence nor change equality.
-macro_rules! report_capture_refused {
-    ($label:literal, $condition:expr) => {{
-        let refused = $condition;
-        #[cfg(test)]
-        if refused && std::env::var_os("TCL_LSP_TRACE_REPORT_CAPTURE").is_some() {
-            eprintln!("REPORT_CAPTURE refusal={}", $label);
-        }
-        refused
-    }};
-}
-macro_rules! report_facts_match {
-    ($label:literal, $condition:expr) => {{
-        let matches = $condition;
-        #[cfg(test)]
-        if !matches && std::env::var_os("TCL_LSP_TRACE_REPORT_CAPTURE").is_some() {
-            eprintln!("REPORT_CURRENTNESS refusal={}", $label);
-        }
-        matches
-    }};
-}
-
 impl ObjectReportSource {
     fn frame(&self, frame: BodyFrameId) -> Option<ReportFrame<'_>> {
         match frame {
@@ -131,26 +108,14 @@ impl ObjectReportSource {
     }
 
     fn matches_facts(&self, facts: &ObjectHandleFacts) -> bool {
-        report_facts_match!("owner-spans", facts.owner_spans == self.scopes)
-            && report_facts_match!("classes", facts.by_scope == self.classes)
-            && report_facts_match!("returns", facts.returns_object == self.returns)
-            && report_facts_match!(
-                "body-coordinate-uniqueness",
-                self.bodies.values().collect::<HashSet<_>>().len() == self.bodies.len()
-            )
-            && report_facts_match!(
-                "reported-classes-totality",
-                self.reported_classes().is_some()
-            )
-            && report_facts_match!("reported-scopes-totality", self.reported_scopes().is_some())
-            && report_facts_match!(
-                "reported-returns-totality",
-                self.reported_returns().is_some()
-            )
-            && report_facts_match!(
-                "reported-candidates-totality",
-                self.reported_candidates(facts).is_some()
-            )
+        facts.owner_spans == self.scopes
+            && facts.by_scope == self.classes
+            && facts.returns_object == self.returns
+            && self.bodies.values().collect::<HashSet<_>>().len() == self.bodies.len()
+            && self.reported_classes().is_some()
+            && self.reported_scopes().is_some()
+            && self.reported_returns().is_some()
+            && self.reported_candidates(facts).is_some()
     }
 
     fn reported_classes(&self) -> Option<HashMap<(ReportOwner<'_>, &str), &HashSet<String>>> {
@@ -237,15 +202,12 @@ impl ObjectHandleFacts {
     ) {
         self.report_source = None;
         let Some(input) = analysis.resolved_input.as_ref() else {
-            report_capture_refused!("missing-input", true);
             return;
         };
         let Some(realm) = analysis.retained_command_realm_arc() else {
-            report_capture_refused!("missing-realm", true);
             return;
         };
         let Some(image) = realm.original_source_image() else {
-            report_capture_refused!("missing-image", true);
             return;
         };
         let module = &unit.ir_module;
@@ -260,50 +222,26 @@ impl ObjectHandleFacts {
                         .native_name_protocol()
                         .is_some()
                 });
-        if report_capture_refused!("unsupported-source-domain", !logical && !versioned_source)
-            || report_capture_refused!(
-                "logical-advice-unavailable",
-                logical && !analysis.allows_retained_logical_declaration_advice()
-            )
-            || report_capture_refused!("realm-input", !realm.matches_resolved_analysis_input(input))
-            || report_capture_refused!("module-image", image != &module.source)
-            || report_capture_refused!(
-                "unit-source",
-                image.try_text().ok() != Some(unit.source.as_str())
-            )
-            || report_capture_refused!(
-                "module-input",
-                module.source_metadata_input.as_ref() != Some(input)
-            )
-            || report_capture_refused!(
-                "module-config",
-                module.native_lexer_config() != input.lexer_config()
-            )
-            || report_capture_refused!("physical-entry", module.source_entry.native_entry.is_some())
-            || report_capture_refused!(
-                "unknown-entry",
-                module.source_entry.unknown_entry && !versioned_source
-            )
-            || report_capture_refused!(
-                "entry-input",
-                module.source_entry.metadata_context.source_analysis_input() != Some(input)
-            )
-            || report_capture_refused!(
-                "retained-module",
-                module
-                    .retained_source_bindings
-                    .as_ref()
-                    .is_none_or(|held| !held.matches_module(module, registry))
-            )
-            || report_capture_refused!(
-                "registry-input",
-                registry.snapshot().semantic_key()
-                    != input
-                        .borrowed_context_registry()
-                        .commands()
-                        .snapshot()
-                        .semantic_key()
-            )
+        if (!logical && !versioned_source)
+            || (logical && !analysis.allows_retained_logical_declaration_advice())
+            || !realm.matches_resolved_analysis_input(input)
+            || image != &module.source
+            || image.try_text().ok() != Some(unit.source.as_str())
+            || module.source_metadata_input.as_ref() != Some(input)
+            || module.native_lexer_config() != input.lexer_config()
+            || module.source_entry.native_entry.is_some()
+            || (module.source_entry.unknown_entry && !versioned_source)
+            || module.source_entry.metadata_context.source_analysis_input() != Some(input)
+            || module
+                .retained_source_bindings
+                .as_ref()
+                .is_none_or(|held| !held.matches_module(module, registry))
+            || registry.snapshot().semantic_key()
+                != input
+                    .borrowed_context_registry()
+                    .commands()
+                    .snapshot()
+                    .semantic_key()
         {
             return;
         }
@@ -311,11 +249,9 @@ impl ObjectHandleFacts {
         let mut coordinates = HashSet::new();
         for (id, procedure) in module.original_source_procedure_bodies() {
             let Some(original) = image.bytes().get(procedure.span.as_range()) else {
-                report_capture_refused!("procedure-span", true);
                 return;
             };
             if !module.procedure_ids.owns(*id) || original.is_empty() {
-                report_capture_refused!("body-owner-or-empty", true);
                 return;
             }
             if let Some(site) = procedure.declaration_site.as_ref() {
@@ -329,7 +265,6 @@ impl ObjectHandleFacts {
                     )
                     .count();
                 if count != 1 {
-                    report_capture_refused!("declaration-site-count", true);
                     return;
                 }
             }
@@ -341,21 +276,17 @@ impl ObjectHandleFacts {
                 original: original.to_vec(),
             };
             if !coordinates.insert(coordinate.clone()) || bodies.insert(*id, coordinate).is_some() {
-                report_capture_refused!("duplicate-coordinate-or-body", true);
                 return;
             }
         }
         for (id, method) in &module.methods {
             let Some(span) = method.span else {
-                report_capture_refused!("missing-method-span", true);
                 return;
             };
             let Some(original) = image.bytes().get(span.as_range()) else {
-                report_capture_refused!("body-span", true);
                 return;
             };
             if !module.procedure_ids.owns(*id) || original.is_empty() {
-                report_capture_refused!("body-owner-or-empty", true);
                 return;
             }
             let coordinate = BodyCoordinate {
@@ -366,18 +297,15 @@ impl ObjectHandleFacts {
                 original: original.to_vec(),
             };
             if !coordinates.insert(coordinate.clone()) || bodies.insert(*id, coordinate).is_some() {
-                report_capture_refused!("duplicate-coordinate-or-body", true);
                 return;
             }
         }
         for id in module.original_definition_scripts.keys() {
             let Some(source) = module.original_definition_script_source(*id, registry) else {
-                report_capture_refused!("definition-source", true);
                 return;
             };
             let span = source.declaration_span();
             let Some(original) = image.bytes().get(span.as_range()) else {
-                report_capture_refused!("body-span", true);
                 return;
             };
             let coordinate = BodyCoordinate {
@@ -388,7 +316,6 @@ impl ObjectHandleFacts {
                 original: original.to_vec(),
             };
             if !coordinates.insert(coordinate.clone()) || bodies.insert(*id, coordinate).is_some() {
-                report_capture_refused!("duplicate-coordinate-or-body", true);
                 return;
             }
         }
@@ -413,16 +340,6 @@ impl ObjectHandleFacts {
             .report_source
             .as_ref()
             .filter(|source| source.matches_facts(other));
-        #[cfg(test)]
-        if std::env::var_os("TCL_LSP_TRACE_REPORT_CAPTURE").is_some() {
-            eprintln!(
-                "REPORT_COMPARISON present_left={} present_right={} current_left={} current_right={}",
-                self.report_source.is_some(),
-                other.report_source.is_some(),
-                a.is_some(),
-                b.is_some()
-            );
-        }
         let (a, b) = match (a, b) {
             (Some(a), Some(b)) => (a, b),
             (None, None) => return self == other,
@@ -463,72 +380,6 @@ impl ObjectHandleFacts {
 mod tests {
     use crate::analyser::Analyser;
 
-    fn current_report_control(source: &str, dialect: &str, label: &str) {
-        let first = Analyser::new().analyse(source, dialect);
-        let second = Analyser::new().analyse(source, dialect);
-        eprintln!(
-            "REPORT_CONTROL label={label} dialect={dialect} bytes={} full_equal={} diagnostics_equal={} reports_present={}/{}",
-            source.len(),
-            first == second,
-            first.diagnostics == second.diagnostics,
-            first.object_handle_facts.report_source.is_some(),
-            second.object_handle_facts.report_source.is_some()
-        );
-        eprintln!("REPORT_FIELDS {}", first.bounded_mismatch_summary(&second));
-        for (ordinal, (left, right)) in first
-            .diagnostics
-            .iter()
-            .zip(&second.diagnostics)
-            .enumerate()
-        {
-            if left != right {
-                eprintln!(
-                    "REPORT_DIAGNOSTIC ordinal={ordinal} code_left={} code_right={} subject_equal={} code_equal={} span_equal={} message_equal={} severity_equal={} fixes_equal={}",
-                    left.code,
-                    right.code,
-                    left.subject == right.subject,
-                    left.code == right.code,
-                    left.span == right.span,
-                    left.message == right.message,
-                    left.severity == right.severity,
-                    left.fixes == right.fixes
-                );
-                if let (Some(left), Some(right)) = (left.subject.as_ref(), right.subject.as_ref()) {
-                    left.trace_report_subject_pair(right);
-                }
-                break;
-            }
-        }
-        assert!(
-            first == second,
-            "unchanged complete AnalysisResult equality: {label}"
-        );
-    }
-
-    #[test]
-    fn current_native_alias_report_capture_control() {
-        current_report_control(
-            include_str!("../../tests/data/name-consumers/aliases.tcl"),
-            "tcl8.6",
-            "aliases",
-        );
-    }
-    #[test]
-    fn current_native_arity_subject_report_control() {
-        current_report_control(
-            include_str!("../../../../samples/diagnostics/E003_proc_call_arity/example.tcl"),
-            "tcl8.6",
-            "E003",
-        );
-    }
-    #[test]
-    fn current_hosted_report_capture_control() {
-        current_report_control(
-            include_str!("../../../../samples/irules/cookbook_http_collect.irul"),
-            "f5-irules",
-            "hosted-http-collect",
-        );
-    }
     #[test]
     fn independent_logical_reports_match_original_coordinates_without_equal_runtime_owners() {
         let source = "oo::class create C {variable {$literal}; method m {} {return VALUE}; method n {} {return OTHER}}";

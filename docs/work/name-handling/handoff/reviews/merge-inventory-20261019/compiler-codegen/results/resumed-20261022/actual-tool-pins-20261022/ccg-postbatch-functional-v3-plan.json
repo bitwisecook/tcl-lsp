@@ -1,0 +1,551 @@
+{
+  "utc": "2026-10-22T22:58:21.491996+00:00",
+  "status": "PLANNED ONLY; NO Cargo queued, no source/test edits; execute solely after root grants post-compiler/LSP3/VM slot and stable source freeze",
+  "owner": "compiler-codegen",
+  "repo": "/workspace/naming-migration-active/tcl-lsp",
+  "ordering": "After compiler/LSP3/VM scheduled slots; jobs run sequentially under one full-chain lock. VM owns its other11jobs/UPF2/compatibility map; do not duplicate these five targets elsewhere.",
+  "expected_selected_total": 51,
+  "jobs": [
+    {
+      "label": "n17_ascii_registry",
+      "package": "tcl-registry",
+      "target": "lib",
+      "selector": "native_string_is_compilation::tests::",
+      "expected_selected": 3,
+      "selected_tests": [
+        "native_string_is_compilation::tests::a_real_private_descriptor_keeps_the_single_original_subject",
+        "native_string_is_compilation::tests::unmodeled_original_class_options_and_expansions_keep_refusing",
+        "native_string_is_compilation::tests::old_or_missing_compiler_point_cannot_make_a_native_plan"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-registry",
+        "--lib",
+        "native_string_is_compilation::tests::",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cargo_command": "cargo test --locked -p tcl-registry --lib native_string_is_compilation::tests:: -- --nocapture --test-threads=1",
+      "artifact_stem": "tcl_registry",
+      "skip": null,
+      "notes": "Typed selector/plan metadata controls only; profiles8.4/8.5 negative,8.6/9.0/9.1 positive. Cargo registry test dev-dependency closure includes SpectCl library, not its dev-dependencies."
+    },
+    {
+      "label": "n17_variable_boundaries",
+      "package": "tcl-spectcl",
+      "target": "variable_reference_boundaries",
+      "selector": null,
+      "expected_selected": 4,
+      "selected_tests": [
+        "a_template_names_its_command_where_the_reference_ends",
+        "a_colon_run_in_a_template_is_a_namespace_separator",
+        "a_live_hook_folds_the_value_its_substitution_computes",
+        "a_live_fold_keeps_declared_effects_and_unclosed_arguments"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spectcl",
+        "--test",
+        "variable_reference_boundaries",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cargo_command": "cargo test --locked -p tcl-spectcl --test variable_reference_boundaries -- --nocapture --test-threads=1",
+      "artifact_stem": "variable_reference_boundaries",
+      "skip": null,
+      "notes": "Original4 controls include declared-world effects and missing/unknown handler/argument negatives; no assertion changes."
+    },
+    {
+      "label": "n17_pack_source_and_ascii",
+      "package": "tcl-spectcl",
+      "target": "pack_source_e2e",
+      "selector": null,
+      "expected_selected": 10,
+      "selected_tests": [
+        "the_loader_carries_the_declared_inputs",
+        "a_pack_file_folds_a_call_site_in_the_optimiser",
+        "without_a_host_the_installed_pack_simply_does_not_fold",
+        "a_pack_timing_hook_controls_a_live_command_prefix_position",
+        "a_reference_body_answers_through_the_host_as_the_procedure_does",
+        "a_derived_body_runs_under_the_release_the_call_is_analysed_under",
+        "native_string_is_ascii::original_ascii_guarded_hook_body_answers_without_host_errors",
+        "native_string_is_ascii::public_engine_reaches_original_unicode_and_reuses_boolean_owner",
+        "native_string_is_ascii::retiring_the_actual_private_worker_cannot_reuse_the_cached_ascii_recipe",
+        "native_string_is_ascii::replacing_the_actual_private_worker_never_bypasses_it_as_stock_ascii"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spectcl",
+        "--test",
+        "pack_source_e2e",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cargo_command": "cargo test --locked -p tcl-spectcl --test pack_source_e2e -- --nocapture --test-threads=1",
+      "artifact_stem": "pack_source_e2e",
+      "skip": null,
+      "notes": "ACTUAL inventory6original+4new=10; original DSL1/2 spelling, derived profiles8.4-9.1 plus exact original guarded hook/direct object/actual worker controls. New engine controls create authentic nativeC9.0 engine; guarded-hook metadata includes logical8.6. Full target first, no derived patch speculation."
+    },
+    {
+      "label": "n17_const_fold",
+      "package": "tcl-spec-hooks",
+      "target": "const_fold_e2e",
+      "selector": null,
+      "expected_selected": 6,
+      "selected_tests": [
+        "the_pack_fold_agrees_with_the_native_folder_on_the_same_inputs",
+        "a_pack_fold_body_folds_in_the_optimiser_pipeline",
+        "the_body_abstains_the_way_the_native_folder_declines",
+        "a_dynamic_word_never_reaches_the_body",
+        "a_thread_without_the_host_abstains_rather_than_folding",
+        "a_versioned_pack_fold_is_told_the_profiles_evaluation_point"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spec-hooks",
+        "--test",
+        "const_fold_e2e",
+        "--",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "cargo_command": "cargo test --locked -p tcl-spec-hooks --test const_fold_e2e -- --nocapture --test-threads=1",
+      "artifact_stem": "const_fold_e2e",
+      "skip": null,
+      "notes": "This package dev-dependency explicitly activates tcl-runtime/engine, a different Cargo compiler/runtime feature closure from SpectCl targets. Keep ordinary default features; no --all-features, no forced fingerprint/mtime or artifact substitution. Versioned cases8.6 and9.0."
+    },
+    {
+      "label": "codegen_stamps_without_heavy_matrix",
+      "package": "tcl-spectcl",
+      "target": "codegen_stamps",
+      "selector": null,
+      "expected_selected": 28,
+      "selected_tests": [
+        "a_workspace_stamp_is_refused_and_specialises_nothing",
+        "an_admitted_alias_stamp_records_the_targets_identity",
+        "the_vm_admits_it_through_the_alias_hop",
+        "a_changed_pack_invalidates_the_site",
+        "a_pack_fold_is_admitted_only_under_its_pack_s_facts",
+        "a_site_compiled_through_the_service_stamps_the_bases_overlay_generation",
+        "a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed",
+        "a_proc_at_the_pack_name_recompiles_plain",
+        "a_tcl_body_backed_command_is_inlined_and_admitted",
+        "a_host_native_backing_never_defines_a_proc",
+        "a_pack_text_body_that_diverges_turns_the_site_plain",
+        "a_package_source_body_is_read_at_load_through_the_store",
+        "a_package_source_that_cannot_be_read_is_said_and_not_inlined",
+        "a_package_source_body_is_a_declared_implementation_too",
+        "a_direct_dependencys_reference_body_is_dropped_at_load",
+        "a_body_with_a_return_before_its_end_answers_through_the_splice",
+        "an_inlined_body_inside_a_static_eval_keeps_its_value",
+        "an_inlined_body_resolves_the_commands_it_calls_as_its_definition_did",
+        "a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resolve_it_in",
+        "an_inlined_body_reads_only_what_its_definition_binds",
+        "a_braced_word_in_an_inlined_body_stays_literal",
+        "a_body_that_reads_through_an_operand_kept_as_text_stays_a_call",
+        "a_function_claims_a_splice_only_where_it_emits_it",
+        "an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value",
+        "a_braced_literal_stays_literal_through_the_wrap",
+        "a_definition_in_a_namespace_resolves_its_commands_as_it_did",
+        "a_variable_a_substituted_command_names_is_the_definitions_own",
+        "a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm"
+      ],
+      "cargo_argv": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "tcl-spectcl",
+        "--test",
+        "codegen_stamps",
+        "--",
+        "--nocapture",
+        "--test-threads=1",
+        "--skip",
+        "every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site"
+      ],
+      "cargo_command": "cargo test --locked -p tcl-spectcl --test codegen_stamps -- --nocapture --test-threads=1 --skip every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site",
+      "artifact_stem": "codegen_stamps",
+      "skip": "every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site",
+      "notes": "29actual test functions minus exactly1heavy matrix=28. Preserve original bytecode/assertions. Compare6 helper-migrated selectors separately from22 other selected service/loader/VM tests; no23oldfailure fix claim. Attribute actual failure phase first (compile/provenance/stamp/inlining/admission/runtime), no extra rerun unless new failure/uncertainty justifies it."
+    }
+  ],
+  "pack_source_inventory": {
+    "original6": [
+      "the_loader_carries_the_declared_inputs",
+      "a_pack_file_folds_a_call_site_in_the_optimiser",
+      "without_a_host_the_installed_pack_simply_does_not_fold",
+      "a_pack_timing_hook_controls_a_live_command_prefix_position",
+      "a_reference_body_answers_through_the_host_as_the_procedure_does",
+      "a_derived_body_runs_under_the_release_the_call_is_analysed_under"
+    ],
+    "new_ascii4": [
+      "native_string_is_ascii::original_ascii_guarded_hook_body_answers_without_host_errors",
+      "native_string_is_ascii::public_engine_reaches_original_unicode_and_reuses_boolean_owner",
+      "native_string_is_ascii::retiring_the_actual_private_worker_cannot_reuse_the_cached_ascii_recipe",
+      "native_string_is_ascii::replacing_the_actual_private_worker_never_bypasses_it_as_stock_ascii"
+    ]
+  },
+  "codegen_inventory": {
+    "all29": [
+      "a_workspace_stamp_is_refused_and_specialises_nothing",
+      "an_admitted_alias_stamp_records_the_targets_identity",
+      "the_vm_admits_it_through_the_alias_hop",
+      "a_changed_pack_invalidates_the_site",
+      "a_pack_fold_is_admitted_only_under_its_pack_s_facts",
+      "a_site_compiled_through_the_service_stamps_the_bases_overlay_generation",
+      "a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed",
+      "a_proc_at_the_pack_name_recompiles_plain",
+      "a_tcl_body_backed_command_is_inlined_and_admitted",
+      "a_host_native_backing_never_defines_a_proc",
+      "a_pack_text_body_that_diverges_turns_the_site_plain",
+      "a_package_source_body_is_read_at_load_through_the_store",
+      "a_package_source_that_cannot_be_read_is_said_and_not_inlined",
+      "a_package_source_body_is_a_declared_implementation_too",
+      "a_direct_dependencys_reference_body_is_dropped_at_load",
+      "a_body_with_a_return_before_its_end_answers_through_the_splice",
+      "an_inlined_body_inside_a_static_eval_keeps_its_value",
+      "an_inlined_body_resolves_the_commands_it_calls_as_its_definition_did",
+      "a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resolve_it_in",
+      "an_inlined_body_reads_only_what_its_definition_binds",
+      "a_braced_word_in_an_inlined_body_stays_literal",
+      "a_body_that_reads_through_an_operand_kept_as_text_stays_a_call",
+      "a_function_claims_a_splice_only_where_it_emits_it",
+      "an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value",
+      "a_braced_literal_stays_literal_through_the_wrap",
+      "a_definition_in_a_namespace_resolves_its_commands_as_it_did",
+      "a_variable_a_substituted_command_names_is_the_definitions_own",
+      "a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm",
+      "every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site"
+    ],
+    "excluded_heavy": "every_shape_of_inlined_body_answers_as_its_definition_does_at_every_site",
+    "helper_migrated6": [
+      "a_workspace_stamp_is_refused_and_specialises_nothing",
+      "an_admitted_alias_stamp_records_the_targets_identity",
+      "the_vm_admits_it_through_the_alias_hop",
+      "a_changed_pack_invalidates_the_site",
+      "a_pack_fold_is_admitted_only_under_its_pack_s_facts",
+      "a_proc_at_the_pack_name_recompiles_plain"
+    ],
+    "other_selected22": [
+      "a_site_compiled_through_the_service_stamps_the_bases_overlay_generation",
+      "a_service_for_the_packs_overlay_compiles_against_the_generation_they_installed",
+      "a_tcl_body_backed_command_is_inlined_and_admitted",
+      "a_host_native_backing_never_defines_a_proc",
+      "a_pack_text_body_that_diverges_turns_the_site_plain",
+      "a_package_source_body_is_read_at_load_through_the_store",
+      "a_package_source_that_cannot_be_read_is_said_and_not_inlined",
+      "a_package_source_body_is_a_declared_implementation_too",
+      "a_direct_dependencys_reference_body_is_dropped_at_load",
+      "a_body_with_a_return_before_its_end_answers_through_the_splice",
+      "an_inlined_body_inside_a_static_eval_keeps_its_value",
+      "an_inlined_body_resolves_the_commands_it_calls_as_its_definition_did",
+      "a_body_that_substitutes_a_command_is_not_given_the_callers_namespace_to_resolve_it_in",
+      "an_inlined_body_reads_only_what_its_definition_binds",
+      "a_braced_word_in_an_inlined_body_stays_literal",
+      "a_body_that_reads_through_an_operand_kept_as_text_stays_a_call",
+      "a_function_claims_a_splice_only_where_it_emits_it",
+      "an_inlined_body_in_an_lmap_body_gives_the_list_each_iterations_value",
+      "a_braced_literal_stays_literal_through_the_wrap",
+      "a_definition_in_a_namespace_resolves_its_commands_as_it_did",
+      "a_variable_a_substituted_command_names_is_the_definitions_own",
+      "a_call_whose_body_is_a_branch_is_not_given_the_value_of_an_arm"
+    ],
+    "attribution": "Older service-backed failures remain unmeasured on combined post-batch source; do not infer derived SCCP or codegen fixes before these results."
+  },
+  "test_inventory_sources": [
+    {
+      "path": "rust/tcl-registry/src/native_string_is_compilation.rs",
+      "sha256": "a70c5ba877c0c294d8d795ed4f99dc88e37b5fe6c7cbac9e81b02715a0a6e555"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/variable_reference_boundaries.rs",
+      "sha256": "d67c8bade1adda96c788a16d303033b38920ed5f4767a575f6c2d8c72d5384ad"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/pack_source_e2e.rs",
+      "sha256": "a46e9deccdc44e9014b053069130bf3eb7e85a92e836705c0ef7385eaa0a8ff1"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/support/native_string_is_ascii.rs",
+      "sha256": "744bd5c00bfde84dd0100ec8e11495780300d053c905766ef0d2b604e437c870"
+    },
+    {
+      "path": "rust/tcl-spec-hooks/tests/const_fold_e2e.rs",
+      "sha256": "5eda8dce0b6fd8555416c2ca49576db6d5f6f6ad2a6b35997c42fd4785dff739"
+    },
+    {
+      "path": "rust/tcl-spectcl/tests/codegen_stamps.rs",
+      "sha256": "9b6c7799bb4cf8506aaddc81a6f2ad7e61ca479cea3047cbff578c4b8719233d"
+    }
+  ],
+  "runner_inputs": [
+    {
+      "path": "/tmp/tcl-lsp-naming-env.sh",
+      "sha256": "9d33ccdba049a778482244c60a8206cd62fc503db55227b7c6cf87645c932f29"
+    },
+    {
+      "path": "/tmp/compiler-c6-guarded-cargo.py",
+      "sha256": "527ffffa5560d484fb5c0938a70686b568d83f88957110719d4171817ca5470e"
+    },
+    {
+      "path": "/tmp/compiler-c6-provider-manifest.py",
+      "sha256": "5eff9d653c4f464a48fe1a4633656a97512b817ae03a0d29de9f0c33f6f8340e"
+    },
+    {
+      "path": "/tmp/ccg-postbatch-functional-v3-suite.py",
+      "sha256": "ca7782e4d6426a3097e20bcbf86a09abeb27c45380379636aa3c11151ec22bd3"
+    },
+    {
+      "path": "/tmp/ccg-postbatch-functional-v3-run.sh",
+      "sha256": "810d41d2674c9a42ebcfb269388529ba3ee361c1fafef5843ca996d16cbefb07"
+    },
+    {
+      "path": "/tmp/naming-oracle-setup.json",
+      "sha256": "40cdc417fd9aa05661047b5cf501f9b2a57a5c03f08f984b784e109213a00f99"
+    },
+    {
+      "path": "/tmp/ccg-current-base-provider-seal-20261022.json",
+      "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+    },
+    {
+      "path": "/tmp/ccg-selected-actual-tool-pins-20261022.json",
+      "sha256": "0fd7889eacd0bd61ea2aaa2bc8a1f750521858b87cacd4609cfa353ed2e76d72"
+    },
+    {
+      "path": "/tmp/ccg-actual-c-and-rust-linker-supplement-20261022.json",
+      "sha256": "35e5be51ba674ab4c763679dbee60ae5590e299086e54bc0867eec00d2c0f2e8"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/libgcc.a",
+      "sha256": "c53c33f587ceaf0fc9a4b6bb5c5437082068f64ac70eb3b7a0d899e7ac5ffd3d"
+    },
+    {
+      "path": "/lib64/ld-linux-x86-64.so.2",
+      "sha256": "438c546d8e8cc48496bf3a95f753051afd9db66a629a74e31a9ded71586b56e0"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libc.so.6",
+      "sha256": "fa430b8f298f817a266046af84a77533185ad6fc4406c7d3787b5a0a0c207826"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/liblto_plugin.so",
+      "sha256": "1160335db754d964f3560d403aa58e21380b2284439fe75317ffe5652e8bd839"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libbfd-2.44-system.so",
+      "sha256": "7a27acdd82e38dbddd8568d54de0df4358e71a3c387d5c1d999d369450c1bf6a"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libsframe.so.1",
+      "sha256": "adb0b9a33909e7264ad724e138eb97995832e535b22b192c1a898c349c918a9f"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libz.so.1",
+      "sha256": "85590dd58edf5445e18bc7193e5ebc01ac5841f1ae187e97705a662e90c6421e"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libzstd.so.1",
+      "sha256": "27f07c9a49c2c956bcfb64cd4712976586a66facbf15fc7f09bc37413b5f2b21"
+    },
+    {
+      "path": "/usr/bin/ar",
+      "sha256": "f8fe09d485b40b1d47c534c96f5cbaaa9148e247aa0494c087104421f48ac5eb"
+    },
+    {
+      "path": "/usr/bin/as",
+      "sha256": "07dd8551ea0aa065975e4dddb8e1bb7dc308d12d54eca22c3858db79467c7cb9"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libgmp.so.10",
+      "sha256": "d15e1585c6c267296459570c8ac217ca9123044bcd4e896d2f686b32333445d2"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libm.so.6",
+      "sha256": "6d567d53e895273ca14a1f9dc164fc6c8d39aed2f60aa46a733c2784228915f3"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libmpfr.so.6",
+      "sha256": "4e3ccf5b442fc91054b0153140fe62939009f98ca1367f45de62376d5b18d28c"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libisl.so.23",
+      "sha256": "2c3414e22aef73d2955be7acc1e6213c3e12953d9b6b5f748381bb1e326a8147"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libmpc.so.3",
+      "sha256": "0b478209dd7a8bc37b4f4627795f9214f02572393bacbac04b8fe610ea22e5d0"
+    },
+    {
+      "path": "/usr/libexec/gcc/x86_64-linux-gnu/14/cc1",
+      "sha256": "02675980109a4a5496cddf67d5286de57942759edc830deaa525e36f9a2a0291"
+    },
+    {
+      "path": "/usr/bin/cc",
+      "sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f"
+    },
+    {
+      "path": "/usr/libexec/gcc/x86_64-linux-gnu/14/collect2",
+      "sha256": "ea31a4cebd9df1b6428c463428d461ccecfe66c897936409d5b2cde0b3af9e27"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libctf.so.0",
+      "sha256": "bdcd09af9314ef2a40dd137882523e7cb5944189220980257c5ebcc1fe0c9b5b"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libjansson.so.4",
+      "sha256": "424135d01f0f2f957bd61d6a56f5f0cf7afa146a677a216173f1a20e8cd1ad8e"
+    },
+    {
+      "path": "/usr/bin/ld",
+      "sha256": "d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libdl.so.2",
+      "sha256": "295fa521a03cd2faa99974f378c9e23dd622021ec7d32bcad4f8ea61aec8a872"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libgcc_s.so.1",
+      "sha256": "30c61ab012a4241bed033725a09b61f5fdd3bb7df95ee852d0b096520524c7af"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/libpthread.so.0",
+      "sha256": "85e21f7dba0394411d00959176fd18b470e575b0b05f1f4f41e5636802ce0500"
+    },
+    {
+      "path": "/lib/x86_64-linux-gnu/librt.so.1",
+      "sha256": "7b7b84d1aedda0e0b2bdfc68844362782132180b8f02be1300e21e77572e514b"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/../../../libLLVM.so.23.1-rust-1.99.1-stable",
+      "sha256": "1cfbe1392a767227b88b33ab6187283e281c63f80f9b1ca9010d9cee5fdf9131"
+    },
+    {
+      "path": "/workspace/.rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/lib/rustlib/x86_64-unknown-linux-gnu/bin/rust-lld",
+      "sha256": "9b6f51f983a8184f5d47d224e336cdb35171ad5b138981bc62a22e6d65e7b214"
+    }
+  ],
+  "execution_command": "bash /tmp/ccg-postbatch-functional-v3-run.sh /tmp/ccg-postbatch-functional-v3-plan.json",
+  "guards": {
+    "global_lock": "/tmp/tcl-lsp-naming-build.lock held by suite across full build/run/receipt/cleanup; one target at a time, no parallel Cargo",
+    "source": "Reuse full C6 source_manifest (all tracked/untracked Rust/runtime/tests/experiments/spec/specs/data/resources/.cargo plus all .rs/.c/.h/.tcl/.tclspec/Cargo/toolchain configs); before suite and after each job must match exactly. Inventory hashes checked before each Cargo command.",
+    "providers": "Reuse compiler-c6-provider-manifest.py for allTcl+Jim wrappers/workers, Rust proxies/actual tools and recursively linked shared libraries; before/after equality required. Pin oracle setup JSON and runner files. Exact oracle-setup worker SHA pins and runner-input SHA pins are verified before suite/before each job/after each job.",
+    "artifact": "Capture the executable path Cargo itself reports Running, SHA256/mtime/age, retain it; ordinary Cargo freshness only. No direct/manual old executable invocation, no CAS artifact substitution, no touching fingerprints/mtimes.",
+    "logs": "Reuse unchanged compiler-c6-guarded-cargo.py: filtered20MiB cap per command, bounded lines, warning/error/summary context plus N17G; cap rejects acceptance.",
+    "disk": "At least2GiB before every command (prefer2.3GiB); reuse5s watchdog, abort only this own Cargo process group below2GiB. No target/executable deletion; all artifacts retained.",
+    "stop": "Stop on source/provider/inventory/runner drift, disk abort or no test summary. Failed assertions retain full original expectation; record per-target results and continue other authorized planned targets only while guards hold. Warnings/count mismatch/cap/missing executable prevent acceptance.",
+    "classification": "All local receipts agent-reported, not guarded admission. Parent decides final release/audit status."
+  },
+  "environment": {
+    "RUSTUP_TOOLCHAIN": "1.99.1",
+    "CARGO_BUILD_JOBS": "2",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "TCL_LSP_REQUIRE_TCLSH": "9.0,8.6",
+    "TCL_LSP_JIMSH": "provided pinned native Jim from sourced environment",
+    "Cargo_features": "Default per selected package/target; do not unify closures or add --all-features. Profile test with dev dependencies; all logical execution profiles are fixture-authored."
+  },
+  "runner_provenance": [
+    {
+      "path": "/tmp/compiler-c6-original-suite.py",
+      "sha256": "fc21cb6cb23aa064e8b6a8ccca57a128e41f925f399f3226dc6369c7de18c2d6"
+    }
+  ],
+  "provider_seal": {
+    "path": "/tmp/ccg-current-base-provider-seal-20261022.json",
+    "sha256": "bfa3e8e7b689dadefe4417f1f953cf6cafe06bfba4c8a2ed261111baa103c246"
+  },
+  "provider_snapshot_identity": {
+    "path": "/tmp/ccg-current-provider-identity-20261022.json",
+    "sha256": "f7672e45e68b915f3e4385fa5e683e3dc08c0e48c6fd66c310dc723e760c5e85"
+  },
+  "full_wasm_provider_snapshot": {
+    "path": "/tmp/ccg-current-provider-seal-20261022.json",
+    "sha256": "5a727cdd97d2ede8e10eae2b88338b6151da445951660d64382b8c8e3a89bd98"
+  },
+  "pin_only_successor": {
+    "utc": "2026-10-22T22:07:31.500522+00:00",
+    "prior_plan": {
+      "path": "/tmp/ccg-postbatch-functional-plan.json",
+      "sha256": "406063b58edf7ab331d69dcfb801832e36dd36fffa0324b6e1df8ebd4efca731"
+    },
+    "scope": "Only authorized exact pin changes, successor routing, and explicit existing-provider pin equality. Complete job/selector/assertion/feature/budget inventories unchanged. No Cargo queued/run.",
+    "known_changes": [
+      {
+        "kind": "documented-source-pin",
+        "path": "rust/tcl-registry/src/native_string_is_compilation.rs",
+        "old_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+        "new_sha256": "a70c5ba877c0c294d8d795ed4f99dc88e37b5fe6c7cbac9e81b02715a0a6e555",
+        "change": "Only module-doc backticks; every test/assertion/body byte unchanged.",
+        "owning_commit": "def9a5fd7fdece3f785ace02da20f6ed8a8da539",
+        "patch": {
+          "path": "/tmp/ccg-ci5205-registry-lints/proposal.patch",
+          "sha256": "16257e9d0fb7f97e272db6043429dedb1fd642b01730fa5e0722d162c028ed24"
+        },
+        "receipt": {
+          "path": "/tmp/ccg-ci5205-registry-lints/receipt.json",
+          "sha256": "2f452fa5831e05720288c7f114830cf992dff155e88aa73f808c4beda293f47e"
+        }
+      },
+      {
+        "kind": "truthful-provider-repair",
+        "path": "/tmp/naming-oracle-setup.json",
+        "old_sha256": "915d7f5aa6b9bd927214ac4b35a58c6352d8120ec3b16deff496d13ea54effd6",
+        "new_sha256": "40cdc417fd9aa05661047b5cf501f9b2a57a5c03f08f984b784e109213a00f99",
+        "old_executable_sha256": "0f634c82506c87484326b8f8ad33ab284a1806ef6b6f1e43f012a2314166942e",
+        "new_executable_sha256": "4c52ccf801a46df9ea5aa062c50e5d4b7e7b09c5d523d464fe8b6e682744b12e",
+        "mechanism": "Restored authenticshallowancestry+upstreamannotatedtag thenupstreamauto.def gitdescribe/configure/make. NoHEAD/sourcecodechange, versionmacro/binaryediting, wrapperoverride ororacleexpectationrelaxation.",
+        "receipt": {
+          "path": "/tmp/vm-runtime-jim-provider-repair-20261022/receipt.json",
+          "sha256": "cfad6f33ca7614f7548417802a375b4546960d5ee28580b1f6cea1ac2d9d0e8a"
+        },
+        "source_head_unchanged": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+        "source_tree_unchanged": "2e383c0e70d826fdd024eaeff4f631c33a01d4d7",
+        "source_manifest_unchanged": "bba8be8d398369281319baa1293e58e401427e5f501b3e0a3dec98e45f4adde9"
+      }
+    ],
+    "native_provider_note": "Native v3 already pins current oracle40cdc4; no existing source or provider pin drift found.",
+    "source_changes": [
+      {
+        "path": "rust/tcl-registry/src/native_string_is_compilation.rs",
+        "old_sha256": "bed97d6495859e1c15efd754100de94e9105bcc3ede899691614e21ee510bb06",
+        "new_sha256": "a70c5ba877c0c294d8d795ed4f99dc88e37b5fe6c7cbac9e81b02715a0a6e555"
+      }
+    ],
+    "no_unknown_drift": true
+  },
+  "actual_tool_selectors": {
+    "path": "/tmp/ccg-selected-actual-tool-pins-20261022.json",
+    "sha256": "0fd7889eacd0bd61ea2aaa2bc8a1f750521858b87cacd4609cfa353ed2e76d72"
+  },
+  "actual_tool_pin_successor": {
+    "utc": "2026-10-22T22:58:21.491996+00:00",
+    "prior_plan": {
+      "path": "/tmp/ccg-postbatch-functional-v2-plan.json",
+      "sha256": "45fd1079922c0693c0b1a13a003053401df866b5225852ada1c939eabdc30216"
+    },
+    "scope": "No source/oracle/provider identity drift refreshed. Add exact selected native CC/AR/driver/link tools +rust-lld and linkedlibs to existing every-command pin checks; refuse changed compiler overrides/selected PATH. Existing jobs/features/budgets/assertions/sourcepins/provider seals identical.",
+    "supplement": {
+      "path": "/tmp/ccg-actual-c-and-rust-linker-supplement-20261022.json",
+      "sha256": "35e5be51ba674ab4c763679dbee60ae5590e299086e54bc0867eec00d2c0f2e8"
+    },
+    "actual_tool_records": 27,
+    "suite_inverse": "Exact prior suite recovered after only removal of pure selector guard and inverse filename routing."
+  }
+}
