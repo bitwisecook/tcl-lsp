@@ -2,7 +2,7 @@
 
 Area: editors/, BIG-IP/F5 crates and LSP modules.
 
-Last updated: 2026-10-22T15:36Z
+Last updated: 2026-10-22T15:46Z
 
 Maintained by the bigip-lsp agent. Keep this snapshot and Resume current, and
 push at least every 30 minutes and after each finished item. Full unit table:
@@ -10,11 +10,13 @@ push at least every 30 minutes and after each finished item. Full unit table:
 
 ## In progress
 
-Server e2e finished: XC 5/5 and W109 1/1 PASS; ILX 0/16, all first-diagnostic
-timeouts. Focused F5 model pull unit 1/1 PASS. The plain-Tcl rewrite test
-with the F5 change is running next. Scoped lint is checking the six owned
-fixes; strict dependency lint remains blocked. WASM Clippy is running with
-workspace-local Clang 19 after repairing the missing-tool setup.
+WASM Clippy PASS (zero warnings); native scoped Clippy continues, followed
+by a fresh core pass and owned roots checked with core as a dependency.
+The F5-reversed rewrite comparison and three editor-generator tests are
+building in one command (`/tmp/bigip-without-f5.log`). Its finally block
+restores both loaned server files byte for byte. The with-F5 rewrite case
+failed at the existing "actual worker must retain an applicable rewrite"
+assertion; attribution awaits the reversed result.
 
 ## Outstanding (in priority order)
 
@@ -79,6 +81,12 @@ workspace-local Clang 19 after repairing the missing-tool setup.
 - `current_diagnostics.rs handed back`: F5 pull behavior is confirmed by both
   e2e and focused unit. Only the authorised temporary reverse-and-restore
   comparison remains; no further production edit to this loaned file planned.
+- Standalone `bigip-query-wasm` Clippy on `wasm32-unknown-unknown`:
+  **PASS**, zero warnings, Rust 1.99.1 and workspace-local Clang 19.1.7.
+  Exact command/environment/hash receipt: `wasm-clippy-20261022.json`.
+  Six native owned lint findings have corresponding mechanical fixes in
+  data-group rendering/ILX hover; compilation confirmed by the WASM graph,
+  native lint verification remains pending. No new lint allowance.
 - ILX comparison: `ilx-baseline-20261022.txt` (baseline 1/1) and
   `ilx-current-20261022.txt` (current 2/2). This establishes the deliberate
   contract change, not restored navigation or a passing e2e run.
@@ -99,11 +107,13 @@ workspace-local Clang 19 after repairing the missing-tool setup.
 - Active server run uses `BIGIP_TEST_PLAN` from `/tmp/bigip-server-plan.json`
   with `/tmp/bigip-test.py --locked -p tcl-lsp-server --lib --test e2e`. The
   e2e/F5 runs above are done; only the plain-Tcl rewrite process remains. Do not restart it as an unfiltered full suite.
-  Active tool session: server 68675. Selected-package clippy 85905 and
-  standalone WASM clippy 9878 finished (target wasm32-unknown-unknown, independent
-  `/workspace/bigip-wasm-clippy-target`, logs `/tmp/bigip-wasm-clippy*`). Full clippy session 52506 has finished
-  with the dependency errors above; the selected-package pass follows it. Both use the same
-  unchanged product source. The original `/workspace/tcl-lsp` setup rebase was
+  Original server session 68675 finished and deleted both test executables.
+  Active sessions: negative comparison/generators 24095; native scoped
+  lint 46036; queued core/owned-root lint 23728. WASM 30313 finished PASS.
+  Logs `/tmp/bigip-{without-f5,clippy-owned-after,clippy-core-final,clippy-roots-final,wasm-clippy-after}*`.
+  `/tmp/bigip-without-f5.py` reverses only the F5 change and restores in a
+  finally block. Do not commit the temporary server diffs.
+ The original `/workspace/tcl-lsp` setup rebase was
   aborted and its tracked files are clean; its ignored oracle directory is
   retained through the active checkout's `tmp` symlink.
 - Next: finish the running server and clippy checks; rewrite attribution

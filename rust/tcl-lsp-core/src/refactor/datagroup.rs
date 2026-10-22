@@ -275,7 +275,7 @@ pub fn extract_to_datagroup_from_if(
             extent: configured_command_span_offsets(source, &cmd, config)?,
             config,
         },
-        chain,
+        &chain,
         dg_name,
         line_index,
         || Some(()),
@@ -284,6 +284,7 @@ pub fn extract_to_datagroup_from_if(
 
 /// Rendering inputs; the analysis entry supplies independently checked
 /// original extents, while standalone convenience calls retain their own syntax.
+#[derive(Clone, Copy)]
 struct DataGroupRenderSource<'a> {
     source: &'a str,
     command: &'a SegmentedCommand,
@@ -293,7 +294,7 @@ struct DataGroupRenderSource<'a> {
 
 fn render_if_extraction(
     rendering: DataGroupRenderSource<'_>,
-    chain: IfChain,
+    chain: &IfChain,
     dg_name: &str,
     line_index: &LineIndex,
     mapping_selected: impl FnOnce() -> Option<()>,
@@ -681,7 +682,7 @@ pub fn extract_to_datagroup_from_switch(
         },
         dg_name,
         line_index,
-        SwitchExtraction {
+        &SwitchExtraction {
             original,
             default_word: case_list
                 .keyword_patterns
@@ -703,7 +704,7 @@ fn render_switch_extraction(
     rendering: DataGroupRenderSource<'_>,
     dg_name: &str,
     line_index: &LineIndex,
-    selected: SwitchExtraction,
+    selected: &SwitchExtraction,
     mapping_selected: impl FnOnce() -> Option<()>,
 ) -> Option<Refactoring> {
     let DataGroupRenderSource {
@@ -846,6 +847,14 @@ pub fn extract_to_datagroup(
     )
 }
 
+// A free function retains the higher-ranked source-word lifetime required by
+// with_source_schema; the inherent method item fixes that lifetime too early.
+fn selected_clause_plan(
+    schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+) -> Option<tcl_registry::ClausePlan> {
+    schema.clause_plan()
+}
+
 /// Compatibility proposal from a complete current Logical document. The
 /// selected source descriptor supplies layout only; Native insertion, movement
 /// and execution permissions remain outside this authoring API.
@@ -882,14 +891,13 @@ pub fn extract_to_datagroup_with_analysis(
     };
     match hook {
         tcl_registry::hooks::LoweringHookId::If => {
-            let plan =
-                words.with_source_schema(&current.context(), |schema| schema.clause_plan())??;
+            let plan = words.with_source_schema(&current.context(), selected_clause_plan)??;
             let mut expression = tcl_syntax::expr::parser::ExprParseContext::for_profile(
                 analysis.resolved_input.as_ref()?.unit_profile(),
             );
             expression.lexer_grammar = current.config().grammar_over(expression.lexer_grammar);
             let chain = if_chain_from_plan(&cmd.texts, &plan, current.config(), &expression)?;
-            render_if_extraction(rendering, chain, dg_name, line_index, mapping)
+            render_if_extraction(rendering, &chain, dg_name, line_index, mapping)
         }
         tcl_registry::hooks::LoweringHookId::Switch => {
             let original =
@@ -909,7 +917,7 @@ pub fn extract_to_datagroup_with_analysis(
                 rendering,
                 dg_name,
                 line_index,
-                SwitchExtraction {
+                &SwitchExtraction {
                     original,
                     default_word,
                     fallthrough_word,

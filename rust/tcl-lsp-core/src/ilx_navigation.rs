@@ -503,23 +503,20 @@ pub fn hover_markdown(call: &IlxMethodCall, target: &IlxTarget) -> String {
     use std::fmt::Write as _;
 
     let mut out = format!("**iRulesLX method** `{}`\n\n", call.method);
-    match &call.target {
-        Some(extension) => {
+    if let Some(extension) = &call.target {
+        let _ = write!(
+            out,
+            "Extension `{}` of plugin `{}`.\n\n",
+            extension.extension, extension.plugin
+        );
+    } else {
+        out.push_str("Extension unknown.\n\n");
+        if let Some(candidate) = &call.source_target {
             let _ = write!(
                 out,
-                "Extension `{}` of plugin `{}`.\n\n",
-                extension.extension, extension.plugin
+                "Possible source constructor: extension `{}` of plugin `{}`. The evaluated handle is unresolved.\n\n",
+                candidate.extension, candidate.plugin
             );
-        }
-        None => {
-            out.push_str("Extension unknown.\n\n");
-            if let Some(candidate) = &call.source_target {
-                let _ = write!(
-                    out,
-                    "Possible source constructor: extension `{}` of plugin `{}`. The evaluated handle is unresolved.\n\n",
-                    candidate.extension, candidate.plugin
-                );
-            }
         }
     }
     match target {

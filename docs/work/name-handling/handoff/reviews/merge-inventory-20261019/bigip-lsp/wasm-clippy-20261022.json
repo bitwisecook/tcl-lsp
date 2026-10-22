@@ -1,0 +1,29 @@
+{
+  "date_utc": "2026-10-22T15:46:52Z",
+  "base_source": "aeecf397",
+  "owned_lint_sources": {
+    "rust/tcl-lsp-core/src/refactor/datagroup.rs": "6a43a39a7c936159ed0a31a9a12f745d5b39d1ad45fbe15257eb7de9244ef2ab",
+    "rust/tcl-lsp-core/src/ilx_navigation.rs": "ef9c0388bd873593fbc53a57a54b8c280ebf06992ac6d8d12127370e62ed7644"
+  },
+  "command": "cargo clippy --locked --manifest-path rust/bigip-query-wasm/Cargo.toml --target wasm32-unknown-unknown --lib --no-deps --message-format=json -- -D warnings",
+  "environment": {
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_BUILD_JOBS": "1",
+    "CARGO_TARGET_DIR": "/workspace/bigip-wasm-clippy-target",
+    "CC_wasm32_unknown_unknown": "/workspace/clang-local/usr/bin/clang-19",
+    "AR_wasm32_unknown_unknown": "/usr/bin/ar",
+    "LD_LIBRARY_PATH": "/workspace/clang-local/usr/lib/x86_64-linux-gnu"
+  },
+  "rust": "1.99.1 stable",
+  "clang": "Debian clang 19.1.7 (3+b1), extracted under workspace; no system installation",
+  "exit_code": 0,
+  "duration": "15m 49s",
+  "compiler_message_counts": {},
+  "scope": "Standalone WASM primary crate with --no-deps. Full dependency-inclusive strict gate remains failed; native owned-code verification is pending.",
+  "raw_sha256": {
+    "/tmp/bigip-wasm-clippy-after.jsonl": "1baf66d5aefb860af8ff05e4e1e3bc975a783c26e00e2a5bf2f1188be7f6cca8",
+    "/tmp/bigip-wasm-clippy-after-build.log": "afda8a8f8aaee2878b8f32854f9c17e290ea599594e315e7897b3309f562d75d"
+  }
+}

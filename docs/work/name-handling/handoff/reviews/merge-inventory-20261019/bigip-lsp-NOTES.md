@@ -23,7 +23,8 @@ and current refusal tests 2/2 pass. Repros and receipts are indexed in the
 outstanding file. No assertions or latency budgets were weakened.
 
 Full strict Clippy failed with 789 compiler and 379 VM dependency errors.
-Scoped checks and six owned lint fixes are in progress, along with the
+Standalone WASM Clippy passes with zero warnings (`wasm-clippy-20261022.json`).
+Six mechanical owned lint fixes compile; native scoped checks remain in progress, along with the
 three editor-generator tests and the F5-reversed rewrite comparison.
 These development pushes do not satisfy the external-review section F gate.
 
