@@ -2631,16 +2631,24 @@ impl<'r> Lowerer<'r> {
     /// is nothing here to prove and clamping it would only delete text.  Such
     /// words are the literal gates' business — they barrier rather than
     /// lower.
-    fn guarded_body_text<'t>(&self, tok: tcl_lexer::Token, text: &'t str) -> &'t str {
+    ///
+    /// A translating Document channel folds CRLF in a braced word's cooked
+    /// value while its spans stay original offsets, so a braced body maps
+    /// back to its source region first
+    /// ([`crate::segmenter::braced_body_source_region`]).
+    fn guarded_body_text(&self, tok: tcl_lexer::Token, text: &str) -> String {
         if matches!(tok.kind, TokenType::Var | TokenType::Cmd) {
-            return text;
+            return text.to_owned();
         }
-        crate::segmenter::body_text_in_region(
+        let base = (tok.span.start() + u32::from(tok.content_offset)) as usize;
+        let text = crate::segmenter::braced_body_source_region(
             &self.source,
-            (tok.span.start() + u32::from(tok.content_offset)) as usize,
-            tok.span.end() as usize,
+            base,
+            tok.span.end().saturating_sub(1) as usize,
             text,
-        )
+        );
+        crate::segmenter::body_text_in_region(&self.source, base, tok.span.end() as usize, text)
+            .to_owned()
     }
 
     fn lower_body_inner(&mut self, text: &str, base_offset: u32, namespace: &str) -> Script {
@@ -7764,6 +7772,30 @@ fn walk_for_trace(
 #[cfg(test)]
 mod tests {
     use crate::interprocedural::test_body_identity::{fixture_id, fixture_id_if_present};
+
+    /// A Windows document: the cooked `namespace eval` body folds CRLF while
+    /// the lowered body unit keeps original offsets, so its span must cover
+    /// the whole written region up to the closing brace.
+    #[test]
+    fn crlf_namespace_eval_body_unit_spans_its_written_region() {
+        let source = "namespace eval ::x {\r\n    set a 1\r\n    set b 2\r\n}\r\n";
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let module = super::lower_to_ir_with_dialect(
+            source,
+            registry,
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+            Some(tcl_dialect::DialectProfile::find("tcl8.6").expect("profile")),
+        );
+        let open = u32::try_from(source.find('{').unwrap() + 1).unwrap();
+        let close = u32::try_from(source.rfind('}').unwrap()).unwrap();
+        let spans = module
+            .body_units
+            .values()
+            .filter(|unit| unit.body_kind == crate::ir::ProcedureBodyKind::NamespaceScript)
+            .map(|unit| unit.span)
+            .collect::<Vec<_>>();
+        assert_eq!(spans, vec![tcl_lexer::Span::new(open, close)]);
+    }
 
     fn fixture_method<'a>(
         methods: &'a crate::ir::MethodInventory,

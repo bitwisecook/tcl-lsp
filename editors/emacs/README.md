@@ -78,9 +78,7 @@ Add to your `init.el`:
 ;; Plain `tcl-mode` for the rest of the family. The server routes these from
 ;; their own name or content, so sending languageId "tcl" costs nothing but
 ;; the mode line.
-(dolist (ext '("tcl" "tk" "itcl" "tm" "test"))
-  (add-to-list 'auto-mode-alist
-               (cons (concat "\\." ext "\\'") 'tcl-mode)))
+(add-to-list 'auto-mode-alist '("\\.\\(tcl\\|tk\\|itcl\\|tm\\|test\\)\\'" . tcl-mode))
 ;; </generated>
 
 ;; <generated: emacs-eglot>
