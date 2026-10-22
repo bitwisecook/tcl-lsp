@@ -1659,3 +1659,58 @@ fn fp_sh_24_braced_expr_operand_still_fires() {
         codes(src, D),
     );
 }
+
+#[test]
+fn zz_sol49_dict_for_probe() {
+    for src in [
+        "set d {a 1 b 2}\ndict for {k v} $d { puts \"$k=$v\" }\n",
+        "proc f {x} { switch -glob $x { a* { return 1 } }\n puts $y }\n",
+        "proc f {x} { while 1 { switch -glob $x {a* {break} default {break}} }; puts $y }\n",
+    ] {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
+            src, registry, false, profile,
+        );
+        eprintln!(
+            "SRC {src:?} deferred_any={} codes={:?}",
+            cu.ir_module.deferred_writes.any,
+            codes(src, D)
+        );
+        let module = &cu.ir_module;
+        let mut pending = vec![&module.top_level];
+        pending.extend(module.procedures.values().map(|procedure| &procedure.body));
+        while let Some(script) = pending.pop() {
+            for statement in &script.statements {
+                pending.extend(statement.child_scripts());
+                let text = format!("{statement:?}");
+                eprintln!("  IR {}", text.chars().take(140).collect::<String>());
+                let Some(tokens) = script.retained_source_tokens_for_statement(statement) else {
+                    continue;
+                };
+                for (offset, binding) in &tokens.nested_bindings {
+                    eprintln!(
+                        "    NESTED @{offset} recorded={}",
+                        binding.original_recorded_command().is_some()
+                    );
+                }
+            }
+        }
+        for (name, fu) in cu.procedures.iter().map(|(id, fu)| (format!("{id:?}"), fu)) {
+            let mut ids: Vec<_> = fu.cfg.blocks.keys().collect();
+            ids.sort();
+            for id in ids {
+                let block = &fu.cfg.blocks[id];
+                eprintln!(
+                    "  FU {name} B{id:?} stmts={} term={}",
+                    block.statements.len(),
+                    format!("{:?}", block.terminator)
+                        .chars()
+                        .take(120)
+                        .collect::<String>()
+                );
+            }
+        }
+    }
+}
