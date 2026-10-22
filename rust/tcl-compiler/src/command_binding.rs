@@ -4585,29 +4585,15 @@ impl CapturedNativeCompletionReceipts {
 
 /// Whether a handler without its own closed receipt still leaves the world
 /// exactly as the walk models it on normal return. A declared descriptor must
-/// carry no state transition at all (`list`, `string length`); any binding,
+/// carry no state transition at all (`list`, `string length`): any binding,
 /// namespace, package, trace or interpreter transition needs a receipt. A
-/// descriptor without declared transitions (`puts`) qualifies only through a
-/// closed effect footprint: no re-entrant callback, no command-table mutation
-/// and no write outside the result, completion state and variable store.
+/// descriptor without declared transitions (`puts`) is the walk's generic
+/// invocation, whose unmodelled effects already mark the state opaque.
 fn command_world_closed_on_normal_return(facts: &InvocationFacts) -> bool {
-    use tcl_registry::{EffectAccessMode, WorldStateDomain};
-    match facts.state_transitions.declared() {
-        Some(transitions) => transitions.facts().is_empty(),
-        None => {
-            !facts.effects.requires_world_barrier()
-                && !facts.effects.legacy().command_table_mutation
-                && facts.effects.accesses().iter().all(|access| {
-                    access.mode == EffectAccessMode::Read
-                        || matches!(
-                            access.domain,
-                            WorldStateDomain::InterpreterResult
-                                | WorldStateDomain::CompletionState
-                                | WorldStateDomain::VariableStore
-                        )
-                })
-        }
-    }
+    facts
+        .state_transitions
+        .declared()
+        .is_none_or(|transitions| transitions.facts().is_empty())
 }
 
 fn source_frame_namespace(frame: &crate::var_resolve::VariableExecutionFrame) -> &str {
